@@ -1,7 +1,7 @@
 //! **The conic × quadric root door**: the certified crossings of a
 //! CIRCLE or ELLIPSE carrier with a sphere, a cylinder wall or a cone. It
 //! reads the residual's harmonics from their one home and hands them to
-//! one of the shared root cores ([`geom_brep::curve_face::circle_roots`]), whose answer
+//! one of the shared root cores ([`super::circle_roots`]), whose answer
 //! it gives. Its one root reading of its own is a cone's carrier through
 //! the apex ("Through the apex" below), which the cores cannot certify
 //! and which it reads in closed form before them.
@@ -14,25 +14,25 @@
 //! projection off the axis on a wall), `⊥(C(θ) − o)` is a first harmonic
 //! in `θ`, so the linearized residual is EXACTLY
 //! `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ` metres
-//! (`geom_brep::ConicHarmonics`). On a sphere or a wall the noise
+//! (`crate::ConicHarmonics`). On a sphere or a wall the noise
 //! meter's floor on `|F|` per metre of residual is therefore `1`, an
 //! identity rather than a neighbourhood bound; a cone's `F` is in its
 //! own units, and its floor is read from the geometry ("Against a cone"
 //! below). There are at most four crossings per turn.
-//! An in-band sign escalates as the surface's arc decision
-//! ([`BooleanDecision::ArcSphereRoots`],
-//! [`BooleanDecision::ArcCylinderRoots`]).
+//! An in-band sign refuses as the surface's arm of
+//! [`ConicQuadricRefusal`] ([`ConicQuadricRefusal::Sphere`],
+//! [`ConicQuadricRefusal::Cylinder`]).
 //!
 //! # Two arms, by the second harmonic
 //!
-//! `bool_conic_quadric_second_harmonic` decides `A₂ = |(c₂, s₂)|`, the
+//! `conic_quadric_second_harmonic` decides `A₂ = |(c₂, s₂)|`, the
 //! second harmonic's amplitude in `F`'s units: metres on a sphere or a
 //! wall, where `F` is the residual, and `Q/R` on a cone.
 //!
 //! - **The first-harmonic arm — `A₂` in the zero band**: the residual is
 //!   a first harmonic to within `A₂`, which is charged to both extremes'
 //!   noise, and the shared first-harmonic door decides it on its exact
-//!   extremes under the `bool_conic_quadric_first_*` rows. The arm is
+//!   extremes under the `conic_quadric_first_*` rows. The arm is
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
 //!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
@@ -52,28 +52,28 @@
 //!     `4r·zero/(|a| + |b|)` of each other (`A₂ = |a² − b²|/4r`);
 //!   - **a circle against a sphere, `A₂ ≡ 0`**: no decision is taken.
 //!     Its first harmonic is read in its factored form
-//!     (`geom_brep::circle_sphere_harmonic`): the extremes
+//!     (`crate::circle_sphere_harmonic`): the extremes
 //!     `(D∓ − r)(D∓ + r)/2r`, `D∓` the distances from the sphere's centre
 //!     to the circle's nearest and farthest points, each with a running
 //!     bound on its rounding, so a shallow crossing is placed as well as
 //!     its near extreme is evaluated rather than as well as the
 //!     harmonics' m² terms are. A frame that is not orthonormal moves the
 //!     circle off that form, and its defect is charged to both extremes
-//!     (`geom_brep::CircleSphereHarmonic::frame_error`). Every circle
+//!     (`crate::CircleSphereHarmonic::frame_error`). Every circle
 //!     whose axis passes through the sphere's centre has a constant
 //!     residual, and lies ON the sphere when it is zero.
 //! - **The ladder — `A₂` definite, or in the band's gap**: the five
 //!   harmonics go to the shared half-angle ladder under the
-//!   `bool_conic_quadric_*` ladder rows. The carrier's speed `|C′|` lies
+//!   `conic_quadric_*` ladder rows. The carrier's speed `|C′|` lies
 //!   in `[b, a]`, which the ladder's frame carries as such, so its root
 //!   variable is `τ = 2b·tan(φ/2)`; its lever is that variable's own
 //!   scale `2b` (a circle's `2ρ`), and it is not clamped by the surface's
 //!   size: the roots spread along the carrier, not across the surface (a
 //!   circle in a plane through a wall's axis meets it at points a whole
 //!   diameter apart whatever `r` is). Each root the subdivision certifies
-//!   carries its slack (`bool_conic_quadric_sub_root_slack`): the
+//!   carries its slack (`conic_quadric_sub_root_slack`): the
 //!   residual at the root with its running bound
-//!   ([`geom_brep::conic_quadric_residual`]), over `F`'s least slope near
+//!   ([`crate::conic_quadric_residual`]), over `F`'s least slope near
 //!   it, at the top speed. At a shallow crossing that slope is small, and
 //!   the `f64` residual's sign change sits that reading's rounding over
 //!   it from the true root; a root whose slack the band cannot hold is
@@ -91,8 +91,8 @@
 //! `h` a first harmonic, so `Q` is of degree two along a conic, and its
 //! zero set is the DOUBLE cone the residual states. The door reads
 //! `F = Q/R`, `R` the carrier's reach from the apex
-//! ([`geom_brep::conic_cone_harmonics`]), by the wall's two arms under
-//! the same rows and the [`BooleanDecision::ArcConeRoots`] decision.
+//! ([`crate::conic_cone_harmonics`]), by the wall's two arms under
+//! the same rows and the [`ConicQuadricRefusal::Cone`] arm.
 //! `F` is not the residual, and every reading takes that into account:
 //!
 //! - **`|F| ≤ |res|`, with the same sign** (on the near nappe
@@ -100,17 +100,17 @@
 //!   So a definite sign of `F` is the residual's, a clear margin read
 //!   through the ceiling `1` is a lower bound on `|res|`, and a root's
 //!   slack is charged its own residual reading
-//!   ([`geom_brep::conic_cone_residual`]) under
-//!   `bool_conic_cone_root_slack`. Near the apex `F′` vanishes with the
+//!   ([`crate::conic_cone_residual`]) under
+//!   `conic_quadric_cone_root_slack`. Near the apex `F′` vanishes with the
 //!   gradient, and the slack with it refuses.
 //! - **`|res| ≤ |F| / floor`**, the floor `min(sin α, cos α)·d/R`, `d`
 //!   a lower bound on the carrier's distance from the apex. An
 //!   `Roots::On` from the first-harmonic arm certifies only that `F` is
 //!   in the band; it stands once its whole reach read through the floor
-//!   is too (`bool_conic_cone_on_surface`), and refuses `Unsettled::Meter`
+//!   is too (`conic_quadric_cone_on_surface`), and refuses `Unsettled::Meter`
 //!   otherwise.
 //! - **Every root the arms certify, its distance from the apex** is
-//!   decided (`bool_conic_cone_apex`): not definitely positive, and the
+//!   decided (`conic_quadric_cone_apex`): not definitely positive, and the
 //!   door refuses [`Unsettled::AtApex`] — the arms read no slope at a
 //!   point where the cone has no tangent plane. A carrier through the
 //!   apex never reaches them: it is read whole first ("Through the apex"
@@ -130,7 +130,7 @@
 //! `G = k + R cos(φ − β)` a first harmonic and `ε₀ = F(θ_a)`,
 //! `ε₁ = F′(θ_a)`. Each reading is its own row:
 //!
-//! - **the apex on the carrier** (`bool_conic_cone_apex`), read at the
+//! - **the apex on the carrier** (`conic_quadric_cone_apex`), read at the
 //!   anomaly of the apex's own in-plane coordinates (`Conic::azimuth`):
 //!   on a circle the carrier's nearest point to the apex's projection,
 //!   on an ellipse in general not, so the distance read is at least the
@@ -138,7 +138,7 @@
 //!   goes to the arms, whose apex rung refuses a root beside it, and the
 //!   `δ` the spread is bounded by is that reading's, never smaller than
 //!   the true distance. Not decided on it: the arms read the carrier;
-//! - **the apex's spread** (`bool_conic_cone_apex_spread`), a bound:
+//! - **the apex's spread** (`conic_quadric_cone_apex_spread`), a bound:
 //!   on a window `|φ| ≤ Φ` about the apex, `|G| ≥ |G(0)| − RΦ` and
 //!   `2 sin²(φ/2) ≥ (1 − Φ²/12)φ²/2`, so with `λ` their product the roots
 //!   there lie within `(|ε₁| + √(ε₁² + 2λ|ε₀|))/λ` of `θ_a`. `Φ` is twice
@@ -147,16 +147,16 @@
 //!   `2δ·speed/R` at that point's distance `δ` from the apex, not by the
 //!   rounded coefficients, whose noise the root would amplify. Past the
 //!   band: [`Unsettled::AtApex`];
-//! - **`G`'s roots** (`bool_conic_cone_deflated_depth`, `|k| − R`):
+//! - **`G`'s roots** (`conic_quadric_cone_deflated_depth`, `|k| − R`):
 //!   definitely positive, none, so the apex's double root is the
 //!   carrier's only one. In the band, a tangency. Negative: two, in
 //!   closed form, each clear of the apex's spread and of each other
-//!   (`bool_conic_cone_deflated_clear`), bracketed by a definite change
-//!   of the cone's residual (`bool_conic_cone_deflated_side`), and metered
-//!   (`bool_conic_cone_root_slack`): `|F|` at the root over a lower bound
+//!   (`conic_quadric_cone_deflated_clear`), bracketed by a definite change
+//!   of the cone's residual (`conic_quadric_cone_deflated_side`), and metered
+//!   (`conic_quadric_cone_root_slack`): `|F|` at the root over a lower bound
 //!   on `|F′|` across the whole bracket, `|F′(θ)| − 2·noise − w(ρ₁ + 4ρ₂)` with
 //!   `ρₖ` the harmonics' amplitudes, at the carrier's top speed. The
-//!   arms' meter (geom_brep's `RootSlack`) decides the same arc under the
+//!   arms' meter (`RootSlack`) decides the same arc under the
 //!   same row, its slope read on a window about the root inside the
 //!   subdivision; this one reads it on its own bracket, which needs no
 //!   subdivision.
@@ -170,16 +170,14 @@
 
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::{BooleanDecision, BooleanError};
-use crate::validate::decide;
-use geom_brep::curve_face::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
+use super::circle_roots::{
+    CircleRoots, DoorRefusal, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots,
+    first_harmonic_roots,
 };
-use geom_brep::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame,
-};
-use geom_brep::roots::{OnCarrier, Roots, Unsettled};
-use geom_core::rounding_charge;
+use crate::half_angle::{DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame};
+use crate::roots::{OnCarrier, Roots, Unsettled};
+use geom_core::k_stats::decide;
+use geom_core::{Indeterminate, rounding_charge};
 
 #[cfg(test)]
 mod circle_sphere_rows;
@@ -197,13 +195,53 @@ mod in_band_sweep;
 mod shallow_sweep;
 
 /// The arm switch's row (module docs, "Two arms").
-const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";
+const SECOND_HARMONIC: &str = "conic_quadric_second_harmonic";
 
 /// The first-harmonic arm's rows.
-const FIRST_ROWS: FirstHarmonicRows = geom_brep::rows::CONIC_QUADRIC_FIRST;
+const FIRST_ROWS: FirstHarmonicRows = crate::rows::CONIC_QUADRIC_FIRST;
 
 /// The ladder's rows.
-const LADDER_ROWS: HalfAngleRows = geom_brep::rows::CONIC_QUADRIC_LADDER;
+const LADDER_ROWS: HalfAngleRows = crate::rows::CONIC_QUADRIC_LADDER;
+
+/// **Why [`conic_quadric_roots`] refused**: the surface's arm and the
+/// classifying sign it read in the band's escalation gap, or a kernel
+/// defect. The caller names the decision an arm's escalation is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ConicQuadricRefusal {
+    /// Against a sphere.
+    Sphere(Indeterminate),
+    /// Against a cylinder wall.
+    Cylinder(Indeterminate),
+    /// Against a cone.
+    Cone(Indeterminate),
+    /// A carrier or a surface of a kind the door does not read, or
+    /// readings that contradict: a kernel defect.
+    Invariant(&'static str),
+}
+
+impl ConicQuadricRefusal {
+    /// The refusal without its arm, for a reader that names no decision
+    /// per arm, in any door's refusal shape.
+    #[must_use]
+    pub const fn door_refusal<X>(self) -> DoorRefusal<X> {
+        match self {
+            Self::Sphere(diag) | Self::Cylinder(diag) | Self::Cone(diag) => {
+                DoorRefusal::Escalated(diag)
+            }
+            Self::Invariant(what) => DoorRefusal::Invariant(what),
+        }
+    }
+}
+
+/// A root core's refusal as `arm`'s.
+fn refused(
+    arm: fn(Indeterminate) -> ConicQuadricRefusal,
+) -> impl Fn(DoorRefusal) -> ConicQuadricRefusal {
+    move |refusal| match refusal {
+        DoorRefusal::Escalated(diag) => arm(diag),
+        DoorRefusal::Invariant(what) => ConicQuadricRefusal::Invariant(what),
+    }
+}
 
 /// The certified crossings of the `carrier` circle or ellipse with
 /// `surface`, a sphere, a cylinder wall or a cone, reported within `π`
@@ -211,24 +249,26 @@ const LADDER_ROWS: HalfAngleRows = geom_brep::rows::CONIC_QUADRIC_LADDER;
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when `carrier` is neither a
+/// [`ConicQuadricRefusal::Invariant`] when `carrier` is neither a
 /// circle nor an ellipse or `surface` not a sphere, a cylinder or a cone —
 /// the caller dispatched on those kinds, so a mismatch is a desync,
-/// never an answer. An escalation as the surface's arc decision for an
-/// in-band classifying sign: an extreme or constant residual of the
-/// first-harmonic arm, or a rung of the ladder. A second harmonic in the
+/// never an answer. The surface's arm for an in-band classifying sign:
+/// an extreme or constant residual of the first-harmonic arm, or a rung
+/// of the ladder. A second harmonic in the
 /// band's GAP is not an error: it takes the ladder. A count the door
 /// cannot certify is the inner [`Unsettled`].
-pub(super) fn conic_quadric_roots<T: Decide>(
+pub fn conic_quadric_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
-    let desync = || BooleanError::ClassificationInvariant {
-        what: "the conic × quadric root door was handed a carrier that is not a circle or an \
-               ellipse or a surface that is not a sphere, a cylinder or a cone",
+) -> Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal> {
+    let desync = || {
+        ConicQuadricRefusal::Invariant(
+            "the conic × quadric root door was handed a carrier that is not a circle or an \
+             ellipse or a surface that is not a sphere, a cylinder or a cone",
+        )
     };
     let conic = carrier.conic().ok_or_else(desync)?;
     match (carrier, surface) {
@@ -241,7 +281,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             },
         ) => {
             // `A₂ ≡ 0`: the first harmonic, in its factored form.
-            let h = geom_brep::circle_sphere_harmonic(&circle, s_center, s_radius);
+            let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             return first_harmonic_roots(
                 &FirstHarmonic {
                     lo: h.lo,
@@ -258,9 +298,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 &FIRST_ROWS,
                 band,
             )
-            .map_err(BooleanError::of_door_refusal(
-                BooleanDecision::ArcSphereRoots,
-            ))
+            .map_err(refused(ConicQuadricRefusal::Sphere))
             .map(|found| found.map(Roots::widen));
         }
         (
@@ -278,37 +316,37 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     }
     let QuadricLadder {
         h,
-        decision,
+        arm,
         quadric,
         frame,
     } = quadric_ladder(&conic, surface, (t0, t1)).ok_or_else(desync)?;
     if let Some(first) = first_harmonic_arm(&h, frame.walk.noise, band) {
         return first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
-            .map_err(BooleanError::of_door_refusal(decision))
+            .map_err(refused(arm))
             .map(|found| found.map(Roots::widen));
     }
     door_half_angle_roots(
         &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-        |theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
+        |theta| crate::implicit_residual(surface, conic.point_at(theta)),
         frame,
         &LADDER_ROWS,
         &RootSlack {
             row: LADDER_ROOT_SLACK,
-            residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
+            residual: &|theta| crate::conic_quadric_residual(&conic, quadric, theta),
             f_per_metre_hi: T::one(),
         },
         band,
     )
-    .map_err(BooleanError::of_door_refusal(decision))
+    .map_err(refused(arm))
 }
 
 /// A conic against a sphere or a wall, read for the door's two arms: its
-/// harmonics, the surface's decision, the quadric as
-/// [`geom_brep::conic_quadric_residual`] reads it, and the ladder's frame,
+/// harmonics, the surface's refusal arm, the quadric as
+/// [`crate::conic_quadric_residual`] reads it, and the ladder's frame,
 /// which carries the harmonics' noise.
 struct QuadricLadder<'a, T: Decide> {
-    h: geom_brep::ConicHarmonics<T>,
-    decision: BooleanDecision,
+    h: crate::ConicHarmonics<T>,
+    arm: fn(Indeterminate) -> ConicQuadricRefusal,
     quadric: (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
     frame: HalfAngleFrame<'a, T>,
 }
@@ -320,10 +358,10 @@ fn quadric_ladder<T: Decide>(
     surface: &geom::Surface<T>,
     (t0, t1): (T, T),
 ) -> Option<QuadricLadder<'static, T>> {
-    let (h, decision, quadric) = match *surface {
+    let (h, arm, quadric): (_, fn(Indeterminate) -> ConicQuadricRefusal, _) = match *surface {
         geom::Surface::Sphere { center, radius, .. } => (
-            geom_brep::conic_sphere_harmonics(conic, center, radius),
-            BooleanDecision::ArcSphereRoots,
+            crate::conic_sphere_harmonics(conic, center, radius),
+            ConicQuadricRefusal::Sphere,
             (center, None, radius),
         ),
         geom::Surface::Cylinder {
@@ -332,8 +370,8 @@ fn quadric_ladder<T: Decide>(
             radius,
             ..
         } => (
-            geom_brep::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
-            BooleanDecision::ArcCylinderRoots,
+            crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
+            ConicQuadricRefusal::Cylinder,
             (origin, Some(axis), radius),
         ),
         _ => return None,
@@ -346,7 +384,7 @@ fn quadric_ladder<T: Decide>(
     let frame = ladder_frame(conic, (t0, t1), noise, h.floor);
     Some(QuadricLadder {
         h,
-        decision,
+        arm,
         quadric,
         frame,
     })
@@ -354,12 +392,12 @@ fn quadric_ladder<T: Decide>(
 
 /// The ladder's root-slack row on a sphere or a wall (module docs, "Two
 /// arms"): `F` is the residual, so its ceiling per metre is `1`.
-const LADDER_ROOT_SLACK: &str = "bool_conic_quadric_sub_root_slack";
+const LADDER_ROOT_SLACK: &str = "conic_quadric_sub_root_slack";
 
 /// The first-harmonic arm's reading of `h` (module docs, "Two arms"),
 /// or `None` where the second harmonic takes the ladder.
 fn first_harmonic_arm<T: Decide>(
-    h: &geom_brep::ConicHarmonics<T>,
+    h: &crate::ConicHarmonics<T>,
     noise: T,
     band: Band,
 ) -> Option<FirstHarmonic<T>> {
@@ -381,7 +419,7 @@ fn first_harmonic_arm<T: Decide>(
 }
 
 /// The ladder's frame for a conic: `F`'s ceiling on `|F|` per metre of
-/// residual is `1` on every kind ([`geom_brep::ConicHarmonics::floor`]),
+/// residual is `1` on every kind ([`crate::ConicHarmonics::floor`]),
 /// its floor the door's `floor`.
 fn ladder_frame<T: Decide>(
     conic: &dyn geom::Conic<T>,
@@ -407,9 +445,9 @@ fn ladder_frame<T: Decide>(
 
 /// The cone arm's rows: the root slack, the apex, and the on-surface
 /// reading of a constant `F` (module docs, "Against a cone").
-const CONE_ROOT_SLACK: &str = "bool_conic_cone_root_slack";
-const CONE_APEX: &str = "bool_conic_cone_apex";
-const CONE_ON_SURFACE: &str = "bool_conic_cone_on_surface";
+const CONE_ROOT_SLACK: &str = "conic_quadric_cone_root_slack";
+const CONE_APEX: &str = "conic_quadric_cone_apex";
+const CONE_ON_SURFACE: &str = "conic_quadric_cone_on_surface";
 
 /// The conic × quadric door against a CONE (module docs, "Against a
 /// cone"): the wall's two arms on `F = Q/R`, every root's slack metered
@@ -421,8 +459,8 @@ fn cone_roots<T: Decide>(
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
-    let h = geom_brep::conic_cone_harmonics(
+) -> Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal> {
+    let h = crate::conic_cone_harmonics(
         conic,
         geom::Line {
             origin: apex,
@@ -438,7 +476,7 @@ fn cone_roots<T: Decide>(
     }
     let found = if let Some(first) = first_harmonic_arm(&h, noise, band) {
         let found = first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
-            .map_err(BooleanError::of_door_refusal(BooleanDecision::ArcConeRoots))?
+            .map_err(refused(ConicQuadricRefusal::Cone))?
             .map(Roots::widen);
         if let Ok(Roots::On(OnCarrier)) = found {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
@@ -455,7 +493,7 @@ fn cone_roots<T: Decide>(
         found
     } else {
         let placed = |theta: T| {
-            geom_brep::conic_cone_residual(
+            crate::conic_cone_residual(
                 conic,
                 geom::Line {
                     origin: apex,
@@ -472,23 +510,23 @@ fn cone_roots<T: Decide>(
         };
         door_half_angle_roots(
             &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-            |theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
+            |theta| crate::implicit_residual(surface, conic.point_at(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &LADDER_ROWS,
             &meter,
             band,
         )
-        .map_err(BooleanError::of_door_refusal(BooleanDecision::ArcConeRoots))?
+        .map_err(refused(ConicQuadricRefusal::Cone))?
     };
     Ok(found.and_then(|roots| off_the_apex(conic, apex, roots, band)))
 }
 
 /// The rows of a conic through the apex (module docs, "Through the
 /// apex").
-const CONE_APEX_SPREAD: &str = "bool_conic_cone_apex_spread";
-const CONE_DEFLATED_DEPTH: &str = "bool_conic_cone_deflated_depth";
-const CONE_DEFLATED_SIDE: &str = "bool_conic_cone_deflated_side";
-const CONE_DEFLATED_CLEAR: &str = "bool_conic_cone_deflated_clear";
+const CONE_APEX_SPREAD: &str = "conic_quadric_cone_apex_spread";
+const CONE_DEFLATED_DEPTH: &str = "conic_quadric_cone_deflated_depth";
+const CONE_DEFLATED_SIDE: &str = "conic_quadric_cone_deflated_side";
+const CONE_DEFLATED_CLEAR: &str = "conic_quadric_cone_deflated_clear";
 
 /// What [`through_the_apex`] reads of a conic against the cone.
 enum ThroughTheApex<T: geom_core::Real> {
@@ -512,7 +550,7 @@ enum ThroughTheApex<T: geom_core::Real> {
 fn through_the_apex<T: Decide>(
     conic: &dyn geom::Conic<T>,
     (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
-    h: &geom_brep::ConicHarmonics<T>,
+    h: &crate::ConicHarmonics<T>,
     noise: T,
     (t0, t1): (T, T),
     band: Band,
@@ -582,12 +620,12 @@ fn through_the_apex<T: Decide>(
     // the harmonics' amplitudes), so it lies within `(|F| + noise)/that`
     // of the root,
     // at the carrier's top speed an arc that must be definitely in the
-    // band (`bool_conic_cone_root_slack`, the arms' quantity with a
+    // band (`conic_quadric_cone_root_slack`, the arms' quantity with a
     // whole-bracket slope bound in place of their window's). A shallow
     // crossing reads neither, and refuses as the tangency it is near.
     let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
     let residual = |theta: T| {
-        geom_brep::conic_cone_residual(
+        crate::conic_cone_residual(
             conic,
             geom::Line {
                 origin: apex,
@@ -730,7 +768,8 @@ mod tests {
     }
 
     /// **A desynced caller is a kernel defect, loudly.** The door is
-    /// dispatched on a circle or an ellipse against a sphere or a wall;
+    /// dispatched on a circle or an ellipse against a sphere, a wall or a
+    /// cone;
     /// anything else reaching it is the caller's broken invariant, never
     /// an answer.
     #[test]
@@ -778,7 +817,7 @@ mod tests {
         ] {
             let got = conic_quadric_roots(carrier, 0.0, 1.0, surface, band());
             assert!(
-                matches!(got, Err(BooleanError::ClassificationInvariant { .. })),
+                matches!(got, Err(ConicQuadricRefusal::Invariant(_))),
                 "{carrier:?} against {surface:?} refuses as a kernel invariant, got {got:?}"
             );
         }
