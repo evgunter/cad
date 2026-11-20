@@ -5,7 +5,7 @@
 //! roles by it; tier 3's check 6 planar arm (`validate`), which
 //! FALSIFIES a stored role and sense by it; the splitter's
 //! `splitting::section_loops::loop_sense`, which reads a section loop's
-//! role; and the chord joiner's `RimSide::holds_outer`, which reads
+//! role; and the chord joiner's `loop_holds_outer`, which reads
 //! which side of a one-site loop holds a face's outer. Of an OPEN run
 //! closed by the chord the join will mint: the boolean join's ring lane
 //! (`boolean::join::ring_run_ccw`), to pick an island's new outer
