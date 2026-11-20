@@ -150,7 +150,7 @@ fn refuses<T: Scalar>(body: &Body<T>, edges: &[EdgeKey], (verb, size): (Verb, f6
 
 /// A feature clear of the patch: it builds at `truth`, or the meter,
 /// reading it through its box, refuses it as a bound.
-fn builds_or_bound<T: Scalar>(
+fn builds_or_bound<T: Scalar + topo::CertifiedPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     (verb, size): (Verb, f64),
@@ -210,7 +210,7 @@ fn inset_boss<T: Scalar>(h: f64) -> (Body<T>, [EdgeKey; 3]) {
 /// both verbs at `0.1`. The uniform reading refused every chamfer here
 /// `FaceClearance` at margin `0`, its side bounds read at a point on
 /// the walls' planes.
-fn the_short_and_close_witnesses_build<T: Scalar>() {
+fn the_short_and_close_witnesses_build<T: Scalar + topo::CertifiedPolicy>() {
     for h in [0.25, 0.26] {
         let body = l_prism::<T>(h);
         let edges = l_corner(&body, h);
@@ -401,7 +401,7 @@ fn voided<T: Scalar>(x: (f64, f64), y: (f64, f64)) -> Body<T> {
 /// which only the corner's region holds. The uniform reading cleared
 /// the fillet's voids inside the patch (the body then failed to finish)
 /// and refused every chamfer one, inside or out.
-fn a_feature_entering_the_flush_patch_refuses<T: Scalar>(offsets: &[f64]) {
+fn a_feature_entering_the_flush_patch_refuses<T: Scalar + topo::CertifiedPolicy>(offsets: &[f64]) {
     for verb in VERBS {
         let truth = verb.flush(S, (2.0, 1.0, 1.0));
         for &d in offsets {

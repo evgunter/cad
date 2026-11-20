@@ -18,7 +18,7 @@ use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
 use geom_core::RigidMotion;
-use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
 use sweep::blend::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};

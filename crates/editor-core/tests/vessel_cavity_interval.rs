@@ -100,7 +100,7 @@ fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>) -> BoundReport<()> 
 
 /// Both questions at `T`: the sealed cavity's faces, the opened
 /// vessel's every face.
-fn both<T: Scalar>() -> [BoundReport<()>; 2] {
+fn both<T: Scalar + topo::CertifiedPolicy>() -> [BoundReport<()>; 2] {
     let (pot, vessel) = pot_and_vessel::<T>();
     let (hollow, cavity) = sealed_cavity(pot);
     let all = vessel.faces().map(|(k, _)| k).collect();

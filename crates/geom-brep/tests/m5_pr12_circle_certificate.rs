@@ -23,7 +23,7 @@ use geom_brep::{
     SurfacePair, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::test_support::fixture_lever;
-use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
 
 /// The corner configuration of the filleted die: the corner ball
