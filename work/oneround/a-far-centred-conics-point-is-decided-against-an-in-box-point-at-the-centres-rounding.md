@@ -25,7 +25,7 @@ on other slates:
 and
 `work/charttail/row-interval-accepts-a-far-centred-conics-end-inside-the-bands-gap.md`.
 
-## `off_the_apex` (`topo::boolean::conic_quadric`, row `conic_quadric_cone_apex`)
+## `off_the_apex` (`geom_brep::curve_face::conic_quadric`, row `conic_quadric_cone_apex`)
 
 Decides `Margin::norm3(conic.point_at(θ) − apex)` for each certified
 root; not definitely positive refuses `Unsettled::AtApex`.

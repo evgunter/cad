@@ -10,7 +10,7 @@ cost: E
 
 Found by the review of PR 5993 (`splitdoor/roots-unsettled-split`).
 
-`crates/topo/src/boolean/conic_quadric/mod.rs:476` (`off_the_apex`):
+`crates/geom-brep/src/curve_face/conic_quadric.rs` (`off_the_apex`):
 a certified root stands only if its distance from the apex decides
 positive (`CONE_APEX`). A root decided at the apex is `Unsettled::AtApex`
 (`BooleanError::CrossingAtConeApex`, whose doc tells the definite

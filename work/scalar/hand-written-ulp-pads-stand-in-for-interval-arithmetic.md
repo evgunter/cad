@@ -26,7 +26,7 @@ Owed, per site: compute the quantity in `Interval` (or the scalar's own `Bounds`
 - `crates/topo/src/boolean/boxes.rs:6267`
 - `crates/topo/src/boolean/section_cert_rows.rs:3084`
 - `crates/topo/src/boolean/section_cert_rows.rs:3225`
-- `crates/topo/src/boolean/conic_quadric/cone_rows.rs:171`
+- `crates/geom-brep/src/curve_face/conic_quadric/cone_rows.rs`
 - `crates/topo/src/boolean/section_cert/square_search.rs:361`
 - `crates/topo/src/boolean/section_cert/cone_search.rs:712`
 - `crates/topo/src/boolean/section_cert/cone_pair_search.rs:206`

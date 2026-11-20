@@ -14,7 +14,7 @@ cost: M
 An ellipse that lies exactly on a cone (an oblique plane section of
 one nappe, clear of the apex) answers `CircleRoots::Uncertain` from
 the conic × quadric door's cone arm
-(`topo::boolean::conic_quadric::cone_roots`), not `OnSurface`. So the
+(`geom_brep::curve_face::conic_quadric::cone_roots`), not `OnSurface`. So the
 reduction's `(Zero, Zero)` arm cannot record it through
 `reduce::lying_on`, the way it records a circle on a sphere or a
 meridian on a torus.
