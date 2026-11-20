@@ -2348,6 +2348,58 @@ mod tests {
     /// much and the sphere's centre on the axis, where at `θ = 0` the
     /// gap is the bound to first order — so a charge of half the bound
     /// misses there. An exactly orthonormal frame is charged nothing.
+    /// **A circle's residual extremes against a sphere are its extremes'
+    /// enclosure, the frame's charge included.** A frame whose axis leans
+    /// `2⁻²⁸` off unit (its defect charged, `frame_error` past `10⁻¹⁰`):
+    /// the range read is the lower extreme's lower end and the upper
+    /// extreme's upper end, each widened by the frame's charge, and it
+    /// holds the residual of the circle the frame evaluates at every
+    /// sampled angle.
+    #[test]
+    fn a_circles_extremes_on_a_sphere_are_their_enclosure() {
+        let circle = geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2f64.powi(-28), 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            1.3,
+        );
+        let (sc, r) = (Point3::new(1.1, 0.4, -0.7), 0.9);
+        let h = circle_sphere_harmonic(&circle, sc, r);
+        assert!(
+            h.frame_error > 1e-10,
+            "the defect is charged: {}",
+            h.frame_error
+        );
+        let sphere = Surface::Sphere {
+            center: sc,
+            radius: r,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (lo, hi) = circle_residual_extremes(&sphere, &circle).unwrap();
+        let charge = |x: Rounded<f64>| x.error + h.frame_error;
+        assert_eq!(
+            lo,
+            h.lo.value - charge(h.lo),
+            "the lower extreme's lower end"
+        );
+        assert_eq!(
+            hi,
+            h.hi.value + charge(h.hi),
+            "the upper extreme's upper end"
+        );
+        for i in 0..256 {
+            let t = core::f64::consts::TAU * f64::from(i) / 256.0;
+            let f = implicit_residual(&sphere, geom::Conic::point_at(&circle, t));
+            assert!(
+                lo <= f && f <= hi,
+                "the residual {f} at {t} past [{lo}, {hi}]"
+            );
+        }
+    }
+
     #[test]
     fn the_frame_charge_bounds_the_literal_circle() {
         let flat = circle_sphere_harmonic(

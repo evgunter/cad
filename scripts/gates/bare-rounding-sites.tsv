@@ -25,6 +25,7 @@ crates/geom-brep/src/carrier_resolution.rs	prod	1	far-centre
 crates/geom-brep/src/carrier_resolution.rs	test	1	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_roots.rs	prod	1	re-pose
+crates/geom-brep/src/curve_face/circle_roots.rs	test	1	oracle
 crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle
@@ -36,12 +37,13 @@ crates/geom-brep/src/curve_pair/pose/window.rs	prod	2	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	prod	1	re-pose
-crates/geom-brep/src/half_angle.rs	test	7	oracle
+crates/geom-brep/src/half_angle.rs	test	8	oracle
 crates/geom-brep/src/implicit.rs	prod	68	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
 crates/geom-brep/src/pair_section/gap.rs	prod	16	re-pose
+crates/geom-brep/src/pair_section/gap.rs	test	1	oracle
 crates/geom-brep/src/pair_section/ruling.rs	prod	5	re-pose
 crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose
@@ -65,6 +67,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	5	re-pose
 crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	1	oracle
 crates/geom-brep/src/piece.rs	test	3	oracle
 crates/geom-brep/src/props/curved.rs	prod	4	re-pose
+crates/geom-brep/src/props/curved.rs	test	1	oracle
 crates/geom-brep/src/props/loop_area.rs	test	1	oracle
 crates/geom-brep/src/props/quad/rotational/swap_rows/torus.rs	test	1	oracle
 crates/geom-brep/src/props/quad/trimmed.rs	test	1	oracle

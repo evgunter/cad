@@ -414,3 +414,33 @@ pub fn door_answer<T: geom_core::Real, X: core::fmt::Debug>(
         Err(other) => panic!("the door refused outside its decision: {other:?}"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **An extreme is read with its bound.** A first harmonic from
+    /// `−1.05·10⁻⁸` to `1`, each extreme within `10⁻⁹`, at `ε = 10⁻⁹`:
+    /// the least extreme's upper end, `−0.95·10⁻⁸`, lies in the band's
+    /// gap, so the door escalates. Read on the value alone the extreme is
+    /// definitely negative and two roots are certified on a sign the
+    /// reading does not hold.
+    #[test]
+    fn an_extreme_is_read_with_its_bound() {
+        let at = |value: f64| Rounded { value, error: 1e-9 };
+        let h = FirstHarmonic {
+            lo: at(-1.05e-8),
+            hi: at(1.0),
+            cos_part: 1.0,
+            sin_part: 0.0,
+            phase_noise: 0.0,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let got = first_harmonic_roots(&h, 1.0, -1.0, 1.0, &crate::rows::CONIC_QUADRIC_FIRST, band);
+        assert!(
+            matches!(got, Err(DoorRefusal::Escalated(_))),
+            "{:?}: an extreme whose bound reaches the gap is read definite",
+            got.map(|r| r.map(|_| ()))
+        );
+    }
+}

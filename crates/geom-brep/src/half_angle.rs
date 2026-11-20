@@ -1230,6 +1230,59 @@ mod subdivision_guard_rows {
         }
     }
 
+    /// **A touch's fall charges `F`'s own bound at the extremum.**
+    /// `F = 1 − cos(θ − 0.3) + 10⁻¹¹` read locally, a hair off zero at its
+    /// least: read exactly, the piece about the least is one touch. With
+    /// `F` within `2·10⁻⁸` there (two escalation bands), `F` may reach
+    /// `−2·10⁻⁸` between the roots that bound admits, so the fall is past
+    /// the band and no touch is placed. Read at the fall's other end
+    /// (`−G − e₀`) the bound drops out and the touch stands on a value
+    /// the reading does not hold.
+    #[test]
+    fn a_touchs_fall_charges_the_values_bound() {
+        let (eps, a, delta) = (1e-9, 0.3, 1e-11);
+        let touching = |e0: f64| {
+            let jet = move |t: f64| {
+                let (s, c) = (t - a).sin_cos();
+                let mut terms = [1.0 - c + delta, s, c, -s].map(Rounded::exact);
+                terms[0].error = e0;
+                terms
+            };
+            let frame = SubdivisionFrame {
+                t0: -0.5,
+                t1: 0.5,
+                speed_hi: 1.0,
+                noise: 0.0,
+                f_per_metre: 1.0,
+                f_per_metre_hi: 1.0,
+                residual_reach: None,
+            };
+            certified_subdivision_touching(
+                Terms::Local(Local {
+                    at: &jet,
+                    fourth: 1.0,
+                    degree: 1,
+                }),
+                &|t: f64| 1.0 - (t - a).cos() + delta,
+                &frame,
+                &crate::rows::COPLANAR,
+                &crate::rows::COPLANAR_TOUCH,
+                Band::new(eps, 10.0 * eps).unwrap(),
+            )
+            .map(|t| t.touches.len())
+        };
+        let exact = touching(0.0);
+        assert!(
+            matches!(exact, Ok(1)),
+            "{exact:?}: an exact reading of the least is one touch"
+        );
+        let charged = touching(2e-8);
+        assert!(
+            !matches!(charged, Ok(n) if n > 0),
+            "{charged:?}: a touch placed where F's bound reaches two bands past zero"
+        );
+    }
+
     /// **A root whose own slope has no room is metered on its piece.**
     /// `F = sin(θ − 0.3)` read locally, its jet exact but for `F′` within
     /// `10⁻⁶` of a root, where the bound is `2` against a slope of `1`:

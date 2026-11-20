@@ -232,6 +232,19 @@ impl<T: Real> Reading<T> {
         Taylor::over([self.d.square(), self.g1, self.g2], third, w)
     }
 
+    /// Lower and upper bounds on `|D − L|` over a cell `reach` metres of
+    /// core about the reading, `L` the level nearer `D`.
+    fn apart(&self, levels: [T; 2], reach: T) -> (T, T) {
+        let near = nearest(self.d, levels);
+        (near.room() - reach, near.magnitude() + reach)
+    }
+
+    /// `G′` moved toward zero by its bound, so a sign read on it is the
+    /// exact `G′`'s, and the most `D` can be: what a turn reads.
+    fn turning(&self) -> (T, T) {
+        (self.g1.toward_zero(), self.d.magnitude())
+    }
+
     /// Bounds on `D` over that window, `G`'s read back through `√`.
     fn spread(&self, third: T, w: T) -> (T, T) {
         let g = self.swing(third, w);
@@ -405,12 +418,8 @@ impl<T: Decide> Sweep<'_, T> {
     /// reads no sign, whatever `D` is), then read as the crossing it
     /// bounds.
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
-        let r = read(self.core, self.spine, far, phi);
-        match decide(
-            self.rows.turn(),
-            self.slope(r.g1.toward_zero(), r.d.magnitude()),
-            self.band,
-        ) {
+        let (slope, d_hi) = read(self.core, self.spine, far, phi).turning();
+        match decide(self.rows.turn(), self.slope(slope, d_hi), self.band) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
             Ok(Sign::Zero) | Err(_) => None,
         }
@@ -420,10 +429,7 @@ impl<T: Decide> Sweep<'_, T> {
         let big = self.core.circle.radius();
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
-        if self.positive_as(
-            self.rows.clear(),
-            Margin::of(nearest(r.d, self.levels).room() - reach),
-        ) {
+        if self.positive_as(self.rows.clear(), Margin::of(r.apart(self.levels, reach).0)) {
             return Cell::Clear;
         }
         if let Ok(Decided {
@@ -516,9 +522,9 @@ impl<T: Decide> Sweep<'_, T> {
     /// decided `Zero` stand for a critical value no reading certified, a
     /// `Zero` the gap cannot pass.
     fn floor_refusal(&self, r: Reading<T>, reach: T) -> Indeterminate {
-        let near = nearest(r.d, self.levels);
+        let (lower, upper) = r.apart(self.levels, reach);
         let bound = |m: T| decide_reported(self.rows.gap(), Margin::of(m), self.band);
-        match (bound(near.room() - reach), bound(near.magnitude() + reach)) {
+        match (bound(lower), bound(upper)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
                 straddle(self.rows.straddle(), lower, upper, self.band)
@@ -620,4 +626,48 @@ pub(crate) fn critical_gap<T: Decide>(
         Err(Exhausted) => unreachable!("a gap's walk spends its cells before its reads"),
     }
     held.map_or(Ok(Gap::Transverse), Err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A reading of `D = 1 ± 0.1` whose `G′ = −0.3` lies within its
+    /// bound of `0.5`, and no kink.
+    fn reading() -> Reading<f64> {
+        let at = |value: f64, error: f64| Rounded { value, error };
+        Reading {
+            d: at(1.0, 0.1),
+            g1: at(-0.3, 0.5),
+            g2: at(0.0, 0.0),
+            reach: 1.0,
+            kink: None,
+        }
+    }
+
+    /// **A reading's gap from its nearer level is bounded past its own
+    /// rounding, both ways.** `D = 1 ± 0.1` against the levels `2` and
+    /// `0.95`: the nearer is `0.95`, `0.05` off, inside `D`'s bound, so
+    /// over a cell of reach `0.01` the gap is at least `−0.01` (no room
+    /// past zero) and at most `0.16`. Read on the value, or past its
+    /// bound the wrong way, the cell would clear a level it may touch.
+    #[test]
+    fn a_readings_gap_is_bounded_past_its_rounding() {
+        let (lower, upper) = reading().apart([2.0, 0.95], 0.01);
+        assert!(
+            (lower + 0.01).abs() < 1e-15,
+            "the least gap is the reach below zero: {lower}"
+        );
+        assert!((upper - 0.16).abs() < 1e-12, "the most gap: {upper}");
+    }
+
+    /// **A turn reads no sign on a slope within its bound.** `G′ = −0.3`
+    /// within `0.5` reads zero, not negative, and `D` is read at its
+    /// most, `1.1`.
+    #[test]
+    fn a_turn_reads_no_sign_on_a_slope_within_its_bound() {
+        let (slope, d_hi) = reading().turning();
+        assert_eq!(slope, 0.0, "a slope within its bound has no sign");
+        assert!((d_hi - 1.1).abs() < 1e-15, "D at its most: {d_hi}");
+    }
 }
