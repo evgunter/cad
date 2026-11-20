@@ -6,7 +6,7 @@
 //! vertices share that key, and two such corners are one of two things:
 //!
 //! - **one vertex met twice**: a seam's edge walked both ways, or a
-//!   wrap edge's tip ([`crate::validate`]'s check 9 reads each such
+//!   wrap edge's tip ([`mod@crate::validate`]'s check 9 reads each such
 //!   corner's wedge, so it reads every corner group);
 //! - **two distinct vertices on one point**: a **pinch** of the loop,
 //!   one vertex per cone of the solid there. On an at-rest body this is
