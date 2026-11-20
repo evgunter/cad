@@ -1175,7 +1175,7 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
 
 pub(super) use crate::star::Leaned;
 
-pub(super) use crate::star::leaned_lever;
+pub(super) use crate::star::leaned;
 
 /// The star's order refusals ([`crate::star::OrderFault`]) as the
 /// Boolean's: germs coincident to the tolerance are the sectors'
@@ -1223,7 +1223,7 @@ fn within_signs<T: Decide>(
 ///
 /// The line is read scaled by its lean ([`Leaned::line`]): two faces'
 /// line is read un-normalized, `m = n_a × n_b`, the bounds' reaches its
-/// lever as [`leaned_lever`] would give them. Read against a bound `e`
+/// lever as [`leaned`] reads them. Read against a bound `e`
 /// of `a`'s sector at `e`'s reach `L`, it measures
 /// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
 /// departure from `a`'s plane, foreshortened by `cos φ`, less its far

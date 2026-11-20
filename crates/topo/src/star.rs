@@ -110,7 +110,7 @@
 //! germ), whose one comparison ([`before`]) places each germ in its
 //! half-turn by its side of the first and orders two in one half-turn by
 //! their sine, every reading levered as a distance and by the smaller
-//! lean of the directions it reads ([`leaned_lever`]). Zeros that do not
+//! lean of the directions it reads ([`leaned`]). Zeros that do not
 //! agree (two germs each along the first and opposite each other) are
 //! germs coincident to the tolerance, and refuse so. Its ties are the
 //! verb's ([`Ties`]): the split reads two sectors' germs along one
@@ -170,7 +170,7 @@ mod order;
 mod walk;
 pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, apart, cuts, germ_line, span};
 pub(crate) use order::{
-    OrderFault, Ties, Turn, before, germ_order, leaned_lever, same_sense, turn,
+    OrderFault, Ties, Turn, before, germ_order, leaned, same_sense, turn,
 };
 pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 

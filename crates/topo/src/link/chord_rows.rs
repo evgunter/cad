@@ -700,8 +700,7 @@ fn a_tight_cylinder_face_on_a_plate_reads_by_its_sector() {
             &cylinder,
             &plane(-y, p),
             p,
-            // Unsourced lever: the fan's own reach.
-            geom_core::Lever::unsourced(2.0),
+            geom_core::test_support::fixture_lever(2.0),
         );
         assert!(
             geom_core::k_stats::decide("t", geom_core::Margin::levered(-1.0, folded), band)

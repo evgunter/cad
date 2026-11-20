@@ -2443,17 +2443,10 @@ pub fn plane_cone_section<T: Decide>(
                     ),
                 ),
             ),
-            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
-            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
-            Sign::Zero => (
-                PN_APEX_TANGENT_REACH,
-                Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
-            ),
-            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
-            Sign::Negative => (
-                PN_APEX_POINT_REACH,
-                Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
-            ),
+            // The plane's stand-off from the apex plus its rounding,
+            // over the sine it is read across.
+            Sign::Zero => (PN_APEX_TANGENT_REACH, Margin::levered_inv(size, steep)),
+            Sign::Negative => (PN_APEX_POINT_REACH, Margin::levered_inv(size, discr.abs())),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
         {
@@ -2665,11 +2658,8 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
-    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
-    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
-    let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
-    // Unsourced lever: as `far`'s, over `m`.
-    let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
+    let far = Margin::levered_inv(size, d).value();
+    let near = Margin::levered_inv(size, m).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
@@ -2692,10 +2682,9 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
-    // Unsourced lever: as `far`'s, over the pair's own divisor.
-    let offset = Margin::levered(
-        T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        geom_core::Lever::unsourced(size),
+    let offset = Margin::levered_inv(
+        T::from_f64(2.0) * size,
+        sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt(),
     )
     .value();
     // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.

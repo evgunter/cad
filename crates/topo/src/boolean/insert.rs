@@ -97,7 +97,7 @@
 use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
+use super::sectors::{BoolSector, Leaned, PairRecord, leaned};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite, SideCode,
     VvContact,
@@ -1903,7 +1903,7 @@ fn flankers_of<T: Decide>(
 /// direction. The rotation from start to end is positive about the
 /// sector's normal, the convention `sectors::within` reads. It is
 /// levered at the sector's arm and the two directions' leans
-/// (`sectors::leaned_lever`). An in-band reading refuses as the
+/// (`sectors::leaned`). An in-band reading refuses as the
 /// coincidence it is, as the strut order's does.
 fn walks_after<T: Decide>(
     s: &BoolSector<T>,
@@ -1932,7 +1932,7 @@ fn walks_after<T: Decide>(
 }
 
 /// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
-/// sides are ([`leaned_lever`]): the one margin [`walks_after`] and
+/// sides are ([`leaned`]): the one margin [`walks_after`] and
 /// [`walk_faces_first`] read a fan's order by
 /// ([`crate::sector_face::ConeApex::turn`]).
 fn fan_turn<T: Decide>(
@@ -1941,10 +1941,7 @@ fn fan_turn<T: Decide>(
     x: Leaned<T>,
     y: Leaned<T>,
 ) -> Margin<T> {
-    Margin::levered(
-        apex.turn(x.dir, y.dir),
-        leaned_lever(s.arm, (x.lean, y.lean)),
-    )
+    Margin::levered(leaned(apex.turn(x.dir, y.dir), (x.lean, y.lean)), s.arm)
 }
 
 /// A germ in one solid.
