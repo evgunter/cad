@@ -1289,6 +1289,13 @@ impl KeyWriter {
                 for x in [u_off, v_off, v_sign] {
                     self.f64(x);
                 }
+                match image.pole() {
+                    None => self.u8(0),
+                    Some(pole) => {
+                        self.u8(if pole.leaves() { 1 } else { 2 });
+                        self.f64(pole.at());
+                    }
+                }
             }
         }
     }

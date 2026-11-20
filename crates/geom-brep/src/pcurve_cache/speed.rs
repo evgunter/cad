@@ -351,8 +351,41 @@ pub(super) fn projected_speeds(
     match *image.chart() {
         ProjectedChart::Plane => Ok((speed, speed)),
         ProjectedChart::Cylinder | ProjectedChart::Cone { .. } => Ok((over(levers.rho)?, speed)),
+        ProjectedChart::Sphere if image.pole().is_some() => {
+            Ok((pole_azimuth_speed(image)?, over(levers.norm)?))
+        }
         ProjectedChart::Sphere => Ok((over(levers.rho)?, over(levers.norm)?)),
         ProjectedChart::Torus { major } => Ok((over(levers.rho)?, over(levers.tube(major))?)),
+    }
+}
+
+/// The azimuth's speed bound of an image with a pole end
+/// ([`super::projected::PoleEnd`]): its azimuth is that of the reduced
+/// radial `g = A·cos(t/2) + B·sin(t/2)`, whose rate is `|g × g′|/|g|² ≤
+/// |g′|/|g|`, with `sup|g′|` half the pair's largest Gram eigenvalue root
+/// and `inf|g|` its least, over every `t`: `g` is a centred ellipse, nowhere
+/// zero unless the conic's radial part is a segment.
+fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> {
+    let (Some(pole), FramedCarrier::Conic { a, b, .. }) = (image.pole(), image.carrier()) else {
+        unreachable!("an image with a pole end is a conic's")
+    };
+    let flat = |v: Vec3<f64>| Vec2::new(v.x, v.y);
+    let lift = |v: Vec2<f64>| Vec3::new(v.x, v.y, 0.0);
+    let (ga, gb) = pole.half_angle_pair(flat(*a), flat(*b));
+    let (ga, gb) = (lift(ga), lift(gb));
+    let g = FramedCarrier::Conic {
+        centre: Vec3::zero(),
+        a: ga,
+        b: gb,
+        origin: 0.0,
+        span: 1.0,
+    };
+    let half_speed = (Interval::point(0.5) * Interval::point(carrier_speed(&g)?)).hi();
+    let least = conic_levers(Vec3::zero(), ga, gb, (0.0, 1.0)).rho;
+    if least > 0.0 {
+        finite((Interval::point(half_speed) / Interval::point(least)).hi())
+    } else {
+        Err(NoSpeedBound::ThroughSingularSet)
     }
 }
 

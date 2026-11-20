@@ -2,7 +2,7 @@
 //! carried rows and a kill's turn.
 
 use geom::Surface;
-use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over};
+use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
@@ -276,10 +276,22 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // (fail-loud): the parent's image is not the child's row there.
         let placed_again = image.is_placed();
         let (first, second) = if placed_again {
-            let child = |a: T, b: T| {
-                geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band).map_err(refused)
+            // A child keeps the parent's end on the singular set, and its
+            // end at the split's new vertex is off it.
+            let parent = super::mint::singular_ends(body, half_edge, &surface, band);
+            let child = |a: T, b: T, ends| {
+                geom_brep::chart_pcurve_over_ends(&carrier, a, b, ends, &surface, band)
+                    .map_err(refused)
             };
-            (child(t0, t)?, child(t, t1)?)
+            let first_ends = geom_brep::SingularEnds {
+                start: parent.start,
+                end: false,
+            };
+            let second_ends = geom_brep::SingularEnds {
+                start: false,
+                end: parent.end,
+            };
+            (child(t0, t, first_ends)?, child(t, t1, second_ends)?)
         } else {
             image.split_at(t)
         };
@@ -796,7 +808,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   the same walk from each loop's `first` ([`walk_cycle`]) and the
 ///   same certification ([`certify_walked`]), over the image of every
 ///   half the surgery adds, describes or finds rowless, derived by the
-///   closed form ([`chart_pcurve_over`]), and the element of every joint it
+///   closed form ([`chart_pcurve_over`](geom_brep::chart_pcurve_over)), and the element of every joint it
 ///   makes or finds missing, decided between the two images
 ///   ([`decide_joint`]); the loop must still close ([`Winding`]).
 ///   Every other image and element stands, and the walk reads it as
@@ -823,7 +835,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   holds open anywhere, or one a door moves a loop or run onto, as
 ///   found (the arm below says why per face).
 ///   The mint of an ANALYTIC chart
-///   needs nothing the fitted lane holds — [`chart_pcurve_over`],
+///   needs nothing the fitted lane holds — [`chart_pcurve_over`](geom_brep::chart_pcurve_over),
 ///   [`walk_cycle`] and [`PcurveCache::certify`] are all `Decide` — and
 ///   the fitted lane is the spline chart's derivation
 ///   (`nurbs_iso_derive`) and U2's `General` certificate.
@@ -1007,7 +1019,24 @@ pub(crate) fn site_rows<T: Decide>(
                 }
                 (_, at) => {
                     let (carrier, t0, t1, plus, vertex) = traversal(at);
-                    let pcurve = chart_pcurve_over(&carrier, t0, t1, &face.surface, band)?;
+                    let ends = match at {
+                        SiteHalf::Existing(he) | SiteHalf::Described(he) => {
+                            super::mint::singular_ends(body, he, &face.surface, band)
+                        }
+                        SiteHalf::NewPlus | SiteHalf::NewMinus => super::mint::singular_ends_at(
+                            &face.surface,
+                            (carrier.eval(t0), carrier.eval(t1)),
+                            band,
+                        ),
+                    };
+                    let pcurve = geom_brep::chart_pcurve_over_ends(
+                        &carrier,
+                        t0,
+                        t1,
+                        ends,
+                        &face.surface,
+                        band,
+                    )?;
                     Ok(WalkItem {
                         image: SiteImage::Derived((carrier, ChartImage::Image { pcurve, t0, t1 })),
                         t0,

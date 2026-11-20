@@ -2,9 +2,7 @@
 //! [`Lift`], decided by the walk or read off what the mint stored.
 
 use geom::Surface;
-use geom_brep::{
-    ChartAxis, ChartImage, HeldLine, NoHeldLine, Pcurve, PcurveCertifyError, chart_pcurve_over,
-};
+use geom_brep::{ChartAxis, ChartImage, HeldLine, NoHeldLine, Pcurve, PcurveCertifyError};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Point2, Real};
 
@@ -624,7 +622,7 @@ impl<T: Decide> Lift<T> {
     /// consecutive members of one loop of `face`, in loop order — walked
     /// in `surface`'s chart by the mint's own walk ([`walk_cycle`]):
     /// each certified edge's image derived in closed form on the chart's
-    /// principal branch ([`chart_pcurve_over`]) and every joint between
+    /// principal branch ([`chart_pcurve_over`](geom_brep::chart_pcurve_over)) and every joint between
     /// two of them decided ([`decide_joint`]) on the face's side, its
     /// stored sense. The whole loop where `closes`, with its closure
     /// joint and its winding; otherwise an open run.
@@ -667,8 +665,9 @@ impl<T: Decide> Lift<T> {
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
             let (he, carrier, t0, t1, _) = &charted[i];
-            let pcurve =
-                chart_pcurve_over(carrier, *t0, *t1, surface, band).map_err(LiftRefusal::Image)?;
+            let ends = super::mint::singular_ends(body, *he, surface, band);
+            let pcurve = geom_brep::chart_pcurve_over_ends(carrier, *t0, *t1, ends, surface, band)
+                .map_err(LiftRefusal::Image)?;
             Ok(walk_item(
                 (
                     carrier.clone(),

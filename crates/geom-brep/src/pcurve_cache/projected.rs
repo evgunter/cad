@@ -146,6 +146,28 @@
 //! (`SWEEP_CUTS` a piece, graded toward both ends by `SWEEP_GRADE`
 //! halvings), so a whole turn certifies and a sweep past one refuses.
 //!
+//! # An end on the pole
+//!
+//! A sphere's pole is a vertex of every face whose closure holds it, so a
+//! section circle through it reaches it as an edge's end, and the piece
+//! holding that end has a radial hull on the axis: no sector holds it. A
+//! conic edge whose producer states an end on the pole
+//! ([`SingularEnds`], from the edge's vertex) reads its azimuth off the
+//! reduced radial `g` instead ([`PoleEnd`]), which is `r(t) − r(t_p)`
+//! divided by the scalar `2·sin((t − t_p)/2)`: the same direction, and
+//! nonzero at the pole, where it is the carrier's radial direction. Every
+//! azimuth reading of the image reads `g` — the point
+//! (`ProjectedImage::eval`), each piece's box, so its sector, branch and
+//! window (`frame_box_on`: `g`'s harmonic box in `t/2`), and the sweep —
+//! while the latitude, `ρ` and `z` stay the carrier's. At the pole the
+//! image's point is the end's limit along the edge, `(α(g(t_p)), π/2)`.
+//! Check 4 charges what the reduction misses, the stored conic's radial
+//! part at the pole (zero at a true pole end, rounding there), through the
+//! sphere's Lipschitz bound ([`pole_term`]).
+//!
+//! A net, a line, or any chart but the sphere keeps the image above, and a
+//! piece on the singular set still refuses its sector.
+//!
 //! A net's hull terms are certification arithmetic (C9), so they run
 //! through the fitted door ([`crate::FittedLane`]); a conic's and a
 //! line's are closed forms of their coefficients and certify at every
@@ -340,6 +362,90 @@ pub struct ProjectedImage<T: Real> {
     pub(super) u_off: T,
     pub(super) v_off: T,
     pub(super) v_sign: T,
+    /// The edge's end on the chart's pole, where a conic image reads its
+    /// azimuth off the reduced radial ([`PoleEnd`]); `None` elsewhere.
+    pub(super) pole: Option<PoleEnd<T>>,
+}
+
+/// **An end of a conic edge on a sphere chart's pole** (module docs, "An
+/// end on the pole"). At the pole the radial part `r(t)` of the carrier
+/// vanishes and names no azimuth, so the image reads its azimuth off the
+/// reduced radial instead: for a conic `c + a·cos t + b·sin t`,
+///
+/// ```text
+/// r(t) − r(t_p) = 2·sin((t − t_p)/2) · (b_r·cos m − a_r·sin m),  m = (t + t_p)/2,
+/// ```
+///
+/// exactly, so `g(t) = ±(b_r·cos m − a_r·sin m)` points along `r(t) −
+/// r(t_p)` wherever the sine keeps its sign: `+` for an edge that leaves
+/// the pole (`t ≥ t_p`), `−` for one that arrives (`t ≤ t_p`). `g` is a
+/// harmonic in `t/2` with no constant, nonzero at the pole (the carrier's
+/// radial direction there) unless the conic's radial part is a segment, a
+/// meridian's, which the closed form takes first.
+///
+/// Which end is on the pole is not read off the carrier: the producer
+/// states it from the edge's vertex, by the one incidence reading the loop
+/// walk decides that joint by. The certificate charges what the reduction
+/// misses, `r(t_p)`, which a true pole end has at rounding scale
+/// (`projected_envelope`'s pole term).
+#[derive(Clone, Copy, Debug)]
+pub struct PoleEnd<T> {
+    /// The carrier parameter of the end on the pole.
+    pub(super) at: T,
+    /// Whether the edge leaves the pole there (its start) rather than
+    /// arriving (its end).
+    pub(super) leaves: bool,
+}
+
+impl<T: Real> PoleEnd<T> {
+    /// The pole's parameter.
+    #[must_use]
+    pub fn at(&self) -> T {
+        self.at
+    }
+
+    /// Whether the edge leaves the pole (the end is its start).
+    #[must_use]
+    pub fn leaves(&self) -> bool {
+        self.leaves
+    }
+
+    /// `g` as `A·cos τ + B·sin τ` in `τ = t/2`, from the conic's radial
+    /// coefficients `a_r`, `b_r`: `A = σ(b_r·cos h − a_r·sin h)`, `B =
+    /// −σ(b_r·sin h + a_r·cos h)`, `h = t_p/2`, `σ = ±1` by [`Self::leaves`].
+    pub(crate) fn half_angle_pair(self, a: Vec2<T>, b: Vec2<T>) -> (Vec2<T>, Vec2<T>) {
+        let (sh, ch) = (self.at * T::from_f64(0.5)).sin_cos();
+        let big_a = b * ch - a * sh;
+        let big_b = -(b * sh + a * ch);
+        if self.leaves {
+            (big_a, big_b)
+        } else {
+            (-big_a, -big_b)
+        }
+    }
+
+    /// The reduced radial `g(t)` of the conic with radial coefficients
+    /// `a_r`, `b_r`.
+    pub(crate) fn reduced(self, a: Vec2<T>, b: Vec2<T>, t: T) -> Vec2<T> {
+        let (big_a, big_b) = self.half_angle_pair(a, b);
+        let (s, c) = (t * T::from_f64(0.5)).sin_cos();
+        big_a * c + big_b * s
+    }
+}
+
+/// Which ends of an edge lie on its chart's singular set, as its
+/// producer decided them at the edge's vertices
+/// ([`super::chart_pcurve_over_ends`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SingularEnds {
+    /// The edge's start (`t0`).
+    pub start: bool,
+    /// The edge's end (`t1`).
+    pub end: bool,
+}
+
+fn radial_of<T: Real>(v: Vec3<T>) -> Vec2<T> {
+    Vec2::new(v.x, v.y)
 }
 
 use super::Pcurve;
@@ -399,6 +505,13 @@ impl<T: Real> ProjectedImage<T> {
         (self.u_off, self.v_off, self.v_sign)
     }
 
+    /// The edge's end on the chart's pole, if the image reads one
+    /// ([`PoleEnd`]).
+    #[must_use]
+    pub fn pole(&self) -> Option<PoleEnd<T>> {
+        self.pole
+    }
+
     pub(crate) fn pieces(&self) -> usize {
         self.breaks.control_count().saturating_sub(1)
     }
@@ -445,6 +558,15 @@ impl<T: Real> ProjectedImage<T> {
             .uv
     }
 
+    /// [`Self::raw`] with the azimuth read at `at` (the reduced radial's
+    /// point, [`Self::azimuth_point`]) and every other channel at `p`.
+    fn raw_at(&self, p: Vec3<T>, at: Vec3<T>, k: usize) -> Point2<T> {
+        if self.pole.is_none() {
+            return self.raw(p, k);
+        }
+        Point2::new(self.raw(at, k).x, self.raw(p, k).y)
+    }
+
     fn place(&self, raw: Point2<T>) -> Point2<T> {
         Point2::new(self.u_off + raw.x, self.v_off + self.v_sign * raw.y)
     }
@@ -467,6 +589,10 @@ pub(crate) struct FrameBox<T> {
     pub(crate) x: (T, T),
     pub(crate) y: (T, T),
     pub(crate) z: (T, T),
+    /// `ρ`'s range where `x′`, `y′` are not the radial part's box: on an
+    /// image with a pole end they box the reduced radial the azimuth
+    /// reads ([`PoleEnd`]), and `ρ` is the carrier's own.
+    pub(crate) rho: Option<(T, T)>,
 }
 
 /// `[lo, hi]·k` as a range.
@@ -600,18 +726,32 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// [`Pcurve::eval`]'s arm.
     pub(super) fn eval(&self, t: T) -> Point2<T> {
         let p = self.carrier.eval(t);
+        let at = self.azimuth_point(p, t);
         let s = self.carrier.piece_param(t);
         // A poison parameter locates no piece: the point is poison in
         // every channel `s` carries.
         let Some(set) = s.locate_spans(&self.breaks) else {
             return Point2::<T>::origin().map(|_| poison_from(s));
         };
-        let mut acc = self.raw(p, set.first.index() - 1);
+        let mut acc = self.raw_at(p, at, set.first.index() - 1);
         for span in set.first.index() + 1..=set.last.index() {
-            let raw = self.raw(p, span - 1);
+            let raw = self.raw_at(p, at, span - 1);
             acc = Point2::new(acc.x.enclosure_hull(raw.x), acc.y.enclosure_hull(raw.y));
         }
         self.place(acc)
+    }
+
+    /// The chart-frame point the azimuth is read at, for the carrier's
+    /// point `p` at `t`: `p` itself, or on an image with a pole end the
+    /// reduced radial `g(t)` beside `p`'s axial part ([`PoleEnd`]).
+    fn azimuth_point(&self, p: Vec3<T>, t: T) -> Vec3<T> {
+        match (&self.pole, &self.carrier) {
+            (Some(pole), FramedCarrier::Conic { a, b, .. }) => {
+                let g = pole.reduced(radial_of(*a), radial_of(*b), t);
+                Vec3::new(g.x, g.y, p.z)
+            }
+            _ => p,
+        }
     }
 
     /// The pieces `[t0, t1]` overlaps, `lo ≤ hi`, or `None` when an
@@ -638,6 +778,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 x: (poison, poison),
                 y: (poison, poison),
                 z: (poison, poison),
+                rho: None,
             };
         };
         self.frame_box_on(k, piece, t0, t1)
@@ -663,6 +804,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                         x: (poison, poison),
                         y: (poison, poison),
                         z: (poison, poison),
+                        rho: None,
                     };
                 };
                 let controls: Vec<(Vec3<T>, T)> = stretches
@@ -683,7 +825,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 } else {
                     rotate_box(theta, scale(x, sigma), scale(y, sigma))
                 };
-                FrameBox { x, y, z }
+                FrameBox { x, y, z, rho: None }
             }
             FramedCarrier::Conic { .. } | FramedCarrier::Line { .. } => {
                 let zero = Vec3::zero();
@@ -731,10 +873,39 @@ impl<T: SpanLocate> ProjectedImage<T> {
                     ta,
                     tb,
                 );
-                FrameBox {
+                let radial_box = FrameBox {
                     x: (radial.u_min, radial.u_max),
                     y: (radial.v_min, radial.v_max),
                     z: (axial.u_min, axial.u_max),
+                    rho: None,
+                };
+                match (&self.pole, &self.carrier) {
+                    // The azimuth reads the reduced radial, a harmonic in
+                    // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
+                    // the carrier's.
+                    (Some(pole), FramedCarrier::Conic { .. }) => {
+                        let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+                        let half = T::from_f64(0.5);
+                        let rot2 = |v: Vec2<T>| {
+                            let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
+                            Vec2::new(x, y)
+                        };
+                        let reduced = harmonic_span_box(
+                            Point2::origin(),
+                            rot2(big_a),
+                            rot2(big_b),
+                            Vec2::zero(),
+                            ta * half,
+                            tb * half,
+                        );
+                        FrameBox {
+                            x: (reduced.u_min, reduced.u_max),
+                            y: (reduced.v_min, reduced.v_max),
+                            z: radial_box.z,
+                            rho: Some(Self::rho_range(&radial_box)),
+                        }
+                    }
+                    _ => radial_box,
                 }
             }
         }
@@ -743,6 +914,9 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// `ρ`'s range over a box: its nearest point's distance from the
     /// axis below, its farthest corner's above.
     pub(crate) fn rho_range(b: &FrameBox<T>) -> (T, T) {
+        if let Some(rho) = b.rho {
+            return rho;
+        }
         let sq = |(lo, hi): (T, T)| lo.powi(2).max(hi.powi(2));
         let gap = |(lo, hi): (T, T)| lo.max(T::zero() - hi).max(T::zero());
         let (gx, gy) = (gap(b.x), gap(b.y));
@@ -1314,6 +1488,24 @@ pub(crate) fn project<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<ProjectedImage<T>, PcurveCertifyError> {
+    project_ending(carrier, span, SingularEnds::default(), surface, band)
+}
+
+/// [`project`] for an edge whose producer states which of its ends lie
+/// on the chart's singular set: a conic edge on a sphere with an end on
+/// the pole reads its azimuth off the reduced radial ([`PoleEnd`]). Any
+/// other carrier, chart or interval takes the image [`project`] does.
+///
+/// # Errors
+///
+/// As [`project`].
+pub(crate) fn project_ending<T: Decide>(
+    carrier: &Curve3<T>,
+    span: Option<(T, T)>,
+    ends: SingularEnds,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<ProjectedImage<T>, PcurveCertifyError> {
     assert!(
         has_lane(carrier, surface),
         "project: a {} on a {} chart has no projected lane (`has_lane`), and every caller \
@@ -1361,6 +1553,17 @@ pub(crate) fn project<T: Decide>(
         cause,
     };
     let chart = chart_of(surface, &framed, band)?;
+    let pole = match (&framed, &chart, span) {
+        (FramedCarrier::Conic { .. }, ProjectedChart::Sphere, Some((t0, t1)))
+            if ends.start || ends.end =>
+        {
+            Some(PoleEnd {
+                at: if ends.start { t0 } else { t1 },
+                leaves: ends.start,
+            })
+        }
+        _ => None,
+    };
     let mut image = ProjectedImage {
         chart,
         carrier: framed,
@@ -1370,6 +1573,7 @@ pub(crate) fn project<T: Decide>(
         u_off: T::zero(),
         v_off: T::zero(),
         v_sign: T::one(),
+        pole,
     };
     // The top-level pieces: a net's knot spans (a piece's hull is one
     // span's Bézier restriction), a conic's or a line's one interval.
@@ -1580,6 +1784,7 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T
         x: (first.x, first.x),
         y: (first.y, first.y),
         z: (first.z, first.z),
+        rho: None,
     };
     for (c, _) in &q[1..] {
         b.x = (b.x.0.min(c.x), b.x.1.max(c.x));
@@ -2596,6 +2801,7 @@ fn line_off_cone_sup<T: Decide>(
             x: (qa.x.min(qb.x), qa.x.max(qb.x)),
             y: (qa.y.min(qb.y), qa.y.max(qb.y)),
             z: (qa.z.min(qb.z), qa.z.max(qb.z)),
+            rho: None,
         };
         let (rho_lo, rho_hi) = ProjectedImage::rho_range(&b);
         // `(σz)`'s floor and ceiling over the part, on the chart's nappe.
@@ -2937,6 +3143,13 @@ pub(super) fn projected_envelope<T: Decide>(
         }
     };
     terms.add(EnvelopeTerm::Fidelity, lipschitz * d);
+    if let Some(pole) = image.pole {
+        terms.add(
+            EnvelopeTerm::Fidelity,
+            pole_term(image, pole, (t0, t1), surface, lipschitz)
+                .ok_or_else(|| refuse("an image with a pole end is a conic's on a sphere chart"))?,
+        );
+    }
     // ---- The deck map and the chart scalars. ----
     let twin_deck = match decide("pcurve_projected_v_sign", Margin::of(image.v_sign), band) {
         Ok(Sign::Positive) => false,
@@ -3008,6 +3221,50 @@ pub(super) fn projected_envelope<T: Decide>(
         _ => {}
     }
     Ok((terms, name))
+}
+
+/// **The pole term** (module docs, "An end on the pole"): the most the
+/// image's point moves off `N(ξ)` because its azimuth reads the reduced
+/// radial, `2·L·(|r(t_p)| + e·sup|g|)` with `L` the sphere's Lipschitz
+/// bound `r/(r − incidence − d)` (`lipschitz`), `r(t_p)` the stored
+/// conic's radial part at the pole parameter and `e` how far `[t0, t1]`
+/// reaches past the parameters where `2·sin((t − t_p)/2)` keeps the sign
+/// [`PoleEnd::leaves`] gives it. `None` on any other carrier or chart.
+///
+/// At `t` the image's point and `N(ξ(t))` share their latitude, so they lie
+/// on one circle of radius `ρ_N = r·|r(t)|/|ξ(t)| ≤ L·|r(t)|`, and their
+/// distance is `ρ_N·|r̂ − ĝ|`. Write `r = r(t_p) + q`, `q = 2·sin((t −
+/// t_p)/2)·g`. Where the sine has its sign `q` points along `ĝ`, and
+/// `|r̂ − q̂| ≤ 2·|r − q|/|r| = 2·|r(t_p)|/|r|`, so the distance is at
+/// most `2·L·|r(t_p)|`. Elsewhere `|r̂ − ĝ| ≤ 2` and `|r| ≤ |r(t_p)| +
+/// |q|` with `|q| ≤ |t − t_p|_out·sup|g|`, the parameter's excess past the
+/// range, so it is at most `2·L·(|r(t_p)| + e·sup|g|)`. Both cases are
+/// under that one bound.
+fn pole_term<T: Decide>(
+    image: &ProjectedImage<T>,
+    pole: PoleEnd<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    lipschitz: T,
+) -> Option<T> {
+    let (FramedCarrier::Conic { centre, a, b, .. }, Surface::Sphere { .. }) =
+        (&image.carrier, surface)
+    else {
+        return None;
+    };
+    let (s, c) = pole.at.sin_cos();
+    let miss = radial_of(*centre + *a * c + *b * s).norm();
+    let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+    let lift = |v: Vec2<T>| Vec3::new(v.x, v.y, T::zero());
+    let sup_g = harmonic_sup(lift(big_a), lift(big_b));
+    let turn = T::pi() * T::from_f64(2.0);
+    let past = |x: T| x.max(T::zero());
+    let excess = if pole.leaves {
+        past(pole.at - t0) + past(t1 - (pole.at + turn))
+    } else {
+        past(t1 - pole.at) + past((pole.at - turn) - t0)
+    };
+    Some(T::from_f64(2.0) * lipschitz * (miss + excess * sup_g))
 }
 
 /// Check 4's terms of a projected `pcurve` over `[t0, t1]`
