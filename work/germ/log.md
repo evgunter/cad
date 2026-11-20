@@ -1613,3 +1613,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `pcurve_cache::limb2_memo` built conics at bracket ends with NaN or negative sizes; it now renders datum by datum.
 
   It also caught three test fixtures that drew out-of-contract circles. Six fuzz seeds pass at 1e-6 and 1e-12 with 0 misses. **Not done:** an audit of about 248 computed-size construction sites, filed as `conic-constructions-from-computed-sizes-unaudited`, which I band P1/H at merge. Each of those sites now panics where it stored a bad size, a fail-loud trade the nightly will test. Review tier **single, FULL**. The reviewer is told to sample 20+ unaudited sites for one reachable on ordinary geometry, and to try the sphere and wall doors for the P0's sibling.
+- 2026-11-20 — **PR 7184 (U1b) review: APPROVE-WITH-FIXES, no correctness defect.**
+  - The gradient removal is proved an over-charge, and an exact-arithmetic probe over 90k poses found no wrong sign.
+  - The ring row's re-baseline is shown to come from the conditioning: the start-pose mutant restores main's escalation.
+  - The torn-body red is confirmed inherited.
+
+  **MINORs:** no row reds if the depth charge or the per-root slack is weakened (three mutants pass all 142 rows), and the INSIDE closure witness tests the door, not the ray. **NOTE:** the rounding of `a` and of cos²α is uncharged, up to 3.2× the bound near the generator, with no sign flip; this is not a regression, and a P3 row is owed. Fix pass sent to the cloud session.
