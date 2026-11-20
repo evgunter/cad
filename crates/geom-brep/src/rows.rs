@@ -23,7 +23,7 @@
 //!   editor-core's tree-wide test walks this roster with every other
 //!   crate's.
 //!
-//! A bundle with one reader (`TouchRows`, `FirstHarmonicRows`) has no
+//! A bundle with one reader (`TouchRows`) has no
 //! enum of readers: its one const here is its registration.
 //!
 //! A carrier of one row passed through from a name minted elsewhere
@@ -261,52 +261,6 @@ impl HalfAngleRows {
     }
 }
 
-/// The predicate rows one caller of [`crate::curve_face::circle_roots::first_harmonic_roots`] meters
-/// under (module docs: noise, coaxial, extreme, root slack; all metres).
-#[derive(Clone, Copy, Debug)]
-pub struct FirstHarmonicRows {
-    /// The noise meter's row.
-    noise: &'static str,
-    /// The coaxial carrier's constant residual's row.
-    coaxial: &'static str,
-    /// The extremes' row.
-    extreme: &'static str,
-    /// The root slack's row.
-    root_slack: &'static str,
-}
-
-impl FirstHarmonicRows {
-    /// The `noise` row.
-    #[must_use]
-    pub const fn noise(&self) -> &'static str {
-        self.noise
-    }
-
-    /// The `coaxial` row.
-    #[must_use]
-    pub const fn coaxial(&self) -> &'static str {
-        self.coaxial
-    }
-
-    /// The `extreme` row.
-    #[must_use]
-    pub const fn extreme(&self) -> &'static str {
-        self.extreme
-    }
-
-    /// The `root_slack` row.
-    #[must_use]
-    pub const fn root_slack(&self) -> &'static str {
-        self.root_slack
-    }
-
-    /// Every row the bundle names, for the roster.
-    #[must_use]
-    pub const fn names(&self) -> [&'static str; 4] {
-        [self.noise, self.coaxial, self.extreme, self.root_slack]
-    }
-}
-
 /// The rows a sweep decides on, each a pair's own name.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GapRows {
@@ -500,15 +454,6 @@ geom_core::row_registry! {
     );
 
     // ------------------------------------------------- topo's readers
-
-    /// The conic × quadric first-harmonic arm's rows
-    /// (`curve_face::conic_quadric`).
-    pub const CONIC_QUADRIC_FIRST: FirstHarmonicRows = FirstHarmonicRows {
-        noise: "conic_quadric_first_noise",
-        coaxial: "conic_quadric_first_constant",
-        extreme: "conic_quadric_first_extreme",
-        root_slack: "conic_quadric_first_root_slack",
-    };
 
     /// The conic × quadric ladder's rows
     /// (`curve_face::conic_quadric`); its noise row is also the arm

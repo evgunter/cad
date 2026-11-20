@@ -143,11 +143,10 @@
 //!   width, refused `Unsettled` (module docs of [`super::circle_roots`],
 //!   "The half-angle ladder, and the subdivision that answers").
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom::Conic;
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::{
-    CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
-};
+use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
@@ -161,22 +160,26 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = crate::rows::CIRCLE_TORUS;
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
 
-/// The certified crossings of the `carrier` circle with the `torus`,
-/// anchored so that the arc `[t0, t1]` avoids the substitution's pole
-/// (module docs).
+/// The refusal of a carrier or a surface of a kind the door does not
+/// read.
+const DESYNC: &str = "the circle × torus root door was handed a carrier that is not a circle \
+     or a surface that is not a torus";
+
+/// **The certified crossings of the `carrier` circle with the `torus`**,
+/// reported within `π` of the midpoint of `[t0, t1]`, in the root doors'
+/// shape: the sweep's reading until it reads [`super::cross`]. A wrapper:
+/// the pose ([`super::pose`]), then the method ([`torus_method`]), mapped
+/// back. `Lies` (a rim of a coaxial torus, a meridian) is
+/// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a pose rung read in
+/// the zero band where it needed a definite reading
+/// [`Unsettled::Tangency`].
 ///
 /// # Errors
 ///
-/// [`DoorRefusal::Invariant`] when `carrier` is not a
-/// circle or `torus` not a torus — the caller dispatched on those kinds.
+/// [`DoorRefusal::Invariant`] for a carrier or a surface of another kind;
 /// [`DoorRefusal::Torus`] for a torus outside the ring convention, asked
-/// before any pose. [`DoorRefusal::Escalated`] for an in-band
-/// classifying sign: a coaxial carrier's constant residual, a rung of the
-/// parallel arm, a meridian deviation, or one of the ladder's. An
-/// in-band sign at the coaxial tilt is not an error: the pose takes the
-/// ladder. A meridian deviation read negative is a
-/// [`DoorRefusal::Invariant`]. A count the door cannot
-/// certify is the inner [`Unsettled`].
+/// before any pose; [`DoorRefusal::Escalated`] for a pose rung or a
+/// method sign in band.
 pub fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -184,143 +187,203 @@ pub fn circle_torus_roots<T: Decide>(
     torus: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-    let (
-        &geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                ..
-            },
-        ),
-        &geom::Surface::Torus {
-            center: t_center,
-            axis: t_axis,
-            major_radius,
-            minor_radius,
-            ..
-        },
-    ) = (carrier, torus)
-    else {
-        return Err(DoorRefusal::Invariant(
-            "the circle × torus root door was handed a carrier that is not a circle \
-                   or a surface that is not a torus",
-        ));
-    };
-    let radius = circle.radius();
-    // The door reads only a ring, asked of the convention before any pose:
-    // its harmonics take the witness, whose floor on `|F|` per metre and
-    // whose meridian bound lean on `R − r > 0`.
-    let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
-        .map_err(DoorRefusal::Torus)?;
-    let two = T::from_f64(2.0);
-    let v_ref = axis.cross(u_ref);
-    let point_at = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        center + u_ref * (radius * c) + v_ref * (radius * s)
-    };
+    if !matches!(
+        (carrier, torus),
+        (geom::Curve3::Circle(..), geom::Surface::Torus { .. })
+    ) {
+        return Err(DoorRefusal::Invariant(DESYNC));
+    }
+    torus_wrapper(carrier, (t0, t1), torus, band)
+}
 
-    // The parallel-axes poses, decided on the geometry in metres: the
-    // tilt of the carrier's axis times its radius is the amplitude of
-    // the carrier's height about the torus axis, and the carrier
-    // centre's distance from that axis separates coaxial from merely
-    // parallel.
-    let tilt = radius * axis.cross(t_axis).norm();
+/// [`circle_torus_roots`]' and `ellipse_torus_roots`' one wrapper.
+pub(super) fn torus_wrapper<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    torus: &geom::Surface<T>,
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+    use super::pose::{Pose, PoseRefusal};
+    let span = crate::curve_pair::Span::new(carrier, (t0, t1));
+    match super::pose::pose(&span, torus, band) {
+        Err(refusal) if refusal.zero_band() => Ok(Err(Unsettled::Tangency)),
+        Ok(Pose::Lies) => Ok(Ok(Roots::On(OnCarrier))),
+        Ok(Pose::Apart) => Ok(Ok(Roots::Miss)),
+        Ok(Pose::Tangent(_)) => Ok(Err(Unsettled::Tangency)),
+        Ok(Pose::Through(_)) => Err(DoorRefusal::Invariant(
+            "a torus has no singular point a ring's pose reads",
+        )),
+        Ok(Pose::Isolated(form)) => torus_method(&span, torus, form.0, band),
+        Err(PoseRefusal::InBand { diag, .. }) => Err(DoorRefusal::Escalated(diag)),
+        Err(PoseRefusal::Meter { row, .. }) => Ok(Err(Unsettled::Meter { row })),
+        Err(PoseRefusal::Torus(refusal)) => Err(DoorRefusal::Torus(refusal)),
+        Err(PoseRefusal::Fault(what)) => Err(DoorRefusal::Invariant(what)),
+        Err(PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_)) => Err(DoorRefusal::Invariant(DESYNC)),
+    }
+}
+
+/// **The conic × torus method**: the roots of an isolated conic from
+/// what its pose computed. A circle parallel to the axis, its extremes
+/// placed: the contours it crosses, in closed form ([`parallel_roots`]);
+/// otherwise the half-angle walk on the residual's harmonics, of degree
+/// two on a circle and four on an ellipse.
+///
+/// # Errors
+///
+/// As [`circle_torus_roots`].
+pub(super) fn torus_method<T: Decide>(
+    span: &crate::curve_pair::Span<'_, T>,
+    torus: &geom::Surface<T>,
+    form: super::pose::Formed<T>,
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+    use super::pose::Formed;
+    let geom::Surface::Torus {
+        center: t_center,
+        axis: t_axis,
+        major_radius,
+        minor_radius,
+        ..
+    } = *torus
+    else {
+        return Err(DoorRefusal::Invariant(DESYNC));
+    };
+    let (t0, t1) = span.params();
+    match (span.carrier(), form) {
+        (&geom::Curve3::Circle(circle), Formed::TorusParallel { far, near }) => {
+            let axes = axes(&circle, (t_center, t_axis));
+            let contours = contours(&circle, (major_radius, minor_radius), &axes, (t0, t1));
+            door_refusal(parallel_roots(
+                &circle,
+                (major_radius, minor_radius),
+                &axes,
+                &contours,
+                (far, near),
+                band,
+            ))
+        }
+        (&geom::Curve3::Circle(circle), Formed::TorusWalk { floor }) => circle_walk(
+            &circle,
+            (t_center, t_axis, major_radius, minor_radius),
+            (t0, t1),
+            torus,
+            floor,
+            band,
+        ),
+        (geom::Curve3::Ellipse(..), Formed::TorusWalk { floor }) => {
+            let conic = span
+                .carrier()
+                .conic()
+                .ok_or(DoorRefusal::Invariant(DESYNC))?;
+            super::ellipse_torus::torus_walk(
+                &conic,
+                (t_center, t_axis, major_radius, minor_radius),
+                (t0, t1),
+                torus,
+                floor,
+                band,
+            )
+        }
+        _ => Err(DoorRefusal::Invariant(
+            "the conic × torus method was handed a form of another arm",
+        )),
+    }
+}
+
+/// **The circle's placement against the torus's axis**: the tilt of its
+/// axis times its radius (the amplitude of its height about the torus
+/// axis), its centre's height along that axis, and its centre's offset
+/// across it.
+pub(super) struct Axes<T: geom_core::Real> {
+    pub(super) tilt: T,
+    pub(super) h0: T,
+    pub(super) w_perp: Vec3<T>,
+    pub(super) offset: T,
+}
+
+/// [`Axes`] of `circle` against the torus `(center, axis)`.
+pub(super) fn axes<T: Decide>(
+    circle: &geom::Circle<T>,
+    (t_center, t_axis): (Point3<T>, Vec3<T>),
+) -> Axes<T> {
+    let tilt = circle.radius() * circle.frame.axis.cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
     }
-    .param_and_offset(center);
-    let offset = w_perp.norm();
-    let parallel = matches!(
-        decide("circle_torus_coaxial_tilt", Margin::of(tilt), band),
-        Ok(Sign::Zero)
+    .param_and_offset(circle.frame.origin);
+    Axes {
+        tilt,
+        h0,
+        offset: w_perp.norm(),
+        w_perp,
+    }
+}
+
+/// **A coaxial carrier's constant residual and its spread** (module
+/// docs, "The special poses"): every carrier point lies within
+/// `δ = offset + √2·tilt` of the coaxial circle of the same radius (a
+/// translation by the offset, then a turn of at most a right angle, whose
+/// chord `2ρ·sin(α/2)` is at most `√2·ρ·sin α`), on which the residual is
+/// constant. The residual is `(g² − r²)/2r` in the distance `g` from the
+/// core circle, which is 1-Lipschitz, so between two points `d` apart
+/// with `g` at most `G` it moves at most `d·G/r`; every point in play has
+/// `g ≤ g₀ + 2δ`. The reading at `θ = 0` is within `δ·G/r` of the coaxial
+/// value and so is every carrier point: the spread is twice that.
+pub(super) fn coaxial<T: Decide>(
+    circle: &geom::Circle<T>,
+    torus: &geom::Surface<T>,
+    minor_radius: T,
+    axes: &Axes<T>,
+) -> (T, T) {
+    let two = T::from_f64(2.0);
+    let constant = crate::implicit_residual(torus, circle.point_at(T::zero()));
+    let delta = axes.offset + T::from_f64(core::f64::consts::SQRT_2) * axes.tilt;
+    let g0 = (minor_radius.powi(2) + two * minor_radius * constant)
+        .max(T::zero())
+        .sqrt();
+    (constant, two * delta * (g0 + two * delta) / minor_radius)
+}
+
+/// **The meridian rung's deviation** ([`meridian_deviation`]), with the
+/// centre term's rounding: `w₀` and its split along the axis are read off
+/// coordinates as large as `|C| + |c|`.
+pub(super) fn meridian<T: Decide>(
+    circle: &geom::Circle<T>,
+    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+    axes: &Axes<T>,
+) -> T {
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    let rounding = rounding_charge(
+        (circle.frame.origin - origin).norm() + (t_center - origin).norm() + major_radius,
     );
-    if parallel {
-        return match decide("circle_torus_coaxial_offset", Margin::of(offset), band) {
-            // Coaxial: the residual is one value along the carrier, to
-            // within its spread about the reading at `θ = 0`. Every
-            // carrier point lies within `δ = offset + √2·tilt` of the
-            // coaxial circle of the same radius (a translation by the
-            // offset, then a turn of at most a right angle, whose chord
-            // `2ρ·sin(α/2)` is at most `√2·ρ·sin α`), on which the
-            // residual is constant. The residual is `(g² − r²)/2r` in
-            // the distance `g` from the core circle, which is
-            // 1-Lipschitz, so between two points `d` apart with `g` at
-            // most `G` it moves at most `d·G/r`; every point in play has
-            // `g ≤ g₀ + 2δ`. The reading is within `δ·G/r` of the
-            // coaxial value and so is every carrier point: the spread is
-            // twice that.
-            Ok(Sign::Zero) => {
-                let constant = crate::implicit_residual(torus, point_at(T::zero()));
-                let delta = offset + T::from_f64(core::f64::consts::SQRT_2) * tilt;
-                let g0 = (minor_radius.powi(2) + two * minor_radius * constant)
-                    .max(T::zero())
-                    .sqrt();
-                let spread = two * delta * (g0 + two * delta) / minor_radius;
-                Ok(door_refusal(constant_residual_roots(
-                    constant,
-                    spread,
-                    "circle_torus_coaxial_residual",
-                    band,
-                ))?
-                .map(Roots::widen))
-            }
-            Ok(Sign::Positive) => door_refusal(parallel_axes_roots(
-                &ParallelPose {
-                    circle,
-                    w_perp,
-                    offset,
-                    h0,
-                    tilt,
-                    t0,
-                    t1,
-                },
-                torus,
-                major_radius,
-                minor_radius,
-                band,
-            )),
-            // An in-band offset is a near-coaxial pose neither arm can
-            // stand behind.
-            Err(diag) => Err(DoorRefusal::Escalated(diag)),
-            Ok(Sign::Negative) => unreachable!("a norm reads no negative offset"),
-        };
-    }
+    meridian_deviation(
+        circle.frame.axis,
+        circle.radius(),
+        axes.w_perp,
+        axes.offset,
+        axes.h0,
+        t_axis,
+        major_radius,
+        minor_radius,
+    ) + rounding
+}
 
-    // A meridian: `F ≡ 0`, which the ladder cannot answer, decided on
-    // its point deviation (module docs, "The special poses").
-    {
-        // The centre term's rounding: `w₀` and its split along the axis
-        // are read off coordinates as large as `|C| + |c|`.
-        let origin = Point3::new(T::zero(), T::zero(), T::zero());
-        let rounding =
-            rounding_charge((center - origin).norm() + (t_center - origin).norm() + major_radius);
-        let deviation = meridian_deviation(
-            axis,
-            radius,
-            w_perp,
-            offset,
-            h0,
-            t_axis,
-            major_radius,
-            minor_radius,
-        ) + rounding;
-        match decide("circle_torus_meridian", Margin::of(deviation), band) {
-            Ok(Sign::Zero) => return Ok(Ok(Roots::On(OnCarrier))),
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Negative) => {
-                return Err(DoorRefusal::Invariant(
-                    "a meridian deviation, a sum of lengths, read negative",
-                ));
-            }
-            Err(diag) => return Err(DoorRefusal::Escalated(diag)),
-        }
-    }
-
+/// The general walk of a circle against a torus (module docs): the
+/// residual's harmonics of degree two, its third and fourth charged,
+/// read by the half-angle subdivision, its clear margin read through the
+/// ring's `floor` on `|F|` per metre.
+fn circle_walk<T: Decide>(
+    circle: &geom::Circle<T>,
+    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+    (t0, t1): (T, T),
+    torus: &geom::Surface<T>,
+    floor: T,
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+    let two = T::from_f64(2.0);
+    let radius = circle.radius();
+    let point_at = |theta: T| circle.point_at(theta);
     // `F` along the carrier from the torus's one home along a conic
     // ([`crate::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding. The
@@ -331,7 +394,7 @@ pub fn circle_torus_roots<T: Decide>(
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
     let h = crate::conic_torus_harmonics(
-        &circle,
+        circle,
         geom::Line {
             origin: t_center,
             dir: t_axis,
@@ -348,7 +411,7 @@ pub fn circle_torus_roots<T: Decide>(
     // harmonics' noise, and the jet").
     let jet = |theta| {
         crate::conic_torus_jet(
-            &circle,
+            circle,
             geom::Line {
                 origin: t_center,
                 dir: t_axis,
@@ -368,7 +431,7 @@ pub fn circle_torus_roots<T: Decide>(
                 t1,
                 speed_hi: radius,
                 noise,
-                f_per_metre: crate::ring_floor(ring),
+                f_per_metre: floor,
                 // The clear margin is read through the torus's ceiling on
                 // `|F|` per metre, as the ellipse × torus door reads it:
                 // a lower bound on the residual, so a piece reads clear
@@ -389,7 +452,7 @@ pub fn circle_torus_roots<T: Decide>(
             row: ROOT_SLACK,
             residual: &|theta| {
                 crate::conic_torus_implicit(
-                    &circle,
+                    circle,
                     geom::Line {
                         origin: t_center,
                         dir: t_axis,
@@ -442,7 +505,7 @@ pub fn circle_torus_roots<T: Decide>(
 /// The sum is then no bound, but it is never Zero, because its centre
 /// term alone is at least `R/2`, which is past the band.
 #[allow(clippy::too_many_arguments)]
-fn meridian_deviation<T: geom_core::Real>(
+pub(super) fn meridian_deviation<T: geom_core::Real>(
     axis: Vec3<T>,
     radius: T,
     w_perp: Vec3<T>,
@@ -465,27 +528,10 @@ fn meridian_deviation<T: geom_core::Real>(
     off_centre + (radius - r).abs() + tilt
 }
 
-/// The parallel-axes pose's data ([`parallel_axes_roots`]).
-struct ParallelPose<T: geom_core::Real> {
-    /// The carrier.
-    circle: geom::Circle<T>,
-    /// The carrier centre's offset from the torus axis, perpendicular
-    /// to it, and its length.
-    w_perp: Vec3<T>,
-    offset: T,
-    /// The carrier centre's height along the torus axis.
-    h0: T,
-    /// The amplitude of the carrier's height about `h0` (in band here).
-    tilt: T,
-    /// The arc: roots are reported within `π` of its midpoint.
-    t0: T,
-    t1: T,
-}
-
 /// Where one extreme of the carrier's distance from the torus axis sits
 /// among the plane's contour circles `ρ− < ρ+`.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Band3 {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Band3 {
     /// `ρ < ρ−`: in the hole.
     Hole,
     /// `ρ− < ρ < ρ+`: inside the tube.
@@ -510,122 +556,95 @@ enum Band3 {
 /// residual at the extreme point, `C(θ₀)` or `C(θ₀ + π)`. Near the top
 /// or bottom of the tube the surface is nearly parallel to the plane, so
 /// an in-plane reach of `x` past a contour is a normal distance of only
-/// `x·√(r² − h₀²)/r`: deciding on the reach certified crossings whose
+/// `x·√(r² − h₀²)/r`: deciding on the reach would certify crossings whose
 /// bump the band cannot see. Each extreme is therefore placed by its own
-/// residual (`circle_torus_contour_residual`), and a bump in band
-/// is refused `Unsettled`.
+/// residual, and the pose decides the class on those placements
+/// (`super::pose`).
 ///
 /// **The tilt the pose was admitted with is carried, not dropped.** The
 /// pose is parallel only to within the band: the carrier's height
 /// varies by up to `tilt` about `h₀`. The residual `((ρ−R)² + h² −
 /// r²)/2r` then differs from the untilted one by at most
-/// `tilt·(2|h₀| + tilt)/2r` in `h`, plus the in-plane shortening of a
-/// tilted circle, at most `tilt²/ρc` in `ρ` at a slope of at most
-/// `(ρmax + R)/r` — and every residual margin is charged that much.
-///
-/// The remaining decisions are the plane's depth into the tube,
-/// `(r² − h₀²)/2r` — the residual of the tube's centre circle at that
-/// height, negated (`circle_torus_plane_height`), a screen: definitely
-/// negative is a miss, and a graze (zero or in the gap) defers to the
-/// extremes — and which side of the tube's centre circle an extreme
-/// outside the tube lies (`circle_torus_contour_side`, `ρ − R`, which is
-/// at least `√(r² − h₀²)` from zero there). At a graze both extremes
-/// outside the tube on one side of the centre circle are a miss, since
-/// the residual grows away from the ring the plane touches; otherwise the
-/// graze's refusal stands.
-fn parallel_axes_roots<T: Decide>(
-    pose: &ParallelPose<T>,
-    torus: &geom::Surface<T>,
-    major_radius: T,
-    minor_radius: T,
-    band: Band,
-) -> Result<CircleRoots<T>, RootRefusal> {
-    let &ParallelPose {
-        circle:
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        u_ref,
-                        ..
-                    },
-                ..
-            },
+/// `tilt·(2|h₀| + tilt)/2r` in `h` (`charge_h`), plus the in-plane
+/// shortening of a tilted circle, at most `tilt²/ρc` in `ρ` at a slope of
+/// at most `(ρmax + R)/r` — and every residual margin is charged that
+/// much, doubled (`charge`): an interior point of the arc between the two
+/// extremes is moved by both the tilt of its own position and the tilt's
+/// shift of where the extremes fall.
+pub(super) struct Contours<T: geom_core::Real> {
+    /// The plane's depth into the tube, `(r² − h₀²)/2r`.
+    pub(super) depth: T,
+    /// The tilt's charge on the plane's height.
+    pub(super) charge_h: T,
+    /// The tilt's charge on every residual margin.
+    pub(super) charge: T,
+    /// The carrier's farthest point from the torus axis, along `+w⊥`,
+    /// within half a turn of the span's middle.
+    pub(super) theta0: T,
+    /// The carrier's least and greatest distance from the torus axis.
+    pub(super) rho: (T, T),
+    /// The span's middle, roots are reported within half a turn of.
+    pub(super) middle: T,
+}
+
+/// [`Contours`] of `circle` against the torus `(R, r)`.
+pub(super) fn contours<T: Decide>(
+    circle: &geom::Circle<T>,
+    (major_radius, minor_radius): (T, T),
+    axes: &Axes<T>,
+    (t0, t1): (T, T),
+) -> Contours<T> {
+    let radius = circle.radius();
+    let two = T::from_f64(2.0);
+    let Axes {
+        tilt,
+        h0,
         w_perp,
         offset,
-        h0,
-        tilt,
-        t0,
-        t1,
-    } = pose;
-    let radius = circle.radius();
-    let v_ref = pose.circle.frame.v_ref();
-    let two = T::from_f64(2.0);
+    } = *axes;
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
-    let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    // A plane that grazes the tube meets it only about the ring of its
-    // top or bottom, of radius `R`: the depth is a screen, and the
-    // extremes' placements below say whether the carrier comes near that
-    // ring. The graze's own refusal stands only where it does.
-    let graze: Option<RootRefusal> =
-        match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band) {
-            Ok((Sign::Positive, _)) => None,
-            // Definitely past the top or bottom of the tube, even charged.
-            Ok((_, Sign::Negative)) => return Ok(CircleRoots::Miss),
-            Ok(_) => Some(Unsettled::Tangency.into()),
-            Err(gap) => Some(gap.into()),
-        };
     let rho_max = radius + offset;
-    let rho_min = (radius - offset).abs();
-    // Doubled: the bound above is for a point whose height and in-plane
-    // radius the tilt moves once; an interior point of the arc between
-    // the two extremes is moved by both the tilt of its own position and
-    // the tilt's shift of where the extremes fall, which the doubling
-    // covers.
-    let charge = two * (charge_h + tilt.powi(2) / radius * (rho_max + major_radius) / minor_radius);
-    // `θ₀`: the carrier's farthest point from the torus axis, along
-    // `+w_perp`, read within half a turn of the span's middle.
     let middle = geom::mid_param(t0, t1);
-    let theta0 = geom::Azimuth::of(w_perp.dot(v_ref), w_perp.dot(u_ref)).near(middle);
-    let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
-        let (s, c) = theta.sin_cos();
-        let res =
-            crate::implicit_residual(torus, center + u_ref * (radius * c) + v_ref * (radius * s));
-        match crate::roots::spread_signs("circle_torus_contour_residual", res, charge, band)? {
-            (_, Sign::Negative) => return Ok(Some(Band3::Tube)),
-            (Sign::Positive, _) => {}
-            _ => return Ok(None),
-        }
-        Ok(
-            match decide(
-                "circle_torus_contour_side",
-                Margin::of(rho - major_radius),
-                band,
-            )? {
-                Sign::Positive => Some(Band3::Beyond),
-                Sign::Negative => Some(Band3::Hole),
-                Sign::Zero => None,
-            },
-        )
-    };
-    let (Some(far), Some(near)) = (place(theta0, rho_max)?, place(theta0 + T::pi(), rho_min)?)
-    else {
-        return Err(Unsettled::Tangency.into());
-    };
-    // At a graze both extremes outside the tube on one side of the ring
-    // keep the whole carrier there, where the residual grows away from
-    // the ring: no point of it meets the torus.
-    if let Some(refusal) = graze {
-        return if far == near && far != Band3::Tube {
-            Ok(CircleRoots::Miss)
-        } else {
-            Err(refusal)
-        };
+    let (u_ref, v_ref) = (circle.frame.u_ref, circle.frame.v_ref());
+    Contours {
+        depth: (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius),
+        charge_h,
+        charge: two * (charge_h + tilt.powi(2) / radius * (rho_max + major_radius) / minor_radius),
+        theta0: geom::Azimuth::of(w_perp.dot(v_ref), w_perp.dot(u_ref)).near(middle),
+        rho: ((radius - offset).abs(), rho_max),
+        middle,
     }
+}
+
+/// **The parallel arm's roots** ([`Contours`]), its extremes placed by
+/// the pose, `far` at `θ₀` and `near` at `θ₀ + π`: contour `ρ−` lies
+/// between them iff the near one is in the hole and the far one is not,
+/// `ρ+` iff the far one is beyond and the near one is not.
+///
+/// **Where the roots are, not just that they are.** The roots are placed
+/// as if the carrier were untilted; the tilt moves the residual by up to
+/// `charge`, and the residual's slope along the carrier at a contour
+/// crossing is `(|ρ± − R|/r)·(ρc·d·sin spread/ρ±)` per radian, so the
+/// true roots lie within `charge/slope` radians of these, plus the `acos`
+/// argument's own rounding, `δc/sin spread`. That arc length must be
+/// inside the band (`circle_torus_root_slack`), or a caller's span and
+/// trim decisions are on the wrong point.
+///
+/// # Errors
+///
+/// [`Unsettled::Meter`] for a root slack not definitely inside the band.
+pub(super) fn parallel_roots<T: Decide>(
+    circle: &geom::Circle<T>,
+    (major_radius, minor_radius): (T, T),
+    axes: &Axes<T>,
+    contours: &Contours<T>,
+    (far, near): (Band3, Band3),
+    band: Band,
+) -> Result<CircleRoots<T>, RootRefusal> {
+    let radius = circle.radius();
+    let two = T::from_f64(2.0);
+    let (offset, h0) = (axes.offset, axes.h0);
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
-    // Contour ρ− lies between the extremes iff the near one is in the
-    // hole and the far one is not; ρ+ iff the far one is beyond and the
-    // near one is not.
     let crossed = [
         (
             major_radius - half,
@@ -636,58 +655,39 @@ fn parallel_axes_roots<T: Decide>(
             far == Band3::Beyond && near != Band3::Beyond,
         ),
     ];
+    let middle = contours.middle;
     let mut thetas = [T::zero(); 2 * crate::half_angle::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
         if !hit {
             continue;
         }
-        // Inside `[-1, 1]` by the placements above; the clamp is the
-        // rounding guard, not a decision.
+        // Inside `[-1, 1]` by the placements; the clamp is the rounding
+        // guard, not a decision.
         let c = ((contour.powi(2) - offset.powi(2) - radius.powi(2)) / (two * radius * offset))
             .max(T::zero() - T::one())
             .min(T::one());
         let spread = c.acos();
-        // **Where the roots are, not just that they are.** The roots are
-        // placed as if the carrier were untilted; the tilt moves the
-        // residual by up to `charge`, and the residual's slope along the
-        // carrier at a contour crossing is
-        // `(|ρ± − R|/r)·(ρc·d·sin spread/ρ±)` per radian, so the true
-        // roots lie within `charge/slope` radians of these — plus the
-        // `acos` argument's own rounding, `δc/sin spread`. That arc
-        // length must be inside the band, or a caller's span and trim
-        // decisions are on the wrong point.
         let sin_spread = (T::one() - c.powi(2)).max(T::zero()).sqrt();
         let slope = half / minor_radius * radius * offset * sin_spread / contour;
         let rounding = rounding_charge(contour.powi(2) + offset.powi(2) + radius.powi(2))
             / (two * radius * offset);
-        let slack = radius * (charge / slope + rounding / sin_spread);
+        let slack = radius * (contours.charge / slope + rounding / sin_spread);
         match decide("circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => {
-                return Err(Unsettled::Meter {
-                    row: "circle_torus_root_slack",
-                }
-                .into());
-            }
-            // A NaN slack (a zero slope, which the placements above have
+            // A NaN slack (a zero slope, which the placements have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => {
+            Ok(Sign::Positive) | Err(_) => {
                 return Err(Unsettled::Meter {
                     row: "circle_torus_root_slack",
                 }
                 .into());
             }
         }
-        // Each root within half a turn of the span's middle, by
-        // `Period::near`'s span argument. What a caller may assume: the
-        // root is a crossing's angle within half a turn of the middle, as
-        // an enclosure. On a whole-turn span a root at one end is the same
-        // crossing as a root at the other, and it lands on the upper end
-        // (`Period::near`'s tie), so a caller reads a root against the
-        // span's ends (or as the point it names), never as an identity
-        // between two calls.
-        for theta in [theta0 + spread, theta0 - spread] {
+        // Each root within half a turn of the span's middle. A caller reads a root against the span's
+        // ends (or as the point it names), never as an identity between
+        // two calls.
+        for theta in [contours.theta0 + spread, contours.theta0 - spread] {
             thetas[count] = geom_core::period::Period::angle().near(theta, middle);
             count += 1;
         }
@@ -1237,8 +1237,8 @@ mod tests {
                 matches!(
                     &got,
                     Ok(Err(_))
-                        | Err(DoorRefusal::Escalated(Indeterminate {
-                            predicate: Some("circle_torus_contour_residual"),
+                        | Err(DoorRefusal::Escalated(geom_core::Indeterminate {
+                            predicate: Some("curve_face_pose_contour_residual"),
                             ..
                         },))
                 ),
@@ -1470,8 +1470,8 @@ mod tests {
             matches!(
                 &got,
                 Ok(Err(_))
-                    | Err(DoorRefusal::Escalated(Indeterminate {
-                        predicate: Some("circle_torus_contour_residual"),
+                    | Err(DoorRefusal::Escalated(geom_core::Indeterminate {
+                        predicate: Some("curve_face_pose_contour_residual"),
                         ..
                     },))
             ),

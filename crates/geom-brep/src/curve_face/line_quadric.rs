@@ -14,23 +14,11 @@
 //! ([`LineQuadricRefusal`]): the arm that refused and what that arm's
 //! finder can refuse with, which the caller names a decision of its own.
 
-use super::circle_roots::{CircleRoots, DoorRefusal, door_refusal};
+use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::quartic::{QuarticRoots, depressed_quartic_roots, quadratic_roots};
 use crate::roots::{RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
-
-/// What [`line_quadric_roots`] reads a line's run against a quadric.
-#[derive(Clone, Copy, Debug)]
-pub enum LineRoots<T: geom_core::Real> {
-    /// The certified roots in the line's parameter, or the count the arm
-    /// could not certify.
-    Roots(Result<CircleRoots<T>, Unsettled>),
-    /// The line runs parallel to a wall's axis over the run: the
-    /// residual is constant along it, and not zero, since no line the
-    /// rung lets through lies on the wall.
-    Constant,
-}
 
 /// **Why [`line_quadric_roots`] refused**: the arm, and what its finder
 /// refused with. The wall, sphere and cone arms only escalate; the torus
@@ -63,88 +51,146 @@ impl LineQuadricRefusal {
     }
 }
 
-/// **The certified roots of the LINE against `surface`**, per kind, over
-/// the run `(t0, t1)` of the line's parameter: its length is the lever
-/// the wall's axis-parallel rung is metered over, and the cone's apex
-/// rung reads the segment it spans. `None` for a surface with no line
-/// root lane (a plane, a spindle sheet, a spline). The wall and sphere
-/// quadratics take any non-zero direction; the torus quartic assumes it
-/// unit, the `Line` carrier's convention, which nothing checks.
-///
-/// Every arm answers the same three ways — a certified root set, a
-/// definite miss, or no certain count — and the cylinder adds a fourth,
-/// the axis-parallel line whose residual is constant. A line never lies
-/// on a torus or a sphere, so neither has such a case. A tangency is not
-/// a crossing this door can act on, so it is the count it could not
-/// certify ([`Unsettled::Tangency`]). The torus quartic answers only on a
-/// certified count, so a graze or a repeated root refuses as the
-/// cylinder's tangency does.
+/// **The certified roots of the LINE against `surface`** over the run
+/// `(t0, t1)` of the line's parameter, in the root doors' shape: the
+/// sweep's reading until it reads [`super::cross`]. A wrapper: the pose
+/// ([`super::pose`]), then the arm's method ([`line_method`]), mapped
+/// back. The pose's `Lies` (a ruling of a wall, a generator of a cone) is
+/// [`CircleRoots::On`]; a line parallel to a wall's axis off it, or any
+/// other `Apart`, is [`CircleRoots::Miss`]; a graze is
+/// [`Unsettled::Tangency`], its curvature in band too; a line through a
+/// cone's apex is the apex's double root; an apex in band is
+/// [`Unsettled::AtApex`]. `None` for a surface with no line root lane.
 ///
 /// # Errors
 ///
-/// [`LineQuadricRefusal`], the arm with its refusal.
+/// [`LineQuadricRefusal`], the arm with the pose's or the method's
+/// escalation.
 pub fn line_quadric_roots<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Option<LineRoots<T>>, LineQuadricRefusal> {
-    let span = (t1 - t0).abs();
-    let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
-    Ok(Some(LineRoots::Roots(match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match line_wall_roots(
-            line,
-            geom::Line { origin, dir: axis },
-            radius,
-            span,
-            band,
-            About::Start,
-        )
-        .map_err(LineQuadricRefusal::Wall)?
-        {
-            WallRoots::Two(ts, _) => two(ts),
-            WallRoots::Tangent => Err(Unsettled::Tangency),
-            WallRoots::AxisParallel => return Ok(Some(LineRoots::Constant)),
-            WallRoots::Miss => Ok(CircleRoots::Miss),
-        },
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => door_refusal(line_torus_roots(
-            line,
-            geom::Line {
-                origin: center,
-                dir: axis,
+) -> Result<Option<Result<CircleRoots<T>, Unsettled>>, LineQuadricRefusal> {
+    use super::pose::{Pose, PoseRefusal, PoseRung};
+    let arm = |diag: Indeterminate, rung: PoseRung| match *surface {
+        geom::Surface::Cylinder { .. } => LineQuadricRefusal::Wall(WallRootFault {
+            rung: if rung == PoseRung::AxisParallel {
+                WallRung::AxisParallel
+            } else {
+                WallRung::Discriminant
             },
-            major_radius,
-            minor_radius,
-            band,
-        ))
-        .map_err(LineQuadricRefusal::Torus)?
-        .map(Roots::widen),
-        geom::Surface::Sphere { center, radius, .. } => {
-            match line_sphere_roots(line, center, radius, band, About::Start)
-                .map_err(LineQuadricRefusal::Sphere)?
-            {
-                WallRoots::Two(ts, _) => two(ts),
-                WallRoots::Tangent => Err(Unsettled::Tangency),
-                WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),
-            }
+            diag,
+        }),
+        geom::Surface::Sphere { .. } => LineQuadricRefusal::Sphere(diag),
+        geom::Surface::Torus { .. } => LineQuadricRefusal::Torus(DoorRefusal::Escalated(diag)),
+        _ => LineQuadricRefusal::Cone(diag),
+    };
+    if !matches!(
+        surface,
+        geom::Surface::Cylinder { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. }
+    ) {
+        return Ok(None);
+    }
+    let carrier = geom::Curve3::Line(line);
+    let span = crate::curve_pair::Span::new(&carrier, (t0, t1));
+    let pose = match super::pose::pose(&span, surface, band) {
+        Ok(pose) => pose,
+        Err(refusal) if refusal.zero_band() => return Ok(Some(Err(Unsettled::Tangency))),
+        // An apex spread the band cannot call is the apex's, refused
+        // typed, never escalated.
+        Err(PoseRefusal::InBand {
+            rung: PoseRung::Apex,
+            diag,
+        }) if diag.predicate == Some("curve_face_pose_cone_apex_spread") => {
+            return Ok(Some(Err(Unsettled::AtApex)));
         }
-        geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
+        Err(PoseRefusal::InBand { rung, diag }) => return Err(arm(diag, rung)),
+        Err(PoseRefusal::Meter {
+            rung: PoseRung::Apex,
             ..
-        } => line_cone_roots(
+        }) => return Ok(Some(Err(Unsettled::AtApex))),
+        Err(PoseRefusal::Meter { row, .. }) => return Ok(Some(Err(Unsettled::Meter { row }))),
+        Err(
+            PoseRefusal::Enclosed
+            | PoseRefusal::Unbuilt(_)
+            | PoseRefusal::Torus(_)
+            | PoseRefusal::Fault(_),
+        ) => return Ok(None),
+    };
+    Ok(Some(match pose {
+        Pose::Lies => Ok(CircleRoots::On(crate::roots::OnCarrier)),
+        Pose::Apart => Ok(CircleRoots::Miss),
+        Pose::Tangent(_) => Err(Unsettled::Tangency),
+        Pose::Through(apex) => Ok(Roots::<T, 2>::all([apex.at, apex.at]).widen()),
+        Pose::Isolated(form) => match line_method(line, (t0, t1), surface, form.0, band) {
+            Ok(roots) => Ok(roots),
+            Err(LineMethodRefusal::Unsettled(why)) => Err(why),
+            Err(LineMethodRefusal::Escalated(diag)) => {
+                return Err(arm(diag, PoseRung::Discriminant));
+            }
+            Err(LineMethodRefusal::Invariant(what)) => {
+                return Err(LineQuadricRefusal::Torus(DoorRefusal::Invariant(what)));
+            }
+        },
+    }))
+}
+
+/// Why a line arm's method refused ([`line_method`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum LineMethodRefusal {
+    /// A classifying sign of the method in the band's gap.
+    Escalated(Indeterminate),
+    /// A count the method cannot certify.
+    Unsettled(Unsettled),
+    /// A kernel fault.
+    Invariant(&'static str),
+}
+
+impl From<LineMethodRefusal> for crate::curve_pair::MeetFault {
+    fn from(refusal: LineMethodRefusal) -> Self {
+        match refusal {
+            LineMethodRefusal::Escalated(diag) => Self::Escalated(diag),
+            LineMethodRefusal::Unsettled(why) => Self::Unsettled(why),
+            LineMethodRefusal::Invariant(readings) => Self::Contradiction { readings },
+        }
+    }
+}
+
+/// **The line arm's method**: the roots of an [`super::pose::Pose::Isolated`]
+/// line, from what its pose computed. A wall's or a sphere's two roots
+/// are the pose's own; a cone's are its quadratic's, each metered
+/// ([`line_cone_roots`]); a torus's are its quartic ladder's
+/// ([`line_torus_roots`]).
+///
+/// # Errors
+///
+/// [`LineMethodRefusal`].
+pub(super) fn line_method<T: Decide>(
+    line: geom::Line<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    form: super::pose::Formed<T>,
+    band: Band,
+) -> Result<CircleRoots<T>, LineMethodRefusal> {
+    use super::pose::Formed;
+    match (form, surface.clone()) {
+        (Formed::LineQuadratic { roots }, _) => Ok(Roots::<T, 2>::all(roots).widen()),
+        (Formed::LineCone { parallel: true }, _) => {
+            Err(LineMethodRefusal::Unsettled(Unsettled::Degenerate))
+        }
+        (
+            Formed::LineCone { parallel: false },
+            geom::Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+        ) => line_cone_roots(
             line,
             (
                 geom::Line {
@@ -155,13 +201,37 @@ pub fn line_quadric_roots<T: Decide>(
             ),
             (t0, t1),
             band,
-        )
-        .map_err(LineQuadricRefusal::Cone)?,
-        geom::Surface::Plane { .. }
-        | geom::Surface::Spindle { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => return Ok(None),
-    })))
+        ),
+        (
+            Formed::LineTorus,
+            geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            },
+        ) => match line_torus_roots(
+            line,
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            major_radius,
+            minor_radius,
+            band,
+        ) {
+            Ok(found) => Ok(found.widen()),
+            Err(RootRefusal::Unsettled(why)) => Err(LineMethodRefusal::Unsettled(why)),
+            Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
+                Err(LineMethodRefusal::Escalated(diag))
+            }
+            Err(RootRefusal::Fault(fault)) => Err(LineMethodRefusal::Invariant(fault.readings())),
+        },
+        _ => Err(LineMethodRefusal::Invariant(
+            "the line arm's method was handed a form of another arm",
+        )),
+    }
 }
 
 /// What [`line_wall_roots`] found. The three non-root answers are kept
@@ -243,26 +313,39 @@ pub fn line_wall_roots<T: Decide>(
     band: Band,
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
+    use super::pose::{LineQuadric, PoseRefusal, PoseRung};
+    match super::pose::line_wall_read(line, (wall, radius), (T::zero(), span), about, band) {
+        Ok(LineQuadric::Parallel { .. }) => Ok(WallRoots::AxisParallel),
+        Ok(LineQuadric::Apart) => Ok(WallRoots::Miss),
+        Ok(LineQuadric::Graze { .. }) => Ok(WallRoots::Tangent),
+        Ok(LineQuadric::Two(roots, slack)) => Ok(WallRoots::Two(roots, slack)),
+        Err(PoseRefusal::InBand { rung, diag }) => Err(WallRootFault {
+            rung: if rung == PoseRung::AxisParallel {
+                WallRung::AxisParallel
+            } else {
+                WallRung::Discriminant
+            },
+            diag,
+        }),
+        Err(other) => unreachable!("the wall's rungs refuse only in band: {other:?}"),
+    }
+}
+
+/// **The line × wall quadratic** `|d⊥|²s² + 2(w⊥·d⊥)s + (|w⊥|² − r²)`,
+/// read `about` the line's start or its closest approach to the axis,
+/// held to the run `span` ([`Centred`]).
+pub(super) fn wall_quadratic<T: Decide>(
+    line: geom::Line<T>,
+    (wall, radius): (geom::Line<T>, T),
+    span: T,
+    about: About,
+) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let geom::Line { origin, dir: axis } = wall;
     let w0 = q - origin;
     let w0p = wall.offset(q);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
-    let two_r = T::from_f64(2.0) * radius;
-    match decide(
-        "line_quadric_cylinder_axis_parallel",
-        Margin::metered(span, geom_core::InfSpeed::new(dp.norm())),
-        band,
-    )
-    .map_err(|diag| WallRootFault {
-        rung: WallRung::AxisParallel,
-        diag,
-    })? {
-        Sign::Positive => {}
-        _ => return Ok(WallRoots::AxisParallel),
-    }
-    // Read from the line's closest approach to the axis, held to the run.
     let shift = match about {
         About::Start => T::zero(),
         About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
@@ -270,28 +353,36 @@ pub fn line_wall_roots<T: Decide>(
             .min(span),
     };
     let w = w0p + dp * shift;
-    let centred = Centred::new(
+    Centred::new(
         (w0, d, shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
         T::one(),
-    );
-    let disc = centred.disc();
-    match decide(
-        "line_quadric_cylinder_disc",
-        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
-        band,
     )
-    .map_err(|diag| WallRootFault {
-        rung: WallRung::Discriminant,
-        diag,
-    })? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
-        Sign::Negative => return Ok(WallRoots::Miss),
-    }
-    let (roots, slack) = centred.roots(disc);
-    Ok(WallRoots::Two(roots, slack))
+}
+
+/// **The line × sphere quadratic** `|d|²s² + 2(w·d)s + (|w|² − r²)`,
+/// read `about` the line's start or its closest approach to the centre
+/// ([`Centred`]).
+pub(super) fn sphere_quadratic<T: Decide>(
+    line: geom::Line<T>,
+    (center, radius): (Point3<T>, T),
+    about: About,
+) -> Centred<T> {
+    let geom::Line { origin: q, dir: d } = line;
+    let w0 = q - center;
+    let a2 = d.norm_squared();
+    let shift = match about {
+        About::Start => T::zero(),
+        About::Nearest => (T::zero() - w0.dot(d)) / a2,
+    };
+    let w = w0 + d * shift;
+    Centred::new(
+        (w0, d, shift, w),
+        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        radius,
+        T::one(),
+    )
 }
 
 /// **A line × quadric quadratic read where the line passes the
@@ -489,33 +580,14 @@ pub fn line_sphere_roots<T: Decide>(
     band: Band,
     about: About,
 ) -> Result<WallRoots<T>, geom_core::Indeterminate> {
-    let geom::Line { origin: q, dir: d } = line;
-    let w0 = q - center;
-    let a2 = d.norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / a2,
-    };
-    let w = w0 + d * shift;
-    let centred = Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
-        radius,
-        T::one(),
-    );
-    let disc = centred.disc();
-    let two_r = T::from_f64(2.0) * radius;
-    match decide(
-        "line_quadric_sphere_disc",
-        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
-        band,
-    )? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(WallRoots::Tangent),
-        Sign::Negative => return Ok(WallRoots::Miss),
+    use super::pose::{LineQuadric, PoseRefusal};
+    match super::pose::line_sphere_read(line, (center, radius), about, band) {
+        Ok(LineQuadric::Apart | LineQuadric::Parallel { .. }) => Ok(WallRoots::Miss),
+        Ok(LineQuadric::Graze { .. }) => Ok(WallRoots::Tangent),
+        Ok(LineQuadric::Two(roots, slack)) => Ok(WallRoots::Two(roots, slack)),
+        Err(PoseRefusal::InBand { diag, .. }) => Err(diag),
+        Err(other) => unreachable!("the sphere's rung refuses only in band: {other:?}"),
     }
-    let (roots, slack) = centred.roots(disc);
-    Ok(WallRoots::Two(roots, slack))
 }
 
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
@@ -623,7 +695,7 @@ pub fn line_torus_roots<T: Decide>(
 /// approach `|Q(e,dir)/Q(dir,dir)|·|dir|` stands for them. Along the axis
 /// it is the line's offset itself. A degenerate `Q(dir,dir)` (a ruling)
 /// is the lead rung's, read before.
-fn apex_root_spread<T: Decide>(
+pub(super) fn apex_root_spread<T: Decide>(
     e: geom_core::Vec3<T>,
     dir: geom_core::Vec3<T>,
     (axis, half_angle): (geom_core::Vec3<T>, T),
@@ -686,89 +758,11 @@ fn line_cone_roots<T: Decide>(
     (cone, half_angle): (geom::Line<T>, T),
     (t0, t1): (T, T),
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, Indeterminate> {
+) -> Result<CircleRoots<T>, LineMethodRefusal> {
     let geom::Line { origin, dir } = line;
-    let geom::Line {
-        origin: apex,
-        dir: axis,
-    } = cone;
-    let w0 = origin - apex;
-    let dd = dir.norm_squared();
-    let at = |t: T| w0 + dir * t;
-    let foot = line.param_within(apex, (t0.min(t1), t0.max(t1)));
+    let w0 = origin - cone.origin;
     let [a2, b2, c2] = line_cone_quadratic(line, cone, half_angle, About::Start).coeffs;
-    // Unsourced lever: a length read off the parameter span, not the
-    // edge's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
-    match decide("line_quadric_cone_apex", Margin::norm3(at(foot)), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            // An edge that reaches the apex: the cone's form is
-            // homogeneous about its apex, so along a line through it the
-            // residual is `A·(t − t_apex)²`, zero there alone unless the
-            // line is a ruling (`A` zero, the lead rung's). Its one root
-            // is the apex's, a double one: at an end, the end's incidence
-            // with the apex vertex (`NoInterior`); inside the span, a
-            // crossing the caller places on the face's apex vertex, the
-            // edge's incidence with it, which the vertex pair reads. The
-            // root is the end the apex is decided at, else the foot.
-            // WHICH, not a search a later end may answer past
-            // ([`crate::ladder::Answering::First`]'s rule, several rungs may answer): both
-            // ends can read at the apex within the band, on an edge about a band long, and the
-            // end the apex is decided at is the root whose spread is read next, so an end in
-            // band ahead of the other decided at the apex may be the true root, and its
-            // escalation refuses.
-            let mut at_apex = foot;
-            for end in [t0, t1] {
-                if decide("line_quadric_cone_apex", Margin::norm3(at(end)), band)? == Sign::Zero {
-                    at_apex = end;
-                    break;
-                }
-            }
-            let lead = a2 / dd;
-            if decide(
-                "line_quadric_cone_lead",
-                Margin::levered(lead, length),
-                band,
-            )? == Sign::Zero
-            {
-                return Ok(Err(Unsettled::Degenerate));
-            }
-            // In the band, not AT the apex: the double root at `at_apex`
-            // is the edge's meeting with the apex only where the line's
-            // roots lie within the band of it along the edge
-            // ([`apex_root_spread`]). An in-band spread is the apex's,
-            // refused typed, never escalated.
-            return match decide(
-                "line_quadric_cone_apex_spread",
-                Margin::of(apex_root_spread(at(at_apex), dir, (axis, half_angle))),
-                band,
-            ) {
-                Ok(Sign::Zero) => Ok(Ok(Roots::<T, 2>::all([at_apex, at_apex]).widen())),
-                Ok(Sign::Positive | Sign::Negative) | Err(_) => Ok(Err(Unsettled::AtApex)),
-            };
-        }
-    }
-    match decide(
-        "line_quadric_cone_lead",
-        Margin::levered(a2 / dd, length),
-        band,
-    )? {
-        Sign::Positive | Sign::Negative => {}
-        Sign::Zero => return Ok(Err(Unsettled::Degenerate)),
-    }
     let disc = b2.powi(2) - a2 * c2;
-    let vertex = (T::zero() - b2) / a2;
-    let reach = at(t0).norm().max(at(t1).norm()).max(at(vertex).norm());
-    match decide(
-        "line_quadric_cone_depth",
-        Margin::of(disc / (a2.abs() * reach)),
-        band,
-    )? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(Err(Unsettled::Tangency)),
-        Sign::Negative => return Ok(Ok(CircleRoots::Miss)),
-    }
     let roots = quadratic_roots(a2, b2, c2, disc);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
@@ -783,13 +777,37 @@ fn line_cone_roots<T: Decide>(
         ) {
             Ok(Sign::Zero | Sign::Negative) => {}
             Ok(Sign::Positive) | Err(_) => {
-                return Ok(Err(Unsettled::Meter {
+                return Err(LineMethodRefusal::Unsettled(Unsettled::Meter {
                     row: "line_quadric_cone_root_slack",
                 }));
             }
         }
     }
-    Ok(Ok(Roots::<T, 2>::all(roots).widen()))
+    Ok(Roots::<T, 2>::all(roots).widen())
+}
+
+/// The line × cone reading through the door's wrapper, as the rows read
+/// it: the cone `(apex, axis)` of `half_angle`, a cone rung's escalation
+/// its diagnostics.
+#[cfg(test)]
+#[allow(clippy::panic)]
+fn line_cone_door<T: Decide>(
+    line: geom::Line<T>,
+    (cone, half_angle): (geom::Line<T>, T),
+    span: (T, T),
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, Indeterminate> {
+    let surface = geom::Surface::Cone {
+        apex: cone.origin,
+        axis: cone.dir,
+        half_angle,
+        u_ref: cone.dir.orthonormal_basis().0,
+    };
+    match line_quadric_roots(line, span, &surface, band) {
+        Ok(Some(found)) => Ok(found),
+        Err(LineQuadricRefusal::Cone(diag)) => Err(diag),
+        other => panic!("the cone door answered outside its arm: {other:?}"),
+    }
 }
 
 #[cfg(test)]
@@ -1050,7 +1068,7 @@ mod line_cone_rows {
         span: (f64, f64),
     ) -> Result<Result<CircleRoots<f64>, Unsettled>, Indeterminate> {
         let tip = Point3::new(APEX.0, APEX.1, APEX.2);
-        line_cone_roots(
+        super::line_cone_door(
             geom::Line {
                 origin: Point3::from_array(origin),
                 dir: Vec3::from_array(dir),
@@ -1245,8 +1263,8 @@ mod line_cone_rows {
         }
         let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
         assert!(
-            matches!(ruling, Err(Unsettled::Degenerate)),
-            "a ruling ending at the apex, got {ruling:?}"
+            matches!(ruling, Ok(CircleRoots::On(_))),
+            "a ruling ending at the apex lies on the cone, got {ruling:?}"
         );
         let steep = roots(
             [-1.0, 0.5 * b.zero(), -1.001],
@@ -1323,7 +1341,7 @@ mod line_cone_rows {
                             .into_iter()
                             .filter(inside)
                             .collect();
-                        match line_cone_roots(
+                        match super::line_cone_door(
                             geom::Line { origin, dir: axis },
                             (
                                 geom::Line {

@@ -465,7 +465,9 @@ fn a_joint_between_two_runs_meets_the_span() {
 /// carries a listed prefix, and every listed prefix is decided there**
 /// ([`super::TABLE_K_PREFIX`], [`super::DOOR_K_PREFIXES`]). A door renamed, or a name added under a
 /// prefix the list does not hold, reds the first half; a prefix whose
-/// door moved away or was renamed reds the second. The census reader is
+/// door moved away or was renamed reds the second; a
+/// `curve_face_pose_*` row decided outside `curve_face/pose.rs`, a door
+/// deciding a class, reds the third. The census reader is
 /// `test_utils::source::predicate_census`; a name the doors hand in from
 /// a caller (`circle_roots`' rows) is an indirect site, listed here so a
 /// new one reds.
@@ -483,15 +485,12 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("AT_THE_END"),
         NameCarrier::Const("PAST_THE_END"),
         NameCarrier::Const("CONE_APEX"),
-        NameCarrier::Const("CONE_APEX_SPREAD"),
         NameCarrier::Const("CONE_DEFLATED_CLEAR"),
         NameCarrier::Const("CONE_DEFLATED_DEPTH"),
         NameCarrier::Const("CONE_DEFLATED_SIDE"),
-        NameCarrier::Const("CONE_ON_SURFACE"),
         NameCarrier::Const("CONE_ROOT_SLACK"),
-        NameCarrier::Const("SECOND_HARMONIC"),
         NameCarrier::Call("spread_signs"),
-        NameCarrier::Call("constant_residual_roots"),
+        NameCarrier::Call("spread_readings"),
         NameCarrier::Call("gap_as"),
         NameCarrier::Call("apart_as"),
     ];
@@ -522,19 +521,15 @@ fn every_door_name_carries_a_listed_prefix() {
         census.unreadable,
         census.unwalked
     );
-    // The sites whose name is not a literal there: `circle_roots`' rows,
-    // which its callers name, and the carriers' own bodies (`row`). A new
-    // one is a name this row cannot see, so it reds until it is read or
-    // listed.
+    // The sites whose name is not a literal there: the first harmonic's
+    // root slack, which its door names, and the carriers' own bodies
+    // (`row`). A new one is a name this row cannot see, so it reds until
+    // it is read or listed.
     let indirect: Vec<&str> = census.indirect.iter().map(String::as_str).collect();
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: constant_residual_roots: row",
-            "circle_roots.rs: harmonic_crossing: c0",
-            "circle_roots.rs: harmonic_crossing: rows.coaxial()",
-            "circle_roots.rs: harmonic_crossing: rows.noise()",
-            "circle_roots.rs: harmonic_crossing: rows.root_slack()",
+            "circle_roots.rs: harmonic_roots: root_slack",
             "composite.rs: settle: row",
             "conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
             "spline_face.rs: settle: row",
@@ -548,13 +543,10 @@ fn every_door_name_carries_a_listed_prefix() {
         [
             "composite.rs: PAST_THE_BAND",
             "conic_quadric.rs: CONE_APEX",
-            "conic_quadric.rs: CONE_APEX_SPREAD",
             "conic_quadric.rs: CONE_DEFLATED_CLEAR",
             "conic_quadric.rs: CONE_DEFLATED_DEPTH",
             "conic_quadric.rs: CONE_DEFLATED_SIDE",
-            "conic_quadric.rs: CONE_ON_SURFACE",
             "conic_quadric.rs: CONE_ROOT_SLACK",
-            "conic_quadric.rs: SECOND_HARMONIC",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
             "spline_face.rs: PAST_THE_END",
@@ -576,4 +568,42 @@ fn every_door_name_carries_a_listed_prefix() {
             "{door:?}'s prefix {prefix} is decided nowhere under curve_face/"
         );
     }
+    // The pose's rows are decided in the pose's module and nowhere else:
+    // no door decides a class.
+    let pose = predicate_census(&src.join("curve_face/pose.rs"), &carriers);
+    assert!(
+        pose.names.iter().any(|n| n.starts_with(POSE_PREFIX)),
+        "the pose decides no {POSE_PREFIX} row: {:?}",
+        pose.names
+    );
+    let mut stack = vec![src.join("curve_face"), src.join("curve_face.rs")];
+    let mut elsewhere = Vec::new();
+    while let Some(path) = stack.pop() {
+        if path.is_dir() {
+            stack.extend(
+                std::fs::read_dir(&path)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path()),
+            );
+            continue;
+        }
+        if path.extension().is_none_or(|e| e != "rs") || path.ends_with("curve_face/pose.rs") {
+            continue;
+        }
+        let here = predicate_census(&path, &carriers);
+        elsewhere.extend(
+            here.names
+                .into_iter()
+                .filter(|n| n.starts_with(POSE_PREFIX))
+                .map(|n| format!("{}: {n}", path.display())),
+        );
+    }
+    assert!(
+        elsewhere.is_empty(),
+        "pose rows decided outside the pose: {elsewhere:?}"
+    );
 }
+
+/// The pose's rows' prefix: the table's own ([`super::TABLE_K_PREFIX`]),
+/// named for the module that decides them.
+const POSE_PREFIX: &str = "curve_face_pose_";

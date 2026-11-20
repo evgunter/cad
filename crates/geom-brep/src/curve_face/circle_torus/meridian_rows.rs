@@ -129,7 +129,7 @@ fn meridian_escalation(
     matches!(
         got,
         Err(DoorRefusal::Escalated(diag))
-            if diag.predicate == Some("circle_torus_meridian")
+            if diag.predicate == Some("curve_face_pose_meridian")
     )
 }
 

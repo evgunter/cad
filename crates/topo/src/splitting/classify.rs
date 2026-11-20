@@ -474,7 +474,7 @@ mod tests {
                 else {
                     panic!("{label}: {got:?}");
                 };
-                assert_eq!(diag.predicate, Some("plane_crossing_graze_side"), "{label}");
+                assert_eq!(diag.predicate, Some("curve_face_pose_graze_side"), "{label}");
                 assert_eq!(
                     diag.margin.rejected_sign(),
                     Some(geom_core::Sign::Zero),

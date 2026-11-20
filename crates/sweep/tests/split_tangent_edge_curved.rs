@@ -312,7 +312,7 @@ fn a_plane_off_a_hole_wall_reads_each_decision_across_the_band() {
                 let want = if seam {
                     "split_vertex_side"
                 } else {
-                    "plane_crossing_belly_graze"
+                    "curve_face_pose_belly_graze"
                 };
                 assert_eq!(predicate, Some(want), "{label}");
             }

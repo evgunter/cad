@@ -90,8 +90,7 @@
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
-use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
-pub use crate::rows::FirstHarmonicRows;
+use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -190,33 +189,8 @@ pub fn door_refusal<V, X>(
     }
 }
 
-/// **The answer for a residual constant along the carrier to within
-/// `spread`** about `value` (module docs, "A constant residual"), both in
-/// metres, decided under `row`. `spread` must bound the residual's
-/// distance from `value` everywhere on the carrier.
-///
-/// # Errors
-///
-/// [`RootRefusal::Escalated`] when `value ∓ spread` lies in the band's
-/// gap, and [`Unsettled::Tangency`] when one end is in the zero band and
-/// the other definite: the carrier is neither on the surface nor clear
-/// of it.
-pub fn constant_residual_roots<T: Decide>(
-    value: T,
-    spread: T,
-    row: &'static str,
-    band: Band,
-) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-    match spread_signs(row, value, spread, band)? {
-        (Sign::Positive, _) | (_, Sign::Negative) => Ok(Roots::Miss),
-        (Sign::Zero, Sign::Zero) => Ok(Roots::On(OnCarrier)),
-        _ => Err(Unsettled::Tangency.into()),
-    }
-}
-
-/// What [`first_harmonic_roots`] and [`constant_residual_roots`] answer:
-/// [`CircleRoots`]' shape with room for two roots, the most a first
-/// harmonic has.
+/// What [`harmonic_roots`] answers: [`CircleRoots`]' shape with room for
+/// two roots, the most a first harmonic has.
 pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
@@ -233,6 +207,7 @@ pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 /// extremes' and no phase charge: a residual error bounded at every `θ`
 /// already moves the roots by no more than that over `|R′|`, the
 /// phase's share included.
+#[derive(Clone, Copy, Debug)]
 pub struct FirstHarmonic<T> {
     /// The least residual, `c₀ − A₁`.
     pub lo: T,
@@ -250,69 +225,25 @@ pub struct FirstHarmonic<T> {
     pub phase_noise: T,
 }
 
-/// **The certified roots of a first-harmonic residual along a carrier
-/// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
-/// ellipse's larger semi-axis), reported within `π` of the midpoint of
-/// `[t0, t1]` ([`Period::near`]): the
-/// decisions of the module docs ("The first-harmonic door"), under the
-/// caller's `rows`.
+/// **The two roots of a first harmonic the pose read crossing**
+/// (`super::pose`: its extremes definitely on either side of zero, its
+/// noise metered), along a carrier whose speed `|C′(θ)|` is at most
+/// `speed`, reported within `π` of the midpoint of `(t0, t1)`
+/// ([`Period::near`]): the root slack (module docs, "root slack"),
+/// decided under `root_slack`, then the half-chord from the extreme
+/// nearer zero.
 ///
 /// # Errors
 ///
-/// [`DoorRefusal::Escalated`] when the constant
-/// residual of a coaxial carrier, or an extreme residual, lies in the
-/// band's escalation gap. An escalated noise or root-slack reading is
-/// NOT an escalation: it refuses [`Unsettled::Meter`] in the inner `Err`,
-/// as a definitely excessive one does — a meter that cannot be read does
-/// not license the roots it meters. An extreme in the zero band refuses
-/// [`Unsettled::Tangency`] there. An escalated coaxial test falls through
-/// to the extremes, which decide the same carrier.
-pub fn first_harmonic_roots<T: Decide>(
+/// [`Unsettled::Meter`] where the root slack is not definitely inside
+/// the band, or not readable.
+pub fn harmonic_roots<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
-    t0: T,
-    t1: T,
-    rows: &FirstHarmonicRows,
-    band: Band,
-) -> Result<Result<FirstHarmonicRoots<T>, Unsettled>, DoorRefusal> {
-    door_refusal(first_harmonic_roots_in_band(h, speed, t0, t1, rows, band))
-}
-
-/// [`first_harmonic_roots`] with its refusals left as the root finders'
-/// own.
-///
-/// # Errors
-///
-/// As [`first_harmonic_roots`], as the bare [`RootRefusal`].
-fn first_harmonic_roots_in_band<T: Decide>(
-    h: &FirstHarmonic<T>,
-    speed: T,
-    t0: T,
-    t1: T,
-    rows: &FirstHarmonicRows,
+    (t0, t1): (T, T),
+    root_slack: &'static str,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-    harmonic_roots(h, speed, (t0, t1), rows, band)
-}
-
-/// What [`harmonic_crossing`] decides of a first harmonic.
-enum Harmonic<T> {
-    Miss,
-    On,
-    /// Two roots, `φ ± half_chord`.
-    Crosses {
-        half_chord: T,
-    },
-}
-
-/// The one body of [`first_harmonic_roots_in_band`]: every decision of the module docs, and the half-chord where the
-/// harmonic crosses zero.
-fn harmonic_crossing<T: Decide>(
-    h: &FirstHarmonic<T>,
-    speed: T,
-    rows: &FirstHarmonicRows,
-    band: Band,
-) -> Result<Harmonic<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -322,35 +253,6 @@ fn harmonic_crossing<T: Decide>(
         hi_noise,
         phase_noise,
     } = *h;
-    let two = T::from_f64(2.0);
-    // The extremes are what every decision below reads, so their error
-    // is what the representation must resolve.
-    let noise = lo_noise.max(hi_noise);
-    match decide(rows.noise(), Margin::of(noise), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise() }.into()),
-    }
-    let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
-    if let Ok(Sign::Zero) = decide(rows.coaxial(), Margin::of(a1), band) {
-        return Ok(
-            match constant_residual_roots(c0, a1 + noise, rows.extreme(), band)? {
-                Roots::Miss => Harmonic::Miss,
-                Roots::On(_) => Harmonic::On,
-                Roots::Certified(_) => unreachable!("a constant residual has no roots"),
-            },
-        );
-    }
-    let lo = extreme_sign(rows.extreme(), lo_value, lo_noise, band)?;
-    if lo == Sign::Positive {
-        return Ok(Harmonic::Miss);
-    }
-    let hi = extreme_sign(rows.extreme(), hi_value, hi_noise, band)?;
-    if hi == Sign::Negative {
-        return Ok(Harmonic::Miss);
-    }
-    if (lo, hi) != (Sign::Negative, Sign::Positive) {
-        return Err(Unsettled::Tangency.into());
-    }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
     // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the
     // residual there by `(hi·δlo − lo·δhi)/(hi − lo)`, and the phase's
@@ -360,43 +262,21 @@ fn harmonic_crossing<T: Decide>(
     let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
-    match decide(rows.root_slack(), Margin::of(slack), band) {
+    match decide(root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {
-            return Err(Unsettled::Meter {
-                row: rows.root_slack(),
-            }
-            .into());
+            return Err(Unsettled::Meter { row: root_slack }.into());
         }
     }
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).
     let past = |near: T| crate::roots::arc_past(near.abs() / swing);
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
-    Ok(Harmonic::Crosses { half_chord })
-}
-
-/// [`harmonic_crossing`]'s roots as angles within half a turn of the
-/// span's middle.
-fn harmonic_roots<T: Decide>(
-    h: &FirstHarmonic<T>,
-    speed: T,
-    span: (T, T),
-    rows: &FirstHarmonicRows,
-    band: Band,
-) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-    let half_chord = match harmonic_crossing(h, speed, rows, band)? {
-        Harmonic::Miss => return Ok(Roots::Miss),
-        Harmonic::On => return Ok(Roots::On(OnCarrier)),
-        Harmonic::Crosses { half_chord } => half_chord,
-    };
     // The roots within half a turn of the span's middle, by
     // `Period::near`'s span argument. Its readers read an end of a
-    // whole-turn span alike: the wall crossing's `at_end` and the sphere
-    // cut-in's vertex lookup at either end.
-    let (t0, t1) = span;
+    // whole-turn span alike.
     let middle = geom::mid_param(t0, t1);
-    let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(middle);
+    let phi = geom::Azimuth::of(sin_part, cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
     let turn = Period::angle();
     Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))

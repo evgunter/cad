@@ -941,7 +941,7 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
-    let slack = crate::rows::CONIC_QUADRIC_FIRST.root_slack();
+    let slack = "conic_quadric_first_root_slack";
     assert!(
         matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
         "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \

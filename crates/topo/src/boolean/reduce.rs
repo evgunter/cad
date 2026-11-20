@@ -7152,7 +7152,7 @@ mod declaration_order_rows {
             BooleanDecision::ArcTorusRoots,
             "the lane's own decision"
         );
-        assert_eq!(diag.predicate, Some("circle_torus_plane_height"));
+        assert_eq!(diag.predicate, Some("curve_face_pose_torus_plane_height"));
         let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
@@ -7293,7 +7293,7 @@ mod wall_root_tests {
             panic!("the lane escalates: {err:?}");
         };
         assert_eq!(decision, BooleanDecision::WallRoots(WallRung::Discriminant));
-        assert_eq!(diag.predicate, Some("line_quadric_cylinder_disc"));
+        assert_eq!(diag.predicate, Some("curve_face_pose_disc"));
         let text =
             BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");

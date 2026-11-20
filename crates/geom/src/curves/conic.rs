@@ -196,9 +196,30 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
     /// so `(P(θ) − center)·n = first·cos θ + second·sin θ`. `n` need not
     /// be unit: the pair is linear in it.
+    ///
+    /// Read off `n`'s part across the conic's plane, `(â × n) × â`, which
+    /// the frame's directions see as `n` itself, formed with no
+    /// cancellation: as the conic turns parallel to `n`'s plane, `n·û` and
+    /// `n·v̂` are differences of nearly equal terms, each off by `u`, so
+    /// the harmonic's phase would be `u/sin` off and a graze's point
+    /// `r·u/sin` along the conic. `â × n = â × (n ∓ â)`, and `n − â` (or
+    /// `n + â`, the conic facing away) is formed to `u` of its own size,
+    /// so its cross with `â` cancels nothing. Away from parallel both
+    /// forms are as good, so the choice at `â·n = 0` is free.
     fn along(&self, n: Vec3<T>) -> (T, T) {
         let (f, (a, b)) = (self.frame(), self.semi_axes());
-        (a * f.u_ref.dot(n), b * f.v_ref().dot(n))
+        let axis = f.axis;
+        let across = |m: Vec3<T>| axis.cross(m).cross(axis);
+        let (facing, away) = (across(n - axis), across(n + axis));
+        let key = axis.dot(n);
+        let d = Vec3::new(
+            key.select_le_zero(away.x, facing.x),
+            key.select_le_zero(away.y, facing.y),
+            key.select_le_zero(away.z, facing.z),
+        );
+        // `(â × m) × â` is `m`'s part across the plane only for a unit
+        // `â`; the frame's axis is unit by the conic's convention.
+        (a * f.u_ref.dot(d), b * f.v_ref().dot(d))
     }
 
     /// **The parameter of `p` within half a turn of `span`'s middle**:

@@ -259,16 +259,18 @@ pub struct BoundaryReading<T: geom_core::Real> {
     pub shared: Vec<(usize, bool)>,
 }
 
-/// A boundary member the pass could not read against the span, and the
-/// stretch of the span outside which it meets nothing
-/// ([`Span::window_near`]).
+/// **A stretch of the span a reading could not read**, and why: outside
+/// it the reading is exact, inside it says nothing. The boundary pass's
+/// is a member it could not read and the stretch outside which that
+/// member meets nothing ([`Span::window_near`]); the crossing reading's
+/// is a stretch of the span against the surface ([`CrossWhy`]).
 #[derive(Clone, Copy, Debug)]
-pub struct Undecided<T: geom_core::Real> {
-    /// The span's parameters, `(lo, hi)`, the member's meetings lie
+pub struct Undecided<T: geom_core::Real, W = BoundaryRefusal> {
+    /// The span's parameters, `(lo, hi)`, the unread meetings lie
     /// within.
     pub window: (T, T),
-    /// Why the member was not read.
-    pub why: BoundaryRefusal,
+    /// Why the stretch was not read.
+    pub why: W,
 }
 
 /// **The boundary pass read past its members' refusals** ([`located`]):
@@ -353,28 +355,39 @@ impl<T: Decide> Located<T> {
             .map(|u| u.why)
     }
 
-    /// **The first window the run `(a, b)` can reach into**: one it does
-    /// not definitely end at or before, or start at or after
-    /// (`curve_face_window`, the parameters metred at `speed`, the span
-    /// carrier's). A window is the escalation wider than where its member
-    /// can meet the span, so a run past it by a zero gap misses the
-    /// member.
+    /// **The first window the run `(a, b)` can reach into**
+    /// ([`undecided_over`]).
     #[must_use]
-    pub fn undecided_over(&self, (a, b): (T, T), speed: T, band: Band) -> Option<&Undecided<T>> {
-        let past = |gap: T| {
-            matches!(
-                geom_core::k_stats::decide(
-                    "curve_face_window",
-                    geom_core::Margin::of(gap * speed),
-                    band
-                ),
-                Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
-            )
-        };
-        self.undecided
-            .iter()
-            .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
+    pub fn undecided_over(&self, run: (T, T), speed: T, band: Band) -> Option<&Undecided<T>> {
+        undecided_over(&self.undecided, run, speed, band)
     }
+}
+
+/// **The first window the run `(a, b)` can reach into**: one it does not
+/// definitely end at or before, or start at or after
+/// (`curve_face_window`, the parameters metred at `speed`, the span
+/// carrier's). A window is the escalation wider than where its meetings
+/// can lie, so a run past it by a zero gap misses them.
+#[must_use]
+pub fn undecided_over<T: Decide, W>(
+    windows: &[Undecided<T, W>],
+    (a, b): (T, T),
+    speed: T,
+    band: Band,
+) -> Option<&Undecided<T, W>> {
+    let past = |gap: T| {
+        matches!(
+            geom_core::k_stats::decide(
+                "curve_face_window",
+                geom_core::Margin::of(gap * speed),
+                band
+            ),
+            Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
+        )
+    };
+    windows
+        .iter()
+        .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
 }
 
 /// A member of the boundary as the pass reads it.
@@ -550,6 +563,39 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
     )
 }
 
+/// **The pose of `span` against `surface`** (C5's curve × face
+/// paragraph): `Lies`, `Apart`, `Tangent`, `Through` or `Isolated`, read
+/// by the rungs of the arm [`route`] names ([`pose::pose`]).
+///
+/// # Errors
+///
+/// [`PoseRefusal`].
+pub fn pose<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    pose::pose(span, surface, band)
+}
+
+/// **Where `span` meets `surface`** (C5's curve × face paragraph): the
+/// pose, then the door's one method, matched on [`route`]'s door with no
+/// wildcard ([`cross::cross`]).
+///
+/// # Errors
+///
+/// [`CrossRefusal`]: its windows, and the meetings outside them.
+pub fn cross<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Crossings<T>, CrossRefusal<T>> {
+    cross::cross(span, surface, band)
+}
+
+pub use cross::{CrossRefusal, CrossWhy, Crossings, Meeting, MeetingKind, OnSpan};
+pub use pose::{Form, Pose, PoseRefusal, PoseRung, Singular, Touch};
+
 pub mod circle_roots;
 pub mod circle_torus;
 pub mod composite;
@@ -559,9 +605,11 @@ pub mod composite;
 #[doc(hidden)]
 pub mod conic_oracle;
 pub mod conic_quadric;
+pub mod cross;
 pub mod ellipse_torus;
 pub mod line_quadric;
 pub mod plane_crossing;
+pub mod pose;
 #[cfg(test)]
 mod review_rows;
 #[cfg(test)]

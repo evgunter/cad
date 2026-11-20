@@ -4,8 +4,7 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::NonzeroSign;
-use geom_core::k_stats::{decide, decide_nonzero};
+use geom_core::k_stats::decide;
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
@@ -37,15 +36,12 @@ pub enum PlaneCrossingLane<T> {
 /// ([`PlaneCrossingLane::Conic`]).
 #[derive(Debug)]
 pub enum ConicPlaneMeet<T> {
-    /// The conic's plane is parallel to the query plane: the carrier
-    /// lies wholly at `offset`, its centre's signed distance, so it is
-    /// either IN the plane or never meets it. Which is the caller's
-    /// decision.
-    Parallel {
-        /// The centre's signed distance from the plane.
-        offset: T,
-    },
-    /// The carrier definitely never meets the plane.
+    /// The conic lies in the plane: its plane parallel to the query
+    /// plane, at an offset the pose read in the zero band all round
+    /// ([`super::pose::Pose::Lies`]).
+    InPlane,
+    /// The carrier definitely never meets the plane, wholly on one side
+    /// or parallel to it off it.
     Miss,
     /// The roots interior to the span, ascending (possibly none), or
     /// the rung no verdict was reached on.
@@ -106,50 +102,33 @@ impl ConicRootFault {
     }
 }
 
-/// The lane that finds where a carrier's span crosses a plane
-/// ([`PlaneCrossingLane`]). On a **conic** it finds the crossing roots over the span: the
-/// signed distance along the carrier is
-/// the sinusoid `d(θ) = D + R·cos(θ − φ)` with `D = (center − q)·n̂`,
-/// `R·cos φ = s_u·(û·n̂)`, `R·sin φ = s_v·(v̂·n̂)` (`s_u/s_v` the
-/// semi-axes — `r/r` for a circle). Unlike a line, a conic edge can
-/// cross the plane an EVEN number of times between same-side
-/// endpoints (the belly case) or once beyond an ON endpoint — so
-/// crossing detection is **root-based, endpoint-verdict-free**:
+/// **The lane that finds where a carrier's span crosses a plane**
+/// ([`PlaneCrossingLane`]): the sweep's, `slit`'s, `factored_crossing`'s
+/// and classify's reading until they read [`super::cross`]. On a conic it
+/// is a wrapper: the pose ([`super::pose`]'s plane arm, which reads the
+/// conic's height above the plane `d₀ + R cos(θ − φ)` by its belly, its
+/// parallel gate and offset, and a graze's side and curvature), then the
+/// method's closed-form roots placed against the span
+/// ([`super::cross`]'s placement), mapped back:
 ///
-/// 1. `plane_crossing_belly_graze` — margin `R − |D|` (meters): Negative
-///    ⇒ the carrier never meets the plane — no crossing, read before the
-///    parallel gate, so a conic wholly on one side misses whatever its
-///    tilt reads;
-///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
-///    plane grazes the carrier's extremum — ONE (double) root, `φ` or
-///    `φ + π` as `plane_crossing_graze_side` decides D's sign, whose
-///    insertion (if in-span) leaves a same-side ON contact for the
-///    sector classification (the established graze net); in-band ⇒
-///    typed escalation (F6).
-/// 2. Each root, re-centred on the span's midpoint, is classified
-///    against the span by the span's own reading of a parameter
-///    ([`crate::curve_pair::Span::place_param`]): the root's point
-///    within the band of an end's point, by their chord, sits at that
-///    endpoint vertex (the ON-endpoint belly case — the vertex sweep
-///    already recorded it, nothing to insert); otherwise the parameter's
-///    side of each end decides, inside ⇒ a genuine interior crossing
-///    (returned for insertion), past ⇒ outside the span; in-band ⇒
-///    typed escalation (the crossing grazes an edge end — an
-///    ill-conditioned operand/plane pair). A parameter span metered at
-///    one speed would put a root up to the speeds' ratio past the band
-///    at a thin ellipse's fast end.
-/// 3. Two interior roots whose points are within the band of each
-///    other, by their chord (`plane_crossing_roots_apart`), collapse to
-///    one insertion; apart, they are ordered ascending by their
-///    parameters (never a raw comparison); in-band ⇒ escalation.
+/// - `Lies` is [`ConicPlaneMeet::InPlane`]; `Apart` is
+///   [`ConicPlaneMeet::Miss`];
+/// - a graze, the pose's `Tangent`, is its one double root, inserted
+///   where it is inside the span (the graze net: the insertion leaves a
+///   same-side ON contact for the sector classification);
+/// - a pose rung in band is the rung's [`ConicRootFault`], a graze's
+///   curvature in the zero band its [`ConicRootFault::BellyGraze`];
+/// - a root in band of an end is [`ConicRootFault::CrossingInterior`], and
+///   two roots the placement cannot part [`ConicRootFault::RootOrder`];
+///   two within the band of each other by their chord are one,
+///   inserted once.
 ///
 /// **What a caller may assume of a root**: it is the closed form's root
 /// at the scalar's rounding, decided strictly inside `[t0, t1]` (its
 /// point's chord to each end past the band, and inside by its
-/// parameter), and the roots are ascending and decided apart. It is not a point certified on the
-/// plane, and the door certifies nothing about the edge it lies on: a
-/// caller that splits an edge at one decides that split's own
-/// interiority and certifies the pieces itself.
+/// parameter), and the roots are ascending and decided apart. It is not
+/// a point certified on the plane: a caller that splits an edge at one
+/// decides that split's own interiority and certifies the pieces itself.
 pub fn plane_crossing_lane<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -160,10 +139,9 @@ pub fn plane_crossing_lane<T: Decide>(
 ) -> PlaneCrossingLane<T> {
     match (carrier.conic(), carrier) {
         (Some(conic), _) => PlaneCrossingLane::Conic(conic_plane_meet(
-            conic,
+            &conic,
             &Span::new(carrier, (t0, t1)),
-            plane_origin,
-            plane_normal,
+            (plane_origin, plane_normal),
             band,
         )),
         (None, geom::Curve3::Line(_)) => PlaneCrossingLane::Line,
@@ -175,153 +153,40 @@ pub fn plane_crossing_lane<T: Decide>(
 fn conic_plane_meet<T: Decide>(
     conic: &dyn geom::Conic<T>,
     span: &Span<'_, T>,
-    plane_origin: geom_core::Point3<T>,
-    plane_normal: geom_core::Vec3<T>,
+    plane: (geom_core::Point3<T>, geom_core::Vec3<T>),
     band: Band,
 ) -> ConicPlaneMeet<T> {
-    let (t0, t1) = span.params();
-    let near = geom::mid_param(t0, t1);
-    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, near, band) {
-        Ok((candidates, _)) => candidates,
-        Err(meet) => return meet,
+    use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
+    let roots = match super::pose::plane_conic(span, conic, plane, band) {
+        Ok(Pose::Lies) => return ConicPlaneMeet::InPlane,
+        Ok(Pose::Apart) => return ConicPlaneMeet::Miss,
+        Ok(Pose::Tangent(touch)) => vec![touch.at],
+        Ok(Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots }))) => roots.to_vec(),
+        Ok(Pose::Isolated(_) | Pose::Through(_)) => {
+            unreachable!("a conic's plane arm answers no other form")
+        }
+        Err(PoseRefusal::InBand {
+            rung: PoseRung::PlaneParallel,
+            diag,
+        }) => return ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(diag))),
+        Err(PoseRefusal::InBand { diag, .. }) => {
+            return ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)));
+        }
+        Err(other) => unreachable!("the plane arm refuses in band only: {other:?}"),
     };
-    span_roots(candidates, span, band)
-}
-
-/// **The carrier half of [`conic_plane_meet`]**: where the whole conic
-/// meets the plane, as carrier parameters (one for a graze, two for a
-/// crossing), before any span is read, named within half a turn of
-/// `near` or a little past it, and whether it is a graze. `Err` carries
-/// the answer that needs no span — parallel, a miss, or the fault a rung
-/// escalated. The belly graze is read before the parallel gate: a conic
-/// wholly on one side of the plane is a miss whatever its tilt reads, the
-/// parallel argument before the swing.
-fn conic_plane_candidates<T: Decide>(
-    conic: &dyn geom::Conic<T>,
-    plane_origin: geom_core::Point3<T>,
-    plane_normal: geom_core::Vec3<T>,
-    near: T,
-    band: Band,
-) -> Result<([Option<T>; 2], bool), ConicPlaneMeet<T>> {
-    // The conic's height above the plane, `d0 + a·cos θ + b·sin θ`: the
-    // first harmonic a curve pair's transverse reading is built on
-    // ([`crate::curve_pair::pose`]), one generator for both.
-    let (d0, a, b) = crate::curve_pair::pose::height(conic, plane_origin, plane_normal);
-    // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
-    // frames (a rim circle against a perpendicular side plane), and a
-    // plain interval product's spurious negative low end makes the
-    // sqrt refuse (the interval-square class).
-    let r = (a.powi(2) + b.powi(2)).sqrt();
-    // The miss first: a conic wholly on one side of the plane never meets
-    // it, whatever its tilt reads (the parallel argument before the
-    // swing). Its other arms are read at step 1.
-    let belly = decide("plane_crossing_belly_graze", Margin::of(r - d0.abs()), band);
-    if let Ok(Sign::Negative) = belly {
-        return Err(ConicPlaneMeet::Miss);
+    let placed = super::cross::place(span, &roots, band);
+    if let Some(&(_, why)) = placed.refused.first() {
+        return ConicPlaneMeet::Roots(match why {
+            super::cross::PlaceWhy::End(diag) => Err(ConicRootFault::CrossingInterior(diag)),
+            super::cross::PlaceWhy::Apart(diag) => Err(ConicRootFault::RootOrder(diag)),
+            super::cross::PlaceWhy::Together(t) => Ok(vec![t]),
+        });
     }
-    // 0. The PARALLEL-frame gate: a conic whose plane is parallel to
-    // the query plane (both amplitudes zero) either never meets it or
-    // lies wholly IN it, and has no roots to find; `offset` tells the
-    // two apart. Without the gate the in-plane case reaches the graze
-    // arm with a 0/0 phase. The in-band twin escalates (F6).
-    match decide("plane_crossing_plane_parallel", Margin::of(r), band) {
-        Ok(Sign::Zero) => return Err(ConicPlaneMeet::Parallel { offset: d0 }),
-        Ok(Sign::Positive | Sign::Negative) => {}
-        Err(diag) => {
-            return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(
-                diag,
-            ))));
-        }
-    }
-    // 1. How many roots, where the sinusoid reaches zero?
-    let both_roots = match belly {
-        Ok(Sign::Negative) => return Err(ConicPlaneMeet::Miss),
-        Ok(Sign::Positive) => true,
-        // Graze: the double root, processed once (processing both
-        // would split twice at coincident parameters and escalate on
-        // the second interiority check — same refusal, worse site).
-        Ok(Sign::Zero) => false,
-        Err(diag) => return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)))),
-    };
-    // The sinusoid's phase within half a turn of `near`, read clear of
-    // `atan2`'s cut ([`geom::Azimuth::near`]): an interval `b` touching
-    // zero on the negative-`a` axis (a revolve-built frame's honest trig
-    // slop) stays narrow rather than spanning a turn.
-    let phi = geom::Azimuth::of(b, a).near(near);
-    // A graze's one root is the sinusoid's extremum nearest the plane:
-    // φ with the centre below the plane (D < 0), φ + π with it above. The
-    // residue's own roots lie up to √(2ε/R) radians either side, far
-    // outside ε.
-    let candidates: [Option<T>; 2] = if both_roots {
-        // The roots solve cos(θ − φ) = −D/R. Clamped acos (rounding can
-        // push the ratio a hair outside ±1; min/max are Real lattice ops).
-        let delta = ((T::zero() - d0) / r)
-            .min(T::one())
-            .max(T::zero() - T::one())
-            .acos();
-        [Some(phi + delta), Some(phi - delta)]
-    } else {
-        // |D| is within ε of R ≥ Kε, so it decides zero only when K ≤ 2
-        // and the conic's reach is itself inside the band; the gate's
-        // rejection carries that margin.
-        match decide_nonzero("plane_crossing_graze_side", Margin::of(d0), band) {
-            Ok(NonzeroSign::Negative) => [Some(phi), None],
-            Ok(NonzeroSign::Positive) => [Some(phi + T::pi()), None],
-            Err(diag) => {
-                return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag))));
-            }
-        }
-    };
-    Ok((candidates, !both_roots))
-}
-
-/// The span half of [`conic_plane_meet`]: the candidates interior to
-/// `[t0, t1]`, ascending.
-fn span_roots<T: Decide>(
-    candidates: [Option<T>; 2],
-    span: &Span<'_, T>,
-    band: Band,
-) -> ConicPlaneMeet<T> {
-    let (t0, t1) = span.params();
-    let mut roots: Vec<T> = Vec::with_capacity(2);
-    // A root at an endpoint vertex (already swept) or outside the span
-    // has nothing to insert; an undecided one is the root's own and
-    // escalates (F6).
-    for t in near_span(candidates, (t0, t1)) {
-        match span_place(span, t, band) {
-            Some(RootPlace::Inside) => roots.push(t),
-            Some(RootPlace::AtEnd) | None => {}
-            Some(RootPlace::Undecided(diag)) => {
-                return ConicPlaneMeet::Roots(Err(ConicRootFault::CrossingInterior(diag)));
-            }
-        }
-    }
-    // Two roots whose points are within the band of each other, by their
-    // chord as an end is read, are one: a graze the graze margin called
-    // Positive, inserted once. Otherwise they are ordered ascending by
-    // their parameters, through the trilean door.
-    if roots.len() == 2 {
-        let chord = span.carrier().eval(roots[1]) - span.carrier().eval(roots[0]);
-        match decide("plane_crossing_roots_apart", Margin::norm3(chord), band) {
-            Ok(Sign::Zero) => roots.truncate(1),
-            // Apart past the band by their chord, so by their parameters
-            // at the carrier's greatest speed (a chord is at most its arc).
-            Ok(Sign::Positive | Sign::Negative) => match decide(
-                "plane_crossing_root_order",
-                Margin::metered_sup(roots[1] - roots[0], span.speeds().1),
-                band,
-            ) {
-                Ok(Sign::Negative) => roots.swap(0, 1),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero) => {
-                    unreachable!("roots apart past the band read level along the span")
-                }
-                Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::RootOrder(diag))),
-            },
-            Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::RootOrder(diag))),
-        }
-    }
-    ConicPlaneMeet::Roots(Ok(roots))
+    ConicPlaneMeet::Roots(Ok(placed
+        .meetings
+        .into_iter()
+        .filter_map(|(t, on)| matches!(on, super::cross::OnSpan::Inside { .. }).then_some(t))
+        .collect()))
 }
 
 /// Whether a span has ends ([`span_plane_meet`]): an edge's or a bounded
@@ -413,24 +278,32 @@ pub fn span_plane_meet<T: Decide>(
 ) -> Result<Option<SpanPlaneMeet<T>>, ConicRootFault> {
     let found = match (carrier.conic(), carrier) {
         (Some(conic), _) => {
-            let (candidates, graze) = match conic_plane_candidates(
-                conic,
-                plane_origin,
-                plane_normal,
-                geom::mid_param(t0, t1),
-                band,
-            ) {
-                Ok(found) => found,
-                Err(ConicPlaneMeet::Parallel { offset }) => {
-                    return Ok(Some(SpanPlaneMeet::Parallel { offset }));
-                }
-                Err(ConicPlaneMeet::Miss) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
-                Err(ConicPlaneMeet::Roots(Err(fault))) => return Err(fault),
-                Err(ConicPlaneMeet::Roots(Ok(_))) => {
-                    unreachable!("the carrier half answers no roots")
-                }
-            };
+            use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
             let span = Span::new(carrier, (t0, t1));
+            let (candidates, graze) =
+                match super::pose::plane_conic(&span, &conic, (plane_origin, plane_normal), band) {
+                    Ok(Pose::Lies) => {
+                        let (d0, _, _) =
+                            crate::curve_pair::pose::height(&conic, plane_origin, plane_normal);
+                        return Ok(Some(SpanPlaneMeet::Parallel { offset: d0 }));
+                    }
+                    Ok(Pose::Apart) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
+                    Ok(Pose::Tangent(touch)) => ([Some(touch.at), None], true),
+                    Ok(Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots }))) => {
+                        ([Some(roots[0]), Some(roots[1])], false)
+                    }
+                    Ok(Pose::Isolated(_) | Pose::Through(_)) => {
+                        unreachable!("a conic's plane arm answers no other form")
+                    }
+                    Err(PoseRefusal::InBand {
+                        rung: PoseRung::PlaneParallel,
+                        diag,
+                    }) => return Err(ConicRootFault::PlaneParallel(diag)),
+                    Err(PoseRefusal::InBand { diag, .. }) => {
+                        return Err(ConicRootFault::BellyGraze(diag));
+                    }
+                    Err(other) => unreachable!("the plane arm refuses in band only: {other:?}"),
+                };
             let mut roots = Vec::with_capacity(2);
             for t in near_span(candidates, (t0, t1)) {
                 let place = match ends {
@@ -444,7 +317,7 @@ pub fn span_plane_meet<T: Decide>(
             if graze {
                 let touch = !roots.is_empty()
                     || near_span(candidates, (t0, t1)).any(|t| {
-                        graze_reaches_span(conic, &span, (plane_origin, plane_normal), t, band)
+                        graze_reaches_span(&conic, &span, (plane_origin, plane_normal), t, band)
                     });
                 return Ok(Some(if touch {
                     SpanPlaneMeet::Touch
@@ -728,7 +601,7 @@ mod tests {
         }
         // In-band (margin −3ε): typed escalation, named.
         let diag = roots_of(on_plane(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();
-        assert_eq!(diag.predicate, Some("plane_crossing_belly_graze"));
+        assert_eq!(diag.predicate, Some("curve_face_pose_belly_graze"));
     }
 
     /// Under `Interval` the graze root is the extremum to the phase's
@@ -785,19 +658,17 @@ mod tests {
         assert_eq!(diag.predicate, Some("curve_pair_span_end_chord"));
     }
 
-    /// `plane_crossing_plane_parallel`'s `Zero` arm hands back the conic's
-    /// offset for a circle in the plane, where the belly graze cannot
-    /// decide a miss; a circle in a parallel plane clear of it is `Miss`,
-    /// read before the gate.
+    /// `curve_face_pose_plane_parallel`'s `Zero` arm reads the conic's
+    /// offset: a circle in the plane, where the belly graze cannot decide
+    /// a miss, lies in it; a circle in a parallel plane clear of it is
+    /// `Miss`, read before the gate.
     #[test]
-    fn a_parallel_frame_reports_its_offset() {
+    fn a_parallel_frame_reads_its_offset() {
         let c = circle();
         let plane_z = |z: f64| (Point3::new(0.3, -0.2, z), Vec3::unit_z());
         match on_plane(&c, 0.1, 6.0, &plane_z(0.0), band()) {
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
-                assert!(offset.abs() < 1e-12, "offset in the plane: {offset}");
-            }
-            other => panic!("in the plane: expected the parallel arm, got {other:?}"),
+            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => {}
+            other => panic!("in the plane: expected the in-plane arm, got {other:?}"),
         }
         // Wholly on one side, the conic misses before its tilt is read.
         assert!(

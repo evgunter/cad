@@ -34,8 +34,8 @@ use topo::point_in_solid;
 
 /// The predicates whose firing makes this pin a claim about the wall.
 const WALL_RUNGS: [&str; 2] = [
-    "line_quadric_cylinder_axis_parallel",
-    "line_quadric_cylinder_disc",
+    "curve_face_pose_axis_parallel",
+    "curve_face_pose_disc",
 ];
 
 /// A pipe of radius `scale` about `z`, `z ∈ [−2, 2]·scale`, and probes

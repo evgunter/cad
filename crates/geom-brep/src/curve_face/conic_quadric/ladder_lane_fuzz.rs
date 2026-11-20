@@ -1,6 +1,6 @@
 //! **The ladder is sound where the lane choice would not send it**
 //! (`[verdicts.consumers]`, C5's conic × quadric lane choice): with the
-//! choice forced to the ladder ([`super::ladder_lane::forcing`]), a second
+//! choice forced to the ladder (`curve_face::pose::ladder_lane::forcing`), a second
 //! harmonic in the zero band or at zero is read by the subdivision, and
 //! no answer it gives contradicts the exact oracle
 //! ([`crate::curve_face::conic_oracle::exact`]):
@@ -171,7 +171,9 @@ fn judge(
     let (nearest, farthest) = reach(c, s);
     let truth = exact::truth(c, s);
     let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
-    let got = ladder_lane::forcing(|| conic_quadric_roots(c, m - h, m + h, s, band));
+    let got = crate::curve_face::pose::ladder_lane::forcing(|| {
+        conic_quadric_roots(c, m - h, m + h, s, band)
+    });
     let why = contradiction(&got, &truth, c, (nearest, farthest), eps)?;
     Some(format!(
         "{what}, ε {eps:e}: {why}: {got:?}\n  truth: {} roots {:?}, depth {:.3e}, \

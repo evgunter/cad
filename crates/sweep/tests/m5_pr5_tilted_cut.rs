@@ -849,7 +849,7 @@ fn near_graze_escalates_typed() {
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(
-        format!("{err:?}").contains("plane_crossing_belly_graze"),
+        format!("{err:?}").contains("curve_face_pose_belly_graze"),
         "{err:?}"
     );
     // One recourse, the split's own: a split takes no declaration.

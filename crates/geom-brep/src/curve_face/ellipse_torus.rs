@@ -69,52 +69,57 @@ pub fn ellipse_torus_roots<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-    let (
-        geom::Curve3::Ellipse(..),
-        Some(conic),
-        &geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        },
-    ) = (carrier, carrier.conic(), surface)
-    else {
+    if !matches!(
+        (carrier, surface),
+        (geom::Curve3::Ellipse(..), geom::Surface::Torus { .. })
+    ) {
         return Err(DoorRefusal::Invariant(
             "the ellipse × torus root door was handed a carrier that is not an ellipse or \
                    a surface that is not a torus",
         ));
-    };
-    torus_walk(
-        &conic,
-        (center, axis, major_radius, minor_radius),
-        (t0, t1),
-        surface,
-        Some(TORUS_ROOT_SLACK),
-        band,
-    )
+    }
+    super::circle_torus::torus_wrapper(carrier, (t0, t1), surface, band)
 }
 
 /// The torus arm's root-slack row.
 const TORUS_ROOT_SLACK: &str = "ellipse_torus_root_slack";
 
-/// [`ellipse_torus_roots`]' walk, its root-slack meter under `slack` (`None`
-/// only in this module's rows, which show the meter is what decides).
+/// The ellipse's walk (module docs), its clear margin read through the
+/// ring's `floor` on `|F|` per metre, its root-slack meter under
+/// [`TORUS_ROOT_SLACK`].
 /// The meter's ceiling on `|F| / |res|` is the smaller of the carrier's
 /// and the surface's ([`crate::ConicTorusHarmonics`]): a root it
 /// meters reads ON the surface.
-fn torus_walk<T: Decide>(
+pub(super) fn torus_walk<T: Decide>(
     conic: &dyn geom::Conic<T>,
     torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
+    floor: T,
+    band: Band,
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+    torus_walk_metered(
+        conic,
+        torus,
+        (t0, t1),
+        surface,
+        floor,
+        Some(TORUS_ROOT_SLACK),
+        band,
+    )
+}
+
+/// [`torus_walk`], its root-slack meter under `slack` (`None` only in
+/// this module's rows, which show the meter is what decides).
+fn torus_walk_metered<T: Decide>(
+    conic: &dyn geom::Conic<T>,
+    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    floor: T,
     slack: Option<&'static str>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-    // The walk reads only a ring: its harmonics take the convention's
-    // witness, whose floor on `|F|` per metre leans on `R − r > 0`.
-    let ring = crate::TorusRefusal::require(torus.2, torus.3, band).map_err(DoorRefusal::Torus)?;
     let (center, axis, major_radius, minor_radius) = torus;
     let h = crate::conic_torus_harmonics(
         conic,
@@ -154,7 +159,7 @@ fn torus_walk<T: Decide>(
             t1,
             speed_hi: conic.speed_hi(),
             noise: rounding_charge(h.terms),
-            f_per_metre: crate::ring_floor(ring),
+            f_per_metre: floor,
             f_per_metre_hi: h.f_per_metre_surface,
             residual_reach: Some(minor_radius / T::from_f64(2.0)),
         },
@@ -601,7 +606,15 @@ mod torus_rows {
             let [t0, t1] = self.arc;
             (
                 door_answer(ellipse_torus_roots(&e, t0, t1, &s, band)),
-                door_answer(torus_walk(&conic, torus, (t0, t1), &s, None, band)),
+                door_answer(torus_walk_metered(
+                    &conic,
+                    torus,
+                    (t0, t1),
+                    &s,
+                    crate::implicit::ring_floor_of(torus.2, torus.3),
+                    None,
+                    band,
+                )),
             )
         }
     }
