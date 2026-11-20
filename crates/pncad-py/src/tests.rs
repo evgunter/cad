@@ -5621,7 +5621,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_kind_tag",
-        values: &["cylinder", "plane"],
+        values: &["cone", "cylinder", "plane", "sphere", "torus"],
         delegates: &[],
     },
     TagEntry {
