@@ -389,6 +389,42 @@ mod tests {
         );
     }
 
+    /// **The enclosure's ends hold the exact value, on its two sides.**
+    /// `0.1 + 0.2` rounds up past the exact sum of its stored operands
+    /// (read exactly as an expansion): the lower end lies below the
+    /// exact sum and the upper end above it, both strictly, and so do
+    /// the negation's ends about the negated sum. A charge widens both
+    /// ends by itself, and leaves the value.
+    #[test]
+    fn the_enclosure_ends_hold_the_exact_value() {
+        use crate::exact::Expansion;
+        let r = Rounded::exact(0.1_f64) + Rounded::exact(0.2);
+        let mut sum = Expansion::default();
+        sum.add_expansion(&Expansion::product(0.1, 1.0));
+        sum.add_expansion(&Expansion::product(0.2, 1.0));
+        let exact = |x: f64| {
+            let mut d = sum.clone();
+            d.add_expansion(&Expansion::product(x, 1.0).negated());
+            d.components().iter().sum::<f64>()
+        };
+        assert!(exact(r.value) < 0.0, "the fixture rounds up: {r:?}");
+        assert!(exact(r.lower_end()) > 0.0, "the lower end {} is below the exact sum", r.lower_end());
+        assert!(exact(r.upper_end()) < 0.0, "the upper end {} is above the exact sum", r.upper_end());
+        let n = -r;
+        assert_eq!(n.error, r.error, "negation is exact");
+        assert!(
+            n.lower_end() < -r.value && -r.value < n.upper_end() && n.upper_end() == -r.lower_end(),
+            "the negation's ends are the ends negated: {n:?}"
+        );
+        let w = r.widened(0.25);
+        assert_eq!(w.value, r.value, "a charge leaves the value");
+        assert_eq!(
+            (w.lower_end(), w.upper_end()),
+            (r.value - (r.error + 0.25), r.value + (r.error + 0.25)),
+            "a charge widens both ends by itself"
+        );
+    }
+
     /// **An axis-aligned chain reports no error; a rounded one reports
     /// at least its rounding.** The unit defect of `ẑ` is exactly zero
     /// with a zero bound. For `(0.6, 0.8, 0)`, whose squares round, the
