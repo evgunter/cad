@@ -5,7 +5,7 @@ title: lever-doors.sh pins 59 production references to the named doors that take
 status: open
 opened: 2026-11-19
 priority: P1
-cost: H
+cost: M
 ---
 
 `scripts/gates/lever-doors.sh` is a ratchet on the named `Lever`/`ExtentBall`/`Reach` doors that take a number or a point the caller computed. Each is referenced only in its home, and elsewhere at a pin per door and file (`scripts/gates/lever-doors.counts`) that only falls. It does not make `crates/geom-core/README.md`'s "never from a length a caller vouches for" true.
