@@ -676,7 +676,7 @@ struct Turning {
 /// the arc from its start to its end in the axis's sense, by the
 /// intermediate value theorem one way and the bound the other.
 /// **The recovery margin `δ`** (radians) that makes
-/// [`covers_one_full_turn`]'s step 3 true in `f64` and not only in ℝ.
+/// [`turning`]'s step 3 true in `f64` and not only in ℝ.
 ///
 /// A span is admitted only once its TRUE turning is bounded by
 /// `π − δ`, so the sampled azimuth difference sits a whole `δ` away
