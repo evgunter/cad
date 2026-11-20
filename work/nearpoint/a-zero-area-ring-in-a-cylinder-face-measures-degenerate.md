@@ -38,6 +38,20 @@ row and for the mesh's
 (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`). Lifting the
 refusal needs both.
 
+The mesh's half is answered for the slit (TESSLIE, branch
+`tesslie/walk-slit`): a curved face whose outer loop passes one point
+record at two vertices, a slit's parted end, routes to the chart lane and
+meshes (`the_slit_block_meshes` in
+`crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs`).
+That reads the point RECORD: the union-built slit block mints its parted
+end as two vertices on one `PointKey`, and a parting that minted two point
+records at one place would trip the walk's declared-vertex guard instead.
+Which the Boolean's parting mints is unmeasured, as is the mesh of a
+zero-area ring in a curved face (a ring routes to the chart lane by its
+ring, untried: no door builds one while the parting refuses). The gap's
+doc and refusal text in `slit.rs` cite the TESSLIE row, which closes with
+that branch; the lift re-words them.
+
 ## Pinned by (CLEAVE, PR 6177)
 
 `crates/sweep/tests/a_cylinder_through_a_hole_tangent_to_its_wall.rs`

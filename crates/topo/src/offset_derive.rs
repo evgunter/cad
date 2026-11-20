@@ -1707,14 +1707,14 @@ mod square {
         };
         let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
         let circle = |center, axis, radius, u_ref| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            })
+            ))
         };
         let cylinder = Surface::Cylinder {
             origin: o,

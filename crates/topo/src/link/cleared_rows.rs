@@ -222,15 +222,15 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
     let w = axis.cross(u_ref);
     let center = p(0.4, -1.1, 2.3);
     for (semi_u, semi_v) in [(2.0, 0.7), (0.5, 1.6)] {
-        let e = Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame {
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             semi_u,
             semi_v,
-        });
+        ));
         let walk: Vec<Point3<f64>> = (0..20_000)
             .map(|k| {
                 let t = core::f64::consts::TAU * f64::from(k) / 20_000.0;

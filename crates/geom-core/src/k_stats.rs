@@ -2054,6 +2054,10 @@ impl Real for Probe {
         (Self(s), Self(c))
     }
 
+    fn less_sin(self) -> Self {
+        Self(Real::less_sin(self.0))
+    }
+
     fn tan(self) -> Self {
         Self(Real::tan(self.0))
     }
