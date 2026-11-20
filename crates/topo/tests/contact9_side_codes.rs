@@ -521,7 +521,7 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
-/// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
+/// `work/contacthold/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
 #[test]
 fn a_near_coincident_pair_at_a_corner_refuses_typed() {
     let tol = Tol::witness();

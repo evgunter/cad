@@ -35,7 +35,7 @@
 //! declaration with a named field and no attribute takes the stray key
 //! and drops it — and this format does not carry the attribute
 //! everywhere its own rule needs one
-//! (`work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+//! (`work/bind/census-sees-an-inert-attribute-but-not-a-missing-one.md`
 //! is the class, and holds the question of what would detect the next
 //! one — a tracker path deleted at its program's close is recoverable
 //! in git history),

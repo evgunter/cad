@@ -54,7 +54,7 @@ beside its double-double oracle (`profile/src/dd.rs`, crate-private and
 test-only). geom-core's own suite does not check the promise, so a
 change in geom-core that breaks it goes red only in profile's.
 Moving the row needs the oracle in reach of geom-core's tests, which
-is `work/reroute/double-double-arithmetic-is-spelled-in-five-places.md`'s
+is `work/comb/double-double-arithmetic-is-spelled-in-five-places.md`'s
 matter.
 
 

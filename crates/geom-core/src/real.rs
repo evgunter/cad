@@ -1320,15 +1320,16 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// 2. **Refusal payloads need nothing new**, since (1) leaves a refusing
 ///    door holding the caller's own number. What remains are DERIVED
 ///    quantities — margins, realized radii, values that exist only at `T` —
-///    and those are deliberately NOT echoed outside the ratified seams: an
-///    `f64` in an error payload is a branchable channel, the same unmetered
-///    decision surface at one remove, so the honest spelling outside a seam
-///    is the variant name plus the run's threshold. A door that wants to
-///    echo a derived margin is asking to be a seam, ratified individually.
-///    **No general projection helper exists, by this ruling** — a
-///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
-///    precisely what was asked for and refused. The classify seam's own
-///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    and those never leave a door as a number: an `f64` in an error
+///    payload is a branchable channel, the same unmetered decision surface
+///    at one remove. **No projection to a number exists, by this ruling**
+///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
+///    precisely what was asked for and refused. A derived quantity leaves
+///    as text and only as text (the crate README, "A number told
+///    to a person"): the one projection
+///    is into a told quantity, which renders and offers nothing a
+///    comparison could read. The classify seam's own diagnostic has that
+///    shape for a decided margin: `MarginDiag`, minted inside each
 ///    scalar's `Decide` impl on every outcome of a verdict the funnel
 ///    records under its name (definite and indeterminate alike), is the
 ///    one projection of a decided margin. A refusal payload may echo it,

@@ -79,7 +79,7 @@ fn margins_at(scale: f64) -> (Streams, Vec<topo::SolidContainment>) {
 fn the_wall_arms_margins_scale_linearly_with_the_model() {
     // Pinned red at 1e-6, where the millimetre twin fires predicates the
     // metre twin does not
-    // (`work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`).
+    // (`work/honejoin/ray-wall-twins-fire-different-predicates-at-1e-6.md`).
     // `k-lint (dev-probe)` runs this row once, at ε 1e-9, and the
     // nightly's `--all-features` suite at the default ε.
     test_utils::pinned_red::row(
