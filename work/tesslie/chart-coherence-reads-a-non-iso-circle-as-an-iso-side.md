@@ -4,7 +4,7 @@ kind: issue
 title: the chart-coherence examination reads a non-iso circle as a rim or a meridian, and reports metre-scale findings on a cut sphere
 status: open
 opened: 2026-11-20
-priority: P3
+priority: P1
 cost: M
 refs: [chart-coherence-ships-off-and-nothing-schedules-turning-it-on]
 ---
@@ -12,11 +12,12 @@ refs: [chart-coherence-ships-off-and-nothing-schedules-turning-it-on]
 
 (TESSLIE implementer, `tesslie/coherence-default`, 2026-11-20.) Filed
 while measuring whether `CheckId::ChartCoherence` can default to
-`Warn`. **This row is what keeps that default `Off`** (the reason is
-stated at `ChecksConfig::chart_coherence` in
-`crates/editor-core/src/checks.rs`), so its priority is a judgement
-about how much an on-by-default resident is worth. It was filed at P3
-on the orchestrator's instruction.
+`Warn`. **This row BLOCKS
+`chart-coherence-ships-off-and-nothing-schedules-turning-it-on`**: it is
+the one reason left for that row's default staying `Off` (stated at
+`ChecksConfig::chart_coherence` in `crates/editor-core/src/checks.rs`),
+so it carries that row's P1. The flip to `Warn` and the `skipped`
+re-baselines land with this row's fix.
 
 ## The defect
 
