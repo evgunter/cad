@@ -392,7 +392,10 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curv
 /// with it). `Err(margin)` is the estimator's conditioning refusal;
 /// `Ok(None)` a carrier outside the rational-quadratic arc structure or
 /// a refuted certificate.
-fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3<f64>, f64)>, f64> {
+pub(crate) fn try_circle(
+    curve: &NurbsCurve3<f64>,
+    file: FileBand,
+) -> Result<Option<(Curve3<f64>, f64)>, f64> {
     let Some(spans) = conic_spans(curve) else {
         return Ok(None);
     };
