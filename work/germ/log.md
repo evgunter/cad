@@ -1599,3 +1599,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `one-sector-side-refusal-has-three-constructions` (P4, style): the fix-mints-a-fresh-instance trap.
 
   PR 7174 merges on green CI at its main-merged head.
+- 2026-11-20 — **PR 7174 (sector side) merged** (`cd7a45b9c7`). Its row is closed, and its lane and the review targets are reclaimed, leaving 44 GB free. That closes both original P1 issues. The P1 slate now holds the kind-pair X row, with U1 and U0 done; U1b is in CI; U2 waits on the P0 PR; U3a waits on U2.
