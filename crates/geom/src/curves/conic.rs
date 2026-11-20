@@ -27,31 +27,41 @@
 //!
 //! # The two stored forms
 //!
-//! A conic is stored in the form it was born in.
+//! A conic is stored in the form it was born in, and stores ONE point:
+//! its placement stands either at its centre or at its point at `θ = 0`,
+//! and [`Born`] says which. The other is derived by name on each read.
 //!
 //! - **Born with a centre** ([`Circle::new`], [`Ellipse::new`], and the
-//!   doors over them): the frame's origin is the centre as given, and a
-//!   point is `center + u_ref·(a·cos θ) + v_ref·(b·sin θ)`. Every bit a
-//!   file or a caller stated is kept, and a point at a quarter turn is
+//!   doors over them): the placement stands at the centre as given, and
+//!   a point is `center + u_ref·(a·cos θ) + v_ref·(b·sin θ)`. Every bit
+//!   a file or a caller stated is kept, and a point at a quarter turn is
 //!   the centre moved by one semi-axis exactly.
 //! - **Born anchored** ([`Circle::anchored`], [`Ellipse::anchored`]): the
-//!   stored datum is the **anchor**, the conic's point at `θ = 0` (its
-//!   vertex on `u_ref`), and a point is summed from it,
+//!   placement stands at the **anchor**, the conic's point at `θ = 0`
+//!   (its vertex on `u_ref`), and a point is summed from it,
 //!   `anchor + u_ref·a·(cos θ − 1) + v_ref·b·sin θ`, with `cos θ − 1`
 //!   read as `−2·sin²(θ/2)`. A point near the anchor then holds to the
 //!   rounding of its own coordinates, however long the semi-axes: a
 //!   section whose centre lies a megametre off the arc it serves is
-//!   stored at the arc. The centre in the frame's origin is derived from
-//!   the anchor, `anchor − u_ref·a`, rounded at the semi-axis's scale; a
-//!   reader that wants a centre as a datum reads that.
+//!   stored at the arc. Its centre is `anchor − u_ref·a`
+//!   ([`Conic::center`], [`Conic::frame`]), derived and so rounded at
+//!   the semi-axis's scale; a reader that wants a centre as a datum
+//!   reads that, and nothing stores it.
+//!
+//! The stored placement is private to this module: outside it a
+//! position is read as the centre ([`Conic::center`], the origin of
+//! [`Conic::frame`]) or as the zero point ([`Conic::zero_point`]), by
+//! name. A map of the conic maps its one placement
+//! ([`Circle::placed`], [`Ellipse::placed`]), so the image is born as
+//! the conic was.
 //!
 //! Each conic evaluates one way, [`Conic::point_at`], and
 //! [`Conic::running_point`] is that evaluation operation for operation
-//! with its bound. The derivatives never read the centre or the anchor
-//! and are the same in both forms. The anchor rides every map of the
-//! conic (a motion, a reversal, another scalar); a re-seam that keeps the
-//! seam keeps it, and one that turns the seam re-anchors at the turned
-//! seam's vertex, read off the derived centre.
+//! with its bound. The derivatives read no position and are the same in
+//! both forms. A re-seam that keeps the seam keeps the anchor, and one
+//! that turns the seam re-anchors at the turned seam's vertex, read off
+//! the derived centre: the turned ellipse is a new statement of the
+//! curve, as a re-seamed centre-born one is.
 //!
 //! # Conventions
 //!
@@ -162,7 +172,9 @@ pub struct MajorFrame<T: Real> {
 /// order (D9), and [`Curve3`]'s evaluators call them, so a reader through
 /// this trait builds the very bits [`Curve3::eval`] does.
 pub trait Conic<T: Real>: core::fmt::Debug {
-    /// The placement.
+    /// **The principal frame at the centre**: the stored placement of a
+    /// conic born with a centre, and for one born anchored its
+    /// placement moved back to the derived centre ([`Self::center`]).
     fn frame(&self) -> Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
@@ -400,13 +412,16 @@ fn offsets<T: Real>(theta: T) -> (T, T) {
     (-(T::from_f64(2.0) * sh.powi(2)), s)
 }
 
+/// A sine or a cosine as computed, charged an ulp.
+fn transcendental<T: Real>(x: T) -> Rounded<T> {
+    Rounded {
+        value: x,
+        error: T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF) * x.abs(),
+    }
+}
+
 /// `(sin θ, cos θ)` in running arithmetic, each charged an ulp.
 fn running_sin_cos<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
-    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
-    let transcendental = |x: T| Rounded {
-        value: x,
-        error: ulp * x.abs(),
-    };
     let (s, c) = theta.sin_cos();
     (transcendental(s), transcendental(c))
 }
@@ -415,11 +430,6 @@ fn running_sin_cos<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
 /// square its rounding, the halving, the doubling and the negation
 /// exact.
 fn running_offsets<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
-    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
-    let transcendental = |x: T| Rounded {
-        value: x,
-        error: ulp * x.abs(),
-    };
     let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
     let (s, _) = theta.sin_cos();
     let sq = transcendental(sh).square();

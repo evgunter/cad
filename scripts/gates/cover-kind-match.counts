@@ -75,7 +75,7 @@ arm 9 crates/topo/src/boolean/carrier_touch.rs
 arm 1 crates/topo/src/boolean/conic_quadric/mod.rs
 ball 1 crates/topo/src/boolean/conic_quadric/mod.rs
 arm 1 crates/topo/src/boolean/fate.rs
-arm 18 crates/topo/src/boolean/join.rs
+arm 17 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
 arm 1 crates/topo/src/boolean/overlap.rs
