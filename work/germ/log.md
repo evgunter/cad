@@ -1586,3 +1586,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - vtxfac's `flat(k)` lump and the `bisector_zero_refusal` guard treat a charge tie as first-order.
   - **Main path sound:** the jet reading on decided Implicit bends gave no wrong side in a hollow and ball probe scan.
   - **Fix pass:** continued in the implementer's agent, with an osculating-contact probe (n1) owed. A delta review by the same reviewer follows.
+- 2026-11-20 — **PR 7179 (U1) merged** (`16346f7aa8`). Its row is closed. The disk filled a third time, at 15:15; the merged lane's 9.8 GB target and clone are reclaimed, leaving 13 GB free. U1b's cloud session is told to merge main and retarget to it. **U2** (move the ConicQuadric door) still waits on the P0 lane, which edits that module's fuzz row.
