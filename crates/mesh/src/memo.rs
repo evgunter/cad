@@ -1662,6 +1662,53 @@ mod tests {
         assert_eq!(memo.len(), 0, "a refusal stores nothing");
     }
 
+    /// **The key reads a projected image's pole end.** The closed circle
+    /// through a sphere's pole, its image read off the pole end leaving at
+    /// `π` and off the one arriving at `3π`: the two reduced radials are one
+    /// harmonic, so the images agree at every parameter and in every other
+    /// stored field, and differ only in the end they store. The key tells
+    /// them apart (red if the key drops the pole end).
+    #[test]
+    fn the_key_reads_a_projected_images_pole_end() {
+        let pi = core::f64::consts::PI;
+        let (s, c) = 0.6_f64.sin_cos();
+        let circle = Curve3::circle(
+            Point3::new(s * c, 0.0, c * c),
+            Vec3::new(s, 0.0, c),
+            s,
+            Vec3::new(c, 0.0, -s),
+        );
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let image = |start, end| {
+            let ends = geom_brep::SingularEnds { start, end };
+            geom_brep::chart_pcurve_over_ends(&circle, pi, 3.0 * pi, ends, &sphere, band).unwrap()
+        };
+        let (leaving, arriving) = (image(true, false), image(false, true));
+        let stored = |p: &Pcurve<f64>| p.projected().and_then(|i| i.pole()).map(|e| e.leaves());
+        assert_eq!(stored(&leaving), Some(true));
+        assert_eq!(stored(&arriving), Some(false));
+        for k in 0..=16 {
+            let t = pi + 2.0 * pi * f64::from(k) / 16.0;
+            let (a, b) = (leaving.eval(t), arriving.eval(t));
+            assert!(
+                (a - b).norm() < 1e-12,
+                "t {t}: one image either way, got {a:?} and {b:?}"
+            );
+        }
+        let key = |p: &Pcurve<f64>| {
+            let mut w = KeyWriter::default();
+            w.pcurve(p);
+            w.0
+        };
+        assert_ne!(key(&leaving), key(&arriving), "the key reads the pole end");
+    }
+
     /// **The key reads every scalar the surface walk yields.** Each
     /// analytic kind ([`geom::test_support::analytic_surfaces`]) is built
     /// from a flat scalar list; the walk's own scalars, flattened, must

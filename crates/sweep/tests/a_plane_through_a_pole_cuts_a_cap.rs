@@ -116,3 +116,46 @@ fn a_plane_through_the_pole_cuts_each_hemisphere_at_its_cap() {
         }
     }
 }
+
+/// **A cap through the pole, cut again through the pole.** The cap at
+/// `(1, 2, 0)` is symmetric about `z = 0`, a plane that holds the pole and
+/// the circle's far point. A second Boolean splits the circle at the far
+/// point, and each child keeps its end on the pole, its image read off
+/// that end again. Each side is half the cap.
+#[test]
+fn a_cap_cut_again_through_its_pole_halves() {
+    let n = Vec3::new(1.0, 2.0, 0.0);
+    let unit = n * (1.0 / n.norm());
+    let half = cap_volume(1.0, 1.0 - unit.y) / 2.0;
+    let tool = tilted_box(n);
+    let slab = finished(
+        "the half-space z > 0",
+        topo::test_support::brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.0, 3.0), tol()),
+        tol(),
+    );
+    for (which, body) in [
+        ("plain", finished("the hemisphere", hemisphere(), tol())),
+        (
+            "tipped",
+            finished(
+                "the tipped hemisphere",
+                one_wrap_edge(hemisphere(), true).0,
+                tol(),
+            ),
+        ),
+    ] {
+        let cap = body_of(intersect(&body, &tool, tol()), "the cap");
+        let in_cap = move |p: Point3<f64>| {
+            let b = ball(Point3::origin(), 1.0);
+            b(p).min(p.y).min(unit.dot(p - NORTH))
+        };
+        let what = format!("the {which} cap ∩ z > 0");
+        let region: Region = Box::new(move |p| in_cap(p).min(p.z));
+        let built = body_of(intersect(&cap, &slab, tol()), &what);
+        membership::holds(&what, &built, half, &region, LATTICE, 5);
+        let what = format!("the {which} cap ∖ z > 0");
+        let region: Region = Box::new(move |p| in_cap(p).min(-p.z));
+        let built = body_of(subtract(&cap, &slab, tol()), &what);
+        membership::holds(&what, &built, half, &region, LATTICE, 5);
+    }
+}
