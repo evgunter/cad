@@ -151,7 +151,7 @@ macro_rules! document_vocabulary {
         /// Closing the general case needs a walk over the file's
         /// declarations, which is a text scan, which is what this macro
         /// replaced and for a reason. Filed:
-        /// `work/census/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        /// `work/bind/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
         ///
         /// **Cost, stated:** rustfmt does not format the body of a macro
         /// invocation, so every declaration below is outside its reach
