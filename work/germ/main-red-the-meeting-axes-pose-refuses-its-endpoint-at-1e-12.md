@@ -5,6 +5,7 @@ title: Main red: the meeting-axes pose refuses carrier_endpoint_end at 1e-12 sin
 status: open
 opened: 2026-10-20
 priority: P1
+cost: E
 ---
 
 
