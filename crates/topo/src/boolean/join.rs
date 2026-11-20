@@ -1063,8 +1063,12 @@ fn one_site_segments<T: Decide>(
 /// from the other side ([`stands_on`]), against a wrap edge, or against
 /// another closed circle or ellipse. Against a wrap edge the closed
 /// edge's side copies it whole and the wall's side runs from the site
-/// round the wall back to it, as a transverse section's does: the wall's
-/// kind is not read. At a boundary vertex the germ's cell is the face, so
+/// round the wall back to it, as a transverse section's does, whatever
+/// the wall's kind: that holds for a loop that winds round the wall,
+/// crossing its wrap edge at the site. A loop that only touches the wrap
+/// edge there, winding round nothing, never reaches this table: the
+/// crossing layer escalates the tangent touch first. At a boundary
+/// vertex the germ's cell is the face, so
 /// the loop leaves the vertex into the face and returns to it; the joiner
 /// mints it in that face as one chord from the vertex round to itself,
 /// dividing the face (`crate::chord_join::ChordJoiner`'s null strut). A
@@ -1074,8 +1078,12 @@ fn one_site_segments<T: Decide>(
 /// [`crate::chord_join::loop_holds_outer`].
 ///
 /// A pierced face holds the loop as a disc of its own: a loop that winds
-/// round the face's surface meets the face's seam, since an at-rest face
-/// is one disc of its chart, and reaches no pierce cell. On a carried
+/// round the face's surface (round its axis, or a torus's meridian round
+/// the tube) meets the face's seam, since an at-rest face is one disc of
+/// its chart, and reaches no pierce cell. That premise is tier 3's, and a
+/// seamless band would break it
+/// (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`).
+/// On a carried
 /// section the loop's component says whether it winds (`winds`, A's
 /// surface then B's); a loop read by a frame lies in a plane or a sphere
 /// face, or is a closed edge on one, and every closed loop on those is
@@ -1112,12 +1120,13 @@ fn closes_at_its_site<T: Decide>(
         _ => {}
     }
     Ok(match cells {
-        (SiteCell::Wrap | SiteCell::Closed(Some(_)), SiteCell::Pierce(f))
-        | (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
-        (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_)))
-        | (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
-        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_)) | SiteCell::Wrap)
-        | (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+        (SiteCell::Wrap | SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => reads(&red.b, f),
+        (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
+        (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_))) => reads(&red.a, f),
+        (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
+        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+        (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
+        (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
         (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
             planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
         }

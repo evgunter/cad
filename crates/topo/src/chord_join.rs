@@ -35,7 +35,7 @@
 //!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
-//!   section loop's pierce of a planar or spherical face), or with the
+//!   section loop's pierce of a face [`reads_loop_side`] reads), or with the
 //!   closed edge the segment runs along ⇒ the ring is promoted to a face
 //!   and joined there, and the conic whose region holds the old face's
 //!   outer loop goes back to it as a ring
@@ -115,8 +115,10 @@
 //! boolean a closed edge
 //! (one vertex, both its ends) lying in the other operand, which copies
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
-//! section conic in the partner's planar or spherical face. There the
-//! chord is the whole section conic, from the vertex round to itself.
+//! section conic in a face of the partner [`reads_loop_side`] reads, or on the
+//! wrap edge of the partner's one-face wall, which the conic winds round
+//! from that edge back to it. There the chord is the whole section
+//! conic, from the vertex round to itself.
 //! A chord between two copies of one site, which the null edges tie
 //! ([`same_site`]), runs round the same way: a section conic that meets
 //! a face's boundary at one site alone reaches it under whichever of
@@ -328,10 +330,10 @@ pub enum JoinError {
     },
     /// A closed section loop has ONE site that the join does not close
     /// a loop at: the one vertex on the loop holds both its ends, and
-    /// the join closes a loop on itself only at a wrap edge crossing a
-    /// planar face or meeting a vertex of its boundary, or along a closed
-    /// edge lying in a planar or a spherical face or along another closed
-    /// edge
+    /// the join closes a loop on itself only at a wrap edge or a closed
+    /// edge piercing a face [`reads_loop_side`] reads, a wrap edge meeting
+    /// a vertex of such a face's boundary, or a closed edge on a one-face
+    /// wall's wrap edge or along another closed edge
     /// (`boolean::join::one_site_segments`). Any other is refused typed,
     /// before the loose ends are counted.
     SingleSiteSectionLoop {
@@ -825,9 +827,10 @@ impl JoinError {
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
                 "{count} section loop(s) close through a single vertex where neither a wrap \
-                 edge crosses a planar face or meets a vertex of its boundary nor a closed \
-                 edge lies in a planar or spherical face or along another closed edge, and \
-                 such a loop joined at one site is not built. {}",
+                 edge nor a closed edge pierces a face whose side of a closed loop is read, \
+                 nor a wrap edge meets a vertex of its boundary, nor a closed edge lies on a \
+                 wall's wrap edge or along another closed edge, and such a loop joined at one \
+                 site is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
@@ -5516,7 +5519,7 @@ impl ChordJoiner {
     }
 
     /// [`Self::join`] of a one-site section loop whose site is a pierce
-    /// of a planar or spherical face's interior: the two halves are one
+    /// of a face's interior ([`reads_loop_side`]): the two halves are one
     /// null edge, and `ring`, a ring of the face, holds nothing else.
     /// Each chord is the whole conic at one copy of the site, and the
     /// face they wall off is the null face, which holds both halves.
