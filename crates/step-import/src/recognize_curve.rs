@@ -593,7 +593,7 @@ pub(crate) fn arc_residual(
         }
         locus.mag()
     } else {
-        if !(total > 0.0 && total < 2.0 * core::f64::consts::PI) {
+        if !(total > 0.0 && total < geom::conic_period::<f64>().length()) {
             return None;
         }
         let overrun = (-low).max(high - total).max(0.0);

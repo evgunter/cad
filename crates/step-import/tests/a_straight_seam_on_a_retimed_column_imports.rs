@@ -9,10 +9,13 @@
 //!   locus, but is not the affine map a `Line`'s iso image would read it
 //!   as, so the edge is carried on the column itself and reports that
 //!   carrier (`CarrierBuilt`).
-//! - `seam_spline` states the seam as the spline. It does not promote at
-//!   this file's band (its line's locus residual, read through the
+//! - `seam_spline` states the seam as the spline. At the file's own band
+//!   it does not promote (its line's locus residual, read through the
 //!   composite's square root, is past the band), so it is the column bit
-//!   for bit: carried on the column, with nothing to report.
+//!   for bit: carried on the column, with nothing to report. Where a
+//!   coarser run band promotes it to its line (ε = 1e-6), the edge is
+//!   carried on the column all the same and reports that carrier, and
+//!   the promotion no edge carries is not reported.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -48,14 +51,10 @@ fn either_statement_of_the_seam_imports_on_its_column() {
     );
     let spline = ledger("seam_spline");
     assert!(
-        !spline.iter().any(built),
-        "seam_spline: the spline seam IS its column: {spline:?}"
-    );
-    assert!(
         !spline
             .iter()
             .any(|n| n.face == SEAM_CURVE
                 && matches!(n.kind, NormalizationKind::CurvePromoted { .. })),
-        "seam_spline: the seam's spline does not promote at the file's band"
+        "seam_spline: no edge carries a promotion of the seam's spline: {spline:?}"
     );
 }

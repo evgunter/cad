@@ -2626,8 +2626,17 @@ mod tests {
         }
         #[allow(clippy::cast_precision_loss)]
         knots.extend([spans as f64; 3]);
-        let arc = geom::NurbsCurve3::new(KnotVector::clamped(knots, 2).unwrap(), control, weights)
-            .unwrap();
+        let kv = KnotVector::clamped(knots, 2).unwrap();
+        let lifted_arc = geom::NurbsCurve3::new(
+            kv.clone(),
+            control
+                .iter()
+                .map(|p| *p + Vec3::new(0.0, 0.0, 1e-9))
+                .collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let arc = geom::NurbsCurve3::new(kv, control, weights).unwrap();
         let Ok(Some((Curve3::Circle(circle), _, _))) =
             crate::recognize_curve::try_circle(&arc, file)
         else {
@@ -2653,16 +2662,7 @@ mod tests {
             circle_column_match(&piece, &reversed, (p1, p0), file),
             "a column run against the edge matches the reversed circle"
         );
-        let lifted = geom::NurbsCurve3::new(
-            piece.knots_f64_interim().clone(),
-            piece
-                .control()
-                .iter()
-                .map(|p| *p + Vec3::new(0.0, 0.0, 1e-9))
-                .collect(),
-            piece.weights().to_vec(),
-        )
-        .unwrap();
+        let (lifted, _) = lifted_arc.split_at(1.0).unwrap();
         assert!(
             !circle_column_match(&lifted, &circle, (p0, p1), file),
             "a column off the circle past the band does not match"
