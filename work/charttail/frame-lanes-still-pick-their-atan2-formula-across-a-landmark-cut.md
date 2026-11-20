@@ -66,10 +66,11 @@ On main `131457c3` the two reference-relative cousins are gone as well. ONECOPY 
 
 ## editor-core's box read goes through Azimuth (2026-11-20, `charttail/solve-atan2`)
 
-`SolveScalar::solve_atan2`'s default is now `mate::solve::box_atan2`. The `Interval` and `Sym` lanes read it, and so does a dual over `Interval` through its value channel. It reads `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`. It is a renaming by F31's argument: the invariant that the spin is read only through its sine and cosine has its home in `box_atan2`'s doc. The read's one jump is the angle window's cut at `−1`. Across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`.
+The `Interval` and `Sym` impls of `SolveScalar::solve_atan2` (still a required method) are each one call to `mate::solve::box_atan2`, and a dual over `Interval` reads it through its value channel. It reads `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`. It is a renaming by F31's argument: the invariant that the spin is read only through its sine and cosine has its home in `box_atan2`'s doc. The read's one jump is the angle window's cut at `−1`. Across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`.
 
-Two cases are not decided:
-- A direction whose enclosure may reach zero length reads the whole window `[−1, τ − 1]`.
+Three cases are not decided:
+- A point direction of no structural length reads its angle as `Azimuth::near` does (an exact zero one as `atan2`, as the `f64` lane does).
+- An enclosure that may reach zero length reads the whole window `[−1, τ − 1]` (`Window::end`).
 - An exact zero `y` over a structure-positive `x` reads `0`.
 
 `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding, since it records the formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.

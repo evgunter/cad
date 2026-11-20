@@ -50,7 +50,7 @@ use crate::pose::PoseValue;
 /// Every branch inside the solve is a named predicate decided at this
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
 /// never decides one; an interval definitely or by escalating), but one:
-/// the spin's cut side ([`box_atan2`]), a renaming between names of one
+/// the spin's cut side (`box_atan2`), a renaming between names of one
 /// angle, taken at the least band outside the log (F31).
 ///
 /// What a scalar answers here beyond deciding is per scalar. No pose
@@ -81,17 +81,14 @@ pub trait SolveScalar: Decide {
     fn upper(self) -> f64;
 
     /// **The solve's two-argument arctangent**: the angle a spin chart
-    /// reads off the copy's turn about the target's direction. By
-    /// default [`box_atan2`], the angle window's read, whose one jump is
-    /// that window's cut at a generic angle: a box scalar's, a dual over
-    /// one's value channel, and a scalar recording its expression. `f64`
-    /// and `Probe` read the platform's `atan2`, the one the nominal solve
-    /// has always read, and a dual over `f64` reads its value channel's,
-    /// so its value is that lane's bits and its tangent is the dual's
-    /// own.
-    fn solve_atan2(y: Self, x: Self) -> Self {
-        box_atan2(y, x)
-    }
+    /// reads off the copy's turn about the target's direction. A box
+    /// scalar and a scalar recording its expression read the angle
+    /// window's read (`box_atan2`), whose one jump is that window's cut
+    /// at a generic angle. `f64` and `Probe` read the platform's `atan2`,
+    /// the one the nominal solve has always read. A dual reads its value
+    /// channel's lane, so its value is that lane's and its tangent is the
+    /// dual's own.
+    fn solve_atan2(y: Self, x: Self) -> Self;
 
     /// Whether a value's spin sets the map's turn from the two charts'
     /// frames ([`super::value`]) rather than turning the folded map by
@@ -124,20 +121,27 @@ pub trait SolveScalar: Decide {
 /// the invariant's one home; the predicate audit's F31 entry and the
 /// trait's header point here.
 ///
-/// A direction whose enclosure may reach zero length may hold any angle,
-/// so it reads the whole window, `[−1, τ − 1]`, which holds a copy of
-/// every angle, never the zero a chart reads at its pole; no decision is
-/// asked of it. An exact zero direction reads the window too. An exact
-/// zero `y` over a positive `x` reads the exact zero, where the backend's
-/// `atan2` gives subnormal dust, so `turn_to` undoes it as nothing.
-pub fn box_atan2<T: SolveScalar>(y: T, x: T) -> T {
+/// A point direction reads its angle however small its length, as
+/// `Azimuth::near` reads one: an exact zero one reads `atan2(y, x)`, as the
+/// `f64` lane does, and one whose squares underflow reads near the window's
+/// centre ([`geom::Azimuth::near`]), the window's read. An enclosure that
+/// may reach zero length may hold any angle, so it reads the whole window,
+/// `[−1, τ − 1]`, which holds a copy of every angle, never the zero a
+/// chart reads at its pole; no decision is asked of it. An exact zero `y`
+/// over a positive `x` reads the exact zero, where the backend's `atan2`
+/// gives subnormal dust, so `turn_to` undoes it as nothing.
+pub(crate) fn box_atan2<T: SolveScalar>(y: T, x: T) -> T {
     if y.exactly_zero() && x.structure_positive() {
         return T::zero();
     }
     let azimuth = geom::Azimuth::of(y, x);
     if !geom_core::structure_nonzero(azimuth.length()) {
-        let start = geom::Window::Angle.start::<T>();
-        return start.enclosure_hull(start + T::pi() + T::pi());
+        let window = geom::Window::Angle;
+        return match (y.point_value(), x.point_value()) {
+            (Some(a), Some(b)) if a == 0.0 && b == 0.0 => y.atan2(x),
+            (Some(_), Some(_)) => azimuth.near(window.centre()),
+            _ => window.start::<T>().enclosure_hull(window.end()),
+        };
     }
     geom_core::k_stats::unlogged("F31", || {
         azimuth.principal_as("mate_spin_cut_side", geom_core::predicate::Band::least())
@@ -1754,5 +1758,34 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A point direction reads its angle however small its length**,
+    /// at `Sym<f64>` as the `f64` lane reads it: an exact zero reads
+    /// `atan2`'s `0` or `π`, and one whose squares underflow reads its
+    /// angle (`π/2` for `(1e-300, 0)`), never NaN or the pole's `0`. At
+    /// `Interval` a point whose squares underflow reads a narrow angle.
+    ///
+    /// *Breaks if* a point of no structural length reads the window's hull,
+    /// which is poison at a point scalar, or a pole's `0`.
+    #[test]
+    fn a_point_direction_reads_its_angle_however_small_its_length() {
+        use crate::mate::SolveScalar;
+        use geom_core::{Bounds, Interval, Sym};
+        for (y, x) in [(0.0, 0.0), (0.0, -0.0), (1e-300, 0.0), (0.0, -1e-300)] {
+            let sym = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value;
+            let lane = <f64 as SolveScalar>::solve_atan2(y, x);
+            assert!(sym.is_finite(), "({y}, {x}): {sym}");
+            assert_eq!(sym.to_bits(), lane.to_bits(), "({y}, {x}): the f64 lane's");
+        }
+        let read = <Interval as SolveScalar>::solve_atan2(
+            Interval::from_bounds(1e-300, 1e-300),
+            Interval::from_bounds(0.0, 0.0),
+        );
+        let half = std::f64::consts::FRAC_PI_2;
+        assert!(
+            read.lo() <= half && half <= read.hi() && read.hi() - read.lo() < 1e-9,
+            "an underflowing point at Interval: {read:?}"
+        );
     }
 }

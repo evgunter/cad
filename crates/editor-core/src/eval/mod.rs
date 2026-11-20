@@ -3668,6 +3668,10 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         use geom_core::Bounds;
         self.lo() == 0.0 && self.hi() == 0.0
     }
+
+    fn solve_atan2(y: Self, x: Self) -> Self {
+        crate::mate::solve::box_atan2(y, x)
+    }
 }
 
 /// The seed lane's solve: a refusal quotes the value channel — its
@@ -3729,6 +3733,10 @@ where
 
     fn spins_by_frames() -> bool {
         T::spins_by_frames()
+    }
+
+    fn solve_atan2(y: Self, x: Self) -> Self {
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 
