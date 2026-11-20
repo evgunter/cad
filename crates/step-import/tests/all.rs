@@ -63,8 +63,12 @@ mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 mod a_foreign_carrier_splits_at_each_c0_knot;
 #[path = "a_line_beside_a_straight_spline_joins.rs"]
 mod a_line_beside_a_straight_spline_joins;
+#[path = "a_promotion_no_edge_carries_is_not_reported.rs"]
+mod a_promotion_no_edge_carries_is_not_reported;
 #[path = "a_relation_the_file_band_reads_zero_is_snapped.rs"]
 mod a_relation_the_file_band_reads_zero_is_snapped;
+#[path = "a_retimed_straight_rim_imports_on_its_wall.rs"]
+mod a_retimed_straight_rim_imports_on_its_wall;
 #[path = "a_smooth_join_imports_by_the_must_carry_rule.rs"]
 mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]

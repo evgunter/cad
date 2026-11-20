@@ -39,13 +39,18 @@ importer list, which holds it to that gate's rules.
 
 ## Closed
 
-EXCH unit B (`exch/arc-map-obligation`). Both arms now compute their
-metre conversions at `Interval` and read them outward. The line arm
-roots its composite sup through `Certification::sqrt` and reads
-`.mag()`, and its coverage overshoot and the straight-map Greville
-hull go through outward-rounded distances. The circle arm's INV-C1
-`δ_s = S/r`, INV-C2's lower bound (the root's `.lo()`), `m` and the
-`hypot` are each interval operations read on the safe side. What stays
-to-nearest is the estimated frame itself, which the promoted circle IS
-(`recognize_curve` module docs). `recognize_curve.rs` joined
-`certification-doors.sh`'s importer list.
+EXCH unit B (`exch/arc-map-obligation`). Both arms compute their metre
+conversions of the composites' sups at `Interval` and read them
+outward: the line roots its cylinder sup through `Certification::sqrt`
+and reads `.mag()`; the circle's INV-C1 `δ_s = S/r`, INV-C2's lower
+bound (the root's `.lo()`, taken only while `r − δ_s` is certified
+positive), `m`, the hypot and an open arc's overrun term are interval
+operations read on the safe side. The distances the line's coverage
+and the straight map's Greville hull compare are formed at `Interval`
+too, but the quantities they compare — the line's direction and chord
+length, the Greville abscissae `ξᵢ` and positions `ℓ(ξᵢ)`, the
+coverage's azimuths, `total` and overrun angle — are `f64` closed forms
+treated as exact (`docs/DESIGN.md` `[simple.conditioned]`), stated at
+each claim site (`recognize_curve` module docs, INV-C2; `straight_map`;
+`arc_residual`). `recognize_curve.rs` joined `certification-doors.sh`'s
+importer list.

@@ -795,11 +795,15 @@ fn split_face_once(
         .all(|(&l, &h)| near(l, h));
     let up_is_low = sense != along_v;
     let w_domain = iso.knot_values().domain();
-    // The line as the curve-pair reader reads it: an iso the import's
-    // curve recognition certifies straight is read as that line, which
-    // the reader's table reads in closed form, its arc length carried
-    // back to the iso's parameter by the chord map the recognition
-    // certifies within `ε_in`.
+    // The line as the curve-pair reader reads it: an iso that reads as
+    // the straight MAP (`recognize_curve::straight_map`, INV-C5) is read
+    // as that line, which the reader's table reads in closed form, its
+    // arc length carried back to the iso's parameter by the chord map the
+    // hull certifies within `ε_in`. The map, not the locus, is what
+    // `to_w` reads: a crossing at the line's ends is exact under any
+    // timing, an interior one is placed through the affine chord map. No
+    // committed fixture crosses a re-timed straight knot line inside it
+    // (`work/exch/knot-split-straight-map-reading-has-no-retimed-interior-crossing-row.md`).
     let straight = crate::recognize_curve::straight_map(&iso, file).map(|(line, _)| line);
     let chord = (q1 - q0).norm();
     let (reading, read_span) = match straight {

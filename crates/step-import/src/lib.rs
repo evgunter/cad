@@ -573,12 +573,13 @@ pub enum NormalizationKind {
     /// read Zero at the file's band, and it covers that curve's arc,
     /// segment or full turn between its ends in the curve's sense, so
     /// the edges on it read the analytic carrier ([`CurvePromotion`] is
-    /// this record read off the ledger). Recorded only where the body
-    /// carries the promotion: an edge the build carries on a wall's own
-    /// column holds that spline, its `CarrierBuilt` record says so, and
-    /// its curve has no `CurvePromoted` record. Keyed by the curve
-    /// entity, not a face; its census pair is empty, since nothing is
-    /// re-tessellated.
+    /// this record read off the ledger). The promotion is the CURVE's:
+    /// it is recorded where some edge on the curve carries the analytic
+    /// curve. An edge the build carries on a wall's own column instead
+    /// holds that spline, and its own `CarrierBuilt` record says so; a
+    /// curve every edge of which does that has no `CurvePromoted` record.
+    /// Keyed by the curve entity, not a face; its census pair is empty,
+    /// since nothing is re-tessellated.
     CurvePromoted {
         /// The kind that certified.
         kind: PromotedCurveKind,
@@ -748,12 +749,11 @@ pub struct CurvePromotion {
     pub curve: u64,
     /// The kind that certified.
     pub kind: PromotedCurveKind,
-    /// The certified residual sup (METERS): the carrier's worst
-    /// deviation from the promoted curve over its whole domain, as a
-    /// map — at the parameter the carrier's own structure assigns each
-    /// of its points. Read off coefficient and control-difference
-    /// hulls — whole-domain, no sampling (`recognize_curve`'s module
-    /// docs carry the derivation).
+    /// The certified residual sup (METERS): a LOCUS distance — the
+    /// farthest any point of the carrier lies from the piece of the
+    /// promoted curve it covers (the whole circle, an arc, a segment).
+    /// Read off coefficient hulls and the controls — whole-domain, no
+    /// sampling (`recognize_curve`'s module docs carry the derivation).
     pub residual: f64,
 }
 
@@ -1062,9 +1062,9 @@ pub fn import_step(
             // The joins each solid's build ended with, reported once per
             // solid: each is built once.
             let mut normalizations = ledger(&model);
-            // The curves an edge carries as a held spline, not the
-            // promoted curve: their promotion records go (below).
-            let mut held_splines = std::collections::BTreeSet::new();
+            // What the edges on each printed curve hold, which decides
+            // its promotion record (below).
+            let mut holders = build::CurveHolders::default();
             // Each distinct solid is built once. Where the per-solid
             // subject is owed, it is finished once, on its first placed
             // instance (so it is asked in the box where it stands), and
@@ -1123,7 +1123,7 @@ pub fn import_step(
                         None => {
                             let (built, joins, held) = assemble::build_one_solid(spec, tol, file)?;
                             normalizations.extend(joins);
-                            held_splines.extend(held);
+                            holders.extend(held);
                             let one =
                                 match &motion {
                                     Some((m, transform)) => topo::transform_rigid(&built, m)
@@ -1213,13 +1213,7 @@ pub fn import_step(
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
             let (body, contacts, coincidences) = gate3(body, tol)?;
-            // A promotion is reported only where the body carries it: an
-            // edge that ships a wall's column holds the spline, and its
-            // `CarrierBuilt` record says so.
-            normalizations.retain(|n| {
-                !(matches!(n.kind, NormalizationKind::CurvePromoted { .. })
-                    && held_splines.contains(&n.face))
-            });
+            normalizations.retain(|n| promotion_carried(n, &holders));
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and
@@ -1248,6 +1242,22 @@ pub fn import_step(
             normalizations: ledger(&model),
         }),
     }
+}
+
+/// **Whether a ledger record stands, given what the edges hold**: every
+/// record but a [`NormalizationKind::CurvePromoted`] whose curve NO edge
+/// carries as the analytic curve — where every edge on it holds a spline
+/// the body built instead (a wall's column), the promotion reached
+/// nothing, and each of those edges reports what it holds through its
+/// own `CarrierBuilt`. A curve shared by an edge holding the spline and
+/// one holding the analytic curve keeps its record (the second edge's
+/// carrier is the promotion), and the first edge's `CarrierBuilt` says
+/// what it holds instead: per edge, the ledger is never silent and never
+/// false.
+fn promotion_carried(record: &StructureNormalization, holders: &build::CurveHolders) -> bool {
+    !(matches!(record.kind, NormalizationKind::CurvePromoted { .. })
+        && holders.spline.contains(&record.face)
+        && !holders.analytic.contains(&record.face))
 }
 
 /// The move ledger as the model's resolution left it: each curve
@@ -1373,5 +1383,59 @@ fn gate3_findings(
             solid: None,
             errors: findings,
         })
+    }
+}
+
+#[cfg(test)]
+mod promotion_ledger_rows {
+    use super::*;
+
+    /// **The promotion record per what each edge holds**: a curve whose
+    /// every edge holds a wall's spline loses its `CurvePromoted` record;
+    /// one shared by an edge holding the spline and an edge holding the
+    /// analytic curve keeps it (the second edge's carrier IS the
+    /// promotion, and nothing else would report it); one only analytic
+    /// edges hold keeps it; and every other record stands.
+    #[test]
+    fn a_promotion_stands_where_an_edge_carries_it() {
+        let record = |face, kind| StructureNormalization {
+            face,
+            kind,
+            file_census: FaceCensus::EMPTY,
+            kernel_census: FaceCensus::EMPTY,
+        };
+        let promoted = |face| {
+            record(
+                face,
+                NormalizationKind::CurvePromoted {
+                    kind: PromotedCurveKind::Circle,
+                    residual: 0.0,
+                },
+            )
+        };
+        let holders = build::CurveHolders {
+            spline: [1, 2].into_iter().collect(),
+            analytic: [2, 3].into_iter().collect(),
+        };
+        assert!(
+            !promotion_carried(&promoted(1), &holders),
+            "spline only: dropped"
+        );
+        assert!(promotion_carried(&promoted(2), &holders), "shared: kept");
+        assert!(
+            promotion_carried(&promoted(3), &holders),
+            "analytic only: kept"
+        );
+        assert!(
+            promotion_carried(&promoted(4), &holders),
+            "no edge read: kept"
+        );
+        assert!(
+            promotion_carried(
+                &record(1, NormalizationKind::CarrierBuilt { moved_by: 0.0 }),
+                &holders
+            ),
+            "an edge's own record stands"
+        );
     }
 }

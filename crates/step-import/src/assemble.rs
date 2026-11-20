@@ -61,7 +61,7 @@
 //! `he_plus` holds by construction and phase C's specs never need a
 //! reversed parameterization (which would move bits).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use topo::construction::Construct;
 
 use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
@@ -902,8 +902,12 @@ fn assemble_solid(
 }
 
 /// A built body, its ledger, and the curves whose promotion it does not
-/// carry (`build::Shell::held_splines`).
-pub(crate) type Built = (Body<f64>, Vec<StructureNormalization>, BTreeSet<u64>);
+/// carry (`build::CurveHolders`).
+pub(crate) type Built = (
+    Body<f64>,
+    Vec<StructureNormalization>,
+    crate::build::CurveHolders,
+);
 
 /// The assembly proper: one solid record into a body of its OWN. Its
 /// outer shell and each void shell are assembled alike (phase A +
@@ -945,7 +949,7 @@ pub(crate) fn build_one_solid(
 }
 
 /// One shell into a body of its own, its ledger, and the curves whose
-/// promotion it does not carry (`build::Shell::held_splines`).
+/// promotion it does not carry (`build::CurveHolders`).
 fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
@@ -978,7 +982,7 @@ fn build_one_shell(
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
     moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
-    Ok((body, moves, shell.held_splines))
+    Ok((body, moves, shell.holders))
 }
 
 /// **The import ends with the join** every finisher ends with
@@ -1159,7 +1163,7 @@ mod tests {
                 },
             )]),
             vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
-            held_splines: BTreeSet::new(),
+            holders: crate::build::CurveHolders::default(),
         };
         // Use 0 is the self-loop's forward use, 1 its reversed use, 2
         // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =

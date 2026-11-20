@@ -61,9 +61,9 @@ pub(crate) const STEP_RIM_LINE_FRAME: &str = "step_rim_line_frame";
 /// closed class.
 pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
 
-/// How far a promoted open arc's carrier runs past the arc between its
-/// ends (metres along the circle): Zero covers exactly the arc.
-pub(crate) const STEP_RECOGNIZED_COVERAGE: &str = "step_recognized_coverage";
+/// Whether a spline the kernel holds reads as the straight MAP its chord
+/// parameterizes affinely (metres, its Greville hull): Zero reads it.
+pub(crate) const STEP_STRAIGHT_MAP: &str = "step_straight_map";
 
 /// How far an edge's trim runs past the range its promoted carrier
 /// covers (metres along the carrier): Zero is inside.

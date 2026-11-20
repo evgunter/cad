@@ -42,9 +42,10 @@
 //! the description), and nothing reads its parameter once it is
 //! promoted. So a promotion owes three things, each certified below:
 //! the carrier lies within ε_in of the analytic curve (the LOCUS);
-//! it covers exactly the arc, segment or full turn between its ends,
-//! once (the COVERAGE); and it runs in the analytic curve's sense (the
-//! ORIENTATION). The promotion answers the curve and the parameter
+//! its locus is exactly the arc, segment or full turn between its ends
+//! (the COVERAGE) — it may run back and forth inside that piece, which
+//! no reader sees; and it runs from its start to its end in the analytic
+//! curve's sense (the ORIENTATION). The promotion answers the curve and the parameter
 //! range of it the carrier covers ([`CurveRecognition::Promoted`]'s
 //! `covers`), and an edge on the carrier trims inside that range
 //! (`geometry::trim_within`).
@@ -121,20 +122,24 @@
 //!   `hypot(|q| − r, h)`, and `hypot` is monotone in both arguments,
 //!   so `residual ≤ hypot(m, δ_p)`. Every step is an inequality
 //!   between certified quantities; no small-angle or first-order step
-//!   appears, and each is computed at `Interval` and read outward, so
-//!   the conversions are never an ulp on the unsafe side of the
-//!   composites' sups. The estimated frame the composites read (centre,
-//!   axis, radius) is an `f64` closed form treated as exact
-//!   (`docs/DESIGN.md` `[simple.conditioned]`): the promoted circle IS
-//!   that frame, so nothing about it is approximated, but the `Circle`'s
-//!   own evaluation (its `cos`/`sin`) is unmetered `f64`.
+//!   appears, and each conversion is computed at `Interval` and read
+//!   outward from the composites' sups. What is NOT metered, and is
+//!   treated as exact (`docs/DESIGN.md` `[simple.conditioned]`): the
+//!   estimated frame the composites read (centre, axis, radius — the
+//!   promoted circle IS that frame), the `Circle`'s own evaluation (its
+//!   `cos`/`sin`), and the coverage's `f64` azimuth reads (`turning`'s
+//!   `total`, `low`, `high`) the arc's overrun is formed from; a fuzz of
+//!   the certificate measured the promoted carrier a few ulps past its
+//!   residual on that account. The line's projections and chord length
+//!   are the same: `f64` closed forms, compared outward.
 //!
 //!   **Hypothesis, stated rather than assumed**: the lower bound needs
-//!   `r − δ_s ≥ 0`. Where it fails the expression under the root is
-//!   negative, the code takes `lower = 0`, and `m ≥ r > ε_in` makes
-//!   the promotion refuse — so the corner is safe, but it is safe
-//!   BECAUSE of that arm and not by the derivation, and the code says
-//!   so at the site.
+//!   `r − δ_s ≥ 0`. Where that fails the radicand `(r−δ_s)² − δ_p²`
+//!   bounds nothing — and past `δ_s > 2r` it can be positive again — so
+//!   the code takes the root only while `r − δ_s` is certified positive,
+//!   and `lower = 0` otherwise, which makes `m ≥ r > ε_in` and the
+//!   promotion refuse: the corner is safe BECAUSE of that arm, not by the
+//!   derivation, and the code says so at the site.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
@@ -168,7 +173,7 @@
 //! # Coverage — the OTHER half of the promotion, certified
 //!
 //! A locus certificate says the carrier lies ON the circle; it does
-//! not say the carrier COVERS the arc its ends bound, once. A closed
+//! not say the carrier's locus IS the arc its ends bound. A closed
 //! carrier that doubled back over a sub-arc would adopt as a strictly
 //! LARGER locus (the self-loop is the full period,
 //! [`crate::geometry::endpoint_params`]); an open one that doubled back
@@ -184,11 +189,18 @@
 //! azimuth can go inside each span. The schedule is the carrier's own
 //! span structure (knots, not data), so it is D9-clean.
 //!
-//! - **Closed**: the true total turning is one positive turn.
+//! - **Closed**: the true total turning is one positive turn, so the
+//!   carrier's locus is the whole circle.
 //! - **Open**: the total is in `(0, 2π)`, and every span's controls
-//!   (hence the carrier) stay within the band of `[0, total]` in
-//!   azimuth, so the carrier's locus is exactly the arc from its start
-//!   to its end in the axis's sense: what the edge's trim reads.
+//!   (hence the carrier) hold its azimuth in `[low, high]`; the part of
+//!   that past `[0, total]` is charged to the residual as a distance
+//!   from the ARC ([`arc_residual`]), so the carrier's locus is the arc
+//!   from its start to its end in the axis's sense, within the
+//!   residual: what the edge's trim reads.
+//!
+//! None of this says the carrier traverses its piece ONCE: an azimuth
+//! that runs back inside the arc (0° → 120° → 80° → 200°) promotes, and
+//! is right to, since nothing reads a promoted carrier's timing.
 //!
 //! The gate refuses whenever it cannot tell, so it can make promotion
 //! incomplete but never incorrect. What remains banked in the
@@ -201,7 +213,7 @@ use geom_core::{Bounds, Interval, Point3, Vec2, Vec3};
 
 use crate::interpret::{
     FileBand, Read, STEP_RECOGNIZED_CLOSURE, STEP_RECOGNIZED_CONDITIONING,
-    STEP_RECOGNIZED_COVERAGE, STEP_RECOGNIZED_RESIDUAL,
+    STEP_RECOGNIZED_RESIDUAL, STEP_STRAIGHT_MAP,
 };
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -386,7 +398,10 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
 /// which holds only at one constant weight (linear precision; a rational
 /// spline refuses) and bounds `|C(t) − ℓ(t)|` everywhere, so it carries
 /// the locus and the segment with it: no composite is read, and its
-/// residual has no square-root floor.
+/// residual has no square-root floor. Each distance is read outward; the
+/// Greville abscissae `ξᵢ` and the affine positions `ℓ(ξᵢ)` they are
+/// compared with are `f64` closed forms treated as exact
+/// (`docs/DESIGN.md` `[simple.conditioned]`).
 pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curve3<f64>, f64)> {
     let control = curve.control();
     let (first, last) = (control.first()?, control.last()?);
@@ -415,7 +430,7 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
         }
         hull = hull.max(dev);
     }
-    if file.read(STEP_RECOGNIZED_RESIDUAL, hull) != Read::Zero {
+    if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
     Some((Curve3::line(plus_zero_point(*first), plus_zero(dir)), hull))
@@ -498,7 +513,43 @@ pub(crate) fn try_circle(
     else {
         return Ok(None);
     };
-    // The certificate. INV-C1 + INV-C2, both in metres at the end.
+    let Some((residual, total)) = arc_residual(curve, (center, axis, u_ref, radius), closed) else {
+        return Ok(None);
+    };
+    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
+        return Ok(None);
+    }
+    let circle = Curve3::circle(
+        plus_zero_point(center),
+        plus_zero(axis),
+        radius,
+        plus_zero(u_ref),
+    );
+    Ok(Some((circle, residual, (!closed).then_some(total))))
+}
+
+/// **The locus and coverage certificates of `curve` against one circle**
+/// (`center`, `axis`, `u_ref`, `radius` — read as exact): the certified
+/// sup of the carrier's distance from the circle (INV-C1, INV-C2) for a
+/// `closed` carrier, from the ARC it covers for an open one, and its
+/// total turning about the axis from its start. `None` where the
+/// coverage certificate cannot prove the class: a closed carrier's one
+/// turn, an open one's turn in `(0, 2π)`.
+///
+/// An open carrier's azimuth is held inside `[low, high]` (`turning`,
+/// step 5); the part of it past `[0, total]` is at most
+/// `overrun = max(−low, high − total)` in angle, and a point at distance
+/// `d` from the circle and `φ ≤ overrun` past an end is within
+/// `d + 2R·sin(φ/2) ≤ d + R·φ` of that end. So the residual is
+/// `locus + R·overrun`, the distance from the ARC an edge trimmed to it
+/// holds, as the line's is from the segment. The azimuths and `total`
+/// are `f64` reads of `atan2` (the frame is treated as exact,
+/// `docs/DESIGN.md` `[simple.conditioned]`); the sum is formed outward.
+pub(crate) fn arc_residual(
+    curve: &NurbsCurve3<f64>,
+    (center, axis, u_ref, radius): (Point3<f64>, Vec3<f64>, Vec3<f64>, f64),
+    closed: bool,
+) -> Option<(f64, f64)> {
     let plane_sup = composite_sup(
         curve,
         &ImplicitSurface::Plane {
@@ -517,58 +568,49 @@ pub(crate) fn try_circle(
     // divided by the radius (the smallest the divisor `|P−c| + r` can
     // be), then the two into one distance-to-the-circle bound. The
     // lower-bound branch is valid only for `r − δ_s ≥ 0` (invariant
-    // docs); outside it the root is not a bound and `lower = 0` makes
-    // `m ≥ r`, which reads apart for every radius this estimator
-    // admits — refusal, not a silent wrong number. A NaN sup is NaI
-    // here, and its residual NaN reads in band, never Zero.
+    // docs); where `δ_s` passes `r` the root's radicand no longer bounds
+    // anything — it may even be positive again, past `2r` — so the lower
+    // bound is taken only while `r − δ_s` is certified positive, and
+    // otherwise is `0`, which makes `m ≥ r`: refusal at every band this
+    // estimator admits, not a silent wrong number. A NaN sup is NaI here,
+    // and its residual NaN fails every band.
     let r = Interval::point(radius);
     let delta_p = Interval::point(plane_sup.abs());
     let delta_s = Interval::point(sphere_sup.abs()) / r;
-    let inner = (r - delta_s).sqr() - delta_p.sqr();
-    let lower = if inner.lo() > 0.0 {
+    let gap = r - delta_s;
+    let inner = gap.sqr() - delta_p.sqr();
+    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
         inner.sqrt().lo()
     } else {
         0.0
     };
     let m = delta_s.mag().max((r - Interval::point(lower)).mag());
-    let residual = (Interval::point(m).sqr() + delta_p.sqr()).sqrt().mag();
-    if !residual.is_finite() {
-        return Ok(None);
-    }
-    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
-        return Ok(None);
-    }
-    // **The COVERAGE certificate** (module docs). The locus half is
-    // now established; this is the other half, and it is a
-    // certificate rather than a witness.
-    let Some(Turning { total, low, high }) = turning(curve, center, axis, u_ref) else {
-        return Ok(None);
-    };
-    let pi = core::f64::consts::PI;
-    let covered = if closed {
-        total > pi && total < 3.0 * pi
+    let locus = (Interval::point(m).sqr() + delta_p.sqr()).sqrt();
+    let Turning { total, low, high } = turning(curve, center, axis, u_ref)?;
+    let residual = if closed {
+        if !one_turn(total) {
+            return None;
+        }
+        locus.mag()
     } else {
-        total > 0.0
-            && total < 2.0 * pi
-            && file.read(
-                STEP_RECOGNIZED_COVERAGE,
-                radius * (-low).max(high - total).max(0.0),
-            ) == Read::Zero
+        if !(total > 0.0 && total < 2.0 * core::f64::consts::PI) {
+            return None;
+        }
+        let overrun = (-low).max(high - total).max(0.0);
+        (locus + r * Interval::point(overrun)).mag()
     };
-    if !covered {
-        return Ok(None);
-    }
-    let circle = Curve3::circle(
-        plus_zero_point(center),
-        plus_zero(axis),
-        radius,
-        plus_zero(u_ref),
-    );
-    Ok(Some((circle, residual, (!closed).then_some(total))))
+    residual.is_finite().then_some((residual, total))
+}
+
+/// The closed class's turning: exactly ONE positive turn, the total in
+/// `(π, 3π)` ([`turning`], "What the total is allowed to be").
+fn one_turn(total: f64) -> bool {
+    let pi = core::f64::consts::PI;
+    total > pi && total < 3.0 * pi
 }
 
 /// What [`turning`] proves of a carrier about its circle, in radians
-/// lifted from `θ = 0` at the carrier's start.
+/// lifted from the carrier's start azimuth.
 struct Turning {
     /// The TRUE total turning, `θ(b) − θ(a)`.
     total: f64,
@@ -580,8 +622,8 @@ struct Turning {
 
 /// **The coverage certificate**: the carrier's TRUE total turning about
 /// the estimated circle, and the azimuth range its spans' controls hold
-/// it in (module docs, "Coverage"), both lifted from `θ = 0` at the
-/// carrier's start. `Some` only when PROVEN; every path that cannot
+/// it in (module docs, "Coverage"), both lifted from the carrier's
+/// start azimuth about `u_ref`. `Some` only when PROVEN; every path that cannot
 /// tell answers `None`, so the gate can make promotion incomplete but
 /// never incorrect.
 ///
@@ -723,6 +765,9 @@ fn turning(
     };
     let pi = core::f64::consts::PI;
     let mut total = 0.0f64;
+    // The first span's start, the origin every lifted azimuth below is
+    // read from.
+    let mut origin: Option<f64> = None;
     let (mut low, mut high) = (0.0f64, 0.0f64);
     let mut previous: Option<f64> = None;
     for j in degree..count {
@@ -770,7 +815,11 @@ fn turning(
         };
         let start = match previous {
             Some(a) => a,
-            None => at(flat[j]).near(0.0),
+            None => {
+                let first = at(flat[j]).near(0.0);
+                origin = Some(first);
+                first
+            }
         };
         // Within half a turn of `start`, so the step is in `(−π, π]`.
         let end = at(flat[j + 1]).near(start);
@@ -795,8 +844,9 @@ fn turning(
             if !lifted.is_finite() {
                 return None;
             }
-            low = low.min(lifted);
-            high = high.max(lifted);
+            let from = lifted - origin.unwrap_or(0.0);
+            low = low.min(from);
+            high = high.max(from);
         }
         total += step;
         previous = Some(end);
@@ -812,8 +862,7 @@ fn covers_one_full_turn(
     axis: Vec3<f64>,
     u_ref: Vec3<f64>,
 ) -> bool {
-    let pi = core::f64::consts::PI;
-    turning(curve, center, axis, u_ref).is_some_and(|t| t.total > pi && t.total < 3.0 * pi)
+    turning(curve, center, axis, u_ref).is_some_and(|t| one_turn(t.total))
 }
 
 #[cfg(test)]
@@ -999,9 +1048,11 @@ mod tests {
         );
     }
 
-    /// C4b: an open arc that DOUBLES BACK stays NURBS — its locus is a
-    /// quarter of the circle, but its second span turns backward, so no
-    /// increasing angle law traverses it.
+    /// C4b: an open arc that DOUBLES BACK PAST ITS END stays NURBS — out
+    /// to 90° and back to 45°, every span on the circle. Its ends bound a
+    /// 45° arc, but its locus is the 90° one; the 45° past its end is
+    /// charged to the residual as a distance from the arc
+    /// ([`arc_residual`]'s overrun, here `R·π/4`), which reads apart.
     #[test]
     fn c4b_an_open_arc_that_doubles_back_stays_nurbs() {
         let d = f64::to_radians;
@@ -1014,9 +1065,9 @@ mod tests {
 
     /// C4c: an OPEN carrier wound past a turn refuses — every span a
     /// forward 108° arc, five of them: 540°. Its locus is the circle and
-    /// its ends are apart, but no trim of the circle traverses it once;
-    /// the open arm's `total < 2π` is what refuses (the same spans to
-    /// 324° promote).
+    /// its ends are apart, but no single arc of the circle is its locus
+    /// with its turning; the open arm's `total < 2π` is what refuses (the
+    /// same spans to 324° promote).
     #[test]
     fn c4c_an_open_carrier_wound_past_a_turn_refuses() {
         let d = f64::to_radians;
@@ -1035,9 +1086,9 @@ mod tests {
     /// C4d: an OPEN carrier that runs PAST its end and comes back
     /// refuses — out to 270° and back to 200°, every span on the circle.
     /// Its ends bound a 200° arc, but its locus is 270°, so trimming the
-    /// circle between its ends would drop 70° of it; the coverage's
-    /// azimuth bound is what refuses (the same carrier stopped at 270°
-    /// promotes).
+    /// circle between its ends would drop 70° of it; the azimuth bound's
+    /// overrun, charged to the residual as a distance from the arc, is
+    /// what refuses (the same carrier stopped at 270° promotes).
     #[test]
     fn c4d_an_open_carrier_running_past_its_end_refuses() {
         let d = f64::to_radians;
@@ -1052,6 +1103,33 @@ mod tests {
             recognize(&stopped, band),
             CurveRecognition::Promoted { .. }
         ));
+    }
+
+    /// C4e: **an open arc's residual is a distance from the ARC**: a
+    /// carrier out to 90° and back by `φ` has its ends `90° − φ` apart
+    /// and its locus `φ` past its end, so its residual is at least the
+    /// `R·φ` the last point of the overrun stands from the arc (here
+    /// 0.9e-9 m at R = 5 mm), not the locus's rounding-level distance from
+    /// the circle — so "within ε_in" holds of the trimmed piece.
+    #[test]
+    fn c4e_an_arcs_residual_carries_its_overrun() {
+        let radius = 0.005;
+        let phi = 0.9e-9 / radius;
+        let half = core::f64::consts::FRAC_PI_2;
+        let back = arc_chain(radius, &[0.0, half, half - phi]);
+        let CurveRecognition::Promoted {
+            residual,
+            covers: Some(_),
+            ..
+        } = recognize(&back, crate::interpret::FileBand::test(1e-6))
+        else {
+            panic!("the arc promotes at a generous band");
+        };
+        assert!(
+            residual >= radius * phi * (1.0 - 1e-6),
+            "the residual carries the overrun {:e}: {residual:e}",
+            radius * phi
+        );
     }
 
     /// C5: the CONDITIONING trilean is reachable — a closed carrier
@@ -2384,7 +2462,10 @@ mod r2_delta {
     /// **D7 — the decisive sweep.** The forged construction, rotated
     /// and re-scaled over thousands of cases, run through the WHOLE
     /// pipeline. Any `Promoted` here is a half-covering carrier that
-    /// became a full circle.
+    /// became a full circle. The guard that holds it is `turning`'s
+    /// recovered-step check `|step| ≤ π − δ/2` (the forged span's
+    /// recovered step is a whole turn off), not the cone alone and not
+    /// the azimuth containment.
     #[test]
     fn d7_forged_half_turn_sweep_through_recognize() {
         let pi = core::f64::consts::PI;

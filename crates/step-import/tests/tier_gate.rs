@@ -602,6 +602,18 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
     ),
+    // The C⁰-knot half cone with its bottom rim restated as the wall's
+    // own row (`a_promotion_no_edge_carries_is_not_reported`).
+    (
+        "tests/fixtures/promoted-rim/half_cone_spline_rim.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
+    // The M7-8 cube with its straight columns re-timed
+    // (`a_retimed_straight_rim_imports_on_its_wall`).
+    (
+        "tests/fixtures/retimed-rim/side_column.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
     // -- tests/fixtures/retimed-seam/ --------------------------------
     // The nonuniform loft with one seam straight on a re-timed column
     // (`a_straight_seam_on_a_retimed_column_imports`).
