@@ -11,7 +11,7 @@
 //! the session box is a fact of the shape, which a rigid motion keeps.
 //! The image's data is the source's widened by the boxed turn, and the
 //! Boolean's ray against the cylinder's disc does not decide on it: the
-//! union refuses `ShellWitnessExhausted` at `bool_ray_cylinder_disc`.
+//! union refuses `ShellWitnessExhausted` at `line_quadric_cylinder_disc`.
 //! Before members were placed, the clear copy's image was finished in the
 //! turned frame, and its cylinder's datum, read through the turn,
 //! refused at the member's take (`UnfinishedLeaf`). The refusal no longer
@@ -98,7 +98,7 @@ fn a_turned_discs_union_refuses_on_the_widened_copy_in_the_boolean() {
     };
     let said = format!("{error:?}");
     assert!(
-        said.contains("bool_ray_cylinder_disc"),
+        said.contains("line_quadric_cylinder_disc"),
         "at the ray against the carried copy's cylinder disc: {said}"
     );
 }

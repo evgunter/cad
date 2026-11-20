@@ -15,7 +15,7 @@ Since stage 1 of fork 288 (`onehome/placed-boolean-doors`), a union's fold finis
 
 Under a boxed motion the image's data is wider than the source's. A decision the source makes can then fail on the image inside the Boolean. The person is told of a shell-witness exhaustion, and not which member could not be read.
 
-`crates/editor-core/tests/a_turned_discs_union_refuses_on_the_widened_copy.rs` is the case. A disc is turned 30° ± 1° about `y`, and an unturned copy stands clear of it. At `Interval` the union refuses `ShellWitnessExhausted` at `bool_ray_cylinder_disc`, on the clear copy carried through the turn.
+`crates/editor-core/tests/a_turned_discs_union_refuses_on_the_widened_copy.rs` is the case. A disc is turned 30° ± 1° about `y`, and an unturned copy stands clear of it. At `Interval` the union refuses `ShellWitnessExhausted` at `line_quadric_cylinder_disc`, on the clear copy carried through the turn.
 - Before placed members, the clear copy's image was finished in the turned frame. Its cylinder's datum, read through the turn, refused at the member's take as `UnfinishedLeaf { input: clear, into: Some(turned) }`, which named both members.
 - The subtract already took its operands this way on main (`wire_subtract` finishes `from` in its own frame, then moves it), so its refusals behave the same.
 
