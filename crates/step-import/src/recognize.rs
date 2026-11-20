@@ -42,11 +42,13 @@
 //! - **Plane**: translate-to-origin Newell over the control net's
 //!   boundary ring in index order (the `newell_plane` method, run on
 //!   the net rather than a loop so the fit is certification-free
-//!   here — certification is the residual bound above), oriented to
-//!   the NURBS chart normal at the domain midpoint, `u_ref` from the
-//!   normal's canonical orthonormal basis. Every step is a fixed-order
-//!   sum or a closed-form map of one — no iteration, no
-//!   data-dependent branching beyond the orientation sign.
+//!   here — certification is the residual bound above), its length
+//!   decided as the ring's width (the sum over the ring's perimeter),
+//!   oriented to the NURBS chart normal at the domain midpoint, `u_ref`
+//!   the chart's `∂u` there made perpendicular to the normal. Every
+//!   step is a fixed-order sum or a closed-form map of one — no
+//!   iteration, no data-dependent branching beyond the orientation
+//!   sign.
 //! - **Cylinder**: axis as the fixed-order sum of the net's v-column
 //!   translations (an extruded patch's columns are translates along
 //!   its axis); three fixed-parameter samples of the `v = v0` boundary
@@ -79,7 +81,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
+use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, UnitVec3, Vec3};
 
 use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -169,15 +171,14 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognitio
     }
 }
 
-/// The NURBS chart normal (unnormalized `∂u × ∂v`) at the domain
-/// midpoint — the orientation reference every promoted chart is
-/// aligned to, so the face's `same_sense` keeps its meaning across
-/// the promotion.
-fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
+/// The NURBS chart's first derivatives at the domain midpoint: their
+/// cross product is the orientation reference every promoted chart is
+/// aligned to, so the face's `same_sense` keeps its meaning across the
+/// promotion.
+fn patch_jet_mid(patch: &NurbsSurface<f64>) -> geom::SurfaceJet<f64> {
     let (u0, u1) = patch.knots_u_f64_interim().domain();
     let (v0, v1) = patch.knots_v_f64_interim().domain();
-    let jet = patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-    jet.du.cross(jet.dv)
+    patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1))
 }
 
 /// The plane candidate: Newell over the control net's boundary ring,
@@ -212,31 +213,54 @@ fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>,
         ring.push(at(0, iv));
     }
     let mut normal_sum = Vec3::zero();
+    let mut perimeter = 0.0f64;
     for (i, p) in ring.iter().enumerate() {
         let next = ring[(i + 1) % ring.len()];
         normal_sum = normal_sum + (*p - origin).cross(next - origin);
+        perimeter += (next - *p).norm();
     }
-    let mut normal = normal_sum.normalize();
-    // Orient to the chart normal (module docs). A degenerate net — a
-    // poison normal (`normalize` of ~0 is all-NaN), or one orthogonal
-    // to the chart's — determines no oriented plane: refuted here,
-    // stays NURBS.
-    let align = normal.dot(chart_normal_mid(patch));
+    // The Newell sum is twice the ring's area vector, so over the
+    // perimeter it is a length — the ring's inradius for a tangential
+    // ring, its width for a thin one. Read at the file's band it decides
+    // whether the net spans a plane at all; a net collinear within the
+    // band (or a perimeter that is no length) determines none and stays
+    // NURBS.
+    let mut normal = UnitVec3::new_scaled(
+        normal_sum,
+        perimeter.recip(),
+        STEP_RECOGNIZED_CONDITIONING,
+        file.band(),
+    )
+    .ok()?;
+    // Orient to the chart normal (module docs); a net normal orthogonal
+    // to the chart's determines no oriented plane.
+    let chart = patch_jet_mid(patch);
+    let align = normal.get().dot(chart.du.cross(chart.dv));
     if !(align.is_finite() && align != 0.0) {
         return None;
     }
     if align < 0.0 {
         normal = -normal;
     }
-    let normal = plus_zero(normal);
-    // The file's coordinates are this import's input: the frame they
-    // are written in is the only one it has, so a reference picked off
-    // them is a function of the input.
-    let (u_ref, _) = normal.orthonormal_basis();
+    // A promoted plane's `u_ref` is a kept frame, so the input states
+    // its roll: the patch's own u direction at the domain midpoint,
+    // the tangent the chart normal above was crossed from (nonzero
+    // wherever that normal is). The plane's chart then runs the
+    // patch's way round. A tangent is no distance for the file's band
+    // to read, so only one along the normal is degenerate.
+    let frame = RigidMotion::from_aim_and_reference(
+        origin,
+        normal,
+        chart.du,
+        crate::STEP_PLACEMENT_AXES,
+        Band::least(),
+    )
+    .ok()?;
+    let normal = normal.get();
     let plane = Surface::Plane {
         origin: plus_zero_point(origin),
-        normal,
-        u_ref: plus_zero(u_ref),
+        normal: plus_zero(normal),
+        u_ref: plus_zero(frame.u().get()),
     };
     // The hull sup-bound over the WHOLE net — BOTH tracks (R1 fix
     // pass, M-1): with strictly positive weights the rational basis

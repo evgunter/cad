@@ -577,27 +577,22 @@ fn mapped_self_description(
     }
 }
 
-/// A rigid frame whose x-axis is the (unit) line direction, placed at
-/// the line's origin — the `PlacedSegment` placement for a
-/// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
-/// complete an orthonormal frame (they never move a segment point —
-/// every sketch point has `y = 0` — but a placement claims rigidity
-/// as conventional data, so honest perpendiculars are minted).
+/// A rigid frame whose x-axis is the line direction, placed at the
+/// line's origin — the `PlacedSegment` placement for a Nurbs-adjacent
+/// rim ([`mapped_self_description`]). The y/z columns complete an
+/// orthonormal frame (they never move a segment point — every sketch
+/// point has `y = 0` — but a placement claims rigidity as conventional
+/// data, so honest perpendiculars are minted).
 ///
-/// The seed axis is the coordinate axis of the direction's SMALLEST
-/// component magnitude: for a unit-ish direction that axis is at
-/// least `1/√3` from parallel, so the projection step below is always
-/// well-conditioned. The old first-coordinate-axis pick (`|x| < 1.0`)
-/// was executed into a fail-loud violation by the M7-3 review (F2): a
-/// DIRECTION one ulp under unit and x-parallel, which the line reader
-/// keeps as stated (`entities::unit_line_direction` keeps a triple that
-/// is unit within its own rounding bit for bit), satisfied `|x| < 1.0`
-/// and minted `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement
-/// inside a certified body. Belt and braces on top of the conditioning
-/// argument: a frame that still cannot be completed (non-finite or
-/// zero direction) answers `None`, the conventional rung is WITHHELD,
-/// and the edge refuses typed — never a silent
-/// degenerate placement.
+/// The frame is [`geom_core::RigidMotion::gram_schmidt`] of the
+/// direction and the coordinate axis of its SMALLEST component
+/// magnitude, which is at least `1/√3` from parallel to a unit-ish
+/// direction, so the residual is well conditioned. A direction is no
+/// distance for the file's band to read, so both lengths are decided at
+/// the least band: a frame that still cannot be completed (a vanishing
+/// or non-finite direction) answers `None`, the conventional rung is
+/// WITHHELD, and the edge refuses typed — never a silent degenerate
+/// placement.
 fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<f64>> {
     let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());
     let candidate = if ax <= ay && ax <= az {
@@ -607,20 +602,15 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     } else {
         geom_core::Vec3::new(0.0, 0.0, 1.0)
     };
-    // The projection coefficient, bound by name so the subtraction
-    // reads as "remove the axial part" — and so the expression is not
-    // the `v * v`-shaped text the interval-square tripwire watches
-    // for (there is no square here: `dir` scales a dot of two
-    // DIFFERENT vectors — the `Resolver::placement` precedent,
-    // verbatim).
-    let along = dir.dot(candidate);
-    let perpendicular = candidate - dir * along;
-    let (y, _) = perpendicular.checked_direction().ok()?;
-    let z = dir.cross(y);
-    Some(Affine3::from_parts(
-        geom_core::Mat3::from_cols(dir, y, z),
-        origin - Point3::origin(),
-    ))
+    geom_core::RigidMotion::gram_schmidt(
+        origin,
+        dir,
+        candidate,
+        crate::STEP_PLACEMENT_AXES,
+        geom_core::Band::least(),
+    )
+    .ok()
+    .map(geom_core::RigidMotion::to_affine)
 }
 
 #[cfg(test)]

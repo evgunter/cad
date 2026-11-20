@@ -44,7 +44,9 @@ pub(crate) const STEP_RECOGNIZED_RESIDUAL: &str = "step_recognized_residual";
 
 /// A recognition estimator's conditioning (a span, a sagitta, a radius,
 /// a chord): Zero determines no candidate; in band and apart go on to
-/// the certificate, which does not rest on the answer.
+/// the certificate, which does not rest on the answer. Where the
+/// estimator mints a direction from the length (a plane's normal, by
+/// its ring's width), only apart determines one.
 pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_conditioning";
 
 /// Whether a carrier closes on itself (its end on its start): Zero is the
