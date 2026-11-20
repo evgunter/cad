@@ -153,8 +153,10 @@ enum SpanRead {
 /// [`Taylor`] over the piece of half-width `w` about a middle where a
 /// jet read locally (the height's or the level's) is `jet`, its fourth
 /// derivative at most `top` throughout. The jet is read uncharged, as
-/// exact: its few local terms round far below the band at `f64`, and an
-/// `Interval` reading encloses them (module docs, (ii)).
+/// exact (DESIGN `[simple.conditioned]`): its few local terms are a short
+/// chain on in-box coordinates, whose rounding the run's admission rule
+/// fits in the band's headroom, and an `Interval` reading encloses them
+/// (module docs, (ii)).
 fn local_taylor<T: Decide>(jet: [T; 4], top: T, w: T) -> Taylor<T> {
     Taylor::over(jet.map(Rounded::exact), top, w)
 }
