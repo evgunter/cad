@@ -32,7 +32,10 @@ crates/mesh 29
 crates/step-export 9
 # step-import 39 -> 37: recognize.rs's chart_flipped reads the patch's
 # midpoint jet through patch_jet_mid, the plane arm's one reader (EXCH).
-crates/step-import 37
+# 37 -> 35: recognize_curve's line limb split into locus (try_line) and
+# the straight map reading (straight_map), which alone reads the knots
+# (EXCH).
+crates/step-import 35
 crates/sweep 139
 crates/topo 36
 demos/tour 2
