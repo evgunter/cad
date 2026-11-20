@@ -481,10 +481,22 @@ const CORPUS: &[(&str, Disposition)] = &[
     // also stated with its parameters swapped: each wall promotes whole to
     // its own kind either way round, so each keeps the file's census
     // (`a_promoted_kind_is_the_same_whichever_way_the_net_runs`).
-    ("tests/fixtures/promotion/a_half_cone.step", Pass(1, 1, 4, 6, 4)),
-    ("tests/fixtures/promotion/a_half_cone_T.step", Pass(1, 1, 4, 6, 4)),
-    ("tests/fixtures/promotion/a_half_cyl.step", Pass(1, 1, 4, 6, 4)),
-    ("tests/fixtures/promotion/a_half_cyl_T.step", Pass(1, 1, 4, 6, 4)),
+    (
+        "tests/fixtures/promotion/a_half_cone.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cone_T.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl_T.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
         "tests/fixtures/freecad/box_fillet_corner.step",
