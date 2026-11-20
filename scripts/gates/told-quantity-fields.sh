@@ -9,13 +9,15 @@
 #
 #  1. NO REFUSAL TYPE DECLARES A BARE SCALAR FIELD. A refusal type is a
 #     `struct` or `enum` the crate declares and gives a `Display` or an
-#     `Error` impl (for the type or a reference to it), and every type
+#     `Error` impl (for the type, a reference to it or a `Box`, `Rc` or
+#     `Arc` of it), and every type
 #     of the crate one of those names in a field, transitively (a
 #     payload's parts are payload); two types of one name are both read
 #     under it. A field is bare when its type names a scalar — `f64`,
 #     `f32`, `T`, `Interval`, `Dual`, `Sym`, `Probe` — anywhere but
 #     inside a type the crate declares (whose own fields are read in
-#     turn) or a foreign position (`Point2`, `Vec2`, `Point3`, `Vec3`
+#     turn, a field typed by the type's own parameter counting as a
+#     scalar whatever the parameter is called) or a foreign position (`Point2`, `Vec2`, `Point3`, `Vec3`
 #     and the unit vectors): alone, path-qualified, or under any
 #     container (`Option`, `Vec`, `Arc`, `HashMap`, `Result`, an array, a
 #     tuple, a reference).
@@ -24,11 +26,12 @@
 #     width, sign or flag stands beside it (`{:?}`, `{x:e}`, `{:.3e}`,
 #     `{:10?}`, `{:.4}`). The bodies read are every `impl … Display for
 #     …` and every function taking a `Formatter`, an `impl … Debug for
-#     …` body excepted. The lines that still print a Debug NAME are
-#     pinned one by one in `told-quantity-fields.pins`, as
-#     `path :: the line`, each group beside its reason: a line the pins
-#     do not hold fires, and so does a pin no line matches, so a pinned
-#     name cannot be swapped for a scalar.
+#     …` body excepted. An escaped brace (`{{:?}}`) is text. A line
+#     that still prints a Debug NAME is pinned in
+#     `told-quantity-fields.pins` as `path :: the line`, beside its
+#     reason: a line the pins do not hold fires, and so does a pin no
+#     line matches. The pin holds the LINE'S TEXT; see the blind list
+#     for what that does not hold.
 #
 # THE CRATES IT COVERS are every `crates/*` directory that
 # `told-quantity-fields.uncovered` does not list. That file is the
@@ -59,6 +62,15 @@
 #  - A helper that returns a `String` (`fn text(&self) -> String {
 #    format!("{:?}", …) }`) called from a `Display`: it takes no
 #    `Formatter`, so rule 2 does not read its body.
+#  - What a pinned line's arguments are bound to. A pin is the text of
+#    one line, so `write!(f, "the {verb:?} verb")` stays pinned when
+#    `let verb = self.at.x;` is added above it, or when the argument
+#    sits on the next line and is swapped there. A pin is a reviewed
+#    exception, not a guard on its own argument; the covered crates
+#    hold none.
+#  - A scalar turned to text before it is formatted:
+#    `self.at.x.to_string()` in a `Display`, or pushed into a `String`
+#    by `write!` on something that is not a `Formatter`.
 #  - A scalar formatted with a bare `{}`. The formatter does not say
 #    what type it prints, so a `{}` over an `f64` local in a body reads
 #    as any other `{}`; rule 1 is what keeps an `f64` from being there.
@@ -107,6 +119,8 @@ def strip(text, keep_strings):
     def literal(j):
         body = text[i:j]
         if keep_strings:
+            # An escaped brace is text, not a format.
+            body = body.replace("{{", "  ").replace("}}", "  ")
             return body.replace("{", "\x01").replace("}", "\x02")
         return '""' + "\n" * body.count("\n")
 
@@ -216,7 +230,7 @@ def split_top(text, sep=","):
     return [p.strip() for p in parts if p.strip()]
 
 
-def bare_scalars(ty, declared):
+def bare_scalars(ty, declared, scalars):
     # The scalar names `ty` holds that a sentence could reach: every one
     # not inside a type this crate declares (its own fields are read in
     # turn) or a foreign position.
@@ -234,7 +248,7 @@ def bare_scalars(ty, declared):
         if tok.startswith("'"):
             continue
         last = tok
-        if tok in SCALARS and not any(s in declared or s in POSITIONS for s in stack):
+        if tok in scalars and not any(s in declared or s in POSITIONS for s in stack):
             found.append(tok)
     return found
 
@@ -258,7 +272,8 @@ def field_types(body, tuple_like):
 
 DECL = re.compile(r"\b(struct|enum)\s+(\w+)\s*")
 IMPL = re.compile(
-    r"\bimpl\b[^{;]*?\b(Display|Error)\s+for\s+(?:&\s*(?:'\w+\s+)?(?:mut\s+)?)?(?:[\w:]*::)?(\w+)[^{;]*\{"
+    r"\bimpl\b[^{;]*?\b(Display|Error)\s+for\s+(?:&\s*(?:'\w+\s+)?(?:mut\s+)?)?"
+    r"(?:(?:[\w:]*::)?(?:Box|Rc|Arc)\s*<\s*)*(?:[\w:]*::)?(\w+)[^{;]*\{"
 )
 DISPLAY = re.compile(r"\bimpl\b[^{;]*?\bDisplay\s+for\s+[^{;]*\{")
 DEBUG = re.compile(r"\bimpl\b[^{;]*?\bDebug\s+for\s+[^{;]*\{")
@@ -276,12 +291,21 @@ def declarations(code):
     # list and where clause skipped by bracket, whatever they hold.
     for m in DECL.finditer(code):
         kind, name, at = m.group(1), m.group(2), m.end()
+        params = []
         if at < len(code) and code[at] == "<":
-            at = matching(code, at, "<", ">") + 1
-        head = re.compile(r"\s*(?:where\b[^{;]*?)?([{(;])").match(code, at)
+            close = matching(code, at, "<", ">")
+            params = [
+                re.match(r"\w+", part).group(0)
+                for part in split_top(code[at + 1:close])
+                if re.match(r"[A-Za-z_]\w*", part) and not part.startswith("const ")
+            ]
+            at = close + 1
+        # A tuple body comes before any `where`; a brace body after it,
+        # past whatever brackets the clause holds.
+        head = re.compile(r"\s*(?:(\()|where\b[^{;]*([{;])|([{;]))").match(code, at)
         if not head:
             continue
-        opener, at = head.group(1), head.end()
+        opener, at = next(g for g in head.groups() if g), head.end()
         fields = []
         if opener == "{":
             body = code[at:matching(code, at - 1)]
@@ -298,7 +322,7 @@ def declarations(code):
                     fields += [(f"{vm.group(1)}::{n}", t) for n, t in field_types(inner, open_ == "(")]
         elif opener == "(":
             fields = field_types(code[at:matching(code, at - 1, "(", ")")], True)
-        yield kind, name, fields, code.count("\n", 0, m.start()) + 1
+        yield kind, name, params, fields, code.count("\n", 0, m.start()) + 1
 
 
 uncovered = set()
@@ -321,8 +345,8 @@ for crate in covered:
         with open(path, encoding="utf-8") as fh:
             raw = fh.read()
         code = without_test_mods(strip(raw, False))
-        for kind, name, fields, line in declarations(code):
-            declared.setdefault(name, []).append((path, line, fields))
+        for kind, name, params, fields, line in declarations(code):
+            declared.setdefault(name, []).append((path, line, params, fields))
         for m in IMPL.finditer(code):
             refusal.add(m.group(2))
         # Rule 2, over the same file with its strings kept.
@@ -345,13 +369,16 @@ for crate in covered:
         if name in reach:
             continue
         reach.add(name)
-        for _, _, fields in declared[name]:
+        for _, _, _, fields in declared[name]:
             for _, ty in fields:
                 frontier += [w for w in re.findall(r"\b[A-Z]\w*\b", ty) if w in declared and w not in reach]
     for name in sorted(reach):
-        for path, line, fields in declared[name]:
+        for path, line, params, fields in declared[name]:
             for field, ty in fields:
-                held = bare_scalars(ty, declared)
+                # A type's own parameter, held bare, is a scalar wherever
+                # the type is held at one (`Wrap<S> { inner: S }` as
+                # `Wrap<f64>`).
+                held = bare_scalars(ty, declared, SCALARS | set(params))
                 if held:
                     offences.append(f"{path}:{line}: {name} declares `{field}: {' '.join(ty.split())}`")
 
@@ -470,6 +497,28 @@ impl core::fmt::Display for &Refusal {
 }
 RS
 }
+# plant_where CLAUSE BODY ROOT: a declaration whose `where` clause holds
+# brackets of its own.
+plant_where() {
+  printf 'pub %s\n' "$1" >> "$2/crates/clean/src/lib.rs"
+  displayed "$2" "<U>" "Refusal<U>"
+}
+plant_display_for_a_box() {
+  plant "$1" <<'RS'
+pub struct Refusal { margin: f64 }
+impl core::fmt::Display for Box<Refusal> {
+    fn fmt(&self, f: &mut F) -> R { f.write_str("refused") }
+}
+RS
+}
+# A type of the crate whose parameter is not called `T`, held bare.
+plant_own_parameter_by_another_name() {
+  plant "$1" <<'RS'
+pub struct Wrap<S> { inner: S }
+pub struct Refusal { held: Wrap<f64> }
+RS
+  displayed "$1" "" "Refusal"
+}
 plant_generic_bound_with_parentheses() {
   plant "$1" <<'RS'
 pub struct Refusal<F: Fn(f64) -> f64> { margin: f64, spell: F }
@@ -491,8 +540,9 @@ RS
 plant_pin_gone() {
   printf 'crates/clean/src/lib.rs :: write!(f, "at {:?}", self.verb)\n' >> "$1/$PINS"
 }
-# A pinned Debug name swapped for a scalar on the same line count.
-plant_pinned_name_swapped() {
+# A pinned line rewritten to print something else: the pin no longer
+# matches, and the new line is not pinned.
+plant_pinned_line_rewritten() {
   printf 'crates/clean/src/lib.rs :: fn fmt(&self, f: &mut F) -> R { write!(f, "the {:?} verb", self.verb) }\n' >> "$1/$PINS"
   plant "$1" <<'RS'
 pub struct Refusal { verb: Verb, margin: Told }
@@ -518,7 +568,7 @@ pub enum Refusal<T> {
     Shifted { bits: [u8; 1 << 3], spell: fn(&u8) -> Told },
 }
 impl<T> core::fmt::Display for Refusal<T> {
-    fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}", self.leg.setback, Verb::Line, "here") }
+    fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}, as {{:?}} would write", self.leg.setback, Verb::Line, "here") }
 }
 pub struct Carrier<T> { pub radius: T }
 impl<T> core::fmt::Debug for Carrier<T> {
@@ -532,7 +582,7 @@ mod tests {
     }
 }
 RS
-  printf 'crates/clean/src/lib.rs :: fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}", self.leg.setback, Verb::Line, "here") }\n' >> "$1/$PINS"
+  printf 'crates/clean/src/lib.rs :: fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}, as {{:?}} would write", self.leg.setback, Verb::Line, "here") }\n' >> "$1/$PINS"
   mkdir -p "$1/crates/later/src"
   printf 'pub struct Refusal { margin: f64 }\nimpl core::fmt::Display for Refusal {\n    fn fmt(&self, f: &mut F) -> R { write!(f, "{:e}", self.margin) }\n}\n' \
     > "$1/crates/later/src/lib.rs"
@@ -558,16 +608,25 @@ gate_selftest() {
   gate_selftest_case "$field" plant_two_types_of_one_name
   gate_selftest_case "$field" plant_display_for_a_reference
   gate_selftest_case "$field" plant_generic_bound_with_parentheses
+  local decl
+  for decl in 'struct Refusal<U> where U: Fn(u8) -> u8 { count: usize, margin: f64 }' \
+      'enum Refusal<U> where U: Fn(u8) { A { margin: f64 }, B(usize) }' \
+      'struct Refusal<U> where (U, u8): Clone { margin: f64 }' \
+      'struct Refusal<U>(f64, usize) where U: Fn(u8);'; do
+    gate_selftest_case "$field" plant_where "$decl"
+  done
+  gate_selftest_case "$field" plant_display_for_a_box
+  gate_selftest_case "$field" plant_own_parameter_by_another_name
   local spec
   for spec in ':?' ':#?' ':.3e' ':.4e' ':+e' ':10?' ':.3' 'x:.17?'; do
     gate_selftest_case "$format" plant_format "$spec"
   done
   gate_selftest_case "$format" plant_exp_format_in_a_writer
   gate_selftest_case "$format" plant_pin_gone
-  gate_selftest_case "$format" plant_pinned_name_swapped
+  gate_selftest_case "$format" plant_pinned_line_rewritten
   gate_selftest_case "lists a crate the tree does not hold" plant_stale_uncovered
   gate_selftest_passes "told payloads, foreign positions, the crate's own generics, arrows and shifts, Debug impls, a width, a pinned line and an uncovered crate" plant_not_offences
-  printf '%s selftest OK: passes a clean fixture, a told payload, a position another crate declares, a scalar parameter of one of the crate own types, a field after an arrow or a shift, a scalar no sentence reaches, a Debug impl, a test module, a width on a name, a pinned line and a crate the list leaves uncovered; fires on a bare T or f64 field, in an Option, in an array of a payload part, in a tuple variant, after an arrow or a shift, under twelve containers and scalar names, in one of two types of one name, under a Display for a reference and behind a parenthesised bound; on eight format specs in a Display and an exponent in a Formatter function, on a pin no line matches, on a pinned name swapped for a scalar, and on a listed crate the tree does not hold\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a told payload, a position another crate declares, a scalar parameter of one of the crate own types, a field after an arrow or a shift, a scalar no sentence reaches, a Debug impl, a test module, a width on a name, an escaped brace, a pinned line and a crate the list leaves uncovered; fires on a bare T or f64 field, in an Option, in an array of a payload part, in a tuple variant, after an arrow or a shift, under twelve containers and scalar names, in one of two types of one name, under a Display for a reference or a Box, behind a parenthesised bound or where clause, and through one of the crate own types whose parameter has another name; on eight format specs in a Display and an exponent in a Formatter function, on a pin no line matches, on a pinned line rewritten, and on a listed crate the tree does not hold\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

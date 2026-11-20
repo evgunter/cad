@@ -768,12 +768,13 @@ pub struct CornerRefusal<T: Real> {
 }
 
 /// A point of the sketch plane as a sentence locates it, `(x, y)`, its
-/// coordinates lengths told in the role `told` builds.
-fn told_point<T: Real>(at: &Point2<T>, told: fn(&T, Dimension) -> Told) -> impl core::fmt::Display {
-    let (x, y) = (
-        told(&at.x, Dimension::Length),
-        told(&at.y, Dimension::Length),
-    );
+/// coordinates told as derived lengths. Every point a refusal locates
+/// is one a door placed: a derived corner, a cusp's tip, or a chain
+/// vertex, which is the author's own at some legs and derived at others
+/// (a swept leg's end, a fillet's tangent point, a split circle's
+/// vertex) with nothing at the refusal to say which.
+fn told_point<T: Real>(at: &Point2<T>) -> impl core::fmt::Display {
+    let (x, y) = (length(at.x), length(at.y));
     core::fmt::from_fn(move |f| core::fmt::Display::fmt(&Told::position(&x, &y), f))
 }
 
@@ -782,7 +783,7 @@ impl<T: Real> core::fmt::Display for CornerRefusal<T> {
         write!(
             f,
             "at corner {at}: {reason}",
-            at = told_point(&self.at, Told::computed),
+            at = told_point(&self.at),
             reason = self.reason
         )
     }
@@ -2077,7 +2078,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "the cusp at {at} reverses a straight leg, and the straight run after it \
                  lies back over that leg. Recourse: leave the cusp on an arc (a tangent arc, or a \
                  fillet whose tangent point is the leg's end), or turn instead of reversing",
-                at = told_point(at, Told::computed)
+                at = told_point(at)
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
@@ -2149,7 +2150,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                             ),
                         };
                         let at = corner.map_or_else(String::new, |at| {
-                            format!(" at corner {}", told_point(&at, Told::computed))
+                            format!(" at corner {}", told_point(&at))
                         });
                         format!(
                             "its turn{at}, sin φ = {sin_turn} (cos φ = {align}) over \
@@ -5348,7 +5349,7 @@ fn read_back_sentence<T: Real>(
     turn: &Told,
     authored: Option<ArcSweep>,
 ) -> core::fmt::Result {
-    let at = told_point(point, Told::given);
+    let at = told_point(point);
     let what = match read {
         ArcRead::Branch => {
             let sense = match authored {
@@ -6843,6 +6844,11 @@ mod tests {
         assert_eq!(
             radius_lever(0.361_629_480_311_458_f64, 0.361_629_480_0).to_string(),
             "0.3616294803 m"
+        );
+        // A radius window finer than the grid holds the spelling too.
+        assert_eq!(
+            radius_lever(0.361_629_480_311_4_f64, 0.361_629_480_311_4 - 5e-12).to_string(),
+            "0.36162948031 m"
         );
     }
 

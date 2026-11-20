@@ -982,8 +982,13 @@ mod tests {
         }
         // An edge on the wrong side states no window.
         let within = |edge: f64| Told::at_least_within(&1.000_04, &edge, Dimension::Angle);
-        assert_eq!(within(0.5), Told::at_least(&1.000_04, Dimension::Angle));
+        assert_eq!(within(0.5).pinned_edge(), None);
         assert_eq!(within(0.5).to_string(), "1.001 rad");
+        assert_eq!(within(1.000_05).pinned_edge(), Some(1.000_05));
+        assert_eq!(
+            Told::at_most_within(&1.000_04, &1.5, Dimension::Angle).pinned_edge(),
+            None
+        );
         assert_eq!(within(1.000_05).to_string(), "1.00004 rad");
         assert_eq!(within(1.0005).to_string(), "1.0001 rad");
     }

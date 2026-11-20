@@ -24,7 +24,11 @@ list is "in the transition table's identifiers", and the comment above
 `ReplayError`'s `Display` says the lattice arms keep that rendering on
 purpose, since no authoring surface produces such a program.
 
-None prints a scalar, so the build pinned them rather than changed
-them: `scripts/gates/told-quantity-fields.pins` holds
-seven lines of `crates/profile/src/path/program.rs`. Owed: either the names get a
-prose form and the pin goes to zero, or the pin's reason stands.
+None prints a scalar. The sentences are unchanged, but they no longer
+go through `Debug`: `Verb`, `ArcMode`, `TargetKind` and `TipState` each
+have an `identifier()` that returns the declared name (the first three
+from the declaring macro, `TipState`'s pinned against its `Debug` by
+`path_program::every_tip_state_is_identified_by_its_declared_name`), so
+`scripts/gates/told-quantity-fields.pins` holds nothing. Owed: whether
+these names get a prose form, or the table's identifiers are what this
+reader should see.
