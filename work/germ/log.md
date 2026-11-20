@@ -1600,3 +1600,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   PR 7174 merges on green CI at its main-merged head.
 - 2026-11-20 — **PR 7174 (sector side) merged** (`cd7a45b9c7`). Its row is closed, and its lane and the review targets are reclaimed, leaving 44 GB free. That closes both original P1 issues. The P1 slate now holds the kind-pair X row, with U1 and U0 done; U1b is in CI; U2 waits on the P0 PR; U3a waits on U2.
+- 2026-11-20 — **U1b's report (cloud session `session_01BJC3B3GPYCWx9d4Mgoqfzx`, PR 7184, green at `3faab96606`):**
+  - Line × cone has one reading. `line_cone_roots` is posed about the run's nearest point to the apex and metered per root. The ray lane reads the door, and `bool_ray_cone_*` retire.
+  - `Centred`'s gradient factor is removed: the cone's 2 contradicted |∇G| ≤ 2|w|.
+  - A ring-on-cone row that escalated at 1e-12 now builds and brackets its closed form. The ray's `bool2` r1/r2 measurements are unchanged.
+  - The torn-body fuzz red is inherited: it reproduces with main's files. The seed is added as evidence to CHARTTAIL's row.
+  - INSIDE's `ray-cone-discriminant-under-reads-by-its-lead-coefficient` is closed by it. The three GERM line × cone lever rows are not moved.
+
+  Tier **single, FULL**: root arithmetic changes in both the edge sweep and point-in-solid. Reviewer dispatched with the gradient-factor removal as its first claim. State PR 7188 merged.
