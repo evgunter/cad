@@ -194,7 +194,9 @@ mod tests {
     fn net() -> Curve3<f64> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let points = vec![Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)];
-        Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap()))
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap(),
+        ))
     }
 
     /// **A certificate reads exactly its own support**: the same
@@ -211,8 +213,14 @@ mod tests {
         let params = (0.0, 1.0);
         let spline = net();
         let held = LocusCertificate::derived(&spline, params, [&p, &c], band());
-        assert!(held.reads(&spline, params, [&p, &c], band()), "its own support");
-        assert!(held.reads(&spline, params, [&c, &p], band()), "the pair in the other order");
+        assert!(
+            held.reads(&spline, params, [&p, &c], band()),
+            "its own support"
+        );
+        assert!(
+            held.reads(&spline, params, [&c, &p], band()),
+            "the pair in the other order"
+        );
         let twin = net();
         assert!(
             held.reads(&twin, params, [&p, &c], band()),
@@ -221,11 +229,16 @@ mod tests {
         let other = {
             let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
             let points = vec![Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 1e-12)];
-            Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap()))
+            Curve3::Nurbs(Arc::new(
+                NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap(),
+            ))
         };
         assert!(!held.reads(&other, params, [&p, &c], band()), "another net");
         let ulp = f64::from_bits(1.0_f64.to_bits() - 1);
-        assert!(!held.reads(&spline, (0.0, ulp), [&p, &c], band()), "an end a ulp off");
+        assert!(
+            !held.reads(&spline, (0.0, ulp), [&p, &c], band()),
+            "an end a ulp off"
+        );
         assert!(
             !held.reads(&spline, params, [&plane(1e-15), &c], band()),
             "a surface's scalar"
@@ -236,7 +249,10 @@ mod tests {
         );
         let circle = |r| Curve3::circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x());
         let round = LocusCertificate::derived(&circle(1.0), params, [&p, &c], band());
-        assert!(round.reads(&circle(1.0), params, [&p, &c], band()), "a closed form's own");
+        assert!(
+            round.reads(&circle(1.0), params, [&p, &c], band()),
+            "a closed form's own"
+        );
         assert!(
             !round.reads(&circle(1.0 + f64::EPSILON), params, [&p, &c], band()),
             "a closed form's radius"

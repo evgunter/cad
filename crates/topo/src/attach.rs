@@ -390,7 +390,7 @@ impl<T: Decide> Body<T> {
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
             );
-            let curve = crate::policy_lane::certify(
+            let curve = crate::policy_lane::certify_stated(
                 origin,
                 spec.clone(),
                 p_start,
@@ -398,6 +398,10 @@ impl<T: Decide> Body<T> {
                 resolve(sides),
                 reach,
                 band,
+                None,
+                self.edge_curve_linked(edge, edge_data)
+                    .certified()
+                    .and_then(geom_brep::EdgeCurve::locus),
             )
             .map_err(|error| EulerOpError::RechartFalsifies {
                 door: RechartDoor::SetFaceSurfacesDescribing,
@@ -952,9 +956,22 @@ impl<T: Decide> Body<T> {
             );
             let origin =
                 crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::ReDescription);
-            let curve =
-                crate::policy_lane::certify(origin, spec, p_start, p_end, resolve, reach, band()?)
-                    .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
+            let kept = self
+                .stored_curve_as(edge, Arg("redescriptions"))
+                .ok()
+                .and_then(geom_brep::EdgeCurve::locus);
+            let curve = crate::policy_lane::certify_stated(
+                origin,
+                spec,
+                p_start,
+                p_end,
+                resolve,
+                reach,
+                band()?,
+                None,
+                kept,
+            )
+            .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();

@@ -125,25 +125,11 @@ impl Origin {
     }
 }
 
-/// [`AtRestPolicy::attach_edge`], the wedge levered at `reach`
-/// ([`fn@crate::wedge_reach`]).
-pub(crate) fn certify<T: AtRestPolicy>(
-    origin: Origin,
-    spec: EdgeCurveSpec<T>,
-    start: Point3<T>,
-    end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: geom_core::Lever<T>,
-    band: Band,
-) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_stated(origin, spec, start, end, surfaces, reach, band, None, None)
-}
-
 /// [`AtRestPolicy::attach_edge`] with a chart image the body already
 /// holds for the edge on one of its surfaces and the locus certificate
 /// of an edge whose carrier, interval and surfaces the door keeps, the
 /// wedge levered at `reach` ([`fn@crate::wedge_reach`]).
-#[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image and kept locus
+#[allow(clippy::too_many_arguments)] // the door's inputs, plus the stated image and kept locus
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     origin: Origin,
     spec: EdgeCurveSpec<T>,
@@ -375,8 +361,9 @@ mod origin_census {
     use test_utils::source::{attributed_extent, balanced_end, boundary_after, line};
 
     /// `geom_brep`'s edge certification doors.
-    const DOORS: [&str; 6] = [
+    const DOORS: [&str; 7] = [
         "certify",
+        "certify_carrying",
         "certify_stated",
         "mint",
         "recertify",
