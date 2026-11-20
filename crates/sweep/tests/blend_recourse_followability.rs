@@ -780,7 +780,10 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         .and_then(|(_, tail)| tail.strip_suffix(" m"))
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
-    assert_eq!(Some(offered), band.offer_deciding(t), "{text}");
+    assert!(
+        geom_core::test_support::is_told_offer_of(offered, t / k),
+        "{text}"
+    );
     let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
     corner_independence(vertex, near, 1.0, tighter).expect("decided passing below the offer");
 }

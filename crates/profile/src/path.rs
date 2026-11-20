@@ -887,8 +887,11 @@ impl LegFit {
             carrier,
             setback: length(setback),
             available: length(available),
-            anchor_at_least: Told::at_least(&setback, Dimension::Length)
-                .no_farther_than(&(setback + fit_reach)),
+            anchor_at_least: Told::at_least_within(
+                &setback,
+                &(setback + fit_reach),
+                Dimension::Length,
+            ),
         }
     }
 
@@ -900,6 +903,17 @@ impl LegFit {
 }
 
 impl CornerReason {
+    /// This corner's radius lever, where it is an anchor-fit corner
+    /// with one.
+    fn radius_lever(&self) -> Option<&Told> {
+        match self {
+            Self::AnchorOutsideTrimmedExtent {
+                radius_at_anchor, ..
+            } => radius_at_anchor.as_ref(),
+            _ => None,
+        }
+    }
+
     /// **What this corner's author changes**, as the values to set, or
     /// `None` where the corner names no lever.
     #[must_use]
@@ -941,7 +955,7 @@ impl CornerReason {
 /// the corners its anchor windows discarded or those its construction
 /// refused, never both. Two construction corners agree up to the
 /// anchor, so they merge into the wider menu, with the largest radius
-/// bound among them ([`PathError::NoCornerOfPair`]'s `radius_or_less`):
+/// bound among them ([`PathError::NoCornerOfPair`]'s `radius_lever_of`):
 /// below it the fillet clears that corner's anchors.
 /// Two window corners can disagree (one behind the incoming side, the
 /// other past the arrival anchor), and there the author's lever is the
@@ -1090,11 +1104,11 @@ impl<'a> PairRecourse<'a> {
 }
 
 /// The pair's one recourse over its corners' recourses, in list order,
-/// with the pair's radius bound where its corners merge into one menu.
+/// with the pair's radius lever where its corners merge into one menu.
 fn write_pair_recourse(
     f: &mut core::fmt::Formatter<'_>,
     recourses: &[Option<Recourse>],
-    radius_or_less: Option<&Told>,
+    radius_lever: Option<&Told>,
 ) -> core::fmt::Result {
     let merged = PairRecourse::of(recourses);
     if matches!(merged, PairRecourse::Unnamed) {
@@ -1120,7 +1134,7 @@ fn write_pair_recourse(
             if sep != "anchor " {
                 f.write_str(", or ")?;
             }
-            write_radius_lever(f, radius_or_less)
+            write_radius_lever(f, radius_lever)
         }
         PairRecourse::Radius => f.write_str("reduce the radius"),
         PairRecourse::Window(CornerWindow::BehindIncomingRay) => write!(
@@ -1383,11 +1397,12 @@ pub enum PathError<T: Real> {
         /// bracketing anchors first. Never empty, and not necessarily
         /// every corner the pair derives.
         corners: Vec<CornerRefusal<T>>,
-        /// The pair's radius lever: the largest of its anchor-fit
-        /// corners' [`radius_at_anchor`](CornerReason::AnchorOutsideTrimmedExtent)
-        /// bounds, the one its merged recourse names. `None` where no
-        /// corner has one.
-        radius_or_less: Option<Told>,
+        /// Which entry's
+        /// [`radius_at_anchor`](CornerReason::AnchorOutsideTrimmedExtent)
+        /// is the pair's radius lever, the one its merged recourse
+        /// names: the anchor-fit corner with the largest bound. `None`
+        /// where no corner has one.
+        radius_lever_of: Option<usize>,
     },
     /// **M8**: the derived corner and a tangent circle of the requested
     /// radius both exist, but the tangent point on one side cannot be
@@ -2029,7 +2044,7 @@ pub(crate) fn ratio<T: Real>(x: T) -> Told {
 /// farther below it than `exact_fit_edge`, the radius whose fit margin
 /// is the exact-fit reach.
 pub(crate) fn radius_lever<T: Real>(boundary: T, exact_fit_edge: T) -> Told {
-    Told::at_most(&boundary, Dimension::Length).no_farther_than(&exact_fit_edge)
+    Told::at_most_within(&boundary, &exact_fit_edge, Dimension::Length)
 }
 
 /// A length the caller authored, as a refusal tells it back.
@@ -2147,7 +2162,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::NoCornerOfPair {
                 radius,
                 corners,
-                radius_or_less,
+                radius_lever_of,
             } => {
                 // The count is of ENTRIES — the corners that refused at
                 // the answering stage — and the sentence says so. A
@@ -2179,7 +2194,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 }
                 let recourses: Vec<Option<Recourse>> =
                     corners.iter().map(|c| c.reason.recourse()).collect();
-                write_pair_recourse(f, &recourses, radius_or_less.as_ref())
+                let radius_lever = radius_lever_of
+                    .and_then(|k| corners.get(k))
+                    .and_then(|corner| corner.reason.radius_lever());
+                write_pair_recourse(f, &recourses, radius_lever)
             }
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -2187,16 +2205,20 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 offset_radius,
                 least_lever,
                 margin,
-            } => write!(
-                f,
-                "the {side} side's offset lever rho {rho} (carrier radius \
-                 {carrier_radius}) is shorter than the {least} this corner needs \
-                 at the run's tolerance (margin {margin}), so the fillet's tangent point \
-                 cannot be placed. Recourse: move the fillet radius away from that side's \
-                 carrier radius, or bring the corner's carriers closer together",
-                rho = offset_radius.beside(least_lever).first(),
-                least = offset_radius.beside(least_lever).second(),
-            ),
+            } => {
+                // ρ is signed and the sentence compares its size.
+                let levers = offset_radius.beside_by_magnitude(least_lever);
+                write!(
+                    f,
+                    "the {side} side's offset lever rho {rho} (carrier radius \
+                     {carrier_radius}) is shorter than the {least} this corner needs \
+                     at the run's tolerance (margin {margin}), so the fillet's tangent point \
+                     cannot be placed. Recourse: move the fillet radius away from that side's \
+                     carrier radius, or bring the corner's carriers closer together",
+                    rho = levers.first(),
+                    least = levers.second(),
+                )
+            }
             Self::FilletArcFlattenedInStorage {
                 turn,
                 radius,
@@ -2317,16 +2339,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::ArcCenterNotEquidistant {
                 tip_radius,
                 end_radius,
-            } => write!(
-                f,
-                "the authored centre is not equidistant from the arc's endpoints \
-                 (|tip - centre| = {tip}, |end - centre| = {end}): the \
-                 three authored points contradict each other. Nothing is re-projected — an \
-                 authored point is never moved to make a construction work; fix whichever \
-                 of the three is wrong",
-                tip = tip_radius.beside(end_radius).first(),
-                end = tip_radius.beside(end_radius).second(),
-            ),
+            } => {
+                let radii = tip_radius.beside(end_radius);
+                write!(
+                    f,
+                    "the authored centre is not equidistant from the arc's endpoints \
+                     (|tip - centre| = {tip}, |end - centre| = {end}): the \
+                     three authored points contradict each other. Nothing is re-projected — \
+                     an authored point is never moved to make a construction work; fix \
+                     whichever of the three is wrong",
+                    tip = radii.first(),
+                    end = radii.second(),
+                )
+            }
             Self::DegenerateArcCenter { radius } => write!(
                 f,
                 "the authored centre is within tolerance of an endpoint (radius {radius}): \
@@ -4192,16 +4217,11 @@ fn map_fillet_err<T: Real>(
 /// The one-entry envelope: a carrier pair with a single derived corner,
 /// refusing about that corner.
 fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason) -> PathError<T> {
-    let radius_or_less = match &reason {
-        CornerReason::AnchorOutsideTrimmedExtent {
-            radius_at_anchor, ..
-        } => radius_at_anchor.clone(),
-        _ => None,
-    };
+    let radius_lever_of = reason.radius_lever().map(|_| 0);
     PathError::NoCornerOfPair {
         radius: authored_length(radius),
         corners: vec![CornerRefusal { at, reason }],
-        radius_or_less,
+        radius_lever_of,
     }
 }
 
@@ -6824,6 +6844,66 @@ mod tests {
             radius_lever(0.361_629_480_311_458_f64, 0.361_629_480_0).to_string(),
             "0.3616294803 m"
         );
+    }
+
+    /// **The offset lever is compared by size.** ρ is signed, and the
+    /// sentence says it is shorter than the least lever: a negative ρ
+    /// whose size is within the grid of that lever still reads shorter.
+    #[test]
+    fn a_negative_offset_lever_reads_shorter_than_the_least_it_needs() {
+        let said = |rho: f64, least: f64| {
+            PathError::<f64>::FilletOffsetLeverTooShort {
+                side: FilletLeg::Outgoing,
+                carrier_radius: length(1.0),
+                offset_radius: length(rho),
+                least_lever: length(least),
+                margin: length(rho.abs() - least),
+            }
+            .to_string()
+        };
+        let s = said(-1.000_01e-9, 1.000_04e-9);
+        assert!(
+            s.contains("offset lever rho -1.00001e-9 m (carrier radius 1 m)")
+                && s.contains("shorter than the 1.00004e-9 m this corner needs"),
+            "{s}"
+        );
+        // Sizes apart at the grid keep the grid's spelling.
+        let s = said(-1e-9, 3e-9);
+        assert!(
+            s.contains("rho -1e-9 m") && s.contains("than the 3e-9 m"),
+            "{s}"
+        );
+    }
+
+    /// **An arc-length leg's turn is derived, and its datum is the
+    /// length.** The quotient `len / r` is told on the grid and does
+    /// not come back out as a given number; the refusal about the
+    /// authored datum tells the length the author wrote.
+    #[test]
+    fn an_arc_length_legs_turn_is_told_as_computed() {
+        let band = linear_band::<f64>(Tol::witness()).expect("the linear band");
+        let gates = |len: f64| {
+            verbs::sweep_gates(0.1, verbs::SweepDatum::ArcLength { len, r: 0.1 }, band)
+                .expect_err("the leg is refused")
+        };
+        let PathError::ArcSweepNotShortOfFullTurn { angle } = gates(0.7) else {
+            panic!("seven radians is past a full turn");
+        };
+        assert_ne!(0.7_f64 / 0.1, 7.0, "the premise: the quotient is noisy");
+        assert_eq!(angle.as_given(), None, "len / r is derived, not authored");
+        assert_eq!(angle.to_string(), "7 rad");
+        let PathError::DegenerateArcSpec { value } = gates(0.0) else {
+            panic!("a zero length names no arc");
+        };
+        assert_eq!(value.as_given(), Some(0.0));
+        assert_eq!(value.to_string(), "0 m");
+        // A sweep angle is the author's own.
+        let Err(PathError::ArcSweepNotShortOfFullTurn { angle }) =
+            verbs::sweep_gates(0.1, verbs::SweepDatum::Angle(7.0_f64), band)
+        else {
+            panic!("seven radians is past a full turn");
+        };
+        assert_eq!(angle.as_given(), Some(7.0));
     }
 
     /// **Two radii the kernel tells apart are not printed alike.**

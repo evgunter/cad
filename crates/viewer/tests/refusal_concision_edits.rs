@@ -792,8 +792,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
         geom_core::Told::computed(&x, geom_core::Dimension::Angle)
     }
     fn radius_lever(boundary: f64, exact_fit_edge: f64) -> geom_core::Told {
-        geom_core::Told::at_most(&boundary, geom_core::Dimension::Length)
-            .no_farther_than(&exact_fit_edge)
+        geom_core::Told::at_most_within(&boundary, &exact_fit_edge, geom_core::Dimension::Length)
     }
     use profile::PathError as P;
     use profile::{
@@ -849,7 +848,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
                         ),
                     },
                 ],
-                radius_or_less: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
+                radius_lever_of: Some(0),
             },
         ),
     ]

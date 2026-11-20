@@ -459,7 +459,7 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
     };
     let length = |x: f64| Told::given(&x, Dimension::Length);
     let radius_lever =
-        Told::at_most(&0.225, Dimension::Length).no_farther_than(&(0.3 * (0.3 - 5e-10) / 0.4));
+        Told::at_most_within(&0.225, &(0.3 * (0.3 - 5e-10) / 0.4), Dimension::Length);
     // The straight pair's numbers at the default row's exact-fit reach
     // of 5·10⁻¹⁰ m: the outgoing anchor fits exactly from 0.4 m to
     // 0.4 + 5·10⁻¹⁰ m, and the radius from 0.3·(0.3 − 5·10⁻¹⁰)/0.4 to
@@ -469,21 +469,21 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         reason: CornerReason::AnchorOutsideTrimmedExtent {
             legs: [leg(0.4, 1.0), leg(0.4, 0.3)],
             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-            radius_at_anchor: Some(radius_lever.clone()),
+            radius_at_anchor: Some(radius_lever),
         },
     };
     let radius = CornerRefusal {
         at: Point2::new(-1.0, 0.0),
         reason: CornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
     };
-    for (corners, which) in [
-        (vec![anchor.clone(), radius.clone()], "the first corner"),
-        (vec![radius.clone(), anchor.clone()], "the second"),
+    for (corners, at, which) in [
+        (vec![anchor.clone(), radius.clone()], 0, "the first corner"),
+        (vec![radius.clone(), anchor.clone()], 1, "the second"),
     ] {
         let said = PathError::NoCornerOfPair {
             radius: length(0.3),
             corners,
-            radius_or_less: Some(radius_lever.clone()),
+            radius_lever_of: Some(at),
         }
         .to_string();
         assert!(
@@ -497,7 +497,7 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
     let said = PathError::NoCornerOfPair {
         radius: length(0.3),
         corners: vec![radius.clone(), radius],
-        radius_or_less: None,
+        radius_lever_of: None,
     }
     .to_string();
     assert!(

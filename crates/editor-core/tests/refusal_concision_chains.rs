@@ -4254,8 +4254,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         geom_core::Told::given(&x, geom_core::Dimension::Dimensionless)
     }
     fn radius_lever(boundary: f64, exact_fit_edge: f64) -> geom_core::Told {
-        geom_core::Told::at_most(&boundary, geom_core::Dimension::Length)
-            .no_farther_than(&exact_fit_edge)
+        geom_core::Told::at_most_within(&boundary, &exact_fit_edge, geom_core::Dimension::Length)
     }
     use geom_core::Point2;
     use payloads::*;
@@ -4316,7 +4315,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NoCornerOfPair {
                 radius: gl(0.1),
                 corners: Vec::new(),
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         (
@@ -4510,7 +4509,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         )),
                     },
                 }],
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         (
@@ -4536,7 +4535,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         ),
                     },
                 ],
-                radius_or_less: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
+                radius_lever_of: Some(0),
             },
         ),
         (
@@ -4569,7 +4568,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         },
                     },
                 ],
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         (
@@ -4596,7 +4595,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         },
                     },
                 ],
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         (
@@ -4633,7 +4632,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         },
                     },
                 ],
-                radius_or_less: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
+                radius_lever_of: Some(1),
             },
         ),
         (
@@ -4644,7 +4643,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     at: Point2::new(-1.234_567, 0.987_654),
                     reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                 }],
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         (
@@ -4661,7 +4660,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                     },
                 ],
-                radius_or_less: None,
+                radius_lever_of: None,
             },
         ),
         ("Band", P::Band(band_error())),

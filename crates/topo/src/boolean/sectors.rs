@@ -4353,13 +4353,13 @@ mod tests {
             text.starts_with(
                 "whether an edge at a corner is long enough to read which side of a face it \
                  leaves on is undecided: "
-            ) && text.ends_with(&format!(
+            ) && text.contains(
                 "Recourse: make the edges at the corner where the two faces meet span clearly \
                  more than the tolerance, or, if this edge's length or rise is intended, tighten \
-                 the tolerance below {:e} m",
-                b.offer_deciding(departure(mid))
-                    .expect("an offer above the floor")
-            )) && !text.contains("declare"),
+                 the tolerance below "
+            ) && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                geom_core::test_support::is_told_offer_of(offered, departure(mid) / (e / z))
+            }) && !text.contains("declare"),
             "{text}"
         );
         // The decided-zero arm: an extent inside the zero band.
@@ -4426,11 +4426,12 @@ mod tests {
             BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("margin {mid:e} lies inside the ambiguity band"))
-                && text.ends_with(&format!(
-                    "if this edge's length or rise is intended, tighten the \
-                     tolerance below {:e} m",
-                    b.offer_deciding(mid).expect("an offer above the floor")
-                )),
+                && text.contains(
+                    "if this edge's length or rise is intended, tighten the tolerance below "
+                )
+                && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                    geom_core::test_support::is_told_offer_of(offered, mid / (e / z))
+                }),
             "{text}"
         );
         // The reading's own escalation, over a clear extent: a direction

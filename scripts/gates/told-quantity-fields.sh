@@ -7,40 +7,58 @@
 # A number a sentence quotes is a `geom_core::Told`, built where the
 # payload is built. So, in a converted crate:
 #
-#  1. NO REFUSAL TYPE DECLARES A BARE `f64` OR `T` FIELD. A refusal type
-#     is a `struct` or `enum` the crate declares and gives a `Display`
-#     or an `Error` impl, and every type of the crate one of those names
-#     in a field, transitively (a payload's parts are payload). A field
-#     is bare when its type is `f64` or `T`, alone or as a member of an
-#     `Option`, `Vec`, `Box`, array, slice, reference or tuple.
-#  2. NO SENTENCE-WRITING BODY FORMATS WITH `{:?}` OR `{:e}`. The bodies
-#     read are every `impl … Display for …` and every function taking a
-#     `Formatter`, an `impl … Debug for …` body excepted. The Debug
-#     names the crate's sentences still print are pinned per file in
-#     `told-quantity-fields.pins`, each beside its reason, so a new one
-#     is added knowingly.
+#  1. NO REFUSAL TYPE DECLARES A BARE SCALAR FIELD. A refusal type is a
+#     `struct` or `enum` the crate declares and gives a `Display` or an
+#     `Error` impl (for the type or a reference to it), and every type
+#     of the crate one of those names in a field, transitively (a
+#     payload's parts are payload); two types of one name are both read
+#     under it. A field is bare when its type names a scalar — `f64`,
+#     `f32`, `T`, `Interval`, `Dual`, `Sym`, `Probe` — anywhere but
+#     inside a type the crate declares (whose own fields are read in
+#     turn) or a foreign position (`Point2`, `Vec2`, `Point3`, `Vec3`
+#     and the unit vectors): alone, path-qualified, or under any
+#     container (`Option`, `Vec`, `Arc`, `HashMap`, `Result`, an array, a
+#     tuple, a reference).
+#  2. NO SENTENCE-WRITING BODY FORMATS A SCALAR ITSELF: no format whose
+#     spec ends in `?`, `e` or `E` or carries a precision, whatever
+#     width, sign or flag stands beside it (`{:?}`, `{x:e}`, `{:.3e}`,
+#     `{:10?}`, `{:.4}`). The bodies read are every `impl … Display for
+#     …` and every function taking a `Formatter`, an `impl … Debug for
+#     …` body excepted. The lines that still print a Debug NAME are
+#     pinned one by one in `told-quantity-fields.pins`, as
+#     `path :: the line`, each group beside its reason: a line the pins
+#     do not hold fires, and so does a pin no line matches, so a pinned
+#     name cannot be swapped for a scalar.
 #
 # THE CRATES IT COVERS are every `crates/*` directory that
 # `told-quantity-fields.uncovered` does not list. That file is the
 # sweep's remaining work: converting a crate deletes its line, and a
-# crate the file neither lists nor the tree holds is refused, so the
-# list cannot go stale in either direction.
+# crate the file neither lists nor the tree holds is refused. Nothing
+# stops a covered crate being listed again; that is a diff to this
+# file's companion, read in review.
 #
 # Production code only (every `crates/<crate>/src` file but the
 # test-only mounts, and in it no inline `#[cfg(test)]` module; comments
 # stripped, string literals kept for rule 2 and stripped for rule 1).
 #
 # WHAT STAYS BLIND.
-#  - A scalar inside a type another crate declares: `Point2<T>`,
-#    `Vec2<T>`, an `Interval`. `profile`'s refusals hold four positions
-#    as `Point2<T>`, told through `Told` when rendered and read as
-#    numbers by the viewer and the Python door
+#  - A scalar inside a foreign position: `Point2<T>`, `Vec2<T>`.
+#    `profile`'s refusals hold four positions as `Point2<T>`, told
+#    through `Told` when rendered and read as numbers by the viewer and
+#    the Python door
 #    (`work/scalar/a-refusals-corner-point-is-read-as-a-number-by-the-viewer-and-python.md`).
-#  - A scalar under any other name: an `f32`, a type alias of `f64`, a
-#    second type parameter. The match is on the tokens `f64` and `T`.
+#  - A scalar under a name this file does not list: a type alias of
+#    `f64`, a second type parameter, a foreign struct that holds one.
+#    The match is on the scalar names above.
 #  - A refusal type with neither a `Display` nor an `Error` impl that no
 #    such type names in a field: a sentence written by a free function
 #    over a plain struct is not found by rule 1.
+#  - A `Display` a macro writes (a derive, a `macro_rules!` body): the
+#    reader sees the invocation, not the impl. The workspace derives
+#    none today.
+#  - A helper that returns a `String` (`fn text(&self) -> String {
+#    format!("{:?}", …) }`) called from a `Display`: it takes no
+#    `Formatter`, so rule 2 does not read its body.
 #  - A scalar formatted with a bare `{}`. The formatter does not say
 #    what type it prints, so a `{}` over an `f64` local in a body reads
 #    as any other `{}`; rule 1 is what keeps an `f64` from being there.
@@ -64,23 +82,34 @@ import os, re, sys
 
 uncovered_path, pins_path, files = sys.argv[1], sys.argv[2], sys.argv[3:]
 
+# A scalar by its type name, and the foreign geometry types a scalar
+# inside is not read through (the header's blind list names them).
+SCALARS = {"f64", "f32", "T", "Interval", "Dual", "Dual64", "DualInterval", "Sym", "Probe"}
+POSITIONS = {"Point2", "Point3", "Vec2", "Vec3", "UnitVec2", "UnitVec3", "PhantomData"}
 
-def listed(path, columns):
-    rows = []
+
+def rows(path):
+    out = []
     with open(path, encoding="utf-8") as fh:
         for line in fh:
-            line = line.split("#", 1)[0].split()
-            if line:
-                if len(line) != columns:
-                    sys.exit(f"{path}: a row of {len(line)} columns, not {columns}: {line}")
-                rows.append(line)
-    return rows
+            line = line.rstrip("\n")
+            if line.strip() and not line.lstrip().startswith("#"):
+                out.append(line)
+    return out
 
 
 def strip(text, keep_strings):
-    # Comments out; string and char literals out unless kept. The code
+    # Comments out; string and char literals out unless kept (their
+    # braces are then marked, so no bracket count reads them). The code
     # and its newlines stay.
     out, i, n = [], 0, len(text)
+
+    def literal(j):
+        body = text[i:j]
+        if keep_strings:
+            return body.replace("{", "\x01").replace("}", "\x02")
+        return '""' + "\n" * body.count("\n")
+
     while i < n:
         c = text[i]
         two = text[i:i + 2]
@@ -103,14 +132,14 @@ def strip(text, keep_strings):
             close = '"' + "#" * hashes
             j = text.find(close, i + 2 + hashes)
             j = n if j < 0 else j + len(close)
-            out.append(text[i:j].replace("{", "\x01").replace("}", "\x02") if keep_strings else '""' + "\n" * text.count("\n", i, j))
+            out.append(literal(j))
             i = j
         elif c == '"':
             j = i + 1
             while j < n and text[j] != '"':
                 j += 2 if text[j] == "\\" else 1
             j += 1
-            out.append(text[i:j].replace("{", "\x01").replace("}", "\x02") if keep_strings else '""' + "\n" * text.count("\n", i, j))
+            out.append(literal(j))
             i = j
         elif c == "'":
             m = re.match(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^'\\\n])'", text[i:])
@@ -126,12 +155,32 @@ def strip(text, keep_strings):
     return "".join(out)
 
 
+def angle(text, i):
+    # Whether the `<` or `>` at `i` is a generic bracket: not the head
+    # of an arrow, and not in a run of them with a space on each side (a
+    # shift or a comparison, as the formatter writes one).
+    c = text[i]
+    if c == ">" and i and text[i - 1] in "-=":
+        return False
+    lo = hi = i
+    while lo and text[lo - 1] == c:
+        lo -= 1
+    while hi + 1 < len(text) and text[hi + 1] == c:
+        hi += 1
+    before = text[lo - 1] if lo else " "
+    after = text[hi + 1] if hi + 1 < len(text) else " "
+    return not (before == " " and after in " =")
+
+
 def matching(text, at, open_="{", close="}"):
     depth = 0
     for i in range(at, len(text)):
-        if text[i] == open_:
+        c = text[i]
+        if c in "<>" and open_ == "<" and not angle(text, i):
+            continue
+        if c == open_:
             depth += 1
-        elif text[i] == close:
+        elif c == close:
             depth -= 1
             if depth == 0:
                 return i
@@ -154,6 +203,8 @@ def without_test_mods(text):
 def split_top(text, sep=","):
     parts, depth, at = [], 0, 0
     for i, c in enumerate(text):
+        if c in "<>" and not angle(text, i):
+            continue
         if c in "<([{":
             depth += 1
         elif c in ">)]}":
@@ -165,23 +216,27 @@ def split_top(text, sep=","):
     return [p.strip() for p in parts if p.strip()]
 
 
-WRAPPER = re.compile(r"^(?:Option|Vec|Box)\s*<(.*)>$", re.S)
-
-
-def bare(ty):
-    # Whether `ty` is `f64` or `T`, alone or inside the transparent
-    # wrappers.
-    ty = re.sub(r"^&\s*(?:'\w+\s+)?(?:mut\s+)?", "", ty.strip())
-    if ty in ("f64", "T"):
-        return True
-    m = WRAPPER.match(ty)
-    if m:
-        return any(bare(p) for p in split_top(m.group(1)))
-    if ty.startswith("[") and ty.endswith("]"):
-        return bare(split_top(ty[1:-1], ";")[0])
-    if ty.startswith("(") and ty.endswith(")"):
-        return any(bare(p) for p in split_top(ty[1:-1]))
-    return False
+def bare_scalars(ty, declared):
+    # The scalar names `ty` holds that a sentence could reach: every one
+    # not inside a type this crate declares (its own fields are read in
+    # turn) or a foreign position.
+    found, stack, last = [], [], ""
+    for m in re.finditer(r"'?[A-Za-z_]\w*|[<>]", ty):
+        tok = m.group(0)
+        if tok == "<":
+            if angle(ty, m.start()):
+                stack.append(last)
+            continue
+        if tok == ">":
+            if angle(ty, m.start()) and stack:
+                stack.pop()
+            continue
+        if tok.startswith("'"):
+            continue
+        last = tok
+        if tok in SCALARS and not any(s in declared or s in POSITIONS for s in stack):
+            found.append(tok)
+    return found
 
 
 ATTR = re.compile(r"#\[[^\]]*\]")
@@ -201,63 +256,88 @@ def field_types(body, tuple_like):
     return out
 
 
-DECL = re.compile(r"\b(struct|enum)\s+(\w+)\s*(<[^{;(]*?>)?\s*(?:where[^{;(]*)?([{(;])")
-IMPL = re.compile(r"\bimpl\b[^{;]*?\b(Display|Error)\s+for\s+(?:[\w:]*::)?(\w+)[^{;]*\{")
+DECL = re.compile(r"\b(struct|enum)\s+(\w+)\s*")
+IMPL = re.compile(
+    r"\bimpl\b[^{;]*?\b(Display|Error)\s+for\s+(?:&\s*(?:'\w+\s+)?(?:mut\s+)?)?(?:[\w:]*::)?(\w+)[^{;]*\{"
+)
 DISPLAY = re.compile(r"\bimpl\b[^{;]*?\bDisplay\s+for\s+[^{;]*\{")
 DEBUG = re.compile(r"\bimpl\b[^{;]*?\bDebug\s+for\s+[^{;]*\{")
 WRITER = re.compile(r"\bfn\s+\w+\s*(?:<[^>]*>)?\s*\([^)]*\bFormatter\b[^)]*\)[^{;]*\{")
-FORMATS = re.compile("\x01[^\x01\x02]*:#?(?:\\?|e|E)\x02")
+# A format whose spec asks for Debug, an exponent or a precision.
+FORMATS = re.compile("\x01[^\x01\x02:]*:([^\x01\x02]*)\x02")
 
-uncovered = {row[0] for row in listed(uncovered_path, 1)}
+
+def scalar_format(spec):
+    return spec.endswith(("?", "e", "E")) or re.search(r"\.(\d+|\*|\w+\$)", spec) is not None
+
+
+def declarations(code):
+    # (kind, name, fields, line) of every struct and enum, its generic
+    # list and where clause skipped by bracket, whatever they hold.
+    for m in DECL.finditer(code):
+        kind, name, at = m.group(1), m.group(2), m.end()
+        if at < len(code) and code[at] == "<":
+            at = matching(code, at, "<", ">") + 1
+        head = re.compile(r"\s*(?:where\b[^{;]*?)?([{(;])").match(code, at)
+        if not head:
+            continue
+        opener, at = head.group(1), head.end()
+        fields = []
+        if opener == "{":
+            body = code[at:matching(code, at - 1)]
+            if kind == "struct":
+                fields = field_types(body, False)
+            else:
+                for variant in split_top(ATTR.sub("", body)):
+                    vm = re.match(r"(\w+)\s*([{(])", variant)
+                    if not vm:
+                        continue
+                    open_ = vm.group(2)
+                    end = matching(variant, vm.end() - 1, open_, "}" if open_ == "{" else ")")
+                    inner = variant[vm.end():end]
+                    fields += [(f"{vm.group(1)}::{n}", t) for n, t in field_types(inner, open_ == "(")]
+        elif opener == "(":
+            fields = field_types(code[at:matching(code, at - 1, "(", ")")], True)
+        yield kind, name, fields, code.count("\n", 0, m.start()) + 1
+
+
+uncovered = set()
+for row in rows(uncovered_path):
+    if len(row.split()) != 1:
+        sys.exit(f"{uncovered_path}: not one crate name: {row}")
+    uncovered.add(row.strip())
 crates = sorted({p.split("/")[1] for p in files})
 for name in sorted(uncovered - set(crates)):
     if not os.path.isdir(os.path.join("crates", name)):
         print(f"STALE {name}")
 covered = [c for c in crates if c not in uncovered]
 
-offences, formats = [], {}
+offences, sites = [], set()
 for crate in covered:
+    # Every declaration of a name: two types of one name in two modules
+    # are both read under it.
     declared, refusal = {}, set()
     for path in (p for p in files if p.split("/")[1] == crate):
         with open(path, encoding="utf-8") as fh:
             raw = fh.read()
         code = without_test_mods(strip(raw, False))
-        for m in DECL.finditer(code):
-            kind, name, opener = m.group(1), m.group(2), m.group(4)
-            fields = []
-            if opener == "{":
-                body = code[m.end():matching(code, m.end() - 1)]
-                if kind == "struct":
-                    fields = field_types(body, False)
-                else:
-                    for variant in split_top(ATTR.sub("", body)):
-                        vm = re.match(r"(\w+)\s*([{(])", variant)
-                        if not vm:
-                            continue
-                        open_ = vm.group(2)
-                        end = matching(variant, vm.end() - 1, open_, "}" if open_ == "{" else ")")
-                        inner = variant[vm.end():end]
-                        fields += [(f"{vm.group(1)}::{n}", t) for n, t in field_types(inner, open_ == "(")]
-            elif opener == "(":
-                body = code[m.end():matching(code, m.end() - 1, "(", ")")]
-                fields = field_types(body, True)
-            line = code.count("\n", 0, m.start()) + 1
-            declared[name] = (path, line, fields)
+        for kind, name, fields, line in declarations(code):
+            declared.setdefault(name, []).append((path, line, fields))
         for m in IMPL.finditer(code):
             refusal.add(m.group(2))
         # Rule 2, over the same file with its strings kept.
         text = without_test_mods(strip(raw, True))
+        lines = raw.split("\n")
         skip = [(m.end() - 1, matching(text, m.end() - 1)) for m in DEBUG.finditer(text)]
-        seen = set()
         for pat in (DISPLAY, WRITER):
             for m in pat.finditer(text):
                 start, end = m.end() - 1, matching(text, m.end() - 1)
                 if any(a <= start <= b for a, b in skip):
                     continue
                 for s in FORMATS.finditer(text, start, end):
-                    seen.add(s.start())
-        if seen:
-            formats[path] = len(seen)
+                    if scalar_format(s.group(1)):
+                        line = lines[text.count("\n", 0, s.start())]
+                        sites.add(f"{path} :: {' '.join(line.split())}")
     # The payload closure: every declared type a refusal type names.
     reach, frontier = set(), [n for n in refusal if n in declared]
     while frontier:
@@ -265,25 +345,26 @@ for crate in covered:
         if name in reach:
             continue
         reach.add(name)
-        for _, ty in declared[name][2]:
-            frontier += [w for w in re.findall(r"\b[A-Z]\w*\b", ty) if w in declared and w not in reach]
+        for _, _, fields in declared[name]:
+            for _, ty in fields:
+                frontier += [w for w in re.findall(r"\b[A-Z]\w*\b", ty) if w in declared and w not in reach]
     for name in sorted(reach):
-        path, line, fields = declared[name]
-        for field, ty in fields:
-            if bare(ty):
-                offences.append(f"{path}:{line}: {name} declares `{field}: {ty}`")
+        for path, line, fields in declared[name]:
+            for field, ty in fields:
+                held = bare_scalars(ty, declared)
+                if held:
+                    offences.append(f"{path}:{line}: {name} declares `{field}: {' '.join(ty.split())}`")
 
-pins = {row[0]: int(row[1]) for row in listed(pins_path, 2)}
+pins = set(rows(pins_path))
 for o in offences:
     print("FIELD " + o)
-for path in sorted(set(formats) | set(pins)):
-    now, was = formats.get(path, 0), pins.get(path, 0)
-    if now > was:
-        print(f"ROSE {path}: {was} -> {now}")
-    elif now < was:
-        print(f"FELL {path}: {was} -> {now}")
+for site in sorted(sites - pins):
+    print("NEW " + site)
+for site in sorted(pins - sites):
+    print("GONE " + site)
 print("COVERED " + " ".join(covered))
 print(f"UNCOVERED {len(uncovered)}")
+print(f"PINNED {len(pins)}")
 PY
   ); then
     gate_error "$(gate_name): the reader failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
@@ -299,30 +380,33 @@ PY
     gate_error "a refusal type declares a bare scalar field: a number a sentence quotes is a \`geom_core::Told\`, built where the payload is built with the role it is told in (given, computed, offered); see crates/geom-core/README.md, \"A number told to a person\""
     exit 1
   fi
-  if grep -qE '^(ROSE|FELL) ' <<<"$report"; then
-    grep -E '^(ROSE|FELL) ' <<<"$report"
-    gate_error "the \`{:?}\` and \`{:e}\` formats in sentence-writing bodies moved — a scalar is told through \`geom_core::Told\`, never through Debug or LowerExp; set $PINS to the new per-file counts in the change that moves them, each beside what it prints"
+  if grep -qE '^(NEW|GONE) ' <<<"$report"; then
+    grep -E '^(NEW|GONE) ' <<<"$report"
+    gate_error "the Debug, exponent and precision formats in sentence-writing bodies moved — a scalar is told through \`geom_core::Told\`, never through \`{:?}\`, \`{:e}\` or \`{:.N}\`; a NEW line that prints a name and no scalar is added to $PINS as \`path :: the line\` beside its reason, and a GONE line is deleted from it"
     exit 1
   fi
-  gate_ok "no refusal type declares a bare f64 or T field and no sentence formats past its pins in: $(sed -n 's/^COVERED //p' <<<"$report") ($(sed -n 's/^UNCOVERED //p' <<<"$report") crate(s) not yet covered)"
+  gate_ok "no refusal type declares a bare scalar field and no sentence formats one past its pinned lines in: $(sed -n 's/^COVERED //p' <<<"$report") ($(sed -n 's/^UNCOVERED //p' <<<"$report") crate(s) not yet covered, $(sed -n 's/^PINNED //p' <<<"$report") pinned line(s))"
 }
 
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
   mkdir -p "$1/scripts/gates"
   printf '# crate\n' > "$1/$UNCOVERED"
-  printf '# path count\n' > "$1/$PINS"
+  printf '# path :: line\n' > "$1/$PINS"
 }
 
 plant() { cat >> "$1/crates/clean/src/lib.rs"; }
+# A Display that prints nothing of its own, for a plant about a field.
+displayed() {
+  printf 'impl%s core::fmt::Display for %s {\n    fn fmt(&self, f: &mut F) -> R { f.write_str("refused") }\n}\n' "$2" "$3" \
+    >> "$1/crates/clean/src/lib.rs"
+}
 
 plant_bare_field() {
   plant "$1" <<'RS'
 pub enum Refusal<T> { TooShort { length: T } }
-impl<T> core::fmt::Display for Refusal<T> {
-    fn fmt(&self, f: &mut F) -> R { f.write_str("too short") }
-}
 RS
+  displayed "$1" "<T>" "Refusal<T>"
 }
 plant_bare_f64_in_an_option() {
   plant "$1" <<'RS'
@@ -334,26 +418,68 @@ plant_bare_field_in_a_part() {
   plant "$1" <<'RS'
 pub struct Leg<T> { pub setback: [T; 2] }
 pub enum Refusal<T> { Overrun(Leg<T>) }
-impl<T> core::fmt::Display for Refusal<T> {
-    fn fmt(&self, f: &mut F) -> R { f.write_str("overrun") }
-}
 RS
+  displayed "$1" "<T>" "Refusal<T>"
 }
 plant_tuple_field() {
   plant "$1" <<'RS'
 pub enum Refusal { Miss(f64, usize) }
-impl core::fmt::Display for Refusal {
-    fn fmt(&self, f: &mut F) -> R { f.write_str("miss") }
-}
 RS
+  displayed "$1" "" "Refusal"
 }
-plant_debug_format() {
+# A field after a function pointer's arrow, after a shift in an array
+# length, and in a variant after one.
+plant_field_after_an_arrow() {
   plant "$1" <<'RS'
-pub struct Refusal { at: Told }
-impl core::fmt::Display for Refusal {
-    fn fmt(&self, f: &mut F) -> R { write!(f, "at {:?}", self.at) }
+pub struct Refusal { told: fn(&u8) -> Told, margin: f64 }
+RS
+  displayed "$1" "" "Refusal"
+}
+plant_field_after_a_shift() {
+  plant "$1" <<'RS'
+pub struct Refusal { a: [u8; 1 << 3], margin: f64 }
+RS
+  displayed "$1" "" "Refusal"
+}
+plant_variant_after_an_arrow() {
+  plant "$1" <<'RS'
+pub enum Refusal { A { cb: fn() -> u8 }, B { margin: f64 } }
+RS
+  displayed "$1" "" "Refusal"
+}
+# plant_container TYPE ROOT: a scalar under a container the reader does not
+# know by name, or path-qualified, or a scalar type other than f64.
+plant_container() {
+  printf 'pub struct Refusal<T> { held: %s, kept: core::marker::PhantomData<T> }\n' "$1" \
+    >> "$2/crates/clean/src/lib.rs"
+  displayed "$2" "<T>" "Refusal<T>"
+}
+plant_two_types_of_one_name() {
+  plant "$1" <<'RS'
+pub mod a { pub struct Leg { pub setback: f64 } }
+pub mod b { pub struct Leg { pub count: usize } }
+pub struct Refusal { leg: a::Leg }
+RS
+  displayed "$1" "" "Refusal"
+}
+plant_display_for_a_reference() {
+  plant "$1" <<'RS'
+pub struct Refusal { margin: f64 }
+impl core::fmt::Display for &Refusal {
+    fn fmt(&self, f: &mut F) -> R { f.write_str("refused") }
 }
 RS
+}
+plant_generic_bound_with_parentheses() {
+  plant "$1" <<'RS'
+pub struct Refusal<F: Fn(f64) -> f64> { margin: f64, spell: F }
+RS
+  displayed "$1" "<F: Fn(f64) -> f64>" "Refusal<F>"
+}
+# plant_format SPEC ROOT: a Display that formats a told field with SPEC.
+plant_format() {
+  printf 'pub struct Refusal { at: Told }\nimpl core::fmt::Display for Refusal {\n    fn fmt(&self, f: &mut F) -> R { write!(f, "at {%s}", self.at) }\n}\n' "$1" \
+    >> "$2/crates/clean/src/lib.rs"
 }
 plant_exp_format_in_a_writer() {
   plant "$1" <<'RS'
@@ -363,20 +489,36 @@ fn write_bound(f: &mut core::fmt::Formatter<'_>, bound: &Told) -> R {
 RS
 }
 plant_pin_gone() {
-  printf 'crates/clean/src/lib.rs 1\n' >> "$1/$PINS"
+  printf 'crates/clean/src/lib.rs :: write!(f, "at {:?}", self.verb)\n' >> "$1/$PINS"
+}
+# A pinned Debug name swapped for a scalar on the same line count.
+plant_pinned_name_swapped() {
+  printf 'crates/clean/src/lib.rs :: fn fmt(&self, f: &mut F) -> R { write!(f, "the {:?} verb", self.verb) }\n' >> "$1/$PINS"
+  plant "$1" <<'RS'
+pub struct Refusal { verb: Verb, margin: Told }
+impl core::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut F) -> R { write!(f, "the {:?} verb", self.margin) }
+}
+RS
 }
 plant_stale_uncovered() {
   printf 'gone\n' >> "$1/$UNCOVERED"
 }
-# A told payload, a position another crate declares, a scalar field of a
-# type no sentence reaches, a Debug impl, a pinned Debug name, and a
-# crate the list leaves for a later sweep.
+# A told payload, a position another crate declares, a scalar inside a
+# type of the crate with no scalar field, a function pointer over
+# scalars' neighbours, a scalar field of a type no sentence reaches, a
+# Debug impl, a width on a name, a pinned Debug name, a test module, and
+# a crate the list leaves for a later sweep.
 plant_not_offences() {
   plant "$1" <<'RS'
 pub struct Leg { pub setback: Told, pub at: Point2<f64> }
-pub enum Refusal<T> { Overrun { leg: Leg, corner: Point2<T>, count: usize } }
+pub struct Tagged<T> { tag: usize, kept: core::marker::PhantomData<T> }
+pub enum Refusal<T> {
+    Overrun { leg: Leg, corner: Option<Point2<T>>, count: usize, tagged: Vec<Tagged<T>> },
+    Shifted { bits: [u8; 1 << 3], spell: fn(&u8) -> Told },
+}
 impl<T> core::fmt::Display for Refusal<T> {
-    fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?}", self.leg.setback, Verb::Line) }
+    fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}", self.leg.setback, Verb::Line, "here") }
 }
 pub struct Carrier<T> { pub radius: T }
 impl<T> core::fmt::Debug for Carrier<T> {
@@ -390,7 +532,7 @@ mod tests {
     }
 }
 RS
-  printf 'crates/clean/src/lib.rs 1\n' >> "$1/$PINS"
+  printf 'crates/clean/src/lib.rs :: fn fmt(&self, f: &mut F) -> R { write!(f, "overrun by {} at {:?} in {:>8}", self.leg.setback, Verb::Line, "here") }\n' >> "$1/$PINS"
   mkdir -p "$1/crates/later/src"
   printf 'pub struct Refusal { margin: f64 }\nimpl core::fmt::Display for Refusal {\n    fn fmt(&self, f: &mut F) -> R { write!(f, "{:e}", self.margin) }\n}\n' \
     > "$1/crates/later/src/lib.rs"
@@ -399,16 +541,33 @@ RS
 
 gate_selftest() {
   gate_selftest_clean
-  gate_selftest_case "declares a bare scalar field" plant_bare_field
-  gate_selftest_case "declares a bare scalar field" plant_bare_f64_in_an_option
-  gate_selftest_case "declares a bare scalar field" plant_bare_field_in_a_part
-  gate_selftest_case "declares a bare scalar field" plant_tuple_field
-  gate_selftest_case "formats in sentence-writing bodies moved" plant_debug_format
-  gate_selftest_case "formats in sentence-writing bodies moved" plant_exp_format_in_a_writer
-  gate_selftest_case "formats in sentence-writing bodies moved" plant_pin_gone
+  local field="declares a bare scalar field" format="formats in sentence-writing bodies moved"
+  gate_selftest_case "$field" plant_bare_field
+  gate_selftest_case "$field" plant_bare_f64_in_an_option
+  gate_selftest_case "$field" plant_bare_field_in_a_part
+  gate_selftest_case "$field" plant_tuple_field
+  gate_selftest_case "$field" plant_field_after_an_arrow
+  gate_selftest_case "$field" plant_field_after_a_shift
+  gate_selftest_case "$field" plant_variant_after_an_arrow
+  local ty
+  for ty in 'std::vec::Vec<f64>' 'core::option::Option<f64>' 'Arc<f64>' 'Rc<T>' \
+      'HashMap<u8, f64>' 'Result<f64, u8>' "Cow<'static, [f64]>" 'core::primitive::f64' \
+      'Interval' 'Dual<f64>' 'Sym<T>' 'f32'; do
+    gate_selftest_case "$field" plant_container "$ty"
+  done
+  gate_selftest_case "$field" plant_two_types_of_one_name
+  gate_selftest_case "$field" plant_display_for_a_reference
+  gate_selftest_case "$field" plant_generic_bound_with_parentheses
+  local spec
+  for spec in ':?' ':#?' ':.3e' ':.4e' ':+e' ':10?' ':.3' 'x:.17?'; do
+    gate_selftest_case "$format" plant_format "$spec"
+  done
+  gate_selftest_case "$format" plant_exp_format_in_a_writer
+  gate_selftest_case "$format" plant_pin_gone
+  gate_selftest_case "$format" plant_pinned_name_swapped
   gate_selftest_case "lists a crate the tree does not hold" plant_stale_uncovered
-  gate_selftest_passes "told payloads, foreign positions, Debug impls, a pinned name and an uncovered crate" plant_not_offences
-  printf '%s selftest OK: passes a clean fixture, a told payload, a position another crate declares, a scalar no sentence reaches, a Debug impl, a test module, a format at its pin and a crate the list leaves uncovered; fires on a bare T or f64 field, in an Option, in an array of a payload part and in a tuple variant, on a Debug format in a Display and a LowerExp one in a Formatter function, on a pin with no format behind it and on a listed crate the tree does not hold\n' "$(gate_name)"
+  gate_selftest_passes "told payloads, foreign positions, the crate's own generics, arrows and shifts, Debug impls, a width, a pinned line and an uncovered crate" plant_not_offences
+  printf '%s selftest OK: passes a clean fixture, a told payload, a position another crate declares, a scalar parameter of one of the crate own types, a field after an arrow or a shift, a scalar no sentence reaches, a Debug impl, a test module, a width on a name, a pinned line and a crate the list leaves uncovered; fires on a bare T or f64 field, in an Option, in an array of a payload part, in a tuple variant, after an arrow or a shift, under twelve containers and scalar names, in one of two types of one name, under a Display for a reference and behind a parenthesised bound; on eight format specs in a Display and an exponent in a Formatter function, on a pin no line matches, on a pinned name swapped for a scalar, and on a listed crate the tree does not hold\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

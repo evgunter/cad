@@ -39,6 +39,27 @@ pub fn told(told: &Told) -> f64 {
     }
 }
 
+/// Whether `offered`, a tolerance read off a refusal's sentence, is the
+/// deciding tolerance `exact` (`|m|/K`) told as an offered bound: at
+/// most it, and within the four-figure grid of it. A suite bounds an
+/// offer by this rather than by the offer rule's own answer.
+#[must_use]
+pub fn is_told_offer_of(offered: f64, exact: f64) -> bool {
+    offered <= exact && exact - offered <= 1e-3 * exact
+}
+
+/// The tolerance a refusal's sentence offers to tighten below, where it
+/// ends in one: the number after "tighten the tolerance below ", in
+/// metres.
+#[must_use]
+pub fn offered_tolerance(text: &str) -> Option<f64> {
+    text.rsplit_once("tighten the tolerance below ")?
+        .1
+        .strip_suffix(" m")?
+        .parse()
+        .ok()
+}
+
 /// **A matrix a suite holds, admitted as the rigid motion it is** at
 /// `tol`'s linear band: the question a suite that builds its map as
 /// twelve numbers, at any scalar, asks before it moves a body by it. Its

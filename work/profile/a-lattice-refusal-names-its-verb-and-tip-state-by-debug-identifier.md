@@ -26,5 +26,5 @@ purpose, since no authoring surface produces such a program.
 
 None prints a scalar, so the build pinned them rather than changed
 them: `scripts/gates/told-quantity-fields.pins` holds
-`crates/profile/src/path/program.rs 8`. Owed: either the names get a
+seven lines of `crates/profile/src/path/program.rs`. Owed: either the names get a
 prose form and the pin goes to zero, or the pin's reason stands.

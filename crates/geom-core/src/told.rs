@@ -6,7 +6,8 @@
 //! (a value, an enclosure, or unreadable), the [`Dimension`] and the
 //! role, and its `Display` writes the number and the unit word. It has
 //! no arithmetic and no ordering, and a computed number does not come
-//! back out of it.
+//! back out of it: its `Debug` writes what it tells, and two are equal
+//! when they tell the same thing in the same role.
 //!
 //! # What is spelled
 //!
@@ -24,12 +25,12 @@
 //!   order.
 //!
 //! The grid at `x` is four significant figures, and for a length the
-//! finer of that and a tenth of [`DEFAULT_EPS`]. It is capped at
-//! seventeen digits, where a decimal names one float, so it is never
-//! finer than the spacing of adjacent floats at `x`; it has no absolute
-//! floor, so a nonzero number never reads `0`. The cap is the compiled
-//! default and not the run's tolerance: one payload reads the same at
-//! every tolerance a run is configured with.
+//! finer of that and a tenth of [`DEFAULT_EPS`], held no finer than the
+//! gap between `x` and the next float: a digit below that gap spells
+//! the float's own rounding, not the length. It has no absolute floor,
+//! so a nonzero number never reads `0`. The cap is the compiled default
+//! and not the run's tolerance: one payload reads the same at every
+//! tolerance a run is configured with.
 //!
 //! "On a side" and "contains" are stated of the float a spelling reads
 //! back as, compared exactly with the float held: an offered `at least`
@@ -82,7 +83,7 @@ const LENGTH_GRID_DECADE: i32 = -10;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Reading(Read);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Read {
     /// One number; never NaN.
     Value(f64),
@@ -90,6 +91,17 @@ enum Read {
     Enclosure { lo: f64, hi: f64 },
     /// Nothing was measured: NaN, or an ill-formed enclosure.
     Unreadable,
+}
+
+/// The shape of the reading, without its numbers.
+impl fmt::Debug for Read {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Value(_) => "Value(..)",
+            Self::Enclosure { .. } => "Enclosure(..)",
+            Self::Unreadable => "Unreadable",
+        })
+    }
 }
 
 impl Reading {
@@ -104,15 +116,16 @@ impl Reading {
     }
 
     /// A scalar that is an enclosure with these ends: one number where
-    /// they coincide, unreadable where either is NaN.
+    /// they coincide, unreadable where either is NaN or they are out of
+    /// order.
     #[must_use]
     pub fn enclosure(lo: f64, hi: f64) -> Self {
         if lo == hi {
             Self::value(lo)
-        } else if lo.is_nan() || hi.is_nan() {
-            Self(Read::Unreadable)
-        } else {
+        } else if lo < hi {
             Self(Read::Enclosure { lo, hi })
+        } else {
+            Self(Read::Unreadable)
         }
     }
 }
@@ -159,13 +172,187 @@ impl Side {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Role {
-    Given,
-    Computed,
-    /// A bound to type back, and the far edge of the values that work
-    /// where the builder stated one.
-    Offered(Side, Option<f64>),
+/// What is held, by role.
+#[derive(Clone, Copy)]
+enum Held {
+    Given(Read),
+    Computed(Read),
+    /// A bound to type back: the one finite number past which every
+    /// value works (`None` where the scalar gave none), its side, and
+    /// the far edge of the values that work where the builder stated
+    /// one.
+    Offered {
+        bound: Option<f64>,
+        side: Side,
+        edge: Option<f64>,
+    },
+}
+
+/// What is spelled: one float, or the two ends of an enclosure.
+#[derive(Clone, Copy, PartialEq)]
+enum Spelled {
+    One(f64),
+    Ends(f64, f64),
+}
+
+impl Spelled {
+    /// The extent as `(least, greatest)`, by distance from zero where
+    /// `magnitudes`.
+    fn extent(self, magnitudes: bool) -> (f64, f64) {
+        let (lo, hi) = match self {
+            Self::One(y) => (y, y),
+            Self::Ends(lo, hi) => (lo, hi),
+        };
+        if !magnitudes {
+            (lo, hi)
+        } else if lo <= 0.0 && hi >= 0.0 {
+            (0.0, lo.abs().max(hi.abs()))
+        } else {
+            (lo.abs().min(hi.abs()), lo.abs().max(hi.abs()))
+        }
+    }
+
+    /// How this stands to `other`: before it, after it, or the same
+    /// single number. `None` where they overlap without being one
+    /// number, which has no order.
+    fn order(self, other: Self, magnitudes: bool) -> Option<Ordering> {
+        let ((a_lo, a_hi), (b_lo, b_hi)) = (self.extent(magnitudes), other.extent(magnitudes));
+        if a_hi < b_lo {
+            Some(Ordering::Less)
+        } else if a_lo > b_hi {
+            Some(Ordering::Greater)
+        } else if a_lo == a_hi && b_lo == b_hi {
+            Some(Ordering::Equal)
+        } else {
+            None
+        }
+    }
+}
+
+/// What a [`Told`] holds.
+#[derive(Clone, Copy)]
+struct Quantity {
+    held: Held,
+    dimension: Dimension,
+}
+
+impl Quantity {
+    fn offered(reading: Reading, dimension: Dimension, side: Side, edge: Option<f64>) -> Self {
+        // An enclosure offers the end past which every value works, and
+        // a bound that is not a finite number is no offer.
+        let bound = match (reading.0, side) {
+            (Read::Value(x), _) => Some(x),
+            (Read::Enclosure { hi, .. }, Side::AtLeast) => Some(hi),
+            (Read::Enclosure { lo, .. }, Side::AtMost) => Some(lo),
+            (Read::Unreadable, _) => None,
+        }
+        .filter(|bound| bound.is_finite());
+        // An edge on the wrong side of the bound states no window.
+        let edge = edge.filter(|&edge| bound.is_some_and(|bound| side.holds(edge, bound)));
+        Self {
+            held: Held::Offered { bound, side, edge },
+            dimension,
+        }
+    }
+
+    /// What is held, as the floats it was built from.
+    fn exact(&self) -> Option<Spelled> {
+        match self.held {
+            Held::Given(read) | Held::Computed(read) => match read {
+                Read::Value(x) => Some(Spelled::One(x)),
+                Read::Enclosure { lo, hi } => Some(Spelled::Ends(lo, hi)),
+                Read::Unreadable => None,
+            },
+            Held::Offered { bound, .. } => bound.map(Spelled::One),
+        }
+    }
+
+    /// What is spelled at `extra` digits past the grid; `None` for a
+    /// reading that does not read.
+    fn spelled(&self, extra: usize) -> Option<Spelled> {
+        let digits = |x: f64| grid_digits(x, self.dimension) + extra;
+        match self.held {
+            Held::Given(_) => self.exact(),
+            Held::Computed(Read::Value(x)) => Some(Spelled::One(nearest(x, digits(x)))),
+            Held::Computed(Read::Enclosure { lo, hi }) => Some(Spelled::Ends(
+                toward(lo, digits(lo), Side::AtMost),
+                toward(hi, digits(hi), Side::AtLeast),
+            )),
+            Held::Computed(Read::Unreadable) => None,
+            Held::Offered { bound, side, edge } => bound.map(|x| {
+                Spelled::One(
+                    (digits(x)..ROUND_TRIP_DIGITS)
+                        .map(|digits| toward(x, digits, side))
+                        .find(|&y| edge.is_none_or(|edge| !side.holds(y, edge) || y == edge))
+                        .unwrap_or(x),
+                )
+            }),
+        }
+    }
+
+    fn write_number(&self, f: &mut fmt::Formatter<'_>, extra: usize) -> fmt::Result {
+        match self.spelled(extra) {
+            Some(Spelled::One(y)) => write_float(y, f),
+            Some(Spelled::Ends(lo, hi)) => {
+                f.write_str("[")?;
+                write_float(lo, f)?;
+                f.write_str(", ")?;
+                write_float(hi, f)?;
+                f.write_str("]")
+            }
+            None => f.write_str("NaN"),
+        }
+    }
+
+    fn write(&self, f: &mut fmt::Formatter<'_>, extra: usize) -> fmt::Result {
+        self.write_number(f, extra)?;
+        f.write_str(self.dimension.unit_word())
+    }
+
+    /// The role as a word.
+    const fn role(&self) -> &'static str {
+        match self.held {
+            Held::Given(_) => "given",
+            Held::Computed(_) => "computed",
+            Held::Offered {
+                side: Side::AtLeast,
+                ..
+            } => "at least",
+            Held::Offered {
+                side: Side::AtMost, ..
+            } => "at most",
+        }
+    }
+}
+
+/// The role and what is told, never the float held.
+impl fmt::Debug for Quantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} \"", self.role())?;
+        self.write(f, 0)?;
+        f.write_str("\"")
+    }
+}
+
+/// Two are equal when they tell the same thing in the same role: the
+/// same spelling and unit. Two computed numbers that round to one
+/// spelling are equal.
+impl PartialEq for Quantity {
+    fn eq(&self, other: &Self) -> bool {
+        let bits = |spelled: Option<Spelled>| {
+            spelled.map(|spelled| {
+                let (lo, hi) = spelled.extent(false);
+                (
+                    matches!(spelled, Spelled::One(_)),
+                    fold_signed_zero(lo).to_bits(),
+                    fold_signed_zero(hi).to_bits(),
+                )
+            })
+        };
+        self.dimension == other.dimension
+            && self.role() == other.role()
+            && bits(self.spelled(0)) == bits(other.spelled(0))
+    }
 }
 
 /// **A number as a sentence tells it** (the module docs).
@@ -191,33 +378,56 @@ impl Told {
 
     /// A bound the person is asked to type back, where every value not
     /// below it works: spelled on the grid, not below the bound. An
-    /// enclosure offers its upper end.
+    /// enclosure offers its upper end, and a bound that is not a finite
+    /// number is unreadable.
     #[must_use]
     pub fn at_least<T: Real>(bound: &T, dimension: Dimension) -> Self {
-        Self::of(
+        Self::quantity(Quantity::offered(
             bound.told_reading(),
             dimension,
-            Role::Offered(Side::AtLeast, None),
-        )
+            Side::AtLeast,
+            None,
+        ))
     }
 
     /// A bound the person is asked to type back, where every value not
     /// above it works: spelled on the grid, not above the bound. An
-    /// enclosure offers its lower end.
+    /// enclosure offers its lower end, and a bound that is not a finite
+    /// number is unreadable.
     #[must_use]
     pub fn at_most<T: Real>(bound: &T, dimension: Dimension) -> Self {
-        Self::at_most_reading(bound.told_reading(), dimension)
+        Self::at_most_reading(bound.told_reading(), dimension, None)
     }
 
-    /// This offered bound, spelled no farther from it than `edge`: the
-    /// far end of the values that work, where they are a window and not
-    /// a half-line. An `edge` on the wrong side of the bound, or one
-    /// that does not read, states no window. A number that is not
-    /// offered is returned unchanged.
+    /// [`Told::at_least`], where the values that work are a window and
+    /// not a half-line: spelled no farther above the bound than `edge`.
+    /// An `edge` below the bound, or one that does not read, states no
+    /// window (an enclosure's lower end is the edge).
     #[must_use]
-    pub fn no_farther_than<T: Real>(mut self, edge: &T) -> Self {
-        *self.0 = self.0.no_farther_than(edge);
-        self
+    pub fn at_least_within<T: Real>(bound: &T, edge: &T, dimension: Dimension) -> Self {
+        let edge = match edge.told_reading().0 {
+            Read::Value(x) | Read::Enclosure { lo: x, .. } => Some(x),
+            Read::Unreadable => None,
+        };
+        Self::quantity(Quantity::offered(
+            bound.told_reading(),
+            dimension,
+            Side::AtLeast,
+            edge,
+        ))
+    }
+
+    /// [`Told::at_most`], where the values that work are a window and
+    /// not a half-line: spelled no farther below the bound than `edge`.
+    /// An `edge` above the bound, or one that does not read, states no
+    /// window (an enclosure's upper end is the edge).
+    #[must_use]
+    pub fn at_most_within<T: Real>(bound: &T, edge: &T, dimension: Dimension) -> Self {
+        let edge = match edge.told_reading().0 {
+            Read::Value(x) | Read::Enclosure { hi: x, .. } => Some(x),
+            Read::Unreadable => None,
+        };
+        Self::at_most_reading(bound.told_reading(), dimension, edge)
     }
 
     /// The number a **given** one was received as: the caller's own
@@ -225,8 +435,8 @@ impl Told {
     /// given one that is not a single value.
     #[must_use]
     pub fn as_given(&self) -> Option<f64> {
-        match (self.0.role, self.0.reading) {
-            (Role::Given, Read::Value(x)) => Some(x),
+        match self.0.held {
+            Held::Given(Read::Value(x)) => Some(x),
             _ => None,
         }
     }
@@ -250,35 +460,54 @@ impl Told {
     /// tells them.
     #[must_use]
     pub fn beside(&self, other: &Self) -> Compared {
-        Compared::new(*self.0, *other.0)
+        Compared::new(*self.0, *other.0, false)
     }
 
-    fn of(reading: Reading, dimension: Dimension, role: Role) -> Self {
-        Self(Box::new(Quantity {
-            reading: reading.0,
-            dimension,
-            role,
-        }))
+    /// [`Told::beside`], for a sentence that states the order of the
+    /// two **sizes** (a signed lever "shorter than" a length): each is
+    /// told with its sign, at the first precision at which their
+    /// distances from zero read in their true order.
+    #[must_use]
+    pub fn beside_by_magnitude(&self, other: &Self) -> Compared {
+        Compared::new(*self.0, *other.0, true)
+    }
+
+    fn quantity(quantity: Quantity) -> Self {
+        Self(Box::new(quantity))
     }
 
     /// A given number from a reading already taken.
     pub(crate) fn given_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Given)
+        Self::quantity(Quantity {
+            held: Held::Given(reading.0),
+            dimension,
+        })
     }
 
     /// A computed number from a reading already taken.
     pub(crate) fn computed_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Computed)
+        Self::quantity(Quantity {
+            held: Held::Computed(reading.0),
+            dimension,
+        })
     }
 
-    /// An offered upper bound from a reading already taken.
-    pub(crate) fn at_most_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Offered(Side::AtMost, None))
+    /// An offered upper bound from a reading already taken, and its far
+    /// edge where the values that work are a window.
+    pub(crate) fn at_most_reading(
+        reading: Reading,
+        dimension: Dimension,
+        edge: Option<f64>,
+    ) -> Self {
+        Self::quantity(Quantity::offered(reading, dimension, Side::AtMost, edge))
     }
 
     /// The float this number is spelled as, where it is one number.
     pub(crate) fn spelled(&self) -> Option<f64> {
-        self.0.spelled(0)
+        match self.0.spelled(0)? {
+            Spelled::One(y) => Some(y),
+            Spelled::Ends(..) => None,
+        }
     }
 
     /// The number without its unit word.
@@ -296,20 +525,18 @@ impl Told {
     /// where it does not read.
     #[must_use]
     pub fn pinned_ends(&self) -> (f64, f64) {
-        match self.0.reading {
-            Read::Value(x) => (x, x),
-            Read::Enclosure { lo, hi } => (lo, hi),
-            Read::Unreadable => (f64::NAN, f64::NAN),
-        }
+        self.0
+            .exact()
+            .map_or((f64::NAN, f64::NAN), |held| held.extent(false))
     }
 
     /// The far edge an offered bound was built with
-    /// ([`Told::no_farther_than`]).
+    /// ([`Told::at_least_within`], [`Told::at_most_within`]).
     #[must_use]
     pub fn pinned_edge(&self) -> Option<f64> {
-        match self.0.role {
-            Role::Offered(_, edge) => edge,
-            Role::Given | Role::Computed => None,
+        match self.0.held {
+            Held::Offered { edge, .. } => edge,
+            Held::Given(_) | Held::Computed(_) => None,
         }
     }
 }
@@ -321,101 +548,15 @@ impl fmt::Display for Told {
     }
 }
 
-/// What a [`Told`] holds.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Quantity {
-    reading: Read,
-    dimension: Dimension,
-    role: Role,
-}
-
-impl Quantity {
-    fn no_farther_than<T: Real>(self, edge: &T) -> Self {
-        let Role::Offered(side, _) = self.role else {
-            return self;
-        };
-        let (Some(bound), Some(edge)) = (self.offered_bound(), Self::nearer_end(edge, side)) else {
-            return self;
-        };
-        if !side.holds(edge, bound) {
-            return self;
-        }
-        Self {
-            role: Role::Offered(side, Some(edge)),
-            ..self
-        }
-    }
-
-    /// The end of `edge`'s reading nearer the bound on `side`.
-    fn nearer_end<T: Real>(edge: &T, side: Side) -> Option<f64> {
-        match (edge.told_reading().0, side) {
-            (Read::Value(x), _) => Some(x),
-            (Read::Enclosure { lo, .. }, Side::AtLeast) => Some(lo),
-            (Read::Enclosure { hi, .. }, Side::AtMost) => Some(hi),
-            (Read::Unreadable, _) => None,
-        }
-    }
-
-    /// The one number an offered reading is a bound at: the end of an
-    /// enclosure past which every value works.
-    fn offered_bound(&self) -> Option<f64> {
-        match (self.reading, self.role) {
-            (Read::Value(x), _) => Some(x),
-            (Read::Enclosure { hi, .. }, Role::Offered(Side::AtLeast, _)) => Some(hi),
-            (Read::Enclosure { lo, .. }, Role::Offered(Side::AtMost, _)) => Some(lo),
-            (Read::Enclosure { .. }, Role::Given | Role::Computed) | (Read::Unreadable, _) => None,
-        }
-    }
-
-    /// The float this number is spelled as where it is one value, at
-    /// `extra` digits past its grid. `None` for an enclosure that is
-    /// not offered, and for an unreadable reading.
-    fn spelled(&self, extra: usize) -> Option<f64> {
-        let x = self.offered_bound()?;
-        Some(match self.role {
-            Role::Given => x,
-            Role::Computed => nearest(x, grid_digits(x, self.dimension) + extra),
-            Role::Offered(side, edge) => (grid_digits(x, self.dimension)..ROUND_TRIP_DIGITS)
-                .map(|digits| toward(x, digits, side))
-                .find(|&y| edge.is_none_or(|edge| !side.holds(y, edge) || y == edge))
-                .unwrap_or(x),
-        })
-    }
-
-    fn write_number(&self, f: &mut fmt::Formatter<'_>, extra: usize) -> fmt::Result {
-        if let Some(y) = self.spelled(extra) {
-            return write_float(y, f);
-        }
-        match self.reading {
-            Read::Enclosure { lo, hi } => {
-                let (lo, hi) = match self.role {
-                    Role::Given => (lo, hi),
-                    Role::Computed | Role::Offered(..) => (
-                        toward(lo, grid_digits(lo, self.dimension), Side::AtMost),
-                        toward(hi, grid_digits(hi, self.dimension), Side::AtLeast),
-                    ),
-                };
-                f.write_str("[")?;
-                write_float(lo, f)?;
-                f.write_str(", ")?;
-                write_float(hi, f)?;
-                f.write_str("]")
-            }
-            Read::Value(_) | Read::Unreadable => f.write_str("NaN"),
-        }
-    }
-
-    fn write(&self, f: &mut fmt::Formatter<'_>, extra: usize) -> fmt::Result {
-        self.write_number(f, extra)?;
-        f.write_str(self.dimension.unit_word())
-    }
-}
-
 /// **Two numbers whose order the sentence states**, or a reading beside
 /// its own threshold ([`Told::beside`]): each is told at the first
 /// precision, from its own grid up, at which the two read in their true
-/// order, so two that differ never read alike. A pair with a member
-/// that is not one number reads as each member does alone.
+/// order, in every role. Two numbers that differ never read alike, and
+/// two enclosures that do not meet read apart and in order.
+///
+/// A pair with no order is told as each member is alone, and the form
+/// claims nothing of it: two enclosures that overlap, an enclosure that
+/// holds the number beside it, or a member that does not read.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Compared {
     first: Quantity,
@@ -425,12 +566,11 @@ pub struct Compared {
 }
 
 impl Compared {
-    fn new(first: Quantity, second: Quantity) -> Self {
-        let order = |a: Option<f64>, b: Option<f64>| -> Option<Ordering> { a?.partial_cmp(&b?) };
-        let held = order(first.offered_bound(), second.offered_bound());
-        let extra = held
+    fn new(first: Quantity, second: Quantity, magnitudes: bool) -> Self {
+        let order = |a: Option<Spelled>, b: Option<Spelled>| a?.order(b?, magnitudes);
+        let extra = order(first.exact(), second.exact())
             .and_then(|held| {
-                (0..ROUND_TRIP_DIGITS)
+                (0..=ROUND_TRIP_DIGITS)
                     .find(|&extra| order(first.spelled(extra), second.spelled(extra)) == Some(held))
             })
             .unwrap_or(0);
@@ -464,17 +604,32 @@ fn write_float(y: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
 /// The decimal exponent of a finite nonzero `x`.
 fn decade(x: f64) -> i32 {
-    format!("{x:e}")
-        .rsplit_once('e')
-        .and_then(|(_, e)| e.parse().ok())
-        .unwrap_or(0)
+    let spelled = format!("{x:e}");
+    let Some(exponent) = spelled.rsplit_once('e').and_then(|(_, e)| e.parse().ok()) else {
+        unreachable!("the exponent form of a finite float, {spelled}, ends in a decimal exponent")
+    };
+    exponent
+}
+
+/// The decade of a length's grid step at `x`: a tenth of the default
+/// tolerance, or where the floats at `x` are sparser than that, the
+/// first power of ten at or above the gap to the next float.
+fn length_step_decade(x: f64) -> i32 {
+    let gap = x.abs().next_up() - x.abs();
+    if !gap.is_finite() {
+        // The largest floats: no decimal step is finer than the format.
+        return decade(x);
+    }
+    // A gap is a power of two, so it is a power of ten only at one.
+    let carried = decade(gap) + i32::from(gap != 1.0);
+    LENGTH_GRID_DECADE.max(carried)
 }
 
 /// The significant digits of the grid at `x` (the module docs).
 fn grid_digits(x: f64, dimension: Dimension) -> usize {
     let figures = match dimension {
         Dimension::Length if x != 0.0 && x.is_finite() => {
-            GRID_FIGURES.max(decade(x) - LENGTH_GRID_DECADE + 1)
+            GRID_FIGURES.max(decade(x) - length_step_decade(x) + 1)
         }
         Dimension::Length | Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
     };
@@ -543,7 +698,7 @@ impl Decimal {
 }
 
 /// `x` rounded to nearest at `digits` significant digits, read back.
-/// A zero, a non-finite value, a count at which a decimal names one
+/// A zero, a non-finite value and a count at which a decimal names one
 /// float are `x` itself; a rounding past the largest float is the grid
 /// point below it.
 fn nearest(x: f64, digits: usize) -> f64 {
@@ -655,10 +810,14 @@ mod tests {
     /// significant figures allows at `x`, as an upper bound a rounding
     /// may reach but not pass: one decade of slack over `x`'s own.
     fn step(x: f64, figures: i32) -> f64 {
-        let unit: f64 = format!("1e{}", super::decade(x) - figures + 1)
-            .parse()
-            .unwrap();
+        let unit: f64 = format!("1e{}", decade_of(x) - figures + 1).parse().unwrap();
         unit * (1.0 + 1e-12) + spacing(x)
+    }
+
+    /// The decimal exponent of `x`, read off its exponent form.
+    fn decade_of(x: f64) -> i32 {
+        let spelled = format!("{x:e}");
+        spelled.rsplit_once('e').unwrap().1.parse().unwrap()
     }
 
     /// The gap between `x` and the next float away from zero: what
@@ -730,7 +889,7 @@ mod tests {
             let y = read_back(&length(x));
             let tenth_eps = 1e-10 * (1.0 + 1e-12);
             assert!(
-                (y - x).abs() <= tenth_eps / 2.0 + spacing(x),
+                (y - x).abs() <= (tenth_eps / 2.0).max(5.0 * spacing(x)) + spacing(x),
                 "{x:e} reads {}",
                 length(x)
             );
@@ -764,8 +923,10 @@ mod tests {
     fn an_offered_bound_typed_back_lies_on_its_side() {
         for x in magnitudes(64).into_iter().step_by(4) {
             for dimension in DIMENSIONS {
+                // Four figures, and for a length as many as reach a tenth
+                // of the tolerance.
                 let figures = if dimension == Dimension::Length {
-                    17
+                    usize::try_from(decade_of(x) + 11).map_or(4, |n| n.clamp(4, 17))
                 } else {
                     4
                 };
@@ -803,12 +964,12 @@ mod tests {
                 let width = x.abs() * reach;
                 for (told, lo, hi) in [
                     (
-                        Told::at_least(&x, Dimension::Length).no_farther_than(&(x + width)),
+                        Told::at_least_within(&x, &(x + width), Dimension::Length),
                         x,
                         x + width,
                     ),
                     (
-                        Told::at_most(&x, Dimension::Length).no_farther_than(&(x - width)),
+                        Told::at_most_within(&x, &(x - width), Dimension::Length),
                         x - width,
                         x,
                     ),
@@ -820,14 +981,11 @@ mod tests {
             }
         }
         // An edge on the wrong side states no window.
-        let told = Told::at_least(&1.000_04, Dimension::Angle);
-        assert_eq!(told.clone().no_farther_than(&0.5), told);
-        assert_eq!(told.to_string(), "1.001 rad");
-        assert_eq!(
-            told.clone().no_farther_than(&1.000_05).to_string(),
-            "1.00004 rad"
-        );
-        assert_eq!(told.no_farther_than(&1.0005).to_string(), "1.0001 rad");
+        let within = |edge: f64| Told::at_least_within(&1.000_04, &edge, Dimension::Angle);
+        assert_eq!(within(0.5), Told::at_least(&1.000_04, Dimension::Angle));
+        assert_eq!(within(0.5).to_string(), "1.001 rad");
+        assert_eq!(within(1.000_05).to_string(), "1.00004 rad");
+        assert_eq!(within(1.0005).to_string(), "1.0001 rad");
     }
 
     /// An enclosure's spelled ends read back as floats that contain its
@@ -950,6 +1108,225 @@ mod tests {
             Told::computed(&f64::NEG_INFINITY, Dimension::Length).to_string(),
             "-inf m"
         );
+    }
+
+    /// Every pair `beside` accepts reads in its true order, whatever
+    /// role each member has: an offered member is spelled finer on its
+    /// own side until the two separate.
+    #[test]
+    fn compared_numbers_read_in_their_true_order_in_every_role() {
+        type Mk = fn(&f64, Dimension) -> Told;
+        let roles: [Mk; 4] = [Told::given, Told::computed, Told::at_least, Told::at_most];
+        for x in magnitudes(128).into_iter().step_by(48) {
+            for y in [x.next_up(), x * 1.000_04, -x, 0.0] {
+                if !y.is_finite() || y == x {
+                    continue;
+                }
+                for dimension in [Dimension::Length, Dimension::Angle] {
+                    for a in roles {
+                        for b in roles {
+                            let pair = a(&x, dimension).beside(&b(&y, dimension));
+                            let (first, second) =
+                                (pair.first().to_string(), pair.second().to_string());
+                            assert_eq!(
+                                read_back(&first).partial_cmp(&read_back(&second)),
+                                x.partial_cmp(&y),
+                                "{x:e} beside {y:e} reads {first} and {second}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let pair = Told::at_least(&1.000_01, Dimension::Dimensionless)
+            .beside(&Told::computed(&1.0004, Dimension::Dimensionless));
+        assert_eq!(
+            (pair.first().to_string(), pair.second().to_string()),
+            ("1.0001".into(), "1.0004".into())
+        );
+        let pair = Told::computed(&1.000_01, Dimension::Angle)
+            .beside(&Told::at_most(&1.000_015, Dimension::Angle));
+        assert_eq!(
+            (pair.first().to_string(), pair.second().to_string()),
+            ("1.00001 rad".into(), "1.000015 rad".into())
+        );
+    }
+
+    /// Two enclosures that do not meet read apart and in order, as does
+    /// an enclosure beside a number outside it; two that overlap are
+    /// told as each is alone.
+    #[test]
+    fn compared_enclosures_read_apart_where_they_are_apart() {
+        let ends = |told: String| {
+            let (lo, hi) = told
+                .trim_end_matches(" m")
+                .trim_matches(['[', ']'])
+                .split_once(", ")
+                .map(|(lo, hi)| (lo.to_owned(), hi.to_owned()))
+                .unwrap_or_else(|| (told.trim_end_matches(" m").to_owned(), String::new()));
+            let lo: f64 = lo.parse().unwrap();
+            (lo, hi.parse().unwrap_or(lo))
+        };
+        let enclosure =
+            |lo: f64, hi: f64| Told::computed(&Interval::from_bounds(lo, hi), Dimension::Length);
+        let length = |x: f64| Told::computed(&x, Dimension::Length);
+        for (first, second) in [
+            (enclosure(0.300_01, 0.300_02), enclosure(0.300_03, 0.300_04)),
+            (
+                enclosure(1.000_000_01e-9, 1.000_000_02e-9),
+                length(1.000_000_03e-9),
+            ),
+            (
+                length(0.5),
+                enclosure(0.5_f64.next_up(), 0.5_f64.next_up().next_up()),
+            ),
+        ] {
+            let pair = first.beside(&second);
+            let (a, b) = (
+                ends(pair.first().to_string()),
+                ends(pair.second().to_string()),
+            );
+            assert!(
+                a.1 < b.0,
+                "{first:?} beside {second:?} reads {a:?} and {b:?}"
+            );
+            let pair = second.beside(&first);
+            let (b, a) = (
+                ends(pair.first().to_string()),
+                ends(pair.second().to_string()),
+            );
+            assert!(
+                a.1 < b.0,
+                "{second:?} beside {first:?} reads {b:?} and {a:?}"
+            );
+        }
+        // No order to state: each reads as it does alone.
+        let (wide, inside) = (enclosure(1.0, 2.0), enclosure(1.25, 1.75));
+        let pair = wide.beside(&inside);
+        assert_eq!(pair.first().to_string(), wide.to_string());
+        assert_eq!(pair.second().to_string(), inside.to_string());
+        let pair = wide.beside(&length(1.5));
+        assert_eq!(pair.first().to_string(), "[1, 2] m");
+        assert_eq!(pair.second().to_string(), "1.5 m");
+    }
+
+    /// A pair compared by size reads its sizes in their true order,
+    /// each member keeping its sign.
+    #[test]
+    fn a_pair_compared_by_magnitude_reads_its_sizes_in_order() {
+        let length = |x: f64| Told::computed(&x, Dimension::Length);
+        let (rho, least) = (length(-1.000_01e-9), length(1.000_04e-9));
+        let signed = rho.beside(&least);
+        assert_eq!(
+            (signed.first().to_string(), signed.second().to_string()),
+            ("-1e-9 m".into(), "1e-9 m".into()),
+            "in signed order the two are apart at the grid"
+        );
+        let sized = rho.beside_by_magnitude(&least);
+        assert_eq!(
+            (sized.first().to_string(), sized.second().to_string()),
+            ("-1.00001e-9 m".into(), "1.00004e-9 m".into())
+        );
+        for x in magnitudes(128).into_iter().step_by(24) {
+            for y in [-x.next_up(), -x * 1.000_04, x * 1.3] {
+                if !y.is_finite() {
+                    continue;
+                }
+                let pair = length(x).beside_by_magnitude(&length(y));
+                let (first, second) = (pair.first().to_string(), pair.second().to_string());
+                assert_eq!(
+                    read_back(&first)
+                        .abs()
+                        .partial_cmp(&read_back(&second).abs()),
+                    x.abs().partial_cmp(&y.abs()),
+                    "{x:e} beside {y:e} reads {first} and {second}"
+                );
+                assert_eq!(read_back(&first).is_sign_negative(), x.is_sign_negative());
+                assert_eq!(read_back(&second).is_sign_negative(), y.is_sign_negative());
+            }
+        }
+    }
+
+    /// `Debug` writes what is told and equality compares it: neither
+    /// hands back the float a computed number was built from.
+    #[test]
+    fn debug_and_equality_are_of_what_is_told() {
+        let noisy = Told::computed(&(0.1 + 0.2), Dimension::Length);
+        assert_eq!(format!("{noisy:?}"), "Told(computed \"0.3 m\")");
+        assert_eq!(noisy, Told::computed(&0.3, Dimension::Length));
+        assert_ne!(noisy, Told::given(&0.3, Dimension::Length), "another role");
+        assert_ne!(
+            noisy,
+            Told::computed(&0.3, Dimension::Angle),
+            "another unit"
+        );
+        assert_ne!(noisy, Told::computed(&0.3001, Dimension::Length));
+        assert_eq!(
+            format!("{:?}", Told::at_most(&0.300_04, Dimension::Angle)),
+            "Told(at most \"0.3 rad\")"
+        );
+        let pair = noisy.beside(&Told::computed(&0.300_000_000_04, Dimension::Length));
+        assert!(
+            !format!("{pair:?}").contains("0.30000000000000004"),
+            "{pair:?}"
+        );
+        assert!(
+            !format!("{:?}", (0.1_f64 + 0.2).told_reading()).contains("0.3"),
+            "a reading's Debug is its shape"
+        );
+    }
+
+    /// A reading that is no enclosure, and a bound that is no finite
+    /// number, do not read.
+    #[test]
+    fn an_ill_formed_reading_and_a_non_finite_offer_are_unreadable() {
+        assert_eq!(
+            super::Reading::enclosure(2.0, 1.0),
+            super::Reading::value(f64::NAN)
+        );
+        let unbounded = Interval::from_bounds(1.0, f64::INFINITY);
+        assert_eq!(
+            Told::computed(&unbounded, Dimension::Length).to_string(),
+            "[1, inf] m"
+        );
+        for told in [
+            Told::at_least(&unbounded, Dimension::Length),
+            Told::at_most(
+                &Interval::from_bounds(f64::NEG_INFINITY, 1.0),
+                Dimension::Length,
+            ),
+            Told::at_least(&f64::INFINITY, Dimension::Length),
+            Told::at_most_within(&f64::NAN, &1.0, Dimension::Length),
+        ] {
+            assert_eq!(told.to_string(), "NaN m", "{told:?}");
+        }
+        assert_eq!(
+            Told::at_most(&unbounded, Dimension::Length).to_string(),
+            "1 m"
+        );
+    }
+
+    /// A length is told no finer than the floats at it can carry: past
+    /// about half a kilometre the tolerance's grid is below the gap
+    /// between adjacent floats, and the float's own rounding is not
+    /// spelled.
+    #[test]
+    fn a_large_length_is_told_no_finer_than_its_floats() {
+        let length = |x: f64| Told::computed(&x, Dimension::Length).to_string();
+        assert_eq!(length(3e6 * (0.1 + 0.2) / 0.3), "3000000 m");
+        assert_eq!(length(600_000.1 + 0.2), "600000.3 m");
+        assert_eq!(length(12_345_678.9 + 1e-9), "12345678.9 m");
+        assert_eq!(length(1e3 / 3.0), "333.3333333333 m");
+        for x in magnitudes(64) {
+            let said = length(x);
+            let step: f64 = format!("1e{}", decade_of(x) + 1 - figures(&said) as i32)
+                .parse()
+                .unwrap();
+            assert!(
+                figures(&said) <= 4 || step >= spacing(x),
+                "{x:e} reads {said}, finer than its floats"
+            );
+        }
     }
 
     /// A position is its two coordinates as lengths, without a unit

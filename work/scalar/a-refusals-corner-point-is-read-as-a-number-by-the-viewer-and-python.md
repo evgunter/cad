@@ -53,3 +53,15 @@ visible and none was taken:
    already reads its construction from (`Construction::refused_corners`
    is built from the refusal today), and the Python door gets them from
    there.
+
+**The unit word (added on PR 7159's fix pass).** A position reads
+`(0.25, -0.5)`, with no unit word, where the rule says a told quantity
+writes "the number and its unit word". Told as `(0.25 m, -0.5 m)`,
+three of `editor-core`'s refusal-concision rows and one of `viewer`'s
+went two to four words over their admitted ceilings
+(`crates/editor-core/tests/refusal_concision_chains.rs`, `OVER_BUDGET`).
+The spelling is `geom_core::Told::position(&x, &y)`, which is public and
+takes any two quantities of any dimension: a later crate with a tight
+word budget can reach for it to drop a unit. Whichever answer the
+positions get should also say whether `position` stays public, takes a
+point, or goes.

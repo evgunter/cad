@@ -435,9 +435,10 @@ enum CornerOutcome<T: Real> {
     /// beside the corner point.
     Reason(CornerReason),
     /// An anchor-fit entry, the candidate circle it reports, which a
-    /// pass that draws records when the entry answers, and its radius
-    /// lever where it has one.
-    Overrun(CornerReason, Overrun<T>, Option<RadiusWindow<T>>),
+    /// pass that draws records when the entry answers, and where it has
+    /// a radius lever, the key the pair picks its own lever by: the
+    /// boundary's enclosure lower bound.
+    Overrun(CornerReason, Overrun<T>, Option<f64>),
     /// A refusal that names no corner — the pair's carriers touch, the
     /// turn at the derived corner is zero at tolerance, a leg has no
     /// length scale, the band failed, or the conditioning gate aborted. First one wins, and it OUTRANKS
@@ -685,7 +686,7 @@ fn map_refusal<T: Bounds>(
                         .map(|r| radius_lever(r.boundary, r.exact_fit_edge)),
                 },
                 Overrun::new(corner, nearest.center, radius, nearest.tangents, sense),
-                radius_at_anchor,
+                radius_at_anchor.map(|r| r.boundary.lo()),
             )
         }
     }
@@ -754,10 +755,10 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // answer is noise, not attribution. Within the answering channel
     // nothing is picked: every corner that refused there is an entry,
     // with its own reason and its own point.
-    let mut build_entries: Vec<CornerRefusal<T>> = Vec::new();
+    // Each with its radius lever's key, where it has one.
+    let mut build_entries: Vec<(CornerRefusal<T>, Option<f64>)> = Vec::new();
     // The candidate circles the anchor-fit entries among them report.
     let mut overruns: Vec<Overrun<T>> = Vec::new();
-    let mut radius_windows: Vec<RadiusWindow<T>> = Vec::new();
     let mut gate_entries: Vec<CornerRefusal<T>> = Vec::new();
     // The refusals that name NO corner. First one wins, and one
     // OUTRANKS both entry lists — see the terminal choice below.
@@ -921,12 +922,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             Err(refusal) => match map_refusal(refusal, corner, radius) {
                 CornerOutcome::Reason(reason) => {
-                    build_entries.push(CornerRefusal { at: corner, reason });
+                    build_entries.push((CornerRefusal { at: corner, reason }, None));
                 }
-                CornerOutcome::Overrun(reason, overrun, radius_window) => {
-                    build_entries.push(CornerRefusal { at: corner, reason });
+                CornerOutcome::Overrun(reason, overrun, radius_key) => {
+                    build_entries.push((CornerRefusal { at: corner, reason }, radius_key));
                     overruns.push(overrun);
-                    radius_windows.extend(radius_window);
                 }
                 CornerOutcome::Whole(e) => {
                     if whole_refused.is_none() {
@@ -951,18 +951,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
         if let Some(whole) = whole_refused {
             return Err(whole);
         }
-        // The pair's radius lever is the largest of its anchor-fit
-        // corners', read componentwise: the largest far edge lies below
-        // every boundary at least as large, so the pair stays a lever.
-        let radius_or_less = radius_windows
-            .into_iter()
-            .reduce(|a, b| RadiusWindow {
-                boundary: a.boundary.max(b.boundary),
-                exact_fit_edge: a.exact_fit_edge.max(b.exact_fit_edge),
-            })
-            .map(|r| radius_lever(r.boundary, r.exact_fit_edge));
         let mut entries = if build_entries.is_empty() {
             gate_entries
+                .into_iter()
+                .map(|entry| (entry, None))
+                .collect()
         } else {
             if !overruns.is_empty()
                 && let Some(drawing) = guide.drawn()
@@ -980,13 +973,26 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             // no caller branches on the order — so this is the module's
             // ratified diagnostic channel and not a re-decision.
             entries.sort_by(|a, b| {
-                anchor_span(a.at, &incoming, &arrival)
-                    .total_cmp(&anchor_span(b.at, &incoming, &arrival))
+                anchor_span(a.0.at, &incoming, &arrival)
+                    .total_cmp(&anchor_span(b.0.at, &incoming, &arrival))
             });
+            // The pair's radius lever is the anchor-fit corner's with
+            // the largest boundary, the first of equals: at or below it
+            // the fillet clears that corner's anchors. The same channel
+            // as the order above: a selection among payloads.
+            let radius_lever_of = entries
+                .iter()
+                .enumerate()
+                .filter_map(|(k, (_, key))| key.map(|key| (k, key)))
+                .fold(None, |best: Option<(usize, f64)>, next| match best {
+                    Some(best) if best.1 >= next.1 => Some(best),
+                    _ => Some(next),
+                })
+                .map(|(k, _)| k);
             return Err(PathError::NoCornerOfPair {
                 radius: authored_length(radius),
-                corners: entries,
-                radius_or_less,
+                corners: entries.into_iter().map(|(entry, _)| entry).collect(),
+                radius_lever_of,
             });
         }
         return Err(no_corner(PathNoCornerReason::CarriersDoNotMeet, radius));

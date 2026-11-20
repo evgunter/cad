@@ -86,11 +86,12 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
     let band = geom_core::Band::linear(tol).unwrap();
     const LEVER: &str = "Recourse: move the spheres so they clearly stand apart, or so one lies \
                          clearly inside the other";
-    let offer = |m: f64| {
-        format!(
-            "{LEVER}, or, if this clearance is intended, tighten the tolerance below {:e} m",
-            band.offer_deciding(m).unwrap_or(f64::NAN)
-        )
+    let k = band.escalate() / band.zero();
+    let offers = |text: &str, m: f64| {
+        text.contains(&format!(
+            "{LEVER}, or, if this clearance is intended, tighten the tolerance below "
+        )) && geom_core::test_support::offered_tolerance(text)
+            .is_some_and(|offered| geom_core::test_support::is_told_offer_of(offered, m / k))
     };
     let union = |d: f64| {
         topo::union(
@@ -113,7 +114,7 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         let m = diag.margin.diagnostic_f64_for_error_text().value().unwrap();
         let text = err.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
-            text.ends_with(&offer(m)),
+            offers(&text, m),
             offered,
             "{d:e}: a tolerance only where a smaller one passes: {text}"
         );

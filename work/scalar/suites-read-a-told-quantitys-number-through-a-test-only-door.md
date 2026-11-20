@@ -26,8 +26,10 @@ The build kept them by adding a door no production build has
 `geom_core::test_support::told`), read at 56 sites in 22 files of
 `crates/profile` (most through `crates/profile/tests/common/mod.rs`'s
 `LegNumbers` and `LeverNumbers`). `demos/tour/tests/lily.rs`'s row,
-which is outside the workspace and cannot enable the feature, now
-asserts the refusal's kind and its sentence.
+which is outside the workspace and cannot enable the feature, reads the
+turn margin and the arm back off the refusal's sentence and holds them
+to the bounds it held the payload to (a margin under 1e-15 m on an arm
+over 0.1 m).
 
 **The question.** Whether a suite may pin a payload against the scalar
 its door computed. The rows that do are the ones that would catch a
