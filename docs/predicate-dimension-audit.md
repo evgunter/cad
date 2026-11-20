@@ -1494,7 +1494,7 @@ Flagged, NOT fixed here (dispositions):
   `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
   angle-reads unit, and by its half-open-angles unit) — **a renaming
-  between copies equal modulo a period.** Three sites, each choosing
+  between copies equal modulo a period.** Each site chooses
   between names of one value:
   - `geom_core::Period::near` (`period_near_mark`): the half-period
     marks about a reference that pick which copy `t + k·P` of a value
@@ -1532,6 +1532,10 @@ Flagged, NOT fixed here (dispositions):
     phase reads here too: `plane_crossing`'s `conic_plane_candidates`
     (near the span's middle), `circle_roots`'s `harmonic_roots` (near
     the span's middle) and `props::curved`'s `torus_angle` (near `0`).
+  - `editor_core::mate::solve`'s `box_atan2` (`mate_spin_cut_side`):
+    the same choice, through `Azimuth::principal_as`, for the spin a
+    mate's chart reads at a box scalar and at a symbolic one, which is
+    read only through its sine and cosine (`turn_to`), never renamed.
 
   What keeps them off the logged doors is that no outcome is a reading:
   both copies name the same point, and an undecided decision picks a
