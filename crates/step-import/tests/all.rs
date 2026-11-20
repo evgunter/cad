@@ -175,10 +175,10 @@ mod tcost_k3_import_certificate;
 mod the_interpretation_layer_reads_the_file_at_its_band;
 #[path = "tier_gate.rs"]
 mod tier_gate;
-#[path = "zz_rev2_probe.rs"]
-mod zz_rev2_probe;
 #[path = "two_records_of_one_round_surface_become_one.rs"]
 mod two_records_of_one_round_surface_become_one;
+#[path = "zz_rev2_probe.rs"]
+mod zz_rev2_probe;
 
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
