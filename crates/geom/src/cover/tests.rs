@@ -2100,7 +2100,7 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         };
         let site = Site::Point(centre);
         let got = Cover::arc(
-            &ellipse.frame,
+            &ellipse.frame(),
             (ellipse.semi_u, ellipse.semi_v),
             ParamWindow::new(t0, t1),
         )
@@ -2108,7 +2108,7 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         .distance_range(&site)
         .1;
         let whole = Cover::piece(super::Piece::Arc(super::Arc {
-            frame: ellipse.frame,
+            frame: ellipse.frame(),
             semi_u: ellipse.semi_u,
             semi_v: ellipse.semi_v,
             window: ParamWindow::new(0.0, TAU),

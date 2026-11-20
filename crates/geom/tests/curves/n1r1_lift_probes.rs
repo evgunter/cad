@@ -356,9 +356,10 @@ mod interval_probes {
         );
         let composed = c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
         let lifted = c.map_scalar(Interval::from_f64);
-        let Curve3::Circle(geom::Circle { frame, radius, .. }) = lifted else {
+        let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = lifted else {
             panic!("fixture is a circle")
         };
+        let frame = the_circle.frame();
         let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let hand: Curve3<Dual<Interval>> = Curve3::circle(
             Point3::new(

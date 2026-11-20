@@ -149,11 +149,11 @@ impl<T: SpanLocate> Curve3<T> {
                     .ok_or_else(non_finite)
             }
             Curve3::Circle(circle) => {
-                Cover::arc(&circle.frame, (circle.radius, circle.radius), window)
+                Cover::arc(&circle.frame(), (circle.radius, circle.radius), window)
                     .ok_or_else(non_finite)
             }
             Curve3::Ellipse(ellipse) => {
-                Cover::arc(&ellipse.frame, (ellipse.semi_u, ellipse.semi_v), window)
+                Cover::arc(&ellipse.frame(), (ellipse.semi_u, ellipse.semi_v), window)
                     .ok_or_else(non_finite)
             }
             Curve3::Spiric {

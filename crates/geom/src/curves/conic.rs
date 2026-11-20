@@ -98,14 +98,24 @@ use crate::frame::Frame;
 /// (`u_ref`) is carried whether or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
-    /// The placement: `origin` the centre, `axis` the unit plane normal
-    /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives.
-    pub frame: Frame<T>,
+    /// The placement: `axis` the unit plane normal (right-hand
+    /// winding), `u_ref` the seam, where `θ = 0` lives, and `origin` the
+    /// one point the circle stores, which [`Born`] names.
+    at: Frame<T>,
+    /// Which point `at` stands at.
+    born: Born,
     /// The radius in metres (positive).
     pub radius: T,
-    /// The point at `θ = 0` where the circle was born anchored
-    /// ([module docs](self), "The two stored forms").
-    anchor: Option<Point3<T>>,
+}
+
+/// **The point a conic stores** ([module docs](self), "The two stored
+/// forms"): its centre, or its point at `θ = 0`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Born {
+    /// Born with a centre: the placement stands at it.
+    Centred,
+    /// Born anchored: the placement stands at the point at `θ = 0`.
+    Anchored,
 }
 
 /// **A full ellipse**,
@@ -113,17 +123,17 @@ pub struct Circle<T: Real> {
 /// a principal direction.
 #[derive(Clone, Copy, Debug)]
 pub struct Ellipse<T: Real> {
-    /// The placement: `origin` the centre, `axis` the unit plane normal
-    /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives, and
-    /// a principal direction along either semi-axis.
-    pub frame: Frame<T>,
+    /// The placement: `axis` the unit plane normal (right-hand
+    /// winding), `u_ref` the seam, where `θ = 0` lives, a principal
+    /// direction along either semi-axis, and `origin` the one point the
+    /// ellipse stores, which [`Born`] names.
+    at: Frame<T>,
+    /// Which point `at` stands at.
+    born: Born,
     /// The semi-axis along `u_ref`, in metres (positive).
     pub semi_u: T,
     /// The semi-axis along `axis × u_ref`, in metres (positive).
     pub semi_v: T,
-    /// The point at `θ = 0`, the vertex on `u_ref`, where the ellipse
-    /// was born anchored ([module docs](self), "The two stored forms").
-    anchor: Option<Point3<T>>,
 }
 
 /// An ellipse's principal frame with a chosen principal direction first
@@ -153,7 +163,7 @@ pub struct MajorFrame<T: Real> {
 /// this trait builds the very bits [`Curve3::eval`] does.
 pub trait Conic<T: Real>: core::fmt::Debug {
     /// The placement.
-    fn frame(&self) -> &Frame<T>;
+    fn frame(&self) -> Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
     /// twice. Both are finite and positive: every door builds them so,
@@ -292,7 +302,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 /// A borrowed conic reads as the conic, so a `&dyn Conic` held by value
 /// passes where a conic is asked for.
 impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
-    fn frame(&self) -> &Frame<T> {
+    fn frame(&self) -> Frame<T> {
         (**self).frame()
     }
     fn semi_axes(&self) -> (T, T) {
@@ -438,9 +448,9 @@ impl<T: Real> Circle<T> {
     #[must_use]
     pub fn new(frame: Frame<T>, radius: T) -> Self {
         Self {
-            frame,
+            at: frame,
+            born: Born::Centred,
             radius,
-            anchor: None,
         }
     }
 
@@ -452,35 +462,56 @@ impl<T: Real> Circle<T> {
     /// datum it stores; the centre is derived.
     #[must_use]
     pub fn anchored(anchor: Point3<T>, axis: Vec3<T>, toward: Vec3<T>, radius: T) -> Self {
-        let at = Frame::new(anchor, axis, toward);
         Self {
-            frame: at.with_origin(anchor - at.u_ref() * radius),
+            at: Frame::new(anchor, axis, toward),
+            born: Born::Anchored,
             radius,
-            anchor: Some(anchor),
         }
     }
 
-    /// **This circle with its placement and its anchor carried by
-    /// `frame` and `point`**: the image of the circle under whatever map
-    /// took its frame to `frame`, which `point` applies to a point. A
-    /// circle born with a centre stays so.
+    /// **This circle with its placement mapped by `map`**: its image
+    /// under a map of space that keeps its radius (a motion, a
+    /// reversal). The placement is the one thing a circle stores of
+    /// where it is, so the image is born as this circle was.
     #[must_use]
-    pub fn carried(&self, frame: Frame<T>, point: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+    pub fn placed(&self, map: impl FnOnce(&Frame<T>) -> Frame<T>) -> Self {
         Self {
-            frame,
+            at: map(&self.at),
+            born: self.born,
             radius: self.radius,
-            anchor: self.anchor.map(point),
         }
     }
 
-    /// **This circle at another scalar**: its frame as `frame` carries
-    /// it, its radius and its anchor through `f`.
-    pub fn map_scalar<U: Real>(&self, frame: Frame<U>, f: impl Fn(T) -> U) -> Circle<U> {
+    /// **This circle at another scalar**: its placement as `frame`
+    /// carries it, its radius through `f`.
+    pub fn map_scalar<U: Real>(
+        &self,
+        frame: impl FnOnce(&Frame<T>) -> Frame<U>,
+        f: impl Fn(T) -> U,
+    ) -> Circle<U> {
         Circle {
-            frame,
+            at: frame(&self.at),
+            born: self.born,
             radius: f(self.radius),
-            anchor: self.anchor.map(|p| Point3::new(f(p.x), f(p.y), f(p.z))),
         }
+    }
+
+    /// Which point the circle stores.
+    #[must_use]
+    pub fn born(&self) -> Born {
+        self.born
+    }
+
+    /// The stored placement, standing at the point [`Self::born`]
+    /// names: for the walks of the stored data alone.
+    pub(super) fn stored(&self) -> &Frame<T> {
+        &self.at
+    }
+
+    /// The principal frame at the centre ([`Conic::frame`]).
+    #[must_use]
+    pub fn frame(&self) -> Frame<T> {
+        Conic::frame(self)
     }
 
     /// **The circle's period**: its parameter is an angle
@@ -493,13 +524,18 @@ impl<T: Real> Circle<T> {
     }
 
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
-        azimuth::frame(&self.frame, theta)
+        azimuth::frame(&self.at, theta)
     }
 }
 
 impl<T: Real> Conic<T> for Circle<T> {
-    fn frame(&self) -> &Frame<T> {
-        &self.frame
+    fn frame(&self) -> Frame<T> {
+        match self.born {
+            Born::Centred => self.at,
+            Born::Anchored => self
+                .at
+                .with_origin(self.at.origin() - self.at.u_ref() * self.radius),
+        }
     }
 
     fn semi_axes(&self) -> (T, T) {
@@ -507,11 +543,11 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        match self.anchor {
-            None => self.frame.origin() + self.azimuth(theta).radial.0 * self.radius,
+        match self.anchor() {
+            None => self.at.origin() + self.azimuth(theta).radial.0 * self.radius,
             Some(zero) => {
                 let (ku, kv) = offsets(theta);
-                let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+                let (u, v) = (self.at.u_ref(), self.at.v_ref());
                 zero + (u * ku + v * kv) * self.radius
             }
         }
@@ -529,8 +565,8 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
-        let ((s, c), v_ref) = azimuth::basis(&self.frame, theta);
-        (self.frame.u_ref() * (-c) + v_ref * (-s)) * self.radius
+        let ((s, c), v_ref) = azimuth::basis(&self.at, theta);
+        (self.at.u_ref() * (-c) + v_ref * (-s)) * self.radius
     }
 
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
@@ -540,28 +576,28 @@ impl<T: Real> Conic<T> for Circle<T> {
     /// `x = r + (p − P₀)·u_ref`, so the angle resolves at the arc's scale
     /// however far the derived centre lies.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        match self.anchor {
-            None => self.frame.azimuth(p),
+        match self.anchor() {
+            None => self.at.azimuth(p),
             Some(zero) => {
                 let w = p - zero;
-                Azimuth::of(
-                    w.dot(self.frame.v_ref()),
-                    self.radius + w.dot(self.frame.u_ref()),
-                )
+                Azimuth::of(w.dot(self.at.v_ref()), self.radius + w.dot(self.at.u_ref()))
             }
         }
         .scaled(self.radius, self.radius)
     }
 
     fn zero_point(&self) -> Point3<T> {
-        match self.anchor {
+        match self.anchor() {
             Some(p) => p,
-            None => self.frame.origin() + self.frame.u_ref() * self.radius,
+            None => self.at.origin() + self.at.u_ref() * self.radius,
         }
     }
 
     fn anchor(&self) -> Option<Point3<T>> {
-        self.anchor
+        match self.born {
+            Born::Centred => None,
+            Born::Anchored => Some(self.at.origin()),
+        }
     }
 
     fn speed_lo(&self) -> T {
@@ -577,9 +613,9 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
-        let (c, u, v) = running_frame(&self.frame);
+        let (c, u, v) = running_frame(&self.at);
         let r = Rounded::exact(self.radius);
-        match self.anchor {
+        match self.anchor() {
             None => {
                 let (sin, cos) = running_sin_cos(theta);
                 core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
@@ -596,7 +632,7 @@ impl<T: Real> Conic<T> for Circle<T> {
         MajorFrame {
             major: self.radius,
             minor: self.radius,
-            major_dir: self.frame.u_ref(),
+            major_dir: self.at.u_ref(),
             phase: T::zero(),
         }
     }
@@ -617,10 +653,10 @@ impl<T: Real> Ellipse<T> {
     #[must_use]
     pub fn new(frame: Frame<T>, semi_u: T, semi_v: T) -> Self {
         Self {
-            frame,
+            at: frame,
+            born: Born::Centred,
             semi_u,
             semi_v,
-            anchor: None,
         }
     }
 
@@ -640,38 +676,59 @@ impl<T: Real> Ellipse<T> {
         semi_u: T,
         semi_v: T,
     ) -> Self {
-        let at = Frame::new(anchor, axis, toward);
         Self {
-            frame: at.with_origin(anchor - at.u_ref() * semi_u),
+            at: Frame::new(anchor, axis, toward),
+            born: Born::Anchored,
             semi_u,
             semi_v,
-            anchor: Some(anchor),
         }
     }
 
-    /// **This ellipse with its placement and its anchor carried by
-    /// `frame` and `point`**: the image of the ellipse under whatever
-    /// map took its frame to `frame`, which `point` applies to a point.
-    /// An ellipse born with a centre stays so.
+    /// **This ellipse with its placement mapped by `map`**: its image
+    /// under a map of space that keeps its semi-axes (a motion, a
+    /// reversal). The placement is the one thing an ellipse stores of
+    /// where it is, so the image is born as this ellipse was.
     #[must_use]
-    pub fn carried(&self, frame: Frame<T>, point: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+    pub fn placed(&self, map: impl FnOnce(&Frame<T>) -> Frame<T>) -> Self {
         Self {
-            frame,
+            at: map(&self.at),
+            born: self.born,
             semi_u: self.semi_u,
             semi_v: self.semi_v,
-            anchor: self.anchor.map(point),
         }
     }
 
-    /// **This ellipse at another scalar**: its frame as `frame` carries
-    /// it, its semi-axes and its anchor through `f`.
-    pub fn map_scalar<U: Real>(&self, frame: Frame<U>, f: impl Fn(T) -> U) -> Ellipse<U> {
+    /// **This ellipse at another scalar**: its placement as `frame`
+    /// carries it, its semi-axes through `f`.
+    pub fn map_scalar<U: Real>(
+        &self,
+        frame: impl FnOnce(&Frame<T>) -> Frame<U>,
+        f: impl Fn(T) -> U,
+    ) -> Ellipse<U> {
         Ellipse {
-            frame,
+            at: frame(&self.at),
+            born: self.born,
             semi_u: f(self.semi_u),
             semi_v: f(self.semi_v),
-            anchor: self.anchor.map(|p| Point3::new(f(p.x), f(p.y), f(p.z))),
         }
+    }
+
+    /// Which point the ellipse stores.
+    #[must_use]
+    pub fn born(&self) -> Born {
+        self.born
+    }
+
+    /// The stored placement, standing at the point [`Self::born`]
+    /// names: for the walks of the stored data alone.
+    pub(super) fn stored(&self) -> &Frame<T> {
+        &self.at
+    }
+
+    /// The principal frame at the centre ([`Conic::frame`]).
+    #[must_use]
+    pub fn frame(&self) -> Frame<T> {
+        Conic::frame(self)
     }
 
     /// **The semi-axes by size**: the larger and the smaller, in that
@@ -693,7 +750,7 @@ impl<T: Real> Ellipse<T> {
     /// keeps the seam's own axis.
     #[must_use]
     pub fn section_frame(&self, axis: Vec3<T>) -> MajorFrame<T> {
-        let f = &self.frame;
+        let f = &self.at;
         self.frame_turned_where(f.v_ref().dot(axis).abs() - f.u_ref().dot(axis).abs())
     }
 
@@ -704,7 +761,7 @@ impl<T: Real> Ellipse<T> {
         MajorFrame {
             major: e.semi_u,
             minor: e.semi_v,
-            major_dir: e.frame.u_ref(),
+            major_dir: e.at.u_ref(),
             phase: turn.select_le_zero(T::zero(), T::pi() * T::from_f64(0.5)),
         }
     }
@@ -725,22 +782,31 @@ impl<T: Real> Ellipse<T> {
     /// re-squaring there would widen every entry by the squaring's own.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
-        let f = self.frame;
+        // The turn is read on the frame at the centre, which a
+        // centre-born ellipse stores, so its bits are the stored frame's.
+        let f = Conic::frame(self);
         let turned = if T::WITNESS == geom_core::Witness::Inexact {
             f.turned_to(f.v_ref().normalize())
         } else {
             f.quarter_turned()
         };
+        let at = Frame::select_le_zero(turn, f, turned);
         Self {
-            frame: Frame::select_le_zero(turn, f, turned),
+            at: match self.born {
+                Born::Centred => at,
+                // An anchored ellipse stays anchored at its seam's
+                // vertex: the stored one where the seam is kept, the
+                // turned seam's, read off the derived centre, where it
+                // turns.
+                Born::Anchored => at.with_origin(select_point(
+                    turn,
+                    self.at.origin(),
+                    turned.origin() + turned.u_ref() * self.semi_v,
+                )),
+            },
+            born: self.born,
             semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
             semi_v: turn.select_le_zero(self.semi_v, self.semi_u),
-            // An anchored ellipse stays anchored at its seam's vertex: the
-            // stored one where the seam is kept, the turned seam's, read
-            // off the derived centre, where it turns.
-            anchor: self
-                .anchor
-                .map(|p| select_point(turn, p, turned.origin() + turned.u_ref() * self.semi_v)),
         }
     }
 
@@ -766,23 +832,34 @@ impl<T: Real> Ellipse<T> {
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
         let e = self.quarter_turned_where(turn);
+        let f = Conic::frame(&e);
+        let at = Frame::select_le_zero(back, f, f.half_turned());
         Self {
-            frame: Frame::select_le_zero(back, e.frame, e.frame.half_turned()),
-            anchor: e
-                .anchor
-                .map(|p| select_point(back, p, e.frame.origin() - e.frame.u_ref() * e.semi_u)),
+            at: match e.born {
+                Born::Centred => at,
+                Born::Anchored => at.with_origin(select_point(
+                    back,
+                    e.at.origin(),
+                    f.origin() - f.u_ref() * e.semi_u,
+                )),
+            },
             ..e
         }
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
-        azimuth::basis(&self.frame, theta)
+        azimuth::basis(&self.at, theta)
     }
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
-    fn frame(&self) -> &Frame<T> {
-        &self.frame
+    fn frame(&self) -> Frame<T> {
+        match self.born {
+            Born::Centred => self.at,
+            Born::Anchored => self
+                .at
+                .with_origin(self.at.origin() - self.at.u_ref() * self.semi_u),
+        }
     }
 
     fn semi_axes(&self) -> (T, T) {
@@ -790,15 +867,14 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        match self.anchor {
+        match self.anchor() {
             None => {
                 let ((s, c), v_ref) = self.basis(theta);
-                self.frame.origin()
-                    + (self.frame.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+                self.at.origin() + (self.at.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
             }
             Some(zero) => {
                 let (ku, kv) = offsets(theta);
-                let (u, v) = (self.frame.u_ref(), self.frame.v_ref());
+                let (u, v) = (self.at.u_ref(), self.at.v_ref());
                 zero + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
             }
         }
@@ -806,12 +882,12 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref() * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
+        self.at.u_ref() * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
     }
 
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
         let ((s, c), v_ref) = self.basis(theta);
-        let u_ref = self.frame.u_ref();
+        let u_ref = self.at.u_ref();
         (
             self.point_at(theta),
             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
@@ -820,7 +896,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref() * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
+        self.at.u_ref() * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
     }
 
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
@@ -829,28 +905,28 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     /// the angle resolves at the arc's scale however far the derived
     /// centre lies.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        match self.anchor {
-            None => self.frame.azimuth(p),
+        match self.anchor() {
+            None => self.at.azimuth(p),
             Some(zero) => {
                 let w = p - zero;
-                Azimuth::of(
-                    w.dot(self.frame.v_ref()),
-                    self.semi_u + w.dot(self.frame.u_ref()),
-                )
+                Azimuth::of(w.dot(self.at.v_ref()), self.semi_u + w.dot(self.at.u_ref()))
             }
         }
         .scaled(self.semi_u, self.semi_v)
     }
 
     fn zero_point(&self) -> Point3<T> {
-        match self.anchor {
+        match self.anchor() {
             Some(p) => p,
-            None => self.frame.origin() + self.frame.u_ref() * self.semi_u,
+            None => self.at.origin() + self.at.u_ref() * self.semi_u,
         }
     }
 
     fn anchor(&self) -> Option<Point3<T>> {
-        self.anchor
+        match self.born {
+            Born::Centred => None,
+            Born::Anchored => Some(self.at.origin()),
+        }
     }
 
     fn speed_lo(&self) -> T {
@@ -874,9 +950,9 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
-        let (c, u, v) = running_frame(&self.frame);
+        let (c, u, v) = running_frame(&self.at);
         let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
-        match self.anchor {
+        match self.anchor() {
             None => {
                 let (sin, cos) = running_sin_cos(theta);
                 let (ac, bs) = (a * cos, b * sin);
@@ -948,19 +1024,19 @@ mod tests {
         let o = Point3::origin();
         match carrier {
             Curve3::Circle(k) => {
-                let (u, r) = (k.frame.u_ref(), k.radius);
-                let v = k.frame.axis().cross(u);
+                let (u, r) = (k.frame().u_ref(), k.radius);
+                let v = k.frame().axis().cross(u);
                 [
-                    (k.frame.origin() + (u * c + v * s) * r) - o,
+                    (k.frame().origin() + (u * c + v * s) * r) - o,
                     (u * (-s) + v * c) * r,
                     (u * (-c) + v * (-s)) * r,
                 ]
             }
             Curve3::Ellipse(k) => {
-                let (u, a, b) = (k.frame.u_ref(), k.semi_u, k.semi_v);
-                let v = k.frame.axis().cross(u);
+                let (u, a, b) = (k.frame().u_ref(), k.semi_u, k.semi_v);
+                let v = k.frame().axis().cross(u);
                 [
-                    (k.frame.origin() + (u * (a * c) + v * (b * s))) - o,
+                    (k.frame().origin() + (u * (a * c) + v * (b * s))) - o,
                     u * (-(a * s)) + v * (b * c),
                     u * (-(a * c)) + v * (-(b * s)),
                 ]
@@ -996,7 +1072,7 @@ mod tests {
                 assert_eq!(bits(k.point_at(0.0) - o), bits(at - o), "{carrier:?}");
                 assert_eq!(bits(carrier.eval(0.0) - o), bits(at - o), "{carrier:?}");
                 let (a, b) = k.semi_axes();
-                let f = *k.frame();
+                let f = k.frame();
                 assert_eq!(bits(k.center() - o), bits((at - f.u_ref() * a) - o));
                 // The same conic born with that centre: no anchor, and
                 // not the same content.
@@ -1050,14 +1126,14 @@ mod tests {
                     let kept = e.seamed_near(0.3);
                     assert_eq!(kept.anchor().map(|p| bits(p - o)), Some(bits(at - o)));
                     let turned = e.seamed_near(1.4);
-                    let vertex = turned.frame.origin() + turned.frame.u_ref() * turned.semi_u;
+                    let vertex = turned.frame().origin() + turned.frame().u_ref() * turned.semi_u;
                     assert_eq!(
                         turned.anchor().map(|p| bits(p - o)),
                         Some(bits(vertex - o)),
                         "a turned seam re-anchors at its own vertex"
                     );
                     assert!(
-                        Ellipse::new(e.frame, a, b)
+                        Ellipse::new(e.frame(), a, b)
                             .seamed_near(1.4)
                             .anchor()
                             .is_none()

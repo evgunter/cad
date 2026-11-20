@@ -67,7 +67,7 @@ use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, MajorFrame};
+pub use conic::{Born, Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
@@ -245,25 +245,18 @@ impl<T: SpanLocate> Curve3<T> {
         let frame = |f: &Frame<T>, g: &Frame<T>| {
             point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
         };
-        let anchor = |a: Option<Point3<T>>, b: Option<Point3<T>>| match (a, b) {
-            (None, None) => true,
-            (Some(p), Some(q)) => point(p, q),
-            (None, Some(_)) | (Some(_), None) => false,
-        };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
                 point(*origin, *o) && vec(*dir, *d)
             }
             (Self::Circle(c), Self::Circle(d)) => {
-                frame(&c.frame, &d.frame)
-                    && same(c.radius, d.radius)
-                    && anchor(Conic::anchor(c), Conic::anchor(d))
+                c.born() == d.born() && frame(c.stored(), d.stored()) && same(c.radius, d.radius)
             }
             (Self::Ellipse(e), Self::Ellipse(g)) => {
-                frame(&e.frame, &g.frame)
+                e.born() == g.born()
+                    && frame(e.stored(), g.stored())
                     && same(e.semi_u, g.semi_u)
                     && same(e.semi_v, g.semi_v)
-                    && anchor(Conic::anchor(e), Conic::anchor(g))
             }
             (
                 Self::Spiric {
@@ -1111,8 +1104,8 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn frame(&self) -> Option<Frame<T>> {
         match *self {
-            Self::Circle(c) => Some(c.frame),
-            Self::Ellipse(e) => Some(e.frame),
+            Self::Circle(c) => Some(c.frame()),
+            Self::Ellipse(e) => Some(e.frame()),
             Self::Spiric { frame, .. } => Some(frame),
             Self::Line(_) | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
@@ -1143,47 +1136,33 @@ impl<T: Real> Curve3<T> {
         use crate::AnalyticData;
         use crate::DatumValue::{Direction, Point, Scalar};
         use CurveDatum as D;
+        let placed = |born| match born {
+            conic::Born::Centred => D::Center,
+            conic::Born::Anchored => D::Anchor,
+        };
         CurveData::Analytic(match *self {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
+            // The one point a conic stores is named by its birth.
             Curve3::Circle(c) => {
-                let Circle { frame, radius, .. } = c;
-                let stored = [
-                    (D::Center, Point(frame.origin())),
-                    (D::Axis, Direction(frame.axis())),
-                    (D::Radius, Scalar(radius)),
-                    (D::URef, Direction(frame.u_ref())),
-                ];
-                match Conic::anchor(&c) {
-                    None => AnalyticData::new(stored),
-                    Some(p) => {
-                        let [a, b, c, d] = stored;
-                        AnalyticData::new([a, b, c, d, (D::Anchor, Point(p))])
-                    }
-                }
+                let at = c.stored();
+                AnalyticData::new([
+                    (placed(c.born()), Point(at.origin())),
+                    (D::Axis, Direction(at.axis())),
+                    (D::Radius, Scalar(c.radius)),
+                    (D::URef, Direction(at.u_ref())),
+                ])
             }
             Curve3::Ellipse(e) => {
-                let Ellipse {
-                    frame,
-                    semi_u,
-                    semi_v,
-                    ..
-                } = e;
-                let stored = [
-                    (D::Center, Point(frame.origin())),
-                    (D::Axis, Direction(frame.axis())),
-                    (D::SemiU, Scalar(semi_u)),
-                    (D::SemiV, Scalar(semi_v)),
-                    (D::URef, Direction(frame.u_ref())),
-                ];
-                match Conic::anchor(&e) {
-                    None => AnalyticData::new(stored),
-                    Some(p) => {
-                        let [a, b, c, d, f] = stored;
-                        AnalyticData::new([a, b, c, d, f, (D::Anchor, Point(p))])
-                    }
-                }
+                let at = e.stored();
+                AnalyticData::new([
+                    (placed(e.born()), Point(at.origin())),
+                    (D::Axis, Direction(at.axis())),
+                    (D::SemiU, Scalar(e.semi_u)),
+                    (D::SemiV, Scalar(e.semi_v)),
+                    (D::URef, Direction(at.u_ref())),
+                ])
             }
             Curve3::Spiric {
                 frame,
@@ -1247,14 +1226,14 @@ impl<T: Real> Curve3<T> {
         };
         match self {
             Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius))
-                .chain(frame(c.frame.axis(), c.frame.u_ref(), c.radius))
+                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius))
                 .collect(),
             Curve3::Ellipse(e) => [
                 lower(CurveDatum::SemiU, e.semi_u),
                 lower(CurveDatum::SemiV, e.semi_v),
             ]
             .into_iter()
-            .chain(frame(e.frame.axis(), e.frame.u_ref(), e.speed_hi()))
+            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
             .collect(),
             Curve3::Spiric {
                 frame: carrier_frame,
@@ -1545,8 +1524,8 @@ impl<T: Real> Curve3<T> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
             // The seam is kept, so the point at parameter zero is too.
-            Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.reversed(), |p| p)),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.reversed(), |p| p)),
+            Curve3::Circle(c) => Curve3::Circle(c.placed(Frame::reversed)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(Frame::reversed)),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -1581,8 +1560,8 @@ impl<T: Real> Curve3<T> {
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
-            Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.translated(by), |p| p + by)),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.translated(by), |p| p + by)),
+            Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(by))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(|f| f.translated(by))),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -2332,112 +2311,114 @@ mod tests {
     }
 
     proptest! {
-        /// The circle's defining residuals at arbitrary θ and frames:
-        /// distance to center = r, and the point lies in the circle's
-        /// plane — a few roundings of magnitudes ≤ ~|center| + r.
-        #[test]
-        fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
-            let c = tilted_circle();
-            let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame, radius, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
-                _ => panic!("fixture is a circle"),
-            };
-            let p = c.eval(theta);
-            prop_assert!((p.distance(center) - r).abs() <= 1e-13);
-            prop_assert!((p - center).dot(axis).abs() <= 1e-13);
-        }
+            /// The circle's defining residuals at arbitrary θ and frames:
+            /// distance to center = r, and the point lies in the circle's
+            /// plane — a few roundings of magnitudes ≤ ~|center| + r.
+            #[test]
+            fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
+                let c = tilted_circle();
+                let (center, axis, r) = match c {
+                    Curve3::Circle(the_circle @ crate::Circle { radius, .. }) => {
+    let frame = the_circle.frame(); let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
+                    _ => panic!("fixture is a circle"),
+                };
+                let p = c.eval(theta);
+                prop_assert!((p.distance(center) - r).abs() <= 1e-13);
+                prop_assert!((p - center).dot(axis).abs() <= 1e-13);
+            }
 
-        /// Tangent orthogonality and speed: dP/dθ ⊥ (P − center),
-        /// dP/dθ ⊥ axis, |dP/dθ| = r (the radians-to-meters rate); the
-        /// second derivative is the inward radial: P + deriv2/1 = center
-        /// in exact arithmetic… stated as deriv2 = −(P − center).
-        #[test]
-        fn circle_derivative_geometry(theta in -50.0..50.0f64) {
-            let c = tilted_circle();
-            let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame, radius, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
-                _ => panic!("fixture is a circle"),
-            };
-            let p = c.eval(theta);
-            let d = c.deriv(theta);
-            let d2 = c.deriv2(theta);
-            prop_assert!(d.dot(p - center).abs() <= 1e-12);
-            prop_assert!(d.dot(axis).abs() <= 1e-13);
-            prop_assert!((d.norm() - r).abs() <= 1e-13);
-            let radial = p - center;
-            prop_assert!((d2.x + radial.x).abs() <= 1e-13);
-            prop_assert!((d2.y + radial.y).abs() <= 1e-13);
-            prop_assert!((d2.z + radial.z).abs() <= 1e-13);
-        }
+            /// Tangent orthogonality and speed: dP/dθ ⊥ (P − center),
+            /// dP/dθ ⊥ axis, |dP/dθ| = r (the radians-to-meters rate); the
+            /// second derivative is the inward radial: P + deriv2/1 = center
+            /// in exact arithmetic… stated as deriv2 = −(P − center).
+            #[test]
+            fn circle_derivative_geometry(theta in -50.0..50.0f64) {
+                let c = tilted_circle();
+                let (center, axis, r) = match c {
+                    Curve3::Circle(circle_2 @ crate::Circle { radius, .. }) => {
+    let frame = circle_2.frame(); let (center, axis) = (frame.origin(), frame.axis()); (center, axis, radius) },
+                    _ => panic!("fixture is a circle"),
+                };
+                let p = c.eval(theta);
+                let d = c.deriv(theta);
+                let d2 = c.deriv2(theta);
+                prop_assert!(d.dot(p - center).abs() <= 1e-12);
+                prop_assert!(d.dot(axis).abs() <= 1e-13);
+                prop_assert!((d.norm() - r).abs() <= 1e-13);
+                let radial = p - center;
+                prop_assert!((d2.x + radial.x).abs() <= 1e-13);
+                prop_assert!((d2.y + radial.y).abs() <= 1e-13);
+                prop_assert!((d2.z + radial.z).abs() <= 1e-13);
+            }
 
-        /// Derivative-vs-Dual consistency, the M2 test axis: seeding θ
-        /// as a dual variable and evaluating `eval` must produce the
-        /// closed-form `deriv` in the tangent channel — algebraically
-        /// identical expressions differing only in rounding order, so
-        /// the agreement bound is tight (both are a handful of libm ops
-        /// on O(r) magnitudes).
-        #[test]
-        fn circle_deriv_matches_dual_of_eval(
-            theta in -50.0..50.0f64,
-            seed in prop_oneof![-100.0..-0.01f64, 0.01..100.0f64],
-        ) {
-            let c = tilted_circle();
-            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
-            let p = cd.eval(Dual::new(theta, seed));
-            let d = c.deriv(theta);
-            // Value channel: bit-identical to the f64 evaluation.
-            let pf = c.eval(theta);
-            prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
-            prop_assert_eq!(p.y.value.to_bits(), pf.y.to_bits());
-            prop_assert_eq!(p.z.value.to_bits(), pf.z.to_bits());
-            // Tangent channel: the closed-form derivative scaled by the
-            // seed (the chain rule), within rounding.
-            prop_assert!((p.x.deriv - seed * d.x).abs() <= 1e-11 * (1.0 + seed.abs()));
-            prop_assert!((p.y.deriv - seed * d.y).abs() <= 1e-11 * (1.0 + seed.abs()));
-            prop_assert!((p.z.deriv - seed * d.z).abs() <= 1e-11 * (1.0 + seed.abs()));
-        }
+            /// Derivative-vs-Dual consistency, the M2 test axis: seeding θ
+            /// as a dual variable and evaluating `eval` must produce the
+            /// closed-form `deriv` in the tangent channel — algebraically
+            /// identical expressions differing only in rounding order, so
+            /// the agreement bound is tight (both are a handful of libm ops
+            /// on O(r) magnitudes).
+            #[test]
+            fn circle_deriv_matches_dual_of_eval(
+                theta in -50.0..50.0f64,
+                seed in prop_oneof![-100.0..-0.01f64, 0.01..100.0f64],
+            ) {
+                let c = tilted_circle();
+                let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
+                let p = cd.eval(Dual::new(theta, seed));
+                let d = c.deriv(theta);
+                // Value channel: bit-identical to the f64 evaluation.
+                let pf = c.eval(theta);
+                prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
+                prop_assert_eq!(p.y.value.to_bits(), pf.y.to_bits());
+                prop_assert_eq!(p.z.value.to_bits(), pf.z.to_bits());
+                // Tangent channel: the closed-form derivative scaled by the
+                // seed (the chain rule), within rounding.
+                prop_assert!((p.x.deriv - seed * d.x).abs() <= 1e-11 * (1.0 + seed.abs()));
+                prop_assert!((p.y.deriv - seed * d.y).abs() <= 1e-11 * (1.0 + seed.abs()));
+                prop_assert!((p.z.deriv - seed * d.z).abs() <= 1e-11 * (1.0 + seed.abs()));
+            }
 
-        /// Same axis one order up: dual of `deriv` matches `deriv2`.
-        #[test]
-        fn circle_deriv2_matches_dual_of_deriv(theta in -50.0..50.0f64) {
-            let c = tilted_circle();
-            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
-            let d = cd.deriv(Dual::variable(theta));
-            let d2 = c.deriv2(theta);
-            prop_assert!((d.x.deriv - d2.x).abs() <= 1e-12);
-            prop_assert!((d.y.deriv - d2.y).abs() <= 1e-12);
-            prop_assert!((d.z.deriv - d2.z).abs() <= 1e-12);
-        }
+            /// Same axis one order up: dual of `deriv` matches `deriv2`.
+            #[test]
+            fn circle_deriv2_matches_dual_of_deriv(theta in -50.0..50.0f64) {
+                let c = tilted_circle();
+                let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
+                let d = cd.deriv(Dual::variable(theta));
+                let d2 = c.deriv2(theta);
+                prop_assert!((d.x.deriv - d2.x).abs() <= 1e-12);
+                prop_assert!((d.y.deriv - d2.y).abs() <= 1e-12);
+                prop_assert!((d.z.deriv - d2.z).abs() <= 1e-12);
+            }
 
-        /// Line: dual-of-eval reproduces `deriv` (here exactly — the
-        /// chain rule multiplies dir by the seed, both single products).
-        #[test]
-        fn line_deriv_matches_dual_of_eval(t in -1.0e3..1.0e3f64) {
-            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0));
-            let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
-            let p = ld.eval(Dual::variable(t));
-            let d = line.deriv(t);
-            prop_assert_eq!(p.x.deriv.to_bits(), d.x.to_bits());
-            prop_assert_eq!(p.y.deriv.to_bits(), d.y.to_bits());
-            prop_assert_eq!(p.z.deriv.to_bits(), d.z.to_bits());
-        }
+            /// Line: dual-of-eval reproduces `deriv` (here exactly — the
+            /// chain rule multiplies dir by the seed, both single products).
+            #[test]
+            fn line_deriv_matches_dual_of_eval(t in -1.0e3..1.0e3f64) {
+                let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0));
+                let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
+                let p = ld.eval(Dual::variable(t));
+                let d = line.deriv(t);
+                prop_assert_eq!(p.x.deriv.to_bits(), d.x.to_bits());
+                prop_assert_eq!(p.y.deriv.to_bits(), d.y.to_bits());
+                prop_assert_eq!(p.z.deriv.to_bits(), d.z.to_bits());
+            }
 
-        /// Periodicity, the honest value-level statement: eval(θ) and
-        /// eval(θ + k·fl(τ)) agree to rounding scaled by k — never
-        /// asserted bitwise (fl(τ) ≠ τ, so the parameters differ as
-        /// reals by k·(τ − fl(τ)) ≈ k·2.4e-16, times |dP/dθ| = r).
-        #[test]
-        fn circle_periodicity_value_level(
-            theta in -10.0..10.0f64,
-            k in -100i32..100,
-        ) {
-            let c = tilted_circle();
-            let p = c.eval(theta);
-            let q = c.eval(theta + f64::from(k) * TAU);
-            let slack = 1e-15 + 5e-15 * f64::from(k).abs();
-            assert_point_close(p, q, slack);
+            /// Periodicity, the honest value-level statement: eval(θ) and
+            /// eval(θ + k·fl(τ)) agree to rounding scaled by k — never
+            /// asserted bitwise (fl(τ) ≠ τ, so the parameters differ as
+            /// reals by k·(τ − fl(τ)) ≈ k·2.4e-16, times |dP/dθ| = r).
+            #[test]
+            fn circle_periodicity_value_level(
+                theta in -10.0..10.0f64,
+                k in -100i32..100,
+            ) {
+                let c = tilted_circle();
+                let p = c.eval(theta);
+                let q = c.eval(theta + f64::from(k) * TAU);
+                let slack = 1e-15 + 5e-15 * f64::from(k).abs();
+                assert_point_close(p, q, slack);
+            }
         }
-    }
 
     // ------------------------------------------------------------------
     // Ellipse (M5 PR 5): constructor trileans, locus, derivatives
@@ -2560,12 +2541,12 @@ mod tests {
                 5.0,
                 2.0,
             );
-            let f = e.frame;
+            let f = e.frame();
             let base = f.turned_to(f.v_ref().normalize());
             let turned = e.quarter_turned_where(1.0);
-            assert_eq!(bits(turned.frame.u_ref()), bits(base.u_ref()), "k {k}");
+            assert_eq!(bits(turned.frame().u_ref()), bits(base.u_ref()), "k {k}");
             assert_eq!(
-                bits(turned.frame.axis()),
+                bits(turned.frame().axis()),
                 bits(f.axis()),
                 "k {k}: the axis is kept"
             );
@@ -2605,12 +2586,12 @@ mod tests {
             (-0.0, 0.0, x, 5.0),
             (0.0, -0.0, x, 5.0),
         ] {
-            let Ellipse {
-                frame: carrier_frame,
+            let ellipse @ Ellipse {
                 semi_u: u,
                 semi_v: v,
                 ..
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
+            let carrier_frame = ellipse.frame();
             let u_ref = carrier_frame.u_ref();
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
@@ -2627,7 +2608,7 @@ mod tests {
             .as_ellipse()
             .unwrap()
             .quarter_turned_where(1.0)
-            .frame
+            .frame()
             .u_ref();
         assert!(
             (u_ref.norm() - 1.0).abs() <= ulp,
@@ -2737,83 +2718,85 @@ mod tests {
     }
 
     proptest! {
-        /// The ellipse's defining residuals at arbitrary θ on the tilted
-        /// frame: the frame-coordinate quadratic (x/a)² + (y/b)² − 1
-        /// vanishes and the point lies in the ellipse's plane.
-        #[test]
-        fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
-            let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v, .. }) = e else {
-                panic!("fixture is an ellipse");
-            };
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            let v_ref = axis.cross(u_ref);
-            let p = e.eval(theta);
-            let d = p - center;
-            let (x, y) = (d.dot(u_ref), d.dot(v_ref));
-            let quad = (x / semi_u) * (x / semi_u) + (y / semi_v) * (y / semi_v) - 1.0;
-            prop_assert!(quad.abs() <= 1e-12, "quadratic residual {quad:e}");
-            prop_assert!(d.dot(axis).abs() <= 1e-13, "planarity");
-        }
+            /// The ellipse's defining residuals at arbitrary θ on the tilted
+            /// frame: the frame-coordinate quadratic (x/a)² + (y/b)² − 1
+            /// vanishes and the point lies in the ellipse's plane.
+            #[test]
+            fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
+                let e = tilted_ellipse();
+                let Curve3::Ellipse(the_ellipse @ crate::Ellipse { semi_u, semi_v, .. }) = e else {
+                    panic!("fixture is an ellipse");
+                };
+    let frame = the_ellipse.frame();
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let v_ref = axis.cross(u_ref);
+                let p = e.eval(theta);
+                let d = p - center;
+                let (x, y) = (d.dot(u_ref), d.dot(v_ref));
+                let quad = (x / semi_u) * (x / semi_u) + (y / semi_v) * (y / semi_v) - 1.0;
+                prop_assert!(quad.abs() <= 1e-12, "quadratic residual {quad:e}");
+                prop_assert!(d.dot(axis).abs() <= 1e-13, "planarity");
+            }
 
-        /// Derivative geometry: P + P″ = center (the eccentric-anomaly
-        /// identity), P′ ⊥ axis, and the speed interpolates the axes:
-        /// |P′|² = major²·sin²θ + minor²·cos²θ.
-        #[test]
-        fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
-            let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame, semi_u, semi_v, .. }) = e else {
-                panic!("fixture is an ellipse");
-            }; let (center, axis) = (frame.origin(), frame.axis());
-            let p = e.eval(theta);
-            let d1 = e.deriv(theta);
-            let d2 = e.deriv2(theta);
-            prop_assert!((p.x + d2.x - center.x).abs() <= 1e-12);
-            prop_assert!((p.y + d2.y - center.y).abs() <= 1e-12);
-            prop_assert!((p.z + d2.z - center.z).abs() <= 1e-12);
-            prop_assert!(d1.dot(axis).abs() <= 1e-12);
-            let (s, c) = theta.sin_cos();
-            let speed2 = semi_u.powi(2) * s.powi(2) + semi_v.powi(2) * c.powi(2);
-            prop_assert!((d1.norm_squared() - speed2).abs() <= 1e-11);
-        }
+            /// Derivative geometry: P + P″ = center (the eccentric-anomaly
+            /// identity), P′ ⊥ axis, and the speed interpolates the axes:
+            /// |P′|² = major²·sin²θ + minor²·cos²θ.
+            #[test]
+            fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
+                let e = tilted_ellipse();
+                let Curve3::Ellipse(ellipse_2 @ crate::Ellipse { semi_u, semi_v, .. }) = e else {
+                    panic!("fixture is an ellipse");
+                };
+    let frame = ellipse_2.frame(); let (center, axis) = (frame.origin(), frame.axis());
+                let p = e.eval(theta);
+                let d1 = e.deriv(theta);
+                let d2 = e.deriv2(theta);
+                prop_assert!((p.x + d2.x - center.x).abs() <= 1e-12);
+                prop_assert!((p.y + d2.y - center.y).abs() <= 1e-12);
+                prop_assert!((p.z + d2.z - center.z).abs() <= 1e-12);
+                prop_assert!(d1.dot(axis).abs() <= 1e-12);
+                let (s, c) = theta.sin_cos();
+                let speed2 = semi_u.powi(2) * s.powi(2) + semi_v.powi(2) * c.powi(2);
+                prop_assert!((d1.norm_squared() - speed2).abs() <= 1e-11);
+            }
 
-        /// Derivative-vs-Dual consistency (the M2 test axis) for the
-        /// new variant: dual-of-eval reproduces `deriv`, value channel
-        /// bit-identical; one order up for `deriv2`.
-        #[test]
-        fn ellipse_derivs_match_duals(theta in -50.0..50.0f64) {
-            let e = tilted_ellipse();
-            let ed: Curve3<Dual64> = e.map_scalar(Dual::constant);
-            let p = ed.eval(Dual::variable(theta));
-            let pf = e.eval(theta);
-            prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
-            prop_assert_eq!(p.y.value.to_bits(), pf.y.to_bits());
-            prop_assert_eq!(p.z.value.to_bits(), pf.z.to_bits());
-            let d = e.deriv(theta);
-            prop_assert!((p.x.deriv - d.x).abs() <= 1e-11);
-            prop_assert!((p.y.deriv - d.y).abs() <= 1e-11);
-            prop_assert!((p.z.deriv - d.z).abs() <= 1e-11);
-            let dd = ed.deriv(Dual::variable(theta));
-            let d2 = e.deriv2(theta);
-            prop_assert!((dd.x.deriv - d2.x).abs() <= 1e-11);
-            prop_assert!((dd.y.deriv - d2.y).abs() <= 1e-11);
-            prop_assert!((dd.z.deriv - d2.z).abs() <= 1e-11);
-        }
+            /// Derivative-vs-Dual consistency (the M2 test axis) for the
+            /// new variant: dual-of-eval reproduces `deriv`, value channel
+            /// bit-identical; one order up for `deriv2`.
+            #[test]
+            fn ellipse_derivs_match_duals(theta in -50.0..50.0f64) {
+                let e = tilted_ellipse();
+                let ed: Curve3<Dual64> = e.map_scalar(Dual::constant);
+                let p = ed.eval(Dual::variable(theta));
+                let pf = e.eval(theta);
+                prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
+                prop_assert_eq!(p.y.value.to_bits(), pf.y.to_bits());
+                prop_assert_eq!(p.z.value.to_bits(), pf.z.to_bits());
+                let d = e.deriv(theta);
+                prop_assert!((p.x.deriv - d.x).abs() <= 1e-11);
+                prop_assert!((p.y.deriv - d.y).abs() <= 1e-11);
+                prop_assert!((p.z.deriv - d.z).abs() <= 1e-11);
+                let dd = ed.deriv(Dual::variable(theta));
+                let d2 = e.deriv2(theta);
+                prop_assert!((dd.x.deriv - d2.x).abs() <= 1e-11);
+                prop_assert!((dd.y.deriv - d2.y).abs() <= 1e-11);
+                prop_assert!((dd.z.deriv - d2.z).abs() <= 1e-11);
+            }
 
-        /// Periodicity at the value level (the honest statement — the
-        /// crate-doc policy; never bitwise).
-        #[test]
-        fn ellipse_periodicity_value_level(
-            theta in -10.0..10.0f64,
-            k in -100i32..100,
-        ) {
-            let e = tilted_ellipse();
-            let p = e.eval(theta);
-            let q = e.eval(theta + f64::from(k) * TAU);
-            let slack = 1e-15 + 5e-15 * f64::from(k).abs();
-            assert_point_close(p, q, slack);
+            /// Periodicity at the value level (the honest statement — the
+            /// crate-doc policy; never bitwise).
+            #[test]
+            fn ellipse_periodicity_value_level(
+                theta in -10.0..10.0f64,
+                k in -100i32..100,
+            ) {
+                let e = tilted_ellipse();
+                let p = e.eval(theta);
+                let q = e.eval(theta + f64::from(k) * TAU);
+                let slack = 1e-15 + 5e-15 * f64::from(k).abs();
+                assert_point_close(p, q, slack);
+            }
         }
-    }
 
     // ------------------------------------------------------------------
     // The spiric — the elbow's numbers in `tilted_circle`'s frame,
@@ -3260,15 +3243,10 @@ mod tests {
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
-            let Curve3::Ellipse(crate::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-                ..
-            }) = ei
-            else {
+            let Curve3::Ellipse(the_ellipse @ crate::Ellipse { semi_u, semi_v, .. }) = ei else {
                 panic!("fixture is an ellipse");
             };
+            let frame = the_ellipse.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
@@ -3633,7 +3611,8 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(crate::Circle { frame, radius, .. }) => {
+                Curve3::Circle(the_circle @ crate::Circle { radius, .. }) => {
+                    let frame = the_circle.frame();
                     let (center, axis) = (frame.origin(), frame.axis());
                     (center, axis, radius)
                 }
