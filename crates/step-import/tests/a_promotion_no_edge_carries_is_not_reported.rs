@@ -1,11 +1,13 @@
 //! **A promotion no edge carries is not reported**
 //! (`fixtures/promoted-rim/`): the C⁰-knot suite's half cone with its
 //! bottom rim restated as the wall's own boundary row, a rational
-//! quadratic half circle. The spline promotes to its circle, and the
-//! build carries the rim on the wall's row (a cap's rim the plane
-//! holds), so the body holds the spline: the curve has no
-//! `CurvePromoted` record, and the edges' `CarrierBuilt` records say what
-//! they hold. The top rim, a stated `CIRCLE`, is no promotion.
+//! quadratic half circle, and its top row bulged (the middle control
+//! 0.1 m out) so the wall is no cone and stays a spline — its top rim,
+//! restated as that row, is no circle either. The bottom rim's spline
+//! promotes to its circle, and the build carries the rim on the wall's
+//! row (a cap's rim the plane holds), so the body holds the spline: the
+//! curve has no `CurvePromoted` record, and the edges' `CarrierBuilt`
+//! records say what they hold.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -37,16 +39,18 @@ fn a_rim_the_build_carries_on_its_row_reports_its_carrier_not_a_promotion() {
     else {
         unreachable!("matched above")
     };
-    // The rim PROMOTED: a promoted carrier has no knots, so the C⁰-knot
-    // split cuts no edge (the stated spline, unpromoted, is cut at its
-    // double knot, `EdgeSplitAtC0Knot`); the wall's split cuts the rim,
-    // and its pieces, carried on the wall's row, report the carriers they
-    // hold.
-    assert!(
-        !normalizations
-            .iter()
-            .any(|n| matches!(n.kind, NormalizationKind::EdgeSplitAtC0Knot)),
-        "the rim's spline promoted, so no edge is cut at a knot: {normalizations:?}"
+    // The bottom rim PROMOTED: a promoted carrier has no knots, so the
+    // C⁰-knot split cuts only the top rim, the one unpromoted spline (each
+    // spline cut at its double knot reports `EdgeSplitAtC0Knot`); the
+    // wall's split cuts the bottom rim, and its pieces, carried on the
+    // wall's row, report the carriers they hold.
+    let cut = normalizations
+        .iter()
+        .filter(|n| matches!(n.kind, NormalizationKind::EdgeSplitAtC0Knot))
+        .count();
+    assert_eq!(
+        cut, 1,
+        "only the top rim is cut at its knot; the bottom rim promoted: {normalizations:?}"
     );
     let built = normalizations
         .iter()
