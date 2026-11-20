@@ -343,6 +343,14 @@ pub trait Real:
     /// `from_f64` would re-enter every computed value as a constant.
     fn from_computed(x: f64) -> Self;
 
+    /// **What this scalar reads as in a sentence**: its value, its
+    /// enclosure, or nothing ([`crate::told::Reading`]). The one
+    /// projection a refusal payload takes of a scalar
+    /// ([`crate::Told`]); the reading has no accessor, so nothing
+    /// decides on it. Declared, never defaulted: a new scalar says what
+    /// a person reads of it.
+    fn told_reading(&self) -> crate::told::Reading;
+
     /// The additive identity.
     fn zero() -> Self;
 
@@ -1322,9 +1330,9 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 ///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
 ///    precisely what was asked for and refused. A derived quantity leaves
 ///    as text and only as text (the crate README, "A number told
-///    to a person"): the one projection
-///    is into a told quantity, which renders and offers nothing a
-///    comparison could read. The classify seam's own diagnostic has that
+///    to a person"): the one projection is [`Real::told_reading`], into
+///    a told quantity ([`crate::Told`]), which renders and offers
+///    nothing a comparison could read. The classify seam's own diagnostic has that
 ///    shape for a decided margin: `MarginDiag`, minted inside each
 ///    scalar's `Decide` impl on every outcome of a verdict the funnel
 ///    records under its name (definite and indeterminate alike), is the
@@ -2046,6 +2054,10 @@ impl Real for f64 {
 
     fn from_computed(x: f64) -> Self {
         x
+    }
+
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(*self)
     }
 
     fn zero() -> Self {

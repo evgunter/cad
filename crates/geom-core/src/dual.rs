@@ -487,6 +487,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::from_computed(x))
     }
 
+    /// The value channel's: a sentence tells no tangent.
+    fn told_reading(&self) -> crate::told::Reading {
+        self.value.told_reading()
+    }
+
     /// `(0, 0)`.
     fn zero() -> Self {
         Self::constant(T::zero())

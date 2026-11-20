@@ -1,6 +1,6 @@
 //! Test vocabulary over this crate's types, for the suites downstream.
 
-use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol};
+use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol, Told};
 
 /// The upper end of a reporting margin: the point margin, or the
 /// enclosure's upper end; `NaN` for a poisoned reading, which no bound
@@ -24,6 +24,18 @@ pub fn lower(margin: MarginDiag) -> f64 {
     match margin.diagnostic_f64_for_error_text() {
         ErrorTextReading::Value(m) | ErrorTextReading::Enclosure { lo: m, .. } => m,
         ErrorTextReading::Invalid => f64::NAN,
+    }
+}
+
+/// The number a told quantity was built from, where it is one value;
+/// `NaN` for an enclosure with two ends and for an unreadable reading.
+/// The rows that pin a refusal's payload against the scalar its door
+/// computed read it here.
+#[must_use]
+pub fn told(told: &Told) -> f64 {
+    match told.pinned_ends() {
+        (lo, hi) if lo == hi => lo,
+        _ => f64::NAN,
     }
 }
 
