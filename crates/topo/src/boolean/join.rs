@@ -936,14 +936,14 @@ fn germ_site<T: Decide>(
 ///
 /// - **a transverse section of a one-face closed wall** that crosses the
 ///   wall's wrap edge (both its halves bound that face) once, piercing
-///   the partner's planar face there, or meeting a vertex of its
-///   boundary, where the loop only touches that boundary (a wall
-///   tangent to a hole's along the wrap edge);
+///   a face of the partner there, or meeting a vertex of its boundary,
+///   where the loop only touches that boundary (a wall tangent to a
+///   hole's along the wrap edge);
 /// - **a closed edge lying in the partner** (a one-segment circle or
 ///   ellipse, both of whose ends are its one vertex): the loop is that
 ///   edge, and the
-///   site is its vertex. The partner holds it inside a planar or a
-///   spherical face, whose interior the site pierces; inside a planar
+///   site is its vertex. The partner holds it inside a face, whose
+///   interior the site pierces; inside a planar
 ///   face whose boundary passes through the site, where the loop only
 ///   touches that boundary (two rims tangent at their vertices); on a
 ///   one-face closed wall's wrap edge; or along a closed edge of its own
@@ -951,12 +951,16 @@ fn germ_site<T: Decide>(
 ///
 /// Read from the records [`matched_records`]' quiescence left. Every
 /// other [`one_site`] record is left for the
-/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
-/// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, a site where a pierce meets an edge of another face, a
-/// transverse section or a closed edge meets one in a curved face, and
-/// a closed edge on a carrier the joiner does not copy whole
-/// (`crate::chord_join::copies_closed_edge`).
+/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce or a boundary
+/// vertex of a face the joiner sides no closed loop in
+/// (`crate::chord_join::reads_loop_side`), a site on both operands' wrap
+/// edges, a site where a pierce meets an edge of another face, a closed
+/// edge meeting one in a curved face, and a closed edge on a carrier the
+/// joiner does not copy whole (`crate::chord_join::copies_closed_edge`).
+///
+/// A record is read on its section's frame where the pair has one, and
+/// otherwise on the component of its carried section both germs stand
+/// on ([`carried_foot`]), whose `winds` [`closes_at_its_site`] reads.
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -964,8 +968,9 @@ fn germ_site<T: Decide>(
 /// closed curve, which the record's two germs then cover alone, while a
 /// section of two loops, the plane×torus pair's, carries the other
 /// loop's records); B germs whose loci are not the A germs'; and two
-/// germs that agree in sense or turn one way round the loop (insertion
-/// mints a null edge's two germs facing apart).
+/// germs that agree in sense or turn one way round the loop, read about
+/// the frame's axis or along the carried component (insertion mints a
+/// null edge's two germs facing apart), or stand on two components.
 fn one_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
@@ -975,14 +980,36 @@ fn one_site_segments<T: Decide>(
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        // A pair the join reads from the section table closes at no one
-        // site this join builds: every closing [`closes_at_its_site`]
-        // admits has a planar partner or a closed edge. Its record is
-        // left to the refusal.
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
-        if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
+        let g1 = rec.a[1].0;
+        // A record on a carried section is read on its component: both
+        // germs stand on the one component and leave it opposite ways,
+        // and the component says whether it winds round each surface.
+        let winds = match frame {
+            Some(_) => None,
+            None => {
+                let section = germ_section(red, &g0)?.ok_or_else(unheld_section)?;
+                let p = germ_site(red, &g0)?;
+                let foot = |g: &HalfGerm<T>| {
+                    carried_foot((&red.sections, &red.a, &red.b), section, (g, p), band)
+                };
+                let ((f0, up0), (f1, up1)) = (foot(&g0)?, foot(&g1)?);
+                if f0.component != f1.component {
+                    return Err(desync(
+                        "a one-site record's two germs stand on two components of its section",
+                    ));
+                }
+                if up0 == up1 {
+                    return Err(desync(
+                        "a one-site record's two germs turn one way round its loop",
+                    ));
+                }
+                Some(section.components()[f0.component].winds)
+            }
+        };
+        if !closes_at_its_site(red, &g0, rec.b[0].0.he, winds, band)? {
             continue;
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
@@ -994,7 +1021,6 @@ fn one_site_segments<T: Decide>(
                 }
             }
         }
-        let g1 = rec.a[1].0;
         if rec
             .b
             .iter()
@@ -1048,14 +1074,23 @@ fn one_site_segments<T: Decide>(
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
 /// [`crate::chord_join::loop_holds_outer`].
 ///
+/// A pierced face holds the loop as a disc of its own: a loop that winds
+/// round the face's surface meets the face's seam, since an at-rest face
+/// is one disc of its chart, and reaches no pierce cell. On a carried
+/// section the loop's component says whether it winds (`winds`, A's
+/// surface then B's); a loop read by a frame lies in a plane or a sphere
+/// face, or is a closed edge on one, and every closed loop on those is
+/// null, so no frame record winds.
+///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where the loop winds round the surface of
-/// the face it pierces ([`pierce_is_null`]).
+/// [`BooleanError::JoinDesync`] where a carried loop pierces a face whose
+/// surface it winds round.
 fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
+    winds: Option<[bool; 2]>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let reads = |body: &Body<T>, f: FaceKey| {
@@ -1068,9 +1103,13 @@ fn closes_at_its_site<T: Decide>(
         site_cell(&red.a, g0.a_locus, g0.he)?,
         site_cell(&red.b, g0.b_locus, b_he)?,
     );
-    match cells {
-        (_, SiteCell::Pierce(_)) => pierce_is_null(red, g0, Operand::B)?,
-        (SiteCell::Pierce(_), _) => pierce_is_null(red, g0, Operand::A)?,
+    match (cells, winds) {
+        ((_, SiteCell::Pierce(_)), Some([_, true])) | ((SiteCell::Pierce(_), _), Some([true, _])) => {
+            return Err(BooleanError::JoinDesync {
+                what: "a one-site loop pierces a face whose surface it winds round: an at-rest \
+                       face is one disc of its chart, so a winding loop meets the face's seam",
+            });
+        }
         _ => {}
     }
     Ok(match cells {
@@ -1088,46 +1127,6 @@ fn closes_at_its_site<T: Decide>(
         }
         _ => false,
     })
-}
-
-/// **A one-site loop piercing `pierced`'s face is null there**: a loop
-/// that winds round the face's surface does not bound a disc in it, and
-/// an at-rest face is one disc of its chart, so a winding loop meets the
-/// face's seam and reaches no pierce cell. Read off the germ pair's
-/// listed section: where every loop it counts winds round the pierced
-/// surface (`SectionComponent::winds`), whichever loop this is winds,
-/// and the pierce is a kernel fault. A section that lists no count, or
-/// counts a loop that does not wind, says nothing here.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where the loop winds.
-fn pierce_is_null<T: Decide>(
-    red: &BooleanReduction<T>,
-    g0: &HalfGerm<T>,
-    pierced: Operand,
-) -> Result<(), BooleanError> {
-    let Some(Ok(section)) = red
-        .sections
-        .listed((&red.a, g0.a_face), (&red.b, g0.b_face))
-    else {
-        return Ok(());
-    };
-    let geom_brep::Components::Counted(components) = section.components() else {
-        return Ok(());
-    };
-    let side = usize::from(pierced == Operand::B);
-    let mut loops = components
-        .iter()
-        .filter(|c| c.shape == geom_brep::ComponentShape::Loop)
-        .peekable();
-    if loops.peek().is_some() && loops.all(|c| c.winds[side]) {
-        return Err(BooleanError::JoinDesync {
-            what: "a one-site loop pierces a face whose surface it winds round: an at-rest face \
-                   is one disc of its chart, so a winding loop meets the face's seam",
-        });
-    }
-    Ok(())
 }
 
 /// **Whether closed edge `e` of operand `x` stands on planar face `f` of
@@ -4460,41 +4459,24 @@ enum Faced<T: geom_core::Real> {
     Along(Along<T>),
 }
 
-/// **Whether two germs face each other along their section's
-/// component** ([`super::section_table`]), each a germ and its site:
-/// each site's foot on the component it lies on
-/// ([`geom_brep::CarriedSection::site`]; a germ at a node stands at the
-/// end of the arc its branch names, leaving along it), read here at the germ's
-/// half-edge's start, which must name the component its germ's branch
-/// was minted from (at the mint's own reading of the site,
-/// [`germ_branch`]); and the direction each germ leaves along
-/// its component, decided on the germ's direction against the carrier's
-/// tangent there (`bool_join_foot_heading`, the cosine levered by the
-/// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
-/// germ's foot and heading are its own, read once for the operation
-/// ([`super::section_table::SectionTable::germ_foot`]); both germs are
-/// A's halves, the B halves at their slots being mirror checks
-/// ([`partners`]). Two germs whose branches name different
-/// components (each its site's foot's, [`germ_branch`]), or leaving the
-/// same way, never face. A closed component is travelled round; on an
-/// open one the partner's foot must lie ahead. `Along` carries the
-/// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
+/// **Where `germ`, at its site `p`, stands on its carried section and
+/// which way it leaves along it** ([`along_facing`]'s reading of one
+/// germ): its foot on the component its branch names, and whether it
+/// heads along the carrier's tangent there (`bool_join_foot_heading`),
+/// read once for the operation
+/// ([`super::section_table::SectionTable::germ_foot`]).
 ///
 /// # Errors
 ///
 /// A site's escalation or desync; a germ with no heading along its
 /// component, a desync.
-fn along_facing<T: Decide>(
+fn carried_foot<T: Decide>(
     (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
     section: &geom_brep::CarriedSection<T>,
-    (g1, p1): (&HalfGerm<T>, Point3<T>),
-    (g2, p2): (&HalfGerm<T>, Point3<T>),
+    (germ, p): (&HalfGerm<T>, Point3<T>),
     band: Band,
-) -> Result<Faced<T>, BooleanError> {
+) -> Result<(geom_brep::SiteFoot<T>, bool), BooleanError> {
     use super::section_table::{FootRefusal, GermFoot};
-    if g1.branch != g2.branch {
-        return Ok(Faced::Apart);
-    }
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = match section.site(p, band).map_err(FootRefusal::Site)? {
@@ -4541,7 +4523,7 @@ fn along_facing<T: Decide>(
             Err(diag) => Err(FootRefusal::Heading(diag)),
         }
     };
-    let foot = |germ: &HalfGerm<T>, p| {
+    let foot = |germ: &HalfGerm<T>, p: Point3<T>| {
         table
             .germ_foot(
                 (Operand::A, germ.he),
@@ -4556,6 +4538,45 @@ fn along_facing<T: Decide>(
                 FootRefusal::Desync(what) => desync(what),
             })
     };
+    foot(germ, p)
+}
+
+/// **Whether two germs face each other along their section's
+/// component** ([`super::section_table`]), each a germ and its site:
+/// each site's foot on the component it lies on
+/// ([`geom_brep::CarriedSection::site`]; a germ at a node stands at the
+/// end of the arc its branch names, leaving along it), read here at the germ's
+/// half-edge's start, which must name the component its germ's branch
+/// was minted from (at the mint's own reading of the site,
+/// [`germ_branch`]); and the direction each germ leaves along
+/// its component, decided on the germ's direction against the carrier's
+/// tangent there (`bool_join_foot_heading`, the cosine levered by the
+/// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
+/// germ's foot and heading are its own, read once for the operation
+/// ([`super::section_table::SectionTable::germ_foot`]); both germs are
+/// A's halves, the B halves at their slots being mirror checks
+/// ([`partners`]). Two germs whose branches name different
+/// components (each its site's foot's, [`germ_branch`]), or leaving the
+/// same way, never face. A closed component is travelled round; on an
+/// open one the partner's foot must lie ahead. `Along` carries the
+/// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
+///
+/// # Errors
+///
+/// A site's escalation or desync; a germ with no heading along its
+/// component, a desync.
+fn along_facing<T: Decide>(
+    (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
+    section: &geom_brep::CarriedSection<T>,
+    (g1, p1): (&HalfGerm<T>, Point3<T>),
+    (g2, p2): (&HalfGerm<T>, Point3<T>),
+    band: Band,
+) -> Result<Faced<T>, BooleanError> {
+    if g1.branch != g2.branch {
+        return Ok(Faced::Apart);
+    }
+    let desync = |what| BooleanError::JoinDesync { what };
+    let foot = |germ: &HalfGerm<T>, p| carried_foot((table, a, b), section, (germ, p), band);
     let ((f1, up1), (f2, up2)) = (foot(g1, p1)?, foot(g2, p2)?);
     if up1 == up2 {
         return Ok(Faced::Apart);
