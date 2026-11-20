@@ -4930,9 +4930,8 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
-    fn holds_the_certified_clearance_lane<
-        T: super::Decide + geom_core::CertifiedBounds + geom_core::Certifies,
-    >() -> Result<(), &'static str> {
+    fn holds_the_certified_clearance_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.windows,
