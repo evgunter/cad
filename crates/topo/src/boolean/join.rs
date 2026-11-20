@@ -7419,7 +7419,7 @@ mod frame_dispatch_tests {
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
-                    let (semi_u, semi_v) = conic_k.semi_axes();
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:
                     // an exact round trip iff the point is ON the

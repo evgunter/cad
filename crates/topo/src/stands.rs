@@ -554,7 +554,7 @@ fn line_meetings<T: Decide>(
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             conic(center, axis, u_ref, semi_u, semi_v)
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {

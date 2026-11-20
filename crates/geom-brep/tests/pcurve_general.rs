@@ -388,7 +388,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             else {
                 unreachable!()
             };
-            let (semi_u, semi_v) = conic_k.semi_axes();
+            let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),
                 semi_u,

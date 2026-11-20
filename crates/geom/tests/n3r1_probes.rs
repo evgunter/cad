@@ -332,7 +332,7 @@ mod interval_support {
                                         ..
                                     },
                                 ) => {
-                                    let (semi_u, semi_v) = conic_k.semi_axes();
+                                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                                     ellipse(
                                         Point3::new(
                                             pick(center.x, kc),

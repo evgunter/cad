@@ -196,7 +196,7 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     else {
         panic!("carrier is an ellipse");
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert!((semi_u - 2.0 / phi.cos()).abs() < 1e-12);
     assert_eq!(semi_v, 2.0);
     // The carrier's plane is the cutting plane; the center is on the
@@ -329,7 +329,7 @@ fn plane_cylinder_axis_angle_trios() {
     let PlaneCylinderSection::TiltedEllipse(Curve3::Ellipse(conic_k)) = got else {
         panic!("the tilted ellipse, got {got:?}");
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let want = 2.0 / (1.0 - s * s).sqrt() - 2.0;
     assert!(
         (semi_u - semi_v - want).abs() < 1e-15,
@@ -409,7 +409,7 @@ fn equal_cylinders_split_into_two_ellipses() {
         else {
             panic!("carrier is an ellipse");
         };
-        let (_, semi_v) = conic_k.semi_axes();
+        let (_, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
         assert_eq!(semi_v, 1.5);
     }
@@ -692,7 +692,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         else {
             panic!("phi {phi}: the carrier is an ellipse");
         };
-        let (semi_u, semi_v) = conic_k.semi_axes();
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         let n = Vec3::new(phi.sin(), 0.0, phi.cos());
         let v_ref = axis.cross(u_ref);
         // Every generator's crossing lies on the carrier.
@@ -733,7 +733,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         let PlaneConeSection::TiltedEllipse(Curve3::Ellipse(conic_k)) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
-        let (semi_u, semi_v) = conic_k.semi_axes();
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         for axis in [semi_u, semi_v] {
             let rel = (axis / rim - 1.0).abs();
             assert!(rel > 0.0 && rel < 2.0 * phi * phi, "phi {phi}: {rel:e}");

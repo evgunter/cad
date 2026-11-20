@@ -105,7 +105,7 @@ fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (axis, u_ref, semi_u, semi_v)
         }
         _ => unreachable!(),

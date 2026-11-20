@@ -521,7 +521,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                             ..
                         },
                     ) => {
-                        let (semi_u, semi_v) = conic_k.semi_axes();
+                        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                         ellipses += 1;
                         assert_eq!(semi_v, R, "{what}: minor = r");
                         assert!(
@@ -583,7 +583,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert_eq!(semi_v, R, "the minor semi-axis is the radius");
     assert!((semi_u - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
@@ -613,7 +613,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     else {
         panic!("the sliver band picks the ellipse, got {sliver:?}");
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert!(
         semi_u - semi_v < band.zero(),
         "the axes {semi_u}, {semi_v} are within the zero band"

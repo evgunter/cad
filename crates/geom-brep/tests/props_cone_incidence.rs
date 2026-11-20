@@ -195,7 +195,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(p(center), v(axis), v(u_ref)),
                 T::from_f64(semi_u),
@@ -401,7 +401,7 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     else {
         unreachable!()
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let stretched = |k: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(center, axis, u_ref),
@@ -584,7 +584,7 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let Curve3::Ellipse(conic_k) = e else {
             unreachable!()
         };
-        let (semi_u, semi_v) = conic_k.semi_axes();
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         assert!(
             (semi_u / semi_v - squash).abs() < 0.01 * squash,
             "{c:?}: the section is {semi_u} by {semi_v}"

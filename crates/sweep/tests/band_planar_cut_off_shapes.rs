@@ -45,7 +45,7 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                     ..
                 },
             ) => {
-                let (semi_u, semi_v) = ellipse.semi_axes();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 ellipses += 1;
                 assert!(
                     (semi_v - D).abs() < 1e-15,

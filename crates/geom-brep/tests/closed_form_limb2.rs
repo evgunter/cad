@@ -317,7 +317,7 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     else {
         unreachable!("built as an ellipse")
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let moved = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, axis, u_ref),
         semi_u + 1e-4,

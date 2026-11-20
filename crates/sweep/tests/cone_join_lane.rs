@@ -406,7 +406,7 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
     else {
         panic!("an ellipse")
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     *center + *u_ref * (semi_u * t.cos()) + axis.cross(*u_ref) * (semi_v * t.sin())
 }
 
@@ -425,7 +425,7 @@ fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
     else {
         panic!("an ellipse")
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let w = p - *center;
     (w.dot(axis.cross(*u_ref)) / semi_v).atan2(w.dot(*u_ref) / semi_u)
 }

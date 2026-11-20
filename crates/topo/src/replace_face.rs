@@ -2571,7 +2571,7 @@ fn cone_v_range<T: Decide>(
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(*u_ref);
             let amp = ((u_ref.dot(axis) * semi_u).powi(2) + (v_ref.dot(axis) * semi_v).powi(2))
                 .sqrt()

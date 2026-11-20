@@ -412,7 +412,7 @@ impl<'a> Writer<'a> {
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
             Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) => {
-                let (semi_u, semi_v) = conic_k.semi_axes();
+                let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(

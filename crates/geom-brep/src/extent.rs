@@ -1285,7 +1285,7 @@ mod tests {
                         (radius, radius)
                     }
                     Curve3::Ellipse(ellipse) => {
-                        let (semi_u, semi_v) = ellipse.semi_axes();
+                        let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                         (semi_u, semi_v)
                     }
                     _ => unreachable!(),

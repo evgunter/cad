@@ -47,7 +47,7 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (*center, *u_ref, axis.cross(*u_ref), semi_u, semi_v)
         }
         _ => panic!("conic only"),

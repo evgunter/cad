@@ -3410,7 +3410,7 @@ pub(crate) mod tests {
                     ..
                 },
             ) => {
-                let (semi_u, semi_v) = ellipse.semi_axes();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 (*center, *u_ref * semi_u, axis.cross(*u_ref) * semi_v)
             }
             other => panic!("a conic sector's rim is a conic, got {other:?}"),

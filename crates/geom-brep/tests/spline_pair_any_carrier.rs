@@ -101,7 +101,7 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
         }
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),

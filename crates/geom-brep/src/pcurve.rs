@@ -145,7 +145,7 @@ pub fn ellipse_pcurve_on_plane(
             expected: "an Ellipse carrier into a Plane chart",
         });
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let &Surface::Plane {
         origin: q,
         normal: n,

@@ -266,8 +266,9 @@ impl<T: SpanLocate> Curve3<T> {
                 frame(&c.frame, &k.frame) && same(c.radius(), k.radius())
             }
             (Self::Ellipse(e), Self::Ellipse(k)) => {
-                let ((semi_u, semi_v), (su, sv)) = (e.semi_axes(), k.semi_axes());
-                frame(&e.frame, &k.frame) && same(semi_u, su) && same(semi_v, sv)
+                frame(&e.frame, &k.frame)
+                    && same(e.semi_u(), k.semi_u())
+                    && same(e.semi_v(), k.semi_v())
             }
             (
                 Self::Spiric {
@@ -1169,8 +1170,8 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse(e) => AnalyticData::new([
                 (D::Center, Point(e.frame.origin)),
                 (D::Axis, Direction(e.frame.axis)),
-                (D::SemiU, Scalar(e.semi_axes().0)),
-                (D::SemiV, Scalar(e.semi_axes().1)),
+                (D::SemiU, Scalar(e.semi_u())),
+                (D::SemiV, Scalar(e.semi_v())),
                 (D::URef, Direction(e.frame.u_ref)),
             ]),
             Curve3::Spiric {
@@ -1237,8 +1238,8 @@ impl<T: Real> Curve3<T> {
                 .chain(frame(c.frame.axis, c.frame.u_ref, c.radius()))
                 .collect(),
             Curve3::Ellipse(e) => [
-                lower(CurveDatum::SemiU, e.semi_axes().0),
-                lower(CurveDatum::SemiV, e.semi_axes().1),
+                lower(CurveDatum::SemiU, e.semi_u()),
+                lower(CurveDatum::SemiV, e.semi_v()),
             ]
             .into_iter()
             .chain(frame(e.frame.axis, e.frame.u_ref, e.speed_hi()))
@@ -2527,7 +2528,7 @@ mod tests {
                 frame: Frame { u_ref, .. },
                 ..
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
-            let (u, v) = ellipse.semi_axes();
+            let (u, v) = (ellipse.semi_u(), ellipse.semi_v());
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
                 (0.0, semi_u, 7.0),
@@ -2665,7 +2666,7 @@ mod tests {
             }) = e else {
                 panic!("fixture is an ellipse");
             };
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
             let p = e.eval(theta);
             let d = p - center;
@@ -2687,7 +2688,7 @@ mod tests {
             }) = e else {
                 panic!("fixture is an ellipse");
             };
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let p = e.eval(theta);
             let d1 = e.deriv(theta);
             let d2 = e.deriv2(theta);
@@ -3196,7 +3197,7 @@ mod tests {
             else {
                 panic!("fixture is an ellipse");
             };
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
                 let p = ei.eval(Interval::from_f64(theta));

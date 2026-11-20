@@ -309,7 +309,7 @@ fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64>
     else {
         panic!("oracle needs an ellipse");
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let v_ref = axis.cross(u_ref);
     let at = |theta: f64| -> Point3<f64> {
         let (s, c) = theta.sin_cos();

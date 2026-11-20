@@ -302,7 +302,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, (semi_u, semi_v), u_ref)
         }
         _ => panic!("the exact oracle reads circles and ellipses"),

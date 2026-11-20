@@ -211,7 +211,7 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, u_ref, semi_u, semi_v)
         }
         _ => unreachable!("the sweep draws circles and ellipses"),

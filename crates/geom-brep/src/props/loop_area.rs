@@ -86,7 +86,7 @@ pub fn loop_vector_area<T: SpanLocate>(
                     ..
                 },
             ) => {
-                let (semi_u, semi_v) = ellipse.semi_axes();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
             }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,

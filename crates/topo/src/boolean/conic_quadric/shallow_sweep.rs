@@ -159,7 +159,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             geom::Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
                 at(semi_u),

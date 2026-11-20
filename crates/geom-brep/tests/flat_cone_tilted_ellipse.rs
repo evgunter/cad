@@ -100,7 +100,7 @@ impl Pose {
         else {
             return None;
         };
-        let (semi_u, semi_v) = conic_k.semi_axes();
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         let Surface::Plane { origin, normal, .. } = plane else {
             unreachable!()
         };

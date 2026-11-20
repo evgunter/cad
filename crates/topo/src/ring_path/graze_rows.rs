@@ -392,7 +392,7 @@ fn split_ellipse(
     else {
         panic!("a tilted section is an ellipse")
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
@@ -434,7 +434,7 @@ fn segment_section(
     let geom::Curve3::Ellipse(ellipse) = c else {
         unreachable!()
     };
-    let (semi_u, _) = ellipse.semi_axes();
+    let (semi_u, _) = (ellipse.semi_u(), ellipse.semi_v());
     if !resolvable(
         band.zero(),
         off + (c.eval(0.0) - apex).norm() + 2.0 * semi_u,

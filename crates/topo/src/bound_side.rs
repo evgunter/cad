@@ -377,7 +377,7 @@ impl<T: Decide> ConicArc<T> {
             ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius().abs()),
             ArcConic::Ellipse(ellipse) => (
                 geom::Curve3::Ellipse(ellipse),
-                ellipse.semi_axes().0.abs().max(ellipse.semi_axes().1.abs()),
+                ellipse.semi_u().abs().max(ellipse.semi_v().abs()),
             ),
         };
         let span = self.to - self.from;

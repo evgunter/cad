@@ -2838,7 +2838,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
         }
         _ => return None,
@@ -3858,8 +3858,8 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame, &b.frame)
                 && one_line(a.frame.u_ref, b.frame.u_ref)
-                && one_value(a.semi_axes().0, b.semi_axes().0, false)
-                && one_value(a.semi_axes().1, b.semi_axes().1, false)
+                && one_value(a.semi_u(), b.semi_u(), false)
+                && one_value(a.semi_v(), b.semi_v(), false)
         }
         _ => false,
     }

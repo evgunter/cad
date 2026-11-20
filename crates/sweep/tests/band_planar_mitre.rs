@@ -182,7 +182,7 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
                         .expect("a certified mitre");
                     match *c.carrier() {
                         geom::Curve3::Ellipse(ellipse) => {
-                            let (semi_u, semi_v) = ellipse.semi_axes();
+                            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                             assert!((semi_v - D).abs() < 1e-12, "the minor semi-axis is r");
                             semi_u
                         }

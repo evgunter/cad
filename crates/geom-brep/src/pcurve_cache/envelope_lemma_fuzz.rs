@@ -601,7 +601,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             Curve3::Ellipse(geom::Ellipse::new(

@@ -77,7 +77,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     else {
         unreachable!()
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, -axis, u_ref),
         semi_u,
@@ -103,7 +103,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     else {
         unreachable!()
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (u_ref, semi_u, semi_v) = match k % 4 {
         0 => (u_ref, semi_u, semi_v),
         1 => (axis.cross(u_ref), semi_v, semi_u),
@@ -377,7 +377,7 @@ fn read_off_the_sum(
     else {
         unreachable!()
     };
-    let semi_u = ellipse.semi_axes().0;
+    let semi_u = ellipse.semi_u();
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
     let start = (radial(w) + radial(e_u * semi_u)) * w.dot(axis).signum();
@@ -842,7 +842,7 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     else {
         unreachable!()
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
         semi_u,

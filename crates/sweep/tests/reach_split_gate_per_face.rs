@@ -390,7 +390,7 @@ impl Rim {
         else {
             unreachable!("the rim is a half-ellipse");
         };
-        let (semi_u, semi_v) = conic_k.semi_axes();
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         let spline = conic_arc_segments(
             *center,
             (*u_ref, axis.cross(*u_ref)),

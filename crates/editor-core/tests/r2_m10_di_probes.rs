@@ -119,7 +119,7 @@ impl Fnv {
                     ..
                 },
             ) => {
-                let (semi_u, semi_v) = ellipse.semi_axes();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 self.u64(42);
                 self.p3(center);
                 self.v3(axis);

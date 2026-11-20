@@ -11515,7 +11515,7 @@ fn derive_class_zero<T: Decide>(
                         ..
                     },
                 ) => {
-                    let (semi_u, semi_v) = conic_k.semi_axes();
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
                     // the derivation). The slant is the axial height

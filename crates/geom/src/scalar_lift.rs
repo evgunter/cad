@@ -171,7 +171,7 @@ impl<T: Real> Curve3<T> {
                 Curve3::Circle(crate::Circle::new(c.frame.map_scalar(&f), f(c.radius())))
             }
             Curve3::Ellipse(e) => {
-                let (a, b) = e.semi_axes();
+                let (a, b) = (e.semi_u(), e.semi_v());
                 Curve3::Ellipse(crate::Ellipse::new(e.frame.map_scalar(&f), f(a), f(b)))
             }
             Curve3::Spiric {

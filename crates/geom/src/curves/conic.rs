@@ -487,6 +487,18 @@ impl<T: Real> Ellipse<T> {
         (self.semi_u, self.semi_v)
     }
 
+    /// The semi-axis along `u_ref`.
+    #[must_use]
+    pub fn semi_u(&self) -> T {
+        self.semi_u
+    }
+
+    /// The semi-axis along `axis × u_ref`.
+    #[must_use]
+    pub fn semi_v(&self) -> T {
+        self.semi_v
+    }
+
     /// The same ellipse placed by `frame`: the semi-axes kept, so
     /// already stored ones.
     #[must_use]

@@ -1065,7 +1065,7 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
-                    let (semi_u, semi_v) = ellipse.semi_axes();
+                    let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
                         Ok(Ok(CircleRoots::Certified(found))) => {
                             ("certified", found.roots().to_vec())

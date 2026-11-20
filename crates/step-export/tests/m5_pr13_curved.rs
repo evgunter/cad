@@ -847,7 +847,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                         ..
                     },
                 ) => {
-                    let (semi_u, semi_v) = conic_k.semi_axes();
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();

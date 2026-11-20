@@ -214,7 +214,7 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let EndSection::Ellipse(geom::Curve3::Ellipse(conic_k)) = oblique else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
-    let (semi_u, _) = conic_k.semi_axes();
+    let (semi_u, _) = (conic_k.semi_u(), conic_k.semi_v());
     let expected = 0.1 / phi.cos();
     assert!(
         semi_u.lo() <= expected && expected <= semi_u.hi() && semi_u.hi() - semi_u.lo() < 1e-15,

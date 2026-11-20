@@ -736,8 +736,8 @@ impl Mirror {
             Curve3::Ellipse(e) => Curve3::ellipse(
                 self.point(e.frame.origin),
                 -self.vector(e.frame.axis),
-                e.semi_axes().0,
-                e.semi_axes().1,
+                e.semi_u(),
+                e.semi_v(),
                 self.vector(e.frame.u_ref),
                 band(),
             )

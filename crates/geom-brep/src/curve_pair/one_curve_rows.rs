@@ -63,7 +63,7 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
         else {
             unreachable!("two ellipses")
         };
-        n1.cross(n2).norm() * f.semi_axes().0
+        n1.cross(n2).norm() * f.semi_u()
     };
     for k in [0.1, 0.5, 0.9] {
         let d = k * z * (k * z / tilt_reach(k * z));
@@ -187,8 +187,8 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                                 u_ref: f.frame.v_ref(),
                                 ..f.frame
                             },
-                            f.semi_axes().1,
-                            f.semi_axes().0,
+                            f.semi_v(),
+                            f.semi_u(),
                         ),
                         f.with_frame(geom::Frame {
                             axis: -f.frame.axis,

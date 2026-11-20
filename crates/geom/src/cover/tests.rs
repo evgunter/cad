@@ -2206,8 +2206,8 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         .1;
         let whole = Cover::piece(super::Piece::Arc(super::Arc {
             frame: ellipse.frame,
-            semi_u: ellipse.semi_axes().0,
-            semi_v: ellipse.semi_axes().1,
+            semi_u: ellipse.semi_u(),
+            semi_v: ellipse.semi_v(),
             window: ParamWindow::new(0.0, TAU),
         }))
         .distance_range(&site)

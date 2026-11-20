@@ -187,7 +187,7 @@ fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -
     else {
         unreachable!()
     };
-    let (semi_u, semi_v) = conic_k.semi_axes();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let v = axis.cross(u_ref);
     let c = coord(center);
     let zero = coord(Point3::new(0.0, 0.0, 0.0));
@@ -306,7 +306,7 @@ fn read(
         ),
     ) = (&image, quadric, e)
     {
-        let semi_u = ellipse.semi_axes().0;
+        let semi_u = ellipse.semi_u();
         let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
         let start = ra * (center - apex).dot(axis).signum();
         let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
@@ -431,7 +431,7 @@ fn cone_family(no_split: bool) {
                         let Curve3::Ellipse(conic_k) = e else {
                             unreachable!()
                         };
-                        let (semi_u, semi_v) = conic_k.semi_axes();
+                        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                         let arcs = arcs(&e, |p| (p - o_frame).dot(y_frame), 0.0, h);
                         let r = read(&e, &arcs, &cone, |p| {
                             cone_miss(p, apex, axis, alpha).max(plane_miss(p, q, n))
@@ -508,7 +508,7 @@ fn cyl_family(no_split: bool) {
                     let Curve3::Ellipse(ellipse) = e else {
                         unreachable!()
                     };
-                    let (semi_u, semi_v) = ellipse.semi_axes();
+                    let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let arcs = arcs(&e, |p| (p - o).dot(axis), 0.0, scale);
                     let r = read(&e, &arcs, &cyl, |p| {
                         cyl_miss(p, o, axis, scale).max(plane_miss(p, q, n))

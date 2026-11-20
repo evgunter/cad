@@ -112,7 +112,7 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
                 ..
             },
         ) => {
-            let (semi_u, semi_v) = ellipse.semi_axes();
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame {
                     origin: plus_zero_point(center),
