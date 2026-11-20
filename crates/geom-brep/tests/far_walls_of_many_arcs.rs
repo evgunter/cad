@@ -272,12 +272,12 @@ const PINS: &[(&str, &str, Pin)] = &[
     (
         "cylinder patch r 410, 40 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "cylinder patch r 410, 200 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "cylinder patch r 990, 1 arcs",
@@ -298,11 +298,6 @@ const PINS: &[(&str, &str, Pin)] = &[
         "cylinder patch r 990, 200 arcs",
         "interval",
         Pin::Escalates("props_meridian_on_surface", BESIDE),
-    ),
-    (
-        "cylinder band r 990",
-        "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
     ),
     (
         "torus patch major 100, 6 arcs",
@@ -327,7 +322,7 @@ const PINS: &[(&str, &str, Pin)] = &[
     (
         "torus patch major 300, 6 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "torus patch major 300, 40 arcs",
