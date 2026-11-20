@@ -156,8 +156,8 @@
 
 use core::fmt;
 
-use crate::Readable;
 use crate::spline::SpanLocate;
+use crate::told::{self, Dimension, Told};
 use crate::tolerance::{Tol, eps_min};
 
 /// The **default** ambiguity multiplier K = 10, re-exported from the
@@ -534,9 +534,27 @@ impl Band {
     /// it" would ask for an ε no run admits (D4 ¶4). The one home of the
     /// floor rule for a point margin a decision passes on; readers that
     /// predict an ending ask this rather than restating the comparison.
+    ///
+    /// The value is the one the sentence names: the deciding tolerance
+    /// as an offered bound is told ([`Told::at_most`]), on the grid and
+    /// not above it, so every tolerance below the spelling decides the
+    /// margin, and above the least ε a run at this band's K admits, so
+    /// one below the spelling exists.
     #[must_use]
     pub fn offer_deciding(self, margin: f64) -> Option<f64> {
-        above_floor(self.tolerance_deciding(margin), self.escalate / self.zero)
+        self.offer_told(margin)?.spelled()
+    }
+
+    /// [`Band::offer_deciding`]'s tolerance as the sentence tells it:
+    /// an offered bound, which every ending that names it writes.
+    fn offer_told(self, margin: f64) -> Option<Told> {
+        let k = self.escalate / self.zero;
+        let bound = above_floor(self.tolerance_deciding(margin), k)?;
+        Some(Told::at_most_reading(
+            told::Reading::value(bound),
+            Dimension::Length,
+            Some(eps_min(k).next_up()),
+        ))
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
@@ -1699,11 +1717,12 @@ impl SizedPass {
 /// ([`Indeterminate::reading`]) and its ending
 /// ([`MarginDiag::sized_recourse`], [`MarginDiag::sized_recourse_in_file`])
 /// both read it, so the two cannot disagree.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Shows {
     /// A size on a side the decision passes, decided passing by every
-    /// tolerance a run admits below this one.
-    Offer(f64),
+    /// tolerance a run admits below this one: the tolerance to tighten
+    /// below, as the offer rule tells it ([`Band::offer_deciding`]).
+    Offer(Told),
     /// No size: an exact zero, a reading in band reaching no side the
     /// decision passes, or a zero the symbolic tier proved. What a
     /// decision's note on a zero verdict asserts is established here and
@@ -1904,8 +1923,7 @@ impl Shows {
         match self {
             Self::Offer(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
-                 {} m",
-                Readable(v)
+                 {v}"
             ),
             Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
@@ -1979,7 +1997,7 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
-        let eps_shown = Readable(eps_in);
+        let eps_shown = Told::given_reading(told::Reading::value(eps_in), Dimension::Length);
         let recourse = "Recourse: re-export the file more precisely";
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
@@ -1991,7 +2009,7 @@ impl FileCoincidence {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
                         "The certificate's bound on this miss lies within the file's declared \
-                         coincidence distance ε_in = {eps_shown} m. {recourse}; this refusal may \
+                         coincidence distance ε_in = {eps_shown}. {recourse}; this refusal may \
                          indicate a kernel bug worth reporting"
                     ),
                     Some(Within::Partly) | None => otherwise.to_owned(),
@@ -2007,7 +2025,7 @@ impl FileCoincidence {
         };
         let head = format!(
             "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
-             distance ε_in = {eps_shown} m"
+             distance ε_in = {eps_shown}"
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
@@ -2345,7 +2363,7 @@ impl MarginDiag {
             (true, _) if lo <= 0.0 && hi >= 0.0 => Shows::Unresolved,
             (true, true) => Shows::Unresolved,
             (true, false) => band
-                .offer_deciding(lo.abs().min(hi.abs()))
+                .offer_told(lo.abs().min(hi.abs()))
                 .map_or(Shows::Floor, Shows::Offer),
         }
     }
@@ -2470,27 +2488,27 @@ impl MarginDiag {
             ..
         } = words;
         let eps_in = file.eps_in;
-        let eps_shown = Readable(eps_in);
+        let eps_shown = Told::given_reading(told::Reading::value(eps_in), Dimension::Length);
         let (Some((near, _)), Some(within)) = (self.magnitudes(), self.within(eps_in)) else {
             return self.sized_recourse(band, words);
         };
         let untold = match within {
             Within::Wholly => format!(
                 "This {size} is within the file's declared coincidence distance ε_in = \
-                 {eps_shown} m, so the file cannot tell it from zero."
+                 {eps_shown}, so the file cannot tell it from zero."
             ),
             Within::Partly => format!(
                 "This {size} may lie within the file's declared coincidence distance ε_in = \
-                 {eps_shown} m, so the file might not tell it from zero."
+                 {eps_shown}, so the file might not tell it from zero."
             ),
         };
         match self.shows(band, passes) {
             Shows::Offer(below) => format!(
                 "{untold} Recourse: {lever}, or, if this {size} is intended, re-export the file \
-                 with its uncertainty declared below {} m and tighten the tolerance below \
-                 {} m",
-                Readable(near),
-                Readable(below)
+                 with its uncertainty declared below {} and tighten the tolerance below \
+                 {}",
+                Told::at_most_reading(told::Reading::value(near), Dimension::Length, None),
+                below
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
             // Decided at this tolerance already, yet a size the file cannot
@@ -2533,12 +2551,11 @@ impl MarginDiag {
         }
     }
 
-    /// The reading as a sentence carries it: each number as
-    /// [`Readable`] renders it, so a round `2` reads `2` and `5e-10`
-    /// reads `5e-10`, and a zero of either sign reads `0`.
+    /// The reading as a sentence tells a computed length
+    /// ([`Told::computed`]), without the unit word its callers write.
     #[must_use]
     pub fn readable(self) -> impl fmt::Display {
-        fmt::from_fn(move |f| self.render(f, |x, f| readable_number(*x, f)))
+        self.told_number(|m| m, |lo, hi| (lo, hi))
     }
 
     /// [`Self::readable`] of how far the reading lies below zero, for a
@@ -2546,16 +2563,27 @@ impl MarginDiag {
     /// or `[-hi, -lo]` for an enclosure.
     #[must_use]
     pub fn readable_below_zero(self) -> impl fmt::Display {
-        fmt::from_fn(move |f| match self.0 {
-            Reading::Value(m, ..) => readable_number(-m, f),
-            Reading::Enclosure { lo, hi, .. } => {
-                f.write_str("[")?;
-                readable_number(-hi, f)?;
-                f.write_str(", ")?;
-                readable_number(-lo, f)?;
-                f.write_str("]")
-            }
-            Reading::Invalid => self.render(f, |x, f| readable_number(*x, f)),
+        self.told_number(|m| -m, |lo, hi| (-hi, -lo))
+    }
+
+    fn told_number(
+        self,
+        value: fn(f64) -> f64,
+        ends: fn(f64, f64) -> (f64, f64),
+    ) -> impl fmt::Display {
+        fmt::from_fn(move |f| {
+            let reading = match self.0 {
+                Reading::Value(m, ..) => told::Reading::value(value(m)),
+                Reading::Enclosure { lo, hi, .. } => {
+                    let (lo, hi) = ends(lo, hi);
+                    told::Reading::enclosure(lo, hi)
+                }
+                Reading::Invalid => return f.write_str(INVALID_READING),
+            };
+            fmt::Display::fmt(
+                &Told::computed_reading(reading, Dimension::Length).number(),
+                f,
+            )
         })
     }
 
@@ -2575,16 +2603,13 @@ impl MarginDiag {
                 num(&hi, f)?;
                 f.write_str("]")
             }
-            Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
+            Reading::Invalid => f.write_str(INVALID_READING),
         }
     }
 }
 
-/// One number of a reading as [`Readable`] renders it, a zero of
-/// either sign as `0`.
-fn readable_number(x: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    fmt::Display::fmt(&Readable(crate::fold_signed_zero(x)), f)
-}
+/// A poisoned reading, as every rendering of one says it.
+const INVALID_READING: &str = "invalid (NaN or a refused enclosure)";
 
 /// The reading as text: `m`, `[lo, hi]`, or
 /// `invalid (NaN or a refused enclosure)`.
@@ -3623,6 +3648,7 @@ mod allowance_rows;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::Readable;
     use crate::interval::certification::Certification;
     use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
@@ -3827,20 +3853,36 @@ mod tests {
             (Zero, v(5e-9), Shows::NoSize),
             (Zero, e(-2e-9, 3e-9), Shows::Unresolved),
             (Zero, v(5e-8), Shows::Refused),
-            (NonZero, e(2e-9, 5e-9), Shows::Offer(2e-10)),
-            (NonZero, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
+            (
+                NonZero,
+                e(2e-9, 5e-9),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+            ),
+            (
+                NonZero,
+                e(-5e-9, -2e-9),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+            ),
             (NonZero, e(-2e-9, 3e-9), Shows::Unresolved),
             (NonZero, e(0.0, 3e-9), Shows::Unresolved),
             (NonZero, e(0.0, 0.0), Shows::NoSize),
             (NonZero, v(-0.0), Shows::NoSize),
-            (Positive, e(2e-9, 5e-9), Shows::Offer(2e-10)),
+            (
+                Positive,
+                e(2e-9, 5e-9),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+            ),
             (Positive, e(-5e-9, -2e-9), Shows::NoSize),
             (Positive, e(-2e-9, 3e-9), Shows::Unresolved),
             (Positive, e(-1.5e-12, 6e-12), Shows::Unresolved),
             (Positive, e(-5e-10, 0.0), Shows::NoSize),
             (Positive, v(0.0), Shows::NoSize),
             (Positive, v(-5e-10), Shows::NoSize),
-            (Positive, v(5e-10), Shows::Offer(5e-11)),
+            (
+                Positive,
+                v(5e-10),
+                Shows::Offer(Told::at_most(&5e-11, Dimension::Length)),
+            ),
             (Positive, v(1.5e-12), Shows::Floor),
             (Positive, e(1.5e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
@@ -3852,7 +3894,11 @@ mod tests {
             (NonZero, v(-5e-8), Shows::Past),
             (Positive, v(5e-10).as_proven(), Shows::NoSize),
             (NonNegative, v(-5e-10), Shows::NoSize),
-            (Negative, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
+            (
+                Negative,
+                e(-5e-9, -2e-9),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+            ),
             (Negative, e(2e-9, 5e-9), Shows::NoSize),
             (Negative, e(-2e-9, 0.0), Shows::Unresolved),
             (AnySign, v(-1.5e-12), Shows::Floor),
@@ -3951,7 +3997,7 @@ mod tests {
             assert_eq!(words(refused).sign_certain_recourse(), ending);
         }
         for class in [
-            Shows::Offer(0.0),
+            Shows::Offer(Told::at_most(&0.0, Dimension::Length)),
             Shows::NoSize,
             Shows::Floor,
             Shows::Unresolved,
@@ -4162,6 +4208,17 @@ mod tests {
         }
         let offered = band.tolerance_deciding(above);
         assert!(offered > EPS_MIN);
+        // The offer is told below the bound and still above the floor,
+        // so a tolerance a run admits lies below what the sentence says.
+        let typed = band.offer_deciding(above).unwrap();
+        let told = format!("{} m", Readable(typed));
+        assert!(EPS_MIN < typed && typed <= offered, "{told}");
+        let unfloored = Told::at_most(&offered, Dimension::Length).to_string();
+        let on_the_grid: f64 = unfloored.trim_end_matches(" m").parse().unwrap();
+        assert!(
+            on_the_grid <= EPS_MIN,
+            "this bound's grid spelling {unfloored} clears the floor unaided"
+        );
         for margin in [
             MarginDiag::value(above),
             MarginDiag::enclosure(above, 1e-10),
@@ -4170,7 +4227,7 @@ mod tests {
                 margin.sized_recourse(band, words),
                 format!(
                     "Recourse: L, or, if this length is intended, tighten the tolerance below \
-                     {offered:e} m"
+                     {told}"
                 ),
                 "{margin}"
             );
@@ -4338,6 +4395,89 @@ mod tests {
         }
     }
 
+    /// **An offer is the deciding tolerance told on its working side**,
+    /// against `|m|/K` at every band and size: never above it, within
+    /// the four-figure grid of it, above the least ε the band's K
+    /// admits, and a tolerance below it does decide the margin.
+    #[test]
+    fn every_offer_is_at_most_the_deciding_tolerance_and_above_the_floor() {
+        let mut offers = 0;
+        for (zero, k) in [(1e-9, 10.0), (1e-9, 2.0), (1e-7, 10.0), (1e-11, 100.0)] {
+            let band = Band::new(zero, zero * k).unwrap();
+            let k = band.escalate() / band.zero();
+            let mut m = eps_min(k) * k * 0.5;
+            while m < 1.0 {
+                for margin in [m, -m] {
+                    let exact = m / k;
+                    match band.offer_deciding(margin) {
+                        None => assert!(exact <= eps_min(k), "{margin:e} is withheld"),
+                        Some(y) => {
+                            offers += 1;
+                            assert!(eps_min(k) < y && y <= exact, "{margin:e}: {y:e}");
+                            assert!(
+                                exact - y <= exact * 1e-3,
+                                "{margin:e}: {y:e} is off the grid of {exact:e}"
+                            );
+                            assert!(
+                                k * y.next_down() < m,
+                                "{margin:e}: following {y:e} does not decide"
+                            );
+                        }
+                    }
+                }
+                m *= 1.37;
+            }
+        }
+        assert!(offers > 300, "the sweep reached {offers} offers");
+    }
+
+    /// **Each number a sized ending names is told in its role**, on
+    /// fixtures no rounding leaves alone: the margin's reading as a
+    /// computed length, the uncertainty to declare and the tolerance to
+    /// tighten below as bounds rounded down.
+    #[test]
+    fn a_sized_endings_numbers_are_told_in_their_roles() {
+        let band = band_1e9();
+        let margin = MarginDiag::value(5.000_49e-9);
+        assert_eq!(margin.readable().to_string(), "5e-9");
+        assert_eq!(
+            MarginDiag::value(3.725_290_298_461_914e-9)
+                .readable()
+                .to_string(),
+            "3.725e-9"
+        );
+        assert_eq!(
+            MarginDiag::enclosure(-2.000_04e-9, -1.000_04e-9)
+                .readable_below_zero()
+                .to_string(),
+            "[1e-9, 2.001e-9]"
+        );
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            no_size: Some("n"),
+            unreadable: "u",
+            refused: RefusedReading::AsShown,
+        };
+        assert_eq!(
+            MarginDiag::value(5.999_95e-9).sized_recourse(band, words),
+            "Recourse: L, or, if this length is intended, tighten the tolerance below \
+             5.999e-10 m"
+        );
+        assert_eq!(
+            MarginDiag::value(5.999_95e-9).sized_recourse_in_file(
+                band,
+                words,
+                FileCoincidence::new(1.000_000_04e-8)
+            ),
+            "This length is within the file's declared coincidence distance ε_in = \
+             1.00000004e-8 m, so the file cannot tell it from zero. Recourse: L, or, if this \
+             length is intended, re-export the file with its uncertainty declared below \
+             5.999e-9 m and tighten the tolerance below 5.999e-10 m"
+        );
+    }
+
     /// **No offer at the import door keeps a size the file cannot tell
     /// from zero by tightening alone** (D4 ¶1), keyed on the margin's
     /// nearer end and nothing else: past ε_in, the at-rest sentence;
@@ -4374,10 +4514,10 @@ mod tests {
         let offer = |eps_in: f64, near: f64, partly: bool| {
             format!(
                 "{}, or, if this length is intended, re-export the file with its uncertainty \
-                 declared below {} m and tighten the tolerance below {} m",
+                 declared below {} m and tighten the tolerance below {}",
                 head(eps_in, partly),
                 Readable(near),
-                Readable(band.tolerance_deciding(near))
+                band.offer_told(near).unwrap()
             )
         };
         let both = |eps_in: f64, near: f64| offer(eps_in, near, false);

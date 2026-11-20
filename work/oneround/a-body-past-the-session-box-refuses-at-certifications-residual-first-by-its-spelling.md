@@ -2,10 +2,12 @@
 id: a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling
 kind: issue
 title: A body past the session box refuses at certification's residual before the box gate, by the luck of its spelling
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P2
 cost: M
+branch: oneround/box-certify-ask
+parent: the-session-box-reach-misses-a-curved-faces-bulge
 ---
 
 

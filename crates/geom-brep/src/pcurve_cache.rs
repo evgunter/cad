@@ -4284,17 +4284,32 @@ mod limb2_memo {
     }
 
     /// The carrier and the surface rendered whole, each scalar as its
-    /// certified bracket's two ends beside the scalar's witness kind.
+    /// certified bracket's two ends beside the scalar's witness kind. An
+    /// analytic carrier is rendered datum by datum ([`Curve3::data`]),
+    /// never rebuilt at a bracket's end: an end is no stored size (a
+    /// straddling semi-axis's lower end is negative, an uncertified
+    /// one's NaN), and a conic built at one would not be a conic.
     pub(super) fn rendered<T: CertifiedBounds>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
     ) -> String {
         let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+        let carrier = match carrier.data() {
+            geom::CurveData::Analytic(data) => {
+                let ends = |end: &dyn Fn(T) -> f64| {
+                    data.into_iter()
+                        .map(|(datum, value)| {
+                            (datum, value.scalars().map(end).collect::<Vec<f64>>())
+                        })
+                        .collect::<Vec<_>>()
+                };
+                format!("{:?}|{:?}|{:?}", carrier.kind(), ends(&lo), ends(&hi))
+            }
+            _ => format!("{:?}|{:?}", carrier.map_scalar(lo), carrier.map_scalar(hi)),
+        };
         format!(
-            "{:?}|{:?}|{:?}|{:?}|{:?}",
+            "{:?}|{carrier}|{:?}|{:?}",
             T::WITNESS,
-            carrier.map_scalar(lo),
-            carrier.map_scalar(hi),
             surface.map_scalar(lo),
             surface.map_scalar(hi),
         )
@@ -8944,21 +8959,24 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
+    let Curve3::Circle(
+        circle @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = carrier
     else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
         });
     };
+    let radius = circle.radius();
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
@@ -9191,7 +9209,7 @@ fn run_iso_arc_checks<T: Decide>(
     // hull does not see a weight that is not `cos(h/2)`.
     let mut slack_weight = T::zero();
     for &(w, _) in &weights {
-        slack_weight = slack_weight.max(arc_rim_weight_miss(*radius, sin_half, cos_half, w));
+        slack_weight = slack_weight.max(arc_rim_weight_miss(radius, sin_half, cos_half, w));
     }
     #[cfg(test)]
     if mutants::arc_rim_weight_unpaid() {
@@ -9200,7 +9218,7 @@ fn run_iso_arc_checks<T: Decide>(
     for (_, margin) in weights {
         match decide(
             "pcurve_iso_boundary",
-            Margin::metered(margin, InfSpeed::new(*radius)),
+            Margin::metered(margin, InfSpeed::new(radius)),
             band,
         )
         .map_err(&esc)?
@@ -9225,11 +9243,11 @@ fn run_iso_arc_checks<T: Decide>(
     let vref = axis.cross(*u_ref);
     let on = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
-        *center + *u_ref * (*radius * c) + vref * (*radius * s)
+        *center + *u_ref * (radius * c) + vref * (radius * s)
     };
     let tangent = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
-        let r = *radius / cos_half;
+        let r = radius / cos_half;
         *center + *u_ref * (r * c) + vref * (r * s)
     };
     let mut chat: Vec<Point3<T>> = Vec::with_capacity(2 * spans + 1);
@@ -11541,16 +11559,18 @@ fn derive_class_zero<T: Decide>(
                         Derivation::ConeRim { nappe, beta },
                     ))
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: e_axis,
-                            u_ref: seam,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
+                Curve3::Ellipse(
+                    conic_k @ geom::Ellipse {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis: e_axis,
+                                u_ref: seam,
+                            },
+                        ..
+                    },
+                ) => {
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
                     // the derivation). The slant is the axial height
@@ -12698,12 +12718,14 @@ fn torus_oblique_circle<T: Decide>(
     shown: incidence::Incident,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
-        &Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: c, axis: n, ..
+        &Curve3::Circle(
+            circle @ geom::Circle {
+                frame: geom::Frame {
+                    origin: c, axis: n, ..
+                },
+                ..
             },
-            radius,
-        }),
+        ),
         &Surface::Torus {
             center,
             axis,
@@ -12715,6 +12737,7 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
+    let radius = circle.radius();
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
@@ -15157,14 +15180,14 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            })
+            ))
         };
         // Each row names its site by a word only that site's `why`
         // carries, so a row answered by a different site goes red.
@@ -16946,14 +16969,14 @@ mod limb2_memo_rows {
                             u_ref,
                         },
                     ..
-                }) => Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
+                }) => Curve3::Circle(geom::Circle::new(
+                    geom::Frame {
                         origin: center,
                         axis,
                         u_ref,
                     },
                     radius,
-                }),
+                )),
                 _ => unreachable!(),
             };
             format!(
@@ -17141,14 +17164,14 @@ mod limb2_quick_rows {
             else {
                 unreachable!()
             };
-            let c = Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            let c = Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            });
+            ));
             bits(&limb2_offset_sup(
                 &c,
                 (lift(0.2), lift(2.9)),
