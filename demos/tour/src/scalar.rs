@@ -31,7 +31,7 @@ use pncad::geom_core::Probe;
 /// is after. An axis-aligned sketch plane is not decided: it is a
 /// written turn (`RigidMotion::turned`). The tube scenes' [`axis_frame`]
 /// still decides an exact (axis, reference) pair under this name
-/// (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+/// (`work/scalar/exact-axis-and-reference-frames-still-decide.md`).
 /// [`frame_across`] decides under it too: its direction's length, and
 /// whether that direction is off the world −z by more than the band
 /// (the least turn's opposition decision).

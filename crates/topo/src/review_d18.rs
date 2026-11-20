@@ -39,7 +39,7 @@
 //!   kill-anchor rows below do, for their own proofs, and assert nothing
 //!   about row 4); the site tally and the grep it came from are on the
 //!   row that owns the gap,
-//!   `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
+//!   `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
 //!
 //!   **Calling is not reaching, and the row says which it did.** It
 //!   prints an exposure per operator and ASSERTS it, per operator
@@ -1037,7 +1037,7 @@ fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) ->
 ///
 /// **Nor is it the whole class**: `mekr` reaches the arms and this pass
 /// does not drive it (module docs, and
-/// `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
+/// `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
 /// Adding it here without driving it would floor over a category that
 /// can never be nonzero.
 #[cfg(not(debug_assertions))]

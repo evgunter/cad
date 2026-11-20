@@ -594,7 +594,7 @@ mod composed {
     /// against, and nothing is lit.
     ///
     /// The seated tools hold NODES, and no mark draws a held node
-    /// (`work/held/a-seated-tools-held-node-is-drawn-nowhere`).
+    /// (`work/doors/a-seated-tools-held-node-is-drawn-nowhere`).
     ///
     /// A clearance row's witness pair is marked while the row is the
     /// selection or `row_hovered` names it ([`marks::witness`]).

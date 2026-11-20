@@ -51,7 +51,7 @@ Two further clauses `assert_f6` carries and `prose` does not: the
 
 ## Why this is not the row the CENSUS program already has
 
-`work/census/the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`
+`work/bind/the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`
 lists this file as one of seven sites re-spelling the `" { "` needle,
 and that is a true and different fact: its class is
 `pncad-py`'s `reads_as_prose` and its complaint is the missing
