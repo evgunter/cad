@@ -1939,9 +1939,11 @@ no fit or section lane (`ApproxLaneUnsupported`,
 
 **O5 — The validator reads a certificate by its support, per face as
 per edge.** A certificate is a fact about its support, the exact data
-it reads: it is read wherever that support is bit-identical, and
-derived wherever it is not, and a stored certificate whose support
-differs is never read. Where the support has moved, `validate.rs`
+it reads: one the kernel derived in this process is read wherever
+that support is bit-identical, and derived wherever it is not; a
+stored certificate whose support differs is never read, and none is
+read from outside the process (a document persists the recipe, an
+import derives its own). Where the support has moved, `validate.rs`
 re-runs the O3 derivation on an `Approx` face through
 `geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
 parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
