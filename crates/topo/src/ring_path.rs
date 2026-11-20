@@ -508,6 +508,45 @@ impl<T: Decide> Quadric<T> {
     }
 }
 
+impl<T: Decide> Quadric<T> {
+    /// **The turns of a detour** to `to` on a cylinder or a cone,
+    /// steered by `guide`, a point of the surface off the axis: the
+    /// point of `to`'s parallel at `guide`'s azimuth, and the point of
+    /// `to`'s ruling at `guide`'s height. None on any other kind, or
+    /// where `to` is not decided off a cone's apex. Each is a raw pick:
+    /// a path through any point has the parity of every other.
+    fn turns(
+        &self,
+        to: Point3<T>,
+        guide: Point3<T>,
+        band: Band,
+    ) -> Result<Vec<Point3<T>>, Indeterminate> {
+        let line = match *self {
+            Self::Cylinder { axis, .. } => axis,
+            Self::Cone { axis, .. } if self.off_apex(to, band)? => axis,
+            _ => return Ok(Vec::new()),
+        };
+        let (ht, wt) = line.param_and_offset(to);
+        let (hg, wg) = line.param_and_offset(guide);
+        let round = line.origin + line.dir * ht + wg.normalize() * wt.norm();
+        let along = match *self {
+            Self::Cone { .. } => line.origin + (to - line.origin) * (hg / ht),
+            _ => to + line.dir * (hg - ht),
+        };
+        Ok(vec![round, along])
+    }
+}
+
+impl<T: Real> Path<T> {
+    /// This path, then `next` from where this one arrives.
+    fn then(mut self, next: &Self) -> Self {
+        self.pieces.extend(next.pieces.iter().cloned());
+        self.arrival = next.arrival;
+        self.reach = next.reach;
+        self
+    }
+}
+
 /// The arc of the circle centred `centre` about the unit `axis`, of
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
@@ -594,6 +633,7 @@ enum Piece<T: Real> {
 /// travel where it arrives, and, on a spline wall, the arm that
 /// arrival's lean is levered at ([`spline_wall::IsoPiece::reach`]): a
 /// quadric's is its own at the point arrived at ([`Quadric::lever`]).
+#[derive(Clone)]
 pub(crate) struct Path<T: Real> {
     pieces: Vec<Piece<T>>,
     pub(crate) arrival: Vec3<T>,
@@ -627,6 +667,33 @@ impl<T: Decide> Carrier<T> {
             Self::Quadric(quadric) => quadric.paths(ends, band),
             Self::Wall(wall) => wall.paths(ends, band),
         }
+    }
+
+    /// **The detours from `from` to `to` steered by `guide`**: every
+    /// path to a turn of [`Quadric::turns`] followed by every path from
+    /// it to `to`. A ruled path whose pieces run through a loop's
+    /// vertices, as every one does where the ends share their azimuths
+    /// and heights with them, says nothing; a turn at the azimuth or
+    /// the height of a point inside a loop edge, which no vertex that
+    /// edge joins has, leads round them. None on a sphere, a torus or a
+    /// spline wall.
+    pub(crate) fn detours(
+        &self,
+        (from, to): (Point3<T>, Point3<T>),
+        guide: Point3<T>,
+        band: Band,
+    ) -> Result<Vec<Path<T>>, Indeterminate> {
+        let Self::Quadric(quadric) = self else {
+            return Ok(Vec::new());
+        };
+        let mut paths = Vec::new();
+        for turn in quadric.turns(to, guide, band)? {
+            let onward = quadric.paths((turn, to), band)?;
+            for first in quadric.paths((from, turn), band)? {
+                paths.extend(onward.iter().map(|next| first.clone().then(next)));
+            }
+        }
+        Ok(paths)
     }
 
     /// The length the lean of `path`'s arrival at `q` is levered by: the
