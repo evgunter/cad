@@ -2,12 +2,12 @@
 id: a-certificate-is-read-by-its-support
 kind: unit
 title: A certificate is read by its support: a chord's locus certificate is its section component's cut to its span, doors that keep the support carry it, the gate compares (PR 7182's ruling)
-status: parked
+status: open
 opened: 2026-11-20
 priority: P1
 cost: H
-blocked_on: [7182]
 refs: [a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build, an-operation-retakes-each-carried-chords-rung-3-certificate-five-times]
+branch: sect/certificate-by-support
 ---
 
 
