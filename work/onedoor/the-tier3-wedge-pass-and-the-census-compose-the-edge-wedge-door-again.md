@@ -65,7 +65,7 @@ Weighed under the design-fork protocol. The designers converged, and nothing rat
 - the finish reads the knife pairing at one witness, where tier 3 reads every station;
 - `boolean/edge_join.rs` reads a pair at a vertex with a neighbouring edge's tangent.
 
-Also `work/honeword/split-dihedral-readers-drop-the-arm-rung.md` closes with the one escalation type. Spline stations stay deferred (`work/splice/a-smooth-seam-between-spline-walls-has-no-second-order-reading.md`). Check 4's by-kind spline exemption stays a reader's policy.
+Also `work/cleavetail/split-dihedral-readers-drop-the-arm-rung.md` closes with the one escalation type. Spline stations stay deferred (`work/splice/a-smooth-seam-between-spline-walls-has-no-second-order-reading.md`). Check 4's by-kind spline exemption stays a reader's policy.
 
 **Order:**
 1. The tokens, the rung type and the fold in `geom_brep`, with check 4 and `rim_wedge` as its first readers. Dual review.

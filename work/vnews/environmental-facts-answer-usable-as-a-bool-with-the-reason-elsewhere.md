@@ -4,7 +4,7 @@ kind: issue
 title: one environmental fact now says WHY it is unusable and its sibling still answers a bare bool with the reason kept elsewhere
 status: closed
 opened: 2026-09-10
-refs: [hover-route-for-an-absent-chooser-has-no-test, 2293]
+refs: [2293]
 priority: P3
 cost: E
 branch: vnews/the-chooser-says-why-it-is-unusable

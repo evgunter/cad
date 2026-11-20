@@ -44,7 +44,7 @@ const TILTED_ROD_PAD_GUARD: f64 = 7.6e-7;
 /// times the widest volume half-width its ∖, ∩ and ∪ measured at ε
 /// `1e-12` (`1.49e-6`, ∖ and ∩; ∪ `1.26e-7`). Every op stops at the work
 /// wall there, short of the pinned resolution
-/// (`work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// (`work/quad/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
 /// The resolution's ceiling (`1.28e-8` at 1e-12) does not bound a
 /// measurement that stopped short; this does ([`judged_at_resolution`]).
 const TILTED_ROD_WALL_GUARD: f64 = 6.0e-6;

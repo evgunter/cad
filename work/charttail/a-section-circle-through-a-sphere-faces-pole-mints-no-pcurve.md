@@ -5,7 +5,7 @@ title: A Boolean section circle through a sphere face's pole mints no pcurve (No
 status: open
 opened: 2026-11-01
 priority: P1
-cost: M
+cost: H
 ---
 
 Found by `splitdoor/wrap-tip-boolean` while pinning the wrap tip in the

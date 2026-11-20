@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-10
 priority: P3
 cost: M
-refs: [main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex, the-germ-loci-re-read-whether-an-edge-runs-in-a-partner-face-by-midpoint]
+refs: [the-germ-loci-re-read-whether-an-edge-runs-in-a-partner-face-by-midpoint]
 ---
 
 Found by FLUSH's `flush/needle-12eps` lane (2026-11-10) while fixing

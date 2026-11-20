@@ -2,10 +2,11 @@
 id: arc-rim-mint-frontier-on-foreign-charts
 kind: issue
 title: imported-chart arc-rim construction picks uniform breaks that mismatch a foreign wall's own arc spans
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: H
+closed: 2026-11-20
 ---
 
 
@@ -43,3 +44,7 @@ lands; both defect files are TRIM's paths, so the unit is TRIM's to
 cut. Signed: (EXCH orchestrator)
 
 Moved from `work/issues/` to `work/charttail/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Not reachable on main `131457c3`. The importer splits a wall at its interior C⁰ knots before the mint (`step-import` `knot_split::split_c0_knots`, PR 5913), so wall `#382` arrives as one-span patches whose uniform count matches each rim arc. `r1_dm1_probe`'s Pcurves arm is now a tripwire, and `the_l_bracket_alone_adopts_its_reversed_slit` expects `Ok(Solid)`. dm1's remaining refusal (an unrecorded vertex–vertex contact at the aggregate gate) is IMPORTGATE's `dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded`. The `WILD_*` counts this row quotes were re-based since. The latent shape (the break count is still read off the chart, not the rim, now in `geom_brep::edge_nurbs::arc_rim_spans`) is filed as `arc-rim-spans-reads-the-break-count-off-the-chart-not-the-rim`.

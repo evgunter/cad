@@ -2,7 +2,9 @@
 id: a-near-right-angle-cylinder-pair-stops-at-a-first-order-sector-side
 kind: issue
 title: A cylinder pair a hair short of perpendicular stops at CurvedSectorSideUnsupported: the pierce's sector side is decided Zero at 7.5e-17 without the second-order trilean
-status: open
+status: review
+branch: germ/sector-side-order2
+pr: 7174
 opened: 2026-10-31
 priority: P1
 cost: M

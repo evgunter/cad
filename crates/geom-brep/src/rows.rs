@@ -533,14 +533,14 @@ geom_core::row_registry! {
         },
     };
 
-    /// `topo`'s ray × torus quartic rows (`topo::solid_contain`).
-    pub const RAY_TORUS: QuarticRows = QuarticRows {
-        disc: "bool_ray_torus_disc",
-        shape: "bool_ray_torus_shape",
-        depth: "bool_ray_torus_depth",
-        odd: "bool_ray_torus_odd",
-        split: "bool_ray_torus_split",
-        split_lead: "bool_ray_torus_split_lead",
+    /// The line × torus quartic rows (`curve_face::line_quadric`).
+    pub const LINE_TORUS: QuarticRows = QuarticRows {
+        disc: "line_quadric_torus_disc",
+        shape: "line_quadric_torus_shape",
+        depth: "line_quadric_torus_depth",
+        odd: "line_quadric_torus_odd",
+        split: "line_quadric_torus_split",
+        split_lead: "line_quadric_torus_split_lead",
     };
 
     /// The subdivision rows every `topo` section ruling chart walks under
