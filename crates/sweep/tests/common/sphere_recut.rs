@@ -52,7 +52,7 @@ pub fn recut_ball() -> Body<Interval> {
 /// the two rows' escalation arm owns `ε < RECUT_DECIDES_FROM` and their
 /// definite arm the rest. No run reaches the escalation: every ε it
 /// owns lies below `geom_core::tolerance::EPS_MIN`, which a run refuses
-/// (`work/tcost/the-sphere-recut-escalation-is-reached-by-no-gated-eps-row.md`).
+/// (`work/green/the-sphere-recut-escalation-is-reached-by-no-gated-eps-row.md`).
 ///
 /// Below 5e-14 the subtract refuses otherwise (3e-14: the re-cut
 /// rotation fails to re-certify; 2e-14 and under: the ball itself is
