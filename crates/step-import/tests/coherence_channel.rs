@@ -77,7 +77,6 @@ fn own_examined(name: &str) -> (Body<f64>, CoherenceReport) {
 /// One fixture's contribution to the corpus census.
 struct Row {
     findings: usize,
-    non_iso: usize,
     scaffold: usize,
     corrupt: usize,
 }
@@ -85,13 +84,11 @@ struct Row {
 fn census(report: &CoherenceReport) -> Row {
     let mut row = Row {
         findings: report.findings.len(),
-        non_iso: 0,
         scaffold: 0,
         corrupt: 0,
     };
     for u in &report.unexamined {
         match u.why {
-            Unexaminable::NonIsoCarrier { .. } => row.non_iso += 1,
             Unexaminable::NullScaffoldEdge { .. } | Unexaminable::LoneLoop { .. } => {
                 row.scaffold += 1
             }
@@ -141,23 +138,21 @@ fn the_channel_is_off_by_default_and_off_is_not_an_empty_report() {
     );
 }
 
-/// The third state, on a real fixture: examined, and the body put
-/// loops out of the door's reach. `cut_cylinder`'s curved face is
-/// trimmed by an oblique plane, so its outer loop carries an ellipse
-/// — not a chart iso curve, and none of the three conditions is about
-/// it.
-///
-/// This is `unexamined` as DATA: no option, and no configuration of
-/// any kind, makes those two loops examinable.
+/// **A trimmed curved face is examined, and ships quiet.**
+/// `cut_cylinder`'s curved face is trimmed by an oblique plane, so its
+/// outer loop carries an ellipse. The ellipse is no chart iso curve and
+/// is not measured; the rulings and the rim beside it are, as on any
+/// other face. Nothing about the trim is out of the door's reach, so
+/// nothing lands in `unexamined`.
 #[test]
-fn a_trimmed_curved_face_is_unexamined_data_not_a_skipped_check() {
+fn a_trimmed_curved_face_is_examined_and_quiet() {
     let (_, report) = own_examined("cut_cylinder");
     let row = census(&report);
     assert_eq!(
-        (row.findings, row.non_iso, row.scaffold, row.corrupt),
-        (0, 2, 0, 0),
-        "cut_cylinder's two trimmed loops are the door's reach boundary, and \
-         nothing about them is a finding: {report:?}"
+        (row.findings, row.scaffold, row.corrupt),
+        (0, 0, 0),
+        "cut_cylinder states each of its iso coordinates once and its ellipse \
+         bounds the runs beside it: {report:?}"
     );
 }
 
@@ -169,10 +164,12 @@ fn a_trimmed_curved_face_is_unexamined_data_not_a_skipped_check() {
 /// every finding, every unexamined loop, in the door's own order.
 ///
 /// **What this kills**, stated as the mutations rather than as an
-/// adjective: dropping `NonIsoCarrier` entries as "not interesting"
-/// (`cut_cylinder` carries two and nothing else), examining an
-/// intermediate body instead of the one that ships, and examining at
-/// a band other than the import's.
+/// adjective: examining an intermediate body instead of the one that
+/// ships, where the two differ in either list. **No committed fixture
+/// ships an unexamined loop either** (the trimmed `cut_cylinder` is
+/// examined whole), so dropping an `unexamined` entry is no longer
+/// killed through a shipped body, for the reason a finding is not
+/// (`work/importgate/the-coherence-channel-has-no-shipped-finding.md`).
 ///
 /// **What it does NOT kill, measured rather than assumed**: dropping,
 /// rewriting or permuting a FINDING. The one committed fixture that
@@ -278,13 +275,11 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
 /// fixture of the three committed import corpora — own-corpus (17),
 /// FreeCAD (13), wild (9) — examined at the run's ambient ε.
 ///
-/// The claim: **no fixture reports a finding**, and `unexamined` is
-/// non-empty on exactly one, `cut_cylinder`, at two loops. In
-/// particular the FreeCAD corpus's plain analytic charts — cylinder,
-/// truncated cone, apex cone, sphere, torus, each a whole primitive
-/// out of Open CASCADE — report nothing in either list, so
-/// `NonIsoCarrier` is not a thing an ordinary cylinder produces: it is
-/// what a curved face TRIMMED by a conic or spline produces.
+/// The claim: **no fixture reports anything in either list.** The
+/// FreeCAD corpus's plain analytic charts — cylinder, truncated cone,
+/// apex cone, sphere, torus, each a whole primitive out of Open
+/// CASCADE — and `cut_cylinder`, a cylinder TRIMMED by an ellipse,
+/// are all examined and all quiet.
 ///
 /// **What this row cannot say**, inherited from
 /// `mesh8_corpus_coherence`'s own disclosure and narrowed by the
@@ -307,7 +302,7 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
 /// of the bodies it RECEIVES, and that file is where the argument
 /// lives.
 #[test]
-fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face() {
+fn the_import_corpora_are_quiet_in_both_lists() {
     let tol = Tol::witness();
     let mut noisy = Vec::new();
     let mut unexamined = Vec::new();
@@ -328,8 +323,8 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         if row.findings > 0 {
             noisy.push(format!("{label}: {:?}", report.findings));
         }
-        if row.non_iso + row.scaffold + row.corrupt > 0 {
-            unexamined.push((label, row.non_iso + row.scaffold + row.corrupt, row.non_iso));
+        if row.scaffold + row.corrupt > 0 {
+            unexamined.push((label, row.scaffold + row.corrupt));
         }
     };
 
@@ -378,12 +373,11 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         tol.eps(),
         noisy.join("\n")
     );
-    assert_eq!(
-        unexamined,
-        vec![("own/cut_cylinder".to_owned(), 2, 2)],
-        "the set of fixtures with loops out of the door's reach moved. Each entry \
-         is (fixture, unexamined loops, of which NonIsoCarrier); a new one is \
-         either a new trimmed-curved-face fixture or the door's reach changing"
+    assert!(
+        unexamined.is_empty(),
+        "a committed import fixture put loops out of the door's reach, as \
+         (fixture, unexamined loops). Each is scaffolding or a structural \
+         defect shipped at rest, which is a finding about the import: {unexamined:?}"
     );
 }
 

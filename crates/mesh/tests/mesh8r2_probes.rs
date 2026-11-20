@@ -182,6 +182,157 @@ fn r2r_the_examination_on_bodies_outside_the_units_corpus() {
     }
 }
 
+/// **An ellipse-trimmed face's iso edges are examined.** The tilted
+/// half's cylinder face is bounded by [ellipse, ruling, rim, ruling].
+/// A vertex dropped on the rim near one end and a straight CHORD back
+/// to that end cut a sliver off, and the chord now bounds the trimmed
+/// face too: a line, so it reads as a meridian, whose mid-parameter
+/// azimuth sits halfway between its two endpoints' — `chord_wobble`'s
+/// shape on a face whose loop also carries the ellipse. The ellipse
+/// bounds the runs either side of it and is not measured; the chord's
+/// closure gap is reported at both ends, on the trimmed face as on the
+/// sliver, and on the trimmed face the chord also CONTINUES the ruling
+/// it meets, whose column it misstates by the same arc.
+#[test]
+fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
+    let tol = Tol::witness();
+    let want = 1024.0 * tol.eps();
+    let (mut body, _) = tilted_halves();
+    let ellipse_face = |body: &Body<f64>, fk: topo::FaceKey| {
+        let face = body.get_face(fk).unwrap();
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            return false;
+        };
+        body.loop_cycle(first).unwrap().into_iter().any(|h| {
+            let e = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap()
+                    .carrier(),
+                Curve3::Ellipse(..)
+            )
+        })
+    };
+    let (fk, rim) = body
+        .faces()
+        .filter(|(fk, _)| ellipse_face(&body, *fk))
+        .find_map(|(fk, face)| {
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+            else {
+                return None;
+            };
+            body.loop_cycle(first).unwrap().into_iter().find_map(|h| {
+                let edge = body.get_half_edge(h).unwrap().edge;
+                let e = body.get_edge(edge).unwrap();
+                matches!(
+                    body.get_curve_geom(e.curve)
+                        .unwrap()
+                        .certified()
+                        .unwrap()
+                        .carrier(),
+                    Curve3::Circle(..)
+                )
+                .then_some((fk, edge))
+            })
+        })
+        .expect("a tilted half's cylinder face carries the ellipse and a rim");
+    let curve = body.get_edge(rim).unwrap().curve;
+    let (_, t1) = body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .params();
+    // The chord's closure gap is half its arc at the cylinder's unit
+    // radius, so it opens exactly `want`.
+    let made = body.split_edge(rim, t1 - 2.0 * want, tol).unwrap();
+    let cycle = |body: &Body<f64>| {
+        let face = body.get_face(fk).unwrap();
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("a cycle")
+        };
+        body.loop_cycle(first).unwrap()
+    };
+    let hes = cycle(&body);
+    let at = hes
+        .iter()
+        .position(|&h| h == made.he_plus || h == made.he_minus)
+        .expect("the rim's second child bounds the trimmed face");
+    let (he1, he2) = (hes[at], hes[(at + 1) % hes.len()]);
+    let (p1, p2) = (
+        *body
+            .get_point(
+                body.get_vertex(body.get_half_edge(he1).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap(),
+        *body
+            .get_point(
+                body.get_vertex(body.get_half_edge(he2).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap(),
+    );
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        EdgeCurveSpec::line_between(p1, p2),
+        topo::construction::FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    let report = topo::examine_chart_coherence(&body, tol);
+    assert!(
+        report.unexamined.is_empty(),
+        "an ellipse puts no loop out of reach: {:?}",
+        report.unexamined
+    );
+    let on_trimmed: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| ellipse_face(&body, f.face))
+        .collect();
+    let closures = on_trimmed
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.condition,
+                topo::CoherenceCondition::MeridianClosure { .. }
+            )
+        })
+        .count();
+    let columns = on_trimmed
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.condition,
+                topo::CoherenceCondition::MeridianContinuation { .. }
+            )
+        })
+        .count();
+    assert_eq!(
+        (closures, columns, on_trimmed.len()),
+        (2, 1, 3),
+        "on the trimmed face: the chord's closure gap at both ends and its \
+         column against the ruling it continues: {:?}",
+        report.findings
+    );
+    for f in on_trimmed {
+        assert!(
+            (f.metres - want).abs() < want * 1e-3,
+            "expected {want} m of arc, got {} (gap {} rad, lever {} m)",
+            f.metres,
+            f.gap,
+            f.lever
+        );
+    }
+}
+
 // ---------------------------------------------------------------
 // The behaviour change: what was loud, what is now quiet (claim 8)
 // ---------------------------------------------------------------

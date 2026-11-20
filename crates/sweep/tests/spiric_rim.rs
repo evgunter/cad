@@ -467,9 +467,9 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
 
 /// **`classify_kind` opens no iso side for a spiric rim**: the vessel
 /// cavity's torus chart, asked about each of its spiric rims through
-/// the public `topo::classify_kind`, answers `None` — the coherence
-/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
-/// meridian `Meridian`.
+/// the public `topo::classify_kind`, answers `None` — a run boundary
+/// the coherence walk does not measure — where a rim circle would
+/// answer `Rim` and a meridian `Meridian`.
 #[test]
 fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);

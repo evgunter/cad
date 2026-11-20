@@ -78,7 +78,8 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
 /// has no answer about it. What that MEANS is the caller's, and the
 /// two callers mean different things by it — `mesh` reaches such a
 /// carrier only as a dispatch defect and surfaces it typed, while
-/// [`crate::coherence`] records the loop as unexamined and carries on.
+/// [`crate::coherence`] reads the carrier as a run boundary it does not
+/// measure.
 /// Neither disposition belongs here.
 pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
     match *curve.carrier() {
@@ -108,8 +109,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         // torus chart (its azimuth AND its minor angle both move), so it
         // opens no iso side. The mesh's chord pass never asks this of a
         // spiric (its chord arm sizes the carrier itself), so the
-        // `None` here is read by the coherence walk alone
-        // (`NonIsoCarrier`).
+        // `None` here is read by the coherence walk alone.
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }

@@ -3103,7 +3103,6 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
         Unexaminable::Corrupt { .. } => "corrupt",
         Unexaminable::LoneLoop { .. } => "empty_loop",
         Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
-        Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
 }
 

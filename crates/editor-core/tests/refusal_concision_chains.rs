@@ -321,7 +321,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
     "Check/ChartCoherenceUnexamined(corrupt)",
-    "Check/ChartCoherenceUnexamined(non-iso)",
     "Check/ChartCoherenceUnexamined(scaffold)",
 ];
 
@@ -6587,17 +6586,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 CheckId::ChartCoherence,
                 E::ChartCoherenceUnexamined {
                     unexamined: unexamined(Unexaminable::NullScaffoldEdge {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(non-iso)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NonIsoCarrier {
                         edge: EdgeKey::default(),
                     }),
                 },

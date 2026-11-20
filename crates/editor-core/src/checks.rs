@@ -334,20 +334,18 @@ pub struct ChecksConfig {
     /// so `Error` is unrepresentable rather than asked-not-to-be-used.
     ///
     /// **Default `Off`, and that is the one default on this type that
-    /// is not `Warn`.** Two measured reasons, neither of them taste:
-    ///
-    /// - the examination has no shape door, so a chart-bearing face
-    ///   whose outer loop carries a conic or spline trim carrier puts
-    ///   every one of its loops in
-    ///   [`CheckEvidence::ChartCoherenceUnexamined`] — two per body on
-    ///   an ordinary trimmed cylinder
-    ///   (`mesh::mesh8_corpus_coherence`). That is a correct report of
-    ///   a lane boundary and it is not actionable, and a resident that
-    ///   fires on ordinary bodies by default is not a report;
-    /// - it reads every face of every rest body on every run, and this
-    ///   registry is an advisory pass whose per-resident cost is
-    ///   measured and pinned. Nothing has measured this one, so it
-    ///   does not join the default pass.
+    /// is not `Warn`.** One measured reason, not taste: the
+    /// examination classifies a line or a circle carrier by KIND, so a
+    /// circle that is no iso curve of its chart — a sphere cut off its
+    /// axis — is read as a rim or a meridian and reported, metre-scale
+    /// findings on a body that states every coordinate once
+    /// (`mesh/tests/tesslie_coherence_nearest_fit.rs`). A resident that
+    /// reports an ordinary cut sphere by default is not a report; the
+    /// exact iso test that would retire this is
+    /// `work/tesslie/chart-coherence-reads-a-non-iso-circle-as-an-iso-side.md`.
+    /// Its cost is not a reason: measured at the registry's pinned
+    /// point it is a fraction of a millisecond
+    /// (`editor-core/tests/tesslie_coherence_cost.rs`).
     ///
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).
@@ -849,11 +847,6 @@ impl SaidFinding<'_> {
                         "an edge of it carries construction scaffolding rather than a \
                          certified curve, so it states no coordinate to compare",
                     ),
-                    topo::Unexaminable::NonIsoCarrier { .. } => f.write_str(
-                        "the face's outer loop carries a conic or spline trim carrier, so \
-                         its boundary is not a chart iso curve and none of the three \
-                         conditions is about it",
-                    ),
                 }
             }
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
@@ -961,12 +954,10 @@ impl SaidFinding<'_> {
                     "the body's closed-solid validation names this loop as construction \
                      scaffolding left at rest"
                 }
-                // A scaffolding edge and a trimmed face are lane
-                // boundaries, not defects: the report names them so
-                // the quiet is accounted for, and there is nothing to
-                // act on.
-                topo::Unexaminable::NullScaffoldEdge { .. }
-                | topo::Unexaminable::NonIsoCarrier { .. } => "",
+                // A scaffolding edge is a lane boundary, not a defect:
+                // the report names it so the quiet is accounted for,
+                // and there is nothing to act on.
+                topo::Unexaminable::NullScaffoldEdge { .. } => "",
             },
             CheckEvidence::ChartCoherenceUnavailable => {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \

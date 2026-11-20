@@ -36,20 +36,18 @@
 //! 2. **Every body here goes through the ISO WALK, and the
 //!    examination has no shape door.** It reads faces the walk never
 //!    walks, and `zero findings` says nothing about those. The
-//!    TRIMMED lane is the live case: a face whose outer loop carries a
-//!    conic or spline trim carrier is not examined at all, and each
-//!    such face's loops land in `unexamined` — measured at exactly two
-//!    per body on the tilted cylinder halves of
+//!    TRIMMED lane is the live case: on a face whose loop carries a
+//!    conic or spline trim carrier, that carrier bounds the iso runs
+//!    beside it and is not measured, and the iso edges are — the
+//!    tilted cylinder halves of
 //!    `mesh8r2_probes::r2r_the_examination_on_bodies_outside_the_units
-//!    _corpus`, which mesh watertight and report nothing either way.
-//!    A corpus row asserting `unexamined.is_empty()` over trimmed
-//!    bodies would be asserting the opposite of the truth.
-//! 3. On a face the walk never walks, the classification the
-//!    conditions are read through is a nearest fit rather than the
-//!    face's own premise — so a finding there measures a premise that
-//!    face never had. Where the carrier is conic or spline that is
-//!    visible in `unexamined`; where it is a line or a circle that
-//!    happens not to be iso, it is not.
+//!    _corpus` mesh watertight and report nothing in either list.
+//! 3. On a face the walk never walks, a line or a circle is read
+//!    through a nearest-fit classification rather than the face's own
+//!    premise, so a finding there can measure a premise that face
+//!    never had: a sphere cut along a circle tilted past 60° reports
+//!    metre-scale closure gaps (`tesslie_coherence_nearest_fit`).
+//!    No body here carries such a circle.
 //!
 //! It rides the run's ambient ε, so the three-ε matrix asks the
 //! question three times: the band is the only thing that decides

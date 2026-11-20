@@ -6186,12 +6186,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unexaminable_tag",
-        values: &[
-            "corrupt",
-            "empty_loop",
-            "non_iso_carrier",
-            "null_scaffold_edge",
-        ],
+        values: &["corrupt", "empty_loop", "null_scaffold_edge"],
         delegates: &[],
     },
     TagEntry {

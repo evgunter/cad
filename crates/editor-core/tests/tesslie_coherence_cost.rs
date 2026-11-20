@@ -148,26 +148,6 @@ fn coherence_census_over_the_corpus() {
         for w in why {
             println!("    {w}");
         }
-        if let Some(id) = d.result {
-            let body = corpus::body_of(&ev, id);
-            let rep = topo::examine_chart_coherence(&body, tol);
-            for un in &rep.unexamined {
-                if let topo::Unexaminable::NonIsoCarrier { edge } = un.why {
-                    let e = body.get_edge(edge).unwrap();
-                    let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-                    let face = body.get_face(un.face).unwrap();
-                    let s = body.get_surface(face.surface).unwrap();
-                    println!(
-                        "    result-body NonIso: carrier={} surface={}",
-                        format!("{:?}", c.carrier())
-                            .split(['(', ' ', '{'])
-                            .next()
-                            .unwrap(),
-                        format!("{s:?}").split(['(', ' ', '{']).next().unwrap(),
-                    );
-                }
-            }
-        }
     }
     println!(
         "CORPUS TOTAL: docs={n_docs} firing={docs_firing} findings={total_f} unexamined={total_u}"

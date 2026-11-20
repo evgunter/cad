@@ -181,6 +181,8 @@ mod revolves;
 mod sizing_theorem_rows;
 #[path = "split_rulings.rs"]
 mod split_rulings;
+#[path = "tesslie_coherence_nearest_fit.rs"]
+mod tesslie_coherence_nearest_fit;
 #[path = "the_one_face_ball.rs"]
 mod the_one_face_ball;
 #[path = "wedge.rs"]

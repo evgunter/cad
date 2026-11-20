@@ -39,3 +39,13 @@ the wild corpus at each band first; the corpus-quiet row says it is
 nothing today.
 
 - 2026-11-02 — moved from FOREIGN to IMPORTGATE by `git mv` when FOREIGN merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and FOREIGN had fallen far under it).
+
+## Evidence added: no shipped unexamined loop either (TESSLIE, 2026-11-20)
+
+Since `tesslie/coherence-default`, a conic or spline trim carrier is a
+run boundary in `topo::examine_chart_coherence` rather than a reason to
+put the face's loops in `unexamined`. `cut_cylinder` was the one
+committed import fixture with unexamined loops, and it is now examined
+and quiet. So `the_channel_reports_the_kernel_door_verbatim` no longer
+kills dropping an `unexamined` entry through a shipped body either.
+That is the same gap as the finding above, on the other list.

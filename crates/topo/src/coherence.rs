@@ -87,12 +87,16 @@
 //!   are not statements about a mesh that exists — no lane consumed
 //!   those coordinates and none will;
 //! - the classification it reads them through is the WALK's
-//!   ([`crate::chart_iso`]), so on a face whose boundary is not a
-//!   chart iso curve the classification is a nearest-fit and a finding
-//!   may be measuring a premise the face never had. Where the carrier
-//!   is a conic or a spline that is visible — the loop is
-//!   [`Unexaminable::NonIsoCarrier`] — and where it is a line or a
-//!   circle that happens not to be iso, it is not.
+//!   ([`crate::chart_iso`]), which answers by carrier KIND. A conic or
+//!   spline carrier gets no answer and is no iso side: it bounds the
+//!   runs either side of it and is never measured, while the iso
+//!   edges of the same loop are measured as on any other face. A LINE
+//!   or a CIRCLE gets a nearest-fit answer whether or not it is iso,
+//!   so a non-iso circle (a sphere cut off its axis) is read as a rim
+//!   or a meridian and reported against a premise the face never had
+//!   — metre-scale closure findings on a unit sphere cut at 61°
+//!   (`mesh/tests/tesslie_coherence_nearest_fit.rs`;
+//!   `work/tesslie/chart-coherence-reads-a-non-iso-circle-as-an-iso-side.md`).
 //!
 //! **Not covered by D9's byte-identity contract.** That contract is
 //! about the MESH: the same body at the same δ yields the same
@@ -277,14 +281,6 @@ pub enum Unexaminable {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// The face's outer loop carries a conic or spline trim carrier,
-    /// so its boundary is not a chart iso curve and none of the three
-    /// conditions is about it. The same test routes the face away from
-    /// the iso walk in `mesh`.
-    NonIsoCarrier {
-        /// The edge whose carrier is neither a line nor a circle.
-        edge: EdgeKey,
-    },
 }
 
 /// Which structural read failed on a loop this door could not walk.
@@ -399,7 +395,10 @@ struct Trav {
     end: VertexKey,
     start_p: Point3<f64>,
     end_p: Point3<f64>,
-    kind: TravKind,
+    /// `None` for a conic or spline carrier: no chart iso curve, so it
+    /// states no constant coordinate and carries no iso side. It
+    /// bounds the runs either side of it and is never measured.
+    kind: Option<TravKind>,
 }
 
 /// Reads one loop into the traversal list the conditions are stated
@@ -435,8 +434,7 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
             .ok_or(corrupt(StructureRead::Mate))?;
         let start_p = point(body, he.start).ok_or(corrupt(StructureRead::VertexPoint))?;
         let end_p = point(body, end).ok_or(corrupt(StructureRead::VertexPoint))?;
-        let kind =
-            classify_kind(chart, curve).ok_or(Unexaminable::NonIsoCarrier { edge: he.edge })?;
+        let kind = classify_kind(chart, curve);
         out.push(Trav {
             edge: he.edge,
             start: he.start,
@@ -474,12 +472,24 @@ fn iso_side_starts(travs: &[Trav], chart: &Chart, eps: f64) -> Vec<bool> {
     // door's band read (`radial > eps`, strict, the band excluded —
     // the comparison `mesh` spells `Eps::separates`) and this door's
     // resolution of the case the rule deliberately leaves open.
-    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
+    // A non-iso traversal is no side, so it opens and so does whatever
+    // follows it. The kind handed to the rule in its place is never
+    // decisive: both positions it could decide are overridden below.
+    let kinds: Vec<TravKind> = travs
+        .iter()
+        .map(|t| t.kind.unwrap_or(TravKind::Meridian { u_raw: f64::NAN }))
+        .collect();
     let separated: Vec<bool> = travs
         .iter()
         .map(|t| chart.radial(t.start_p) > eps)
         .collect();
     let mut starts = crate::chart_iso::iso_side_starts(&kinds, &separated);
+    let m = travs.len();
+    for k in 0..m {
+        if travs[k].kind.is_none() || travs[(k + m - 1) % m].kind.is_none() {
+            starts[k] = true;
+        }
+    }
     if !starts.is_empty() && !starts.iter().any(|&s| s) {
         starts[0] = true;
     }
@@ -543,10 +553,13 @@ fn loop_findings(
         }
     };
     for (k, t) in travs.iter().enumerate() {
+        let Some(kind) = t.kind else {
+            continue;
+        };
         if !starts[k] {
             let o = &travs[opens[k]];
-            match (&o.kind, &t.kind) {
-                (TravKind::Rim { v_raw: opened }, TravKind::Rim { v_raw: own }) => {
+            match (&o.kind, &kind) {
+                (Some(TravKind::Rim { v_raw: opened }), TravKind::Rim { v_raw: own }) => {
                     let gap = if chart.v_domain_wraps() {
                         wrapped(*own, *opened)
                     } else {
@@ -559,7 +572,7 @@ fn loop_findings(
                         chart.v_lever(),
                     );
                 }
-                (TravKind::Meridian { u_raw: opened }, TravKind::Meridian { u_raw: own }) => {
+                (Some(TravKind::Meridian { u_raw: opened }), TravKind::Meridian { u_raw: own }) => {
                     push(
                         t.edge,
                         CoherenceCondition::MeridianContinuation { opens: o.edge },
@@ -568,17 +581,18 @@ fn loop_findings(
                     );
                 }
                 // A traversal continues a side only if it and its
-                // PREDECESSOR are the same kind, and a run's opening
-                // is reached from a continuation by walking that
-                // relation backwards — so every member of a run is the
-                // kind its opening is. Stated rather than defaulted:
+                // PREDECESSOR are the same iso kind, and a run's
+                // opening is reached from a continuation by walking
+                // that relation backwards — so every member of a run is
+                // the kind its opening is, and no opening of a run is
+                // a non-iso traversal. Stated rather than defaulted:
                 // a default would silently measure a rim against a
                 // meridian and report the difference between two
                 // unrelated coordinates as a defect in the data.
                 _ => unreachable!("an iso side's continuations are the kind its opening edge is"),
             }
         }
-        if let TravKind::Meridian { u_raw } = t.kind {
+        if let TravKind::Meridian { u_raw } = kind {
             for (vertex, p) in [(t.start, t.start_p), (t.end, t.end_p)] {
                 // A POLE ENDPOINT IS EXEMPT, by the walk's own rule.
                 // Where a junction lies within ε of a chart pole the
@@ -658,11 +672,11 @@ fn loop_findings(
 /// all: there is no chart, so there is no coordinate for two
 /// statements to differ about. A chart-bearing face whose loop cannot
 /// be READ is different, and is named in
-/// [`CoherenceReport::unexamined`] rather than dropped. A face whose
-/// OUTER loop carries a conic or spline trim carrier takes every one
-/// of its loops out with it: that carrier is what routes the face away
-/// from the iso-curve lane entirely, so none of the three conditions
-/// is about it.
+/// [`CoherenceReport::unexamined`] rather than dropped. A conic or
+/// spline carrier is neither: its loop is read, the carrier bounds the
+/// iso runs either side of it, and only the iso edges are measured —
+/// so a loop carried by conics and splines alone states nothing twice
+/// and reports nothing, as a plane does.
 ///
 /// # Not the byte contract
 ///
@@ -689,23 +703,8 @@ pub fn examine_chart_coherence(body: &Body<f64>, tol: Tol) -> CoherenceReport {
         let Some(chart) = Chart::of(surface) else {
             continue;
         };
-        let read: Vec<Result<Vec<Trav>, Unexaminable>> = loops
-            .iter()
-            .map(|&lk| traversals(body, &chart, lk))
-            .collect();
-        // The FACE-level routing test: a conic or spline carrier on the
-        // outer loop takes the whole face out of the iso lane, rings
-        // included, because that is the granularity the routing has.
-        if let Some(&Err(why @ Unexaminable::NonIsoCarrier { .. })) = read.first() {
-            report.unexamined.extend(loops.iter().map(|&lk| Unexamined {
-                face: fk,
-                r#loop: lk,
-                why,
-            }));
-            continue;
-        }
-        for (&lk, got) in loops.iter().zip(read) {
-            match got {
+        for &lk in &loops {
+            match traversals(body, &chart, lk) {
                 Ok(travs) => report
                     .findings
                     .extend(loop_findings(&travs, &chart, fk, lk, eps)),

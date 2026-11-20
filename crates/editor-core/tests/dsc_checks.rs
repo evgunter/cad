@@ -899,7 +899,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
                 unexamined: topo::Unexamined {
                     face: topo::FaceKey::default(),
                     r#loop: topo::LoopKey::default(),
-                    why: topo::Unexaminable::NonIsoCarrier {
+                    why: topo::Unexaminable::NullScaffoldEdge {
                         edge: topo::EdgeKey::default(),
                     },
                 },
