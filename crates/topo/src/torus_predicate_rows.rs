@@ -3,7 +3,7 @@
 //!
 //! A predicate no row names is a predicate whose Zero arm could be
 //! deleted, inverted or misspelled without a test noticing. The torus
-//! arm added twelve, and until this module only `bool_ray_torus_disc`
+//! arm added twelve, and until this module only `line_quadric_torus_disc`
 //! was named by a row. What is here is one census over a pose lattice
 //! plus the branch-selection rows the census cannot see from outside,
 //! and an explicit disposition for each predicate the census does NOT
@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use super::*;
+use geom_brep::quartic::depressed_quartic_roots;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 const R_MAJOR: f64 = 1.0;
@@ -99,7 +100,7 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
             Err(_) => uncertain += 1,
         }
     }
-    // `bool_ray_torus_disc` Negative, and `_shape`/`_depth` on the
+    // `line_quadric_torus_disc` Negative, and `_shape`/`_depth` on the
     // positive branch, are what these three separate.
     assert!(miss > 0, "no pose missed the tube");
     assert!(two > 0, "no pose pierced it twice");
@@ -113,9 +114,9 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
 
 /// **The branch selection**, which the return type cannot show: a
 /// midplane ray has `q̂ = 0` exactly and MUST take the biquadratic
-/// closed form (`bool_ray_torus_odd` Zero), while a tilted ray off the
+/// closed form (`line_quadric_torus_odd` Zero), while a tilted ray off the
 /// midplane has `q̂` definitely nonzero and must take Ferrari's
-/// resolvent — the branch that reaches `bool_ray_torus_split_lead` and
+/// resolvent — the branch that reaches `line_quadric_torus_split_lead` and
 /// the cube root. Both must produce the counts the geometry demands.
 #[test]
 fn both_closed_forms_are_selected_and_both_answer() {
@@ -201,8 +202,8 @@ fn the_certified_count_and_the_constructed_roots_agree_on_a_lattice() {
 }
 
 /// The sign ladder's own arithmetic, at the poses that make each
-/// classifying sign definite — so `bool_ray_torus_shape` and
-/// `bool_ray_torus_depth` are not merely reached but reached on BOTH
+/// classifying sign definite — so `line_quadric_torus_shape` and
+/// `line_quadric_torus_depth` are not merely reached but reached on BOTH
 /// sides of the four-versus-none split they exist to make.
 #[test]
 fn the_four_versus_none_split_is_exercised_both_ways() {
@@ -284,7 +285,7 @@ fn the_ladder_disagrees_with_itself_on_a_lanes_coefficients() {
             4,
         ),
     ] {
-        match depressed_quartic_roots(p, q, s, lever, &RAY_TORUS_ROWS, band) {
+        match depressed_quartic_roots(p, q, s, lever, &geom_brep::rows::LINE_TORUS, band) {
             Err(RootRefusal::Unsettled(Unsettled::CountDisagrees {
                 certified: c,
                 constructed: b,

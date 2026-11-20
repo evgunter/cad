@@ -4,6 +4,8 @@ kind: issue
 title: The curve-pair polish's basin meter levers its sine by the line's own span reach, so a split line can refuse where the whole decides
 status: open
 opened: 2026-10-15
+priority: P2
+cost: E
 ---
 
 Found by the §5 sweep for PR 5154's lever fix (the FUSE orchestrator ruled option A on 2026-10-15: a line pose's tilt is levered by where the spans can meet, the overlap of their projections, not by a span's own length, because a verdict that depends on how a sweep split an edge is the defect).

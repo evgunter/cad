@@ -946,10 +946,11 @@ where
 /// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
-/// and **selections**, which are the ones with a condition on them: a
-/// frozen `f64` choice is free of the tangent only while the quantity
-/// chosen is locally constant in the input. `geom::projection_policy::mid` is
-/// where that condition currently fails, and is issue **#874**.
+/// and picks among constructions (DL5.1, the crate README's "Reading a
+/// bracket where nothing certifies"). A bracket's `f64` that comes back
+/// as a `T` is the case with a condition on it (DL5.2):
+/// `geom::projection_policy::mid` is where that condition currently
+/// fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
 /// `real.rs` is the home for that, and its DL5 delegation rule is the

@@ -7,7 +7,7 @@ closed: 2026-10-30
 opened: 2026-10-29
 priority: P0
 cost: M
-refs: [census-passes-a-face-inside-an-edges-material-wedge, a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike, 6061]
+refs: [a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike, 6061]
 pr: 6061
 ---
 

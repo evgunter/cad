@@ -220,7 +220,7 @@ fn a_split_at_the_pole_decides_its_childrens_turn() {
 ///
 /// The pinned exception is `mesh::walk`'s `unwrap_tie`, the curved
 /// lane's own placement of a pole junction
-/// (`work/tesswalk/mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers.md`).
+/// (`work/tesslie/mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers.md`).
 ///
 /// **No function but the decision makes an element.** A `JointElement`
 /// is constructed from a deck in one file of the mint's shipped code,
