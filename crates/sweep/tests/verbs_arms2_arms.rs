@@ -534,12 +534,24 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         assert!((n0 - n1).abs() < 1e-12, "sphere_sense = {sphere_sense}");
         for (o, w) in [(&old.trim_a, &new.trim_a), (&old.trim_b, &new.trim_b)] {
             let (
-                Curve3::Circle(geom::Circle::new(geom::Frame { origin: a, .. }, ra)),
-                Curve3::Circle(geom::Circle::new(geom::Frame { origin: b, .. }, rb)),
+                Curve3::Circle(
+                    k1 @ geom::Circle {
+                        frame: geom::Frame { origin: a, .. },
+                        ..
+                    },
+                ),
+                Curve3::Circle(
+                    k2 @ geom::Circle {
+                        frame: geom::Frame { origin: b, .. },
+                        ..
+                    },
+                ),
             ) = (o.0.clone(), w.0.clone())
             else {
                 panic!("both doors mint circles");
             };
+            let ra = k1.radius();
+            let rb = k2.radius();
             assert!((a - b).norm() < 1e-12, "sphere_sense = {sphere_sense}");
             assert!((ra - rb).abs() < 1e-12, "sphere_sense = {sphere_sense}");
             // The setbacks agree in MAGNITUDE: the plane–sphere arm keeps

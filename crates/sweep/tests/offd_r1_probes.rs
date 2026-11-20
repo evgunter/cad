@@ -147,6 +147,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
         if let geom::Curve3::Circle(conic_k) = *curve.carrier() {
+            let radius = conic_k.radius();
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
@@ -162,7 +163,6 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
             rims += 1;
         }
     }
-    let radius = conic_k.radius();
     assert_eq!(rims, 2, "the moved cone keeps both rims");
 }
 

@@ -1647,11 +1647,15 @@ mod tests {
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
             let Curve3::Circle(
-                circle @ geom::Circle::new(geom::Frame { origin: center, .. }, radius),
+                circle @ geom::Circle {
+                    frame: geom::Frame { origin: center, .. },
+                    ..
+                },
             ) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");
             };
+            let radius = circle.radius();
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
             let rim = (q_from - center).norm();
             let end = Curve3::circle_at(&circle.frame, radius, spec.param_end);

@@ -3119,7 +3119,7 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         .get_curve_geom(curve)
         .and_then(|g| g.certified())
         .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame: frame, .. })) = carrier else {
+    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
         panic!("the refusing edge is a meridian circle: {carrier:?}");
     };
     let radius = conic_k.radius();

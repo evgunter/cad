@@ -71,14 +71,9 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            },
-        ) = *c.carrier()
-            && (center.z - seam_z).abs() < 1e-9
-            && (radius - 0.35).abs() < 1e-9
+        if let geom::Curve3::Circle(k) = *c.carrier()
+            && (k.frame.origin.z - seam_z).abs() < 1e-9
+            && (k.radius() - 0.35).abs() < 1e-9
         {
             arcs += 1;
             assert!(
@@ -91,7 +86,6 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
             );
         }
     }
-    let radius = circle.radius();
     assert_eq!(arcs, expect_seam_arcs, "rim seam arc count at z={seam_z}");
     // Pcurves: every half-edge bounding a curved face carries a
     // certified cache (the PR 6 exit criterion, re-checked from the

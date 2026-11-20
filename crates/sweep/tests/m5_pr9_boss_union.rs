@@ -48,14 +48,9 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            },
-        ) = *c.carrier()
-            && (center.z - 1.0).abs() < 1e-9
-            && (radius - 0.5).abs() < 1e-9
+        if let geom::Curve3::Circle(k) = *c.carrier()
+            && (k.frame.origin.z - 1.0).abs() < 1e-9
+            && (k.radius() - 0.5).abs() < 1e-9
         {
             seam_arcs += 1;
             assert!(
@@ -67,7 +62,6 @@ fn the_boss_union_lands_end_to_end() {
             );
         }
     }
-    let radius = circle.radius();
     assert_eq!(seam_arcs, 3, "the rim seam is three arcs (three walls)");
 
     // Volume: plate (16) + protruding boss (π·0.25·0.6), within the

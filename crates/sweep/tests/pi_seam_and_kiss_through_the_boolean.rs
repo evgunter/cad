@@ -746,10 +746,12 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) if (center.z - H).abs() < 1e-9 => Some(radius),
+                geom::Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame: geom::Frame { origin: center, .. },
+                        ..
+                    },
+                ) if (center.z - H).abs() < 1e-9 => Some(circle.radius()),
                 _ => None,
             })
             .collect()

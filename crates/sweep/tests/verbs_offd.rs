@@ -416,6 +416,7 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
         if let geom::Curve3::Circle(circle) = *curve.carrier() {
+            let radius = circle.radius();
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
@@ -428,7 +429,6 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             rims += 1;
         }
     }
-    let radius = circle.radius();
     assert_eq!(rims, 2, "the moved cone keeps both rims");
 }
 

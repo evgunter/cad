@@ -158,19 +158,13 @@ fn perpendicular_cut_stays_rung_1_circles() {
             let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
             };
-            if let Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    ..
-                },
-            ) = *c.carrier()
-                && (center.z - 0.5).abs() < 1e-12
+            if let Curve3::Circle(k) = *c.carrier()
+                && (k.frame.origin.z - 0.5).abs() < 1e-12
             {
-                assert!((radius - 0.5).abs() < 1e-12);
+                assert!((k.radius() - 0.5).abs() < 1e-12);
                 section_circles += 1;
             }
         }
-        let radius = conic_k.radius();
         assert_eq!(section_circles, 2, "two rim arcs bound the section");
     }
 }

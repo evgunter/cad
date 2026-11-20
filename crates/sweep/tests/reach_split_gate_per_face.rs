@@ -394,7 +394,7 @@ impl Rim {
         let spline = conic_arc_segments(
             *center,
             (*u_ref, axis.cross(*u_ref)),
-            (*semi_u, *semi_v),
+            (semi_u, semi_v),
             self.params,
             n,
             domain,

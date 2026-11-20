@@ -100,11 +100,7 @@ fn circle_edges(body: &Body<f64>, radius: f64) -> Vec<EdgeKey> {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                geom::Curve3::Circle(geom::Circle { radius: r, .. })
-                    if (r - radius).abs() < 1e-12 =>
-                {
-                    Some(k)
-                }
+                geom::Curve3::Circle(circle) if (circle.radius() - radius).abs() < 1e-12 => Some(k),
                 _ => None,
             }
         })

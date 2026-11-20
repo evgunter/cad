@@ -739,18 +739,24 @@ mod tests {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
             curve:
-                Curve3::Circle(circle @ geom::Circle { frame: geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    }, .. }),
+                Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                u_ref,
+                            },
+                        ..
+                    },
+                ),
             residual,
             kind,
         } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
         else {
             panic!("dm1's carrier class must certify");
         };
- let radius = circle.radius();
+        let radius = circle.radius();
         assert_eq!(kind, PromotedCurveKind::Circle);
         assert!(residual < 1e-15, "an exact circle's residual: {residual:e}");
         assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
@@ -989,18 +995,24 @@ mod tests {
             .unwrap();
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle(circle @ geom::Circle { frame: geom::Frame {
-                            origin: center,
-                            axis,
+                    Curve3::Circle(
+                        circle @ geom::Circle {
+                            frame:
+                                geom::Frame {
+                                    origin: center,
+                                    axis,
+                                    ..
+                                },
                             ..
-                        }, .. }),
+                        },
+                    ),
                 residual,
                 ..
             } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
             else {
                 panic!("delta {delta:e} is inside the budget and must certify");
             };
- let r = circle.radius();
+            let r = circle.radius();
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;
             for k in 0..=8192 {
@@ -1575,11 +1587,17 @@ mod r2_probes {
             let outcome = recognize(&curve, crate::interpret::FileBand::test(EPS_IN));
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle(circle @ geom::Circle { frame: geom::Frame {
-                            origin: center,
-                            axis,
+                    Curve3::Circle(
+                        circle @ geom::Circle {
+                            frame:
+                                geom::Frame {
+                                    origin: center,
+                                    axis,
+                                    ..
+                                },
                             ..
-                        }, .. }),
+                        },
+                    ),
                 residual,
                 ..
             } = outcome
@@ -1587,7 +1605,7 @@ mod r2_probes {
                 println!("R2-C[{i}] delta={delta:e}: stays NURBS");
                 continue;
             };
- let r = circle.radius();
+            let r = circle.radius();
             // Dense true deviation.
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;
