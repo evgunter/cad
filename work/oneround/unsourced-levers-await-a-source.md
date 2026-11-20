@@ -120,3 +120,13 @@ Two designers agree after four rounds (`docs/DESIGN-FORK-LOG.md` row 290): no fo
 
 The design question is closed; what is left on this row is the build, cut into units at spec time.
 
+## Added 2026-11-20 (`oneround/lever-doors`, the lever-fields pass)
+
+PR 7143 mints curvature arms from carriers, and where the record or function it reaches also needs the radius as geometry it holds the two side by side, paired by whoever builds the record. Each is a half-fix: the destination is the record holding the carrier (a `Circle`, the sphere or the cylinder) and deriving both, as `surface_group`'s `Unmated(FaceKey, Circle)`, `census::circle_plane(&Circle)` and `solid_contain`'s rim site do.
+
+- `geom_brep::props::curved` — `SphereArc { centre, axis, radius, arm }`, `SeamLoops { radius, arm }`, `RimArms::uniform(r, arm)`, and the sphere, cylinder and torus functions that take `radius` (or `minor`) beside `arm` (or `tube_arm`), threaded from the surface-match doors. The radius feeds areas, pole points, residuals and `IsoChart`; holding the surface means re-threading about twenty signatures.
+- `geom_brep::pair_section::ruling` — `RuledCylinders { rho, r, lever }` and `RuledCylinderSphere { r, lever }`. The first's lever is the lesser of two cylinders' arms; `rho` and `r` feed the discriminant, the meeting point and its velocity.
+- `topo::ring_path` — `Quadric::Sphere { centre, radius, arm }`, where `Quadric::Cylinder` holds `radius` alone and reads its arm from the surface handed to `Quadric::lever`.
+- `topo::census::point` — the module's own `Surface::Sphere { center, radius, arm }` and the `(c, r, arm)` tuples of `on_sphere` and `sphere_sphere`.
+- `topo::solid_contain` — `(radius, arm)` in `latitude_after` and `latitude_extremes`; `sphere_chart_trim` is handed the sphere and its destructured centre, radius and axis together.
+- `topo::boolean::ops` — `SphereRecut` holds `arm` alone and reads no geometry from it.

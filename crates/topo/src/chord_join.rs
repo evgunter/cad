@@ -3851,7 +3851,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, geom_core::Lever::curvature_radius(radius)),
+        Margin::levered(n_a, geom_brep::uniform_curvature_arm(&surface)),
         band,
     )
     .map_err(|diag| JoinError::Escalated { face, diag })?
@@ -4181,6 +4181,8 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
 /// run's loop arcs closed by the chord, the chord's midpoint `q` the
 /// paths arrive at, and its left normal there.
 pub(crate) struct IslandReading<T: Real> {
+    /// The face's surface, which `carrier` is of.
+    surface: geom::Surface<T>,
     carrier: Carrier<T>,
     arcs: Vec<LoopArc<T>>,
     q: Point3<T>,
@@ -4278,6 +4280,7 @@ impl<T: Decide> IslandReading<T> {
         arcs.push(chord);
         let left = outward.cross(travel);
         Ok(Ok(Self {
+            surface: surface.clone(),
             carrier,
             arcs,
             q,
@@ -4357,7 +4360,7 @@ impl<T: Decide> IslandReading<T> {
     /// (**`split_ring_path_lean`**) and its parity across the closed
     /// curve; `None` where either is in the zero band.
     pub(crate) fn read(&self, path: Path<T>, band: Band) -> Result<Option<Sign>, Indeterminate> {
-        let Some(lever) = self.carrier.lean_lever(self.q, &path) else {
+        let Some(lever) = self.carrier.lean_lever(&self.surface, self.q, &path) else {
             return Ok(None);
         };
         let lean = decide(
