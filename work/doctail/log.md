@@ -302,3 +302,16 @@ body has the reasons):
   - The lane unparks and closes the row in its PR, so this branch does
     not touch the row. Review tier: FULL, because it is a P0 on the
     names contract.
+- 2026-11-20 02:55 — **Ev approved 7122**, including the simpler
+  residue 2: the profile's own loops stand in the chart too.
+  `[placement]` now names "the profile's own loops, each sweep of the
+  profile, and the faces the profile traces" (`86491c3`). Its CI is
+  running; the lever build goes out on merge.
+- 2026-11-20 02:58 — **Ev approved 7129** ("if it's not too onerous").
+  The cost is answered on the PR: M at most. `FirstTurn::Parted` gains
+  the site and step, and `Diagnosis` gains one arm, which only
+  `resolve/mod.rs` matches in non-test code. Merged (`3263d78`).
+  Dispatched to cloud session session_013QoYWVcCsWVSnYYEjaUwmq, on
+  branch `doctail/a-node-whose-runs-part-names-where`. It files and
+  closes its own row (P1 M) in its PR, and stops if N5 does not settle
+  whether non-mark partings also become `Parted`.
