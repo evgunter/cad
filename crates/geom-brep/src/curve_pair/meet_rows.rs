@@ -3112,3 +3112,33 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
         }
     }
 }
+
+/// **A segment across both branches of a thin ellipse, its one crossing
+/// of the plane between them, is never read as one meeting.** An
+/// ellipse of semi-axes `1` and `b = 4·10⁻⁴` m in the `z = 0` plane, and a
+/// segment along `y` through its centre rising `2·10⁻⁶` per metre: it
+/// crosses the plane once, at the centre, and passes `±8·10⁻¹⁰` m from
+/// the two branches, `2b` apart, inside the zero band of both. The ball of
+/// `ℓ + e` about the crossing, `ℓ = 5·10⁻³` m, holds both branches, which
+/// lie `2` m apart along the ellipse: the window's second carrier read as
+/// an arc from the polished pair is not its chord. The pair meets twice
+/// or refuses, in either order.
+#[test]
+fn a_segment_across_both_branches_of_a_thin_ellipse_is_never_one_meeting() {
+    let b = 4e-4;
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, b);
+    let across = line([0.0; 3], [0.0, 1.0, 2e-6]);
+    let (sa, sb) = (
+        Span::new(&across, (-1e-2, 1e-2)),
+        Span::new(&thin, (-PI, PI)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sa, &sb, band())),
+        ("ellipse first", meet(&sb, &sa, band())),
+    ] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.len() < 2),
+            "{order}: fewer than two meetings read: {got:?}"
+        );
+    }
+}

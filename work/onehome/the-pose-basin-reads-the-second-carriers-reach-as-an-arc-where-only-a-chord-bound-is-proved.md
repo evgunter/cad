@@ -2,10 +2,11 @@
 id: the-pose-basin-reads-the-second-carriers-reach-as-an-arc-where-only-a-chord-bound-is-proved
 kind: issue
 title: The pose's basin reads the second carrier's reach as an arc where only a chord bound is proved
-status: open
+status: closed
 opened: 2026-11-19
 priority: P1
 cost: M
+closed: 2026-11-20
 ---
 
 
@@ -50,3 +51,37 @@ enough that no other branch of the carrier enters the ball. That turns
 the chord into an arc no longer than `(π/2)·chord`, and the basin then
 reads `m ≤ max(arc_a, (π/2)·chord_b) + travel`, measured from `q`,
 with `q`'s own distance from the crossing in it.
+
+## Fixed
+
+Step 3d (`Side::arc_from`, `crates/geom-brep/src/curve_pair/pose.rs`;
+module docs, (P1) and (P2)). The second carrier's window is read as an
+arc from `q`:
+- the chord bound puts its points within `R = ℓ + e + |q − c|` of `q`;
+- the angles `J = [t − ρ, t + ρ]`, `ρ = (π/2)·R/|C′(t)|`, hold them all
+  where the span outside `J`, and outside its copies a turn either side,
+  is clear of the ball of `ℓ + e` about the crossing by the span's own
+  walk (`curve_pair_pose_window_piece` proves each piece's ends'
+  order);
+- `arc₂` is then `ρ` times the greatest speed over `J`, and otherwise
+  half the turn at the conic's greatest speed.
+
+`span = max(region + travel₁, arc₂)`, and the second carrier's
+curvature is read over `J`, about `q`.
+
+**Why main did not break.** Main's `K` read the second carrier over the
+angles `span` covers at its *least* speed, about the start. A window
+wide enough for another branch of an ellipse to enter the ball (`2b`
+across) covers more than two radians of angle, so it holds a vertex,
+where the curvature is `a/b²`, and the basin fails. Main's step was
+carried by that conservatism, not proved. Read about `q` over `J`, the
+curvature is tighter.
+
+The probe in this item's shape (34,000 draws × 2 × 3 seeds) reads:
+
+| head | decided no meeting | met | refused |
+|---|---|---|---|
+| main | 0 | 50,476 / 50,340 / 50,586 | 25.7% |
+| 3d | 0 | 57,820 / 57,634 / 58,034 | 15.0% |
+
+The refusals' fall is all on `curve_pair_pose_basin`.
