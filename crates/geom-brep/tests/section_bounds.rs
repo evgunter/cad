@@ -454,6 +454,69 @@ fn general_poses_state_floors_under_the_section() {
     );
 }
 
+/// The upper branch of the sphere `(0, rs)` × the z-axis-parallel
+/// cylinder through `(c, 0)` of radius `rc`, over the cylinder's angle
+/// `window`: the cubic Hermite interpolant of the exact section on 1000
+/// pieces (C¹, knots tripled), within about `h⁴/384 ≈ 4e-14` of it.
+fn sphere_cylinder_branch(rs: f64, c: f64, rc: f64, window: (f64, f64)) -> NurbsCurve3<f64> {
+    let at = |phi: f64| {
+        let (x, y) = (c + rc * phi.cos(), rc * phi.sin());
+        let z = (rs * rs - x * x - y * y).sqrt();
+        let (dx, dy) = (-rc * phi.sin(), rc * phi.cos());
+        (p(x, y, z), Vec3::new(dx, dy, -(x * dx + y * dy) / z))
+    };
+    let n = 1000;
+    let h = (window.1 - window.0) / f64::from(n);
+    let mut knots = vec![window.0; 4];
+    let mut control = vec![at(window.0).0];
+    for i in 0..n {
+        let (a, b) = (window.0 + h * f64::from(i), window.0 + h * f64::from(i + 1));
+        let ((pa, da), (pb, db)) = (at(a), at(b));
+        control.extend([pa + da * (h / 3.0), pb - db * (h / 3.0), pb]);
+        knots.extend(if i + 1 == n {
+            vec![window.1; 4]
+        } else {
+            vec![b; 3]
+        });
+    }
+    let weights = vec![1.0; control.len()];
+    NurbsCurve3::new(KnotVector::clamped(knots, 3).unwrap(), control, weights).unwrap()
+}
+
+/// **Sphere × cylinder states its floor in either order**: a coaxial
+/// pair's circle (`cos θ = R_c/Rₛ`), at a wide crossing and at a near
+/// tangent, and an off-axis pair's quartic branch, the ball and rod of
+/// the seam-region rows.
+#[test]
+fn sphere_by_cylinder_states_its_floor_in_either_order() {
+    let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
+    for rc in [0.6_f64, 0.999] {
+        let h = (1.0 - rc * rc).sqrt();
+        let carrier = mapped_arc(
+            (0.0, 1.2),
+            |x, y| Vec3::new(rc * x, rc * y, 0.0),
+            p(0.0, 0.0, h),
+        );
+        let wall = cylinder(p(0.0, 0.0, -2.0), Vec3::unit_z(), rc);
+        encloses(
+            &format!("coaxial sphere×cylinder, R_c {rc}"),
+            &carrier,
+            &ball,
+            &wall,
+        );
+        encloses(
+            &format!("coaxial cylinder×sphere, R_c {rc}"),
+            &carrier,
+            &wall,
+            &ball,
+        );
+    }
+    let rod = cylinder(p(0.1, 0.0, -2.0), Vec3::unit_z(), 0.3);
+    let carrier = sphere_cylinder_branch(1.0, 0.1, 0.3, (-2.5, 2.0));
+    encloses("off-axis sphere×cylinder", &carrier, &ball, &rod);
+    encloses("off-axis cylinder×sphere", &carrier, &rod, &ball);
+}
+
 /// **The torus rows owe the tube**: a plane×torus section states no
 /// bounds.
 #[test]

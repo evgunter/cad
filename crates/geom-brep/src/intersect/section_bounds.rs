@@ -57,9 +57,9 @@
 //! puts all of it within `w`.
 //!
 //! **The stretch** is `Γ` inside the carrier's control hulls padded by
-//! `T`: each span the edge's interval meets is cut into pieces, each
-//! piece's Bernstein net read off the span's homogeneous coefficients by
-//! the blossom in certification arithmetic, and a piece lies in the box
+//! `T`: each span the edge's interval meets has its Bernstein net read
+//! off its homogeneous coefficients by the blossom and is cut into pieces
+//! by de Casteljau splits, in certification arithmetic, and a piece lies in the box
 //! of its Cartesian control points, so a point of the carrier and its
 //! nearest point on `Γ_c` within `T` both lie in one of the padded
 //! boxes. Each floor is the least over the boxes. **The one point within `T`** is the
@@ -95,6 +95,13 @@
 //!   `v·â₂ = ±v·â₁ = ±ζ`. There `ρ̂₁·ρ̂₂ = 1 − ζ²(1 ∓ k)/R²`, `k = â₁·â₂`;
 //!   `m = 2R` on both. The two ellipses cross where `ζ = 0`, tangent, so a
 //!   stretch reaching it states nothing.
+//!
+//! - **sphere × cylinder**, `δ = O − C` from the sphere's centre to the
+//!   cylinder's anchor and `δ⊥ = δ − (δ·â)â`: on `Γ`, `v = u + δ` with
+//!   `u = y − O`, `‖v‖ = Rₛ` and the radial part `ρ = u − (u·â)â` of
+//!   length `R_c`, so `v·ρ = R_c² + δ⊥·u` and `cos θ = (R_c² +
+//!   δ⊥·u)/(Rₛ R_c)`, affine in `y` (constant `R_c/Rₛ` when the centre is
+//!   on the axis); `m = 2Rₛ` and `2R_c`.
 //!
 //! Every other pair — the torus rows among them — states nothing, and
 //! owes the tube.
@@ -178,6 +185,9 @@ pub fn tube_bounds<T: CertifiedBounds>(
         (q, p @ Quadric::Plane { .. }) if !matches!(q, Quadric::Plane { .. }) => (p, q),
         ab => ab,
     };
+    if !classified(a, b) {
+        return Err(pair);
+    }
     let eps = band.zero();
     let hulls = control_hulls(carrier, params).ok_or(Unstated::Pose(
         "the carrier's control hull over the edge's interval is not certified",
@@ -494,6 +504,28 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
             let zeta = v.dot(a1);
             (one - zeta.sqr() * lean / r1.sqr(), [two * r1, two * r1])
         }
+        (
+            Quadric::Sphere { center, radius: rs },
+            Quadric::Cylinder {
+                origin,
+                axis,
+                radius: rc,
+            },
+        ) => (
+            sphere_cylinder_cos(y, center, rs, origin, axis, rc),
+            [two * rs, two * rc],
+        ),
+        (
+            Quadric::Cylinder {
+                origin,
+                axis,
+                radius: rc,
+            },
+            Quadric::Sphere { center, radius: rs },
+        ) => (
+            sphere_cylinder_cos(y, center, rs, origin, axis, rc),
+            [two * rc, two * rs],
+        ),
         _ => return Err(pair),
     };
     let square = one - cos.sqr();
@@ -503,6 +535,35 @@ fn floors(a: Quadric, b: Quadric, region: Box3, pair: Unstated) -> Result<Floors
         ));
     }
     finish(square.sqrt(), m)
+}
+
+/// Whether [`floors`] has a closed form for the pair, the plane first:
+/// read before the carrier's hulls are composed, so a pair with none
+/// costs nothing.
+fn classified(a: Quadric, b: Quadric) -> bool {
+    matches!(
+        (a, b),
+        (Quadric::Plane { .. }, _)
+            | (Quadric::Cylinder { .. }, Quadric::Cylinder { .. })
+            | (Quadric::Sphere { .. }, Quadric::Cylinder { .. })
+            | (Quadric::Cylinder { .. }, Quadric::Sphere { .. })
+    )
+}
+
+/// `cos θ = v̂·ρ̂` of a sphere `(C, Rₛ)` and a cylinder `(O, â, R_c)` at
+/// every point `y` of `region` on `Γ` (module docs): affine in `y`, so
+/// each datum is read once.
+fn sphere_cylinder_cos(
+    y: V3,
+    center: V3,
+    rs: Interval,
+    origin: V3,
+    axis: V3,
+    rc: Interval,
+) -> Interval {
+    let d = origin - center;
+    let normal_part = d - axis * d.dot(axis);
+    (rc.sqr() + normal_part.dot(y - origin)) / (rs * rc)
 }
 
 fn finish(sin: Interval, m: [Interval; 2]) -> Result<Floors, Unstated> {
@@ -518,20 +579,23 @@ fn finish(sin: Interval, m: [Interval; 2]) -> Result<Floors, Unstated> {
     Ok(Floors { sin, m: [m0, m1] })
 }
 
-/// How many pieces each span of the carrier is cut into for its hulls.
-/// A piece's control net stands off its arc by an amount that falls with
+/// How many pieces the carrier's stretch is cut into, at least, for its
+/// hulls, spread evenly over the spans the edge's interval meets. A
+/// piece's control net stands off its arc by an amount that falls with
 /// the square of the piece's length (a quadratic's middle control point
-/// stands off its arc by half its sagitta), so eight pieces take the
-/// hulls' overshoot down about 64-fold — enough that each floor reads the
-/// carrier rather than its net on the rows of `tests/section_bounds.rs`
-/// — at eight Bernstein rows per span.
+/// stands off its arc by half its sagitta), so eight pieces of a span
+/// take the hulls' overshoot down about 64-fold — enough that each floor
+/// reads the carrier rather than its net on the rows of
+/// `tests/section_bounds.rs`. A fitted carrier's spans are short already
+/// (hundreds over a loop), and a span met among eight or more is one
+/// piece.
 const PIECES: u32 = 8;
 
 /// **The hulls of the carrier over `params`**: each span the edge's
-/// interval meets is cut into [`PIECES`] at equal steps of its parameter,
-/// and each piece's Bernstein net is read off the span's homogeneous
+/// interval meets has its Bernstein net read off its homogeneous
 /// coefficients `(w·P, w)` by the blossom
-/// ([`geom_core::spline::pieces::span_row`]) over the held knots, all in
+/// ([`geom_core::spline::pieces::span_row`]) over the held knots, and is
+/// cut by de Casteljau splits ([`split`]) into its share of [`PIECES`], all in
 /// certification arithmetic. A piece lies in the convex hull of its
 /// Cartesian control points `w·P/w` where every weight is certified
 /// positive, so the box of those points holds it for every member of the
@@ -563,24 +627,35 @@ fn control_hulls<T: CertifiedBounds>(
     // ends at the last knot of the first run.
     let runs: Vec<(T, usize)> = carrier.knot_values().runs().collect();
     let mut last = 0_usize;
-    let mut hulls = Vec::new();
+    let mut met = Vec::new();
     for pair in runs.windows(2) {
         let ((a, ma), (b, _)) = (pair[0], pair[1]);
         last += ma;
         let s = last - 1;
-        if !(Bounds::hi(b) >= lo && Bounds::lo(a) <= hi) || s < p {
-            continue;
+        if Bounds::hi(b) >= lo && Bounds::lo(a) <= hi && s >= p {
+            met.push(s);
         }
-        let (ka, kb) = (*knots.get(s)?, *knots.get(s + 1)?);
+    }
+    let pieces = u32::try_from(met.len()).map_or(1, |n| PIECES.div_ceil(n.max(1)));
+    let mut hulls = Vec::new();
+    for s in met {
+        let ends = (*knots.get(s)?, *knots.get(s + 1)?);
         let window = s - p..=s;
-        for j in 0..PIECES {
-            let at = |i: u32| {
-                let f = Interval::point(f64::from(i) / f64::from(PIECES));
-                ka + (kb - ka) * f
+        let mut rest = (
+            span_row(lifted.get(window.clone())?, &knots, s - p, ends)?,
+            span_row(weights.get(window.clone())?, &knots, s - p, ends)?,
+        );
+        for j in 0..pieces {
+            // The piece is the first `1/(pieces − j)` of what is left.
+            let (points, masses) = if j + 1 == pieces {
+                core::mem::take(&mut rest)
+            } else {
+                let at = Interval::point(1.0 / f64::from(pieces - j));
+                let (points, rest_points) = split(&rest.0, at);
+                let (masses, rest_masses) = split(&rest.1, at);
+                rest = (rest_points, rest_masses);
+                (points, masses)
             };
-            let ends = (at(j), at(j + 1));
-            let points = span_row(lifted.get(window.clone())?, &knots, s - p, ends)?;
-            let masses = span_row(weights.get(window.clone())?, &knots, s - p, ends)?;
             let mut hull: Option<Box3> = None;
             for (pw, w) in points.into_iter().zip(masses) {
                 if !certainly_positive(&[w]) {
@@ -602,6 +677,31 @@ fn control_hulls<T: CertifiedBounds>(
         }
     }
     (!hulls.is_empty()).then_some(hulls)
+}
+
+/// A Bernstein row split at `at` by de Casteljau: the rows of the piece
+/// before `at` and of the piece after it. Each is the exact split's at
+/// the stored `at`, enclosed, and the two pieces meet there, so together
+/// they hold the row's whole curve.
+fn split<V>(row: &[V], at: Interval) -> (Vec<V>, Vec<V>)
+where
+    V: Copy
+        + core::ops::Add<Output = V>
+        + core::ops::Sub<Output = V>
+        + core::ops::Mul<Interval, Output = V>,
+{
+    // Level `r` of the triangle overwrites `after[..len − r]`, leaving
+    // each earlier level's last entry in place behind it: what is left
+    // is the second piece's row, and each level's first entry the first's.
+    let mut after = row.to_vec();
+    let mut before = Vec::with_capacity(row.len());
+    for top in (0..row.len()).rev() {
+        before.push(after[0]);
+        for i in 0..top {
+            after[i] = after[i] + (after[i + 1] - after[i]) * at;
+        }
+    }
+    (before, after)
 }
 
 /// The carrier's point at a parameter inside `params` for every member
