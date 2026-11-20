@@ -84,11 +84,9 @@ design issue; say so rather than reconciling them locally.
 conversion, a special case or a door that already has callers is not
 thereby needed: for each use, say what breaks without it. A rule for
 when something is valid, put forward before anyone has asked whether
-it is necessary, answers the wrong question.
-
-**Count before you rule.** A rule over a population of sites is
-proposed only after the sites are counted and sorted by what the rule
-turns on. Say what you counted and what you did not read.
+it is necessary, answers the wrong question. Where you are not sure
+what a value or an operation means, find out where it comes from and
+how it is used before ruling on it.
 
 **A signature is a claim** (DESIGN `[unrepresentable]`). For generic
 code, write one sentence per type the signature admits, saying what
