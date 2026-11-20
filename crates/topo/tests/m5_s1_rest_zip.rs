@@ -80,7 +80,9 @@ fn assert_glued<
 /// the contact faces gone; the glued same-oriented side planes merge in
 /// the output stage, leaving the plain brick's six faces.
 fn stacked_plates_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() -> BooleanBody<T> {
     let bot = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
@@ -158,7 +160,9 @@ fn three_plate_chain() {
 /// The union BUILDS, one body; ∖ stays operand A (no
 /// join door was ever reached).
 fn corner_flush_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));

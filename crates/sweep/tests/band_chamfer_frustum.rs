@@ -119,7 +119,7 @@ fn revolved<T: Decide + topo::AtRestPolicy>(profile: &[(f64, f64)]) -> Body<T> {
 /// outer top edge as its outer cycle (a boss's top), both convex, in one
 /// call; a revolved counterbore's step carries its wide wall's foot
 /// (concave) and its narrow bore's mouth (convex), in one call.
-fn one_edge_annuli<T: Decide + CertifiedBounds + topo::AtRestPolicy>() {
+fn one_edge_annuli<T: Decide + CertifiedBounds + topo::CertifiedPolicy>() {
     let s = 0.1;
     let washer = revolved::<T>(&[(0.3, 0.0), (1.0, 0.0), (1.0, 0.5), (0.3, 0.5)]);
     let rims = [

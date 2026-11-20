@@ -2443,11 +2443,9 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// name this door:
     ///
     /// ```compile_fail,E0599
-    /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
-    /// use geom_core::{Band, Dual64, Point3, Real};
-    /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
-    /// }
+    /// use geom_brep::EdgeCurve;
+    /// use geom_core::Dual64;
+    /// let _ = EdgeCurve::<Dual64>::certify;
     /// ```
     ///
     /// The row differs from the one below, which builds, in the bound
@@ -2457,7 +2455,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// ```
     /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
     /// use geom_core::{Band, Point3, Real};
-    /// fn at<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    /// fn at<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     ///     spec: EdgeCurveSpec<T>,
     ///     p: Point3<T>,
     ///     band: Band,

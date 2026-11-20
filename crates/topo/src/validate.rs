@@ -18172,7 +18172,7 @@ mod offset_fit_door_rows {
     /// scalar, handed none.
     #[test]
     fn no_door_refuses_the_approx_face_by_name() {
-        let (errors, face) = check1::<f64>(None);
+        let (errors, face) = check1::<f64>(None::<geom_core::NoLane>);
         assert!(
             errors.iter().any(|e| matches!(
                 e,

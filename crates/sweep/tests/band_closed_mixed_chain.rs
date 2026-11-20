@@ -204,7 +204,7 @@ fn outline() -> crate::band_closed_mixed_chain_shapes::Outline {
 }
 
 /// A rim's chamfer, closed: one band face and one section per link.
-fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),

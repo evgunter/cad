@@ -65,7 +65,7 @@ fn a_mirror_of_the_m7_8_cube_refuses_not_rigid() {
 
 /// The class moves at `T` through the plain door, because `T`'s policy
 /// holds the lane, and re-derives at rest after the map.
-fn moves_at<T>()
+fn moves_at<T: topo::CertifiedPolicy>()
 where
     T: geom_core::Decide + geom_core::CertifiedBounds + AtRestPolicy,
 {
@@ -118,7 +118,7 @@ fn a_dual_brick_moves_bit_for_bit_with_its_f64_twin() {
 /// cavity inserts, its four carriers survive the graft AS the class,
 /// check 2 re-derives them at rest, the door logs no funnel verdict,
 /// and the voided body then moves through the transform.
-fn void_door_keeps_the_class<T>()
+fn void_door_keeps_the_class<T: topo::CertifiedPolicy>()
 where
     T: geom_core::Decide + geom_core::CertifiedBounds + AtRestPolicy,
 {

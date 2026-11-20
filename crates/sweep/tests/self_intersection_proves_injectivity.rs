@@ -2117,7 +2117,7 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
 #[test]
 fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
-    fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
         let spiric: Vec<(FaceKey, FaceKey)> = spiric_pairs(&hollow)
             .into_iter()
@@ -2410,7 +2410,7 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
             within(what, report);
         }
     }
-    fn cavity_at<T: Scalar>(what: &str) -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>(what: &str) -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
         let report = injective(&hollow, Some(faces), BUDGET);
         println!("[selfx] {what}: {:?} {:?}", report.verdict, report.receipt);

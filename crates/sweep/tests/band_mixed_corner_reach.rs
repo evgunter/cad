@@ -93,7 +93,7 @@ fn eps() -> f64 {
 /// One build: tier 3, `shells` closed shells, naming totality over the
 /// request, and `ΔV` at `truth` within the certified enclosure and
 /// `1e-12`.
-fn builds<T: Scalar>(
+fn builds<T: Scalar + topo::CertifiedPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     (verb, size): (Verb, f64),

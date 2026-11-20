@@ -859,8 +859,9 @@ mod wiring_rows {
 
     /// `Ok(())` when both fields hold their door; otherwise the name of
     /// the first field that does not, so a red says which pointer moved.
-    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_region_doors<
+        T: super::Decide + geom_core::CertifiedBounds + geom_core::Certifies,
+    >() -> Result<(), &'static str> {
         let lane = RegionLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.chart_overlap,

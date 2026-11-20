@@ -442,7 +442,7 @@ fn klein_elbow<T: Decide + topo::AtRestPolicy>() -> Body<T> {
 }
 
 /// `what` shells Ok at `T`, the time printed.
-fn shells<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn shells<T: Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: Body<T>,
     t: f64,

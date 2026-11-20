@@ -5667,7 +5667,7 @@ mod read_ends_rows {
             None,
             band,
             tol,
-            None,
+            None::<geom_core::NoLane>,
         );
         let Err(ReplaceFaceError::VertexDisagreement { gap, .. }) = got else {
             panic!("expected the corner's disagreement, got {got:?}");
@@ -5685,7 +5685,7 @@ mod read_ends_rows {
             None,
             band,
             tol,
-            None,
+            None::<geom_core::NoLane>,
         )
         .expect("a corner on the carrier reads");
         assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));

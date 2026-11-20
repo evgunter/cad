@@ -228,7 +228,7 @@ pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPoli
 
 /// The L-plate's run: the two lines' prisms, `2 − R` and `1 − R` long,
 /// and the quarter arc's piece at centroid radius `R − d`.
-fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -262,7 +262,7 @@ fn an_l_plates_rounded_corner_run_fillets_whole_at_interval() {
 
 /// The teardrop's rim: each line's centroid runs `√3 − d·cot 30°` from
 /// its junction to the mitre plane, and the arc's `240°` at `1 − d`.
-fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -435,7 +435,7 @@ pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::Certified
 /// The L-plate's run ends square at both walls; the teardrop's lines
 /// meet in its 60° point's mitre, each centroid line `√3 − (s/3)·cot 30°`
 /// long; the notch's floor adds what the others remove.
-fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(scalar: &str) {
     let tri = |s: f64| 0.5 * s * s;
     let l = l_plate::<T>();
     let run = edges_at(&l, 0.5, |x, y| y.abs() < 1e-9 || (x > 1.5 && y < 0.9));

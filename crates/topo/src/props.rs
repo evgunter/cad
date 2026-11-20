@@ -6655,8 +6655,9 @@ mod wiring_rows {
     /// `Ok(())` when the quadrature door holds
     /// `quad_lane::cut_face_rounds` and `quad_lane::closed_form`;
     /// otherwise the name of the field that moved.
-    fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_quadrature<
+        T: super::Decide + geom_core::CertifiedBounds + geom_core::Certifies,
+    >() -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
             quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
@@ -8341,7 +8342,9 @@ mod at_rest_policy_tests {
     }
 
     fn certifying_arms_are_the_doors<
-        T: AtRestPolicy<Finished = AtRestBody<T>> + geom_core::CertifiedBounds,
+        T: super::CertifiedPolicy
+            + AtRestPolicy<Finished = AtRestBody<T>, ShellDoor = super::ShellDoor<T>>
+            + geom_core::CertifiedBounds,
     >() {
         let tol = Tol::witness();
         let b = refusing_body::<T>();

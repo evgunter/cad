@@ -145,7 +145,7 @@ fn builds<T: Scalar + topo::CertifiedPolicy>(
 
 /// The flush and inset corners at a right angle, each pair edge, at
 /// scalar `T`.
-fn right_angle_rows<T: Scalar>(scalar: &str) {
+fn right_angle_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     for (kind, (body, [odd, y, z]), (l, sign)) in [
         ("flush", flush::<T>(), (2.0, 1.0)),
         ("inset", inset::<T>(), (1.0, -1.0)),
@@ -185,7 +185,7 @@ fn assert_endpoint_escalation<T: Scalar>(what: &str, got: Result<Blended<T>, Ble
 
 /// The flush and inset corners at plan angles 60° and 120°, each pair
 /// edge, at scalar `T`.
-fn plan_angle_rows<T: Scalar>(scalar: &str) {
+fn plan_angle_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     for phi in [PI / 3.0, 2.0 * PI / 3.0] {
         let deg = phi.to_degrees();
         for (kind, (body, [odd, y, z]), (l, sign)) in [
@@ -235,7 +235,7 @@ pub(crate) fn bracket_request<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
 /// the flush verticals and side edges (convex, 1.5 and 0.5) pair; the
 /// inset verticals (convex, 1.5) odd. The `s³` terms of the flush and
 /// inset corners cancel: `ΔV = (s²/2)(2·0.5 − 1.5 − 0.5 − 2·1.5) = −2s²`.
-fn bracket_rows<T: Scalar>(scalar: &str) {
+fn bracket_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     let body = boreless::<T>();
     let s = 0.05;
     builds(
@@ -279,7 +279,7 @@ fn pair_of_length<T: Scalar>(y: f64) -> (Body<T>, [EdgeKey; 2]) {
 
 /// The short-edge boundaries at scalar `T`, each read `d = 100ε` either
 /// side (outside the predicates' bands at every ε) and 5% either side.
-fn short_edge_rows<T: Scalar>(scalar: &str) {
+fn short_edge_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     let run_out =
         |got: Result<Blended<T>, BlendError>, want: fn(&UnbuiltEnd) -> bool, what: &str| {
             assert!(

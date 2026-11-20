@@ -108,7 +108,9 @@ fn assert_keyed<
 
 /// Corner kiss (v-v): the PR 5 assembly, now certified at rest.
 fn corner_kiss_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
@@ -128,7 +130,9 @@ fn corner_kiss_promoted() {
 /// the census reads the full-length coincident-edge SEGMENT between
 /// the two shared keys as structure.
 fn tangent_edge_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
@@ -237,7 +241,9 @@ fn vertex_on_face_kiss_promoted() {
 /// `(vertex, edge)` record, and the census certifies the collinear
 /// overlap segment from those bounding records (D3).
 fn edge_rest_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0));

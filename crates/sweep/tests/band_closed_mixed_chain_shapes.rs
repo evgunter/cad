@@ -1131,7 +1131,7 @@ fn chamfer_reading(d: f64, t: f64, s: f64) -> Option<bool> {
 /// `s`, at any scalar: [`chamfer_row`]'s checks over both rims, the
 /// volume removed at Pappus's closed form, and Euler; at `Interval` at
 /// ε = 1e-12, the refusal there instead.
-fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn chamfer_plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     o: &Outline,
     (z0, h): (f64, f64),
@@ -1454,7 +1454,7 @@ fn outline_loop<T: geom_core::Real>(o: &Outline, hole: bool) -> profile::Profile
 /// hole's on the far side of its arcs' axes, two rims each.
 #[test]
 fn a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str) {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(what: &str) {
         let (outer, inner) = (rect(1.5, 1.0, [0.3; 4]), rect(0.6, 0.3, [0.15; 4]));
         let body = extruded(
             SketchPlane::xy(),
