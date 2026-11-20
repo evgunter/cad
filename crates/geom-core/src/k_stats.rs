@@ -2004,6 +2004,10 @@ impl Real for Probe {
         Self(x)
     }
 
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(self.0)
+    }
+
     /// The recording scalar's value channel IS an `f64`, so the
     /// registered-identity witness is `f64`'s verbatim
     /// ([`Real::register_equal`]) — inexact ([`Real::WITNESS`] above
@@ -2052,6 +2056,10 @@ impl Real for Probe {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = Real::sin_cos(self.0);
         (Self(s), Self(c))
+    }
+
+    fn less_sin(self) -> Self {
+        Self(Real::less_sin(self.0))
     }
 
     fn tan(self) -> Self {

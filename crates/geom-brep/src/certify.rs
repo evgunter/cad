@@ -10299,7 +10299,7 @@ mod tests {
             (
                 forward(proved),
                 "the stored parameter interval is not shown to run forward (length \
-                 3.725290298461914e-9 m)",
+                 3.725e-9 m)",
             ),
             (
                 forward(zero(none)),

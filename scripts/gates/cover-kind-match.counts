@@ -98,8 +98,8 @@ arm 2 crates/topo/src/cell_region.rs
 ball 1 crates/topo/src/census.rs
 arm 1 crates/topo/src/census/in_plane.rs
 arm 1 crates/topo/src/chart_region.rs
-arm 6 crates/topo/src/chord_join.rs
-whole 2 crates/topo/src/chord_join.rs
+arm 5 crates/topo/src/chord_join.rs
+whole 1 crates/topo/src/chord_join.rs
 arm 1 crates/topo/src/clearance.rs
 arm 7 crates/topo/src/face_normal.rs
 arm 6 crates/topo/src/injective.rs
