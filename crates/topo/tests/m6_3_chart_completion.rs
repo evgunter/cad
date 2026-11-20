@@ -16,6 +16,9 @@
 //! - the mint reaches that route at `f64` and at the interval scalar,
 //!   refuses an arc over a pole (`SectorRefused`) while minting an arc
 //!   of the same circle that avoids it, and tier 3 re-certifies it;
+//! - an arc of that circle that ENDS on the pole, stated so by its
+//!   producer, images off the reduced radial and certifies, and a pole
+//!   end stated off the pole refuses;
 //! - a stored row moved off its deck refuses.
 //!
 //! ε posture: no ε literal; every margin is the run's own band.
@@ -263,6 +266,171 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
     let band = Band::linear(Tol::witness()).unwrap();
     let findings = topo::pcurves::validate_pcurves(&clear, band);
     assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// [`pole_circle`] at the scalar `T`, with its pole at `t = π`.
+fn pole_circle_at<T: Real>() -> Curve3<T> {
+    let tilt = 0.6_f64;
+    let v = |x: f64, y: f64, z: f64| Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    Curve3::circle(
+        Point3::origin() + v(tilt.sin() * tilt.cos(), 0.0, tilt.cos() * tilt.cos()),
+        v(tilt.sin(), 0.0, tilt.cos()),
+        T::from_f64(tilt.sin()),
+        v(tilt.cos(), 0.0, -tilt.sin()),
+    )
+}
+
+/// The arcs of [`pole_circle`] that END on the pole, with the ends the
+/// producer would state: one leaving it, one arriving, and the whole
+/// circle from the pole round to it.
+fn pole_ended_arcs() -> [((f64, f64), geom_brep::SingularEnds); 3] {
+    let pi = core::f64::consts::PI;
+    let ends = |start, end| geom_brep::SingularEnds { start, end };
+    [
+        ((pi, pi + 1.2), ends(true, false)),
+        ((pi - 1.2, pi), ends(false, true)),
+        ((pi, 3.0 * pi), ends(true, true)),
+    ]
+}
+
+/// **An arc that ends on the pole images and certifies, at every
+/// scalar.** Leaving the pole, arriving at it, or both, the image reads
+/// its azimuth off the reduced radial and certifies against the sphere
+/// alone. The same arc derived with no end stated still refuses at the
+/// piece holding the pole: what images it is the end's statement, not
+/// a wider sector (red if the plain lane starts reading the axis).
+fn an_arc_ending_on_the_pole_certifies<T: geom_core::Decide>() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let circle = pole_circle_at::<T>();
+    let surface = sphere::<T>();
+    for ((a, b), ends) in pole_ended_arcs() {
+        let (t0, t1) = (T::from_f64(a), T::from_f64(b));
+        let image = geom_brep::chart_pcurve_over_ends(&circle, t0, t1, ends, &surface, band)
+            .unwrap_or_else(|e| panic!("({a}, {b}) {ends:?}: the arc images, got {e:?}"));
+        assert!(
+            matches!(&image, Pcurve::Projected(p) if p.pole().is_some()),
+            "({a}, {b}): the image reads its pole end: {image:?}"
+        );
+        PcurveCache::certify(image, t0, t1, &circle, &surface, band)
+            .unwrap_or_else(|e| panic!("({a}, {b}) {ends:?}: the image certifies, got {e:?}"));
+        let plain = geom_brep::chart_pcurve_over(&circle, t0, t1, &surface, band);
+        assert!(
+            matches!(
+                plain,
+                Err(geom_brep::PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Pose { .. },
+                    ..
+                })
+            ),
+            "({a}, {b}): with no end stated the pole piece refuses, got {plain:?}"
+        );
+    }
+}
+
+#[test]
+fn an_arc_ending_on_the_pole_certifies_at_f64() {
+    an_arc_ending_on_the_pole_certifies::<f64>();
+}
+
+#[test]
+fn an_arc_ending_on_the_pole_certifies_at_the_interval_scalar() {
+    an_arc_ending_on_the_pole_certifies::<geom_core::interval::Interval>();
+}
+
+/// **At the pole the image is the end's limit along the edge.** The
+/// point at the pole end has latitude `π/2` and the azimuth of the
+/// carrier's radial direction there: its tangent leaving the pole, or
+/// its tangent reversed arriving. Across the edge the image stays on one
+/// branch, the azimuth moving by less than a turn (red if the end reads
+/// the carrier's own rounded radial, whose direction at the pole is
+/// noise).
+#[test]
+fn the_image_at_a_pole_end_is_its_limit_along_the_edge() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let circle = pole_circle_at::<f64>();
+    let surface = sphere::<f64>();
+    for ((a, b), ends) in pole_ended_arcs() {
+        let image =
+            geom_brep::chart_pcurve_over_ends(&circle, a, b, ends, &surface, band).unwrap();
+        for (at, leaving) in [(a, true), (b, false)] {
+            if !(if leaving { ends.start } else { ends.end }) {
+                continue;
+            }
+            let p = image.eval(at);
+            assert!(
+                (p.y - core::f64::consts::FRAC_PI_2).abs() < 1e-12,
+                "({a}, {b}) at {at}: the pole's latitude, got {}",
+                p.y
+            );
+            let (_, d) = circle.ders1(at);
+            let d = if leaving { d } else { -d };
+            let want = d.y.atan2(d.x);
+            let off = (p.x - want).rem_euclid(core::f64::consts::TAU);
+            assert!(
+                off.min(core::f64::consts::TAU - off) < 1e-9,
+                "({a}, {b}) at {at}: the azimuth is the radial direction's limit, got {} for {want}",
+                p.x
+            );
+        }
+        let (u0, u1) = (image.eval(a).x, image.eval(b).x);
+        assert!(
+            (u1 - u0).abs() < core::f64::consts::TAU,
+            "({a}, {b}): one branch, got {u0} → {u1}"
+        );
+    }
+}
+
+/// **A pole end stated where there is none refuses.** The general circle
+/// passes nowhere near the pole, so stating its start on the pole charges
+/// the reduction's miss, the radial part there, as the envelope's
+/// fidelity. At the interval scalar, where the envelope is the whole
+/// certified statement, check 4 refuses it on that term (red if the pole
+/// term goes); at `f64` the schedule's cross-check sees the miss first.
+#[test]
+fn a_pole_end_stated_off_the_pole_refuses() {
+    use geom_core::interval::Interval;
+    let band = Band::linear(Tol::witness()).unwrap();
+    let ends = geom_brep::SingularEnds {
+        start: true,
+        end: false,
+    };
+    let (t0, t1) = ARC;
+    let at_f64 = geom_brep::chart_pcurve_over_ends(
+        &general_circle::<f64>(),
+        t0,
+        t1,
+        ends,
+        &sphere::<f64>(),
+        band,
+    )
+    .and_then(|image| {
+        PcurveCache::certify(image, t0, t1, &general_circle(), &sphere(), band)
+    });
+    assert!(
+        matches!(
+            at_f64,
+            Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::MapResidual,
+                ..
+            })
+        ),
+        "at f64 the cross-check refuses the stated pole end: {at_f64:?}"
+    );
+    let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
+    let circle = general_circle::<Interval>();
+    let surface = sphere::<Interval>();
+    let at_interval = geom_brep::chart_pcurve_over_ends(&circle, t0, t1, ends, &surface, band)
+        .and_then(|image| PcurveCache::certify(image, t0, t1, &circle, &surface, band));
+    assert!(
+        matches!(
+            at_interval,
+            Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::Fidelity),
+                ..
+            })
+        ),
+        "at the interval scalar the envelope refuses on fidelity: {at_interval:?}"
+    );
 }
 
 /// **A stored row off its deck refuses.** The minted row moved by a
