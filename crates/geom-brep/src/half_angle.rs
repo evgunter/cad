@@ -169,13 +169,16 @@ impl<T: geom_core::Real> TrigPoly<T> {
         });
         let top = self.degree.min(4);
         let deg = T::from_f64(f64::from(top));
+        let charged = |value: T, order: i32| Rounded {
+            value,
+            error: deg.powi(order) * noise,
+        };
         [
-            (value, noise),
-            (derivative(1), deg * noise),
-            (derivative(2), deg.powi(2) * noise),
-            (derivative(3), deg.powi(3) * noise),
+            charged(value, 0),
+            charged(derivative(1), 1),
+            charged(derivative(2), 2),
+            charged(derivative(3), 3),
         ]
-        .map(|(value, error)| Rounded { value, error })
     }
 }
 
@@ -596,8 +599,7 @@ pub(crate) const SPLITS: [f64; 9] = [
 const BISECTIONS: u32 = 64;
 
 /// The row a metered root's own slope is read under
-/// ([`Rounded::divisor`]): whether `F′` at the root clears its bound,
-/// so that the slack's window can be sized by it ([`RootSlack`]).
+/// ([`Rounded::divisor`]), which picks its lever's arm ([`RootSlack`]).
 const ROOT_SLOPE_ROOM: &str = "root_slack_slope_room";
 
 /// **The bracket about `g`'s one sign change on `(l, r)`**, halved
@@ -715,10 +717,10 @@ pub fn certified_subdivision<T: Decide>(
 /// whose ends read one side. Let `G = ±F` be positive at those ends, and
 /// `c` the least `G″` on the piece, from the same Taylor terms and
 /// charges as the monotone reading. Where `c` and the slopes `G′` toward
-/// the extremum at the ends read positive (`convex`), the piece holds
-/// `G`'s one extremum `θ*` and no root or two (a double root counted
-/// twice). `θ*` is bisected on `F′`, and the residual there is read
-/// (`side`).
+/// the extremum at the ends, each moved toward zero by its bound, read
+/// positive (`convex`), the piece holds `G`'s one extremum `θ*` and no
+/// root or two (a double root counted twice). `θ*` is bisected on `F′`
+/// as read, and the residual there is read (`side`).
 ///
 /// - **ON** (the zero band). `G″ ≥ c > 0` on the piece, read, so `G` is
 ///   convex there with its least at its one extremum, and
@@ -928,18 +930,13 @@ fn subdivision<T: Decide>(
             if let Some(meter) = slack {
                 // `|F|` at the root, true to within `reach`: the true root
                 // lies within `reach / L` of it wherever `|F′| ≥ L` holds
-                // that far. `L` is read on a window about the root twice
-                // that width at the root's own slope — valid when that
-                // slope clears its bound and the slack it gives fits
-                // inside the window — and otherwise on the whole piece,
-                // which holds the true root.
+                // that far ([`RootSlack`]).
                 let reach = meter.f_per_metre_hi * (meter.residual)(root).magnitude();
                 let [_, g1, g2, g3] = taylor(root);
-                let lever = g1.divisor(ROOT_SLOPE_ROOM).map_or(least_slope, |near| {
-                    let w = Rounded::exact(two * reach)
-                        .quotient(near)
-                        .magnitude()
-                        .min(half);
+                let lever = g1.divisor(ROOT_SLOPE_ROOM).map_or(least_slope, |_| {
+                    // Any width will do: `reach ≤ window · w` below is
+                    // what admits the window's slope.
+                    let w = (two * reach / g1.room()).min(half);
                     let window = g1.room()
                         - g2.magnitude() * w
                         - g3.magnitude() * w.powi(2) / two
@@ -966,11 +963,14 @@ fn subdivision<T: Decide>(
                 T::zero() - T::one()
             };
             let exactly = |x: T| geom_core::k_stats::prove(touch.convex(), Margin::of(x)).ok();
+            // A lower bound on `G″` over the piece where it is positive,
+            // the one place it is read.
             let curve = toward * f2.toward_zero() - d3_hi * half - fourth_hi * half.powi(2) / two;
             let slope = |t: T| toward * taylor(t)[1].value;
+            let slope_past_its_bound = |t: T| exactly(toward * taylor(t)[1].toward_zero());
             if exactly(curve) == Some(Sign::Positive)
-                && exactly(slope(l)) == Some(Sign::Negative)
-                && exactly(slope(r)) == Some(Sign::Positive)
+                && slope_past_its_bound(l) == Some(Sign::Negative)
+                && slope_past_its_bound(r) == Some(Sign::Positive)
             {
                 let (lo, hi) = sign_change(&slope, l, r);
                 let at = (lo + hi) / two;
@@ -1272,9 +1272,9 @@ mod subdivision_guard_rows {
         let a = 0.3;
         let jet = |t: f64| {
             let (s, c) = (t - a).sin_cos();
-            let wide = if s.abs() < 1e-6 { 2.0 } else { 0.0 };
-            [(s, 0.0), (c, wide), (-s, 0.0), (-c, 0.0)]
-                .map(|(value, error)| Rounded { value, error })
+            let mut terms = [s, c, -s, -c].map(Rounded::exact);
+            terms[1].error = if s.abs() < 1e-6 { 2.0 } else { 0.0 };
+            terms
         };
         let metered = |bound: f64| {
             let frame = SubdivisionFrame {

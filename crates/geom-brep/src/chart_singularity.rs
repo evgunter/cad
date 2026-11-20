@@ -1019,7 +1019,7 @@ pub fn walk_loop<T: Decide>(
     // Bisect the steps carrying the most error until the area clears
     // its bound.
     loop {
-        if area_clears(reading.area, reading.error) {
+        if area_clears(&reading.walk()) {
             break;
         }
         let total = reading.error;
@@ -1041,11 +1041,11 @@ pub fn walk_loop<T: Decide>(
 
 /// Whether a winding-free walk's area clears its error bound, its
 /// reading wholly on one side of zero (`chart_singularity_loop_side`).
-fn area_clears<T: Decide>(area: T, error: T) -> bool {
+fn area_clears<T: Decide>(walk: &LoopWalk<T>) -> bool {
     matches!(
         decide(
             "chart_singularity_loop_side",
-            Margin::sign_of(area.abs() - error),
+            Margin::sign_of(walk.area.abs() - walk.error),
             Band::enclosure_sign()
         ),
         Ok(Sign::Positive)
@@ -1292,7 +1292,8 @@ fn step_bound<T: Decide>(
 /// A walk's sums: its winding, its area, its bound, and each step's
 /// share of the bound. No [`geom_core::Rounded`]: the bound is each
 /// step's certified distance from the loop's own area, which the
-/// bisection reweighs by step, not the rounding of the sum's expression.
+/// bisection reweighs by step, not only the rounding of the sum's
+/// expression.
 struct WalkSum<T> {
     winding: i8,
     area: T,
@@ -1405,7 +1406,7 @@ pub fn loop_holds_on_left<T: Decide>(
 ) -> Result<bool, SideUnread> {
     match walk.winding {
         0 => {
-            if !area_clears(walk.area, walk.error) {
+            if !area_clears(walk) {
                 return Err(SideUnread::Straddle);
             }
             Ok(matches!(
