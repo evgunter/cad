@@ -514,8 +514,8 @@ fn coin(h: f64) -> String {
 /// while the cap's rim moves by the tilt times the radius. The later cap
 /// tilted 1e-4 moves its rim 5 µm, inside the band's zero: it turns onto
 /// the axis, its move the rim's. Tilted 4e-4 (20 µm, in the band) the
-/// relation is not read and the build refuses the rim as the file's
-/// ambiguity; tilted 4e-3 (200 µm) the rim lies past the band.
+/// relation refuses as the file's ambiguity; tilted 4e-3 (200 µm) the
+/// rim lies past the band.
 #[test]
 fn a_coins_tilted_cap_is_read_over_its_rim() {
     let radius = 0.05;
@@ -542,26 +542,33 @@ fn a_coins_tilted_cap_is_read_over_its_rim() {
             moved_by >= rim * (1.0 - 1e-6) && moved_by <= rim * 1.01,
             "h {h}: the move is the rim's, {rim:e}: {moved_by:e}"
         );
-        for (by, in_band) in [(4e-4, true), (4e-3, false)] {
-            match tilted(by) {
-                Err(StepImportError::Interpretation { refusal, .. }) => match (refusal, in_band) {
-                    (
-                        InterpretationRefusal::Ambiguous {
-                            reading, gap: miss, ..
-                        },
-                        true,
-                    )
-                    | (InterpretationRefusal::EvidenceMiss { reading, miss }, false) => {
-                        assert_eq!(reading, "step_edge_on_description", "h {h} tilt {by}");
-                        assert!(
-                            miss >= by * radius * (1.0 - 1e-2) && miss <= 2.0 * by * radius * 1.01,
-                            "h {h} tilt {by}: the rim's miss, one to two of its move: {miss:e}"
-                        );
-                    }
-                    (other, _) => panic!("h {h} tilt {by}: the rim's reading, got {other:?}"),
-                },
-                other => panic!("h {h} tilt {by}: refuses as the file's, got {other:?}"),
+        let by = 4e-4;
+        match tilted(by) {
+            Err(StepImportError::Interpretation {
+                refusal: InterpretationRefusal::Ambiguous { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!(reading, "step_snap_relation", "h {h} tilt {by}");
+                assert!(
+                    gap >= by * radius * (1.0 - 1e-2),
+                    "h {h} tilt {by}: the relation's gap, the tilt over the faces: {gap:e}"
+                );
             }
+            other => panic!("h {h} tilt {by}: the relation's ambiguity, got {other:?}"),
+        }
+        let by = 4e-3;
+        match tilted(by) {
+            Err(StepImportError::Interpretation {
+                refusal: InterpretationRefusal::EvidenceMiss { reading, miss },
+                ..
+            }) => {
+                assert_eq!(reading, "step_edge_on_description", "h {h} tilt {by}");
+                assert!(
+                    miss >= by * radius * (1.0 - 1e-2) && miss <= 2.0 * by * radius * 1.01,
+                    "h {h} tilt {by}: the rim's miss, one to two of its move: {miss:e}"
+                );
+            }
+            other => panic!("h {h} tilt {by}: the rim's miss, got {other:?}"),
         }
     }
 }
@@ -790,8 +797,8 @@ fn cone_cap(tilt: f64) -> String {
 /// tilt moves the apex by the tilt times that, not by the tilt times the
 /// rim's 5 mm. Tilted 5e-5 the apex moves 5 µm, inside the band's zero:
 /// the cone, the later record, turns onto the base's normal, its move the
-/// apex's. Tilted 5e-4 (50 µm, in the band) the relation is not read and
-/// the build refuses the file's ambiguity; tilted 2e-3 (200 µm) the two
+/// apex's. Tilted 5e-4 (50 µm, in the band) the relation refuses as the
+/// file's ambiguity; tilted 2e-3 (200 µm) the two
 /// are apart and nothing moves, the tilted cone built as stated.
 #[test]
 fn a_cone_cap_is_read_to_its_apex() {
@@ -810,7 +817,7 @@ fn a_cone_cap_is_read_to_its_apex() {
         Err(StepImportError::Interpretation {
             refusal: InterpretationRefusal::Ambiguous { reading, .. },
             ..
-        }) => assert_eq!(reading, "step_edge_on_description"),
+        }) => assert_eq!(reading, "step_snap_relation"),
         other => panic!("tilted 5e-4: the file's ambiguity, got {other:?}"),
     }
     let apart = import(&cone_cap(2e-3)).unwrap_or_else(|e| panic!("2e-3 imports: {}", e.render()));
