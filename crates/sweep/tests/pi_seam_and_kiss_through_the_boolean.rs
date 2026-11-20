@@ -265,13 +265,16 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) = carrier_of(&body, k)
+            let geom::Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame: geom::Frame { origin: center, .. },
+                    ..
+                },
+            ) = carrier_of(&body, k)
             else {
                 panic!("{label}: the rim is a circle");
             };
+            let radius = conic_k.radius();
             assert!(
                 (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
                 "{label}: on the rim at z = H: {center:?}, {radius}"

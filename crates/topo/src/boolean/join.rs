@@ -7405,19 +7405,21 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(geom::Ellipse {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                u_ref,
-                            },
-                        semi_u,
-                        semi_v,
-                    }) = *e
+                    let geom::Curve3::Ellipse(
+                        conic_k @ geom::Ellipse {
+                            frame:
+                                geom::Frame {
+                                    origin: center,
+                                    axis,
+                                    u_ref,
+                                },
+                            ..
+                        },
+                    ) = *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
+                    let (semi_u, semi_v) = conic_k.semi_axes();
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:
                     // an exact round trip iff the point is ON the

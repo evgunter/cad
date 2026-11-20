@@ -1435,8 +1435,8 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Curve3<T> {
     match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(c) => Curve3::Circle(*c.with_frame(c.frame.translated(delta))),
-        Curve3::Ellipse(e) => Curve3::Ellipse(*e.with_frame(e.frame.translated(delta))),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(delta))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(delta))),
         Curve3::Spiric {
             center,
             axis,

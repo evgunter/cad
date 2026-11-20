@@ -2210,7 +2210,10 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
                     .expect("carrier")
                     .carrier()
                 {
-                    geom::Curve3::Circle(geom::Circle { radius, .. }) => *radius,
+                    geom::Curve3::Circle(circle) => {
+                        let radius = circle.radius();
+                        radius
+                    }
                     other => panic!("a rim bounded by {other:?}"),
                 }
             };

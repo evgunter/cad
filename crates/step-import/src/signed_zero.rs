@@ -81,38 +81,47 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(
-            plus_zero_point(center),
-            plus_zero(axis),
-            radius,
-            plus_zero(u_ref),
-        ),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame {
-                origin: plus_zero_point(center),
-                axis: plus_zero(axis),
-                u_ref: plus_zero(u_ref),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
             },
-            semi_u,
-            semi_v,
-        }),
+        ) => {
+            let radius = conic_k.radius();
+            Curve3::circle(
+                plus_zero_point(center),
+                plus_zero(axis),
+                radius,
+                plus_zero(u_ref),
+            )
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = ellipse.semi_axes();
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame {
+                    origin: plus_zero_point(center),
+                    axis: plus_zero(axis),
+                    u_ref: plus_zero(u_ref),
+                },
+                semi_u,
+                semi_v,
+            ))
+        }
         other => other,
     }
 }

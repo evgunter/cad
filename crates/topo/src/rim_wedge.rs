@@ -878,18 +878,20 @@ fn crossings<T: Decide>(
         }
         (
             geom::Curve3::Circle(
-                arc @ geom::Circle::new(
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                    radius,
-                ),
+                arc @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
+                    ..
+                },
             ),
             _,
         ) => {
-            let (ce, ae, re) = (*center, *axis, *radius);
+            let radius = arc.radius();
+            let (ce, ae, re) = (*center, *axis, radius);
             let e1 = {
                 let d = p0 - ce;
                 d.normalize()
@@ -977,25 +979,31 @@ fn rides<T: Decide>(
     match (locus, curve.carrier()) {
         (
             Locus::Rim(rim),
-            geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
                 },
-                radius,
-            )),
-        ) => same_circle(
-            Rim {
-                center: *center,
-                axis: *axis,
-                radius: *radius,
-                u_ref: *u_ref,
-            },
-            rim,
-            band,
-        )
-        .map(|one| one.is_some()),
+            ),
+        ) => {
+            let radius = circle.radius();
+            same_circle(
+                Rim {
+                    center: *center,
+                    axis: *axis,
+                    radius: radius,
+                    u_ref: *u_ref,
+                },
+                rim,
+                band,
+            )
+            .map(|one| one.is_some())
+        }
         // Both ends on the line, an identity: either end decided off it
         // answers "not riding", whatever the other read
         // ([`read_identity`]).

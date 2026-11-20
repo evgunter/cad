@@ -169,18 +169,21 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .get_curve_geom(out.body.get_edge(a).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
-            let Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: ax,
-                        ..
-                    },
-                radius: rr,
-            }) = *c.carrier()
+            let Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis: ax,
+                            ..
+                        },
+                    ..
+                },
+            ) = *c.carrier()
             else {
                 panic!("{what}: a cut-off arc is a circle, got {:?}", c.carrier());
             };
+            let rr = conic_k.radius();
             assert_eq!(rr, R, "{what}: the section circle has the band's radius");
             assert!(
                 (center.x - origin.x).abs() < 1e-12
@@ -512,11 +515,13 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     }) => {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
-                    Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { axis, .. },
-                        semi_u,
-                        semi_v,
-                    }) => {
+                    Curve3::Ellipse(
+                        conic_k @ geom::Ellipse {
+                            frame: geom::Frame { axis, .. },
+                            ..
+                        },
+                    ) => {
+                        let (semi_u, semi_v) = conic_k.semi_axes();
                         ellipses += 1;
                         assert_eq!(semi_v, R, "{what}: minor = r");
                         assert!(
@@ -564,19 +569,21 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
     let oblique =
         cap_transverse(v, n, tau, R, arm(1.0), band).expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                u_ref: u_major,
-                axis: normal,
-                ..
-            },
-        semi_u,
-        semi_v,
-    })) = oblique
+    let EndSection::Ellipse(Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    u_ref: u_major,
+                    axis: normal,
+                    ..
+                },
+            ..
+        },
+    )) = oblique
     else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
+    let (semi_u, semi_v) = conic_k.semi_axes();
     assert_eq!(semi_v, R, "the minor semi-axis is the radius");
     assert!((semi_u - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
@@ -597,14 +604,16 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(t, 0.0, 1.0);
     let sliver = cap_transverse(v, n, tau, R, arm(1e3), band)
         .expect("levered up, the departure is definite: the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { u_ref: u_major, .. },
-        semi_u,
-        semi_v,
-    })) = sliver
+    let EndSection::Ellipse(Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: geom::Frame { u_ref: u_major, .. },
+            ..
+        },
+    )) = sliver
     else {
         panic!("the sliver band picks the ellipse, got {sliver:?}");
     };
+    let (semi_u, semi_v) = conic_k.semi_axes();
     assert!(
         semi_u - semi_v < band.zero(),
         "the axes {semi_u}, {semi_v} are within the zero band"
@@ -634,18 +643,21 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .and_then(|g| g.certified())
         .unwrap()
         .clone();
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = *c.carrier()
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = *c.carrier()
     else {
         panic!("an arc");
     };
+    let radius = conic_k.radius();
     let EdgeDescription::Intersection {
         pair,
         selector: geom_brep::CurveSelector::Witness(witness),

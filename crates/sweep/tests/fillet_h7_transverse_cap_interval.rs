@@ -128,9 +128,10 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     assert_eq!(rec.arcs.len(), 4, "one cut-off arc per crease end");
     for (a, _, _) in &rec.arcs {
         let c = certified(*a);
-        let Curve3::Circle(geom::Circle { radius, .. }) = *c.carrier() else {
+        let Curve3::Circle(conic_k) = *c.carrier() else {
             panic!("a cut-off arc is a circle, got {:?}", c.carrier());
         };
+        let radius = conic_k.radius();
         assert!(
             radius.lo() <= r && r <= radius.hi() && radius.hi() - radius.lo() < 1e-15,
             "the section circle brackets the band's radius tightly: {radius:?}"
@@ -210,9 +211,10 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let phi = 0.3f64;
     let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, radius, lever, band)
         .expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse(geom::Curve3::Ellipse(geom::Ellipse { semi_u, .. })) = oblique else {
+    let EndSection::Ellipse(geom::Curve3::Ellipse(conic_k)) = oblique else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
+    let (semi_u, _) = conic_k.semi_axes();
     let expected = 0.1 / phi.cos();
     assert!(
         semi_u.lo() <= expected && expected <= semi_u.hi() && semi_u.hi() - semi_u.lo() < 1e-15,

@@ -910,14 +910,14 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            carrier: geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            }),
+            )),
             t0,
             t1,
             turn: crate::region::fixture_turn(t0, t1),

@@ -15226,14 +15226,14 @@ mod tests {
         assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
@@ -16495,14 +16495,14 @@ mod tests {
                 ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
             .expect("one sense of the circle is the arc asked for");
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
             spec,

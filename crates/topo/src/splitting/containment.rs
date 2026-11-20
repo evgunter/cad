@@ -2377,14 +2377,14 @@ mod tests {
             );
         }
         // A circle: an overlap in its band escalates, one past it is wound.
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let circle = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
-            radius: 1.0,
-        });
+            1.0,
+        ));
         let tau = core::f64::consts::TAU;
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic(), band),
@@ -2848,8 +2848,14 @@ mod tests {
         use geom_core::k_stats::decide_reported;
         let rows = WALK_ROWS.conic();
         let (ellipse, a, b) = match *carrier {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => (false, radius, radius),
-            geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (true, semi_u, semi_v),
+            geom::Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                (false, radius, radius)
+            }
+            geom::Curve3::Ellipse(ellipse) => {
+                let (semi_u, semi_v) = ellipse.semi_axes();
+                (true, semi_u, semi_v)
+            }
             _ => unreachable!("a conic fixture"),
         };
         let lever = a.min(b);

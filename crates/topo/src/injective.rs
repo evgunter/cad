@@ -9561,7 +9561,7 @@ mod presentation_rows {
             l.origin = thin(l.origin);
         }
         if let Some((Curve3::Circle(c), _)) = &mut b.edges[1].arc {
-            c.radius = iv0(r);
+            *c = geom::Circle::new(c.frame, iv0(r));
         }
         let local = Local {
             edges: vec![0, 1],

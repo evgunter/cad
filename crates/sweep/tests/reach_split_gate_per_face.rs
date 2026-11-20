@@ -376,19 +376,21 @@ impl Rim {
         n: u32,
         domain: (f64, f64),
     ) -> (geom::NurbsCurve3<f64>, geom_brep::EdgeCurveSpec<f64>) {
-        let geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) = &self.ellipse
+        let geom::Curve3::Ellipse(
+            conic_k @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) = &self.ellipse
         else {
             unreachable!("the rim is a half-ellipse");
         };
+        let (semi_u, semi_v) = conic_k.semi_axes();
         let spline = conic_arc_segments(
             *center,
             (*u_ref, axis.cross(*u_ref)),

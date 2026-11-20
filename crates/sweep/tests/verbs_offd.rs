@@ -149,7 +149,10 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
                 .and_then(CurveGeom::certified)?
                 .carrier()
             {
-                Curve3::Circle(geom::Circle { radius, .. }) => Some(*radius),
+                Curve3::Circle(circle) => {
+                    let radius = circle.radius();
+                    Some(radius)
+                }
                 _ => None,
             }
         })
@@ -412,7 +415,7 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
-        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *curve.carrier() {
+        if let geom::Curve3::Circle(circle) = *curve.carrier() {
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
@@ -425,6 +428,7 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             rims += 1;
         }
     }
+    let radius = circle.radius();
     assert_eq!(rims, 2, "the moved cone keeps both rims");
 }
 

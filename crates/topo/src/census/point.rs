@@ -287,27 +287,33 @@ pub(super) fn edge_face<T: Decide>(
     };
     let touch = match (curve, surface(body, face)) {
         (
-            geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame {
-                    origin: center,
-                    axis,
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
                     ..
                 },
-                radius,
-            )),
+            ),
             Some(Surface::Plane { origin, normal }),
-        ) => match circle_plane((center, axis, radius), (origin, normal), band, errors) {
-            None => None,
-            Some(Locus::Touch(touch)) => Some(touch),
-            Some(Locus::Lies) => {
-                errors.push(refused(
-                    subject,
-                    "a circle lying in a plane away from a conventional vertex: the census \
+        ) => {
+            let radius = circle.radius();
+            match circle_plane((center, axis, radius), (origin, normal), band, errors) {
+                None => None,
+                Some(Locus::Touch(touch)) => Some(touch),
+                Some(Locus::Lies) => {
+                    errors.push(refused(
+                        subject,
+                        "a circle lying in a plane away from a conventional vertex: the census \
                      builds no curve-touch lane along an edge's carrier",
-                ));
-                return Read::Pushed;
+                    ));
+                    return Read::Pushed;
+                }
             }
-        },
+        }
         (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
             on_sphere((center, radius), line.foot(center), band, errors)
         }

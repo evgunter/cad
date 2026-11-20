@@ -857,7 +857,10 @@ pub(crate) fn cone_face_rho_max(
     let mut rho_max: Option<f64> = None;
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let rho = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+            geom::Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                radius
+            }
             geom::Curve3::Line(_) => continue,
             geom::Curve3::Ellipse(..)
             | geom::Curve3::Nurbs(_)

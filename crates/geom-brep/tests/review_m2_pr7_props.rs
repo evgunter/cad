@@ -608,8 +608,8 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let _ = origin;
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Circle(conic_k) = &mut lp.edges[0].carrier {
-        *radius += 0.05;
+    if let Curve3::Circle(c) = &mut lp.edges[0].carrier {
+        *c = geom::Circle::new(c.frame, c.radius() + 0.05);
     }
     assert!(
         matches!(
@@ -618,7 +618,6 @@ fn out_of_inventory_boundaries_refuse_typed() {
         ),
         "a wrong-radius circle is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
-    let radius = conic_k.radius();
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
     if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {

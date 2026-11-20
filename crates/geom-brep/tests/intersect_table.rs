@@ -411,7 +411,7 @@ fn equal_cylinders_split_into_two_ellipses() {
         };
         let (_, semi_v) = conic_k.semi_axes();
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
-        assert_eq!(*semi_v, 1.5);
+        assert_eq!(semi_v, 1.5);
     }
 }
 

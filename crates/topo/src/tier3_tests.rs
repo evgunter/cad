@@ -1031,14 +1031,14 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let x = Vec3::unit_x();
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let circle = |center, axis, radius, u_ref| {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        })
+        ))
     };
     let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
         center: o,
@@ -2092,14 +2092,14 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
                 -Vec3::unit_z()
             };
             (
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
+                geom::Curve3::Circle(geom::Circle::new(
+                    geom::Frame {
                         origin: center,
                         axis,
                         u_ref,
                     },
                     radius,
-                }),
+                )),
                 0.0,
                 std::f64::consts::PI,
             )

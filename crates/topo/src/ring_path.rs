@@ -1115,17 +1115,21 @@ impl<T: Decide> Quadric<T> {
                 major,
                 ..
             },
-            geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame {
-                    origin: k, axis: n, ..
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: k, axis: n, ..
+                        },
+                    ..
                 },
-                radius,
-            )),
+            ),
         ) = (*self, carrier)
         else {
             return Ok(None);
         };
-        let (k, n, radius) = (*k, *n, *radius);
+        let radius = circle.radius();
+        let (k, n, radius) = (*k, *n, radius);
         let Some(LoopArc::Conic(conic)) = LoopArc::of(carrier, params) else {
             return Ok(None);
         };

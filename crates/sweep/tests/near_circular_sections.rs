@@ -220,14 +220,16 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { origin: center, .. },
-        semi_u,
-        semi_v,
-    }) = *curve
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: geom::Frame { origin: center, .. },
+            ..
+        },
+    ) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    let (semi_u, semi_v) = conic_k.semi_axes();
     assert!(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
@@ -788,7 +790,10 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
             panic!("{what}: the two bisector ellipses, got {got:?}");
         };
         let near = |e: &Curve3<f64>| match *e {
-            Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u - semi_v).abs() < r,
+            Curve3::Ellipse(ellipse) => {
+                let (semi_u, semi_v) = ellipse.semi_axes();
+                (semi_u - semi_v).abs() < r
+            }
             _ => false,
         };
         let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
@@ -841,7 +846,10 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
             match &got {
                 Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
                     let semi = |e: &Curve3<f64>| match *e {
-                        Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => semi_u.max(semi_v),
+                        Curve3::Ellipse(ellipse) => {
+                            let (semi_u, semi_v) = ellipse.semi_axes();
+                            semi_u.max(semi_v)
+                        }
                         _ => panic!("{what}: an ellipse, got {e:?}"),
                     };
                     let long = semi(e1).max(semi(e2));

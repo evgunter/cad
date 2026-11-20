@@ -806,7 +806,7 @@ fn frustum_plane_room<T: Decide>(
             .face_surface(face)
             .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
         let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
-        planar.then_some((face, trim.radius, rim.radius))
+        planar.then_some((face, trim.radius(), rim.radius()))
     }))
 }
 
@@ -4057,14 +4057,18 @@ mod coaxial_spine_rows {
                     let Curve3::Circle(c) = trim else {
                         panic!("r = {r}: a coaxial trimline is a circle");
                     };
-                    assert!(c.radius > 0.0, "r = {r}: a trimline's radius, {}", c.radius);
+                    assert!(
+                        c.radius() > 0.0,
+                        "r = {r}: a trimline's radius, {}",
+                        c.radius()
+                    );
                     // The contact: where the circle crosses the rim's
                     // sheet, at the ball's radius from its centre.
                     let at = |x: f64| ((c.frame.origin + radial * x) - ball).norm() - r;
-                    let rho = if at(c.radius).abs() < at(-c.radius).abs() {
-                        c.radius
+                    let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
+                        c.radius()
                     } else {
-                        -c.radius
+                        -c.radius()
                     };
                     assert!(
                         at(rho).abs() < 1e-9,

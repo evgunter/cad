@@ -236,15 +236,20 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => (center, axis, radius, radius),
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
+            (center, axis, radius, radius)
+        }
         ref e @ Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
@@ -387,36 +392,40 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// The point of an ellipse carrier at its angle parameter `t`, and the
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = e
     else {
         panic!("an ellipse")
     };
+    let (semi_u, semi_v) = conic_k.semi_axes();
     *center + *u_ref * (semi_u * t.cos()) + axis.cross(*u_ref) * (semi_v * t.sin())
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = e
     else {
         panic!("an ellipse")
     };
+    let (semi_u, semi_v) = conic_k.semi_axes();
     let w = p - *center;
     (w.dot(axis.cross(*u_ref)) / semi_v).atan2(w.dot(*u_ref) / semi_u)
 }

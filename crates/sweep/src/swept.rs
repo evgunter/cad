@@ -758,7 +758,7 @@ fn register_placed_carrier_end<T: Real>(
     let Some(circle) = carrier.as_circle() else {
         return;
     };
-    let end = Curve3::circle_at(&circle.frame, circle.radius, param_end);
+    let end = Curve3::circle_at(&circle.frame, circle.radius(), param_end);
     let sketch = arc.carrier_end(start);
     let placed = place.point(sketch);
     for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
@@ -1647,10 +1647,7 @@ mod tests {
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, tol);
             let Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                },
+                circle @ geom::Circle::new(geom::Frame { origin: center, .. }, radius),
             ) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");

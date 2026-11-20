@@ -750,7 +750,10 @@ fn edge_target(
 /// The radius of a circle carrier (caller guarantees the variant).
 fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
-        Curve3::Circle(geom::Circle { radius, .. }) => radius,
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            radius
+        }
         _ => f64::NAN,
     }
 }
@@ -995,13 +998,16 @@ mod tests {
             }
             let own = match *curve.carrier() {
                 Curve3::Line(_) => Some(1),
-                Curve3::Circle(geom::Circle { radius, .. }) => Some(
-                    ceil_count(
-                        span,
-                        sagitta_step(edge_target(body, &routes, ek, delta).unwrap(), radius),
+                Curve3::Circle(circle) => {
+                    let radius = circle.radius();
+                    Some(
+                        ceil_count(
+                            span,
+                            sagitta_step(edge_target(body, &routes, ek, delta).unwrap(), radius),
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                ),
+                }
                 _ => None,
             };
             if let Some(own) = own {
