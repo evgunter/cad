@@ -3115,7 +3115,7 @@ pub(crate) mod leaf {
         /// The read, over the leaf's replay at `T`, with the clearance
         /// engine's door at `T`: every leaf lane is a certifying
         /// scalar, so the door is held rather than asked for.
-        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+        fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
             self,
             ev: &Evaluation<T>,
             clearance: topo::ClearanceLane<T>,

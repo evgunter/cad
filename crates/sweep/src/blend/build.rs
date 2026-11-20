@@ -134,7 +134,7 @@ impl<T: topo::AtRestPolicy> Blended<T> {
         &self,
         records: &topo::ContactRecords,
         band: geom_core::Band,
-        region: Option<impl topo::RegionLaneOf<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         match &self.naming {
             Some(naming) => naming.carry_contacts(records, &self.body, band, region),

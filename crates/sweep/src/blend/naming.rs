@@ -398,12 +398,12 @@ impl BlendNaming {
     /// # Errors
     ///
     /// As [`topo::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: geom_core::Decide>(
+    pub fn carry_contacts<T: topo::AtRestPolicy>(
         &self,
         records: &topo::ContactRecords,
         body: &topo::Body<T>,
         band: geom_core::Band,
-        region: Option<impl topo::RegionLaneOf<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         records.carried_through(0, &self.lineage(), body, band, region)
     }

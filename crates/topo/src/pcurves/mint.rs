@@ -4,8 +4,8 @@
 
 use geom::Surface;
 use geom_brep::{
-    CertifyingDoor, ChartImage, FittedLaneOf, Pcurve, PcurveCache, PcurveCertifyError, Period, chart_pcurve_over,
-    probe_pick,
+    CertifyingDoor, ChartImage, FittedLaneOf, Pcurve, PcurveCache, PcurveCertifyError, Period,
+    chart_pcurve_over, probe_pick,
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};

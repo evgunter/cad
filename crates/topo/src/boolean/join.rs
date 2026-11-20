@@ -685,7 +685,11 @@ fn of_join(refusal: JoinError) -> BooleanError {
 }
 
 impl SolidJoin {
-    fn new<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
+    fn new<T: crate::props::AtRestPolicy>(
+        red: &BooleanReduction<T>,
+        operand: Operand,
+        band: Band,
+    ) -> Self {
         Self {
             joiner: ChordJoiner::new(band),
             sides: Sides::new(red, operand),
@@ -817,7 +821,9 @@ impl SegmentLane {
 
 /// Every pair record with its germs, none consumed, in `red.null_pairs`
 /// order.
-fn open_records<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
+fn open_records<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+) -> Result<Vec<OpenRecord<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     // Per-operand germ maps (edge keys are body-lineage-scoped — one
     // map across both bodies would collide).

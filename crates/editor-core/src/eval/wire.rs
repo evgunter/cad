@@ -29,7 +29,7 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::{Body, BooleanInputs, POSE_UNIT_NORM};
+use topo::{Body, BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -2063,7 +2063,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // The operand's records ride the thin solid through the shell's
     // lineage, as the split's ride its sides ([`wire_split`]).
-    let shelled = topo::Shelled {
+    let shelled = topo::Shelled::<T> {
         body: out.body,
         naming,
     };

@@ -6435,9 +6435,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// be failing on is the bound — `E0277`, *required by a bound in
 /// `validate_geometric`*, `CertifiedEnclosure` not implemented for
 /// `Dual<f64>`.
-pub fn validate_geometric<
-    T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
->(
+pub fn validate_geometric<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -6671,9 +6669,7 @@ macro_rules! outward_volume {
 /// blessed by a volume claim while its geometry went unchecked. The
 /// composed entry is the only way in, and its `?` is what puts the two
 /// in the right order.
-fn validate_geometric_certified<
-    T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
->(
+fn validate_geometric_certified<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
@@ -7290,9 +7286,7 @@ pub(crate) fn wedge_reading(
 ///
 /// The tier-1/2 report, else the tier-3 battery's vector — the same
 /// [`ValidationError`]s in the same documented order.
-pub fn contact_marks<
-    T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
->(
+pub fn contact_marks<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
@@ -10644,9 +10638,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// neither of the two lanes this door holds (the quadrature lane and the
 /// chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
-pub fn validate_pseudomanifold<
-    T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy,
->(
+pub fn validate_pseudomanifold<T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,

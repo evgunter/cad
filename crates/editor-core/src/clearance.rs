@@ -1317,7 +1317,7 @@ struct Replayed<'q> {
 impl crate::eval::AtLeaf for Replayed<'_> {
     type Out = ClearanceReport;
 
-    fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+    fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
         self,
         ev: &Evaluation<T>,
         engine: topo::ClearanceLane<T>,

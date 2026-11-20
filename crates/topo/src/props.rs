@@ -640,11 +640,7 @@ fn round_hook<T: AtRestPolicy>(
 + Copy {
     move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
-            let about = Point3::new(
-                lane.lift(about.x),
-                lane.lift(about.y),
-                lane.lift(about.z),
-            );
+            let about = Point3::new(lane.lift(about.x), lane.lift(about.y), lane.lift(about.z));
             lane.cut_face_rounds(
                 body,
                 surface,
@@ -6466,7 +6462,9 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         about: Option<Point3<Interval>>,
         height: Option<f64>,
     ) -> Result<LaneRun, PropsError> {
-        (self.cut_face_rounds)(body, surface, same_sense, loops, band, tol, window, about, height)
+        (self.cut_face_rounds)(
+            body, surface, same_sense, loops, band, tol, window, about, height,
+        )
     }
 
     fn closed_form(
@@ -7244,8 +7242,7 @@ pub trait AtRestPolicy: Decide {
 /// [`AtRestPolicy::QuadLane`] and [`AtRestPolicy::RegionLane`]; this
 /// bound says the two spellings are one type.
 pub trait CertifiedPolicy:
-    geom_core::Certifies
-    + AtRestPolicy<QuadLane = QuadLane<Self>, RegionLane = crate::RegionLane<Self>>
+    geom_core::Certifies + AtRestPolicy<QuadLane = QuadLane<Self>, RegionLane = crate::RegionLane<Self>>
 {
 }
 

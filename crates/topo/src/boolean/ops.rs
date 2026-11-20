@@ -2274,7 +2274,10 @@ struct Evidence<'r> {
 impl<'r> Evidence<'r> {
     /// What `red` holds for the certificates, its touches read once
     /// into `events` ([`event_pairs`]).
-    fn of<T: crate::props::AtRestPolicy>(red: &'r BooleanReduction<T>, events: &'r BTreeSet<(FaceKey, FaceKey)>) -> Self {
+    fn of<T: crate::props::AtRestPolicy>(
+        red: &'r BooleanReduction<T>,
+        events: &'r BTreeSet<(FaceKey, FaceKey)>,
+    ) -> Self {
         Self {
             rest: &red.rest_contacts,
             settled: &red.coincident,
@@ -2615,7 +2618,9 @@ fn ball_against_plane<T: Decide>(
 /// the scaffolding's choice (the side each null edge's new vertex
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
-fn event_pairs<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
+fn event_pairs<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+) -> BTreeSet<(FaceKey, FaceKey)> {
     contact_face_pairs(&red.a, &red.b, &red.contacts, &red.null_edges)
 }
 

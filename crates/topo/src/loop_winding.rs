@@ -117,9 +117,9 @@ use geom_brep::props::{
 use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
-use crate::props::QuadLaneOf;
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};
 use crate::live::linked;
+use crate::props::QuadLaneOf;
 
 /// The winding decision's predicate name: the K-stats key its margin is
 /// recorded under, and the name an escalation of it carries.

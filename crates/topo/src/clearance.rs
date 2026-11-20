@@ -4707,7 +4707,8 @@ pub trait ClearanceLaneOf<T: Decide>: Copy + Send + Sync {
     ///
     /// # Errors
     /// The lane's own.
-    fn windows<'b>(self, side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal>;
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which)
+    -> Result<Windows<'b, T>, EngineRefusal>;
 
     /// [`ClearanceLane::windows_at`].
     ///
@@ -4735,7 +4736,11 @@ pub trait ClearanceLaneOf<T: Decide>: Copy + Send + Sync {
 }
 
 impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
-    fn windows<'b>(self, side: &Side<'b, T>, which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+    fn windows<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
         ClearanceLane::windows(self, side, which)
     }
 
@@ -4765,7 +4770,11 @@ impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
 }
 
 impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
-    fn windows<'b>(self, _side: &Side<'b, T>, _which: Which) -> Result<Windows<'b, T>, EngineRefusal> {
+    fn windows<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
         match self {}
     }
 
