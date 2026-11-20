@@ -53,10 +53,11 @@
 //!   boundary ring in index order (the `newell_plane` method, run on
 //!   the net rather than a loop so the fit is certification-free
 //!   here — certification is the residual bound above), oriented to
-//!   the NURBS chart normal at the domain midpoint, `u_ref` from the
-//!   normal's canonical orthonormal basis. Every step is a fixed-order
-//!   sum or a closed-form map of one — no iteration, no
-//!   data-dependent branching beyond the orientation sign.
+//!   the NURBS chart normal at the domain midpoint, `u_ref` the chart's
+//!   `∂u` there made perpendicular to the normal. Every
+//!   step is a fixed-order sum or a closed-form map of one — no
+//!   iteration, no data-dependent branching beyond the orientation
+//!   sign.
 //! - **Cylinder**: axis as the fixed-order sum of the net's v-column
 //!   translations (an extruded patch's columns are translates along
 //!   its axis); three fixed-parameter samples of the `v = v0` boundary
@@ -108,7 +109,7 @@
 //! a degenerate curvature reading proposes nothing.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
+use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3};
 
 use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -255,15 +256,38 @@ fn refuted_at_samples(patch: &NurbsSurface<f64>, candidate: &Surface<f64>, file:
     false
 }
 
-/// The NURBS chart normal (unnormalized `∂u × ∂v`) at the domain
-/// midpoint — the orientation reference every promoted chart is
-/// aligned to, so the face's `same_sense` keeps its meaning across
-/// the promotion.
-fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
+/// The NURBS chart's first derivatives at the domain midpoint: their
+/// cross product is the orientation reference every promoted chart is
+/// aligned to, so the face's `same_sense` keeps its meaning across the
+/// promotion.
+fn patch_jet_mid(patch: &NurbsSurface<f64>) -> geom::SurfaceJet<f64> {
     let (u0, u1) = patch.knots_u_f64_interim().domain();
     let (v0, v1) = patch.knots_v_f64_interim().domain();
-    let jet = patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-    jet.du.cross(jet.dv)
+    patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1))
+}
+
+/// `v` scaled by an exact power of two so its largest component lies in
+/// `[1, 2)`: the same direction, every component kept bit for bit except
+/// one more than 2⁻¹⁰²² below the largest, so a sign or a length read of
+/// it cannot leave the format. `v` itself where no component is a finite
+/// nonzero number.
+fn in_range(v: Vec3<f64>) -> Vec3<f64> {
+    let m = v.norm_inf();
+    if !m.is_finite() || m == 0.0 {
+        return v;
+    }
+    // `m`'s binary exponent, `⌊log₂ m⌋`, read off its bits (a subnormal's
+    // from its leading one).
+    let bits = m.to_bits();
+    let biased = i32::try_from(bits >> 52).unwrap_or(0);
+    let e = if biased == 0 {
+        -1011 - i32::try_from(bits.leading_zeros()).unwrap_or(0)
+    } else {
+        biased - 1023
+    };
+    // Two exact factors, since `2^−e` itself can leave the format.
+    let half = -e / 2;
+    v * geom_core::pow2(half) * geom_core::pow2(-e - half)
 }
 
 /// The plane candidate: Newell over the control net's boundary ring,
@@ -302,27 +326,44 @@ fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>,
         let next = ring[(i + 1) % ring.len()];
         normal_sum = normal_sum + (*p - origin).cross(next - origin);
     }
-    let mut normal = normal_sum.normalize();
-    // Orient to the chart normal (module docs). A degenerate net — a
-    // poison normal (`normalize` of ~0 is all-NaN), or one orthogonal
-    // to the chart's — determines no oriented plane: refuted here,
-    // stays NURBS.
-    let align = normal.dot(chart_normal_mid(patch));
+    // Orient to the chart normal (module docs). Every vector read here
+    // is first brought into range exactly ([`in_range`]): the Newell sum
+    // carries the square of the patch's scale and the chart normal the
+    // product of its two derivatives, either of which can leave the
+    // format where the patch itself does not. A net normal orthogonal to
+    // the chart's, or no number, determines no oriented plane: refuted
+    // here, stays NURBS.
+    let chart = patch_jet_mid(patch);
+    let du = in_range(chart.du);
+    let chart_normal = in_range(du.cross(in_range(chart.dv)));
+    let normal_sum = in_range(normal_sum);
+    let align = normal_sum.dot(chart_normal);
     if !(align.is_finite() && align != 0.0) {
         return None;
     }
-    if align < 0.0 {
-        normal = -normal;
-    }
-    let normal = plus_zero(normal);
-    // The file's coordinates are this import's input: the frame they
-    // are written in is the only one it has, so a reference picked off
-    // them is a function of the input.
-    let (u_ref, _) = normal.orthonormal_basis();
+    let normal_sum = if align < 0.0 { -normal_sum } else { normal_sum };
+    // The plane's frame, its normal the oriented sum and its roll the
+    // input's: a promoted plane's `u_ref` is kept, so it is the patch's
+    // own `∂u` at the domain midpoint, the tangent the chart normal was
+    // crossed from, and the plane's chart runs the patch's way round.
+    // Both are an estimator's choices, which the certificate below
+    // decides, so their lengths are read at the least band; in range,
+    // neither can be out of the format, so only a zero sum (or a `∂u`
+    // along the normal) determines no frame.
+    let frame = RigidMotion::from_axis_and_reference(
+        origin,
+        normal_sum,
+        du,
+        crate::interpret::STEP_RECOGNIZED_PLANE_FRAME,
+        Band::least(),
+    )
+    .ok()?;
+    let normal = frame.w().get();
+    // The flush is posture no test guards (`crate::signed_zero`).
     let plane = Surface::Plane {
         origin: plus_zero_point(origin),
-        normal,
-        u_ref: plus_zero(u_ref),
+        normal: plus_zero(normal),
+        u_ref: plus_zero(frame.u().get()),
     };
     // The hull sup-bound over the WHOLE net — BOTH tracks (R1 fix
     // pass, M-1): with strictly positive weights the rational basis
@@ -680,9 +721,7 @@ fn estimate_torus(patch: &NurbsSurface<f64>) -> Option<Surface<f64>> {
 /// locus, on either cone nappe), which points along the chart normal for
 /// every promoted kind.
 pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) -> bool {
-    let (u0, u1) = patch.knots_u_f64_interim().domain();
-    let (v0, v1) = patch.knots_v_f64_interim().domain();
-    let jet = patch.ders(geom::mid_param(u0, u1), geom::mid_param(v0, v1));
+    let jet = patch_jet_mid(patch);
     let nurbs_normal = jet.du.cross(jet.dv);
     let grad = geom_brep::implicit_gradient(promoted, jet.point);
     nurbs_normal.dot(grad) < 0.0
@@ -1322,6 +1361,102 @@ mod review_probes {
             if let Recognition::Promoted { kind, residual, .. } = recognize(&patch, band) {
                 panic!("{what} promoted as {kind:?} at {residual:e}");
             }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod plane_frame {
+    use geom_core::spline::KnotVector;
+
+    use super::*;
+
+    /// A flat bilinear patch on `z = 0` through `corners` (in `u`-major
+    /// order: `(u0,v0), (u0,v1), (u1,v0), (u1,v1)`), each corner mapped
+    /// through `place`, over the knot domains `u` and `v`.
+    fn flat_over(
+        corners: [(f64, f64); 4],
+        place: impl Fn(Point3<f64>) -> Point3<f64>,
+        (u, v): (f64, f64),
+    ) -> NurbsSurface<f64> {
+        let k = |t: f64| KnotVector::clamped(vec![0.0, 0.0, t, t], 1).unwrap();
+        let control = corners
+            .iter()
+            .map(|&(x, y)| place(Point3::new(x, y, 0.0)))
+            .collect();
+        NurbsSurface::new(k(u), k(v), control, vec![1.0; 4]).unwrap()
+    }
+
+    fn flat(
+        corners: [(f64, f64); 4],
+        place: impl Fn(Point3<f64>) -> Point3<f64>,
+    ) -> NurbsSurface<f64> {
+        flat_over(corners, place, (1.0, 1.0))
+    }
+
+    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)];
+
+    fn promoted_plane(patch: &NurbsSurface<f64>) -> (Vec3<f64>, Vec3<f64>) {
+        match try_plane(patch, crate::interpret::FileBand::test(1e-9)) {
+            Some((Surface::Plane { normal, u_ref, .. }, _)) => (normal, u_ref),
+            other => panic!("a flat patch promotes to a plane: {other:?}"),
+        }
+    }
+
+    /// The kept frame is the input's (D10 `[placement.frame]`): the patch
+    /// turned about its normal and then tilted off it carries its plane's
+    /// normal and roll with it.
+    #[test]
+    fn a_promoted_planes_frame_turns_with_its_patch() {
+        let (s, c) = 0.5f64.sin_cos();
+        let (ts, tc) = 0.3f64.sin_cos();
+        let turn = |v: Vec3<f64>| {
+            let v = Vec3::new(c * v.x - s * v.y, s * v.x + c * v.y, v.z);
+            Vec3::new(v.x, tc * v.y - ts * v.z, ts * v.y + tc * v.z)
+        };
+        let moved = |p: Point3<f64>| Point3::origin() + turn(p - Point3::origin());
+        let (normal, u_ref) = promoted_plane(&flat(SQUARE, |p| p));
+        let (turned_normal, turned_u_ref) = promoted_plane(&flat(SQUARE, moved));
+        for (what, got, want) in [
+            ("normal", turned_normal, turn(normal)),
+            ("u_ref", turned_u_ref, turn(u_ref)),
+        ] {
+            assert!(
+                (got - want).norm() < 1e-15,
+                "the {what} is carried by the motion: {got:?} vs {want:?}"
+            );
+        }
+    }
+
+    /// A flat patch promotes at every scale the format holds it at, and
+    /// over knot domains of any extent: the orientation and the frame are
+    /// read of vectors brought into range exactly, so neither the Newell
+    /// sum's square of the scale nor the chart's product of the two
+    /// domains' reaches out of the format.
+    #[test]
+    fn a_flat_patch_promotes_at_the_formats_extremes() {
+        for (scale, domains) in [
+            (1e-82, (1.0, 1.0)),
+            (1e78, (1.0, 1.0)),
+            (1.0, (1e-160, 1e160)),
+            (1e-6, (1e150, 1e150)),
+        ] {
+            let patch = flat_over(
+                SQUARE,
+                |p| Point3::new(p.x * scale, p.y * scale, p.z),
+                domains,
+            );
+            let Some((Surface::Plane { normal, u_ref, .. }, _)) =
+                try_plane(&patch, crate::interpret::FileBand::test(1e-9))
+            else {
+                panic!("a flat square at scale {scale:e} over {domains:?} promotes");
+            };
+            assert_eq!(
+                [normal.x, normal.y, normal.z, u_ref.x, u_ref.y, u_ref.z],
+                [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+                "scale {scale:e} over {domains:?}"
+            );
         }
     }
 }

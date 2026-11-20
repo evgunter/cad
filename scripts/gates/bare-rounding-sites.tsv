@@ -144,6 +144,7 @@ crates/profile/tests/review_fillet_stored_tangency_r1_probes.rs	test	1	oracle
 crates/profile/tests/review_s2.rs	test	5	oracle
 crates/profile/tests/table_arcs_inside_scene_resolution.rs	test	1	oracle
 crates/profile/tests/tangent_arc_near_a_full_turn.rs	test	1	oracle
+crates/step-import/tests/a_conic_quarter_torus_measures_a_bracket_at_the_wall.rs	test	1	oracle
 crates/step-import/tests/a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs	test	1	oracle
 crates/step-import/tests/freecad.rs	test	1	oracle
 crates/step-import/tests/parser.rs	test	2	oracle

@@ -288,3 +288,20 @@ those sites against main before it fixes them; some may be gone.
 ## Row 19 retired (SEAL PR 6693, 2026-11-10)
 
 Row 19 (`boolean/vtxfac.rs:550`, the `bool_sector_coplanar` read) is retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`). The tilt is deleted, and a flat sector of an unglued pair refuses on its steeper bound's tie (`vtxfac::unglued_flat_sector`, `Coincide::CornerBound`).
+
+## Row 20 retired (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+Row 20 (`chart_region_cyl_axis_sense` decided Zero) is retired by the
+CHARTTAIL change on `charttail/decided-gates`. It goes through
+`k_stats::decide_nonzero`, the gate shape SEAL's 2026-11-09 note
+names.
+
+The change does not keep the P(c) ending. The Zero is no contradiction
+of the tilt gate: the dot is levered by `hyp`, which is at least the
+larger radius, so a cylinder whose size lies inside the zero band
+decides both rows Zero honestly. The refusal therefore carries the
+margin decided zero and its zero-band ending, not a defect ending.
+
+This lowers the Counts table's active P column by one (#20). That table
+is the 2026-10-09 snapshot, which the retirements above did not move
+either, so it is not re-measured here.
