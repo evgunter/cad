@@ -2,7 +2,8 @@
 id: main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12
 kind: issue
 title: Main red: the meeting-axes pose refuses carrier_endpoint_end at 1e-12 since PR 5156
-status: open
+status: closed
+closed: 2026-11-20
 opened: 2026-10-20
 priority: P1
 ---
@@ -88,3 +89,25 @@ passes outright at ε = 1e-12, 1e-9 and 1e-6 on the branch's merged head
 re-posed twin: it builds, or it takes the row's own fixture escape.
 Which one it took is unmeasured, as is whether this row's stop still
 reproduces. So the pin was lifted, not moved here.
+
+## Closed (GERM measurement lane, 2026-11-20)
+
+The row is green at every ε on main, with no pin.
+
+- **Nightlies.** PASS at default, 1e-6 and 1e-12 (shard 3of3) in run
+  44680731754 (2026-11-20, head `8039ba062e`), run 44023697569
+  (2026-11-17, `cdee746161`) and run 43680833019 (2026-11-15,
+  `dbb21b4a12`), the last three nightlies whose full-suite rows ran
+  (those of 11-16, 11-18 and 11-19 skipped them: their build-once job
+  failed). The test file is the same at all three heads as at
+  `d44f46d328`.
+- **Local, `origin/main` `d44f46d328`.** PASS at default, 1e-6 and
+  1e-12, with a temporary probe on the twin's `match` arms (not
+  pushed).
+- **The re-posed twin.** It BUILDS at default and 1e-6 and passes its
+  volume and node checks. At 1e-12 it takes the row's fixture escape:
+  `CrossingInsertion { operand: A, edge: 4v1 }` escalates
+  `MappedSource` at sample 7 on `carrier_matches_mapped_source`
+  (margin `[0, 1.026e-12]`), the predicate the escape admits. The
+  direct pose builds at every ε, so the done-when holds; the twin's
+  1e-12 build is not claimed here.
