@@ -452,6 +452,22 @@ const CORPUS: &[(&str, Disposition)] = &[
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // A quarter-cylinder wedge whose bottom rim's spline promotes to its
+    // circle (`an_open_arc_trims_inside_what_its_spline_covers`): on the
+    // half circle the spline covers, and refused where the edge names
+    // the arc it does not.
+    ("tests/fixtures/arc-trim/w_semi.step", Pass(1, 1, 5, 9, 6)),
+    (
+        "tests/fixtures/arc-trim/w_comp.step",
+        Refused("outside the piece the file's spline covers"),
+    ),
+    // The kernel's cylinder with its rims restated as splines
+    // (`a_closed_rim_promotes_whatever_its_spline_form`): each imports
+    // as the cylinder it is.
+    ("tests/fixtures/closed-rim/cyl_cubic.step", Pass(1, 1, 3, 3, 2)),
+    ("tests/fixtures/closed-rim/cyl_quad.step", Pass(1, 1, 3, 3, 2)),
+    ("tests/fixtures/closed-rim/cyl_single.step", Pass(1, 1, 3, 3, 2)),
+    ("tests/fixtures/closed-rim/cyl_uneven.step", Pass(1, 1, 3, 3, 2)),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
     // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
     // is a vertex the closing join keeps; the C prism's top is three
@@ -577,6 +593,17 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
+    ),
+    // -- tests/fixtures/retimed-seam/ --------------------------------
+    // The nonuniform loft with one seam straight on a re-timed column
+    // (`a_straight_seam_on_a_retimed_column_imports`).
+    (
+        "tests/fixtures/retimed-seam/seam_line.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/retimed-seam/seam_spline.step",
+        Pass(1, 1, 6, 12, 8),
     ),
     // -- tests/fixtures/m7-8-cube/ -----------------------------------
     // The unit cube with one bowed NURBS wall whose rims are M7-8

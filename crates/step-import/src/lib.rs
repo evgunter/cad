@@ -569,11 +569,16 @@ pub enum NormalizationKind {
         moved_by: f64,
     },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
-    /// #327): the carrier's residual against the analytic curve read
-    /// Zero at the file's band, so every edge on it adopts the analytic
-    /// carrier ([`CurvePromotion`] is this record read off the ledger).
-    /// Keyed by the curve entity, not a face; its census pair is empty,
-    /// since nothing is re-tessellated.
+    /// #327): the carrier's locus residual against the analytic curve
+    /// read Zero at the file's band, and it covers that curve's arc,
+    /// segment or full turn between its ends in the curve's sense, so
+    /// the edges on it read the analytic carrier ([`CurvePromotion`] is
+    /// this record read off the ledger). Recorded only where the body
+    /// carries the promotion: an edge the build carries on a wall's own
+    /// column holds that spline, its `CarrierBuilt` record says so, and
+    /// its curve has no `CurvePromoted` record. Keyed by the curve
+    /// entity, not a face; its census pair is empty, since nothing is
+    /// re-tessellated.
     CurvePromoted {
         /// The kind that certified.
         kind: PromotedCurveKind,
@@ -752,6 +757,22 @@ pub struct CurvePromotion {
     pub residual: f64,
 }
 
+/// **One curve of a wireframe** ([`StepImport::Wireframe`]): a carrier
+/// and the piece of it the file states.
+#[derive(Clone, Debug)]
+pub struct WireframeCurve {
+    /// The carrier: as stated, or the analytic curve a stated spline
+    /// promoted to.
+    pub carrier: geom::Curve3<f64>,
+    /// The parameter range of `carrier` the file's curve covers, where
+    /// it is not the whole carrier: a spline promoted to a circle it
+    /// covers part of (an open arc, from its seam), or to the line its
+    /// chord lies on. `None` is the whole carrier — a spline's own
+    /// domain, a closed circle's period, a stated `LINE` or `CIRCLE` as
+    /// the file states it.
+    pub span: Option<(f64, f64)>,
+}
+
 /// Per-call import options (D7's ε_in override door).
 #[derive(Clone, Debug, Default)]
 pub struct ImportOptions {
@@ -913,17 +934,19 @@ pub enum StepImport {
     /// adopt, so there is nothing a `Body` could honestly represent; a
     /// disposition, not a skip.
     Wireframe {
-        /// The curve-set's carriers in file order. Exact (control
-        /// points / knots / weights bitwise) for every carrier that
-        /// stays as stated — and D7 stage-1 CURVE recognition runs on
-        /// this lane too, so a carrier that CERTIFIES is handed back
-        /// as its analytic kind, with the promotion recorded in
-        /// `normalizations` below
-        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a property of the
-        /// carrier, not of what a body later does with it; a wireframe
-        /// whose promotions were silent would be the one place in this
-        /// crate where a description changed without being reported.
-        curves: Vec<geom::Curve3<f64>>,
+        /// The curve-set's curves in file order. A carrier that stays as
+        /// stated is exact (control points / knots / weights bitwise).
+        /// D7 stage-1 CURVE recognition runs on this lane too, so a
+        /// carrier that CERTIFIES is handed back as its analytic kind,
+        /// with the parameter range of it the file's carrier covers
+        /// ([`WireframeCurve::span`]: an open arc, a chord) and the
+        /// promotion recorded in `normalizations` below
+        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a
+        /// property of the carrier, not of what a body later does with
+        /// it; a wireframe whose promotions were silent would be the one
+        /// place in this crate where a description changed without being
+        /// reported.
+        curves: Vec<WireframeCurve>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
         /// The move ledger: the curve promotions applied to `curves`
@@ -1039,6 +1062,9 @@ pub fn import_step(
             // The joins each solid's build ended with, reported once per
             // solid: each is built once.
             let mut normalizations = ledger(&model);
+            // The curves an edge carries as a held spline, not the
+            // promoted curve: their promotion records go (below).
+            let mut held_splines = std::collections::BTreeSet::new();
             // Each distinct solid is built once. Where the per-solid
             // subject is owed, it is finished once, on its first placed
             // instance (so it is asked in the box where it stands), and
@@ -1095,8 +1121,9 @@ pub fn import_step(
                             .into_body()
                         }
                         None => {
-                            let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
+                            let (built, joins, held) = assemble::build_one_solid(spec, tol, file)?;
                             normalizations.extend(joins);
+                            held_splines.extend(held);
                             let one =
                                 match &motion {
                                     Some((m, transform)) => topo::transform_rigid(&built, m)
@@ -1186,6 +1213,13 @@ pub fn import_step(
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
             let (body, contacts, coincidences) = gate3(body, tol)?;
+            // A promotion is reported only where the body carries it: an
+            // edge that ships a wall's column holds the spline, and its
+            // `CarrierBuilt` record says so.
+            normalizations.retain(|n| {
+                !(matches!(n.kind, NormalizationKind::CurvePromoted { .. })
+                    && held_splines.contains(&n.face))
+            });
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and

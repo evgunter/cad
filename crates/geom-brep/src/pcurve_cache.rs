@@ -8734,7 +8734,7 @@ fn arc_rim_ratio<T: Real>(column: &NurbsCurve3<T>) -> Option<T> {
 /// together take `w₀, w₁, w₂` to `1, w₁/√(w₀·w₂), 1`. Where the two end
 /// weights are one value it is `w₁/w₀`, which keeps a held pattern's
 /// weight a symbolic identity at `Sym`.
-pub fn arc_rim_normal_weight<T: Real>(w0: T, w1: T, w2: T) -> T {
+pub(crate) fn arc_rim_normal_weight<T: Real>(w0: T, w1: T, w2: T) -> T {
     if geom_core::is_exact_zero(w0 - w2) {
         w1 / w0
     } else {
@@ -8825,22 +8825,16 @@ fn arc_rim_weight<T: SpanLocate>(
 /// that same arm and escalates too). A computed `c` just above zero is
 /// charged through its finite lever: `h = π` in `f64` reads
 /// `c = 6·10⁻¹⁷`.
-///
-/// Two readers: the arc-rim certificate, and step-import's circle
-/// recognition, whose map certificate compares a carrier against the
-/// circle re-expressed in the carrier's own spline space the same way
-/// and reads this bound at `Interval` for an outward sup.
-#[must_use]
-pub fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T {
+fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T {
     let one = T::one();
     #[cfg(test)]
     let tangent = if mutants::arc_rim_tangent_under() {
         T::from_f64(12.0 / 27.0)
     } else {
-        T::from_f64(16.0) / T::from_f64(27.0)
+        T::from_f64(16.0 / 27.0)
     };
     #[cfg(not(test))]
-    let tangent = T::from_f64(16.0) / T::from_f64(27.0);
+    let tangent = T::from_f64(16.0 / 27.0);
     let lever = sin_half * (sin_half.powi(2) + tangent * cos_half.powi(2)).sqrt()
         / (cos_half * (one + w.min(one)) * (one + cos_half.min(one)));
     radius * (w - cos_half).abs() * cos_half.select_le_zero(T::from_f64(f64::INFINITY), lever)

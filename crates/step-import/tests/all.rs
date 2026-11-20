@@ -55,6 +55,8 @@ mod common;
 mod a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one;
 #[path = "a_certified_body_measures_only_itself.rs"]
 mod a_certified_body_measures_only_itself;
+#[path = "a_closed_rim_promotes_whatever_its_spline_form.rs"]
+mod a_closed_rim_promotes_whatever_its_spline_form;
 #[path = "a_conic_quarter_torus_measures_a_bracket_at_the_wall.rs"]
 mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 #[path = "a_foreign_carrier_splits_at_each_c0_knot.rs"]
@@ -67,10 +69,14 @@ mod a_relation_the_file_band_reads_zero_is_snapped;
 mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
 mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
+#[path = "a_straight_seam_on_a_retimed_column_imports.rs"]
+mod a_straight_seam_on_a_retimed_column_imports;
 #[path = "a_vertex_its_description_fixes_is_built_where_its_surfaces_meet.rs"]
 mod a_vertex_its_description_fixes_is_built_where_its_surfaces_meet;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
+#[path = "an_open_arc_trims_inside_what_its_spline_covers.rs"]
+mod an_open_arc_trims_inside_what_its_spline_covers;
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]

@@ -985,6 +985,7 @@ mod tests {
             t0: 0.0,
             t1: std::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         let surface = Surface::Cylinder {
             origin: Point3::origin(),
@@ -1032,6 +1033,7 @@ mod tests {
             t0: 0.0,
             t1: std::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         let theta = 1e-6_f64;
         let plane = Surface::Plane {

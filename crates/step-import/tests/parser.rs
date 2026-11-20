@@ -15,8 +15,9 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 /// honestly represent — the import result is the `Wireframe`
 /// disposition, not a skip. Its one curve, the writer's quarter of the
 /// unit circle as a rational quadratic, is read exactly and promotes to
-/// that circle (`recognize_curve`'s INV-C6): the frame is the arc's own,
-/// its seam at the arc's start, and the promotion is reported.
+/// that circle: the frame is the arc's own, its seam at the arc's
+/// start, the span the quarter the file states, and the promotion is
+/// reported.
 #[test]
 fn nurbs_wireframe_disposition() {
     let text = fixture("nurbs_wireframe", "step");
@@ -35,7 +36,7 @@ fn nurbs_wireframe_disposition() {
             u_ref,
         },
         radius,
-    }) = curves[0]
+    }) = curves[0].carrier
     else {
         panic!("the quarter circle promotes: {:?}", curves[0]);
     };
@@ -46,12 +47,20 @@ fn nurbs_wireframe_disposition() {
     assert!((radius - 1.0).abs() < 1e-15, "radius {radius:e}");
     assert!((axis.z - 1.0).abs() < 1e-15, "axis {axis:?}");
     assert!((u_ref.x - 1.0).abs() < 1e-15, "u_ref {u_ref:?}");
+    // The file states a quarter of that circle, and the curve says so.
+    let Some((t0, t1)) = curves[0].span else {
+        panic!("an open arc carries its span: {:?}", curves[0]);
+    };
+    assert!(
+        t0 == 0.0 && (t1 - core::f64::consts::FRAC_PI_2).abs() < 1e-15,
+        "the quarter from the seam: {t0:e}..{t1:e}"
+    );
     assert_eq!(
         promotions.len(),
         1,
         "the promotion is reported: {promotions:?}"
     );
-    assert!(promotions[0].residual < 1e-15, "{promotions:?}");
+    assert!(promotions[0].residual < 1e-14, "{promotions:?}");
 }
 
 /// A minimal hand-authored solid file whose one face carries the

@@ -80,7 +80,7 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
     let geom::Curve3::Circle(geom::Circle {
         frame: geom::Frame { axis, .. },
         radius,
-    }) = curves[0]
+    }) = curves[0].carrier
     else {
         panic!("the carrier must ship as a Circle, got {:?}", curves[0]);
     };
@@ -119,7 +119,7 @@ fn past_the_files_band_nothing_is_promoted_and_nothing_is_reported() {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert!(
-        matches!(curves[0], geom::Curve3::Nurbs(_)),
+        matches!(curves[0].carrier, geom::Curve3::Nurbs(_)),
         "the carrier must ship exactly as stated when nothing certifies"
     );
 }

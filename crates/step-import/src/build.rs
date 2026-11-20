@@ -130,6 +130,11 @@ pub(crate) struct Shell<'a> {
     pub(crate) edges: BTreeMap<u64, Edge>,
     /// Every vertex's built point, keyed by `VERTEX_POINT` id.
     pub(crate) vertices: BTreeMap<u64, Point3<f64>>,
+    /// The curve entities whose promotion an edge here does NOT carry:
+    /// the edge's printed carrier is analytic and its built carrier a
+    /// spline the body holds (a wall's column, [`column_match`]). The
+    /// ledger drops their `CurvePromoted` records.
+    pub(crate) held_splines: std::collections::BTreeSet<u64>,
 }
 
 /// An edge mid-build: its description and carrier, before its ends are
@@ -241,6 +246,7 @@ pub(crate) fn build<'a>(
     }
     let vertices = build_vertices(solid, &sides, &mut chosen, tol, file, moves)?;
     let mut edges = BTreeMap::new();
+    let mut held_splines = std::collections::BTreeSet::new();
     for (
         id,
         Chosen {
@@ -282,6 +288,13 @@ pub(crate) fn build<'a>(
             },
             (other, _) => other,
         };
+        if let (Some(curve), Curve3::Nurbs(_), false) = (
+            spec.curve,
+            &carrier,
+            matches!(spec.carrier, Curve3::Nurbs(_)),
+        ) {
+            held_splines.insert(curve);
+        }
         // Reported where the built carrier is not the printed one, by
         // value; the move is measured only then.
         if carrier_sig(&carrier) != carrier_sig(&spec.carrier) {
@@ -311,6 +324,7 @@ pub(crate) fn build<'a>(
         faces: &solid.faces,
         edges,
         vertices,
+        held_splines,
     })
 }
 
@@ -679,12 +693,12 @@ fn spline_pair(
         }
         Err(source) => return Err(escalated(file, id, source)),
     };
-    // A straight section is the line it is, read by the recognition that
-    // promotes a printed spline ([`crate::recognize_curve::try_line`], at
-    // the file's band).
+    // A straight section is the line it is, where its spline reads as the
+    // straight map ([`crate::recognize_curve::straight_map`], at the
+    // file's band).
     let carrier = match &carrier {
         Curve3::Nurbs(n) => {
-            crate::recognize_curve::try_line(n, file).map_or(carrier.clone(), |(line, _)| line)
+            crate::recognize_curve::straight_map(n, file).map_or(carrier.clone(), |(line, _)| line)
         }
         _ => carrier,
     };
@@ -1316,13 +1330,10 @@ fn on_description(
 }
 
 /// **A spline wall's own boundary column or row the printed carrier
-/// repeats** (the iso rung): bit for bit where the carrier is a spline
-/// (the writer emitted the column twice), through its ends where
-/// recognition promoted it to a line ([`line_iso_match`], read at the file
-/// band), and through the same recognition where it promoted it to a
-/// circle ([`circle_iso_match`]). The carrier is the wall's iso, or the
-/// straight line its ends span; the image is on the carrier's own
-/// parameter.
+/// lies along** (the iso rung): matched by locus ([`column_match`]), and
+/// carried on the column itself, or on the straight line its ends span
+/// where the column reads as that straight map; the image is on the
+/// carrier's own parameter.
 fn iso_of_wall(
     id: u64,
     spec: &EdgeSpec,
@@ -1371,54 +1382,39 @@ fn iso_of_wall(
                     (net.knot_values_v().domain(), net.knot_values_u().domain())
                 };
                 let fixed = if end { d1 } else { d0 };
-                match &spec.carrier {
-                    // A spline row is the bitwise arm between two walls
-                    // only: beside an analytic face the row is a section.
-                    Curve3::Nurbs(n) if (column || both) && bitwise_iso_match(n, &iso) => {
-                        let map = IsoMap {
-                            fixed,
-                            column,
-                            running: Running::Own,
-                        };
+                let own = IsoMap {
+                    fixed,
+                    column,
+                    running: Running::Own,
+                };
+                // A spline row is matched between two walls only: beside an
+                // analytic face the row is a section.
+                if !(column || both) {
+                    continue;
+                }
+                match column_match(&spec.carrier, &iso, (p_start, p_end), file) {
+                    Some(ColumnMatch::Column) => {
                         return Ok(Some(chosen(
                             wall,
                             Curve3::Nurbs(std::sync::Arc::new(iso)),
-                            map,
+                            own,
                         )));
                     }
-                    // A printed spline recognition promoted to a circle:
-                    // the column it repeated, read back through the same
-                    // recognition, on the column's own parameter.
-                    Curve3::Circle(circle)
-                        if (column || both)
-                            && circle_iso_match(&iso, circle, p_start, p_end, file) =>
-                    {
+                    Some(ColumnMatch::Line {
+                        origin,
+                        chord,
+                        forward,
+                    }) => {
+                        let (dir, len) = chord.direction_and_length();
+                        let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
                         let map = IsoMap {
                             fixed,
                             column,
-                            running: Running::Own,
+                            running: Running::Chord { from, to, len },
                         };
-                        return Ok(Some(chosen(
-                            wall,
-                            Curve3::Nurbs(std::sync::Arc::new(iso)),
-                            map,
-                        )));
+                        return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
                     }
-                    Curve3::Line(_) if column || both => {
-                        if let Some((origin, chord, forward)) =
-                            line_iso_match(&iso, p_start, p_end, file)
-                        {
-                            let (dir, len) = chord.direction_and_length();
-                            let (from, to) = if forward { (r0, r1) } else { (r1, r0) };
-                            let map = IsoMap {
-                                fixed,
-                                column,
-                                running: Running::Chord { from, to, len },
-                            };
-                            return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
-                        }
-                    }
-                    _ => {}
+                    None => {}
                 }
             }
         }
@@ -1634,14 +1630,86 @@ pub(crate) const STEP_ISO_STRAIGHT: &str = "step_iso_straight";
 /// the file's band.
 pub(crate) const STEP_ISO_ENDS: &str = "step_iso_ends";
 
-/// **A wall's iso that recognition promotes to the edge's circle, with
-/// the edge's printed vertices at its ends in its own sense**: the iso
-/// the printed spline repeated before its promotion, or the piece of it
-/// a C⁰-knot split cut, read back through the same recognition
-/// ([`crate::recognize_curve::try_circle`]). The two circles agree at
-/// the file's band — centres, radii, and the axes' tilt metred at the
-/// radius, each read Zero, the axes the same way round — and so, with
-/// the ends, do the two arcs. `false` withholds the iso.
+/// How the edge on a wall's column is carried ([`column_match`]).
+enum ColumnMatch {
+    /// The column itself, on its own parameter.
+    Column,
+    /// The line from `origin` along `chord`, its chart image affine in
+    /// the line's parameter (`forward` where the edge starts at the
+    /// column's start).
+    Line {
+        origin: Point3<f64>,
+        chord: Vec3<f64>,
+        forward: bool,
+    },
+}
+
+/// **The iso rung's one LOCUS match** of an edge's printed carrier to a
+/// wall's column, and what the edge is then carried on. The match reads
+/// the printed carrier's kind; the carrier the edge gets reads only the
+/// column, which the body holds:
+///
+/// - a printed SPLINE matches a column it repeats bit for bit;
+/// - a printed CIRCLE (a promoted arc or full circle) matches a column
+///   recognition promotes to the same circle at the file's band
+///   ([`circle_iso_match`]), with the edge's vertices at its ends;
+/// - a printed LINE matches a straight polynomial column whose ends are
+///   its vertices, either way round ([`line_iso_match`]).
+///
+/// The edge is carried on the column itself, on its own parameter —
+/// except a line whose column reads as the straight MAP
+/// ([`crate::recognize_curve::straight_map`], INV-C5), which is carried
+/// on the line with the affine chart image that map certifies. A
+/// straight column re-timed along its line is carried on itself, which
+/// is the only image that reproduces it; one that runs against the
+/// edge has no own-parameter image and is withheld. `None` withholds
+/// the column.
+fn column_match(
+    printed: &Curve3<f64>,
+    iso: &geom::NurbsCurve3<f64>,
+    (p_start, p_end): (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Option<ColumnMatch> {
+    match printed {
+        Curve3::Nurbs(n) => bitwise_iso_match(n, iso).then_some(ColumnMatch::Column),
+        Curve3::Circle(circle) => {
+            circle_iso_match(iso, circle, p_start, p_end, file).then_some(ColumnMatch::Column)
+        }
+        Curve3::Line(_) => {
+            let (origin, chord, forward) = line_iso_match(iso, p_start, p_end, file)?;
+            if crate::recognize_curve::straight_map(iso, file).is_some() {
+                Some(ColumnMatch::Line {
+                    origin,
+                    chord,
+                    forward,
+                })
+            } else {
+                forward.then_some(ColumnMatch::Column)
+            }
+        }
+        _ => None,
+    }
+}
+
+/// **A wall's column that recognition promotes to the edge's circle**,
+/// with the edge's printed vertices at its ends in its own sense: the
+/// column a printed spline repeated before it was promoted, or the
+/// piece of it a C⁰-knot split cut. The two circles' centres, radii,
+/// and axes' tilt metred at the radius each read Zero at the file's
+/// band ([`STEP_ISO_CIRCLE`]), the axes the same way round.
+///
+/// **What carrying the edge on the column moves.** Each of the two
+/// promoted circles is within its residual (read Zero) of its spline,
+/// and the circles are within the three band readings of each other, so
+/// the column lies within five band readings of the printed carrier,
+/// by the triangle inequality: five times the file band's zero at most,
+/// reported as the edge's `CarrierBuilt` move.
+///
+/// **No reversed arm**, unlike [`line_iso_match`]: the edge is carried
+/// on the column's own parameter ([`Running::Own`]), which has no
+/// reversed form, and a printed spline that ran against the column was
+/// never this rung's either (the bitwise match is forward too). Such an
+/// edge takes the section.
 fn circle_iso_match(
     iso: &geom::NurbsCurve3<f64>,
     circle: &geom::Circle<f64>,
@@ -1655,23 +1723,29 @@ fn circle_iso_match(
     let (Some(first), Some(last)) = (iso.control().first(), iso.control().last()) else {
         return false;
     };
-    let zero = |gap: f64| file.read(STEP_ISO_ENDS, gap) == Read::Zero;
+    let same = |gap: f64| file.read(STEP_ISO_CIRCLE, gap) == Read::Zero;
+    let ends = |gap: f64| file.read(STEP_ISO_ENDS, gap) == Read::Zero;
     let (a, b) = (read.frame.axis, circle.frame.axis);
     a.dot(b) > 0.0
-        && zero(read.frame.origin.distance(circle.frame.origin))
-        && zero(read.radius - circle.radius)
-        && zero(a.cross(b).norm() * circle.radius)
-        && zero(first.distance(p_start))
-        && zero(last.distance(p_end))
+        && same(read.frame.origin.distance(circle.frame.origin))
+        && same(read.radius - circle.radius)
+        && same(a.cross(b).norm() * circle.radius)
+        && ends(first.distance(p_start))
+        && ends(last.distance(p_end))
 }
 
 /// The circle recognition promotes `iso` to, if any.
 fn promoted_circle(iso: &geom::NurbsCurve3<f64>, file: FileBand) -> Option<geom::Circle<f64>> {
     match crate::recognize_curve::try_circle(iso, file) {
-        Ok(Some((Curve3::Circle(circle), _))) => Some(circle),
+        Ok(Some((Curve3::Circle(circle), _, _))) => Some(circle),
         _ => None,
     }
 }
+
+/// Whether a wall's column and an edge's promoted circle are one circle,
+/// read at the file's band (centres, radii, the axes' tilt at the
+/// radius).
+pub(crate) const STEP_ISO_CIRCLE: &str = "step_iso_circle";
 
 /// The bitwise iso match: the carrier's knots, controls and weights are
 /// the iso's, bit for bit.
@@ -2503,6 +2577,7 @@ mod tests {
                     t0,
                     t1,
                     reversed: false,
+                    curve: None,
                 },
             );
             sides.insert(id, side);

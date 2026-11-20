@@ -39,11 +39,13 @@ importer list, which holds it to that gate's rules.
 
 ## Closed
 
-EXCH unit B (`exch/arc-map-obligation`). The circle arm's INV-C1/INV-C2
-conversions are gone: the circle certifies by its map (INV-C6), whose
-distances, weight miss and their sum are read at `Interval` and rounded
-outward (`recognize_curve::distance_sup`, `map_certificate`). The line
-arm roots its composite sup through `Certification::sqrt` and reads
-`.mag()`, and its Greville hull's distances go through `distance_sup`
-too. `recognize_curve.rs` joined `certification-doors.sh`'s importer
-list.
+EXCH unit B (`exch/arc-map-obligation`). Both arms now compute their
+metre conversions at `Interval` and read them outward. The line arm
+roots its composite sup through `Certification::sqrt` and reads
+`.mag()`, and its coverage overshoot and the straight-map Greville
+hull go through outward-rounded distances. The circle arm's INV-C1
+`δ_s = S/r`, INV-C2's lower bound (the root's `.lo()`), `m` and the
+`hypot` are each interval operations read on the safe side. What stays
+to-nearest is the estimated frame itself, which the promoted circle IS
+(`recognize_curve` module docs). `recognize_curve.rs` joined
+`certification-doors.sh`'s importer list.

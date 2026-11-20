@@ -51,6 +51,14 @@ pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_condition
 /// closed class.
 pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
 
+/// How far a promoted open arc's carrier runs past the arc between its
+/// ends (metres along the circle): Zero covers exactly the arc.
+pub(crate) const STEP_RECOGNIZED_COVERAGE: &str = "step_recognized_coverage";
+
+/// How far an edge's trim runs past the range its promoted carrier
+/// covers (metres along the carrier): Zero is inside.
+pub(crate) const STEP_TRIM_COVERED: &str = "step_trim_covered";
+
 /// Whether one face bound lies clear of another's chart polygon, in
 /// metres: only apart decides which bound contains which.
 pub(crate) const STEP_RING_CONTAINMENT: &str = "step_ring_containment";

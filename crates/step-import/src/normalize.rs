@@ -429,6 +429,7 @@ fn mint_band(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     // The mint's whole point is D1's statement that this edge is the
@@ -716,6 +717,7 @@ mod tests {
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
+                curve: None,
             },
         );
         edges.insert(
@@ -732,6 +734,7 @@ mod tests {
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,
+                curve: None,
             },
         );
         let mut vertices = BTreeMap::new();

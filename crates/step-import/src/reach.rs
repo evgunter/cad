@@ -122,6 +122,7 @@ mod tests {
             t0: 0.0,
             t1: std::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         let solid = SolidSpec {
             id: 1,
