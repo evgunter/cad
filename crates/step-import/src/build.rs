@@ -2671,6 +2671,95 @@ mod tests {
             !circle_column_match(&piece, &circle, (on(4.0 * h), on(5.0 * h)), file),
             "nor one whose ends are not the edge's"
         );
+        // B3 review probe: ends on the circle, interior bowed off it.
+        for bump in [1e-9f64, 1e-11, 1e-10] {
+            let mut ctl = piece.control().to_vec();
+            let m = ctl[1];
+            let radial = Vec3::new(m.x, m.y, 0.0) / Vec3::new(m.x, m.y, 0.0).norm();
+            ctl[1] = m + radial * (bump / piece.weights()[1]);
+            let bowed = geom::NurbsCurve3::new(
+                piece.knots_f64_interim().clone(),
+                ctl,
+                piece.weights().to_vec(),
+            )
+            .unwrap();
+            eprintln!(
+                "B3 bump {bump:e}: matches {}",
+                circle_column_match(&bowed, &circle, (p0, p1), file)
+            );
+            if bump >= 1e-10 {
+                assert!(
+                    !circle_column_match(&bowed, &circle, (p0, p1), file),
+                    "B3: a column bowed {bump:e} off the circle between on-circle ends must not match"
+                );
+            }
+        }
+    }
+
+    /// B3 review probe: scale sweep of the circle arm at a 1e-12 band.
+    #[test]
+    fn b3_circle_arm_scale_sweep() {
+        for &(radius, off) in &[
+            (30.0f64, 0.0f64),
+            (30.0, 100.0),
+            (100.0, 0.0),
+            (300.0, 0.0),
+            (1000.0, 0.0),
+            (30.0, 1000.0),
+        ] {
+            for band in [1e-12f64, 1e-9] {
+                let file = FileBand::test(band);
+                let spans = 9usize;
+                #[allow(clippy::cast_precision_loss)]
+                let h = core::f64::consts::FRAC_PI_2 / spans as f64;
+                let on = |t: f64| Point3::new(off + radius * t.cos(), off + radius * t.sin(), off);
+                let mut control = vec![on(0.0)];
+                let mut weights = vec![1.0];
+                let mut knots = vec![0.0; 3];
+                for k in 0..spans {
+                    #[allow(clippy::cast_precision_loss)]
+                    let (a, b) = (h * k as f64, h * (k + 1) as f64);
+                    let c = (h / 2.0).cos();
+                    let m = (a + b) / 2.0;
+                    control.push(Point3::new(
+                        off + radius / c * m.cos(),
+                        off + radius / c * m.sin(),
+                        off,
+                    ));
+                    weights.push(c);
+                    control.push(on(b));
+                    weights.push(1.0);
+                    if k + 1 < spans {
+                        #[allow(clippy::cast_precision_loss)]
+                        knots.extend([(k + 1) as f64; 2]);
+                    }
+                }
+                #[allow(clippy::cast_precision_loss)]
+                knots.extend([spans as f64; 3]);
+                let arc = geom::NurbsCurve3::new(
+                    KnotVector::clamped(knots, 2).unwrap(),
+                    control,
+                    weights,
+                )
+                .unwrap();
+                let promoted = crate::recognize_curve::try_circle(&arc, file);
+                let Ok(Some((Curve3::Circle(circle), res, _))) = promoted else {
+                    eprintln!(
+                        "B3 R {radius} off {off} band {band:e}: no promotion ({:?})",
+                        promoted.map(|o| o.map(|(_, r, _)| r))
+                    );
+                    continue;
+                };
+                let (piece, _) = arc.split_at(1.0).unwrap();
+                let (p0, p1) = (piece.eval(0.0), piece.eval(1.0));
+                let whole =
+                    circle_column_match(&arc, &circle, (arc.eval(0.0), arc.eval(9.0)), file);
+                eprintln!(
+                    "B3 R {radius} off {off} band {band:e}: promo residual {res:e}, piece matches {}, whole matches {whole}",
+                    circle_column_match(&piece, &circle, (p0, p1), file)
+                );
+            }
+        }
     }
 
     /// **A vertex only unsupported roots fix refuses, never footed**

@@ -2585,3 +2585,235 @@ mod r2_delta {
         }
     }
 }
+
+/// B3 review probes (not for merge): fuzz `arc_residual` / `turning`
+/// against dense samples.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::cast_precision_loss
+)]
+mod b3rev_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.next()
+        }
+    }
+
+    fn unit(v: Vec3<f64>) -> Vec3<f64> {
+        v / v.norm()
+    }
+
+    /// An arc chain in local coords, mapped by `to_world`.
+    fn chain(
+        radius: f64,
+        angles: &[f64],
+        to_world: &dyn Fn(f64, f64, f64) -> Point3<f64>,
+        rng: &mut Lcg,
+        jitter: f64,
+        wjit: f64,
+    ) -> NurbsCurve3<f64> {
+        let spans = angles.len() - 1;
+        let j = |p: Point3<f64>, rng: &mut Lcg| {
+            p + Vec3::new(
+                rng.range(-jitter, jitter),
+                rng.range(-jitter, jitter),
+                rng.range(-jitter, jitter),
+            )
+        };
+        let on = |t: f64| to_world(radius * t.cos(), radius * t.sin(), 0.0);
+        let mut control = vec![j(on(angles[0]), rng)];
+        let mut weights = vec![1.0];
+        for k in 0..spans {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let c = ((b - a) / 2.0).cos();
+            let mid = (a + b) / 2.0;
+            control.push(j(
+                to_world(radius / c * mid.cos(), radius / c * mid.sin(), 0.0),
+                rng,
+            ));
+            weights.push(c * (1.0 + rng.range(-wjit, wjit)));
+            control.push(j(on(b), rng));
+            weights.push(1.0);
+        }
+        let mut kn = vec![0.0, 0.0, 0.0];
+        for k in 1..spans {
+            kn.push(k as f64);
+            kn.push(k as f64);
+        }
+        kn.extend([spans as f64; 3]);
+        NurbsCurve3::new(KnotVector::clamped(kn, 2).unwrap(), control, weights).unwrap()
+    }
+
+    #[test]
+    fn b3_arc_residual_bounds_every_sample_from_the_covered_arc() {
+        let mut rng = Lcg(0x5eed_b3);
+        let mut checked = 0usize;
+        let mut promoted_back = 0usize;
+        let mut worst_ratio = 0.0f64;
+        let mut low_viol = 0usize;
+        let mut total_viol = 0usize;
+        let mut bad = Vec::new();
+        for case in 0..4000 {
+            let radius = [0.005, 1.0, 30.0, 300.0][case % 4];
+            let e1 = unit(Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ));
+            let t = unit(Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ));
+            let e3 = unit(e1.cross(t));
+            let e2 = e3.cross(e1);
+            let c = Point3::new(
+                rng.range(-100.0, 100.0),
+                rng.range(-100.0, 100.0),
+                rng.range(-100.0, 100.0),
+            );
+            let to_world = move |x: f64, y: f64, z: f64| c + e1 * x + e2 * y + e3 * z;
+            let n = 1 + (rng.next() * 6.0) as usize;
+            let mut angles = vec![rng.range(-3.0, 3.0)];
+            for _ in 0..n {
+                let mut s = rng.range(-2.2, 2.2);
+                if s.abs() < 0.05 {
+                    s = 0.3;
+                }
+                // Mostly forward, sometimes back.
+                if rng.next() < 0.6 {
+                    s = s.abs();
+                }
+                let last = *angles.last().unwrap();
+                angles.push(last + s);
+            }
+            let jitter = [0.0, 1e-12, 1e-9, 1e-7][(case / 4) % 4] * radius;
+            let wjit = if case % 7 == 0 { 1e-7 } else { 0.0 };
+            let curve = chain(radius, &angles, &to_world, &mut rng, jitter, wjit);
+            // The frame: true centre, true axis, u_ref rotated arbitrarily.
+            let rot = rng.range(-3.1, 3.1);
+            let u_ref = e1 * rot.cos() + e2 * rot.sin();
+            let Some((residual, total)) = arc_residual(&curve, (c, e3, u_ref, radius), false)
+            else {
+                continue;
+            };
+            let tr = turning(&curve, c, e3, u_ref).unwrap();
+            let (a, b) = curve.domain();
+            let local = |p: Point3<f64>| {
+                let w = p - c;
+                (w.dot(e1), w.dot(e2), w.dot(e3))
+            };
+            let (x0, y0, _) = local(curve.eval(a));
+            let alpha0 = y0.atan2(x0);
+            let end = |phi: f64| to_world(radius * phi.cos(), radius * phi.sin(), 0.0);
+            let (e_start, e_end) = (end(alpha0), end(alpha0 + total));
+            let samples = 4000 * n;
+            let mut worst = 0.0f64;
+            let mut lifted_prev = 0.0f64;
+            let mut ap = alpha0;
+            let tau = core::f64::consts::TAU;
+            for k in 0..=samples {
+                let p = curve.eval(a + (b - a) * (k as f64) / (samples as f64));
+                let (x, y, z) = local(p);
+                let az = y.atan2(x);
+                // continuous lift
+                let mut d = az - ap;
+                while d > core::f64::consts::PI {
+                    d -= tau;
+                }
+                while d <= -core::f64::consts::PI {
+                    d += tau;
+                }
+                lifted_prev += d;
+                ap = az;
+                if lifted_prev < tr.low - 1e-9 || lifted_prev > tr.high + 1e-9 {
+                    low_viol += 1;
+                }
+                let rel = (az - alpha0).rem_euclid(tau);
+                let dist = if rel <= total {
+                    ((x.hypot(y)) - radius).hypot(z)
+                } else {
+                    p.distance(e_start).min(p.distance(e_end))
+                };
+                worst = worst.max(dist);
+            }
+            if (lifted_prev - total).abs() > 1e-9 {
+                total_viol += 1;
+            }
+            checked += 1;
+            if angles.windows(2).any(|w| w[1] < w[0]) {
+                promoted_back += 1;
+            }
+            let slack = 16.0 * f64::EPSILON * (radius + (c - Point3::new(0.0, 0.0, 0.0)).norm());
+            if worst > residual + slack {
+                bad.push((case, radius, jitter, residual, worst, angles.clone()));
+            }
+            if residual > 0.0 {
+                worst_ratio = worst_ratio.max(worst / residual);
+            }
+            if worst > residual {
+                eprintln!(
+                    "EXCESS case {case} R {radius} jitter {jitter:e} |c| {:.1} residual {residual:e} worst {worst:e} excess {:e}",
+                    (c - Point3::new(0.0, 0.0, 0.0)).norm(),
+                    worst - residual
+                );
+            }
+        }
+        eprintln!(
+            "checked {checked}, with back-steps {promoted_back}, worst/residual {worst_ratio}, low/high viol {low_viol}, total viol {total_viol}, bad {}",
+            bad.len()
+        );
+        for b in bad.iter().take(10) {
+            eprintln!("BAD {b:?}");
+        }
+        assert!(bad.is_empty());
+        assert_eq!(low_viol, 0);
+        assert_eq!(total_viol, 0);
+    }
+
+    /// A closed carrier: exactly one turn.
+    #[test]
+    fn b3_turning_counts_one_turn_for_closed() {
+        let mut rng = Lcg(77);
+        let mut ok = 0;
+        for case in 0..400 {
+            let e1 = Vec3::new(1.0, 0.0, 0.0);
+            let e2 = Vec3::new(0.0, 1.0, 0.0);
+            let e3 = Vec3::new(0.0, 0.0, 1.0);
+            let c = Point3::new(0.0, 0.0, 0.0);
+            let to_world = move |x: f64, y: f64, z: f64| c + e1 * x + e2 * y + e3 * z;
+            let n = 3 + case % 6;
+            let start = rng.range(-3.0, 3.0);
+            let step = core::f64::consts::TAU / n as f64;
+            let angles: Vec<f64> = (0..=n).map(|k| start + step * k as f64).collect();
+            let curve = chain(1.0, &angles, &to_world, &mut rng, 0.0, 0.0);
+            let rot = rng.range(-3.1, 3.1);
+            let u_ref = e1 * rot.cos() + e2 * rot.sin();
+            let t = turning(&curve, c, e3, u_ref).unwrap();
+            assert!(
+                (t.total - core::f64::consts::TAU).abs() < 1e-9,
+                "{}",
+                t.total
+            );
+            assert!(one_turn(t.total));
+            let rev = turning(&curve, c, -e3, u_ref);
+            assert!(rev.is_none_or(|t| !one_turn(t.total)));
+            ok += 1;
+        }
+        assert_eq!(ok, 400);
+    }
+}
