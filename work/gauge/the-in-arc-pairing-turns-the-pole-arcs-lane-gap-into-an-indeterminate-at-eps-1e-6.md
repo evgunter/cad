@@ -2,10 +2,11 @@
 id: the-in-arc-pairing-turns-the-pole-arcs-lane-gap-into-an-indeterminate-at-eps-1e-6
 kind: issue
 title: Since PR 6832 the tilted sphere pair's arc through the pole refuses Escalated Indeterminate on pcurve_projected_sector at eps 1e-6, not the azimuth lane gap its row pins, so main is red there
-status: open
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: E
+closed: 2026-11-20
 ---
 
 
@@ -59,3 +60,7 @@ The test is renamed
 and its `pinned_red` wrapper is gone. Neither of this row's two
 alternatives is taken: the arc is neither left on the gap nor pinned on
 the new refusal. The row has nothing left to decide once that PR lands.
+
+## Closed (2026-11-20)
+
+By PR 7180: an arc that ends on a sphere chart's pole images through the projected lane's pole-ended piece (its azimuth read off the reduced radial part `g`, its end decided from the vertex's incidence, the envelope charged a pole term). The plane-through-pole cap, its subtract at (1,2,0) and the two-ball radical circle build at their closed forms at ε 1e-6, 1e-9 and 1e-12. The section was already split at the pole; the gap was the lane's.

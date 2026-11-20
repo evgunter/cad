@@ -2,12 +2,13 @@
 id: a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve
 kind: issue
 title: A Boolean section circle through a sphere face's pole mints no pcurve (NoGeneralLane, an azimuth gap), with or without a wrap tip at the pole
-status: review
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
 branch: charttail/pole-section
 pr: 7180
+closed: 2026-11-20
 ---
 
 Found by `splitdoor/wrap-tip-boolean` while pinning the wrap tip in the
@@ -107,3 +108,7 @@ at `(1, 2, 0)`. At the two normals where the circle touches the base rim,
 the remainder's face has a zero-angle corner and its measure refuses
 (`work/nearpoint/a-sphere-face-with-a-zero-angle-corner-refuses-its-measure.md`).
 The two-ball radical circle builds at the lens closed form.
+
+## Closed (2026-11-20)
+
+By PR 7180: an arc that ends on a sphere chart's pole images through the projected lane's pole-ended piece (its azimuth read off the reduced radial part `g`, its end decided from the vertex's incidence, the envelope charged a pole term). The plane-through-pole cap, its subtract at (1,2,0) and the two-ball radical circle build at their closed forms at ε 1e-6, 1e-9 and 1e-12. The section was already split at the pole; the gap was the lane's.
