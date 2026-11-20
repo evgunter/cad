@@ -692,12 +692,12 @@ pub struct StructureNormalization {
 }
 
 /// The analytic kinds D7 CURVE recognition can promote a NURBS
-/// carrier to (#327 stage 1; the line #388). Ellipse, helix, and open
-/// (partial) circular arcs are named exclusions with filed follow-ups;
-/// such carriers stay NURBS.
+/// carrier to (#327 stage 1; the line #388). Ellipse and helix are
+/// named exclusions with a filed follow-up; such carriers stay NURBS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedCurveKind {
-    /// A full, closed circle.
+    /// A circle: a closed carrier's full period, or an open carrier's
+    /// arc, which its edge trims at its vertices.
     Circle,
     /// A chord segment (a certified degree-agnostic polyline leg —
     /// the carrier lies on the chord between its end control points
@@ -744,10 +744,11 @@ pub struct CurvePromotion {
     /// The kind that certified.
     pub kind: PromotedCurveKind,
     /// The certified residual sup (METERS): the carrier's worst
-    /// deviation from the promoted curve over its whole domain. Read
-    /// off ring-coefficient hulls — exact, whole-domain, no sampling
-    /// (`recognize_curve`'s module docs carry the derivation and the
-    /// meters² → meters conversions).
+    /// deviation from the promoted curve over its whole domain, as a
+    /// map — at the parameter the carrier's own structure assigns each
+    /// of its points. Read off coefficient and control-difference
+    /// hulls — whole-domain, no sampling (`recognize_curve`'s module
+    /// docs carry the derivation).
     pub residual: f64,
 }
 

@@ -1,7 +1,7 @@
 ---
 id: step-import-curve-recognition-named-exclusions
 kind: issue
-title: step-import stage-1 curve recognition — the NAMED EXCLUSIONS (open arcs, ellipse, helix) and the surjectivity certificate
+title: step-import stage-1 curve recognition — the NAMED EXCLUSIONS (ellipse, helix) and the surjectivity certificate
 status: open
 opened: 2026-08-11
 refs: [327, 388, 391]
@@ -14,6 +14,8 @@ cost: H
 Opened 2026-08-11; 1 comment.
 
 Split out of #327, which shipped exactly ONE curve kind: the CLOSED full-period circle. Each exclusion below is named with what promotion would flip.
+
+**Exclusion 1 has left this row** (EXCH unit B, `exch/arc-map-obligation`): open circular arcs now promote under the circle's map certificate, `recognize_curve`'s INV-C6, which carries the arc's coverage with it. The RATIONAL-QUADRATIC class (closed or open, one span or many at double knots) no longer reads the turning witness of exclusion 2 either; that exclusion stays here for every other circle form (a degree-elevated circle, single interior knots), which INV-C6 refuses and which stays NURBS. Ellipse and helix stay here. Exclusion 1's text is kept below as the record of what was owed.
 
 **1. OPEN (partial) circular arcs — the nearest one.** #327 refuses any carrier whose first and last control points do not coincide within ε_in, because the promoted carrier is trimmed by `geometry::endpoint_params`, and for an open arc that means an ANGULAR interval the locus certificate says nothing about: a carrier that lies on the circle but doubles back adopts as a different arc. Closing it needs an arc-COVERAGE obligation on the traversal, not just the locus. Would flip: the many wild files whose fillet/round rims are stated as trimmed rational quadratics rather than `CIRCLE` + trim.
 

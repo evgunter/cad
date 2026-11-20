@@ -250,6 +250,7 @@ CERT_IMPORTERS=(
   crates/geom/src/curves/second_derivative.rs
   crates/mesh/src/chords.rs
   crates/mesh/src/nurbs_cert.rs
+  crates/step-import/src/recognize_curve.rs
   crates/topo/src/props/quad_lane.rs
 )
 

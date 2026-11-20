@@ -2,10 +2,12 @@
 id: curve-recognition-roots-its-certified-sups-to-nearest
 kind: issue
 title: recognize_curve roots a certified sup and a lower bound to nearest, so each can land an ulp on the unsafe side
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
+closed: 2026-11-20
+branch: exch/arc-map-obligation
 ---
 
 
@@ -34,3 +36,14 @@ sup as an `Interval`, take `.sqrt()` through
 `geom_core::interval::certification::Certification`, and read `.mag()`
 or `.lo()`. The file would then join `certification-doors.sh`'s
 importer list, which holds it to that gate's rules.
+
+## Closed
+
+EXCH unit B (`exch/arc-map-obligation`). The circle arm's INV-C1/INV-C2
+conversions are gone: the circle certifies by its map (INV-C6), whose
+distances, weight miss and their sum are read at `Interval` and rounded
+outward (`recognize_curve::distance_sup`, `map_certificate`). The line
+arm roots its composite sup through `Certification::sqrt` and reads
+`.mag()`, and its Greville hull's distances go through `distance_sup`
+too. `recognize_curve.rs` joined `certification-doors.sh`'s importer
+list.
