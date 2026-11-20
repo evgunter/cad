@@ -959,9 +959,20 @@ fn germ_site<T: Decide>(
 ///
 /// A record is read on its section's frame where the pair has one, and
 /// otherwise on the component of its carried section both germs stand
-/// on ([`carried_foot`]), whose `winds` [`closes_at_its_site`] reads.
+/// on ([`carried_foot`]), read only once [`closes_at_its_site`] admits it.
 ///
-/// Where a record is taken, three things are kernel bugs, refused as
+/// A pierced face holds the loop as a disc of its own: a loop that winds
+/// round the face's surface (round its axis, or a torus's meridian round
+/// the tube) meets the face's seam, since an at-rest face is one disc of
+/// its chart, and reaches no pierce cell. That premise is tier 3's, and a
+/// seamless band would break it
+/// (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`).
+/// A frame's loop is a closed conic, which winds round every cylinder,
+/// cone and torus, so a frame record piercing one is a kernel fault; a
+/// carried record's component, or the node-joined set holding it, says
+/// whether it winds ([`component_winds`]).
+///
+/// Where a record is taken, these are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
 /// on the same loop of its section ([`SectionLoops`]; each loop is one
 /// closed curve, which the record's two germs then cover alone, while a
@@ -969,7 +980,8 @@ fn germ_site<T: Decide>(
 /// loop's records); B germs whose loci are not the A germs'; and two
 /// germs that agree in sense or turn one way round the loop, read about
 /// the frame's axis or along the carried component (insertion mints a
-/// null edge's two germs facing apart), or stand on two components.
+/// null edge's two germs facing apart), or stand on two components; and
+/// a loop piercing a face whose surface it winds round.
 fn one_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
@@ -982,12 +994,35 @@ fn one_site_segments<T: Decide>(
         let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
+        if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
+            continue;
+        }
         let g1 = rec.a[1].0;
-        // A record on a carried section is read on its component: both
-        // germs stand on the one component and leave it opposite ways,
-        // and the component says whether it winds round each surface.
-        let winds = match frame {
-            Some(_) => None,
+        let pierced = pierced_face(red, &g0, rec.b[0].0.he)?;
+        let winds_round = || BooleanError::JoinDesync {
+            what: "a one-site loop pierces a face whose surface it winds round: an at-rest face \
+                   is one disc of its chart, so a winding loop meets the face's seam",
+        };
+        match frame {
+            // A frame's loop is a closed conic, and every closed conic on
+            // a cylinder, a cone or a torus winds round it.
+            Some(_) => {
+                if let Some((x, f)) = pierced {
+                    let body = if x == Operand::A { &red.a } else { &red.b };
+                    if matches!(
+                        keyed_surface(body, f).1.kind(),
+                        geom::SurfaceKind::Cylinder
+                            | geom::SurfaceKind::Cone
+                            | geom::SurfaceKind::Torus
+                    ) {
+                        return Err(winds_round());
+                    }
+                }
+            }
+            // A record on a carried section is read on its component:
+            // both germs stand on the one component and leave it opposite
+            // ways, and the component, or the node-joined set holding it,
+            // says whether it winds round each surface.
             None => {
                 let section = germ_section(red, &g0)?.ok_or_else(unheld_section)?;
                 let p = germ_site(red, &g0)?;
@@ -1005,11 +1040,13 @@ fn one_site_segments<T: Decide>(
                         "a one-site record's two germs turn one way round its loop",
                     ));
                 }
-                Some(section.components()[f0.component].winds)
+                if let Some((x, _)) = pierced
+                    && component_winds(red, &g0, section, f0.component)?
+                        [usize::from(x == Operand::B)]
+                {
+                    return Err(winds_round());
+                }
             }
-        };
-        if !closes_at_its_site(red, &g0, rec.b[0].0.he, winds, band)? {
-            continue;
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
             for (g, _) in &other.a {
@@ -1076,28 +1113,10 @@ fn one_site_segments<T: Decide>(
 /// A pierce is joined in its face as a ring of its own
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
 /// [`crate::chord_join::loop_holds_outer`].
-///
-/// A pierced face holds the loop as a disc of its own: a loop that winds
-/// round the face's surface (round its axis, or a torus's meridian round
-/// the tube) meets the face's seam, since an at-rest face is one disc of
-/// its chart, and reaches no pierce cell. That premise is tier 3's, and a
-/// seamless band would break it
-/// (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`).
-/// On a carried
-/// section the loop's component says whether it winds (`winds`, A's
-/// surface then B's); a loop read by a frame lies in a plane or a sphere
-/// face, or is a closed edge on one, and every closed loop on those is
-/// null, so no frame record winds.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where a carried loop pierces a face whose
-/// surface it winds round.
 fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
-    winds: Option<[bool; 2]>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let reads =
@@ -1109,16 +1128,6 @@ fn closes_at_its_site<T: Decide>(
         site_cell(&red.a, g0.a_locus, g0.he)?,
         site_cell(&red.b, g0.b_locus, b_he)?,
     );
-    match (cells, winds) {
-        ((_, SiteCell::Pierce(_)), Some([_, true]))
-        | ((SiteCell::Pierce(_), _), Some([true, _])) => {
-            return Err(BooleanError::JoinDesync {
-                what: "a one-site loop pierces a face whose surface it winds round: an at-rest \
-                       face is one disc of its chart, so a winding loop meets the face's seam",
-            });
-        }
-        _ => {}
-    }
     Ok(match cells {
         (SiteCell::Wrap | SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => reads(&red.b, f),
         (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
@@ -1134,6 +1143,55 @@ fn closes_at_its_site<T: Decide>(
             planar(&red.a, f) && stands_on(red, (Operand::B, e), f, band)?
         }
         _ => false,
+    })
+}
+
+/// **The face a one-site record's site pierces**, and its operand:
+/// `None` where neither germ's cell is a pierce ([`site_cell`]).
+fn pierced_face<T: Decide>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    b_he: HalfEdgeKey,
+) -> Result<Option<(Operand, FaceKey)>, BooleanError> {
+    Ok(
+        match (
+            site_cell(&red.a, g0.a_locus, g0.he)?,
+            site_cell(&red.b, g0.b_locus, b_he)?,
+        ) {
+            (_, SiteCell::Pierce(f)) => Some((Operand::B, f)),
+            (SiteCell::Pierce(f), _) => Some((Operand::A, f)),
+            _ => None,
+        },
+    )
+}
+
+/// **Whether carried component `k` of `g0`'s section winds round each
+/// surface** (A's, then B's): its node-joined set's claim where it is an
+/// arc of one ([`geom_brep::PairSection::node_sets`]), its own otherwise
+/// ([`geom_brep::CarriedComponent::winds`]).
+fn component_winds<T: Decide>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    section: &geom_brep::CarriedSection<T>,
+    k: usize,
+) -> Result<[bool; 2], BooleanError> {
+    let own = section
+        .components()
+        .get(k)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a one-site record's foot names no component of its carried section",
+        })?
+        .winds;
+    let listed = red
+        .sections
+        .listed((&red.a, g0.a_face), (&red.b, g0.b_face));
+    Ok(match listed {
+        Some(Ok(listed)) => listed
+            .node_sets()
+            .iter()
+            .find(|set| set.arcs.contains(&k))
+            .map_or(own, |set| set.winds),
+        _ => own,
     })
 }
 

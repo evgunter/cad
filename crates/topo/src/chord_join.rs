@@ -37,7 +37,7 @@
 //! - two halves of one null edge making up a ring alone (a one-site
 //!   section loop's pierce of a face [`reads_loop_side`] reads), or with the
 //!   closed edge the segment runs along ⇒ the ring is promoted to a face
-//!   and joined there, and the conic whose region holds the old face's
+//!   and joined there, and the loop whose region holds the old face's
 //!   outer loop goes back to it as a ring
 //!   ([`ChordJoiner::join_lone_ring`]).
 //!
@@ -107,20 +107,20 @@
 //!
 //! A **self-loop chord** (both ends one vertex) is a one-site section
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
-//! split or the boolean, and in the boolean also the partner's planar
-//! face, whose interior that edge pierces
+//! split or the boolean, and in the boolean also a face of the partner
+//! [`reads_loop_side`] reads, whose interior that edge pierces
 //! ([`ChordJoiner::join_lone_ring`]) or whose boundary it meets at a
 //! vertex, where the null edge hangs from that vertex into the face as a
 //! strut ([`Lone`], [`ChordJoiner::place_strut`]); and in the
 //! boolean a closed edge
 //! (one vertex, both its ends) lying in the other operand, which copies
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
-//! section conic in a face of the partner [`reads_loop_side`] reads, or on the
-//! wrap edge of the partner's one-face wall, which the conic winds round
-//! from that edge back to it. There the chord is the whole section
-//! conic, from the vertex round to itself.
+//! section loop in a face of the partner [`reads_loop_side`] reads, or on
+//! the wrap edge of the partner's one-face wall, which the loop winds
+//! round from that edge back to it. There the chord is the whole section
+//! loop, from the vertex round to itself.
 //! A chord between two copies of one site, which the null edges tie
-//! ([`same_site`]), runs round the same way: a section conic that meets
+//! ([`same_site`]), runs round the same way: a section loop that meets
 //! a face's boundary at one site alone reaches it under whichever of
 //! the site's copies the split's null edges leave there.
 //! In the plane × plane
@@ -1959,7 +1959,7 @@ pub(crate) fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<Section
 /// [`chord_spec`] leaves on a self-loop chord in the plane × plane and
 /// along-edge lanes, where no conic is sectioned (module docs, "The
 /// section-chord geometry"; a curved face's self-loop and the boolean's
-/// planar pierce are the whole conic). Its circle is arbitrary, so it
+/// pierce are the whole section loop). Its circle is arbitrary, so it
 /// bounds nothing.
 ///
 /// Nothing in the edge marks a placeholder apart from an honest
@@ -4211,9 +4211,7 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, JoinError> {
         let invariant = |what| JoinError::SectionInvariant { face, what };
-        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = view.surface();
-        let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+        let (surface, carrier) = Self::carrier(body, face)?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
             .iter()
@@ -4261,26 +4259,49 @@ impl<T: Decide> IslandReading<T> {
                 (LoopArc::segment(from, to), from.mid(to), to - from)
             }
         };
+        arcs.push(chord);
+        Self::arriving(body, face, (carrier, arcs), (q, travel), band)
+    }
+
+    /// `face`'s surface and the carrier the paths run on.
+    fn carrier(
+        body: &Body<T>,
+        face: FaceKey,
+    ) -> Result<(&geom::Surface<T>, Carrier<T>), JoinError> {
+        let surface = body.face(face).ok_or_else(|| corrupt_face(face))?.surface();
+        let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+        Ok((surface, carrier))
+    }
+
+    /// The reading of the closed curve `arcs`, the paths arriving at its
+    /// point `q`, where it travels along `travel`: the left normal there
+    /// is `face`'s outward normal crossed with `travel`. An escalation
+    /// where `q` is not decided off a cone's apex or a torus's axis.
+    fn arriving(
+        body: &Body<T>,
+        face: FaceKey,
+        (carrier, arcs): (Carrier<T>, Vec<LoopArc<T>>),
+        (q, travel): (Point3<T>, Vec3<T>),
+        band: Band,
+    ) -> Result<Result<Self, Indeterminate>, JoinError> {
+        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
+        let unread = || ring_island_unread(face, view.surface());
         let outward = match &carrier {
             Carrier::Quadric(quadric) => {
                 match quadric.off_apex(q, band) {
                     Ok(true) => {}
-                    Ok(false) => return Err(ring_island_unread(face, surface)),
+                    Ok(false) => return Err(unread()),
                     Err(diag) => return Ok(Err(diag)),
                 }
                 quadric.outward(q, view.sense())
             }
-            Carrier::Wall(wall) => wall
-                .outward(q, view.sense())
-                .ok_or_else(|| ring_island_unread(face, surface))?,
+            Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
-        arcs.push(chord);
-        let left = outward.cross(travel);
         Ok(Ok(Self {
             carrier,
             arcs,
             q,
-            left,
+            left: outward.cross(travel),
         }))
     }
 
@@ -4302,9 +4323,7 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, JoinError> {
         let invariant = |what| JoinError::SectionInvariant { face, what };
-        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = view.surface();
-        let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+        let (surface, carrier) = Self::carrier(body, face)?;
         let Some(&[he]) = outer_cycle(body, face)?.as_deref() else {
             return Err(invariant(
                 "a face a closed loop walls off is bounded by other than one closed edge",
@@ -4324,26 +4343,8 @@ impl<T: Decide> IslandReading<T> {
         };
         let q = curve.carrier().mid_point(t0, t1);
         let travel = curve.carrier().deriv(geom::mid_param(t0, t1)) * ((t1 - t0) * forward);
-        let outward = match &carrier {
-            Carrier::Quadric(quadric) => {
-                match quadric.off_apex(q, band) {
-                    Ok(true) => {}
-                    Ok(false) => return Err(ring_island_unread(face, surface)),
-                    Err(diag) => return Ok(Err(diag)),
-                }
-                quadric.outward(q, view.sense())
-            }
-            Carrier::Wall(wall) => wall
-                .outward(q, view.sense())
-                .ok_or_else(|| ring_island_unread(face, surface))?,
-        };
         let arcs = run_loop_arcs(body, face, (surface, &carrier), &[he], band)?;
-        Ok(Ok(Self {
-            carrier,
-            arcs,
-            q,
-            left: outward.cross(travel),
-        }))
+        Self::arriving(body, face, (carrier, arcs), (q, travel), band)
     }
 
     /// The winding read off the paths to `q` from every outer-loop point
@@ -5167,34 +5168,51 @@ fn lone_ring<T: Real>(
     Ok((l != outer).then_some((l, kind)))
 }
 
-/// **Whether the side of a closed loop lying in a face is read here**: a
-/// plane's by its planar winding, any other face's by the island paths
-/// ([`IslandReading`]), wherever [`Carrier::of`] reads its surface.
-/// `boolean::join`'s `closes_at_its_site` admits a one-site loop's pierce
-/// or boundary site only in a face this reads, and [`loop_holds_outer`]
-/// answers for it.
+/// **How the side of a closed loop lying in a face is read**: a plane's
+/// by its planar winding, any other face's by the island paths on the
+/// carrier [`Carrier::of`] reads; `None` for a face neither reads.
+enum LoopSide<T: Real> {
+    Planar,
+    Paths(Carrier<T>),
+}
+
+impl<T: Decide> LoopSide<T> {
+    fn of(surface: &geom::Surface<T>) -> Option<Self> {
+        match surface {
+            geom::Surface::Plane { .. } => Some(Self::Planar),
+            _ => Carrier::of(surface).map(Self::Paths),
+        }
+    }
+}
+
+/// **Whether the side of a closed loop lying in a face is read here**
+/// ([`LoopSide`]). `boolean::join`'s `closes_at_its_site` admits a
+/// one-site loop's pierce or boundary site only in a face this reads, and
+/// [`loop_holds_outer`] answers for it.
 pub(crate) fn reads_loop_side<T: Decide>(surface: &geom::Surface<T>) -> bool {
-    matches!(surface, geom::Surface::Plane { .. }) || Carrier::of(surface).is_some()
+    LoopSide::of(surface).is_some()
 }
 
 /// **Whether the region of `face`, walled off in `oldf` by one closed
 /// loop, holds `outer`**, the loop of `oldf` that was its outer: the one
 /// reader of which side of a closed loop in a face holds the face's outer
-/// loop, for a one-site loop's lone ring and null strut alike.
+/// loop, for a one-site loop's lone ring and null strut alike
+/// ([`LoopSide`]).
 ///
 /// On a plane, `face`'s outer loop and `outer` wind one way about the
 /// plane's chart normal exactly when `outer` lies outside it. Elsewhere
 /// the loop bounding `face` is read as an island closed by itself
 /// ([`IslandReading::of_closed_loop`]), from the points of `outer`
-/// ([`loop_references`]): `face` lies on the loop's left, so it holds
-/// `outer` exactly when the island winds clockwise, `outer` on its left.
+/// ([`loop_references`]: its vertices, then its edges' midpoints): `face`
+/// lies on the loop's left, so it holds `outer` exactly when the island
+/// winds clockwise, `outer` on its left.
 ///
 /// # Errors
 ///
 /// [`JoinError::RingIslandUnread`] on a face [`reads_loop_side`] does not
-/// read, or where `outer` offers no point; [`JoinError::Escalated`] where
-/// no reading decides; [`JoinError::SectionInvariant`] where the readings
-/// disagree or every path reads in the zero band.
+/// read; [`JoinError::Escalated`] where no reading decides;
+/// [`JoinError::SectionInvariant`] where the readings disagree or every
+/// path reads in the zero band.
 pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     oldf: FaceKey,
@@ -5204,24 +5222,24 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, JoinError> {
     let invariant = |what| JoinError::SectionInvariant { face: oldf, what };
     let escalated = |diag| JoinError::Escalated { face: oldf, diag };
-    let view = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-    if matches!(view.surface(), geom::Surface::Plane { .. }) {
-        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let winding = |l: LoopKey, normal: Vec3<T>| match body.planar_loop_winding(l, normal, band)
-        {
-            Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
-            Some(Err(diag)) => Err(escalated(diag)),
-            _ => Err(invariant(
-                "a one-site loop's walled-off conic does not wind definitely on its plane",
-            )),
-        };
-        let normal = face_plane_normal(body, oldf)?;
-        return Ok(winding(face_data.outer, normal)? != winding(outer, normal)?);
+    let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.surface();
+    match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
+        LoopSide::Planar => {
+            let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+            let winding =
+                |l: LoopKey, normal: Vec3<T>| match body.planar_loop_winding(l, normal, band) {
+                    Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
+                    Some(Err(diag)) => Err(escalated(diag)),
+                    _ => Err(invariant(
+                        "a one-site loop's walled-off conic does not wind definitely on its plane",
+                    )),
+                };
+            let normal = face_plane_normal(body, oldf)?;
+            return Ok(winding(face_data.outer, normal)? != winding(outer, normal)?);
+        }
+        LoopSide::Paths(_) => {}
     }
     let references = loop_references(body, outer, &[])?;
-    if references.is_empty() {
-        return Err(ring_island_unread(oldf, view.surface()));
-    }
     let island = IslandReading::of_closed_loop(body, face, band)?.map_err(escalated)?;
     match island
         .read_paths_from(references, face, band, |path| island.read(path, band))?
@@ -5439,13 +5457,21 @@ impl ChordJoiner {
     /// the face its lone chord walls off alone, and `kept` the other
     /// chord, whose plus half stays in the loop of `oldf` holding the
     /// strut's vertex. Where the lone face's region holds `oldf`'s outer
-    /// loop ([`loop_holds_outer`]), the conic encloses the strut's
+    /// loop ([`loop_holds_outer`]), the loop encloses the strut's
     /// vertex with the ring it lies on: the lone face is the hole the
     /// conic cuts in `oldf` ([`Self::cut_hole`]), and the ring holding the
-    /// kept chord bounds the region the conic encloses, promoted to a face
+    /// kept chord bounds the region the loop encloses, promoted to a face
     /// of its own ([`Self::promote_ring`]), as in a lone ring
     /// ([`Self::join_lone_ring`]). Otherwise the lone face is that region.
     /// It takes the rings of `oldf` it holds.
+    ///
+    /// Read by [`loop_holds_outer`] on any face it reads, though only a
+    /// plane is known to reach here: a strut's loop touches the face's
+    /// boundary at a vertex without crossing it, and on a curved face that
+    /// is a wall lying tangent to the boundary's other face along an edge
+    /// through the vertex, which the crossing layer refuses first (a boss
+    /// tangent to a bead's bore along the bore's wrap edge refuses
+    /// `CurvedPierceUnsupported` in every op).
     fn place_strut<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
@@ -5520,16 +5546,16 @@ impl ChordJoiner {
     /// [`Self::join`] of a one-site section loop whose site is a pierce
     /// of a face's interior ([`reads_loop_side`]): the two halves are one
     /// null edge, and `ring`, a ring of the face, holds nothing else.
-    /// Each chord is the whole conic at one copy of the site, and the
+    /// Each chord is the whole section loop at one copy of the site, and the
     /// face they wall off is the null face, which holds both halves.
     /// `mef` walls off an empty run when its two halves are one, so the
     /// ring is first promoted to a face of its own (`mfkrh`) and joined
     /// there: the promoted face keeps both halves and each chord walls
-    /// off a face bounded by one conic. The one of those two whose
+    /// off a face bounded by one loop. The one of those two whose
     /// region holds the old face's outer loop ([`loop_holds_outer`]) bounds the
-    /// hole the conic cuts in the old face, and becomes its ring
+    /// hole the loop cuts in the old face, and becomes its ring
     /// (`kfmrh_minting`, which re-mints the old face where the hole's
-    /// rows do not stand on it); the other is the disc inside the conic, which takes the
+    /// rows do not stand on it); the other is the region inside the loop, which takes the
     /// old face's rings it encloses.
     fn join_lone_ring<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
