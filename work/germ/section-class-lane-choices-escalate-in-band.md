@@ -2,12 +2,13 @@
 id: section-class-lane-choices-escalate-in-band
 kind: issue
 title: Four section-class readings in intersect.rs (pc_rim_alignment, pn_axis_normal, pt_axis_normal, pt_axis_in_plane) escalate in band where D3 takes the general lane
-status: review
+status: closed
 pr: 7171
 branch: germ/section-class-lane-choices
 opened: 2026-10-20
 priority: P1
 cost: M
+closed: 2026-11-20
 ---
 
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane
@@ -42,3 +43,7 @@ slate.
 In band takes the definite arm's lane, recording nothing. Add a row
 with an in-band pose for each site, and a mutant that restores the
 escalation and reds it.
+
+## Closed (2026-11-20, PR 7171)
+
+In band, the four section-class rows take the definite arm's lane and record nothing (`intersect::closed_form_shown`, which reads `ladder::in_band`). That gives `pc_rim_alignment` the `TiltedEllipse`, `pn_axis_normal` the conic lane, and both plane × torus rows `RoutesToGeneralRung`. Every consumer of `RoutesToGeneralRung` refuses, so no loop count is served off that lane. A tangency reader acts on the tangent circle, and there the same rows are structural (`plane_torus_tangency`, `ClassRead::Structural`), so in band refuses. STEP snap refuses an in-band relation of every kind itself. The full review found no MAJOR; its three MINORs were fixed. The coaxial siblings of this class are filed as `coaxial-class-readings-escalate-in-band` (P2).
