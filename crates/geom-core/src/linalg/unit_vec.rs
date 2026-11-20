@@ -504,7 +504,7 @@ impl<T: Decide> UnitVec3<T> {
         band: Band,
     ) -> Result<Self, UnitVec3Error> {
         let arm = arm.length().abs();
-        if !(arm * arm).is_finite() {
+        if !arm.powi(2).is_finite() {
             return Err(UnitVec3Error::NonFiniteLength);
         }
         decide_direction_by(v, site, band, |v| Margin::levered_at(v.norm(), Lever(arm)))

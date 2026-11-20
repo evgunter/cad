@@ -4239,7 +4239,7 @@ fn bound_within_eps<T: Decide>(
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
     let gap = if gap.is_finite() { gap } else { f64::NAN };
-    let margin = Margin::of(T::from_f64(tol.eps())).less(gap);
+    let margin = Margin::of(eps_of(tol)).less(gap);
     geom_core::k_stats::decide_reported(GAP_WITHIN_EPS, margin, band)
         .map(|d| !past_eps(&d))
         .map_err(|cause| {
@@ -4314,7 +4314,12 @@ const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
 
 /// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
 fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
-    Margin::of(T::from_f64(tol.eps()) - gap)
+    Margin::of(eps_of(tol) - gap)
+}
+
+/// The run's ε at `T`, the file's one read of it on the chain.
+fn eps_of<T: Decide>(tol: Tol) -> T {
+    T::from_f64(tol.eps())
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
