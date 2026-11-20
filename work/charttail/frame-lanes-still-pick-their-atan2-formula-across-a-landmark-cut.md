@@ -58,3 +58,9 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 ## Two more lanes retired (ONECOPY, 2026-11-06)
 
 ONECOPY's `harmonic-phases-pick-their-cut-side-by-hand` read `plane_crossing_phase_frame` (`conic_plane_candidates`, now near the span's middle) and `props_torus_lift_branch` (`torus_angle`, now near `0`) through `geom::Azimuth::near` (F31). Both rows are gone from the log. Still this row's: editor-core's `solve_atan2`, and the reference-relative cousins.
+
+## editor-core's box read goes through Azimuth (2026-11-20, `charttail/solve-atan2`)
+
+The `Interval` and `Sym` impls of `SolveScalar::solve_atan2` read `mate::solve::box_atan2`: `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`, the shape of `Azimuth::near`'s own read. The spin is read only through its sine and cosine at those lanes (`turn_to`), so the cut side is a renaming, as F31 argues. The read's one jump is the angle window's cut at `−1`; across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`. The exact-zero tightening (`y` exactly zero over `x` structure-positive reads `0`) stays, as an exact value rather than a branch. `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding: it records whichever formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.
+
+The `f64` lane, the `Probe` lane and `Dual`'s value channel still read the platform `atan2`, whose one jump is at `±π`. That is MSOLVE's `the-mate-solve-reads-the-platform-atan2`, with the reason it stays there written on that row.
