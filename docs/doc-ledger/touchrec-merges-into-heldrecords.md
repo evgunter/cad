@@ -4,7 +4,7 @@ The track budget counts only the dispatchable P0, P1 and unbanded rows, because 
 
 - **TOUCHREC** — a boolean result holds the records of its own touches and keeps the copy the glue decided. Opened 2026-11-01. Its 8 live rows (5 P2, 1 P3, 2 P4) moved to `work/heldrecords/` by `git mv`, ids and bodies unchanged, each with a dated Moved note; its 3 closed rows were deleted with it. Its charter, `paths` and `keep_out` are folded into `work/heldrecords/program.md` and its plan into `work/heldrecords/plan.md`, each as a `## From TOUCHREC` section. Its `ab_band` (none) closes with it.
 
-Citations of a moved row's file, and of a merged track's `plan.md` or `program.md`, outside logs and the experiment ledgers now point into `work/heldrecords/`. Historical prose (Moved notes, log entries) keeps the paths it was written with. None of the plans set `## Exit criteria`, so they close without an exit walk.
+Citations of a moved row's file, and of a merged track's `plan.md` or `program.md`, outside logs and the experiment ledgers now point into `work/heldrecords/`. Historical prose (Moved notes, log entries) keeps the paths it was written with. TOUCHREC's plan set `## Exit criteria`. Nothing in it is finished, so no walk is due now: the criteria travel with the rows, under the `## From` section of `work/heldrecords/plan.md`, and are walked when those rows close. The other plans set none.
 
 Recover the program, plan and log files, and the closed rows, at `131457c32b`:
 
