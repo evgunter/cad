@@ -23,11 +23,12 @@ pub(super) fn at_the_least_band() -> bool {
 }
 
 /// Whether `error` is the sampled envelope's escalation
-/// (`pcurve_envelope`) with its margin's upper end in `(lo, hi]`.
+/// (`pcurve_envelope`, on the envelope or on one of its terms) with its
+/// margin's upper end in `(lo, hi]`.
 pub(super) fn envelope_escalates(error: &PcurveCertifyError, (lo, hi): (f64, f64)) -> bool {
     match error {
         PcurveCertifyError::Escalated {
-            check: super::PcurveCheck::Envelope,
+            check: super::PcurveCheck::Envelope | super::PcurveCheck::EnvelopeTerm(_),
             cause,
             ..
         } if cause.predicate == Some("pcurve_envelope") => {
