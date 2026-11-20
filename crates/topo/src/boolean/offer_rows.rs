@@ -2828,7 +2828,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::of_conic_root",
         1,
     ),
-    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 2),
+    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 1),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
