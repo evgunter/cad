@@ -413,6 +413,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
     ),
+    ("crates/geom-brep/src/patch_carrier.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache.rs",
         7,
@@ -660,7 +661,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
-    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 6, 6, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",

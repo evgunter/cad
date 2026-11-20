@@ -61,6 +61,8 @@ mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 mod a_foreign_carrier_splits_at_each_c0_knot;
 #[path = "a_line_beside_a_straight_spline_joins.rs"]
 mod a_line_beside_a_straight_spline_joins;
+#[path = "a_promoted_kind_is_the_same_whichever_way_the_net_runs.rs"]
+mod a_promoted_kind_is_the_same_whichever_way_the_net_runs;
 #[path = "a_relation_the_file_band_reads_zero_is_snapped.rs"]
 mod a_relation_the_file_band_reads_zero_is_snapped;
 #[path = "a_smooth_join_imports_by_the_must_carry_rule.rs"]
