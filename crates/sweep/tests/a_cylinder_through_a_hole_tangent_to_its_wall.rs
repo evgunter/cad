@@ -129,10 +129,8 @@ enum Vertices {
 /// wrap edge lying along the hole's wall.
 fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, slit: bool) {
     if slit {
-        // Pinned red: the `CurvedFace` gap retires when the walk meshes a
-        // slit in a curved face
-        // (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)
-        // and its mass properties measure one
+        // Pinned red: the `CurvedFace` gap retires when a zero-area ring
+        // in a curved face measures
         // (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
         assert!(
             matches!(
