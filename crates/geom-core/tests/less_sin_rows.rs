@@ -145,6 +145,45 @@ fn an_enclosure_holds_the_truth_is_thin_and_holds_across_the_cutoff() {
     }
 }
 
+/// An enclosure that does not certify comes out not certifying, on
+/// either arm, and still holds its points; poison stays poison, and an
+/// unbounded end stays unbounded.
+#[test]
+fn an_uncertified_enclosure_stays_uncertified_on_either_arm() {
+    let clamped = |hi: f64| Interval::from_bounds(-1.0, hi).sqrt();
+    // `sqrt` over a box that leaves its domain: ordinary ends, the
+    // refusal only in the decoration. Ends `[0, 1]` and `[0, 2]` are
+    // within the series' reach, `[0, 3]` is past it.
+    for (x, series) in [
+        (clamped(1.0), true),
+        (clamped(4.0), true),
+        (clamped(9.0), false),
+    ] {
+        assert!(
+            !x.is_certified() && !Real::is_poison(x) && (x.hi() <= LESS_SIN_SERIES_BELOW) == series,
+            "the fixture {x:?} is not an uncertified enclosure on the arm it is here for"
+        );
+        let got = x.less_sin();
+        assert!(!got.is_certified(), "{x:?} reads {got:?}, which certifies");
+        for p in [x.lo(), 0.5 * x.hi(), x.hi()] {
+            let at = Interval::from_f64(p).less_sin();
+            assert!(
+                got.lo() <= at.lo() && at.hi() <= got.hi(),
+                "{x:?} reads {got:?}, which does not hold {p}'s {at:?}"
+            );
+        }
+    }
+    let nai = Interval::from_f64(f64::NAN).less_sin();
+    assert!(Real::is_poison(nai), "NaI reads {nai:?}");
+    let whole = (Interval::from_f64(1.0) / Interval::from_bounds(-1.0, 1.0)).less_sin();
+    assert!(!whole.is_certified(), "1/[-1, 1] reads {whole:?}");
+    let ray = Interval::from_bounds(0.0, f64::INFINITY).less_sin();
+    assert!(
+        ray.lo() <= 0.0 && ray.hi() == f64::INFINITY,
+        "[0, ∞] reads {ray:?}, which does not hold its points"
+    );
+}
+
 /// The value channel of a dual and of a recording scalar is the base
 /// scalar's door, and a dual's slope `1 − cos x` keeps its digits too.
 #[test]
