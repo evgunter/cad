@@ -1,16 +1,20 @@
 //! The confirm lane for a **point touch** (C3): two cells whose
-//! interiors meet at isolated points without crossing — a circle on a
-//! plane, a line or a plane on a sphere, two spheres.
+//! interiors meet at isolated points without crossing — an edge's span
+//! touching a face's carrier, a plane on a sphere, two spheres.
 //!
-//! The point is found on the closed-form lane of the two carriers, and
-//! the record is confirmed there when three readings hold: the relative
+//! An edge against a face is read through the curve × face crossing
+//! reading ([`geom_brep::curve_face::cross`]), every pair its table has
+//! built: the record is confirmed where the pose is a nondegenerate
+//! touch (`Tangent`, its relative curvature definitely positive) strictly
+//! inside the edge's span, and the touch point strictly inside both
+//! cells. A face pair is found on the closed-form lane of the two
+//! carriers, and confirmed there when three readings hold: the relative
 //! curvature `κ_rel` of the two carriers across the point is definitely
 //! positive (their second-order separation, levered by the curved
 //! carrier's radius), the carriers coincide at it within ε, and the
 //! point is strictly inside both cells. Carriers that coincide nowhere,
-//! or cross, read stale. An edge–face pair outside these lanes refuses
-//! typed; a face pair outside them is not this lane's
-//! ([`face_face`] answers `None`). Whether the solids cross at the
+//! or cross, read stale. A face pair outside these lanes is not this
+//! lane's ([`face_face`] answers `None`). Whether the solids cross at the
 //! point is the touch analysis's reading of the faces around it, not
 //! this record's.
 //!
@@ -50,13 +54,6 @@ enum Touch<T: Real> {
     At(Point3<T>),
     /// The carriers coincide nowhere, or cross.
     Apart,
-}
-
-/// Where a circle and a plane touch.
-enum Locus<T: Real> {
-    Touch(Touch<T>),
-    /// The circle lies in the plane: a curve touch, not a point one.
-    Lies,
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
@@ -122,61 +119,6 @@ fn on_sphere<T: Decide>(
         return Some(Touch::Apart);
     }
     coincident(d, r, c + w * (r / d), band, errors)
-}
-
-/// A circle `(c, a, r)` against a plane `(o, n)`: the circle's point
-/// nearest the plane is `c ∓ r·d̂`, `d = (a × n) × a` the plane's
-/// normal across the circle's plane, and `κ_rel = |d| / r`. A circle
-/// parallel to the plane lies in it, or is apart.
-fn circle_plane<T: Decide>(
-    (c, a, r): (Point3<T>, Vec3<T>, T),
-    (o, n): (Point3<T>, Vec3<T>),
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<Locus<T>> {
-    let d = plane_across(a, n);
-    let (toward, sin) = d.direction_and_length();
-    let s = n.dot(c - o);
-    if !separates(sin / r, r, band, errors)? {
-        return Some(
-            match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
-                Sign::Zero => Locus::Lies,
-                _ => Locus::Touch(Touch::Apart),
-            },
-        );
-    }
-    Some(Locus::Touch(
-        match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
-            Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors)?,
-            Sign::Negative => coincident(T::zero() - s, r * sin, c + toward * r, band, errors)?,
-            Sign::Zero => Touch::Apart,
-        },
-    ))
-}
-
-/// The plane's normal `n` across the circle's plane, `(a × n) × a`, to
-/// a few ulps of its own length.
-///
-/// Not `n − a·(a·n)`: as the circle turns parallel to the plane that
-/// difference cancels, and its component along `n` (`sin²`, which
-/// places the touch point off the circle's centre plane) rounds away.
-/// Nor `a × n` as it stands: near parallel its terms cancel to `sin`,
-/// each off by `u`, so the direction is `u/sin` off and the touch point
-/// `r·u/sin` along the circle. `a × n = a × (n ∓ a)`, and `n − a` (or
-/// `n + a`, the circle facing away) is formed to `u` of its own size,
-/// each coordinate a difference of two nearly equal terms or one that
-/// keeps half the larger, so its cross with `a` cancels nothing. Away
-/// from parallel both forms are as good, so the choice at `a·n = 0` is
-/// free.
-fn plane_across<T: Real>(a: Vec3<T>, n: Vec3<T>) -> Vec3<T> {
-    let across = |m: Vec3<T>| a.cross(m).cross(a);
-    let (facing, away) = (across(n - a), across(n + a));
-    let key = a.dot(n);
-    Vec3::new(
-        key.select_le_zero(away.x, facing.x),
-        key.select_le_zero(away.y, facing.y),
-        key.select_le_zero(away.z, facing.z),
-    )
 }
 
 /// Two spheres: outside each other at `|c₂ − c₁| = r₁ + r₂`
@@ -272,8 +214,12 @@ fn read<T: Real>(
     }
 }
 
-/// One edge–face record read as a point touch: a circle on a plane, or
-/// a line on a sphere.
+/// **One edge–face record read as a point touch**, through the curve ×
+/// face crossing reading of the edge's span against the face's carrier
+/// (module docs): a nondegenerate touch strictly inside the span is the
+/// candidate, checked inside both cells; apart, crossings only, or a
+/// touch at an end of the span is stale; a span lying on the carrier or
+/// through a cone's apex, and a window, refuse typed.
 pub(super) fn edge_face<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -281,53 +227,68 @@ pub(super) fn edge_face<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Read {
+    use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal, cross};
+    use geom_brep::curve_pair::MeetKind;
     let subject = CensusSubject::Entity(EntityId::Edge(edge));
-    let Some(curve) = curved::carrier(body, edge, band, errors) else {
+    let Some(span) = curved::span_of(body, edge, band, errors) else {
         return Read::Pushed;
     };
-    let touch = match (curve, surface(body, face)) {
-        (
-            geom::Curve3::Circle(
-                circle @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    ..
-                },
-            ),
-            Some(Surface::Plane { origin, normal }),
-        ) => {
-            let radius = circle.radius();
-            match circle_plane((center, axis, radius), (origin, normal), band, errors) {
-                None => None,
-                Some(Locus::Touch(touch)) => Some(touch),
-                Some(Locus::Lies) => {
-                    errors.push(refused(
-                        subject,
-                        "a circle lying in a plane away from a conventional vertex: the census \
-                     builds no curve-touch lane along an edge's carrier",
-                    ));
-                    return Read::Pushed;
-                }
+    let Some(surface) = body.face(face).map(|f| f.surface().clone()) else {
+        errors.push(refused(
+            CensusSubject::Entity(EntityId::Face(face)),
+            "a point-touch record on a face with no surface",
+        ));
+        return Read::Pushed;
+    };
+    let touch = match cross(&span.span(), &surface, band) {
+        Ok(found) => match found.pose {
+            Pose::Tangent(_) => match found.meetings.first() {
+                Some(m) if matches!(m.on_span, OnSpan::Inside { .. }) => Touch::At(m.point),
+                _ => Touch::Apart,
+            },
+            Pose::Apart | Pose::Isolated(_) => Touch::Apart,
+            Pose::Lies => {
+                errors.push(refused(
+                    subject,
+                    "an edge lying on a face's carrier away from a conventional vertex: the \
+                     census builds no curve-touch lane along an edge's carrier",
+                ));
+                return Read::Pushed;
             }
-        }
-        (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
-            on_sphere((center, radius), line.foot(center), band, errors)
-        }
-        _ => {
-            errors.push(refused(
-                subject,
-                "an edge–face point touch is read on a circle and a plane or a line and a \
-                 sphere only",
+            Pose::Through(_) => {
+                errors.push(refused(
+                    subject,
+                    "an edge through a cone face's apex: a point the cone has no tangent \
+                     plane at, read by the apex vertex's records",
+                ));
+                return Read::Pushed;
+            }
+        },
+        Err(refusal) => {
+            let cause = refusal.windows.first().and_then(|w| match w.why {
+                CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => Some(diag),
+                CrossWhy::Method { fault, .. } => match fault.kind() {
+                    MeetKind::Escalated(diag) | MeetKind::Touch(diag) => Some(diag),
+                    MeetKind::Unread(_) | MeetKind::Fault { .. } => None,
+                },
+                CrossWhy::Pose(_) => None,
+            });
+            errors.push(cause.map_or_else(
+                || {
+                    refused(
+                        subject,
+                        "an edge–face point touch the curve × face reading does not read: an \
+                         unbuilt or spline pair, a meter that refused, or a torus outside its \
+                         convention",
+                    )
+                },
+                |cause| ValidationError::CensusEscalated { cause },
             ));
             return Read::Pushed;
         }
     };
     read(
-        touch,
+        Some(touch),
         |p, errors| {
             super::in_both(
                 |errors| curved::on_curved_interior(body, edge, p, band, errors),
@@ -385,13 +346,14 @@ pub(super) fn face_face<T: Decide>(
 mod tests {
     use super::*;
 
-    /// How far the touch point read stands off the exact one: the unit
-    /// circle about the origin, its axis `3e-11` rad off the plane's
-    /// normal (both off every coordinate axis) and stored times
-    /// `facing`, against the plane its nearest point lies on, at
-    /// ε = 1e-12 (K = 10). The exact touch direction is that of these
-    /// stored vectors, rounded.
+    /// How far the touch point the curve × face pose reads stands off
+    /// the exact one: the unit circle about the origin, its axis `3e-11`
+    /// rad off the plane's normal (both off every coordinate axis) and
+    /// stored times `facing`, against the plane its nearest point lies
+    /// on, at ε = 1e-12 (K = 10). The exact touch direction is that of
+    /// these stored vectors, rounded.
     fn touch_off(facing: f64) -> f64 {
+        use geom_brep::curve_face::Pose;
         let n = Vec3::new(0.347_008_881_792_054_3, -0.937_861_842_681_227_9, 0.0);
         let a = Vec3::new(
             0.347_008_881_788_918_5,
@@ -406,10 +368,16 @@ mod tests {
         let sin = 2.999_999_839_876_325_4e-11;
         let c = Point3::origin();
         let band = Band::new(1e-12, 1e-11).unwrap();
-        let mut errors = Vec::new();
-        let at = match circle_plane((c, a, 1.0), (c - n * sin, n), band, &mut errors) {
-            Some(Locus::Touch(Touch::At(p))) => p,
-            _ => panic!("no touch point read: {errors:?}"),
+        let circle = geom::Curve3::circle(c, a, 1.0, a.orthonormal_basis().0);
+        let plane = geom::Surface::Plane {
+            origin: c - n * sin,
+            normal: n,
+            u_ref: n.orthonormal_basis().0,
+        };
+        let span = geom_brep::curve_pair::Span::new(&circle, (0.0, core::f64::consts::TAU));
+        let at = match geom_brep::curve_face::pose(&span, &plane, band) {
+            Ok(Pose::Tangent(touch)) => touch.point,
+            other => panic!("no touch read: {other:?}"),
         };
         ((c - at) - exact).norm()
     }

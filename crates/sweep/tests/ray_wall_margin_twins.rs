@@ -33,10 +33,7 @@ use sweep::{Extrusion, extrude};
 use topo::point_in_solid;
 
 /// The predicates whose firing makes this pin a claim about the wall.
-const WALL_RUNGS: [&str; 2] = [
-    "curve_face_pose_axis_parallel",
-    "curve_face_pose_disc",
-];
+const WALL_RUNGS: [&str; 2] = ["curve_face_pose_axis_parallel", "curve_face_pose_disc"];
 
 /// A pipe of radius `scale` about `z`, `z ∈ [−2, 2]·scale`, and probes
 /// inside, outside and beyond its caps, all scaled with it: the

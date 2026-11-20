@@ -27,7 +27,7 @@ use crate::body::Body;
 use crate::boolean::{BooleanDecision, BooleanError, Coincide, Operand, node};
 use crate::entity::{Edge, FaceKey, VertexKey};
 use crate::validate::decide;
-use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
+use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, ConicRootFault, PlaneCrossingLane};
 
 /// The predicate an end's distance from a bisector plane is decided on:
 /// whether the end lies on the partner wall, read through the planes.
@@ -126,12 +126,12 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => {
-                match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Ok(Sign::Zero) | Err(_) => return Ok(None),
-                }
-            }
+            // In the plane, or parallel to it at an offset the pose cannot
+            // call: no factored crossing.
+            PlaneCrossingLane::Conic(
+                ConicPlaneMeet::InPlane
+                | ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(_))),
+            ) => return Ok(None),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(ts))) => roots[i] = ts,
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
                 return Err(BooleanError::Escalated {

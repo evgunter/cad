@@ -1244,44 +1244,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // A line: the endpoint lane below owns it.
                     None => {}
                     Some(ConicPlaneMeet::Miss) => continue,
-                    // The conic's plane is parallel to the face's: off
-                    // it, a miss; in it, the line lane's `(Zero, Zero)`
-                    // posture — both endpoints through
-                    // `vertex_on_face`, the interior left to the
-                    // neighbour faces.
-                    Some(ConicPlaneMeet::Parallel { offset }) => {
-                        let on = match geom_core::k_stats::decide_reported(
-                            "bool_conic_face_plane_offset",
-                            Margin::of(offset),
-                            band,
-                        ) {
-                            Ok(geom_core::Decided {
-                                sign: Sign::Positive | Sign::Negative,
-                                ..
-                            }) => continue,
-                            Ok(geom_core::Decided {
-                                sign: Sign::Zero,
-                                margin,
-                            }) => margin,
-                            Err(diag) => {
-                                return Err(BooleanError::coincidence(
-                                    Coincide::EdgeOnPlane,
-                                    edge_face_read(
-                                        x,
-                                        x_is,
-                                        &edge,
-                                        face,
-                                        declared,
-                                        Coincide::EdgeOnPlane,
-                                    ),
-                                    diag,
-                                ));
-                            }
-                        };
+                    // The conic lies in the face's plane (the pose's
+                    // `Lies`): the line lane's `(Zero, Zero)` posture —
+                    // both endpoints through `vertex_on_face`, the
+                    // interior left to the neighbour faces.
+                    Some(ConicPlaneMeet::InPlane) => {
                         let mut hit =
-                            vertex_on_face(x_is, y, u, pu, face, on, contacts, band, tol)?;
+                            vertex_on_face(x_is, y, u, pu, face, None, contacts, band, tol)?;
                         if v != u {
-                            hit |= vertex_on_face(x_is, y, v, pv, face, on, contacts, band, tol)?;
+                            hit |= vertex_on_face(x_is, y, v, pv, face, None, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
                             tr.accept_last();
@@ -1296,7 +1267,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         };
                         let (first_end, on) = first_end;
                         let (w, pw) = if first_end { (u, pu) } else { (v, pv) };
-                        if vertex_on_face(x_is, y, w, pw, face, on, contacts, band, tol)?
+                        if vertex_on_face(x_is, y, w, pw, face, Some(on), contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
                             tr.accept_last();
@@ -1587,12 +1558,30 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
-                        hit |=
-                            vertex_on_face(x_is, y, u, pu, face, d1.margin, contacts, band, tol)?;
+                        hit |= vertex_on_face(
+                            x_is,
+                            y,
+                            u,
+                            pu,
+                            face,
+                            Some(d1.margin),
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     if zb == Sign::Zero {
-                        hit |=
-                            vertex_on_face(x_is, y, v, pv, face, d2.margin, contacts, band, tol)?;
+                        hit |= vertex_on_face(
+                            x_is,
+                            y,
+                            v,
+                            pv,
+                            face,
+                            Some(d2.margin),
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
                         tr.accept_last();
@@ -2853,15 +2842,12 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     chart: None,
                     on_edge: None,
                 }),
-                // A constant residual cannot be zero at one end and
-                // definite at the other, and a definite miss cannot
-                // hold a zero endpoint: both CONTRADICT the endpoint
+                // A span lying on the surface cannot be off it at one
+                // end, and a definite miss cannot hold a zero endpoint:
+                // both CONTRADICT the endpoint
                 // rows that routed here, and a contradiction between
                 // two certified predicates keeps the door.
-                SpanVerdict::Constant
-                | SpanVerdict::LiesOn
-                | SpanVerdict::Miss
-                | SpanVerdict::Unsettled => Err(frontier()),
+                SpanVerdict::LiesOn | SpanVerdict::Miss | SpanVerdict::Unsettled => Err(frontier()),
                 SpanVerdict::AtApex => Err(at_apex()),
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     // UNDECLARED: the undeclared `NoInterior` rule
@@ -2957,9 +2943,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
-                SpanVerdict::LiesOn | SpanVerdict::Constant
-                    if parents_distinct_from(x, edge, y, face, band) =>
-                {
+                SpanVerdict::LiesOn if parents_distinct_from(x, edge, y, face, band) => {
                     let arc = ArcOnCarrier {
                         x,
                         x_is,
@@ -3071,9 +3055,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | SpanVerdict::Elsewhere
                 | SpanVerdict::Miss
                 | SpanVerdict::OffFace => Ok(CurvedEvent::None),
-                SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
-                    Err(frontier())
-                }
+                SpanVerdict::LiesOn | SpanVerdict::Unsettled => Err(frontier()),
                 SpanVerdict::AtApex => Err(at_apex()),
             }
         }
@@ -3209,7 +3191,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // verdict, levered by the selection's reach,
                         // because its pre-pass has put `q` definitely off
                         // the wall.)
-                        SpanVerdict::Constant | SpanVerdict::LiesOn => Err(frontier()),
+                        SpanVerdict::LiesOn => Err(frontier()),
                         SpanVerdict::AtApex => Err(at_apex()),
                         // Covered, the edge lies in one closed side of
                         // the carrier, so a root set the lane cannot
@@ -4706,19 +4688,13 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
     /// `NoInterior` with no such root cannot keep it, and that
     /// contradiction still keeps the door.
     Elsewhere,
-    /// The line is parallel to the axis, so its residual is CONSTANT
-    /// along the span. Nothing about the span's interior differs from
-    /// its endpoints — which makes it a clearance answer for a caller
-    /// whose endpoints are definitely off the wall, and a ruling lying
-    /// on the wall for one whose endpoints are on it.
-    Constant,
-    /// The conic LIES on the surface: its residual is a zero constant,
-    /// decided exactly on by its root door
-    /// ([`geom_brep::roots::Roots::On`]; in band it
-    /// escalates there). Unlike [`Self::Constant`] this is a verdict
-    /// on the side as well as the shape.
+    /// The span LIES on the surface, the curve × face pose's `Lies`: a
+    /// conic whose residual is a zero constant, a ruling of a wall or a
+    /// generator of a cone ([`geom_brep::roots::Roots::On`]; in band it
+    /// escalates there).
     LiesOn,
-    /// The line definitely misses the wall entirely.
+    /// The span definitely misses the surface, the pose's `Apart`: a line
+    /// parallel to a wall's axis off it included.
     Miss,
     /// The roots did not settle, or read in band, and every touch of the
     /// span with the carrier is certified off this face
@@ -5153,13 +5129,11 @@ fn wall_crossing<T: Decide + Bounds>(
     };
     let found = match *carrier {
         geom::Curve3::Line(line) => {
-            use geom_brep::curve_face::line_quadric::{LineRoots, line_quadric_roots};
+            use geom_brep::curve_face::line_quadric::line_quadric_roots;
             match line_quadric_roots(line, (t0, t1), surface, band)
                 .map_err(BooleanError::of_line_quadric_refusal)
             {
-                Ok(Some(LineRoots::Roots(found))) => Some(found),
-                Ok(Some(LineRoots::Constant)) => return Ok(SpanVerdict::Constant),
-                Ok(None) => None,
+                Ok(found) => found,
                 Err(refusal) => return door_escalated(refusal),
             }
         }
@@ -5224,9 +5198,8 @@ fn wall_crossing<T: Decide + Bounds>(
     };
     let found = match found {
         CircleRoots::Certified(found) => found,
-        // A conic ON the surface: its residual is a zero constant — the
-        // circle or ellipse that lies on a sphere, wall or torus. (A
-        // ruling on a wall is the line door's `Constant`, above.)
+        // The pose's `Lies`: a circle or an ellipse on a sphere, a wall,
+        // a cone or a torus, a ruling of a wall, a generator of a cone.
         CircleRoots::On(_) => return Ok(SpanVerdict::LiesOn),
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
     };
@@ -5807,18 +5780,25 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     vx: VertexKey,
     px: Point3<T>,
     face: FaceKey,
-    on_plane: MarginDiag,
+    on_plane: Option<MarginDiag>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    let (placement, on, _) = crate::contain::placement_on_carrier(
-        y,
-        face,
-        crate::held::Held::decided(px, on_plane),
-        band,
-    )
-    .map_err(|e| esc(e, x_is.other(), face))?;
+    // Decided on the plane at its margin, or a vertex of an edge the
+    // curve × face pose read lying in the plane (`None`).
+    let held = on_plane.map_or_else(
+        || {
+            crate::held::Held::constructed(
+                px,
+                "a vertex of an edge whose carrier the curve × face pose read lying in the \
+                 face's plane",
+            )
+        },
+        |margin| crate::held::Held::decided(px, margin),
+    );
+    let (placement, on, _) = crate::contain::placement_on_carrier(y, face, held, band)
+        .map_err(|e| esc(e, x_is.other(), face))?;
     let at = match placement {
         // OffCarrier → fault: the caller decided `px` on the plane, and a
         // plane answers neither it nor `Trim(None)`.
@@ -5831,7 +5811,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     };
     match at {
         FaceContainment::Out => return Ok(false),
-        FaceContainment::In => push_vf(contacts, x_is, vx, face, Some(on_plane)),
+        FaceContainment::In => push_vf(contacts, x_is, vx, face, on_plane),
         FaceContainment::OnEdge(ey) => {
             let wy = split_other_at_point(
                 y,
@@ -6199,7 +6179,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     if on.sign != Sign::Zero {
         return Ok(false);
     }
-    vertex_on_face(x_is, y, w, p, face, on.margin, contacts, band, tol)
+    vertex_on_face(x_is, y, w, p, face, Some(on.margin), contacts, band, tol)
 }
 
 /// The swept solid `x`, its slit tips at rest, which operand it is, and
@@ -7321,9 +7301,10 @@ mod edge_span_tests {
     /// by `δ` per unit of its parameter, over two runs: `[−2, 2]`, where
     /// `4δ` is past the band, so the roots are found and lie far outside
     /// the run; and `[1000, 1001]`, where `δ` is inside the zero band, so
-    /// the residual is constant over the run. A lever of `1` reads the
-    /// first in band; a lever of the far end, or of the run's distance
-    /// from the line's origin, reads the second past it.
+    /// the residual is one value over the run, a metre off the wall: the
+    /// pose reads it apart. A lever of `1` reads the first in band; a
+    /// lever of the far end, or of the run's distance from the line's
+    /// origin, reads the second past it.
     #[test]
     fn the_axis_parallel_rung_reads_the_edges_own_span() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -7355,8 +7336,8 @@ mod edge_span_tests {
         );
         let far = crossing(0.5 * band.zero(), (1000.0, 1001.0));
         assert!(
-            matches!(far, Ok(SpanVerdict::Constant)),
-            "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
+            matches!(far, Ok(SpanVerdict::Miss)),
+            "drifting inside the band over [1000, 1001], the line is apart: {far:?}"
         );
     }
     /// **A root's distance from an end is metered at the carrier's speed
@@ -8318,7 +8299,7 @@ mod esc_tests {
                 VertexKey::default(),
                 Point3::new(1.0, 0.0, 0.0),
                 seed.face,
-                geom_core::MarginDiag::value(0.0),
+                Some(geom_core::MarginDiag::value(0.0)),
                 &mut ContactAcc::default(),
                 band,
                 tol,

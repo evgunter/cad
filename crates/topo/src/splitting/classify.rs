@@ -361,9 +361,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             plane.normal.get(),
             band,
         ) {
-            // Parallel either way: no root to insert, and a conic in
-            // the plane has its endpoints ON through the vertex sides.
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Miss) => {
+            // No root to insert: a conic in the plane has its endpoints
+            // ON through the vertex sides.
+            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane | ConicPlaneMeet::Miss) => {
                 continue;
             }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots,
@@ -474,7 +474,11 @@ mod tests {
                 else {
                     panic!("{label}: {got:?}");
                 };
-                assert_eq!(diag.predicate, Some("curve_face_pose_graze_side"), "{label}");
+                assert_eq!(
+                    diag.predicate,
+                    Some("curve_face_pose_graze_side"),
+                    "{label}"
+                );
                 assert_eq!(
                     diag.margin.rejected_sign(),
                     Some(geom_core::Sign::Zero),

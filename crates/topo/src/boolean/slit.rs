@@ -1299,7 +1299,7 @@ pub(super) enum Placed {
 /// (`bool_line_face_carrier_offset`); no line lies along a piece of a
 /// sphere or of any torus, a quartic, which meets a line in four points
 /// at most. A conic in a plane is read by its own plane's
-/// offset from it (`bool_conic_face_plane_offset`), and on a sphere,
+/// offset from it (the curve × face pose, `curve_face_pose_plane_offset`), and on a sphere,
 /// cylinder, cone or torus at points equispaced over its carrier's whole
 /// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
 /// or a conic lies on such a surface along a piece exactly where its
@@ -1376,24 +1376,18 @@ fn conic_or_line_on<T: Decide>(
             geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
-            return match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
-                carrier, t0, t1, origin, normal, band,
-            ) {
-                geom_brep::curve_face::plane_crossing::PlaneCrossingLane::Conic(
-                    geom_brep::curve_face::plane_crossing::ConicPlaneMeet::Parallel { offset },
-                ) => match crate::validate::decide(
-                    "bool_conic_face_plane_offset",
-                    Margin::of(offset),
-                    band,
-                ) {
-                    Ok(Sign::Zero) => Ok(Placed::On),
-                    Ok(Sign::Positive | Sign::Negative) => Ok(Placed::Off),
-                    Err(diag) => Err(BooleanError::coincidence(
-                        Coincide::EdgeOnPlane,
-                        DeclarationRead::Moot,
-                        diag,
-                    )),
-                },
+            use geom_brep::curve_face::plane_crossing::{
+                ConicPlaneMeet, ConicRootFault, PlaneCrossingLane, plane_crossing_lane,
+            };
+            return match plane_crossing_lane(carrier, t0, t1, origin, normal, band) {
+                PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => Ok(Placed::On),
+                PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(
+                    ConicRootFault::PlaneParallel(diag),
+                ))) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
                 // A conic out of the plane meets it at two points at most.
                 _ => Ok(Placed::Off),
             };
