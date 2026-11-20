@@ -6106,6 +6106,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
+            "boundary_bounds_no_region",
             "boundary_ear",
             "certificate_exceeded",
             "domain_unread",
