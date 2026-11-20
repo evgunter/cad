@@ -592,10 +592,9 @@ pub trait Real:
     /// below [`LESS_SIN_SERIES_BELOW`], and past that as the difference,
     /// which loses nothing there.
     ///
-    /// Declared, never defaulted: the difference as written is the
-    /// ill-conditioned form, and each scalar says how it keeps its own
-    /// contract (an enclosure bounds the series' dropped tail, a
-    /// recording scalar keeps the difference as its structure).
+    /// Declared, never defaulted: each scalar keeps its own contract
+    /// (an enclosure bounds the series' dropped tail; a recording scalar
+    /// records the one function, re-valued through this door).
     fn less_sin(self) -> Self;
 
     /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
@@ -2033,6 +2032,32 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
     if n < 0 { T::one() / result } else { result }
 }
 
+/// The `|x|` up to which [`Real::less_sin`] reads the series. Past it
+/// the difference is more than half of `x`, so it keeps `x`'s digits; up
+/// to it each term of the series is at most a fifth of the one before.
+pub const LESS_SIN_SERIES_BELOW: f64 = 2.0;
+
+/// The last `k` of the series' kept terms `x^(2k+3)/(2k+3)!`, so the
+/// last power kept is `x²³`.
+const LESS_SIN_LAST_TERM: u16 = 10;
+
+/// The series of `x − sin x` through `x²³`, for `|x| ≤`
+/// [`LESS_SIN_SERIES_BELOW`], nested as
+/// `x³/6 · (1 − x²/20 · (1 − x²/42 · (…)))`: each factor is one term's
+/// ratio to the one before, `x²/((2k + 2)(2k + 3))`. `tail` stands for
+/// the factor the dropped terms would contribute, which lies in
+/// `[1 − x²/600, 1]`. Read as `1` it leaves out under `2e-18` of the
+/// value at the cutoff, a hundredth of a unit in the last place, and an
+/// enclosure passes the whole range.
+pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
+    let q = x.powi(2);
+    let nested = (1..=LESS_SIN_LAST_TERM).rev().fold(tail, |inner, k| {
+        let ratio = f64::from((2 * k + 2) * (2 * k + 3));
+        T::one() - q / T::from_f64(ratio) * inner
+    });
+    x * q / T::from_f64(6.0) * nested
+}
+
 /// `f64` is the kernel's default scalar (D9 determinism notes per method).
 ///
 /// Transcendentals go through the pure-Rust [`libm`] crate: system libm
@@ -2040,31 +2065,6 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// marginal predicate (D9). `sqrt` and `abs` use the std/hardware
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
-/// The `|x|` up to which [`Real::less_sin`] reads the series. Past it
-/// the difference is more than half of `x`, so it keeps `x`'s digits; up
-/// to it each term of the series is at most a fifth of the one before.
-pub const LESS_SIN_SERIES_BELOW: f64 = 2.0;
-
-/// `(2k + 2)(2k + 3)` for `k = 1..=10`: the series of `x − sin x` is
-/// `x³/6 · (1 − x²/20 · (1 − x²/42 · (…)))`, each factor the ratio of
-/// one term to the one before.
-const LESS_SIN_RATIOS: [f64; 10] = [
-    20.0, 42.0, 72.0, 110.0, 156.0, 210.0, 272.0, 342.0, 420.0, 506.0,
-];
-
-/// The series of `x − sin x` through `x²³`, for `|x| ≤`
-/// [`LESS_SIN_SERIES_BELOW`]. `tail` stands for the factor the dropped
-/// terms would contribute, which lies in `[1 − x²/600, 1]`: within
-/// `4¹¹·6/25! < 2⁻⁵⁹` of the sum, so `1` rounds as the whole series
-/// does, and an enclosure passes that range.
-pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
-    let q = x.powi(2);
-    let nested = LESS_SIN_RATIOS.iter().rev().fold(tail, |inner, &ratio| {
-        T::one() - q / T::from_f64(ratio) * inner
-    });
-    x * q / T::from_f64(6.0) * nested
-}
-
 impl Real for f64 {
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with

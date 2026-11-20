@@ -1,11 +1,18 @@
 //! **`x − sin x` keeps its digits at every `x`** ([`Real::less_sin`]),
 //! at each scalar by that scalar's own contract.
 //!
-//! Two oracles, neither the series under test. Below `2⁻¹⁰` the first
-//! two terms bracket the function, `x³/6·(1 − x²/20) ≤ x − sin x ≤ x³/6`,
-//! to under a unit in the last place. Above it the triple-angle identity
+//! Three oracles, none the series under test. [`TRUTHS`] holds the
+//! function at nine points as a nearest `f64` and what is left over,
+//! from an 80-digit sum of the series. Below `2⁻¹⁰` the first two terms
+//! bracket it, `x³/6·(1 − x²/20) ≤ x − sin x ≤ x³/6`, to under a unit in
+//! the last place. The triple-angle identity
 //! `f(x) = 3·f(x/3) + 4·sin³(x/3)`, a sum of terms of one sign, carries a
-//! reading down to where the bracket holds it and up across the cutoff.
+//! reading across the cutoff.
+//!
+//! What no row here sees: which arm reads the cutoff itself (both are
+//! right there), and the `Interval` tail read as the point `1` in place
+//! of `[0, 1]` (under a hundredth of a unit in the last place, inside
+//! the rounding an enclosure already carries).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::interval::Interval;
@@ -14,6 +21,37 @@ use geom_core::sym::with_session_rules;
 use geom_core::{Bounds, Dual, Real, Sym, SymBudget, SymRules};
 
 const ULP: f64 = f64::EPSILON;
+
+/// `(x, t, r)`: `x − sin x` is `t + r`, `t` its nearest `f64`.
+const TRUTHS: [(f64, f64, f64); 9] = [
+    (1.1641532182693481e-9, 2.629536350736706e-28, 1.4929365188064102e-44),
+    (9.5367431640625e-7, 1.4456028966472734e-19, 6.41976648143314e-36),
+    (0.00146484375, 5.238688920161689e-10, 3.840472857692797e-26),
+    (0.03125, 5.08601467392126e-6, 5.774541248819496e-24),
+    (0.5, 0.020574461395796998, 1.6345229086023983e-18),
+    (1.0, 0.1585290151921035, -1.776845092935536e-18),
+    (1.90625, 0.9619889413142455, 2.8020804737642804e-17),
+    (1.96875, 1.0468940578142722, 1.223145636473661e-17),
+    (2.0, 1.0907025731743183, 1.4020906557816256e-17),
+];
+
+/// `got − (t + r)` in units of `t`'s last place. `got − t` is exact for
+/// a reading within a factor of two of `t`.
+fn ulps_off(got: f64, t: f64, r: f64) -> f64 {
+    ((got - t) - r) / (t * ULP)
+}
+
+/// Each reading is within two units in the last place of the truth, and
+/// within three quarters of one at the three points by the cutoff, where
+/// the last kept term `x²³/23!` is over one unit.
+#[test]
+fn a_reading_is_the_truth_to_the_last_place() {
+    for (x, t, r) in TRUTHS {
+        let off = ulps_off(x.less_sin(), t, r);
+        let room = if x > 1.9 { 0.75 } else { 2.0 };
+        assert!(off.abs() <= room, "x = {x}: {off} units in the last place off");
+    }
+}
 
 /// The two-term bracket of `x − sin x` for `0 < x ≤ 2⁻¹⁰`.
 fn bracket(x: f64) -> (f64, f64) {
@@ -63,21 +101,19 @@ fn the_triple_angle_identity_holds_across_the_cutoff() {
     }
 }
 
-/// A point's enclosure is thin and holds the bracket; a box across the
+/// A point's enclosure holds the truth and is thin; a box across the
 /// cutoff holds its points'.
 #[test]
-fn an_enclosure_is_thin_at_a_small_point_and_holds_across_the_cutoff() {
-    for k in 10..=40 {
-        let x = 1.3 * 0.5_f64.powi(k);
-        let (lo, hi) = bracket(x);
+fn an_enclosure_holds_the_truth_is_thin_and_holds_across_the_cutoff() {
+    for (x, t, r) in TRUTHS {
         let got = Interval::from_f64(x).less_sin();
         assert!(got.is_certified(), "x = {x:e}: {got:?}");
         assert!(
-            got.lo() <= hi && lo <= got.hi(),
-            "x = {x:e}: {got:?} misses [{lo:e}, {hi:e}]"
+            ulps_off(got.lo(), t, r) <= 0.0 && 0.0 <= ulps_off(got.hi(), t, r),
+            "x = {x:e}: {got:?} does not hold {t:e} + {r:e}"
         );
         assert!(
-            got.hi() - got.lo() <= 64.0 * ULP * hi,
+            got.hi() - got.lo() <= 64.0 * ULP * t,
             "x = {x:e}: {got:?} is wider than a short chain's rounding"
         );
     }

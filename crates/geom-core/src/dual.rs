@@ -677,10 +677,10 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// and the derivative `1 − cos a` is read as the half-angle square,
     /// which cancels nowhere.
     fn less_sin(self) -> Self {
-        let half = (self.value / T::from_f64(2.0)).sin();
+        let half = self.value.scale_pow2(0.5).sin();
         Self {
             value: self.value.less_sin(),
-            deriv: T::from_f64(2.0) * half.powi(2) * self.deriv,
+            deriv: half.powi(2).scale_pow2(2.0) * self.deriv,
         }
     }
 
