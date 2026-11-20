@@ -994,7 +994,7 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
+    // work/profile/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Validate)",
 ];
@@ -1003,7 +1003,7 @@ const FILED_NO_RECOURSE: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/round/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
+    // work/profile/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))",
         84,

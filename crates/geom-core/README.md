@@ -372,7 +372,7 @@ This section is where that rule's parts live.
   must be dropped. A count
   raised beside a new site is held only by review, not against the
   merge base
-  (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
+  (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
