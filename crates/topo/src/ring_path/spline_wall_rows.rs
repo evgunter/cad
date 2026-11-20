@@ -455,3 +455,55 @@ fn a_wall_paths_lean_is_levered_within_its_arriving_pieces_chord_and_turn() {
         "a product net with both factors varying"
     );
 }
+
+/// **An iso piece's arm is its extent from below, not its chord.** The
+/// unit circle as a rational quadratic, over `[0.02, 0.98]` of its
+/// domain: the piece runs nearly the whole turn, so its ends stand about
+/// a quarter apart while its points stand 2 apart. The arm reads the
+/// diameter, and no more than it.
+#[test]
+fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let circle = geom::NurbsCurve3::new(
+        kv(
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
+            2,
+        ),
+        ring.iter().map(|&(x, y)| Point3::new(x, y, 0.0)).collect(),
+        (0..ring.len())
+            .map(|i| if i % 2 == 0 { 1.0 } else { s })
+            .collect(),
+    )
+    .unwrap();
+    for forward in [true, false] {
+        let piece = super::spline_wall::IsoPiece {
+            curve: Arc::new(circle.clone()),
+            span: (0.02, 0.98),
+            forward,
+        };
+        let (start, stop) = piece.ends();
+        let arm = piece.travel().0.length();
+        assert!(
+            start.distance(stop) < 0.5,
+            "the piece's ends stand {} apart",
+            start.distance(stop)
+        );
+        assert!(
+            (1.9..=2.0 + 1e-12).contains(&arm),
+            "forward {forward}: the arm reads the turn's diameter from below, got {arm}"
+        );
+    }
+}

@@ -379,6 +379,7 @@ pub(crate) fn mean<T: Real>(points: impl IntoIterator<Item = Point3<T>>) -> Opti
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use geom::Surface;
     use geom_core::{RigidMotion, Tol};
 
     use super::*;
@@ -411,6 +412,44 @@ mod tests {
             operand_axes(&cube, &turned, band, key).len(),
             6,
             "one ulp apart, kept"
+        );
+    }
+
+    /// **A planar face's normal is levered at the face's diameter.** The
+    /// top of a unit half-disc is 2 across and its world box `√5`
+    /// (`2 × 1`); its normal stored `s` long reads `s` at each unit of
+    /// arm, a direction only past the band's escalation `e`. At
+    /// `s = 1.03·e/2` the diameter reads a direction where a radius would
+    /// not; at `s = 0.97·e/2` it reads none where the box's diagonal
+    /// would.
+    #[test]
+    fn a_planar_faces_normal_is_levered_at_its_diameter() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let top_at = |length: f64| {
+            let mut body = crate::tier3_tests::half_disc(1.0, 1.0, (0.0, 0.0, 0.0), false, tol);
+            let top = body
+                .faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(*body.proven_face(k).surface(),
+                        Surface::Plane { normal, .. } if normal.z > 0.5)
+                })
+                .unwrap();
+            let key = body.get_face(top).unwrap().surface;
+            if let Some(Surface::Plane { normal, .. }) = body.surfaces.get_mut(key) {
+                *normal = *normal * length;
+            }
+            planar_axis(&body, top, band)
+        };
+        let e = band.escalate();
+        assert!(
+            top_at(1.03 * e / 2.0).is_some(),
+            "the half-disc's diameter reads the short normal as a direction"
+        );
+        assert!(
+            top_at(0.97 * e / 2.0).is_none(),
+            "the half-disc's diameter reads the shorter normal as none"
         );
     }
 }

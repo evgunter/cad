@@ -6888,11 +6888,15 @@ mod frame_dispatch_tests {
 
     /// **A rim's bulge levers the germ frame's tilt.** The unit wall
     /// about `z` trimmed at 45°, its rim one closed ellipse on the seam
-    /// vertex `(1, 0, 1)` (`oblique_rim_wall`): read at that vertex, the
-    /// rim reaches 2 along the axis, so the plane through it tilted to
-    /// `sin β = k·ε/2` reads `k·ε` and escalates at every `k` in the band.
-    /// The vertex alone levers nothing, and the radius reads `k·ε/2`:
-    /// both read Zero at `k = 1.2` and name the tangent ruling's frame.
+    /// vertex `(1, 0, 1)` (`oblique_rim_wall`): the rim reaches 2 along
+    /// the axis from that vertex, so the plane through it tilted to
+    /// `sin β = k·ε/2` stands `k·ε` off the wall at the rim's far end,
+    /// and escalates at every `k` in the band. Read at the middle of the
+    /// face's window, that offset is the gap moved by the tilt over the
+    /// window's half, plus the tilt over its half again: low in the band
+    /// the sum escalates as the gap, higher up the tilt alone does. The
+    /// vertex alone levers nothing, and the radius reads `k·ε/2`: both
+    /// read Zero at `k = 1.2` and name the tangent ruling's frame.
     #[test]
     fn a_rims_bulge_levers_the_germ_frames_tilt() {
         let (body, face, _) =
@@ -6901,10 +6905,10 @@ mod frame_dispatch_tests {
         for frac in [0.12, 0.5, 0.99] {
             let k = frac * Tol::witness().k();
             for (label, got) in wall_frames(&body, face, base, k, 2.0) {
-                assert_eq!(
-                    verdict(&got),
-                    "pc_axis_plane_parallel",
-                    "k = {k} ({label}): an in-band tilt over the rim must escalate"
+                assert!(
+                    ["pc_axis_plane_parallel", "pc_parallel_gap"].contains(&verdict(&got)),
+                    "k = {k} ({label}): an in-band tilt over the rim must escalate, got {}",
+                    verdict(&got)
                 );
             }
         }
