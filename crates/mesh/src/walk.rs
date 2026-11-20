@@ -683,12 +683,13 @@ fn iso_side_starts(
 pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
     topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
         what: match unresolved.entity() {
+            topo::EntityId::Solid(_) => "solid",
+            topo::EntityId::Shell(_) => "shell",
+            topo::EntityId::Face(_) => "face",
             topo::EntityId::Loop(_) => "loop",
             topo::EntityId::HalfEdge(_) => "half-edge",
+            topo::EntityId::Edge(_) => "edge",
             topo::EntityId::Vertex(_) => "vertex",
-            other => {
-                unreachable!("`loop_corners` names a loop, half-edge or vertex, not {other:?}")
-            }
         },
     })
 }

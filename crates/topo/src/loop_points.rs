@@ -19,9 +19,12 @@
 //! here; in a finished body such a pair is its producer's defect, which
 //! the coincidence census reports (`crates/topo/README.md`, "A Zero-gap
 //! vertex pair on two point keys in a finished body is its producer's
-//! defect"). So a reading of a valid body by position agrees with this
-//! one, and a reader whose question is positional by necessity (a
-//! triangulator that merges equal positions) keeps its own reading.
+//! defect"). So on a valid body a positional reading of ONE LOOP agrees
+//! with this one. A face's loops are read one at a time here: a ring
+//! touching its face's outer loop passes one point in two loops, which no
+//! per-loop reading sees, and a reader whose question is positional over
+//! the whole face by necessity (a triangulator that merges equal
+//! positions, `mesh::planar::Pinches`) keeps its own reading.
 
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -101,9 +104,8 @@ impl PointCorners {
 ///
 /// # Errors
 ///
-/// The [`Unresolved`] record: the loop's own, a half-edge's or a
-/// vertex's, or [`Unresolved::Walk`] of the loop where its cycle does
-/// not close.
+/// [`Unresolved::Record`] of the loop or of a corner's vertex, or
+/// [`Unresolved::Walk`] of the loop where its cycle does not close.
 pub fn loop_corners<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<LoopCorners, Unresolved> {
     let record = body
         .loops
@@ -122,7 +124,7 @@ pub fn loop_corners<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Result<LoopCorn
             let vertex = body
                 .half_edges
                 .get(he)
-                .ok_or(Unresolved::Record(EntityId::HalfEdge(he)))?
+                .unwrap_or_else(|| unreachable!("the closed loop walk resolved {he:?}"))
                 .start;
             let point = body
                 .vertices
@@ -258,15 +260,43 @@ mod tests {
         assert!(!corners.pinches(), "one vertex met twice is no pinch");
     }
 
+    /// Each miss names what did not resolve: the loop, a corner's
+    /// vertex, or the loop whose cycle does not close.
     #[test]
-    fn a_dangling_loop_is_named() {
-        let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 1.0, Tol::witness());
-        let mut body = p.body;
-        let outer = body.faces[p.bottom_face].outer;
+    fn a_miss_is_named() {
+        let fresh = || {
+            let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 1.0, Tol::witness());
+            let outer = p.body.faces[p.bottom_face].outer;
+            let cycle = p.body.loop_halves(outer).expect("the cap's cycle");
+            (p.body, outer, cycle)
+        };
+        let (mut body, outer, _) = fresh();
         body.loops.remove(outer);
-        assert!(matches!(
-            loop_corners(&body, outer),
-            Err(Unresolved::Record(EntityId::Loop(l))) if l == outer
-        ));
+        assert!(
+            matches!(
+                loop_corners(&body, outer),
+                Err(Unresolved::Record(EntityId::Loop(l))) if l == outer
+            ),
+            "a dead loop"
+        );
+        let (mut body, outer, cycle) = fresh();
+        let vertex = body.half_edges[cycle[1]].start;
+        body.vertices.remove(vertex);
+        assert!(
+            matches!(
+                loop_corners(&body, outer),
+                Err(Unresolved::Record(EntityId::Vertex(v))) if v == vertex
+            ),
+            "a dead corner vertex"
+        );
+        let (mut body, outer, cycle) = fresh();
+        body.half_edges.remove(cycle[1]);
+        assert!(
+            matches!(
+                loop_corners(&body, outer),
+                Err(Unresolved::Walk(EntityId::Loop(l))) if l == outer
+            ),
+            "a torn cycle"
+        );
     }
 }

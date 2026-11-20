@@ -9114,10 +9114,11 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 ///   lines there are the census's overlap.
 ///
 /// Corners are grouped by point key ([`crate::loop_points`]), so a loop
-/// passing one place at two keys within band is not read here either. Where that loop's two
-/// surface cycles cross, on a face tier 3's one-region reading takes, a
-/// vertex of one placed off the face's side of the other is
-/// `CycleOffFaceSide` ([`crate::one_region`], which reads every vertex).
+/// passing one place at two keys within band is not read here either.
+/// Where that loop's two surface cycles cross, on a face tier 3's
+/// one-region reading takes, a vertex of one placed off the face's side
+/// of the other is `CycleOffFaceSide` ([`crate::one_region`], which reads
+/// every vertex).
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -9134,6 +9135,10 @@ fn pinch_corner_errors<T: Decide>(
         // read past.
         let corners = match crate::loop_points::loop_corners(body, l) {
             Ok(corners) => corners,
+            Err(crate::Unresolved::Walk(_)) => {
+                errors.push(ValidationError::LoopCycleOverrun { loop_: l });
+                continue;
+            }
             Err(unresolved) => {
                 errors.push(ValidationError::DanglingTopology {
                     from: EntityId::Face(face_key),
