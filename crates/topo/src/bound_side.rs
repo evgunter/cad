@@ -11,14 +11,17 @@
 //! how it bends ([`FaceBend`]), and the lever its curvature is charged
 //! at.
 //!
-//! The reading is first order, then one order down where first order
-//! ties ([`read`], [`Tie::descend`]):
+//! The reading is first order, then one order down where it ties
+//! ([`read`], [`Tie::descend`]):
 //!
 //! - **First order** (`d̂·n̂` at the bound's reach, a line edge's far
 //!   vertex in metres), charged for the face's curvature where the
-//!   datum carries a lever: decided off the band, the bound is
-//!   [`FirstOrder::Off`] the face on that side.
-//! - **A first-order tie** is a [`Tie`], which [`Tie::descend`] reads
+//!   datum carries a lever: decided off the band and its charge off it
+//!   too, the bound is [`FirstOrder::Off`] the face on that side.
+//! - **A tie** is a [`Tie`] ([`TiedBy`]): the first order's own (the
+//!   band's Zero, or a side the slack hid), or a decided first order
+//!   whose charge the band read Zero, too shallow to outlast the face's
+//!   bend. [`Tie::descend`] reads
 //!   one order down, the bound's bend past the face's normal section
 //!   along it, on the first order's own ladder: decided, the bound leaves
 //!   the face tangent to it, [`Descent::Leaves`]; within the zero band,
@@ -26,7 +29,10 @@
 //!   band and the escalation band, or where the bend is not certified
 //!   (a spline face, a spiric or spline edge against a curved face),
 //!   [`Descent::Unresolved`], which its consumers read as the first
-//!   order's tie; a poisoned reading refuses. A tied edge (a line or a
+//!   order's tie; a poisoned reading refuses. A tie the charge made is
+//!   read by its jet, the rise and the parting together, and refuses
+//!   what it leaves unresolved ([`ReadFault::Charge`]): its Zero is no
+//!   reading of the bound on the face. A tied edge (a line or a
 //!   conic) against a sphere or a cylinder is read on its witness too
 //!   ([`Tie::witnessed`]): off the zero band, the verdict stands only
 //!   where the edge's own point at the arm stands on that side.
@@ -43,7 +49,7 @@
 //! and the slack does not is a tie, and a descent that does not clear
 //! the slack is [`Unresolved::Slack`].
 
-use geom_brep::recourse::Refused;
+use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{ConicBend, EntersMaterial, LeverEscalation, OutwardNormal, ReferenceNormal};
 use geom_core::{Band, Decide, Decided, Indeterminate, Mat3, Point3, Sign, Vec3};
 
@@ -449,15 +455,15 @@ impl Side {
 pub(crate) enum BoundSide {
     /// Decided at first order.
     Off(Side),
-    /// Tied at first order, and read one order down ([`Tie::descend`]).
+    /// Tied ([`TiedBy`]), and read one order down ([`Tie::descend`]).
     Tied(Descent),
 }
 
-/// **A first-order tie read one order down** ([`Tie::descend`]).
+/// **A tie read one order down** ([`Tie::descend`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Descent {
-    /// Decided one order down: the bound leaves the face tangent to it,
-    /// toward this side. (A first-order tie, which
+    /// Decided one order down: the bound leaves the face tangent or near
+    /// tangent to it, toward this side. (A first-order tie, which
     /// [`EntersMaterial::Tangent`] names, is undecided; this is decided.)
     Leaves(Side),
     /// Within the zero band one order down too: the bound rides the face
@@ -466,7 +472,9 @@ pub(crate) enum Descent {
     Rides,
     /// Neither decided nor riding, for a reason no smaller reading here
     /// settles. Its consumers read it as the first order's tie, `On`, as
-    /// they did before the descent.
+    /// they did before the descent. A tie the charge made reaches it only
+    /// as [`Unresolved::Returned`]; any other is its refusal
+    /// ([`ReadFault::Charge`]).
     Unresolved(Unresolved),
 }
 
@@ -482,9 +490,10 @@ pub(crate) enum Unresolved {
     /// The bend is not certified: a spline face, a bisector of one, or a
     /// spiric or spline edge against a curved face.
     Uncertified,
-    /// The parting is off the zero band, and the edge's own point at its
-    /// arm ([`Tie::witnessed`]) is back within it: the leading term
-    /// leaves, the bound is on the face again at the reach read.
+    /// The bound is back on the face at the arm, though it leaves it
+    /// first: the parting off the zero band and the edge's own point at
+    /// the arm ([`Tie::witnessed`]) within it, or a tie the charge made
+    /// whose jet, its rise and its parting together, is within it.
     Returned,
     /// Read over a slack ([`crate::link::metric::Reading::tied`]): the
     /// parting is decided on the band and not over the slack, or the tie
@@ -557,6 +566,19 @@ pub(crate) enum TiedBy {
 }
 
 impl TiedBy {
+    /// Whether the tie is the first order's own: the band's Zero, or a
+    /// side the band decided and the slack hid. A tie the charge made
+    /// has a first order decided off the face's tangent plane, its Zero
+    /// the charge's, so a consumer that keys on the bound lying in the
+    /// tangent plane (a lump of a flat sector, the bisector's Zero
+    /// between two bounds decided at first order) does not read it.
+    pub(crate) fn at_first_order(self) -> bool {
+        match self {
+            Self::Band | Self::Slack(_) => true,
+            Self::Charge => false,
+        }
+    }
+
     /// The tie a slack refusal makes: what it hid.
     fn slack(refusal: SlackRefusal) -> Self {
         Self::Slack(match refusal {
@@ -609,6 +631,15 @@ pub(crate) enum ReadFault<T: geom_core::Real> {
     /// the caller's bound, quoted as a poisoned reading under
     /// `tangent_sector_unwitnessed`.
     Unwitnessed(Indeterminate),
+    /// A tie the charge made ([`TiedBy::Charge`]) whose descent reads no
+    /// side: its bend not certified, its jet in the gap or within the
+    /// slack, or its parting from the face within the zero band, where
+    /// the jet's sign would be its first order's, against an order it
+    /// does not read. The charge's Zero is no reading of the bound on
+    /// the face, only of its first order not clearing the face's bend,
+    /// so it refuses as the charge's own verdict, its margin quoted
+    /// under `bool_pierce_sector_side_curved`.
+    Charge(Classified),
 }
 
 impl<T: geom_core::Real> ReadFault<T> {
@@ -620,6 +651,12 @@ impl<T: geom_core::Real> ReadFault<T> {
             | Self::Witness(diag)
             | Self::Unwitnessed(diag) => diag,
             Self::Departure { escalation, .. } | Self::Parting(escalation) => escalation.diag(),
+            Self::Charge(Classified { margin, band }) => Indeterminate {
+                margin,
+                band,
+                predicate: Some(PIERCE_SECTOR_SIDE_CURVED),
+                terminal_sliver: false,
+            },
         }
     }
 }
@@ -629,8 +666,12 @@ impl<T: geom_core::Real> ReadFault<T> {
 pub(crate) enum BoundSideFault<T: geom_core::Real> {
     /// The reading before any charge.
     Read(ReadFault<T>),
-    /// The curvature charge was decided negative (a Zero ties the bound,
-    /// [`TiedBy::Charge`]).
+    /// The curvature charge was decided negative, which only rounding
+    /// reaches: the charge is `s·l − l²/lever` at `l = min(s·lever/2,
+    /// reach)`, at least `s·l/2`, which is not negative for either sign
+    /// of the slope `s` ([`sagitta_charge`]). (A Zero ties the
+    /// bound, [`TiedBy::Charge`], and the tie's descent refuses what it
+    /// leaves unresolved, [`ReadFault::Charge`].)
     Charge(Refused),
     /// The curvature charge lies in the band.
     ChargeEscalated(Indeterminate),
@@ -983,7 +1024,11 @@ impl<T: Decide> Tie<T> {
     /// order is decided and too shallow to outlast the face's bend, so
     /// the side at the arm is the rise and the parting together, and a
     /// jet within the zero band there is the bound back on the face
-    /// ([`Unresolved::Returned`]), not riding it.
+    /// ([`Unresolved::Returned`]), not riding it. Its jet stands only on
+    /// a parting decided off the zero band: an osculating bound's jet is
+    /// its first order alone, which the order past the parting may
+    /// outweigh at the arm. What it leaves unresolved otherwise refuses:
+    /// the charge's Zero is not the bound on the face.
     ///
     /// # Errors
     ///
@@ -994,19 +1039,53 @@ impl<T: Decide> Tie<T> {
     /// straddling the zero band. [`ReadFault::Witness`]: a witness decided
     /// against the parting's side, poisoned or straddling the zero band.
     /// [`ReadFault::Unwitnessed`]: a witnessed edge with no point to read.
+    /// [`ReadFault::Charge`]: a tie the charge made whose bend is not
+    /// certified, whose parting lies within the zero band or is not
+    /// decided off it, or whose jet lies in the gap or within the slack.
     pub(crate) fn descend(self) -> Result<Descent, ReadFault<T>> {
+        let read = self.read_down()?;
+        match (self.by, read) {
+            (TiedBy::Charge, Descent::Unresolved(why)) if why != Unresolved::Returned => {
+                Err(self.charge_refusal())
+            }
+            _ => Ok(read),
+        }
+    }
+
+    /// A tie the charge made that its descent reads no side of: the
+    /// charge's own Zero ([`ReadFault::Charge`]).
+    fn charge_refusal(self) -> ReadFault<T> {
+        ReadFault::Charge(Classified {
+            margin: self.decided.margin,
+            band: self.rd.band,
+        })
+    }
+
+    /// [`Self::descend`] before a tie the charge made refuses what it
+    /// leaves unresolved.
+    fn read_down(self) -> Result<Descent, ReadFault<T>> {
         let (face, reach, rd) = (self.face, self.reach, self.rd);
         let band = rd.band;
         let uncertified = Ok(Descent::Unresolved(Unresolved::Uncertified));
-        // A tie of the slack's has a first order the band decided: the
-        // descent's riding is no reading of it, nor a side read on the
-        // band alone.
-        let slack_tie = matches!(self.by, TiedBy::Slack(_));
         let slack = Descent::Unresolved(Unresolved::Slack);
-        let rides = match self.by {
-            TiedBy::Band => Descent::Rides,
-            TiedBy::Slack(_) => slack,
-            TiedBy::Charge => Descent::Unresolved(Unresolved::Returned),
+        // What a reading no order below the first parts from the face
+        // reads, where the parting is read (`zero`) and where no parting
+        // is (`flat`: a straight bound or a conic on a plane), and whether
+        // the bound departs by its first order too (`jet`). A band tie
+        // rides. A slack tie's first order is the band's side, hidden in
+        // the slack, so neither its riding nor a side read on the band
+        // alone is a reading of it. A charge tie's first order is decided
+        // off the face's tangent plane: its jet within the zero band is
+        // the bound back on the face at the arm, and a plane, which takes
+        // no charge, reads it no side.
+        let (zero, flat, jet) = match self.by {
+            TiedBy::Band => (Descent::Rides, Descent::Rides, false),
+            TiedBy::Slack(_) => (slack, slack, true),
+            TiedBy::Charge => (
+                Descent::Unresolved(Unresolved::Returned),
+                Descent::Unresolved(Unresolved::Uncertified),
+                true,
+            ),
         };
         // A slack that is not structurally nothing (a cone's tie of zero).
         let over_slack = rd.slack.is_some_and(|s| s.point_value() != Some(0.0));
@@ -1023,15 +1102,16 @@ impl<T: Decide> Tie<T> {
                     band,
                 ) {
                     Ok(verdict) => Ok(match Side::of(verdict) {
-                        None => rides,
-                        Some(_) if slack_tie || over_slack => slack,
+                        None => flat,
+                        Some(_) if jet => flat,
+                        Some(_) if over_slack => slack,
                         Some(side) => Descent::Leaves(side),
                     }),
                     Err(diag) => Err(ReadFault::Bend(diag)),
                 };
             }
             (FaceBend::Plane, BoundSupport::Chord { .. } | BoundSupport::Extent(_)) => {
-                return Ok(rides);
+                return Ok(flat);
             }
             (
                 _,
@@ -1057,12 +1137,24 @@ impl<T: Decide> Tie<T> {
             .map(geom_core::Lever::curvature_radius)
             .fold(reach.lever(), geom_core::Lever::min);
         geom_brep::parting_arm(arm.length(), band).map_err(ReadFault::Parting)?;
+        let bend = own - n * section;
+        // A charge tie's jet stands on its parting: where the bound's
+        // bend and the face's normal section along it agree within the
+        // zero band (an osculating bound), the jet at the arm is its
+        // first order alone, and the order past the parting, which the
+        // jet does not read, may outweigh a rise that shallow there.
+        if self.by == TiedBy::Charge {
+            let parted = Distance::departure(Departure::Parted(bend), n, arm);
+            match metric::settle_as(TANGENT_SECTOR_ORDER2, parted, rd) {
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Ok(Sign::Zero) | Err(_) => return Err(self.charge_refusal()),
+            }
+        }
         // A tie of the slack's or the charge's departs by its first order
         // too: its displacement at the arm is the rise and the parting
         // together.
-        let bend = own - n * section;
         let parting = Distance::departure(
-            if self.by != TiedBy::Band {
+            if jet {
                 Departure::Jet(self.dir, bend)
             } else {
                 Departure::Parted(bend)
@@ -1070,8 +1162,8 @@ impl<T: Decide> Tie<T> {
             n,
             arm,
         );
-        let leading = match metric::settle_as("tangent_sector_order2", parting, rd) {
-            Ok(Sign::Zero) => return Ok(rides),
+        let leading = match metric::settle_as(TANGENT_SECTOR_ORDER2, parting, rd) {
+            Ok(Sign::Zero) => return Ok(zero),
             Ok(Sign::Negative) => Some(Side::Below),
             Ok(Sign::Positive) => Some(Side::Above),
             Err(Refusal::Slack { .. } | Refusal::Moved { .. }) => return Ok(slack),
@@ -1162,6 +1254,9 @@ impl<T: Decide> Tie<T> {
         }
     }
 }
+
+/// The parting's reading, and a charge tie's jet ([`Tie::descend`]).
+const TANGENT_SECTOR_ORDER2: &str = "tangent_sector_order2";
 
 /// The witness's reading ([`Tie::witnessed`]).
 const TANGENT_SECTOR_WITNESS: &str = "tangent_sector_witness";

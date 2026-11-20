@@ -3005,9 +3005,14 @@ pub enum BooleanError {
     /// face's smallest radius of curvature), so the largest separation
     /// its run certifies past the sagitta does not clear the band
     /// (`bool_held_pierce_curved`, `vtxfac::faces_holding_pierce`); or a
-    /// sector bound's charge was decided negative
-    /// (`bool_pierce_sector_side_curved`, whose Zero ties the bound and
-    /// is read one order down instead, `bound_side::TiedBy::Charge`).
+    /// sector bound's charge (`bool_pierce_sector_side_curved`) was
+    /// decided Zero, which ties the bound (`bound_side::TiedBy::Charge`),
+    /// and its descent reads no side: its bend or the face's not
+    /// certified (a spline face, a bisector of one), its parting from the
+    /// face within the zero band (an osculating bound) or not decided off
+    /// it, or its jet in the gap or within the slack
+    /// (`bound_side::ReadFault::Charge`). The charge decided negative
+    /// refuses here too; only rounding reaches it.
     /// The **definite** half of a two-tolerance pair on the predicate;
     /// an in-band charge escalates as [`BooleanError::Escalated`] on the
     /// same predicate instead.
