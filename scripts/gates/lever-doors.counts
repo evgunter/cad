@@ -7,6 +7,7 @@ points_lever_from 1 crates/geom-brep/src/lib.rs
 of_cover_within 1 crates/geom-brep/src/pair_section.rs
 within_curvature 1 crates/geom-brep/src/ssi.rs
 curvature_radius 1 crates/sweep/src/blend/battery.rs
+points_diameter 1 crates/sweep/src/blend/battery.rs
 ExtentBall::point 2 crates/topo/src/boolean/fate.rs
 ExtentBall::point 4 crates/topo/src/boolean/join.rs
 Reach::Face 1 crates/topo/src/boolean/join.rs
