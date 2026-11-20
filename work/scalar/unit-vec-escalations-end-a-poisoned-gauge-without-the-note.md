@@ -4,6 +4,8 @@ kind: issue
 title: geom-core unit_vec: UnitVec3Error::Escalated and LeveredUnitError::Arm end a poisoned margin in the lever with no unreadable-margin note
 status: open
 opened: 2026-10-13
+priority: P4
+cost: E
 ---
 
 

@@ -32,7 +32,7 @@ reaches it. A census depends on them by text.
 
 | census | moved by | what moved |
 |---|---|---|
-| copysign | PR 5956 (`2660be102b`, 2026-10-28) | 4 sites in `topo/src/sector_face.rs`, hidden by the census's own cut (`work/tcost/census-files-each-cut-a-files-shipped-part-by-hand.md`) |
+| copysign | PR 5956 (`2660be102b`, 2026-10-28) | 4 sites in `topo/src/sector_face.rs`, hidden by the census's own cut (`work/green/census-files-each-cut-a-files-shipped-part-by-hand.md`) |
 | copysign | PR 6139 (`f2f34e16b0`, 2026-10-31) | `geom-brep/src/pair_section/cylinders.rs` +1 |
 | copysign | PR 6345 (`7d6855d09c`, 2026-11-02) | `topo/src/boolean/fan.rs` +1, `join.rs` +1 |
 | copysign | PR 6486 (`5a5ce31ef7`, 2026-11-03) | `geom/src/surfaces.rs` +1 |

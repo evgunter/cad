@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-01
 priority: P1
 cost: M
-refs: [the-profile-create-form-is-a-second-profile-editor]
 ---
 Reported by Ev (chat, 2026-11-01). Filed P1 at Ev's request. Under
 each argument an expression drives, the profile editor draws:

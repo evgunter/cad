@@ -207,7 +207,7 @@ much is SSI's to re-take — flagged here rather than re-derived, because
 the m8_4 seam is not this program's ground. What PR 3524 did measure on
 that seam is the eps boundary moving from 1e-9 to 1e-13, recorded with
 its consequence in
-`work/tint/the-plane-nurbs-seam-refusal-cell-is-below-every-gated-eps-row.md`.
+`work/ciw/the-plane-nurbs-seam-refusal-cell-is-below-every-gated-eps-row.md`.
 
 ## Re-homed from FLUX to KNOT (2026-10-10)
 

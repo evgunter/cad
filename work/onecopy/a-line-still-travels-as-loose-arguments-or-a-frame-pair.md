@@ -51,5 +51,5 @@ The sweep cannot see a line passed as two loose arguments under other names, or 
 - **`join.rs`'s conic loop frame**, `section_cert`'s torus axis and `MappedSource::RevolvedPoint` carry a `geom::Line`. A stored `Frame` is read through `Frame::axis_line()`, and a stored surface through `Surface::axis_line()`.
 - **The swept axis pairs in topo, geom and geom-brep** take or hold a `Line` (the PR lists them).
 - **What remains is filed:**
-  - `props/curved.rs`'s family is `work/conearm/props-curved-carries-a-revolution-axis-as-loose-origin-and-axis.md`;
+  - `props/curved.rs`'s family is `work/spiricarm/props-curved-carries-a-revolution-axis-as-loose-origin-and-axis.md`;
   - the holders that carry a full frame are on `analytic-surfaces-spell-their-frame-field-by-field`.

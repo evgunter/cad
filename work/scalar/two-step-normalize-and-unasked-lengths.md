@@ -4,6 +4,8 @@ kind: issue
 title: two-step v / v.norm() normalizations bypass the overflow prescale, and un-asked lengths read as levers
 status: open
 opened: 2026-10-24
+priority: P3
+cost: M
 ---
 
 

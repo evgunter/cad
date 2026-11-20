@@ -4,6 +4,8 @@ kind: issue
 title: the curve-pair walk exhausts its piece budget on a spline span meeting a circle at a span's end when the band is coarse
 status: open
 opened: 2026-11-17
+priority: P2
+cost: M
 ---
 
 

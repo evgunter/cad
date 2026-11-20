@@ -142,6 +142,90 @@ value proved interior to one vector's domain, carried without that
 vector — stays crate-private for it, the type being a guard only in
 combination with the privacy of its two consumers, argued at its doc.
 
+## Reading a bracket where nothing certifies (DUAL-DESIGN DL5)
+
+A *bracket read* is `Bounds::lo`/`hi`: it turns a scalar `T` into an
+`f64`, and so drops whatever else the scalar carries, a dual's tangent
+or `Sym`'s symbols. A *lane door* is a bound that keeps such a scalar
+out (`CertifiedBounds`). *Re-entry* is a computed `f64` turned back
+into a `T`. Three clauses say when each is right, and every other
+statement of them (`real.rs`, `dual.rs`, the bounds census) cites
+these and restates neither.
+
+**DL5.1 — the read.** At a dual a bracket read returns the base
+scalar's bracket, bit for bit. A read that is legitimate at the base
+scalar therefore needs no lane door, provided the `f64` it yields
+never re-enters `T`. That `f64` ends one of two ways:
+
+- it **leaves**: an error field, a box, a report;
+- it is **only compared**: a branch, an index, a flag, the pick of
+  which candidate is built or reported.
+
+Neither owes a tangent. The branch taken carries `T` values computed
+at `T`, with their own tangents, exactly as `min` returns its winner's.
+A read that mints a certificate object or feeds a `CertifiedEnclosure`
+consumer is never exempt: it takes a lane door. Whether a bracket may
+decide anything at all is not this clause's question; that is the
+`Bounds` scope rule's ("brackets never decide", `real.rs`), at every
+scalar.
+
+**DL5.2 — re-entry.** A runtime `f64` does not become a free `T`
+because a `T` was the only spelling to hand. Structure is still found
+at `f64` (a search, a subdivision, a comparison), and what that hands
+back is sorted by what the `f64` is:
+
+| The `f64` is | What the code does with it |
+|---|---|
+| a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
+| a place the code chose to evaluate at: a sample, a station, a cell corner, the point a cell is subdivided at | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
+| data built whole at `f64` | builds it at `T` |
+| a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
+
+A solved value the result is built on (a root, a foot, a crossing) is
+not converted to `f64` and back. Where the solve has a closed form,
+the value stays in `T`. Where it does not, an `f64` search proposes a
+candidate and one door admits it: the candidate and the residual at
+`T` go in, the door runs the check that the candidate's point reads
+on within the band, and the admitted `T` or the refusal comes out. A
+caller cannot have the `T` without the residual, so what the value
+claims is what was checked: this number reads on, never that it is
+the true root. At `Sym` it is an opaque unknown and claims nothing.
+The door is bounded `Certifies` (DL5.3), so a dual cannot reach it,
+and it is the one caller of `Real::from_computed`.
+
+The door is for a value the body stores: a parameter an edge is split
+at, an end an edge is re-anchored to. A solved value that is only
+evaluated at, to decide (a normal read at a foot, an iterate of a
+search), is a place, and takes the table's row. At an enclosure scalar
+the admitted value is one number for the whole family: a parameter the
+construction states, the same for every member, with every member's
+point there checked within the band. It is not an enclosure of each
+member's own root, which lies elsewhere by up to the band over the
+sine of the crossing angle; and where the root moves farther than that
+across the box, no one number passes and the site refuses. A parameter
+solved in closed form is an enclosure of each member's own, so a
+stored parameter reads one way on an analytic carrier and the other
+on a spline.
+
+**DL5.3 — where a dual is admitted.** A dual belongs where the build
+and its measurements run, and passes through decisions on its value
+alone (DL1, DL3). Code that certifies is closed to it by type, on its
+interior as well as at its doors:
+
+- `Certifies` is the bound that says a scalar certifies and nothing
+  else. It grants no bracket read, so it is free to write: no list,
+  no ratification. Only a bracket read is gated. A dual does not
+  implement it.
+- Every lane type is declared over `T: Certifies`, so every function
+  that names a lane carries the bound.
+- A scalar's lanes are an associated type with no values at a dual,
+  never an `Option` a dual answers `None` to.
+- In a file listed as certification code, a generic item without
+  `Certifies` fails the gate.
+- A bound says which scalars the code has a meaning for. It is not
+  widened to every scalar the body happens to compile at, and no work
+  is done to support a scalar the code has no meaning for.
+
 ## Choosing among spellings of one quantity (W1)
 
 **W1 — a spelling is chosen by what its width and its error scale
@@ -294,6 +378,43 @@ the kernel or the file.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
+### A number told to a person
+
+**A number a sentence quotes is a told quantity, and the told quantity
+says it.** A refusal, a recourse or a readout never formats a scalar
+itself. The payload field that carries the number is one opaque type
+in `geom-core`, built where the payload is built, while the scalar is
+in hand. It holds the *reading* (a value, an enclosure, or unreadable),
+the *dimension* (length, angle, dimensionless) and the *role*, and it
+renders the number and its unit word. It offers no arithmetic, no
+ordering and no way to read a computed number back, so nothing decides
+on a payload (DESIGN [verdicts]). A refusal type declares no bare `f64` or `T`
+field.
+
+The role is where the number came from, and it fixes how the number is
+spelled:
+
+| Role | What the person reads |
+|---|---|
+| **Given**: the caller's or the file's own number | exactly what was received: the shortest digits that read back |
+| **Computed** length | the shortest spelling within the finer of ε/10 and four significant figures, and never finer than the spacing of adjacent floats at that value |
+| **Computed** angle or ratio | four significant figures; ε is a length and caps neither (DESIGN [tolerance.epsilon]) |
+| **Compared**: two numbers whose order the sentence states, or a reading beside its own threshold | each to the first precision at which they read in the stated order |
+| **Offered**: a bound the person is asked to type back | the shortest spelling on the computed grid that lies on the side that works when typed |
+
+An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
+that is not an `f64` reads as its value or its enclosure, and a zero of
+either sign reads `0`. Text that must be exact (an editable field, a
+serialized form a content key hashes, a dump) is not told text and is
+spelled exactly.
+
+**A refusal is said in the notation of whoever reads it.** Its
+rendering takes a notation, and `Display` is that rendering in metres
+and radians; the GUI passes the working notation, so a person working
+in millimetres reads a refusal in millimetres beside fields that show
+millimetres. The tolerance is set in metres, and a recourse that names
+it says it in metres.
+
 ## Float rounding
 
 DESIGN `[simple.conditioned]`: every computation is posed well-conditioned
@@ -335,7 +456,7 @@ This section is where that rule's parts live.
   must be dropped. A count
   raised beside a new site is held only by review, not against the
   merge base
-  (`work/guard/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
+  (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
   `Margin::levered`). It is built only from its sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
