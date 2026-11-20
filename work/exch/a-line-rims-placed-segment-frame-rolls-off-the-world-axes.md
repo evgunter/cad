@@ -29,3 +29,7 @@ chart normal at the rim is perpendicular to the line. Taking it means
 `mapped_self_description` is handed the surface it is adopting
 against, or the roll is stated as part of the description class's
 contract (`geom_brep::MappedSource::PlacedSegment`) as unread.
+
+The kept frame does not go through `crate::signed_zero` either: its
+columns are stored as `gram_schmidt` returns them, signed zeros
+included.

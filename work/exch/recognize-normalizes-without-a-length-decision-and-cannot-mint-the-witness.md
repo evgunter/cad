@@ -105,9 +105,11 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
 - **The plane arm** (`recognize::try_plane`): the oriented Newell sum
   and the chart's `∂u` at the domain midpoint are one
   `RigidMotion::from_axis_and_reference` mint under
-  `STEP_PLACEMENT_AXES` at `Band::least()` — both are an estimator's
-  choices, which the hull certificate decides, so only a vanishing one
-  determines no frame. The plane takes the frame's `w` and `u`; it
+  `STEP_RECOGNIZED_PLANE_FRAME` at `Band::least()` — both are an
+  estimator's choices, which the hull certificate decides. Every vector
+  is brought into range by an exact power of two first, so the sign and
+  the lengths are read where they cannot leave the format, and only a
+  zero sum determines no frame. The plane takes the frame's `w` and `u`; it
   calls no `orthonormal_basis`. `plus_zero` stays at the carrier
   store, on the bare vectors the frame hands out, so no mint is added
   to `UnitVec3`.
@@ -116,7 +118,8 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
   to the normal, pinned by
   `recognize::plane_frame::a_promoted_planes_roll_turns_with_its_patch`.
 - **`adopt::line_frame`** is `RigidMotion::gram_schmidt` of the line's
-  direction and the least-component axis, at `Band::least()`. Its roll
+  direction and the least-component axis, under `STEP_RIM_LINE_FRAME` at
+  `Band::least()`. Its roll
   is still picked off the world axes:
   `work/exch/a-line-rims-placed-segment-frame-rolls-off-the-world-axes.md`.
 - **The `entities.rs` copy** is gone: `Resolver::placement_built` and
@@ -133,3 +136,8 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
 - **The bare `Vec3::orthonormal_basis`** keeps about twenty callers
   outside this crate pair (`topo`, `geom-brep`, `geom`), so it does not
   retire here; `geom_brep::newell` is no longer one of them.
+- **Stored directions behind a format gate only** — `build.rs`'s
+  `line_iso_match`, `deferred_carrier`, `rebuilt_in_surface` and
+  `generators_through`, `normalize::singularity`'s seam-azimuth
+  fallback, and `recognize_curve.rs`'s line and circle estimators:
+  `work/exch/a-stored-direction-is-taken-from-a-format-gate-with-no-length-decision.md`.

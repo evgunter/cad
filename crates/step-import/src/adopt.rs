@@ -498,7 +498,8 @@ fn must_carry_rung(
 /// translation to its end, a circular arc its start point's
 /// trajectory under the rotation through the derived angle — honest
 /// pushforward data (the same shapes native constructions store),
-/// exact for the parsed carrier. Ellipse/NURBS carriers have no
+/// exact for the parsed carrier except a Nurbs-adjacent line rim's
+/// (below). Ellipse/NURBS carriers have no
 /// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
 /// and no exported body puts one inside a single surface); the edge
 /// then refuses typed.
@@ -519,9 +520,11 @@ fn must_carry_rung(
 /// the native builder's segment lives in sketch coordinates under the
 /// cap placement, while the synthesized one is the carrier's own
 /// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
-/// rigid frame whose x-axis is the carrier direction) — an
-/// equivalent parameterization of the same locus, exact up to the
-/// placement arithmetic (the sketch plane never crosses the STEP
+/// rigid frame whose x-axis is the carrier direction normalized) — so
+/// the point at `t` is `origin + normalize(dir)·t`, not the carrier's
+/// `origin + dir·t` bit for bit: for the unit-within-rounding direction
+/// the reader keeps, the two differ by about `2.8e-16·|t|`, an
+/// equivalent parameterization of the same locus up to that (the sketch plane never crosses the STEP
 /// wire, so the native payload is not recoverable; review F5 pinned
 /// the honest statement to class level). Arc rims stay
 /// `RevolvedPoint` in both cases — on a rational wall nothing mints
@@ -577,8 +580,8 @@ fn mapped_self_description(
     }
 }
 
-/// A rigid frame whose x-axis is the line direction, placed at the
-/// line's origin — the `PlacedSegment` placement for a Nurbs-adjacent
+/// A rigid frame whose x-axis is the line direction normalized, placed
+/// at the line's origin — the `PlacedSegment` placement for a Nurbs-adjacent
 /// rim ([`mapped_self_description`]). The y/z columns complete an
 /// orthonormal frame (they never move a segment point — every sketch
 /// point has `y = 0` — but a placement claims rigidity as conventional
@@ -606,7 +609,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
         origin,
         dir,
         candidate,
-        crate::STEP_PLACEMENT_AXES,
+        crate::interpret::STEP_RIM_LINE_FRAME,
         geom_core::Band::least(),
     )
     .ok()

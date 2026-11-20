@@ -43,12 +43,13 @@
 //! result is kept added to either resolver mints `-0.0` from an exact
 //! zero and owes the flush.
 //!
-//! The recognition half has no fixture that fails without it: a
+//! **The recognition half is posture, and no row guards it.** A
 //! promoted plane's frame (the net's normal and its own `∂u` made
-//! perpendicular to it) mints no `-0.0` on the corpus, nor on a flat
-//! patch in any axis-aligned orientation. It is flushed for the reason
-//! above — the frame's orientation negates and its residual subtracts —
-//! not for a measured token.
+//! perpendicular to it) could mint `-0.0` — its orientation negates and
+//! its residual subtracts — but no input found reaches one: not the
+//! corpus, not a flat patch in any axis-aligned orientation. A test
+//! needs an input that yields `-0.0` without the flush, and none is
+//! known, so none can go red; the flush is kept unguarded.
 
 use geom_core::{Point3, Vec3};
 
