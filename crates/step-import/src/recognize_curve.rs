@@ -1858,3 +1858,291 @@ mod r2_delta {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::too_many_lines
+)]
+mod rev2_probe {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    struct Rng(u64);
+    impl Rng {
+        fn f(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn r(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.f()
+        }
+        fn unit(&mut self) -> Vec3<f64> {
+            loop {
+                let v = Vec3::new(self.r(-1.0, 1.0), self.r(-1.0, 1.0), self.r(-1.0, 1.0));
+                let n = v.norm();
+                if n > 0.1 && n < 1.0 {
+                    return v / n;
+                }
+            }
+        }
+    }
+
+    struct Case {
+        curve: NurbsCurve3<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        closed: bool,
+    }
+
+    fn build(rng: &mut Rng, delta_scale: f64, pert: f64, max_span_deg: f64) -> Option<Case> {
+        let closed = rng.f() < 0.5;
+        let d = f64::to_radians;
+        let mut incs: Vec<f64> = Vec::new();
+        if closed {
+            let n = 3 + (rng.f() * 4.0) as usize;
+            let raw: Vec<f64> = (0..n).map(|_| rng.r(0.3, 1.0)).collect();
+            let s: f64 = raw.iter().sum();
+            incs = raw.iter().map(|x| x / s * core::f64::consts::TAU).collect();
+            if incs.iter().any(|&h| h > d(max_span_deg)) {
+                return None;
+            }
+        } else {
+            let n = 1 + (rng.f() * 4.0) as usize;
+            for _ in 0..n {
+                incs.push(d(rng.r(3.0, max_span_deg)));
+            }
+            if incs.iter().sum::<f64>() >= d(359.0) {
+                return None;
+            }
+        }
+        let radius = 10f64.powf(rng.r(-3.0, 1.0));
+        let axis = rng.unit();
+        let u0 = axis.cross(rng.unit());
+        let u = u0 / u0.norm();
+        let v = axis.cross(u);
+        let center = Point3::new(rng.r(-1.0, 1.0), rng.r(-1.0, 1.0), rng.r(-1.0, 1.0));
+        let at = |t: f64, r: f64| center + u * (r * t.cos()) + v * (r * t.sin());
+        let start = rng.r(0.0, 6.28);
+        let jw: Vec<f64> = (0..=incs.len())
+            .map(|_| if rng.f() < 0.5 { 1.0 } else { rng.r(0.3, 3.0) })
+            .collect();
+        let mut control = vec![at(start, radius)];
+        let mut weights = vec![jw[0]];
+        let mut th = start;
+        for (k, &h) in incs.iter().enumerate() {
+            let c = (h / 2.0).cos();
+            control.push(at(th + h / 2.0, radius / c));
+            let dl = if rng.f() < 0.5 {
+                0.0
+            } else {
+                rng.r(-1.0, 1.0) * delta_scale
+            };
+            weights.push(c * (jw[k] * jw[k + 1]).sqrt() * (1.0 + dl).max(1e-3));
+            th += h;
+            control.push(at(th, radius));
+            weights.push(jw[k + 1]);
+        }
+        if closed {
+            let f = control[0];
+            *control.last_mut().unwrap() = f;
+        }
+        for p in &mut control {
+            *p = *p + rng.unit() * (pert * rng.f());
+        }
+        let mut kn = vec![0.0; 3];
+        let mut x = 0.0;
+        for _ in 1..incs.len() {
+            x += rng.r(0.1, 5.0);
+            kn.push(x);
+            kn.push(x);
+        }
+        x += rng.r(0.1, 5.0);
+        kn.extend([x; 3]);
+        let curve = NurbsCurve3::new(KnotVector::clamped(kn, 2).ok()?, control, weights).ok()?;
+        Some(Case {
+            curve,
+            center,
+            axis,
+            radius,
+            closed,
+        })
+    }
+
+    /// Dense |C(t) − Ĉ_c(t)| against the promoted circle's own frame.
+    fn dense_map(
+        curve: &NurbsCurve3<f64>,
+        circle: &geom::Circle<f64>,
+        closed: bool,
+    ) -> (f64, f64, bool) {
+        let o = circle.frame.origin;
+        let ax = circle.frame.axis;
+        let u = circle.frame.u_ref;
+        let v = ax.cross(u);
+        let r = circle.radius;
+        let ang = |p: Point3<f64>| {
+            let q = p - o;
+            q.dot(v).atan2(q.dot(u))
+        };
+        let ctl = curve.control();
+        let w = curve.weights();
+        let flat = curve.knots_f64_interim().knots().to_vec();
+        let spans = (ctl.len() - 1) / 2;
+        let mut th: Vec<f64> = (0..=spans).map(|k| ang(ctl[2 * k])).collect();
+        for k in 1..=spans {
+            while th[k] <= th[k - 1] {
+                th[k] += core::f64::consts::TAU;
+            }
+        }
+        if closed {
+            th[spans] = th[0] + core::f64::consts::TAU;
+        }
+        let on = |t: f64, rr: f64| o + u * (rr * t.cos()) + v * (rr * t.sin());
+        let (mut map, mut locus, mut mono) = (0.0f64, 0.0f64, true);
+        let mut prev = f64::NEG_INFINITY;
+        for j in 0..spans {
+            let (ta, tb) = (th[j], th[j + 1]);
+            let h = tb - ta;
+            let c = (h / 2.0).cos();
+            let pts = [on(ta, r), on((ta + tb) / 2.0, r / c), on(tb, r)];
+            let ws = [w[2 * j], c * (w[2 * j] * w[2 * j + 2]).sqrt(), w[2 * j + 2]];
+            let (k0, k1) = (flat[2 + 2 * j], flat[3 + 2 * j]);
+            let n = 4000;
+            for i in 0..=n {
+                let s = i as f64 / n as f64;
+                let t = k0 + (k1 - k0) * s;
+                let p = curve.eval(t);
+                let b = [(1.0 - s) * (1.0 - s), 2.0 * s * (1.0 - s), s * s];
+                let den: f64 = (0..3).map(|i| b[i] * ws[i]).sum();
+                let mut acc = Vec3::new(0.0, 0.0, 0.0);
+                for i in 0..3 {
+                    acc = acc + (pts[i] - Point3::new(0.0, 0.0, 0.0)) * (b[i] * ws[i] / den);
+                }
+                let cc = Point3::new(0.0, 0.0, 0.0) + acc;
+                map = map.max(p.distance(cc));
+                let q = p - o;
+                let hh = q.dot(ax);
+                locus = locus.max(((q - ax * hh).norm() - r).hypot(hh));
+                let mut a = ang(p);
+                while a < prev - 1e-9 {
+                    a += core::f64::consts::TAU;
+                }
+                if a < prev - 1e-12 {
+                    mono = false;
+                }
+                prev = a;
+            }
+        }
+        let _ = map;
+        (map, locus, mono)
+    }
+
+    #[test]
+    fn rev2_fuzz_inv_c6_soundness() {
+        let mut rng = Rng(0x5eed_1234);
+        let (mut promoted, mut worst_ratio, mut worst_locus_ratio) = (0usize, 0.0f64, 0.0f64);
+        let mut unsound = Vec::new();
+        for trial in 0..6000 {
+            let (ds, pt, eps) = match trial % 4 {
+                0 => (0.0, 0.0, 1e-9),
+                1 => (1e-7, 1e-8, 1e-6),
+                2 => (1e-4, 1e-6, 1e-5),
+                _ => (1e-3, 1e-5, 1e-4),
+            };
+            let sc = case_scale(&mut rng);
+            let Some(case) = build(&mut rng, ds, pt * sc, 150.0) else {
+                continue;
+            };
+            let file = crate::interpret::FileBand::test(eps);
+            if let CurveRecognition::Promoted {
+                curve: Curve3::Circle(circle),
+                residual,
+                ..
+            } = recognize(&case.curve, file)
+            {
+                promoted += 1;
+                let (map, locus, mono) = dense_map(&case.curve, &circle, case.closed);
+                let slack = 2e-14 * (circle.radius + 2.0);
+                if map > residual + slack || locus > residual + slack || !mono {
+                    unsound.push(format!("trial {trial}: map {map:e} locus {locus:e} residual {residual:e} mono {mono} closed {} R {:e}", case.closed, case.radius));
+                }
+                if residual > 1e-11 {
+                    worst_ratio = worst_ratio.max(map / residual);
+                    worst_locus_ratio = worst_locus_ratio.max(locus / residual);
+                }
+            }
+        }
+        println!(
+            "promoted {promoted}; worst map/residual {worst_ratio}; worst locus/residual {worst_locus_ratio}"
+        );
+        for u in unsound.iter().take(20) {
+            println!("{u}");
+        }
+        assert!(unsound.is_empty(), "{} unsound", unsound.len());
+    }
+
+    fn case_scale(rng: &mut Rng) -> f64 {
+        rng.r(0.0, 1.0)
+    }
+
+    /// The bound directly, at huge weight error, spans near 150°, uneven knots:
+    /// map_certificate's residual vs dense |C − Ĉ_c|, frame known.
+    #[test]
+    fn rev2_map_certificate_bound_far_from_cos() {
+        let mut rng = Rng(77);
+        let mut worst = 0.0f64;
+        let mut n = 0;
+        let mut bad = Vec::new();
+        for trial in 0..4000 {
+            let ds = [0.5, 2.0, 5.0, 0.99][trial % 4];
+            let Some(case) = build(&mut rng, ds, 0.0, 150.0) else {
+                continue;
+            };
+            let file = crate::interpret::FileBand::test(1e-9);
+            let spans = conic_spans(&case.curve).unwrap();
+            let closed = case.closed;
+            let Some((u_ref, residual)) = map_certificate(
+                &case.curve,
+                spans,
+                case.center,
+                case.axis,
+                case.radius,
+                closed,
+                file,
+            ) else {
+                continue;
+            };
+            n += 1;
+            let circle = geom::Circle {
+                frame: geom::Frame {
+                    origin: case.center,
+                    axis: case.axis,
+                    u_ref,
+                },
+                radius: case.radius,
+            };
+            let (map, _, _) = dense_map(&case.curve, &circle, closed);
+            if residual > 1e-11 {
+                worst = worst.max(map / residual);
+            }
+            if map > residual * (1.0 + 1e-12) + 2e-14 * (case.radius + 2.0) {
+                bad.push(format!(
+                    "trial {trial}: map {map:e} > residual {residual:e}"
+                ));
+            }
+        }
+        println!("certified {n}; worst map/residual {worst}");
+        for b in bad.iter().take(10) {
+            println!("{b}");
+        }
+        assert!(bad.is_empty());
+    }
+}
