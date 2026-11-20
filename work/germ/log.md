@@ -1578,3 +1578,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `closed_form_shown` reads `geom_core::ladder::in_band`.
 
   **Class:** inline re-spellings of `ladder::in_band` in `chord_join.rs` and `merge_faces.rs` are to be filed by the fix pass on the owner's slate.
+- 2026-11-20 — **PR 7174 (sector side) review: NOT-MERGEABLE-AS-IS.**
+  - **MAJOR M1:** a charge tie whose descent cannot read the bend (`FaceBend::Fitted`, `Bisector{bend:None}`, which spline pierced faces reach) is read `On`, where main refused. A Zero charge is a lower bound's Zero ("not certified off"), not "on". Shown at unit level.
+  - **MINORs:**
+    - neither advertised choice (Jet over Parted; Returned over Rides) has a row: both mutants pass all 102 unit rows;
+    - the `bisector_nodes` row pins a downstream stop, not its name;
+    - vtxfac's `flat(k)` lump and the `bisector_zero_refusal` guard treat a charge tie as first-order.
+  - **Main path sound:** the jet reading on decided Implicit bends gave no wrong side in a hollow and ball probe scan.
+  - **Fix pass:** continued in the implementer's agent, with an osculating-contact probe (n1) owed. A delta review by the same reviewer follows.
