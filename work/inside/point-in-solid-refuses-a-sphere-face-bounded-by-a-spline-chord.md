@@ -64,3 +64,18 @@ both.
 region off the stored pcurves, as the cylinder's `ruled_region` reads
 its walls), and the rows above go SOUND: `cylinder_sphere_frame::at_its_volume`
 and `far_union` are where they are pinned.
+
+## 2026-11-20: a tube through a ball across its wrap edge (SECT)
+
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+`a_tube_through_a_ball_across_its_wrap_edge_builds_every_op`, on
+`sect/rimside-retires`. A one-seam tube passes through a ball, cut in
+two non-planar loops that cross its wrap edge inside the ball's faces;
+it is joined at one site on the carried section. Every op in both
+orders reaches tiers 2 and 3′, the certificate and its volume (against
+a Gauss–Legendre reference, within about 3e-12). Each body's far union
+refuses `Containment(PartialSphereFace)`, and `tube ∖ ball` refuses
+`Pieces(Probe { source: PartialSphereFace })`. The row pins both through
+`cylinder_sphere_frame::at_its_volume` (`Ends::Pieces` on `A ∖ B`). When
+this row lands, flip it to SOUND: drop the `Ends::Pieces` case and
+the `AtTheSphere` allowance.
