@@ -1,5 +1,5 @@
 //! **An edge on a promoted open arc trims inside the arc its spline
-//! covers.** A quarter-circle wedge (`fixtures/arc-trim/wedge.py`):
+//! covers.** A quarter-circle wedge (`fixtures/arc-trim/`):
 //! its bottom rim's carrier is a rational-quadratic arc promoted to its
 //! circle, and the rim edge's vertices are `(R, 0, 0)` → `(0, R, 0)`.
 //!

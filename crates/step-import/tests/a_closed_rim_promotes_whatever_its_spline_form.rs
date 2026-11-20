@@ -1,5 +1,5 @@
 //! **A cylinder's closed rims promote whatever spline form states
-//! them** (`fixtures/closed-rim/cyl.py`): the kernel's plain cylinder
+//! them** (`fixtures/closed-rim/`): the kernel's plain cylinder
 //! with each rim CIRCLE swapped for one spline of the same circle, in
 //! three spellings — the 3×120° rational quadratic (`cyl_quad`), the
 //! 4×90° form degree-elevated to cubics (`cyl_cubic`), and the 3×120°
