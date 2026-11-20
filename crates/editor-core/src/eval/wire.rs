@@ -3511,8 +3511,9 @@ fn with_replaced<T: topo::AtRestPolicy + Decide>(
 
 /// **One member of a union or an intersect, as read and not yet
 /// finished**: the read it came through (its names' key), its body in
-/// its own frame and its own table. The fold reads it into the frame it
-/// computes in and finishes it there, once ([`MemberRead::taken_in`]).
+/// its own frame and its own table. The fold finishes it in its own
+/// frame, once ([`MemberRead::taken`]), and places it in the frame it
+/// computes in, where the n-ary door moves it (`topo::nary_placed`).
 #[derive(Clone)]
 struct MemberRead<T: topo::AtRestPolicy + Decide> {
     read: crate::VarId,
