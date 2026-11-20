@@ -2,12 +2,13 @@
 id: frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut
 kind: issue
 title: Four frame lanes still pick their atan2 formula across a cut on a landmark axis (plane_crossing_phase_frame, props_torus_lift_branch, curve_pair_pose_branch, editor-core's solve_atan2), with two reference-relative cousins
-status: review
+status: closed
 opened: 2026-10-18
 priority: P1
 cost: E
 branch: charttail/solve-atan2
 pr: 7165
+closed: 2026-11-20
 ---
 
 Found by the round-4 delta review of PCERT B1 (PR 5225). It is outside that PR, which leaves these sites unchanged.
@@ -76,3 +77,7 @@ Three cases are not decided:
 `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding, since it records the formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.
 
 `f64`, `Probe` and a dual over `f64` still read the platform `atan2`, whose one jump is at `±π`. That is MSOLVE's `the-mate-solve-reads-the-platform-atan2`, and the reason is written there. The missing guard on the sine-and-cosine invariant is MSOLVE's `no-row-guards-that-an-f31-renamings-readers-take-only-its-sine-and-cosine`.
+
+## Closed (2026-11-20)
+
+By PR 7165: the last site, editor-core's spin read, goes through `geom::Azimuth`. At `Interval` and `Sym<T>`, `solve_atan2` is `box_atan2`: one jump, at the angle window's generic cut. A direction that may reach zero length reads the whole window, and a point direction reads its angle however small its length. `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `f64` and `Probe` keep the platform `atan2`, on MSOLVE's `the-mate-solve-reads-the-platform-atan2` (with the read-back design point recorded there).
