@@ -354,6 +354,7 @@ fn the_declared_arrival_is_banded_on_both_sides() {
     let refused = tilted_close(100.0 * k_eps, 1.0);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             assert!(
                 (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                 "margin {margin} is not the authored miss {}",
@@ -394,6 +395,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
             Err(PathError::SeamArrivalOffDirection {
                 margin, arm: lever, ..
             }) => {
+                let (margin, lever) = (crate::common::told(&margin), crate::common::told(&lever));
                 assert!(
                     (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                     "arm {arm}: margin {margin}"
@@ -415,6 +417,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
     let long = tilted_close(100.0 * eps, 1000.0);
     match long {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             assert!(
                 (margin.abs() - 100.0 * eps).abs() <= 1e-2 * 100.0 * eps,
                 "margin {margin} is not the authored displacement"

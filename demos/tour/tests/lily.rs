@@ -560,14 +560,20 @@ mod review_probes {
             .expect_err("a tangent belly departure is refused");
         println!("the tangent-cone neck answers {refusal:?}");
         assert!(
-            matches!(
-                refusal,
-                pncad::profile::PathError::JunctionTangent { margin, arm }
-                    if margin.abs() < 1e-15 && arm > 0.1
-            ),
-            "the tangent neck must refuse as JunctionTangent with a vanishing \
-             turn margin on a real lever arm: {refusal:?}"
+            matches!(refusal, pncad::profile::PathError::JunctionTangent { .. }),
+            "the tangent neck must refuse as JunctionTangent: {refusal:?}"
         );
+        // A vanishing turn margin on a real lever arm, as the refusal
+        // tells them.
+        let said = refusal.to_string();
+        let told = |before: &str, after: &str| -> f64 {
+            said.split_once(before)
+                .and_then(|(_, tail)| tail.split_once(after))
+                .and_then(|(number, _)| number.parse().ok())
+                .unwrap_or_else(|| panic!("no number between {before:?} and {after:?}: {said}"))
+        };
+        let (margin, arm) = (told("turn margin ", " m on a "), told(" m on a ", " m arm"));
+        assert!(margin.abs() < 1e-15 && arm > 0.1, "{said}");
     }
 
     /// The re-authored lantern's CENSUS and its exact mass, against
