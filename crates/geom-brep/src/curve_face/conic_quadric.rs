@@ -234,7 +234,9 @@ impl ConicQuadricRefusal {
 }
 
 /// A root core's refusal as `arm`'s.
-fn refused(arm: fn(Indeterminate) -> ConicQuadricRefusal) -> impl Fn(DoorRefusal) -> ConicQuadricRefusal {
+fn refused(
+    arm: fn(Indeterminate) -> ConicQuadricRefusal,
+) -> impl Fn(DoorRefusal) -> ConicQuadricRefusal {
     move |refusal| match refusal {
         DoorRefusal::Escalated(diag) => arm(diag),
         DoorRefusal::Invariant(what) => ConicQuadricRefusal::Invariant(what),

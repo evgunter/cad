@@ -1,5 +1,5 @@
 //! **The circle root cores**: the two root finders every circle × surface
-//! door hands its residual to. A door (`topo`'s conic × quadric door,
+//! door hands its residual to. A door ([`super::conic_quadric`],
 //! [`super::circle_torus`], [`super::ellipse_torus`]) computes the
 //! residual's harmonics from the geometry, names its rows and its
 //! decision, and answers [`CircleRoots`]; the first harmonic's root
