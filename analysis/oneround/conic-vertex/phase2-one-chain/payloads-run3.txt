@@ -1,0 +1,339 @@
+        FAIL [   0.151s] ( 3/29) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+  stdout ───
+
+    running 1 test
+    test curves::conic::tests::the_conic_readings_are_the_carriers_own ... FAILED
+
+--
+    thread 'curves::conic::tests::the_conic_readings_are_the_carriers_own' (30141) panicked at crates/geom/src/curves/conic.rs:915:17:
+    assertion `left == right` failed: Circle(Circle { frame: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7, anchor: None }) at -2.5
+      left: [4585028958463987168, 13825807472120228872, 4611260067884528934]
+     right: [4585028958463987176, 13825807472120228870, 4611260067884528934]
+--
+        FAIL [   0.203s] ( 5/29) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+  stdout ───
+
+    running 1 test
+    test curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term ... FAILED
+
+--
+    thread 'curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term' (30143) panicked at crates/geom-brep/src/curve_face/ellipse_torus.rs:1021:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.208s] ( 6/29) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+  stdout ───
+
+    running 1 test
+    test curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates ... FAILED
+
+--
+    thread 'curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates' (30144) panicked at crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000098, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) } }] })
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.121s] ( 7/29) geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+  stdout ───
+
+    running 1 test
+    test r2_probes::r2_probe_sphere_seam_bit_move ... FAILED
+
+--
+    thread 'r2_probes::r2_probe_sphere_seam_bit_move' (30155) panicked at crates/geom-brep/tests/r2_probes.rs:160:5:
+    assertion `left == right` failed: R2 sphere-seam row moved: legacy 2.5000002068509275e-10 m, now 2.500002041387553e-10 m, delta 3548509910 ULP
+      left: (3548509910, 2.5000002068509275e-10, 2.500002041387553e-10)
+     right: (2349518964, 2.5000002068509275e-10, 2.5000014215237624e-10)
+--
+        FAIL [   0.169s] ( 8/29) geom-brep::all pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution
+  stdout ───
+
+    running 1 test
+    test pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution ... FAILED
+
+--
+    thread 'pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution' (30152) panicked at crates/geom-brep/tests/pcurve_cone_section.rs:956:5:
+    [
+        "f 0.5: envelope 1.8220179774032876e-14 past 48 u of size 3.2718398793176084e0",
+        "f 0.8: envelope 6.151586404339507e-14 past 48 u of size 6.816141467297908e0",
+        "f 0.9: envelope 1.3564057708131713e-13 past 48 u of size 1.2914636089069674e1",
+    ]
+--
+        FAIL [   0.633s] ( 9/29) geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+  stdout ───
+
+    running 1 test
+    [measured] circle, short arc: D 0.597753 (+1.5e-3), inf/D 1.000000, sup/D 1.000000, R 0.597753, reach/R 1.000000
+    [measured] circle, past a half turn: D 3.999999 (+2.0e-2), inf/D 0.909298, sup/D 1.000000, R 3.999999, reach/R 1.000000
+--
+    thread 'edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight' (30148) panicked at crates/geom-brep/tests/edge_extent_bounds.rs:392:5:
+    circle, closed: sup 4 is short of D 4.000000000000001
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.948s] (10/29) mesh::all route_rows::a_body_that_meshes_records_mains_k_stream
+  stdout ───
+
+    running 1 test
+    test route_rows::a_body_that_meshes_records_mains_k_stream ... FAILED
+
+--
+    thread 'route_rows::a_body_that_meshes_records_mains_k_stream' (30164) panicked at crates/mesh/tests/route_rows.rs:332:9:
+    assertion `left == right` failed: rounded prism: main's bytes
+      left: 3754135872730209029
+     right: 7449119955816324655
+--
+        FAIL [   0.654s] (11/29) mesh::all route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes
+  stdout ───
+
+    running 1 test
+    test route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes ... FAILED
+
+--
+    thread 'route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes' (30174) panicked at crates/mesh/tests/route_rows.rs:235:9:
+    assertion `left == right` failed: x0 = 0.3, θ = 2e-9: main's bytes
+      left: 17877698262526812332
+     right: 854441196626164579
+--
+        FAIL [   0.548s] (12/29) mesh::all route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes
+  stdout ───
+
+    running 1 test
+    test route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes ... FAILED
+
+--
+    thread 'route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes' (30180) panicked at crates/mesh/tests/route_rows.rs:591:5:
+    assertion `left == right` failed: main's bytes
+      left: 4298303061234873893
+     right: 12396868946538390960
+--
+        FAIL [   0.562s] (13/29) mesh::all the_one_face_ball::a_slit_between_the_tips_is_not_the_strip
+  stdout ───
+
+    running 1 test
+    test the_one_face_ball::a_slit_between_the_tips_is_not_the_strip ... FAILED
+
+--
+    thread 'the_one_face_ball::a_slit_between_the_tips_is_not_the_strip' (30186) panicked at crates/mesh/tests/the_one_face_ball.rs:189:5:
+    assertion `left == right` failed
+      left: Err(SingleColumnCurvedFace { face: FaceKey(3v1), surface: Sphere })
+     right: Err(PinchWedge { face: FaceKey(2v1) })
+--
+        FAIL [   2.003s] (14/29) mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
+  stdout ───
+
+    running 1 test
+    test d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest ... FAILED
+
+--
+    thread 'd9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest' (30156) panicked at crates/mesh/tests/d9_mesh_goldens.rs:380:5:
+    the mesh moved for 19 of 48 body/δ pairs at eps=0.000000001:
+      wedge at delta=0.05: 6162b834d72693be, committed c3cc46f2c9a9d6ce
+      wedge at delta=0.15: 7f5a00fd98d70b72, committed e4e25c533441c482
+      axis_wedge at delta=0.15: 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+      rounded_prism at delta=0.05: b29d167e90332f43, committed 0d7a8827002b0ba9
+--
+        FAIL [   0.388s] (15/29) mesh::all the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim
+  stdout ───
+
+    running 1 test
+    test the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim ... FAILED
+
+--
+    thread 'the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim' (30192) panicked at crates/mesh/tests/the_one_face_ball.rs:259:9:
+    assertion `left == right` failed: the hemisphere cap's mesh bytes
+      left: 18123877241593834373
+     right: 9884659491889629567
+--
+        FAIL [   2.157s] (16/29) mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
+  stdout ───
+
+    running 1 test
+    test d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads ... FAILED
+
+--
+    thread 'd9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads' (30163) panicked at crates/mesh/tests/d9_mesh_goldens.rs:474:5:
+    the mesh is not a function of (body, delta) alone at eps=0.000000001:
+      wedge at delta=0.05: 1 thread 6162b834d72693be, committed c3cc46f2c9a9d6ce
+      wedge at delta=0.15: 1 thread 7f5a00fd98d70b72, committed e4e25c533441c482
+      axis_wedge at delta=0.15: 1 thread 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+      rounded_prism at delta=0.05: 1 thread b29d167e90332f43, committed 0d7a8827002b0ba9
+--
+        FAIL [   0.326s] (17/29) sweep::all revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification
+  stdout ───
+
+    running 1 test
+    test revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification ... FAILED
+
+--
+    thread 'revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification' (30211) panicked at crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: cavity: edge EdgeKey(16v1) stores the fresh run's certificate
+      left: "Certificate { samples: 9, max_residual: 8.040613248383182e-17 }"
+     right: "Certificate { samples: 9, max_residual: 6.123233995736766e-17 }"
+--
+        FAIL [   0.292s] (18/29) sweep::all review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule
+  stdout ───
+
+    running 1 test
+    test review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule ... FAILED
+
+--
+    thread 'review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule' (30221) panicked at crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs:507:17:
+    assertion `left == right` failed: r = 0.4: the equator stands 0.5 from the bore
+      left: Value(0.49999999999999994)
+     right: Value(0.5)
+--
+        FAIL [   0.385s] (19/29) sweep::all section_end_poses::a_section_end_reads_the_same_wherever_the_part_sits
+  stdout ───
+
+    running 1 test
+    test section_end_poses::a_section_end_reads_the_same_wherever_the_part_sits ... FAILED
+
+--
+    thread 'section_end_poses::a_section_end_reads_the_same_wherever_the_part_sits' (30227) panicked at crates/sweep/tests/section_end_poses.rs:481:5:
+    x0 900: None
+       1: core::panicking::panic_fmt
+--
+        FAIL [   1.472s] (20/29) step-import::all freecad::cross_dialect_fixed_point
+  stdout ───
+
+    running 1 test
+    test freecad::cross_dialect_fixed_point ... FAILED
+
+--
+    thread 'freecad::cross_dialect_fixed_point' (30198) panicked at crates/step-import/tests/freecad.rs:593:9:
+    assertion `left == right` failed: box_fillet_corner: the second round trip's export must be byte-identical to the first's
+      left: "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\nFILE_NAME('box_fillet_corner.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n#1 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n#2 = DIRECTION('', (1.0, 0.0, 0.0));\n#3 = DIRECTION('', (0.0, 0.0, 1.0));\n#4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);\n#5 = PLANE('', #4);\n#6 = CARTESIAN_POINT('', (0.0, 0.001, 0.00025));\n#7 = VERTEX_POINT('', #6);\n#8 = CARTESIAN_POINT('', (0.0, 0.001, 0.001));\n#9 = VERTEX_POINT('', #8);\n#10 = CARTESIAN_POI
+     right: "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\nFILE_NAME('box_fillet_corner.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n#1 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n#2 = DIRECTION('', (1.0, 0.0, 0.0));\n#3 = DIRECTION('', (0.0, 0.0, 1.0));\n#4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);\n#5 = PLANE('', #4);\n#6 = CARTESIAN_POINT('', (0.0, 0.001, 0.00025));\n#7 = VERTEX_POINT('', #6);\n#8 = CARTESIAN_POINT('', (0.0, 0.001, 0.001));\n#9 = VERTEX_POINT('', #8);\n#10 = CARTESIAN_POI
+--
+        FAIL [   0.544s] (21/29) sweep::all snowman::the_fallback_assembly_carries_the_kept_operands_certificates
+  stdout ───
+
+    running 1 test
+    test snowman::the_fallback_assembly_carries_the_kept_operands_certificates ... FAILED
+
+--
+    thread 'snowman::the_fallback_assembly_carries_the_kept_operands_certificates' (30239) panicked at crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: slab ∪ ball: edge EdgeKey(13v1) stores the fresh run's certificate
+      left: "Certificate { samples: 9, max_residual: 2.220446049250313e-16 }"
+     right: "Certificate { samples: 9, max_residual: 1.2246467991473532e-16 }"
+--
+        FAIL [   0.322s] (22/29) sweep::all split_section_rings::a_normal_straddling_zero_in_one_component_still_cuts_at_interval
+  stdout ───
+
+    running 1 test
+    test split_section_rings::a_normal_straddling_zero_in_one_component_still_cuts_at_interval ... FAILED
+
+--
+    thread 'split_section_rings::a_normal_straddling_zero_in_one_component_still_cuts_at_interval' (30245) panicked at crates/sweep/tests/split_section_rings.rs:1269:9:
+    the cut refused: where a section runs across a face is undecided: margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: check the operation's inputs upstream, then move the geometry; an unreadable margin may indicate a kernel bug worth reporting
+       1: core::panicking::panic_fmt
+--
+        FAIL [   1.641s] (23/29) sweep::all pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates
+  stdout ───
+
+    running 1 test
+    test pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates ... FAILED
+
+--
+    thread 'pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates' (30210) panicked at crates/sweep/tests/pinch_faces_tessellate.rs:372:33:
+    Lbot cyl fib4 psi=0.9 seam cp S: tessellate refuses: Triangulation { face: FaceKey(7v5) }
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.437s] (24/29) sweep::all split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval
+  stdout ───
+
+    running 1 test
+    test split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval ... FAILED
+
+--
+    thread 'split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval' (30251) panicked at crates/sweep/tests/split_section_rings.rs:1242:17:
+    normal in xz, tilt 0.9, seams at 0, Interval: [2.4845415851014416, 2.4845415851027077] is too wide to be useful
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.180s] (25/29) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+  stdout ───
+
+    running 1 test
+    test splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size ... FAILED
+
+--
+    thread 'splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size' (30265) panicked at crates/topo/src/splitting/containment.rs:3315:13:
+    the arc's point at -0.00045 lies 0.5062501916684451 out, past 0.5062501912455183
+       1: core::panicking::panic_fmt
+--
+        FAIL [   1.360s] (26/29) sweep::all section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds
+  stdout ───
+
+    running 1 test
+    test section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds ... FAILED
+
+--
+    thread 'section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds' (30233) panicked at crates/sweep/tests/section_end_poses.rs:621:5:
+    h0 ab U: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) }))))
+    h0 ab I: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) }))))
+    h0 ab S: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) }))))
+    h0 ba U: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) }))))
+    h0 ba I: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) }))))
+--
+        FAIL [   0.454s] (27/29) sweep::all split_section_rings::plane_section_areas_enclose_the_closed_form_at_interval
+  stdout ───
+
+    running 1 test
+    test split_section_rings::plane_section_areas_enclose_the_closed_form_at_interval ... FAILED
+
+--
+    thread 'split_section_rings::plane_section_areas_enclose_the_closed_form_at_interval' (30257) panicked at crates/sweep/tests/split_section_rings.rs:1072:9:
+    outline: [3.2884671415244644, 3.288467141526342] is too wide to be useful
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.645s] (28/29) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation' (30263) panicked at crates/topo/src/ruled_region_rows.rs:875:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 36
+     right: 35
+--
+        FAIL [   0.644s] (29/29) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation' (30267) panicked at crates/topo/src/torus_region.rs:1216:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 32
+     right: 33
+--
+     Summary [   4.741s] 29 tests run: 3 passed, 26 failed, 12754 skipped
+        FAIL [   0.151s] ( 3/29) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+        FAIL [   0.203s] ( 5/29) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+        FAIL [   0.208s] ( 6/29) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+        FAIL [   0.121s] ( 7/29) geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+        FAIL [   0.169s] ( 8/29) geom-brep::all pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution
+        FAIL [   0.633s] ( 9/29) geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+        FAIL [   0.948s] (10/29) mesh::all route_rows::a_body_that_meshes_records_mains_k_stream
+        FAIL [   0.654s] (11/29) mesh::all route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes
+        FAIL [   0.548s] (12/29) mesh::all route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes
+        FAIL [   0.562s] (13/29) mesh::all the_one_face_ball::a_slit_between_the_tips_is_not_the_strip
+        FAIL [   2.003s] (14/29) mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
+        FAIL [   0.388s] (15/29) mesh::all the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim
+        FAIL [   2.157s] (16/29) mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
+        FAIL [   0.326s] (17/29) sweep::all revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification
+        FAIL [   0.292s] (18/29) sweep::all review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule
+        FAIL [   0.385s] (19/29) sweep::all section_end_poses::a_section_end_reads_the_same_wherever_the_part_sits
+        FAIL [   1.472s] (20/29) step-import::all freecad::cross_dialect_fixed_point
+        FAIL [   0.544s] (21/29) sweep::all snowman::the_fallback_assembly_carries_the_kept_operands_certificates
+        FAIL [   0.322s] (22/29) sweep::all split_section_rings::a_normal_straddling_zero_in_one_component_still_cuts_at_interval
+        FAIL [   1.641s] (23/29) sweep::all pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates
+        FAIL [   0.437s] (24/29) sweep::all split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval
+        FAIL [   0.180s] (25/29) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+        FAIL [   1.360s] (26/29) sweep::all section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds
+        FAIL [   0.454s] (27/29) sweep::all split_section_rings::plane_section_areas_enclose_the_closed_form_at_interval
+        FAIL [   0.645s] (28/29) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+        FAIL [   0.644s] (29/29) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+error: test run failed

@@ -1,0 +1,12 @@
+geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+geom curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance
+geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+geom-brep::all bool5r1_probes::probe_the_coincident_plane_ladder_at_interval
+geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+geom-brep::all foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from
+geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation

@@ -1,0 +1,29 @@
+        FAIL [   0.173s] ( 8/31) geom-brep::all pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution
+  stdout ───
+
+    running 1 test
+    test pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution ... FAILED
+
+--
+    thread 'pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution' (14884) panicked at crates/geom-brep/tests/pcurve_cone_section.rs:956:5:
+    [
+        "f 0.5: envelope 1.8220179774032876e-14 past 48 u of size 3.2718398793176084e0",
+        "f 0.8: envelope 6.151586404339507e-14 past 48 u of size 6.816141467297908e0",
+        "f 0.9: envelope 1.3564057708131713e-13 past 48 u of size 1.2914636089069674e1",
+    ]
+--
+        FAIL [   0.585s] (28/31) sweep::all split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval
+  stdout ───
+
+    running 1 test
+    test split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval ... FAILED
+
+--
+    thread 'split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval' (14982) panicked at crates/sweep/tests/split_section_rings.rs:1242:17:
+    normal in xz, tilt 0.9, seams at 0.7, Interval: [2.4845415851014967, 2.4845415851026504] is too wide to be useful
+       1: core::panicking::panic_fmt
+--
+     Summary [  18.593s] 31 tests run: 29 passed, 2 failed, 12752 skipped
+        FAIL [   0.173s] ( 8/31) geom-brep::all pcurve_cone_section::a_flat_cones_section_images_and_certifies_at_its_own_resolution
+        FAIL [   0.585s] (28/31) sweep::all split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval
+error: test run failed

@@ -1,0 +1,274 @@
+        FAIL [   0.152s] (  72/6969) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+  stdout ───
+
+    running 1 test
+    test curves::conic::tests::the_conic_readings_are_the_carriers_own ... FAILED
+
+--
+    thread 'curves::conic::tests::the_conic_readings_are_the_carriers_own' (20555) panicked at crates/geom/src/curves/conic.rs:880:17:
+    assertion `left == right` failed: Circle(Circle { frame: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7, anchor: None }) at -2.5
+      left: [4585028958463987152, 13825807472120228868, 4611260067884528934]
+     right: [4585028958463987176, 13825807472120228870, 4611260067884528934]
+--
+        FAIL [   0.112s] (  74/6969) geom curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance
+  stdout ───
+
+    running 1 test
+    test curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance ... FAILED
+
+--
+    thread 'curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance' (20591) panicked at crates/geom/src/curves/on_carrier/rows.rs:756:5:
+    the reading encloses the box centre's distance 1.118033988749895 and is no lower than the clearance Interval(DInterval { lo: 1.0511898020814308, hi: 1.185689995683647, dec: Com }): Interval(DInterval { lo: 1.0511898020814288, hi: 1.18638105177047, dec: Def })
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.633s] ( 737/6969) geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+  stdout ───
+
+    running 1 test
+    worst miss over the bound, per kind: [("line", 0.07244205474853516), ("cylinder", 0.02446746826171875), ("cone", 0.0305328369140625), ("sphere", 0.1063547134399414), ("torus", 0.02273273468017578)]
+    test carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier ... FAILED
+--
+    thread 'carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier' (21724) panicked at crates/geom-brep/src/carrier_resolution.rs:371:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.132s] ( 773/6969) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+  stdout ───
+
+    running 1 test
+    test curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term ... FAILED
+
+--
+    thread 'curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term' (21964) panicked at crates/geom-brep/src/curve_face/ellipse_torus.rs:1021:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.110s] ( 981/6969) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+  stdout ───
+
+    running 1 test
+    test curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates ... FAILED
+
+--
+    thread 'curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates' (22404) panicked at crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000098, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) } }] })
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.130s] (2071/6969) geom-brep::all bool5r1_probes::probe_the_coincident_plane_ladder_at_interval
+  stdout ───
+
+    running 1 test
+    [bool5r1 interval] eps = 1e-9, k = 0: delta = 0e0, area = Err(SphereLoop { what: "props_sphere_loop_cusp" })
+    [bool5r1 interval] eps = 1e-9, k = 0.5: delta = 5.0000000000000004e-8, area = Err(SphereLoop { what: "props_sphere_loop_cusp" })
+--
+    thread 'bool5r1_probes::probe_the_coincident_plane_ladder_at_interval' (24569) panicked at crates/geom-brep/tests/bool5r1_probes.rs:325:17:
+    k = 20: relative width 1.2420633885366556e-13
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.631s] (2224/6969) geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+  stdout ───
+
+    running 1 test
+    [measured] circle, short arc: D 0.597753 (+1.5e-3), inf/D 1.000000, sup/D 1.000000, R 0.597753, reach/R 1.000000
+    [measured] circle, past a half turn: D 3.999999 (+2.0e-2), inf/D 0.909298, sup/D 1.000000, R 3.999999, reach/R 1.000000
+--
+    thread 'edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight' (24885) panicked at crates/geom-brep/tests/edge_extent_bounds.rs:392:5:
+    circle, closed: sup 4 is short of D 4.000000000000001
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.120s] (2232/6969) geom-brep::all foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from
+  stdout ───
+
+    running 1 test
+    test foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from ... FAILED
+
+--
+    thread 'foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from' (24918) panicked at crates/geom-brep/tests/foot_and_phase_rows.rs:66:9:
+    assertion `left == right` failed: -7: on the axis
+      left: Some(-6.283185307179586)
+     right: Some(-7.0)
+--
+        FAIL [   0.117s] (2781/6969) geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+  stdout ───
+
+    running 1 test
+    test r2_probes::r2_probe_sphere_seam_bit_move ... FAILED
+
+--
+    thread 'r2_probes::r2_probe_sphere_seam_bit_move' (25974) panicked at crates/geom-brep/tests/r2_probes.rs:160:5:
+    assertion `left == right` failed: R2 sphere-seam row moved: legacy 2.500002427296977e-10 m, now 2.50000219669244e-10 m, delta 446054046 ULP
+      left: (446054046, 2.500002427296977e-10, 2.50000219669244e-10)
+     right: (2349518964, 2.5000002068509275e-10, 2.5000014215237624e-10)
+--
+        FAIL [   0.567s] (5384/6969) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation' (31626) panicked at crates/topo/src/ruled_region_rows.rs:875:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 37
+     right: 35
+--
+        FAIL [   0.153s] (5542/6969) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+  stdout ───
+
+    running 1 test
+    test splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size ... FAILED
+
+--
+    thread 'splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size' (32014) panicked at crates/topo/src/splitting/containment.rs:3315:13:
+    the arc's point at -0.00045 lies 0.5062501916684451 out, past 0.5062501912455183
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.727s] (5751/6969) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation' (32596) panicked at crates/topo/src/torus_region.rs:1216:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 38
+     right: 33
+--
+     Summary [ 126.547s] 6969 tests run: 6957 passed, 12 failed, 916 skipped
+        FAIL [   0.152s] (  72/6969) geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+  stdout ───
+
+    running 1 test
+    test curves::conic::tests::the_conic_readings_are_the_carriers_own ... FAILED
+
+--
+    thread 'curves::conic::tests::the_conic_readings_are_the_carriers_own' (20555) panicked at crates/geom/src/curves/conic.rs:880:17:
+    assertion `left == right` failed: Circle(Circle { frame: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7, anchor: None }) at -2.5
+      left: [4585028958463987152, 13825807472120228868, 4611260067884528934]
+     right: [4585028958463987176, 13825807472120228870, 4611260067884528934]
+--
+        FAIL [   0.112s] (  74/6969) geom curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance
+  stdout ───
+
+    running 1 test
+    test curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance ... FAILED
+
+--
+    thread 'curves::on_carrier::rows::a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance' (20591) panicked at crates/geom/src/curves/on_carrier/rows.rs:756:5:
+    the reading encloses the box centre's distance 1.118033988749895 and is no lower than the clearance Interval(DInterval { lo: 1.0511898020814308, hi: 1.185689995683647, dec: Com }): Interval(DInterval { lo: 1.0511898020814288, hi: 1.18638105177047, dec: Def })
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.633s] ( 737/6969) geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+  stdout ───
+
+    running 1 test
+    worst miss over the bound, per kind: [("line", 0.07244205474853516), ("cylinder", 0.02446746826171875), ("cone", 0.0305328369140625), ("sphere", 0.1063547134399414), ("torus", 0.02273273468017578)]
+    test carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier ... FAILED
+--
+    thread 'carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier' (21724) panicked at crates/geom-brep/src/carrier_resolution.rs:371:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.132s] ( 773/6969) geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+  stdout ───
+
+    running 1 test
+    test curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term ... FAILED
+
+--
+    thread 'curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term' (21964) panicked at crates/geom-brep/src/curve_face/ellipse_torus.rs:1021:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.110s] ( 981/6969) geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+  stdout ───
+
+    running 1 test
+    test curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates ... FAILED
+
+--
+    thread 'curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates' (22404) panicked at crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000098, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) } }] })
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.130s] (2071/6969) geom-brep::all bool5r1_probes::probe_the_coincident_plane_ladder_at_interval
+  stdout ───
+
+    running 1 test
+    [bool5r1 interval] eps = 1e-9, k = 0: delta = 0e0, area = Err(SphereLoop { what: "props_sphere_loop_cusp" })
+    [bool5r1 interval] eps = 1e-9, k = 0.5: delta = 5.0000000000000004e-8, area = Err(SphereLoop { what: "props_sphere_loop_cusp" })
+--
+    thread 'bool5r1_probes::probe_the_coincident_plane_ladder_at_interval' (24569) panicked at crates/geom-brep/tests/bool5r1_probes.rs:325:17:
+    k = 20: relative width 1.2420633885366556e-13
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.631s] (2224/6969) geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+  stdout ───
+
+    running 1 test
+    [measured] circle, short arc: D 0.597753 (+1.5e-3), inf/D 1.000000, sup/D 1.000000, R 0.597753, reach/R 1.000000
+    [measured] circle, past a half turn: D 3.999999 (+2.0e-2), inf/D 0.909298, sup/D 1.000000, R 3.999999, reach/R 1.000000
+--
+    thread 'edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight' (24885) panicked at crates/geom-brep/tests/edge_extent_bounds.rs:392:5:
+    circle, closed: sup 4 is short of D 4.000000000000001
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.120s] (2232/6969) geom-brep::all foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from
+  stdout ───
+
+    running 1 test
+    test foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from ... FAILED
+
+--
+    thread 'foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from' (24918) panicked at crates/geom-brep/tests/foot_and_phase_rows.rs:66:9:
+    assertion `left == right` failed: -7: on the axis
+      left: Some(-6.283185307179586)
+     right: Some(-7.0)
+--
+        FAIL [   0.117s] (2781/6969) geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+  stdout ───
+
+    running 1 test
+    test r2_probes::r2_probe_sphere_seam_bit_move ... FAILED
+
+--
+    thread 'r2_probes::r2_probe_sphere_seam_bit_move' (25974) panicked at crates/geom-brep/tests/r2_probes.rs:160:5:
+    assertion `left == right` failed: R2 sphere-seam row moved: legacy 2.500002427296977e-10 m, now 2.50000219669244e-10 m, delta 446054046 ULP
+      left: (446054046, 2.500002427296977e-10, 2.50000219669244e-10)
+     right: (2349518964, 2.5000002068509275e-10, 2.5000014215237624e-10)
+--
+        FAIL [   0.567s] (5384/6969) topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation' (31626) panicked at crates/topo/src/ruled_region_rows.rs:875:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 37
+     right: 35
+--
+        FAIL [   0.153s] (5542/6969) topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+  stdout ───
+
+    running 1 test
+    test splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size ... FAILED
+
+--
+    thread 'splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size' (32014) panicked at crates/topo/src/splitting/containment.rs:3315:13:
+    the arc's point at -0.00045 lies 0.5062501916684451 out, past 0.5062501912455183
+       1: core::panicking::panic_fmt
+--
+        FAIL [   0.727s] (5751/6969) topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+  stdout ───
+
+    running 1 test
+    test torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation ... FAILED
+
+--
+    thread 'torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation' (32596) panicked at crates/topo/src/torus_region.rs:1216:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+      left: 38
+     right: 33
