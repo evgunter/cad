@@ -93,6 +93,7 @@ pub mod ladder {
     pub use geom_core::ladder::*;
 }
 pub mod locus;
+pub mod locus_certificate;
 pub mod mapped;
 pub(crate) mod memo;
 #[cfg(any(test, feature = "test-support"))]
@@ -131,6 +132,7 @@ pub use carrier_pose::{
     POSE_PLANES_FACING, POSE_PLANES_PARALLEL, POSE_ROUND_LARGER, POSE_ROUND_SIDE, PlanePair,
     PlaneRound, Posed, RoundPair, carrier_pose, directions_parallel,
 };
+pub use locus_certificate::LocusCertificate;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,

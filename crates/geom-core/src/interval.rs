@@ -882,6 +882,10 @@ impl crate::real::CertifiedEnclosure for Interval {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
     }
 
+    fn same_value(self, other: Self) -> bool {
+        self.same_enclosure(other)
+    }
+
     fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
         record
     }

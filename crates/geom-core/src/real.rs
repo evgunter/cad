@@ -1906,6 +1906,14 @@ pub trait CertifiedEnclosure: Copy {
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
 
+    /// **Whether `other` is this value**, as a certificate's support is
+    /// compared (`geom_brep::LocusCertificate`): the same bits at a
+    /// value scalar, the same enclosure and decoration at an interval,
+    /// and the same expression node at the symbolic tier, where equal
+    /// bits in the numeric channel do not make two expressions one.
+    /// `false` is always sound: the reader re-derives.
+    fn same_value(self, other: Self) -> bool;
+
     /// `record`, held as this scalar holds a certifying door's record
     /// ([`Real::Carries`]): the one constructor of a held record, on the
     /// trait a dual does not implement.
@@ -1942,6 +1950,10 @@ pub trait TangentTransport: Real {
 impl CertifiedEnclosure for f64 {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         (!self.is_nan()).then_some((self, self))
+    }
+
+    fn same_value(self, other: Self) -> bool {
+        self.to_bits() == other.to_bits()
     }
 
     fn carried<C: Copy + Debug + Send + Sync + 'static>(record: C) -> C {

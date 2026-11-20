@@ -2123,6 +2123,10 @@ impl crate::real::CertifiedEnclosure for Probe {
         crate::real::CertifiedEnclosure::certified_bracket(self.0)
     }
 
+    fn same_value(self, other: Self) -> bool {
+        crate::real::CertifiedEnclosure::same_value(self.0, other.0)
+    }
+
     fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
         record
     }
