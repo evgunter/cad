@@ -4239,7 +4239,7 @@ fn bound_within_eps<T: Decide>(
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
     let gap = if gap.is_finite() { gap } else { f64::NAN };
-    let margin = Margin::of(eps_of(tol)).less(gap);
+    let margin = Margin::of(eps_of::<T>(tol)).less(gap);
     geom_core::k_stats::decide_reported(GAP_WITHIN_EPS, margin, band)
         .map(|d| !past_eps(&d))
         .map_err(|cause| {
