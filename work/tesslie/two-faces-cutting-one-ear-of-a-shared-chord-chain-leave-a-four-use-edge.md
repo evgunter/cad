@@ -2,8 +2,10 @@
 id: two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge
 kind: issue
 title: two faces that both cut the same ear of a shared chord chain leave an edge of four triangles that only check_mesh sees
-status: open
+status: dispatched
 opened: 2026-10-28
+branch: tesslie/four-use-edge
+rides_with: a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles
 ---
 
 
