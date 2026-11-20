@@ -270,7 +270,6 @@ of them is a defect.
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
-| A number told to a person | `crates/geom-core/README.md`, "A number told to a person": the told quantity a payload field holds; no sentence formats a scalar | [failure] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
@@ -2616,7 +2615,6 @@ is the board and `work/README.md` its contract.
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
-| `crates/geom-core/README.md`, "A number told to a person" section only | Ratified (Ev, PR 7154) | How a number in a refusal, a recourse or a readout is said: one opaque told quantity held by the payload field, spelled by its role (given, computed, compared, offered), in the notation of whoever reads it |
 | `crates/geom-core/README.md`, "Float rounding" section only | Ratified (Ev, PR 6329) | Float rounding: the run's admission rule on (ε, K), re-posing never charging, the `Lever` and its sources, the consumed extent, the session-box predicate ([simple.conditioned]) |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |

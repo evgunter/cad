@@ -294,7 +294,7 @@ the kernel or the file.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
-## A number told to a person
+### A number told to a person
 
 **A number a sentence quotes is a told quantity, and the told quantity
 says it.** A refusal, a recourse or a readout never formats a scalar
