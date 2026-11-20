@@ -32,7 +32,7 @@
 //! follow-up — no dead per-kind code here.
 //!
 //! **A promoted carrier has no knots**, so the C⁰-knot split at the
-//! import door (`docs/DESIGN.md` [topology]) has nothing to cut on it:
+//! import door (`docs/DESIGN.md` `[topology]`) has nothing to cut on it:
 //! recognition runs on the WHOLE carrier, at its one construction
 //! site, before any normalization reads it.
 //!
@@ -158,7 +158,7 @@
 //! frame and the canonical control points are closed forms in `f64`,
 //! posed well-conditioned (the tangent point's divisor is at least
 //! `sin(δ/2)`, [`SPAN_MARGIN`]) and then treated as exact
-//! (`docs/DESIGN.md` [simple.conditioned]), as the arc-rim certificate
+//! (`docs/DESIGN.md` `[simple.conditioned]`), as the arc-rim certificate
 //! treats its own `Ĉ`. The comparison against them is CERTIFIED: each
 //! distance, the miss, and their sum are read at `Interval` and rounded
 //! outward, so the residual is never an ulp on the unsafe side.
