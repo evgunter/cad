@@ -29,7 +29,9 @@ use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{AtRestBody, BooleanDecision, BooleanError, BooleanResult, Coincide};
 
-/// The turn the pose was filed at.
+/// The turn the pose was filed at: `π/2` cut to eight places, the miss
+/// being the pose.
+#[allow(clippy::approx_constant)]
 const FILED_TURN: f64 = 1.5707963;
 
 /// The two drums, B turned `turn` about `x` and moved, with the closed
