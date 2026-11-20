@@ -249,9 +249,10 @@ pub fn loop_windings<T: AtRestPolicy>(
 ///    ([`PcurveMintError::RowInterval`] where it does not — a row left
 ///    from before a split or a carrier swap) **and is re-certified**
 ///    against its carrier and chart, on a complete face and a
-///    half-minted one alike. The stored certificate is never consulted
-///    (re-certification re-derives, it does not trust, exactly as
-///    [`geom_brep::EdgeCurve::recertify`]). A row is its placed image
+///    half-minted one alike. A row's own certificate is read only
+///    where its support (carrier, surface, band, fitted door) compares
+///    the same, and derived again everywhere else, as
+///    [`geom_brep::EdgeCurve::recertify`] reads an edge's locus. A row is its placed image
 ///    (C4), or on a sphere its involution twin; where a loop's walk reads
 ///    it a whole period over, that is the row with its joint's deck
 ///    element, never a stored row of its own.

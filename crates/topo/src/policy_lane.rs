@@ -209,7 +209,8 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
 }
 
 /// **A certifying scalar's edge door at rest**
-/// ([`AtRestPolicy::reattach_edge`]): the certificate re-derived in full.
+/// ([`AtRestPolicy::reattach_edge`]): every check run again, the edge's
+/// locus certificate read where its support is unchanged.
 #[allow(clippy::too_many_arguments)] // the door's own inputs
 pub(crate) fn certifying_reattach<T: Decide + geom_core::CertifiedBounds>(
     curve: &EdgeCurve<T>,

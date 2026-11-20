@@ -158,3 +158,110 @@ pub(crate) fn same_surface<T: Real>(a: &Surface<T>, b: &Surface<T>) -> bool {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve3, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Real, Sym, Vec3};
+
+    use super::LocusCertificate;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn plane(z: f64) -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, z),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn cylinder(radius: f64) -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn net() -> Curve3<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let points = vec![Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)];
+        Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap()))
+    }
+
+    /// **A certificate reads exactly its own support**: the same
+    /// support reads, the pair in either order reads, and a spline
+    /// carrier read through another allocation of the same data reads;
+    /// each input changed alone misses — the carrier's data, a closed
+    /// form's radius, an end of the interval a ulp off, a surface's
+    /// scalar, the band. Red under a comparison that leaves out an input
+    /// the limbs read, or one that takes a twin allocation for another
+    /// curve.
+    #[test]
+    fn a_certificate_reads_its_own_support_and_misses_each_changed_input() {
+        let (p, c) = (plane(0.0), cylinder(1.0));
+        let params = (0.0, 1.0);
+        let spline = net();
+        let held = LocusCertificate::derived(&spline, params, [&p, &c], band());
+        assert!(held.reads(&spline, params, [&p, &c], band()), "its own support");
+        assert!(held.reads(&spline, params, [&c, &p], band()), "the pair in the other order");
+        let twin = net();
+        assert!(
+            held.reads(&twin, params, [&p, &c], band()),
+            "a twin allocation of the same net"
+        );
+        let other = {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let points = vec![Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 1e-12)];
+            Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv, points, vec![1.0, 1.0]).unwrap()))
+        };
+        assert!(!held.reads(&other, params, [&p, &c], band()), "another net");
+        let ulp = f64::from_bits(1.0_f64.to_bits() - 1);
+        assert!(!held.reads(&spline, (0.0, ulp), [&p, &c], band()), "an end a ulp off");
+        assert!(
+            !held.reads(&spline, params, [&plane(1e-15), &c], band()),
+            "a surface's scalar"
+        );
+        assert!(
+            !held.reads(&spline, params, [&p, &c], Band::new(1e-9, 2e-8).unwrap()),
+            "the band"
+        );
+        let circle = |r| Curve3::circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x());
+        let round = LocusCertificate::derived(&circle(1.0), params, [&p, &c], band());
+        assert!(round.reads(&circle(1.0), params, [&p, &c], band()), "a closed form's own");
+        assert!(
+            !round.reads(&circle(1.0 + f64::EPSILON), params, [&p, &c], band()),
+            "a closed form's radius"
+        );
+    }
+
+    /// **At `Sym` one value is one expression**: a literal read twice is
+    /// one node and the same value, while two unknowns with equal
+    /// numeric channels are not. At `f64` the bits decide, so `0.0` and
+    /// `-0.0` differ. Red under a comparison that reads `Sym`'s numeric
+    /// channel alone.
+    #[test]
+    fn a_symbolic_value_is_the_same_only_as_its_own_expression() {
+        let budget = geom_core::SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (verdicts, _) = geom_core::sym::with_session(budget, || {
+            let one = Sym::<f64>::from_f64(1.0);
+            (
+                one.same_value(Sym::from_f64(1.0)),
+                Sym::opaque(1.0).same_value(Sym::opaque(1.0)),
+            )
+        });
+        assert_eq!(verdicts, (true, false), "(a literal twice, two unknowns)");
+        assert!(!0.0_f64.same_value(-0.0), "f64 compares bits");
+    }
+}

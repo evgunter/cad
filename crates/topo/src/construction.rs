@@ -2277,8 +2277,8 @@ pub trait Construct<T: geom_core::Real> {
     /// was certified against THIS half-edge's carrier, THIS face's
     /// surface, and a branch consistent with its loop. That is the
     /// tier-3 pcurve pass's job ([`crate::pcurves::validate_pcurves`]),
-    /// which re-derives all three and never consults the stored
-    /// certificate.
+    /// which reads all three from the body and reads the stored
+    /// certificate only where they are its support.
     ///
     /// The ordinary producer is [`crate::pcurves::mint_pcurves`], which
     /// the splitting lane runs on every side it mints.

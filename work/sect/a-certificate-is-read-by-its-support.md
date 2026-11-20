@@ -2,12 +2,13 @@
 id: a-certificate-is-read-by-its-support
 kind: unit
 title: A certificate is read by its support: a chord's locus certificate is its section component's cut to its span, doors that keep the support carry it, the gate compares (PR 7182's ruling)
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: H
 refs: [a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build, an-operation-retakes-each-carried-chords-rung-3-certificate-five-times]
 branch: sect/certificate-by-support
+closed: 2026-11-20
 ---
 
 
@@ -38,3 +39,15 @@ per op on bit-identical support, the projected pcurve row three times;
 Closes with it: `an-operation-retakes-each-carried-chords-rung-3-certificate-five-times`
 and `a-fitted-chords-projected-pcurve-certificate-is-taken-at-three-doors-per-operation`
 (on PR 7173's branch). Raise beside ONEHOME's carry rows.
+
+## Closed (2026-11-20)
+
+Built on `sect/certificate-by-support` except item 2: a carried
+component's `SsiCertificate` is taken on the loop's base-opening net,
+not on the net a chord's door reads, so the chord's locus certificate
+is not a restriction of one already held. That question is
+`a-chords-locus-certificate-is-not-its-section-components-cut-to-its-span`
+(design). Each chord now takes rung 3 once, at its join door; doors
+that keep its support read it. Split rows and split edges, whose spans
+differ from their parent's, derive: that is the same restriction
+question, filed there.

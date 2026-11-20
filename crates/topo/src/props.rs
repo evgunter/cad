@@ -6800,10 +6800,11 @@ pub trait AtRestPolicy: Decide {
 
     /// **This scalar's edge door at rest**: what
     /// [`AtRestPolicy::attach_edge`] gives an edge to carry, derived
-    /// again from the edge as it stands — the certificate re-derived in
-    /// full at a certifying scalar
-    /// ([`geom_brep::EdgeCurve::recertify_stated`]; the stored one is
-    /// never read), the mint re-run at a tangent-transport scalar.
+    /// again from the edge as it stands — every check at a certifying
+    /// scalar ([`geom_brep::EdgeCurve::recertify_stated`]), the edge's
+    /// locus certificate read where its support is the edge's as it
+    /// stands and derived again where it is not; the mint re-run at a
+    /// tangent-transport scalar.
     ///
     /// # Errors
     ///
