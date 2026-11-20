@@ -1121,14 +1121,14 @@ mod tests {
     /// the tolerance to tighten below, in metres, and ends there; the
     /// margin is on a side the decision passes on (both ends of an
     /// enclosure), so a smaller tolerance does decide it passing; and
-    /// the value is its nearer end's `|m|/K`. A Negative verdict never
+    /// the value is its nearer end's `|m|/K` told as a bound. A Negative verdict never
     /// offers one (no smaller tolerance passes it).
     #[test]
     fn no_tighten_offer_is_unvalued_and_a_negative_verdict_offers_none() {
         let band = band();
         let k = band.escalate() / band.zero();
         // The tolerance a smaller one than which decides `margin`
-        // passing, read through the door this test may use.
+        // passing, `|m|/K`, which the sentence tells as a bound.
         let passing_below = |passes: SizedPass, margin: MarginDiag| {
             let on = |v: f64| match passes {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
@@ -1152,7 +1152,9 @@ mod tests {
                 .and_then(|v| v.strip_suffix(" m"))
                 .and_then(|v| v.parse::<f64>().ok())
                 .is_some_and(|v| {
-                    passing_below(passes, margin).is_some_and(|want| v == want && v > 0.0)
+                    passing_below(passes, margin).is_some_and(|want| {
+                        geom_core::test_support::is_told_offer_of(v, want) && v > 0.0
+                    })
                 }),
         };
         for passes in [

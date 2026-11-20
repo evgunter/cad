@@ -237,9 +237,10 @@ fn split_circle_carrier_intersection_edge() {
     // r = 1/sqrt(2)) sits inside the zero band although the raw
     // angular margin is above eps.
     let eps = Tol::witness().get().eps;
-    let geom::Curve3::Circle(geom::Circle { radius, .. }) = parent.carrier().clone() else {
+    let geom::Curve3::Circle(conic_k) = parent.carrier().clone() else {
         panic!("circle carrier vanished");
     };
+    let radius = conic_k.radius();
     assert!(radius < 1.0);
     let (c0, c1) = body
         .get_curve_geom(body.get_edge(created.new_edge).unwrap().curve)

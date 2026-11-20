@@ -122,15 +122,18 @@ impl<T: Decide> ConicBend<T> {
             // its tangent at angle `θ`, which grows to `θ = π`; most at
             // `θ = min(span, π)` (the sine form, since `1 − cos θ`
             // cancels to nothing at a small `θ`).
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => BendBounds::Planar {
-                least: T::one() / radius,
-                reach: (radius * span).min(radius * T::from_f64(2.0)),
-                rise: radius
-                    * T::from_f64(2.0)
-                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
-                arc: radius * span,
-                lifts_to: radius * T::pi(),
-            },
+            geom::Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                BendBounds::Planar {
+                    least: T::one() / radius,
+                    reach: (radius * span).min(radius * T::from_f64(2.0)),
+                    rise: radius
+                        * T::from_f64(2.0)
+                        * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
+                    arc: radius * span,
+                    lifts_to: radius * T::pi(),
+                }
+            }
             // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
             // ends of the minor axis to `a/b²` at the ends of the major,
             // and no point lies further than the major diameter. Off its

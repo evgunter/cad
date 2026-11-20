@@ -2,12 +2,14 @@
 id: a-chart-walks-area-clearing-its-bound-restates-rounded-room
 kind: issue
 title: A chart walk's area clearing its error bound restates Rounded's room on a type of its own
-status: dispatched
+status: closed
 priority: P1
 cost: E
 opened: 2026-11-02
 rides_with: half-angle-taylor-carries-value-error-tuples-beside-rounded
 branch: oneround/rounded-room
+closed: 2026-11-20
+pr: 7145
 ---
 
 
@@ -37,3 +39,7 @@ charge on the f64 lane; if it lands that way, this row closes with it.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Closed (2026-11-20, PR 7145)
+
+Closed the second way the row allowed: the walk's sum is not a `Rounded`, and `WalkSum`'s doc says why (its bound is a truncation against the loop's own area with the sum's rounding added, read per step by the bisection). `area_clears` takes the `LoopWalk` it reads and is the module's one magnitude-past-its-bound read.
