@@ -52,3 +52,7 @@ are still two derivations, and nothing proves they are one rule. Whether
 `wrap_strip` reads its period off the loop's stored lift is still open.
 `wrap_strip`'s hand fold under `interior_is_left` is ONECOPY's
 `polygon-orientation-callers-fold-the-interior-side-by-hand`.
+
+## Moved to TESSWALK (2026-11-20, CHARTTAIL triage)
+
+The topo half is done (EMBED, above): `pcurves/decision.rs` `singular_turn` takes its step through `PolygonOrientation::of_face(sides.sense).to_interior(left)`, and no `pcurves` entry remains in the fold census. What is left is all in `crates/mesh/src/walk.rs`: whether `wrap_strip`'s `period` (from the poles' heights, `rising`) and `singular_turn`'s stored step are one rule, and whether `wrap_strip` reads its period off `Body::loop_lift` instead of deriving it again (census entry `("crates/mesh/src/walk.rs", "turn")`). That is TESSWALK's ground, beside its `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` (the same read for `unwrap_tie`) and ONECOPY's `polygon-orientation-callers-fold-the-interior-side-by-hand`. The band stays P1: two derivations of one rule. Moved by `git mv`, id unchanged.

@@ -2,11 +2,12 @@
 id: main-red-ringed-curved-doors-reds-four-sweep-rows
 kind: issue
 title: Main red: PR 5664's ringed curved doors reds bisector_nodes and review_4781_r1 at 1e-12, widens the meeting-axes pose to every eps, and the ray-wall twins to 62 pairs
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12, main-reds-editor-core-slow-set-and-the-k-probe-sweep]
+closed: 2026-11-20
 ---
 
 
@@ -82,3 +83,7 @@ cites NEARPOINT's
 This row's `bisector_nodes` entry is therefore not what main produces.
 Whether the probe-ray exhaustion stands behind the volume refusal is
 unreadable until the refusal goes.
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Every entry is owned elsewhere, and no pin in `crates/` cites this row. `bisector_nodes`: NEARPOINT's pin, with the probe-ray exhaustion behind it in TANG's `main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`. `review_4781_r1`: SHELL's `main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`, whose text now carries the one residue (whether the box-on-seam `RayExhausted` behind its pin is right). The meeting-axes pose is unpinned (above). Ray-wall twins: FLUSH and CPAIR.
