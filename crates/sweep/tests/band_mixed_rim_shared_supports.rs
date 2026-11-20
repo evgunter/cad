@@ -121,7 +121,7 @@ const Z: Point3<f64> = Point3::new(0.0, 0.0, 1.0);
 /// rings on two planes of normal `±rings_on` one each, and the volume
 /// removed at `truth`. Returns the result's volume, or `None` where the
 /// tightest Interval row refuses with the section's touch escalation.
-fn carve<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn carve<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],

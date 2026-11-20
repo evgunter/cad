@@ -121,7 +121,10 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
 pub(crate) fn volume_enclosure<
-    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     body: &Body<T>,
 ) -> (f64, f64) {

@@ -67,7 +67,7 @@ fn validated<T: geom_core::Decide>(loops: Vec<ProfileLoop<T>>) -> ValidatedProfi
 }
 
 /// All three tiers, by name.
-fn tiers<T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn tiers<T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy>(
     body: &Body<T>,
     what: &str,
 ) {

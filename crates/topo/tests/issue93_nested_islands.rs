@@ -172,7 +172,9 @@ fn census<
 }
 
 fn tiers<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     bb: &BooleanBody<T>,
     label: &str,

@@ -2049,7 +2049,7 @@ fn the_corpus_pot_holds_at_both_scalars() {
 
 /// The faces of `body` shelled to `t` on its cavity's shell, with the
 /// shelled body: the clone the cavity gate asks.
-fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
+fn cavity_of<T: Scalar + topo::CertifiedPolicy>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
     let hollow = topo::shell(
         &sweep::test_support::finished("the operand", body, tol()),
         T::from_f64(t),

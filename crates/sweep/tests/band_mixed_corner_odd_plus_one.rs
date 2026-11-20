@@ -74,7 +74,7 @@ fn off<T: Scalar>(s: &Surface<T>, p: geom_core::Point3<T>) -> f64 {
 /// minted (the end curves, the mitres, the trimlines) on both its faces
 /// within `1e-12`. A single corner's end curves are three: the odd
 /// strip's chord in `E`, and each strip's far end.
-fn builds<T: Scalar>(
+fn builds<T: Scalar + topo::CertifiedPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     (s, truth, corners, arcs): (f64, f64, usize, usize),

@@ -105,7 +105,7 @@ fn builds<T: Scalar>(
 
 /// [`builds`], naming totality read over the request less `smooth`: a
 /// bore's seams, which the blend leaves as they are.
-fn builds_but<T: Scalar>(
+fn builds_but<T: Scalar + topo::CertifiedPolicy>(
     body: &Body<T>,
     (edges, smooth): (&[EdgeKey], &[EdgeKey]),
     (verb, size): (Verb, f64),

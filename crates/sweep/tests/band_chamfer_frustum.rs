@@ -43,7 +43,7 @@ fn ring(s: f64, centroid: f64) -> f64 {
     PI * centroid * s * s
 }
 
-fn volume<T: CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> T {
+fn volume<T: CertifiedBounds + topo::CertifiedPolicy>(body: &Body<T>) -> T {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
@@ -66,7 +66,7 @@ fn chamfer<T: Decide + Bounds + topo::AtRestPolicy>(
 /// volume moved by `want` — at `f64` to 1e-12, at `Interval` bracketed
 /// within a nanometre cubed — and the birth records total over
 /// `blended`, the request less any smooth seam it carries.
-fn built<T: Decide + CertifiedBounds + topo::AtRestPolicy>(
+fn built<T: Decide + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, blended): (&[EdgeKey], &[EdgeKey]),

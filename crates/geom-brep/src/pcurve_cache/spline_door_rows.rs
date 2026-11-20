@@ -194,7 +194,7 @@ fn doors<T: geom_core::Certifies>(
 
 /// The edge certificate of the ruling at `place`, described by its
 /// stated column on the wall.
-fn stated<T: Decide>(place: Place, lanes: Lanes<T>) -> Result<(), CertifyError> {
+fn stated<T: geom_core::Certifies>(place: Place, lanes: Lanes<T>) -> Result<(), CertifyError> {
     let c = T::from_f64;
     let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
     let key = table.insert(ring::<T>());
@@ -235,7 +235,7 @@ edge_at!(edge_interval, Interval);
 
 /// Every door's reading at every place, the misreads gathered so each
 /// door that misreads is named.
-fn every_door_reads_the_wall<T: Decide>(lanes: Lanes<T>) {
+fn every_door_reads_the_wall<T: geom_core::Certifies>(lanes: Lanes<T>) {
     let mut misread = Vec::new();
     let mut check = |door: &str, place: Place, ok: bool, got: String| {
         if !ok {

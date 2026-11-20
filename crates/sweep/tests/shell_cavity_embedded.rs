@@ -47,7 +47,7 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn shell<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn shell<T: Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy>(
     body: Body<T>,
     t: f64,
 ) -> Result<Shelled<T>, ShellError<T>> {

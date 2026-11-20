@@ -6680,8 +6680,9 @@ mod wiring_rows {
 
     /// `Ok(())` when the shell door holds `shell_open`; otherwise the
     /// name of the field that moved.
-    fn holds_the_certified_shell_door<T: CertifiedPolicy + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_shell_door<
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
+    >() -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             ShellDoor::<T>::certified().open,
             crate::shell::shell_open_at::<T> as fn(_, _, _, _) -> _,

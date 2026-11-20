@@ -101,7 +101,9 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// tip mints a copy for the side its pieces meet on, whichever side of
 /// the plane that is.
 fn both_sided_pinch_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     for (profile, shells) in [
         (BUMP_ONLY, [1, 2]),
@@ -175,7 +177,9 @@ fn r1_both_sided_pinch_f64() {
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
 fn mirror_identity_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
@@ -586,7 +590,9 @@ fn r4_extended_sweep_volume_identities() {
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
 fn straddle_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     delta: f64,
 ) {

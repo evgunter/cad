@@ -225,7 +225,7 @@ fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
 /// `row` certified under its stated shared row, with the contact class
 /// read by the certificate's own reading at the certificate's own lever
 /// (`edge_extent_inf` over the edge), over each wall's certified image.
-fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certified<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
 ) -> Result<RowContact, CertifyError> {
     let selector = stated(row).expect("both walls state the row and certify it");

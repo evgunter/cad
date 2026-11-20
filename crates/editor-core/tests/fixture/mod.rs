@@ -699,7 +699,7 @@ pub fn insert_pinned(
 /// # Errors
 ///
 /// The registry's own refusal: the product did not gather.
-pub fn at_rest<T>(
+pub fn at_rest<T: topo::CertifiedPolicy>(
     doc: &editor_core::ProfileDoc,
     ev: &Evaluation<T>,
 ) -> Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>

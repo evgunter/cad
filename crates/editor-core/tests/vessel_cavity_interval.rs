@@ -55,7 +55,7 @@ fn pot_and_vessel<T: Scalar>() -> (Body<T>, Body<T>) {
 }
 
 /// The pot shelled sealed to the vessel's wall, and its cavity's faces.
-fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
+fn sealed_cavity<T: Scalar + topo::CertifiedPolicy>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
     let tol = Tol::witness();
     let finished = |what, b| sweep::test_support::finished(what, b, tol);
     let hollow = topo::shell(&finished("the pot", pot), T::from_f64(vessel::WALL), tol)

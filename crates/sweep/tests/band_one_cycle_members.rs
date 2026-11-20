@@ -151,7 +151,10 @@ pub(crate) fn cup_faces<T: Real + Bounds>(
 /// midpoint on the closed form.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
 pub(crate) fn assert_taken<
-    T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>> + geom_core::CertifiedBounds,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + AtRestPolicy<Finished = topo::AtRestBody<T>>
+        + geom_core::CertifiedBounds,
 >(
     verb: Verb,
     body: &Body<T>,

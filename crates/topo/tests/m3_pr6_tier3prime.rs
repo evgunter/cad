@@ -56,7 +56,9 @@ fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>
 /// The green/red promotion pair: 3′ passes with the carried contacts,
 /// and withholding them yields `UnrecordedContact` (and nothing else).
 fn assert_promoted<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     b: &BooleanBody<T>,
 ) {
@@ -79,7 +81,9 @@ fn assert_promoted<
 /// them, because each vertex-vertex record's two vertices sit on one
 /// point key, which the census reads as structure.
 fn assert_keyed<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     b: &BooleanBody<T>,
 ) {
@@ -148,7 +152,9 @@ fn tangent_edge_promoted() {
 /// classifies Out ⇒ the typed empty. ∖: operand A (records dropped
 /// with B absent), tier 3.
 fn skew_edges_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
@@ -267,7 +273,9 @@ fn edge_rest_promoted_d4_pin() {
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
 fn flush_rests_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let slab = finished_brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let pillar = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
@@ -310,7 +318,9 @@ fn flush_rests() {
 /// must find nothing and 3′ ≡ tier 3 (plus the census actually run) —
 /// pinned on a plain prism, an L-prism, and a Seamed boolean result.
 fn tier3_equivalence_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     let plain = brick::<T>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     assert_eq!(validate_geometric(&plain, Tol::witness()), Ok(()));

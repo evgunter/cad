@@ -119,7 +119,7 @@ pub(crate) fn edges_at<T: Decide + Bounds>(
 }
 
 /// A body's volume and the half-width of its certified enclosure.
-pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -173,7 +173,7 @@ pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError)
 /// at ε = 1e-12 the row refuses as `tightest` says instead
 /// ([`tightest_interval`]).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -364,7 +364,7 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
 /// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
 /// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
-pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),

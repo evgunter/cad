@@ -235,7 +235,7 @@ fn certify_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
 
 /// The cap crossing described as a tangency at `T`, with the surfaces
 /// in the (plane, cylinder) order or reversed.
-fn tangent_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
+fn tangent_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     r: f64,
     reversed: bool,
 ) -> Result<EdgeCurve<T>, CertifyError> {

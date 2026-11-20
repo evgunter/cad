@@ -102,7 +102,7 @@ fn split_rims<T: Decide + Bounds + topo::AtRestPolicy>(
 }
 
 /// `body` finished and measured: its certified volume as `[lo, hi]`.
-fn measured<T: Decide + Bounds + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+fn measured<T: Decide + Bounds + geom_core::CertifiedBounds + topo::CertifiedPolicy>(
     body: Body<T>,
     what: &str,
 ) -> (f64, f64) {

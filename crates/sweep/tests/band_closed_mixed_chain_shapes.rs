@@ -301,7 +301,7 @@ pub(crate) fn rim_where<T: Decide + Bounds>(
         .collect()
 }
 
-pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -453,7 +453,7 @@ pub(crate) fn assert_touch_escalation(what: &str, e: &BlendError) {
 /// A plate of outline `o`, `z ∈ [0, h]`, every edge filleted at `r`, at
 /// any scalar: tier 3, one band face per link of each rim, Euler, and
 /// the volume removed at Pappus's closed form within a tight enclosure.
-fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     o: &Outline,
     h: f64,
@@ -763,7 +763,7 @@ fn lattice_slab<T: Decide + topo::AtRestPolicy>(x0: f64, y0: f64, z0: f64, h: f6
 /// and near `R/2`, at both scalars, removing Pappus's volume.
 #[test]
 fn a_lattice_drawn_rounded_plate_fillets_whole() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str, r: f64) {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(what: &str, r: f64) {
         let body = lattice_slab::<T>(0.0, 0.0, 0.0, 0.5);
         let out = match fillet_edges(
             &at_rest(&body, tol()),
@@ -809,7 +809,7 @@ fn a_lattice_drawn_rounded_plate_fillets_whole() {
 /// its mouth removes `A·(P + 2πd)`.
 #[test]
 fn a_lattice_drawn_pockets_mouth_off_the_origin_fillets_whole() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str, r: f64) {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(what: &str, r: f64) {
         use topo::boolean::{BooleanInputs, BooleanOp, SweepStrategy, boolean_op_with};
         let block = sweep::test_support::block::<T>(3.0, 2.0, 1.0, tol());
         let cut = lattice_slab::<T>(1.5, 1.0, 0.5, 1.0);

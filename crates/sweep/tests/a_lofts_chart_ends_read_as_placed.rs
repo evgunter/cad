@@ -116,7 +116,7 @@ fn bounds<T: Bounds>(x: T) -> (f64, f64) {
 /// image's end.
 #[test]
 fn a_split_rims_cut_is_never_read_as_a_chart_end() {
-    fn at<T: Decide + Bounds + geom_core::CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+    fn at<T: Decide + Bounds + geom_core::CertifiedBounds + topo::CertifiedPolicy>(scalar: &str) {
         let mut body = point_loft::<T>();
         let (he, row) = body
             .pcurves()

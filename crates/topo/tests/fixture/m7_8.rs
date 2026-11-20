@@ -110,7 +110,7 @@ where
 /// The check-2 findings (`EdgeCertification`) the certified at-rest door
 /// raises on `body` — the carrier question alone; check 7 on the
 /// described-NURBS face is a separate one.
-pub fn edge_findings<T>(body: &Body<T>) -> usize
+pub fn edge_findings<T: topo::CertifiedPolicy>(body: &Body<T>) -> usize
 where
     T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
 {

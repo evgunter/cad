@@ -122,7 +122,7 @@ pub(super) struct InsertOut<T: geom_core::Real> {
 /// mint (module docs).
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-fn insert_null_pairs<T: Decide>(
+fn insert_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
     contact: VvContact,

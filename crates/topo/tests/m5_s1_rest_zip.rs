@@ -57,7 +57,9 @@ fn glue<
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
 fn assert_glued<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     g: &BooleanBody<T>,
 ) {

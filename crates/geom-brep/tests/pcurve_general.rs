@@ -664,7 +664,7 @@ fn flat_wall() -> NurbsSurface<f64> {
 /// ring wall in two sub-arcs, where the circle crosses the knot line
 /// between them and the image breaks there.
 fn the_derived_route_certifies_a_line_and_a_bending_carrier<
-    T: geom_core::Decide + geom_core::CertifiedBounds,
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
 >() {
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
@@ -728,7 +728,7 @@ fn derived_route_certifies<T: geom_core::Certifies + geom_core::CertifiedBounds>
 /// of a step past one, and within a few feet of either end of the span.
 /// The crossing is a node of every rung wherever it falls, and the image
 /// certifies.
-fn a_knot_crossing_anywhere_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+fn a_knot_crossing_anywhere_certifies<T: geom_core::Certifies + geom_core::CertifiedBounds>() {
     let ring = ring_wall();
     let mut spans = vec![
         ("at a foot", (0.0, 1.2)),

@@ -39,8 +39,9 @@ fn sorted_marks<K: core::fmt::Debug, V: core::fmt::Debug>(
 }
 
 /// The certified doors — every scalar whose bound names the right.
-fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>()
--> Doors<T> {
+fn certified<
+    T: geom_core::CertifiedBounds + topo::CertifiedPolicy<Finished = topo::AtRestBody<T>>,
+>() -> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
@@ -105,6 +106,7 @@ fn dump<T: geom_core::Decide + core::fmt::Debug>(
 
 fn dump_composed<
     T: geom_core::CertifiedBounds
+        + topo::CertifiedPolicy
         + core::fmt::Debug
         + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(

@@ -161,7 +161,9 @@ fn pinches_along_an_operand_edge_refuse_their_overlapping_wedges_interval() {
 /// along the L's notch rim. Red if the reduction writes the edge-edge
 /// row only where both wedges read Out.
 fn assert_pinches_pass<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     for (name, r) in pinches::<T>() {
         let lines = 2;
