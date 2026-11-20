@@ -2,11 +2,12 @@
 id: the-conic-quadric-door-is-still-built-in-topo
 kind: issue
 title: "[topo.homes] arm 1: route's ConicQuadric door (boolean/conic_quadric) takes no Body and is still built in topo"
-status: open
+status: review
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: curve-surface-crossing-has-no-kind-pair-table
+pr: 7209
 branch: germ/conic-quadric-door
 ---
 
