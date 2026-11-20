@@ -771,14 +771,17 @@ fn a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it() {
     }
 }
 
-/// **A pierce whose branch the sweep did not record keeps the tangent
-/// plane.** With every recorded branch forgotten
-/// ([`topo::forget_branches`]), A's cap `30·escalate` off the station
-/// reads its pierces' sides as before the record, on the pierced wall's
-/// tangent plane, where the sagitta charge refuses
-/// `CurvedSectorSideUnsupported`; with the record it builds.
+/// **A pierce whose branch the sweep did not record reads the pierced
+/// wall's tangent plane, and lies flat in it.** With every recorded
+/// branch forgotten ([`topo::forget_branches`]), A's cap `30·escalate` off
+/// the station reads its pierces on B's wall's tangent plane: A's wall
+/// sector there has both bounds tied with that plane at first order, a
+/// curved sector flat on the pierced face that the glue door did not
+/// glue, which refuses `CurvedBooleanUnsupported` on A's wall, the
+/// piercing face (`vtxfac::unglued_flat_sector`, C8). Read against the
+/// recorded bisector plane instead, it builds.
 #[test]
-fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
+fn a_pierce_with_no_recorded_branch_lies_flat_in_the_tangent_plane() {
     let tol = Tol::witness();
     let d = 30.0 * geom_core::Band::linear(tol).unwrap().escalate();
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
@@ -789,12 +792,21 @@ fn a_pierce_with_no_recorded_branch_reads_the_tangent_plane() {
     topo::forget_branches(true);
     let forgotten = topo::intersect(&a, &b, tol);
     topo::forget_branches(false);
+    let walls: Vec<_> = a
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| a.face_surface(k).unwrap().kind() == geom::SurfaceKind::Cylinder)
+        .collect();
     assert!(
         matches!(
             forgotten,
-            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+            Err(topo::BooleanError::CurvedBooleanUnsupported {
+                operand: topo::Operand::A,
+                face,
+                kind: geom::SurfaceKind::Cylinder,
+            }) if walls.contains(&face)
         ),
-        "no record: the tangent plane's sagitta, got {forgotten:?}"
+        "no record: A's wall sector flat on B's tangent plane, unglued, got {forgotten:?}"
     );
     let recorded = topo::intersect(&a, &b, tol);
     assert!(

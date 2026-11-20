@@ -2,11 +2,13 @@
 id: chart-coherence-ships-off-and-nothing-schedules-turning-it-on
 kind: issue
 title: the chart-coherence resident defaults Off, which answers the no-consumer row with a check nobody runs — two measurements decide whether it turns on
-status: open
+status: dispatched
 opened: 2026-09-12
 refs: [2408]
 priority: P1
-cost: D
+cost: M
+branch: tesslie/coherence-default
+design: true
 ---
 
 

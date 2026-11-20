@@ -48,3 +48,16 @@ decisions on a hit, which limb 2's memo was written not to do ("the
 chart's decisions are taken outside the memo, every call"), so it is a
 design question for C2's owner before it is a change; the first is the
 pipeline's.
+
+## 2026-11-20: re-measured (`sect/ball-cylinder-cost`)
+
+On main `d44f46d3` (ball ∪ rod, default ε, opt-level 2, assertions off)
+the repeats are not 0.04 s: `analytic_rung3` ran 40 times on 16 distinct
+inputs (8 arcs four times, 8 once), and limb 2's memo served limb 2 but
+not the tube, so a repeat cost what a first call did. The repeats were
+1.39 of the rung-3 certificate's 2.81 s, in a 4.3 s operation. After
+that lane's tube lever (sphere × cylinder states its section's bounds,
+so `certify_branch` does not run) the rung-3 certificate is 15 % of a
+2.43 s operation, still on 40 calls; what the repeats cost now is
+`tube_bounds`'s hulls and limb 2's key rendering
+(`limb2_memo::rendered` formats the whole 501-point carrier per call).

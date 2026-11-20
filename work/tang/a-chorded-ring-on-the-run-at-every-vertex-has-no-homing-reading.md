@@ -73,4 +73,17 @@ every vertex of which is on the run reads `Undecided` and refuses
 (`a_ring_vertex_on_the_run_says_nothing`), since `path_ring_side`
 asks only vertices; a chord edge's midpoint would decide.
 
+## Evidence (2026-11-20, SECT `sect/coaxial-rehome`)
+
+SECT's `a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path`
+is not this row's shape. Its refusing ring was a pierce ring at
+(0.5, 1, 0) on the shaft's half-wall, strictly inside the run
+y ∈ [0, 1.5], and off the run. Every ruled path from it ran through a
+run vertex. Its ruling passed the section vertex (0.5, 0, 0), and its
+parallel passed the run's vertices at height 1 on the wall's two
+rulings. Detours (`ring_path::Carrier::detours`) now read it. A ring
+every vertex of which is on the run still reads `Undecided`
+(`wall_ring_rows::a_ring_vertex_on_the_run_says_nothing`), so this row
+stays open.
+
 Moved from TANGTAIL to TANG on 2026-11-20, by `git mv`, when TANGTAIL merged into TANG: TANGTAIL held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TANG carries.

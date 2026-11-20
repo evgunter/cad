@@ -1,7 +1,7 @@
 //! **A Boolean whose edge passes through a cone's apex reads the edge's
 //! meeting with the apex as the apex vertex's**: the edge's one root
 //! there, a double one, is placed on the cone face's apex vertex
-//! (`boolean::reduce::line_cone_roots`), splitting the edge there, and
+//! (`geom_brep::curve_face::line_quadric::line_cone_roots`), splitting the edge there, and
 //! the vertex pair reads the halves (`boolean::fan`). The cone of height
 //! 1 about `y`, apex at `(0, 1, 0)`, base radius `tan α` on `y = 0`, in
 //! both forms: its apex reached by one wrap edge
@@ -372,7 +372,7 @@ fn an_edge_ending_just_off_the_apex_refuses_box_first_and_builds_cone_first() {
 /// `0.3` of it in toward the axis at 45°. One box edge near the corner
 /// passes within the band of the apex, but its two roots there lie
 /// `1.3` to `3` zero bands from its end along it, past the band
-/// (`boolean::reduce::line_cone_roots`' spread rung): neither the end's
+/// (`geom_brep::curve_face::line_quadric::line_cone_roots`' spread rung): neither the end's
 /// incidence with the apex vertex nor a crossing the band places, so the
 /// edge refuses at the apex, naming the box as the edge's operand.
 #[test]
