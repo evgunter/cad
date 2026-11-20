@@ -160,9 +160,9 @@
 //! it. It is not the ε_in lane: the band is the run's ambient ε, the
 //! same tolerance everything else built here certifies at, and each
 //! finding carries the band it was judged against. And it is not on by
-//! default, because the examination has no shape door and would report
-//! a lane boundary (a trimmed curved face's loops) to callers who
-//! asked no question.
+//! default, because the examination reads a line or a circle carrier
+//! as an iso curve whether or not it is one, and would report a sphere
+//! cut off its axis to callers who asked no question.
 //!
 //! # Fail loud (D4 ¶5)
 //!
@@ -764,16 +764,16 @@ pub struct ImportOptions {
     /// [`StepImport::Solid::coherence`]. Default `false`.
     ///
     /// **Off by default, which is the examination's own posture rather
-    /// than timidity about its cost.** It has no shape door in front
-    /// of it: a curved face whose outer loop carries a conic or spline
-    /// trim carrier states none of the three conditions, so its loops
-    /// land in [`topo::CoherenceReport::unexamined`] as a LANE
-    /// BOUNDARY rather than a defect. A channel that is on for every
-    /// caller reports that lane boundary to callers who asked no
-    /// question, and a report that fires everywhere is not a report.
-    /// The registry resident on this same kernel door
-    /// (`editor_core`'s `CheckId::ChartCoherence`) ships `Off` for the
-    /// same reason.
+    /// than timidity about its cost.** It classifies a line or a circle
+    /// carrier by KIND, so a circle that is no iso curve of its chart —
+    /// a sphere cut off its axis — is read as a rim or a meridian and
+    /// reported in metres on a body that states every coordinate once
+    /// (`topo/tests/mesh8_coherence.rs`'s
+    /// `an_oblique_circle_on_a_sphere_is_misread_as_a_meridian`). A
+    /// channel that is on for every caller reports that to callers who
+    /// asked no question. The registry resident on this same kernel
+    /// door (`editor_core`'s `CheckId::ChartCoherence`) ships `Off`
+    /// for the same reason.
     ///
     /// **It decides nothing.** A finding is a MEASUREMENT of how far
     /// two of the file's own statements about one chart coordinate

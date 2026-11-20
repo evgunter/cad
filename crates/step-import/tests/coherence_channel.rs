@@ -18,15 +18,13 @@
 //!    about the at-rest validator, and the reason the crate can carry
 //!    no idea of coherence that could drift from the kernel's.
 //! 3. **What the committed import corpora actually produce**, which
-//!    is the measurement that priced this channel's default. The
-//!    examination has no shape door, so a curved face whose outer loop
-//!    carries a conic or spline trim carrier lands its loops in
-//!    `unexamined` — the hazard being that a diagnostic firing on
-//!    every analytic chart is worse than none. Measured across all
-//!    three corpora at the run's ambient ε: **zero findings
-//!    everywhere**, and `unexamined` on exactly ONE fixture. An
-//!    ordinary cylinder, cone, sphere or torus reports nothing at all,
-//!    in either list.
+//!    is the measurement that priced this channel's default — the
+//!    hazard being that a diagnostic firing on ordinary bodies is
+//!    worse than none. Measured across all three corpora at the run's
+//!    ambient ε: **nothing in either list, anywhere**, including the
+//!    one fixture whose curved face is trimmed by an ellipse. An
+//!    ordinary cylinder, cone, sphere or torus reports nothing at
+//!    all.
 //! 4. **Nothing about acceptance moves.** The flag is read after the
 //!    at-rest gate has already passed; the same file imports to the
 //!    same disposition, the same census and the same certified
