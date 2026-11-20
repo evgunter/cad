@@ -177,14 +177,35 @@ back is sorted by what the `f64` is:
 | The `f64` is | What the code does with it |
 |---|---|
 | a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
-| a place the code chose to evaluate at: a sample, a station, a cell corner, a split | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
+| a place the code chose to evaluate at: a sample, a station, a cell corner, the point a cell is subdivided at | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
 | data built whole at `f64` | builds it at `T` |
 | a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
 
-One runtime `f64` still becomes a `T`: a solved value the result is
-built on (a root, a foot, a crossing), through `Real::from_computed`.
-Where the solve has a closed form the value stays in `T` and nothing
-re-enters.
+A solved value the result is built on (a root, a foot, a crossing) is
+not converted to `f64` and back. Where the solve has a closed form,
+the value stays in `T`. Where it does not, an `f64` search proposes a
+candidate and one door admits it: the candidate and the residual at
+`T` go in, the door runs the check that the candidate's point reads
+on within the band, and the admitted `T` or the refusal comes out. A
+caller cannot have the `T` without the residual, so what the value
+claims is what was checked: this number reads on, never that it is
+the true root. At `Sym` it is an opaque unknown and claims nothing.
+The door is bounded `Certifies` (DL5.3), so a dual cannot reach it,
+and it is the one caller of `Real::from_computed`.
+
+The door is for a value the body stores: a parameter an edge is split
+at, an end an edge is re-anchored to. A solved value that is only
+evaluated at, to decide (a normal read at a foot, an iterate of a
+search), is a place, and takes the table's row. At an enclosure scalar
+the admitted value is one number for the whole family: a parameter the
+construction states, the same for every member, with every member's
+point there checked within the band. It is not an enclosure of each
+member's own root, which lies elsewhere by up to the band over the
+sine of the crossing angle; and where the root moves farther than that
+across the box, no one number passes and the site refuses. A parameter
+solved in closed form is an enclosure of each member's own, so a
+stored parameter reads one way on an analytic carrier and the other
+on a spline.
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
 and its measurements run, and passes through decisions on its value
