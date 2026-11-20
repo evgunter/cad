@@ -291,9 +291,9 @@ fn fused_vertex_scenario(
         // pairs, and under both the boolean's box queries hand on other
         // candidates once the operands part, so the two runs' choices
         // part before any turns (N5's first turn). The answers that
-        // claim no cause are then admitted, both at the MINTING node:
-        // the documented evidence-free fallback, and the group-size
-        // table fact. This is a closed list of `Diagnosis` arms — when
+        // claim no cause are then admitted, all at the MINTING node:
+        // the documented evidence-free fallback, the parting the log
+        // proves, and the group-size table fact. This is a closed list of `Diagnosis` arms — when
         // N5 gains an arm, decide here whether it is honest without a
         // recorded flip.
         let honest_flip = matches!(
@@ -304,7 +304,8 @@ fn fused_vertex_scenario(
             diagnosis,
             Diagnosis::RecipeEdit {
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
-            } | Diagnosis::GroupResized { node, .. } if *node == name.node
+            } | Diagnosis::Parted { node, .. }
+                | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
         assert!(
             honest_flip || honest_fallback,

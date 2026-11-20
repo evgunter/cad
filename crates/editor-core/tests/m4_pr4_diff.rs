@@ -233,14 +233,16 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
         )
     };
     assert_eq!(
-        turn(&v1.marks, &v2.marks),
-        editor_core::resolve::FirstTurn::Parted,
-        "the union's runs part"
+        turn(&v1.marks, &v2.marks).mark().map(|(site, _)| site),
+        Some("nary_hulls_meet"),
+        "the union's runs part at the hull test: {:?}",
+        turn(&v1.marks, &v2.marks)
     );
     assert_eq!(
-        turn(&h1, &h2),
-        editor_core::resolve::FirstTurn::Parted,
-        "the hull test's marks alone part them"
+        turn(&h1, &h2).mark().map(|(site, _)| site),
+        Some("nary_hulls_meet"),
+        "the hull test's marks alone part them: {:?}",
+        turn(&h1, &h2)
     );
     // Read with no mark at all, the choices alone name a turn: the
     // first pair each run judged decides one predicate with the other
