@@ -2054,3 +2054,141 @@ fn a_cone_face_met_on_its_axis_meshes_at_every_delta() {
         }
     }
 }
+
+/// **A rod's sliver keeps no side its plane neighbours can make.** The
+/// rod `rod(r, 0, 2)` met by `brick((0, 6), (−3, 3), (−0.4, 0.4))` turned
+/// `0.05` about `y` and moved to `(r·(1 − s), 0, 1)`: the intersection's
+/// cylinder face is a strip a lattice cell or two across between two
+/// section-ellipse arcs, and each arc's plane face has no interior point,
+/// so it joins the points of its arc freely. With the cylinder arm
+/// reading the ear alone, each cell here meshed with an edge of four
+/// triangles (`check_mesh`'s `NonManifoldEdge { count: 4 }`), one plane
+/// face and the cylinder face each using one chord of an arc as an
+/// interior edge; the trimmed lane's shared-side cure (`mesh::trimmed`,
+/// `attempt`) keeps the cylinder face off every such side.
+#[test]
+fn a_rod_sliver_keeps_no_side_its_plane_neighbour_can_make() {
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
+    for (r, s, deltas) in [
+        (1.0, 1e-2, &[2e-2, 5e-3][..]),
+        (1.0, 1e-3, &[2e-2, 5e-3][..]),
+        (0.2, 1e-2, &[2e-2, 5e-3, 1e-3][..]),
+    ] {
+        let rod = posed("the rod", rod(r, 0.0, 2.0), Affine3::identity());
+        let slab = posed(
+            "the slab",
+            brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol()),
+            Affine3::translation(Vec3::new(r * (1.0 - s), 0.0, 1.0)) * turn,
+        );
+        let what = format!("the rod of radius {r} met {s:e} inside its wall");
+        match topo::intersect(&rod, &slab, tol())
+            .as_ref()
+            .map(|m| m.body())
+        {
+            Ok(Some(body)) => assert_at_every(&what, &body.body, deltas, &Got::Meshed),
+            // Off the default ε the boolean may not build a sliver.
+            other => {
+                let other = format!("{:?}", other.map(|b| b.is_some()));
+                assert!(
+                    tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                    "{what}: a body at the default ε, got {other}"
+                );
+                eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+            }
+        }
+    }
+}
+
+/// **A ball less a half-space a hair under its pole keeps no side its
+/// plane face can make.** The unit ball less `brick((−3, 3), (−3, 3),
+/// (−6, 0))` moved to `z = 1 − 3·10⁻³` and then turned `0.8` about `y`:
+/// the cap's sphere face is a cell or two across under one circle, whose
+/// plane face joins the circle's points freely. With the sphere arm
+/// reading the ear alone it meshed at δ `2·10⁻²` with an edge of four
+/// triangles.
+#[test]
+fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
+    let ball = posed(
+        "the ball",
+        ball_poled_z(1.0, Vec3::zero(), tol()),
+        Affine3::identity(),
+    );
+    let half = posed(
+        "the half-space",
+        brick((-3.0, 3.0), (-3.0, 3.0), (-6.0, 0.0), tol()),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.8)
+            * Affine3::translation(Vec3::new(0.0, 0.0, 1.0 - 3e-3)),
+    );
+    let what = "the ball less a half-space 3e-3 under its pole";
+    match topo::subtract(&ball, &half, tol())
+        .as_ref()
+        .map(|m| m.body())
+    {
+        Ok(Some(body)) => assert_at_every(what, &body.body, &[2e-2], &Got::Meshed),
+        other => {
+            let other = format!("{:?}", other.map(|b| b.is_some()));
+            assert!(
+                tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                "{what}: a body at the default ε, got {other}"
+            );
+            eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+        }
+    }
+}
+
+/// **Two faces meeting at two corners alone.** The intersection of two
+/// unit rods crossing at right angles is four cylinder faces; each meets
+/// the face opposite it at the two points where the section ellipses
+/// cross, and shares no edge with it. The shared-side rule knows a face by
+/// the ids it holds, so the opposite face is in its map at those corners
+/// (`mesh::trimmed`, `faces_across`). The side between them is a diameter
+/// of the rods, which no face keeps at these δ: the shape a side two
+/// faces could both make with no edge between them needs is here, and
+/// meshes.
+#[test]
+fn two_faces_meeting_at_two_corners_alone_mesh() {
+    let a = posed("a rod", rod(1.0, -2.0, 4.0), Affine3::identity());
+    let b = posed(
+        "a rod across it",
+        rod(1.0, -2.0, 4.0),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
+    );
+    let what = "two unit rods crossing";
+    let body = match topo::intersect(&a, &b, tol()).as_ref().map(|m| m.body()) {
+        Ok(Some(body)) => Body::clone(&body.body),
+        other => {
+            let other = format!("{:?}", other.map(|b| b.is_some()));
+            assert!(
+                tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                "{what}: a body at the default ε, got {other}"
+            );
+            eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+            return;
+        }
+    };
+    let corners = |f: topo::FaceKey| -> HashSet<topo::VertexKey> {
+        body.vertices()
+            .map(|(v, _)| v)
+            .filter(|&v| body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f)))
+            .collect()
+    };
+    let adjacent = |f: topo::FaceKey, g: topo::FaceKey| {
+        body.edges().any(|(ek, _)| {
+            let (p, m) = topo::readback::edge_sides(&body, ek).unwrap().faces();
+            (p, m) == (f, g) || (p, m) == (g, f)
+        })
+    };
+    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+    let corner_only = faces
+        .iter()
+        .flat_map(|&f| faces.iter().map(move |&g| (f, g)))
+        .filter(|&(f, g)| {
+            f < g && !adjacent(f, g) && corners(f).intersection(&corners(g)).count() == 2
+        })
+        .count();
+    assert_eq!(
+        corner_only, 2,
+        "{what}: two pairs of faces meet at two corners alone"
+    );
+    assert_at_every(what, &body, &[0.5, 0.1], &Got::Meshed);
+}

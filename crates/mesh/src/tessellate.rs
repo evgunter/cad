@@ -142,6 +142,9 @@ impl Patch {
 /// [`crate::validate::check_mesh`] is the backstop for that, and
 /// **this function does not call it**: it is available to a caller,
 /// and the acceptance suites run it, but nothing on this path does.
+/// What this path does census is the sides two faces' patches can share:
+/// one used past two triangles per chord carrying it refuses
+/// [`TessellateError::OverusedSide`].
 ///
 /// # Errors
 ///
@@ -151,7 +154,8 @@ impl Patch {
 /// carriers, a curved face whose loops have no reading in one sheet of
 /// its chart, a curved face whose iso domain is not its own UV
 /// rectangle, empty loops, dangling keys, resolution
-/// overflow, certificate failure, CDT insertion failure.
+/// overflow, certificate failure, CDT insertion failure, a side the
+/// joined patches use past two triangles per chord.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
 }
@@ -890,60 +894,43 @@ fn tessellate_impl(
         boundaries,
     };
 
-    // D2 addendum row 5, and the CROSS-FACE half of the class
-    // `curved`'s per-patch re-derivation cannot see: that census reads
-    // ONE patch's identified edges, so a boundary the two adjacent
-    // faces failed to identify with each other is outside its
-    // footprint by construction (issue 897 says so, and it is right).
-    // Re-derive it here, over the only ids two faces can share — the
-    // chord segments of the body's own edges — and over nothing else.
-    //
-    // WHY NOT `check_mesh`, which is the oracle for the non-manifold
-    // shape of this class, and names the emptiness shape too
-    // (`MeshError::EmptyPatch` for a face that emits no triangle,
-    // `NoTriangles` where no face emits one): it was the first
-    // candidate and it was MEASURED against this one. What this census
-    // is the only witness of is therefore narrower than the class —
-    // `tessellate` runs the census and does not run `check_mesh`, so in
-    // a debug build this is what sees the state without the caller
-    // asking, and in release nothing here sees it at all.
-    //
-    // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
-    // its real width. On sub-millisecond bodies the round-to-round
-    // spread swamps both columns, and a reading there is not evidence
-    // either way. The rows that decide are the donut's — 648 to
-    // 16 080 triangles over δ = 0.1 to 0.004, dev profile with this
-    // crate at opt-level 2, median of four warm rounds whose spread
-    // is under 2 %: `check_mesh` costs 7 % to 8 % of `tessellate`,
-    // this census 0.1 % to 0.4 %. That gap is the price argument, and
-    // it is the whole of it.
-    //
-    // The rest is FOOTPRINT, which does not depend on the clock:
-    // `check_mesh` censuses every edge of every patch — overwhelmingly
-    // patch-interior grid edges that no cross-face question is about —
-    // and re-checks winding and degeneracy, which are other rows'
-    // classes. This census reads the chord segments and nothing else,
-    // so its footprint IS the class:
-    // an unidentified shared boundary makes each side's copy a
-    // one-use segment, short of two uses per chord. The narrower guard
-    // is not a second copy of the oracle; it is the class's own
-    // question, and `check_mesh` remains available to a caller.
+    // THE SIDE CENSUS, where the patches join. Two patches can share a
+    // triangle side only between two shared ids (topology vertices and
+    // chord points), so the census reads those sides and nothing else:
+    // its footprint is the cross-face question, where `check_mesh` reads
+    // every edge of every patch, overwhelmingly patch-interior ones, and
+    // re-checks winding and degeneracy, which are other rows' classes.
+    // It is a census of ids and counts and reads no tolerance.
+    let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
+    #[allow(clippy::cast_possible_truncation)]
+    let uses = side_uses(
+        &polylines,
+        mesh.patches.iter().map(|p| p.triangles.as_slice()),
+        shared_below as u32,
+    );
+    // A side of more than two triangles per chord carrying it is an edge
+    // that is not manifold, whichever lane made it: two faces across one
+    // chord chain that both use a chord between two of its points as an
+    // interior edge use it twice each, and no patch sees that alone.
+    if let Some((side, uses)) = overused_side(&uses) {
+        return Err(TessellateError::OverusedSide {
+            faces: faces_using(&mesh, side),
+            uses,
+        });
+    }
+    // D2 addendum row 5: a shared boundary the two adjacent faces failed
+    // to identify with each other leaves each side's copy short of two
+    // uses per chord, which `curved`'s per-patch re-derivation cannot see
+    // (issue 897). Debug builds re-derive it here, over the same counts.
     #[cfg(debug_assertions)]
     {
-        let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
-        let patch_triangles: Vec<&[[u32; 3]]> = mesh
-            .patches
-            .iter()
-            .map(|p| p.triangles.as_slice())
-            .collect();
-        #[allow(clippy::cast_possible_truncation)]
-        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
+        let bad = unpaired_chord_segment(&uses);
         debug_assert!(
             bad.is_none(),
             "chord segment {:?} is an edge of {} face triangles, not two per chord \
              carrying it. The census counts and cannot say why. Known causes: the faces meeting on that edge \
-             emitted the segment under different ids, a face there emitted no \
-             triangle along it, or a patch used it more than once (issue 897)",
+             emitted the segment under different ids, or a face there emitted no \
+             triangle along it (issue 897)",
             bad.map(|(e, _)| e),
             bad.map_or(0, |(_, n)| n)
         );
@@ -952,42 +939,89 @@ fn tessellate_impl(
     Ok((mesh, keys))
 }
 
-/// The chord segment that is NOT used by exactly two face triangles
-/// per chord carrying it, if any — the cross-face identification
-/// re-derivation (issue 897).
+/// **The triangle uses of every side between two shared ids**, across
+/// the patches, with the chords carrying each side as a segment: per
+/// side, `(chords, uses)`.
+///
+/// `shared_below` is the first id minted after the chord pass. Ids are
+/// minted topology-vertices-then-chords-then-per-face-grid (D9's
+/// determinism order, at the top of [`tessellate`]), so an id at or
+/// above the mark is one face's private grid point: a side with such an
+/// end is one patch's alone and is never counted. Testing that first is
+/// what keeps this scan an integer compare on the overwhelming majority
+/// of triangle sides rather than a map probe.
+fn side_uses<'a>(
+    polylines: &[&[u32]],
+    patches: impl IntoIterator<Item = &'a [[u32; 3]]>,
+    shared_below: u32,
+) -> HashMap<(u32, u32), (usize, usize)> {
+    let mut uses: HashMap<(u32, u32), (usize, usize)> = HashMap::new();
+    for ids in polylines {
+        for w in ids.windows(2) {
+            uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
+        }
+    }
+    for t in patches.into_iter().flatten() {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if a < shared_below && b < shared_below {
+                uses.entry(crate::walk::edge_key(a, b)).or_default().1 += 1;
+            }
+        }
+    }
+    uses
+}
+
+/// **The least side used by more than two triangles per chord carrying
+/// it** (two where no chord carries it), with its use count.
+///
+/// A chord segment is a side of each face along its edge once, so two
+/// uses per chord; two coincident edges between one vertex pair (two
+/// solids touching along a line) are one id pair carried twice, which
+/// their four faces use four times. That body's mesh is the open
+/// question of
+/// `work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`,
+/// and this census leaves it as it was. Any other side is a triangle side
+/// inside a patch, two uses in all: past that, two patches both use it
+/// as an interior edge, or one patch uses it past its own two.
+fn overused_side(uses: &HashMap<(u32, u32), (usize, usize)>) -> Option<((u32, u32), usize)> {
+    uses.iter()
+        .filter(|&(_, &(chords, n))| n > 2 * chords.max(1))
+        .map(|(&side, &(_, n))| (side, n))
+        .min()
+}
+
+/// The faces whose patches hold a triangle with side `side`, in the
+/// mesh's patch order.
+fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
+    mesh.patches
+        .iter()
+        .filter(|p| {
+            p.triangles
+                .iter()
+                .any(|t| (0..3).any(|k| crate::walk::edge_key(t[k], t[(k + 1) % 3]) == (a, b)))
+        })
+        .map(|p| p.face)
+        .collect()
+}
+
+/// The least chord segment used by fewer than two face triangles per
+/// chord carrying it, if any: the cross-face identification
+/// re-derivation (issue 897), on [`side_uses`]' counts.
 ///
 /// Every edge of the body carries a chord polyline whose segments the
 /// two faces meeting on that edge both insert as CDT constraints, so
 /// each segment is a triangle edge twice per chord carrying it: once
 /// per side, or twice within one patch where a `Seam` edge is traversed
-/// both ways by the same face.
-///
-/// **That is chord pairing, not watertightness.** Watertight is
-/// [`crate::validate::check_mesh`]'s question, every edge of exactly two
-/// triangles, and the two differ on one body: two coincident edges
-/// between the same two vertices (two solids touching along a line,
-/// whose contact ends at one vertex each way). Their chords are one id
-/// pair twice, which their four faces use four times; this census
-/// counts that as paired, and `check_mesh` refuses it as
-/// `NonManifoldEdge`
-/// (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+/// both ways by the same face. A use past that is [`overused_side`]'s,
+/// refused typed before this runs.
 ///
 /// A count of 1 on a single chord is the class this guard exists for —
 /// the two sides emitted the segment under DIFFERENT ids, so neither
-/// copy pairs up. It is not the only state the count catches: a face
-/// that emits no triangle along the segment leaves 1 (its neighbour's)
-/// or 0, and a patch that uses a segment more than once pushes it past
-/// two per chord. The count cannot tell causes apart, so the report
-/// states the count, the expected two per chord, and the causes known —
-/// without claiming the list is complete.
-///
-/// `shared_below` is the first id minted after the chord pass. Ids are
-/// minted topology-vertices-then-chords-then-per-face-grid (D9's
-/// determinism order, at the top of [`tessellate`]), so an id at or
-/// above the mark is one face's private grid point and can never be a
-/// chord segment endpoint. Testing that first is what keeps this scan
-/// an integer compare on the overwhelming majority of triangle edges
-/// rather than a map probe.
+/// copy pairs up. A face that emits no triangle along the segment leaves
+/// 1 (its neighbour's) or 0 too. The count cannot tell causes apart, so
+/// the report states the count, the expected two per chord, and the
+/// causes known — without claiming the list is complete.
 ///
 /// **PRECONDITION: the body is CLOSED, and that is the caller's, not
 /// this census's.** [`tessellate`]'s contract says the input is a
@@ -1027,37 +1061,14 @@ fn tessellate_impl(
 /// body is yet known to reach it. The probe is kept as the record of
 /// that attempt: it pins where the door actually stops, which is the
 /// honest state of the precondition claim.
-///
-/// **This reads no tolerance.** It is a census of ids and counts;
-/// `Eps` has no role in it, and a band would be the wrong instrument
-/// for a question whose answer is an integer.
 #[cfg(debug_assertions)]
 fn unpaired_chord_segment(
-    polylines: &[&[u32]],
-    patch_triangles: &[&[[u32; 3]]],
-    shared_below: u32,
+    uses: &HashMap<(u32, u32), (usize, usize)>,
 ) -> Option<((u32, u32), usize)> {
-    // Per segment: (chords carrying it, triangle uses).
-    let mut uses: HashMap<(u32, u32), (usize, usize)> = HashMap::new();
-    for ids in polylines {
-        for w in ids.windows(2) {
-            uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
-        }
-    }
-    for t in patch_triangles.iter().copied().flatten() {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
-            if a < shared_below
-                && b < shared_below
-                && let Some((_, n)) = uses.get_mut(&crate::walk::edge_key(a, b))
-            {
-                *n += 1;
-            }
-        }
-    }
     uses.iter()
-        .find(|&(_, &(chords, n))| n != 2 * chords)
-        .map(|(&e, &(_, n))| (e, n))
+        .filter(|&(_, &(chords, n))| chords > 0 && n < 2 * chords)
+        .map(|(&side, &(_, n))| (side, n))
+        .min()
 }
 
 // GATED ON THE GUARD IT TESTS: every row here calls
@@ -1077,6 +1088,14 @@ mod tests {
     //! The rows below build exactly that mesh.
 
     use super::*;
+
+    fn unpaired(
+        poly: &[&[u32]],
+        patches: &[&[[u32; 3]]],
+        mark: u32,
+    ) -> Option<((u32, u32), usize)> {
+        unpaired_chord_segment(&side_uses(poly, patches.iter().copied(), mark))
+    }
 
     /// Every edge use within one patch, so a row can show the patch is
     /// internally clean while the pair of patches is not.
@@ -1098,7 +1117,7 @@ mod tests {
         let poly: [&[u32]; 1] = [&[0, 1, 2]];
         let tris = [[0, 1, 9], [1, 2, 9], [1, 0, 10], [2, 1, 10]];
         assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 3),
+            unpaired(&poly, &[&tris], 3),
             None,
             "two faces that identified the boundary leave every segment at two uses"
         );
@@ -1111,9 +1130,9 @@ mod tests {
         // emitted nothing along it.
         let poly: [&[u32]; 2] = [&[0, 1], &[0, 1]];
         let tris = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+        assert_eq!(unpaired(&poly, &[&tris], 2), None);
         assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris[..3]], 2),
+            unpaired(&poly, &[&tris[..3]], 2),
             Some(((0, 1), 3)),
             "a face missing along a doubled chord is caught"
         );
@@ -1125,7 +1144,7 @@ mod tests {
         // counts uses, not sides, which is what makes this legal.
         let poly: [&[u32]; 1] = [&[0, 1]];
         let tris = [[0, 1, 9], [1, 0, 10]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+        assert_eq!(unpaired(&poly, &[&tris], 2), None);
     }
 
     #[test]
@@ -1139,7 +1158,7 @@ mod tests {
         assert!(per_patch_max_use(&a) <= 2, "patch A is internally clean");
         assert!(per_patch_max_use(&b) <= 2, "patch B is internally clean");
         let poly: [&[u32]; 1] = [&[0, 1, 2]];
-        let bad = unpaired_chord_segment(&poly, &[&a, &b], 9);
+        let bad = unpaired(&poly, &[&a, &b], 9);
         assert!(
             matches!(bad, Some((_, 1))),
             "an unidentified shared boundary leaves each side's copy at ONE use, got {bad:?}"
@@ -1150,7 +1169,7 @@ mod tests {
     fn a_segment_no_face_emitted_at_all_is_caught() {
         // The other side of `n != 2`: a hole rather than a mismatch.
         let poly: [&[u32]; 1] = [&[0, 1]];
-        assert_eq!(unpaired_chord_segment(&poly, &[&[]], 2), Some(((0, 1), 0)));
+        assert_eq!(unpaired(&poly, &[&[]], 2), Some(((0, 1), 0)));
     }
 
     #[test]
@@ -1160,14 +1179,8 @@ mod tests {
         // two halves of the row differ only in the mark.
         let poly: [&[u32]; 1] = [&[0, 1]];
         let tris = [[0, 1, 9]];
-        assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 1),
-            Some(((0, 1), 0))
-        );
-        assert_eq!(
-            unpaired_chord_segment(&poly, &[&tris], 2),
-            Some(((0, 1), 1))
-        );
+        assert_eq!(unpaired(&poly, &[&tris], 1), Some(((0, 1), 0)));
+        assert_eq!(unpaired(&poly, &[&tris], 2), Some(((0, 1), 1)));
     }
 }
 
@@ -1267,5 +1280,54 @@ mod patch_tests {
             ]],
         };
         assert_eq!(patch.census_ids(&shared), vec![[2, 3, 4]]);
+    }
+
+    mod side_census {
+        //! The side census where the patches join: a side of more than two
+        //! triangles per chord carrying it refuses, on every profile.
+
+        use super::super::*;
+
+        fn overused(
+            poly: &[&[u32]],
+            patches: &[&[[u32; 3]]],
+            mark: u32,
+        ) -> Option<((u32, u32), usize)> {
+            overused_side(&side_uses(poly, patches.iter().copied(), mark))
+        }
+
+        #[test]
+        fn two_faces_using_one_chord_of_a_chain_as_an_interior_edge_overuse_it() {
+            // Chain 0-1-2-3 between two faces, each with no interior point:
+            // both triangulate the four points with the diagonal 0-2, which
+            // each patch uses twice, as any interior edge. Every chord
+            // segment is used once a side.
+            let a = [[0, 1, 2], [0, 2, 3]];
+            let b = [[2, 1, 0], [3, 2, 0]];
+            let poly: [&[u32]; 1] = [&[0, 1, 2, 3]];
+            assert_eq!(overused(&poly, &[&a, &b], 4), Some(((0, 2), 4)));
+            // With the second face on the other diagonal, every side is two
+            // triangles'.
+            let c = [[3, 1, 0], [3, 2, 1]];
+            assert_eq!(overused(&poly, &[&a, &c], 4), None);
+        }
+
+        #[test]
+        fn two_coincident_chords_on_one_id_pair_are_not_overused_at_four_uses() {
+            let poly: [&[u32]; 2] = [&[0, 1], &[0, 1]];
+            let tris = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12]];
+            assert_eq!(overused(&poly, &[&tris], 2), None);
+            let five = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12], [0, 1, 13]];
+            assert_eq!(overused(&poly, &[&five], 2), Some(((0, 1), 5)));
+        }
+
+        #[test]
+        fn a_side_with_a_private_end_is_never_counted() {
+            // Three triangles on 0-9 are one patch's own business at mark 9,
+            // and an overuse at mark 10.
+            let tris = [[0, 9, 1], [9, 0, 2], [0, 9, 3]];
+            assert_eq!(overused(&[], &[&tris], 9), None);
+            assert_eq!(overused(&[], &[&tris], 10), Some(((0, 9), 3)));
+        }
     }
 }
