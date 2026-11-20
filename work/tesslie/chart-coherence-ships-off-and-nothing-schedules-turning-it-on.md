@@ -2,13 +2,14 @@
 id: chart-coherence-ships-off-and-nothing-schedules-turning-it-on
 kind: issue
 title: the chart-coherence resident defaults Off, which answers the no-consumer row with a check nobody runs — two measurements decide whether it turns on
-status: dispatched
+status: parked
 opened: 2026-09-12
 refs: [2408]
 priority: P1
 cost: M
 branch: tesslie/coherence-default
-design: true
+blocked_on: [chart-coherence-reads-a-non-iso-circle-as-an-iso-side]
+pr: 7197
 ---
 
 
@@ -116,3 +117,12 @@ you except where this note says Ev answered it.
 ## Moved to TESSLIE (the mesh answers Ok, or panics, where it should refuse or mesh right) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## Both reasons measured; the default waits on one row (TESSLIE, PR 7197, 2026-11-20)
+
+The two measurements this row asked for are taken, and both of the reasons argued above are superseded:
+
+- **Reason 2 (cost) dissolves.** The resident costs a fraction of a millisecond per document. That is two to three orders of magnitude below every other resident, and the pinned registry measurement does not move. The instrument is `editor-core/tests/tesslie_coherence_cost.rs`.
+- **Reason 1 (`NonIsoCarrier`) was a door defect, and it is gone.** A non-iso traversal now breaks the run (`chart_iso::iso_side_starts` over `Option<TravKind>`). A loop with no iso traversal is dropped as a plane is, and the variant is deleted. Across the 34-document corpus and the import corpora, the door now reports 0 findings and leaves 0 entries unexamined.
+
+**What keeps the default Off now** is a different defect, measured while weighing the flip. `classify_kind` reads a circle by nearest fit, so an oblique circle on a sphere tilted past about 60° reads as a meridian and reports 8–10 false findings of over 1 m. The known-wrong pin is `topo/tests/mesh8_coherence.rs::an_oblique_circle_on_a_sphere_is_misread_as_a_meridian`. This row is parked on `chart-coherence-reads-a-non-iso-circle-as-an-iso-side` (P1), and the flip is one field once that row closes. The prose above is the history of the question; this section is its current state.
