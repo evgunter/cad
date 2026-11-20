@@ -13,7 +13,9 @@
 //! split of a real body succeeds with both halves passing tiers 1–3 at
 //! their closed-form volumes, and a Boolean of the tilted operand
 //! against a box builds at its closed-form volume. A tilt in the pose's
-//! band still refuses, naming the pose's own predicate.
+//! band reads the same ellipse (the plane × cylinder and plane × cone
+//! rows are lane choices, D3); the cylinder pair's band refuses, naming
+//! the pose's own predicate.
 //!
 //! Each section row stands its configuration in three frames (as built,
 //! turned about a generic axis, and turned then carried about 1 km off),
@@ -427,7 +429,7 @@ fn tilted_z(s: f64) -> Vec3<f64> {
 }
 
 /// The table serves the tilted ellipse, on both surfaces to rounding,
-/// in every frame.
+/// in every frame, and in the pose's band too.
 #[test]
 fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
     for (frame, map) in frames() {
@@ -458,11 +460,13 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
                 let n = map.transform_vec(tilted_z(s));
                 assert_on(&what, e, Some((q, n)), &[&cyl]);
             }
-            let got = section(banded_sine(r));
-            assert!(
-                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pc_rim_alignment")),
-                "{frame}, r {r:e} in the pose's band: got {got:?}"
-            );
+            let s = banded_sine(r);
+            let what = format!("{frame}, r {r:e} in the pose's band");
+            let got = section(s);
+            let Ok(PlaneCylinderSection::TiltedEllipse(e)) = &got else {
+                panic!("{what}: the tilted ellipse, got {got:?}");
+            };
+            assert_on(&what, e, Some((q, map.transform_vec(tilted_z(s)))), &[&cyl]);
         }
     }
 }
@@ -672,10 +676,17 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
                 let n = map.transform_vec(tilted_y(s));
                 assert_on(&what, e, Some((q, n)), &[&cone]);
             }
-            let got = section(banded_sine(lever));
-            assert!(
-                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pn_axis_normal")),
-                "{frame}, scale {scale:e} in the pose's band: got {got:?}"
+            let s = banded_sine(lever);
+            let what = format!("{frame}, scale {scale:e} in the pose's band");
+            let got = section(s);
+            let Ok(PlaneConeSection::TiltedEllipse(e)) = &got else {
+                panic!("{what}: the tilted ellipse, got {got:?}");
+            };
+            assert_on(
+                &what,
+                e,
+                Some((q, map.transform_vec(tilted_y(s)))),
+                &[&cone],
             );
         }
     }

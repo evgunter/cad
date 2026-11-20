@@ -2,7 +2,9 @@
 id: section-class-lane-choices-escalate-in-band
 kind: issue
 title: Four section-class readings in intersect.rs (pc_rim_alignment, pn_axis_normal, pt_axis_normal, pt_axis_in_plane) escalate in band where D3 takes the general lane
-status: open
+status: review
+pr: 7171
+branch: germ/section-class-lane-choices
 opened: 2026-10-20
 priority: P1
 cost: M
