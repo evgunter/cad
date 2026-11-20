@@ -161,7 +161,7 @@ const ADMITTED: &[Admission<'static>] = &[Admission {
 /// entry is a problem.
 const NO_RECOURSE_FILED: &[(&str, &str)] = &[(
     "Refused",
-    "work/germtail/a-section-refused-at-the-glue-door-ends-on-no-recourse.md",
+    "work/germ/a-section-refused-at-the-glue-door-ends-on-no-recourse.md",
 )];
 
 #[test]

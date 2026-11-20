@@ -260,7 +260,7 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
 /// in a ring inside the island the slab's top edge walls off, which the
 /// path reads inside and moves. The section loop about the well then
 /// flanks only sphere patches, every witness of which lies on the slab
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
 /// and the join reads the patches' sides at the seam instead
 /// (`boolean::join`'s `seam_germ_side`). Every op, either way round,
 /// holds the slice integral's volume and places a lattice about the ball
