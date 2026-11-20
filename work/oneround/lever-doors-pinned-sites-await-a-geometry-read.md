@@ -16,7 +16,7 @@ The gate counts 59 references. 4 are not sites, and 8 of the rest are always zer
 
 Each conversion moves a reading and wants its own differential.
 
-## Geometry in the function (41)
+## Geometry in the function (44)
 
 The function holds a carrier, a surface, a cover, a `Reach` or extent ball, a pose of carriers, or a body with the face, edge or vertex.
 
@@ -46,6 +46,7 @@ topo:
 - `chord_join::wall_face_section` — `Reach::of_face`. The wall `Surface` and a `WallReach` of scalars.
 - `cover::meet_within` — `of_cover_within`. Both faces' covers; the number is `tolerance: f64`.
 - `cover::cone_face_reach` — `Reach::of_face`. `body`, `face`, the cone and the face's cover; the point `at` is its caller's.
+- `link::Link::of` (2, one zero) and `Link::of_tangent` (zero) — `ExtentBall::point`. `p` and the sectors or pieces, whose `FaceSector`s hold a `LinkFace` with its `Surface`; `of` folds the sectors' wedge points, `of_tangent` reads a point's own reach.
 - `offset_axial::axial_frame` (2, one zero) — `ExtentBall::point`. `body` and the scope; folds the body's vertices from `origin`.
 - `offset_axial::corner_arms` — `ExtentBall::point`. `body`, the vertex and each curve's carrier and span; the fallback arm reads `other.eval(t1)` from `other.eval(t0)`. Its `Line` and `Circle` arms are `Lever::unsourced`.
 - `offset_together::corner_arms` — `ExtentBall::point`. `body`, the vertex and each outgoing half-edge's far vertex.
@@ -58,14 +59,12 @@ topo:
 - `splitting::containment::extent_from` (2, one zero) — `ExtentBall::point`. `covers: &[Cover<T>]`, read in the same fold beside `verts`.
 - `wedge_reach::WedgeReach::reach` — `points_lever_from`. The carrier, the span and the two face keys.
 
-## Points or scalars only (14)
+## Points or scalars only (11)
 
 - `geom_brep::ssi::point_arm` — `within_curvature`. `kappa: T` and an extent `Lever`.
 - `sweep::blend::battery::corner_independence` — `curvature_radius`. Three normals and `radius: T`.
 - `topo::bound_side::BoundSupport::lever` — `ExtentBall::point`. `BoundSupport::Chord { base, far }`, two stored points.
 - `topo::bound_side` `read_down` — `curvature_radius`. `FaceDatum.lever: Option<T>` and `FaceBend`'s radius, two stored scalars; `FaceBend::at(surface, sense, p)` reads the surface where the bend is built.
-- `topo::link::Link::of` (2, one zero) — `ExtentBall::point`. `p` and the sectors' wedge points.
-- `topo::link::Link::of_tangent` (zero) — `ExtentBall::point`. A point's own reach.
 - `topo::link::second_order::reach` — `ExtentBall::point`. `point(apex + d).lever_from(apex)` is `|d|`.
 - `topo::splitting::containment::polygon_walk` (2, one zero) — `ExtentBall::point`. The loop's points and `q`.
 - `topo::splitting::join::crossing_reach` (2, one zero) — `ExtentBall::point`. The crossings and `from`.
@@ -79,22 +78,30 @@ topo:
 
 ## Doors the pins do not see
 
-**Wrappers.** Each takes a number or a point from its caller and hands it to a pinned site in its own file, so a caller in an unpinned file reaches the door. Counts are production references by `rg`, the definition excluded.
+**Wrappers.** Each takes a number or a point from its caller and hands it to a pinned site in its own file, so a caller in an unpinned file reaches the door.
 
-- `sweep::blend::battery::corner_independence(vertex, normals, radius, band)` — `pub`, takes `radius: T`. 4.
-- `geom_brep::dihedral::classify_seam(.., chart_arm, ..)` — `pub`, takes a closure whose `Option<f64>` becomes a curvature arm in `seam_face_reading`. 1 (`topo::pcurves::mint`).
-- `geom_brep::ssi::point_arm(kappa, extent)` — `pub(crate)`, takes `kappa: T`. 5.
-- `topo::bound_side::FaceDatum::of_face(normal, bend, lever)` — `pub(crate)`, takes `lever: T`. 4. `boolean::sectors::pierce_side(.., lever: T, ..)` (`pub(super)`, 3) hands it on.
-- `topo::bound_side::BoundSupport::Chord { base, far }` — a `pub(crate)` variant with public fields. 20 constructions or matches. The widest.
-- `topo::cover::meet_within(a, b, tolerance)` — `pub(crate)`, takes `tolerance: f64`. 2.
-- `topo::cover::cone_face_reach(body, face, at, ..)` — `pub(crate)`, takes the point `at`. 3.
-- `topo::separating::planar_axis(body, face, reach, band)` — `pub(crate)`, takes a closure returning `(lo, hi)`. 3.
-- `topo::chord_join::wall_face_section(plane, wall, reach, band)` — `pub(crate)`, takes a `WallReach` of `at`, `below`, `above`, `across`. 2.
-- `topo::link::Link::of(p, sectors)` and `Link::of_tangent(p, pieces)` — `pub(crate)`. `of_tangent` 2; `of`'s count was not separated from other `of` calls.
-- `topo::link::second_order::reach(apex, d)` — `pub(super)`, takes a vector. 8 calls in its file, among them `second_order::cusp(apex, m, ..)`, `pub(super)`, which hands on its caller's vectors.
-- `topo::splitting::order::sort_indices_by_point(points, plane, ..)` — `pub(super)`, takes the points it levers. 1.
-- `topo::pcurves::decision::edge_reach(carrier, span, points)` — `pub(super)`, takes extra points beside the carrier. 33.
-- `topo::boolean::join::frame_reading(sa, on_a, on_b)` — `pub(super)`, takes two point lists. 1.
+Each count is the number of matches of the pattern beside it in the gate's production view, less the definition's own `fn` line. To re-run:
+
+```
+. scripts/gates/lib.sh; gate_require_crate_sources; gate_production_sources
+gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" > /tmp/prod.txt
+grep -vE 'fn NAME\b' /tmp/prod.txt | grep -oE 'PATTERN' | wc -l
+```
+
+- `sweep::blend::battery::corner_independence(vertex, normals, radius, band)` — `pub`, takes `radius: T`. 4 (`corner_independence\(`).
+- `geom_brep::dihedral::classify_seam(.., chart_arm, ..)` — `pub`, takes a closure whose `Option<f64>` becomes a curvature arm in `seam_face_reading`. 1 (`classify_seam\(`).
+- `geom_brep::ssi::point_arm(kappa, extent)` — `pub(crate)`, takes `kappa: T`. 5 (`point_arm\(`).
+- `topo::bound_side::FaceDatum::of_face(normal, bend, lever)` — `pub(crate)`, takes `lever: T`. 3 (`FaceDatum::of_face\(`). `boolean::sectors::pierce_side(.., lever: T, ..)`, `pub(super)`, hands it on: 2 (`pierce_side\(`).
+- `topo::bound_side::BoundSupport::Chord { base, far }` — a `pub(crate)` variant with public fields. 11 (`BoundSupport::Chord`); a `Self::Chord` or a `Chord` reached by import is not in that count. The widest.
+- `topo::cover::meet_within(a, b, tolerance)` — `pub(crate)`, takes `tolerance: f64`. 2 (`meet_within\(`).
+- `topo::cover::cone_face_reach(body, face, at, ..)` — `pub(crate)`, takes the point `at`. 2 (`cone_face_reach\(`).
+- `topo::separating::planar_axis(body, face, reach, band)` — `pub(crate)`, takes a closure returning `(lo, hi)`. 4 (`planar_axis\(`).
+- `topo::chord_join::wall_face_section(plane, wall, reach, band)` — `pub(crate)`, takes a `WallReach` of `at`, `below`, `above`, `across`. 2 (`wall_face_section\(`).
+- `topo::link::Link::of(p, sectors)` — `pub(crate)`. 1 `Link::of\(` (in `census.rs`) and 5 `Self::of\(` in `link.rs`, counted over that file's records alone; those inside `impl Link` are its. `Link::of_tangent(p, pieces)` — `pub(crate)`. 3 (`of_tangent\(`).
+- `topo::link::second_order::reach(apex, d)` — `pub(super)`, takes a vector. 10 `\breach\(` in `second_order.rs`, and 1 `second_order::reach\(` outside it, in `link.rs`. `second_order::cusp(apex, m, ..)`, `pub(super)`, hands on its caller's vectors: 1 (`second_order::cusp\(`).
+- `topo::splitting::order::sort_indices_by_point(points, plane, ..)` — `pub(super)`, takes the points it levers. 1 (`sort_indices_by_point\(`).
+- `topo::pcurves::decision::edge_reach(carrier, span, points)` — `pub(super)`, takes extra points beside the carrier. 2 (`\bedge_reach\b`): one import and one call, both in `pcurves::site`.
+- `topo::boolean::join::frame_reading(sa, on_a, on_b)` — `pub(super)`, takes two point lists. 1 (`frame_reading\(`).
 
 **Hand-built geometry.** `Surface`, `Frame` and `Curve3` have public fields, a conic has a public constructor (`Circle::new(frame, radius)`), and `geom::cover::Cover` has public constructors (`points`, `segment`, `sphere`, …, referenced in about 24 files outside `geom`'s cover home). A length from any crate reaches every reading constructor through a carrier, a span or a cover the caller made: `circle_curvature_arm(&Circle::new(frame, len))`, `ExtentBall::of_cover(&Cover::segment(p, q)?)`.
 
