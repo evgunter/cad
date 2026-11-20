@@ -1015,6 +1015,31 @@ pub enum PlaneCylinderSection<T: Real> {
     Empty,
 }
 
+/// **A section class read as a lane choice** (D3,
+/// `[verdicts.consumers]`): `true` where `name` shows the closed form's
+/// class (Zero), `false` where the general lane serves — on a definite
+/// reading, and on one in band, which says only that the class is not
+/// shown. The general lane's certificate does not rest on the class, so
+/// nothing is recorded and no tolerance is offered. A margin with no
+/// reading to take refuses: a poisoned one, and an enclosure straddling
+/// a boundary, which a narrower box decides and on which the general
+/// lane's frame (the tilt's own direction) is not yet defined.
+fn closed_form_shown<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    match decide(name, margin, band) {
+        Ok(sign) => Ok(sign == Sign::Zero),
+        Err(cause)
+            if cause.margin.kind() == geom_core::MarginKind::Value || cause.terminal_sliver =>
+        {
+            Ok(false)
+        }
+        Err(cause) => Err(cause),
+    }
+}
+
 /// Classifies and constructs the plane×cylinder section (spec §3.1).
 ///
 /// `reach` is where the section is consumed ([`Reach`]). The axis-in-plane
@@ -1040,8 +1065,9 @@ pub enum PlaneCylinderSection<T: Real> {
 ///    [`PlaneCylinderSection::TangentLine`], Negative ⇒
 ///    [`PlaneCylinderSection::Empty`].
 /// 3. `pc_rim_alignment` — margin `‖axis×normal‖·r` (the tilt angle's
-///    sine, metered at the rim radius): Zero ⇒
-///    [`PlaneCylinderSection::Rim`]; definite ⇒
+///    sine, metered at the rim radius), a lane choice
+///    ([`closed_form_shown`]): Zero ⇒
+///    [`PlaneCylinderSection::Rim`]; in band or definite ⇒
 ///    [`PlaneCylinderSection::TiltedEllipse`], however near-circular:
 ///    this row is the one decision of the section's kind.
 ///
@@ -1097,21 +1123,18 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
     let center = o + a * t_star;
-    let section = match decide(
+    let section = if closed_form_shown(
         "pc_rim_alignment",
         Margin::levered(sin_norm, geom_core::Lever::curvature_radius(r)),
         band,
     )
     .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u)),
-        // The margin is a norm: Negative is unreachable; both
-        // definite verdicts take the tilted lane.
-        Sign::Positive | Sign::Negative => {
-            let u_major = tilted_section_major(n, sin_vec);
-            let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
-            PlaneCylinderSection::TiltedEllipse(e)
-        }
+        PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u))
+    } else {
+        let u_major = tilted_section_major(n, sin_vec);
+        let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
+        PlaneCylinderSection::TiltedEllipse(e)
     };
     Ok((section, parallel))
 }
@@ -2277,9 +2300,10 @@ impl<T: Real> ApexFansMeeting<T> {
 ///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
 ///    from the plane, `c = axis·normal`) and `extent`, the reach over
 ///    which the circle stands in for the section; neither depends on
-///    where the plane's origin sits. Zero ⇒
+///    where the plane's origin sits. A lane choice
+///    ([`closed_form_shown`]): Zero ⇒
 ///    [`PlaneConeSection::AxisNormalCircle`], built where the axis meets
-///    the plane; definite ⇒ step 4.
+///    the plane; in band or definite ⇒ step 4.
 /// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
 ///    the apex: Negative ⇒ the plane meets every generator once and the
 ///    section is [`PlaneConeSection::TiltedEllipse`], however
@@ -2508,16 +2532,16 @@ pub fn plane_cone_section<T: Decide>(
         radius: rim_r,
     })
     .map_or(extent, |c| ExtentBall::of_cover(&c).lever().max(extent));
-    match decide("pn_axis_normal", Margin::levered(s, arm), band)
+    match closed_form_shown("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
+        true => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
             apex + a * t,
             a,
             rim_r,
             cone_u,
         ))),
-        Sign::Positive | Sign::Negative => {
+        false => {
             let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
                 .map_err(SectionError::Escalated)?
@@ -2525,8 +2549,9 @@ pub fn plane_cone_section<T: Decide>(
                 Sign::Negative => {
                     let major = tilt.half_axis(apex_gap.abs());
                     let minor = apex_gap.abs() * sin_a / tilt.k.sqrt();
-                    // The axis-normal trilean above made `s`
-                    // definite, so the minor direction is.
+                    // The axis-normal reading above left `s` read
+                    // off the zero band, so the minor direction is
+                    // defined.
                     let u_major = tilted_section_major(n, s_vec);
                     // The centre is the apex's foot on the plane moved
                     // along the major axis: in the plane by
@@ -2784,7 +2809,8 @@ const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus
 ///    either half's refusal, in band or decided, is
 ///    [`SectionError::DegenerateTorus`].
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
-///    the plane, metered at the operand extent): Zero ⇒ the axis
+///    the plane, metered at the operand extent), a lane choice
+///    ([`closed_form_shown`]; in band or definite ⇒ step 3): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
 ///    the stand-off `d = n·(q − c)` (meters, the plane's origin less
 ///    the centre, read along the normal), read with the meridian
@@ -2800,7 +2826,8 @@ const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus
 ///    loop or empty, and refuses as routed to the general rung.
 /// 3. `pt_axis_normal` — margin `‖a×n‖·(R + r)` (the tilt angle's
 ///    sine, metered at the largest radius a circle of the section can
-///    have, which it stands off the plane by that sine times): Zero ⇒
+///    have, which it stands off the plane by that sine times), a lane
+///    choice ([`closed_form_shown`]; in band or definite ⇒ step 4): Zero ⇒
 ///    the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
 ///    (meters, `h = d/(a·n)` the depth of the plane's crossing of the
@@ -2855,8 +2882,8 @@ pub fn plane_torus_section<T: Decide>(
     // curves beside its own position datum, so no served circle leans on
     // the extent being long.
     let tilt = Margin::levered(a.dot(n), extent);
-    match decide("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
-        Sign::Zero => {
+    match closed_form_shown("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
+        true => {
             // The axis direction lies in the plane: containing vs
             // offset, by the stand-off `d`. A meridian circle is minted
             // on the torus about its centre, which stands `d` off the
@@ -2927,13 +2954,15 @@ pub fn plane_torus_section<T: Decide>(
                 }
             }
         }
-        Sign::Positive | Sign::Negative => {
+        false => {
             let tilt = Margin::levered(
                 a.cross(n).norm(),
                 ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
             );
-            match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
-                Sign::Zero => {
+            match closed_form_shown("pt_axis_normal", tilt, band)
+                .map_err(SectionError::Escalated)?
+            {
+                true => {
                     // The plane is perpendicular to the axis: the
                     // concentric-circle lane, by the depth `h` of the
                     // plane's crossing of the axis, wherever its origin
@@ -2972,7 +3001,7 @@ pub fn plane_torus_section<T: Decide>(
                         Sign::Negative => Ok(PlaneTorusSection::Empty),
                     }
                 }
-                Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
+                false => Err(SectionError::RoutesToGeneralRung {
                     pair: "plane×torus",
                     why: "generic tilt cuts a spiric quartic — the bitangent \
                           (Villarceau) two-circle configuration is deliberately \

@@ -496,34 +496,32 @@ fn a_tangent_circle_or_no_section_is_the_desync() {
 }
 
 /// **The lever is the torus face's reach**: a plane through the centre
-/// whose axis tilt, levered at the reach, lies in the band escalates
-/// `pt_axis_in_plane`; it is never served as the meridian pair or the
-/// ovals. At ten times the reach the same tilt is definite, and the pose
-/// is general. Any other extent is a desync.
+/// whose axis tilt, levered at the reach, reads Zero is served as the
+/// meridian pair. Levered at ten times the reach the same tilt is in
+/// the band of `pt_axis_in_plane`, a lane choice (D3), so it takes the
+/// definite arm's lane: the general pose, refused by its loops, as at
+/// forty times. Any other extent is a desync.
 #[test]
 fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
     let b = band();
-    let sine = 2.0 * b.zero() / REACH;
+    let sine = 0.5 * b.zero() / REACH;
     let n = Vec3::new((1.0 - sine * sine).sqrt(), sine, 0.0);
     let p = plane([0.0, 0.0, 0.0], n);
-    let got = frame(&p);
-    assert!(
-        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pt_axis_in_plane")),
-        "in band at the reach: got {}",
-        shape(&got)
-    );
-    let got = frame_at(&p, 10.0 * REACH);
-    assert!(
-        matches!(
-            got,
-            Err(FrameError::Spiric {
-                loops: SpiricLoops::AroundTube,
-                ..
-            })
-        ),
-        "definite at ten times the reach: got {}",
-        shape(&got)
-    );
+    served(frame(&p), "Zero at the reach");
+    for lever in [10.0, 40.0] {
+        let got = frame_at(&p, lever * REACH);
+        assert!(
+            matches!(
+                got,
+                Err(FrameError::Spiric {
+                    loops: SpiricLoops::AroundTube,
+                    ..
+                })
+            ),
+            "the general pose at {lever} times the reach: got {}",
+            shape(&got)
+        );
+    }
     let torus = donut();
     let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
     assert!(
@@ -566,12 +564,13 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
 /// both faces reads): a quarter of the outer tube of the ring
 /// `R = 2`, `r = 0.5` about `z`, bounded by the parallels `t = ±π/4` and
 /// the meridians `u = 0`, `π/2` ([`torus_sheet`]), against a plane
-/// through the centre whose axis tilt `s` puts `s·L` at `6·zero` and at
-/// `15·zero`, `L` the face's reach from the reading point: each boundary
-/// circle's centre distance plus its radius. The first escalates
-/// `pt_axis_in_plane` and the second is definite, a general pose
-/// refused by name, in both member orders. A lever doubled reads the
-/// first definite; one halved reads the second in the band.
+/// through the centre whose axis tilt `s` puts `s·L` at `0.8·zero`,
+/// `6·zero` and `15·zero`, `L` the face's reach from the reading point: each boundary
+/// circle's centre distance plus its radius. The first is in the band
+/// of `pt_axis_in_plane`, a lane choice (D3), so it takes the definite
+/// arm's lane and both are a general pose refused by name, in both
+/// member orders; at `0.8·zero` the meridian pair is served. A lever
+/// doubled reads that pose in the band, and the general one.
 #[test]
 fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
     use super::join::{face_pair_section_loops, frame_reading};
@@ -596,7 +595,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
     .map(|&(centre, radius)| (centre - at).norm() + radius)
     .fold(0.0, f64::max);
     let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
-    for (lever, want) in [(6.0, "escalated"), (15.0, "spiric")] {
+    for (lever, want) in [(0.8, "served"), (6.0, "spiric"), (15.0, "spiric")] {
         let s = lever * b.zero() / reach;
         let n = azimuth * (1.0 - s * s).sqrt() + Vec3::unit_z() * s;
         let (flat, flat_face) = plane_face(n, Point3::new(1.0, 1.0, 0.0));
@@ -621,12 +620,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
             ),
         ] {
             let read = match &got {
-                Err(BooleanError::Escalated { decision, diag })
-                    if format!("{decision:?}") == "Coincidence(Section, Moot)"
-                        && diag.predicate == Some("pt_axis_in_plane") =>
-                {
-                    "escalated"
-                }
+                Ok(Some(_)) => "served",
                 Err(BooleanError::GermSectionSpiric {
                     loops: SpiricLoops::AroundTube,
                     ..
