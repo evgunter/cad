@@ -2497,6 +2497,10 @@ pub(super) fn net_incidence<T: Decide>(
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
+        // Not [`Meters::part_bound`]: this reading is at the lane scalar
+        // `T`, and decides each lever at the band, escalating where the
+        // band cannot tell, where `part_bound` reads interval enclosures
+        // and takes a lever positive only where its lower end is.
         let disp = meters
             .over(
                 f,

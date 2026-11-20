@@ -597,9 +597,10 @@ impl PatchComposite {
 /// in rational Bernstein form cell by cell: `points` are the patch's
 /// homogeneous channels in that frame and `weight` its weight channel
 /// ([`super::tensor::SurfaceCertData::bernstein_channels`]). The forms are
-/// [`super::canonical_composite`]'s, one parameter up, in the same
-/// association, so a curve and a patch composed against one chart read
-/// one polynomial.
+/// [`super::canonical_composite`]'s polynomials, one parameter up; the
+/// torus's is associated differently, for a narrower enclosure (its arm),
+/// and the curve twin has not followed
+/// (`work/nurbs/the-curve-and-patch-canonical-composites-are-two-hand-kept-copies.md`).
 pub fn canonical_patch_composite(
     points: &[PatchSpans; 3],
     weight: &PatchSpans,
@@ -640,11 +641,19 @@ pub fn canonical_patch_composite(
             den: squared(),
         },
         CanonicalSurface::Torus { major, minor } => {
+            // The quartic as `A² + 4R²·W²·(Z² − r²W²)` with
+            // `A = |G|² − (R² + r²)·W²` — the same polynomial as
+            // `(|G|² + (R² − r²)W²)² − 4R²·(X² + Y²)·W²`, since
+            // `|G|² − (X² + Y²) = Z²`, but near the torus each term is of the
+            // size `(2Rr)²` the form's value is measured against, where the
+            // other association subtracts two terms of size `(2R²)²`: the
+            // enclosure is narrower by about `(R/r)²`.
             let w2 = squared();
-            let shifted = sum_of_squares().add(&w2.scale(major.sqr() - minor.sqr()));
+            let a = sum_of_squares().sub(&w2.scale(major.sqr() + minor.sqr()));
+            let tube = g[2].mul(&g[2]).sub(&w2.scale(minor.sqr()));
             let four_r2 = Interval::point(4.0) * major.sqr();
             PatchComposite {
-                num: shifted.mul(&shifted).sub(&radial().mul(&w2).scale(four_r2)),
+                num: a.mul(&a).add(&w2.mul(&tube).scale(four_r2)),
                 den: w2.mul(&w2),
             }
         }

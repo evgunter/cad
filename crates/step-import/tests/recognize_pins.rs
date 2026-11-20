@@ -468,15 +468,16 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             let taken = plane_nurbs_intersections(&body);
             let seams: Vec<_> = taken
                 .iter()
-                .filter(|(_, plane, _)| match plane {
-                    geom::Surface::Plane { normal, .. } => normal.z.abs() < 0.5,
-                    _ => true,
-                })
+                .filter(|(_, plane, _)| !is_cap(plane))
                 .collect();
             assert!(
                 seams.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \
                  declare-and-check rung has no seam takers: {seams:?}"
+            );
+            assert!(
+                !taken.is_empty(),
+                "the bowed walls' cap rims take the plane × NURBS intersection arm"
             );
             // The arc wall is the rational one; the bowed `x = −1`
             // wall is integral.

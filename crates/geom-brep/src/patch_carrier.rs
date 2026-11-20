@@ -17,9 +17,11 @@
 //! ([`geom_core::spline::compose::patch::canonical_patch_composite`]).
 //! The patch's knot-span cells cover its domain, and on each cell:
 //!
-//! - `|f|` is at most the magnitude of `hull(N)/hull(D)`: a Bernstein
-//!   polynomial lies in the hull of its coefficients, and `D`'s hull is
-//!   certified positive or the quotient refuses;
+//! - `|f|` is at most the largest `|N_k/D_k|`: `N` and `D` have one
+//!   bidegree, so with every `D_k > 0` (certified, or the cell refuses)
+//!   `N/D = Σ (B_k·D_k/D)·(N_k/D_k)` is a convex combination of the
+//!   coefficient ratios
+//!   ([`geom_core::spline::compose::patch::PatchComposite::cell_bound`]);
 //! - the cell's points lie in the convex hull of its rational Bézier
 //!   control points `(X_k, Y_k, Z_k)/W_k` (positive weights make the
 //!   rational basis a nonnegative partition of unity), so the box and
@@ -55,6 +57,7 @@
 //! certified positive, a lever not certified positive on a torus).
 
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::certification::Certification as _;
 use geom_core::interval::max_bound;
 use geom_core::spline::compose::patch::{PatchSpans, canonical_patch_composite};
 use geom_core::spline::compose::tensor::SurfaceCertData;
@@ -68,6 +71,11 @@ use crate::pcurve_cache::projected::{ConeLocus, part_reach};
 /// certified.
 #[must_use]
 pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> f64 {
+    distance_sup_on(patch, surface, ConeLocus::Double)
+}
+
+/// [`patch_distance_sup`] with a cone's metres read against `locus`.
+fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: ConeLocus) -> f64 {
     let point = |x: f64| Interval::from_bounds(x, x);
     let Ok((coords, form, meters)) = framed_form(surface, patch.control(), &point) else {
         return f64::NAN;
@@ -104,13 +112,13 @@ pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> 
             if !f.is_certified() || controls.is_empty() {
                 return f64::NAN;
             }
-            let f_sup = f.lo().abs().max(f.hi().abs());
+            let f_sup = f.mag();
             let (rho, far, z) = part_reach(&controls);
             let bound = meters.part_bound(
                 f_sup,
                 (lower(rho), upper(far)),
                 (lower(z.0), upper(z.1)),
-                ConeLocus::Double,
+                locus,
                 lower,
                 upper,
             );
@@ -396,6 +404,69 @@ mod tests {
                 assert!(bound < 1e-12, "{what}: on the carrier, the bound {bound:e}");
             }
         }
+    }
+
+    /// The unit cylinder about `+z` as four rational quarter spans in `u`
+    /// (double interior knots), over `z ∈ [0, 1]`, its LAST span's middle
+    /// control pushed out by `bulge`.
+    fn four_span_cylinder(bulge: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0],
+            2,
+        )
+        .unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for i in 0..9 {
+            let theta = core::f64::consts::FRAC_PI_4 * f64::from(i);
+            let (radius, w) = if i % 2 == 1 {
+                (core::f64::consts::SQRT_2, core::f64::consts::FRAC_1_SQRT_2)
+            } else {
+                (1.0, 1.0)
+            };
+            let radius = if i == 7 { radius + bulge } else { radius };
+            for z in [0.0, 1.0] {
+                control.push(Point3::new(radius * theta.cos(), radius * theta.sin(), z));
+                weights.push(w);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    /// **Every cell is read**: a four-span cylinder bulged in its last
+    /// span alone. The bound holds the bulge, and the exact twin reads
+    /// rounding-small — so a fold that skipped any cell would fail one.
+    #[test]
+    fn every_cell_of_a_multi_span_patch_is_read() {
+        let surface = cylinder_z(1.0);
+        let bulged = four_span_cylinder(1e-3);
+        let truth = dense_sup(&bulged, &surface);
+        assert!(truth > 1e-4, "the bulge is real: {truth:e}");
+        let bound = patch_distance_sup(&bulged, &surface);
+        assert!(
+            bound >= truth,
+            "the last span's bulge is read: {bound:e} vs {truth:e}"
+        );
+        let exact = patch_distance_sup(&four_span_cylinder(0.0), &surface);
+        assert!(exact < 1e-14, "the exact twin: {exact:e}");
+    }
+
+    /// **The double cone's reading beats the nappe's where the lever is
+    /// small**: a flat patch just above the apex of a cone of half-angle
+    /// 80°, so its cells' generator lever `ρ cos α + z sin α` is small
+    /// against `|f|`, and the apex root `√|f|` is the tighter bound. Both
+    /// hold against the true distance; the door's is strictly the lesser.
+    #[test]
+    fn the_double_cones_reading_beats_the_nappes_near_the_apex() {
+        let patch = flat((0.1, 0.2), (0.0, 0.1), -0.999);
+        let surface = cone(80.0_f64.to_radians(), Point3::new(0.0, -1.0, 0.0));
+        let double = distance_sup_on(&patch, &surface, ConeLocus::Double);
+        let nappe = distance_sup_on(&patch, &surface, ConeLocus::Nappe);
+        let truth = dense_sup(&patch, &surface);
+        assert!(
+            truth <= double && double < nappe,
+            "truth {truth:e} ≤ double {double:e} < nappe {nappe:e}"
+        );
     }
 
     /// **A bulge between a 3×3 sample grid's rows is read**: the bulged

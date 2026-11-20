@@ -463,10 +463,10 @@ pub enum NormalizationKind {
     SurfacePromotion {
         /// The kind that certified.
         to: PromotedKind,
-        /// The certified residual sup (meters): the patch's worst
-        /// deviation from the promoted surface over the certification
-        /// domain (control-net bound or fixed sampled grid — the
-        /// recognizer's dual track).
+        /// The certified residual sup (meters): an upper bound on the
+        /// patch's worst deviation from the promoted surface over its whole
+        /// domain (`geom_brep::patch_distance_sup`, every kind's one
+        /// certificate).
         residual: f64,
     },
     /// **Two edges the file states on one carrier, joined** (Ev's PR

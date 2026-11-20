@@ -101,8 +101,13 @@
 //! `RecognitionAmbiguous` refusal ONLY where promotion was needed to
 //! import at all (the multi-bound curved-face gate); an importable
 //! face with an ill-conditioned estimator stays NURBS, exactly like a
-//! refuted one. The cone, sphere and torus estimators carry no trilean:
-//! a degenerate curvature reading proposes nothing.
+//! refuted one. The cone, sphere and torus estimators read their own
+//! conditioning — whether the candidate can be told from its degenerate
+//! neighbour over the patch at the band (the cone's radius change against
+//! its cylinder's, the sphere's sagitta against its plane's, the torus's
+//! core sagitta against its cylinder's) — but a candidate that cannot is
+//! that neighbour's to answer, which is tried first, so it proposes
+//! nothing rather than refusing: the typed ambiguity stays the cylinder's.
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3};
@@ -171,15 +176,19 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognitio
     }
     // The cylinder estimator reads its axis off the net's `v` columns, so
     // it runs on the patch and then on its transpose: an extrusion along
-    // `u` is the same cylinder, and the kind must not depend on which
-    // parameter the file ran along the axis.
+    // `u` is the same cylinder, and neither the kind nor the refusal class
+    // may depend on which parameter the file ran along the axis. Either
+    // orientation certifying promotes; else either declining at the band
+    // is the declining, at the lesser margin; else it is refuted.
     let first = try_cylinder(patch, file);
     let cylinder = if matches!(first, Ok(Some(_))) {
         first
     } else {
-        match try_cylinder(&patch.transposed(), file) {
-            found @ Ok(Some(_)) => found,
-            _ => first,
+        match (first, try_cylinder(&patch.transposed(), file)) {
+            (_, found @ Ok(Some(_))) => found,
+            (Err(a), Err(b)) => Err(a.min(b)),
+            (Err(m), Ok(None)) | (Ok(_), Err(m)) => Err(m),
+            (Ok(_), Ok(None)) => Ok(None),
         }
     };
     if let Ok(Some((surface, residual))) = cylinder {
@@ -217,14 +226,6 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognitio
 /// A curved kind's estimator: the candidate it proposes at the file's
 /// band, if any.
 type Estimator = fn(&NurbsSurface<f64>, FileBand) -> Option<Surface<f64>>;
-
-/// Whether `p` lies inside the session box (D4 ¶4): a carrier whose
-/// defining point lies outside it is the degenerate limit of a simpler
-/// kind, not a reading of an in-box model.
-fn in_session_box(p: Point3<f64>) -> bool {
-    let e = geom_core::tolerance::SESSION_BOX_EXTENT;
-    p.x.abs() <= e && p.y.abs() <= e && p.z.abs() <= e
-}
 
 /// The curved-kind certificate (module docs): `candidate` and its
 /// certified residual where [`geom_brep::patch_distance_sup`] reads Zero at the
@@ -599,17 +600,25 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
         axis = -axis;
         (h0, slope) = (-h0, -slope);
     }
-    // A radius that does not change across the samples at the band is a
-    // cylinder's, whose apex runs off to infinity: no cone.
+    // The radius change over the patch — the slope times the patch's
+    // reach along the axis, read off its control net, which holds it — is
+    // what tells the cone from its cylinder: where it reads Zero at the
+    // band the two are one reading of the patch, and the cylinder's
+    // (tried first) is the canonical one. A function of the patch and the
+    // axis alone, so a rigid motion leaves it where it was.
+    let reach = patch
+        .control()
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+            let h = (*p - base).dot(axis);
+            (lo.min(h), hi.max(h))
+        });
     if !(slope.is_finite() && slope > 0.0)
-        || file.read(STEP_RECOGNIZED_CONDITIONING, rho2 - rho0) == Read::Zero
+        || file.read(STEP_RECOGNIZED_CONDITIONING, slope * (reach.1 - reach.0)) == Read::Zero
     {
         return None;
     }
     let apex = base + axis * (h0 - rho0 / slope);
-    if !in_session_box(apex) {
-        return None;
-    }
     let axis = plus_zero(axis);
     let apex = plus_zero_point(apex);
     let u_ref = plus_zero(seam_reference(patch, apex, axis)?);
@@ -652,19 +661,29 @@ fn collapsed_side(patch: &NurbsSurface<f64>) -> Option<(Point3<f64>, bool)> {
 /// own pole), else along `∂S/∂u` at the midpoint, which puts the
 /// midpoint on the equator and the poles a quarter turn off it; the seam
 /// at the patch's start in the parameter that runs around that axis.
-fn estimate_sphere(patch: &NurbsSurface<f64>, _file: FileBand) -> Option<Surface<f64>> {
+fn estimate_sphere(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f64>> {
     let s = curvature_at(patch, 0.5, 0.5)?;
     let mean = 0.5 * (s.larger + s.smaller);
     if !(mean.is_finite() && mean != 0.0) {
         return None;
     }
     let center = plus_zero_point(s.point + s.normal / mean);
-    // A vanishing mean curvature puts the centre past the session box:
-    // the flat limit is a plane's, not a sphere's.
-    if !in_session_box(center) {
+    let radius = (s.point - center).norm();
+    // The sphere's sagitta over the patch — its depth below a chord of
+    // the patch's reach from the midpoint, the farthest control point
+    // (the net holds the patch) — is what tells it from its plane: where
+    // it reads Zero at the band the two are one reading of the patch, and
+    // the plane's (tried first) is the canonical one. Distances only, so a
+    // rigid motion leaves it where it was.
+    let half = patch
+        .control()
+        .iter()
+        .map(|p| (*p - s.point).norm())
+        .fold(0.0_f64, f64::max);
+    let sagitta = radius - (radius.powi(2) - half.powi(2)).max(0.0).sqrt();
+    if !sagitta.is_finite() || file.read(STEP_RECOGNIZED_CONDITIONING, sagitta) == Read::Zero {
         return None;
     }
-    let radius = (s.point - center).norm();
     let (um, vm) = at_fraction(patch, 0.5, 0.5);
     let (u0, v0) = at_fraction(patch, 0.0, 0.0);
     let (axis, seam) = match collapsed_side(patch) {
@@ -723,18 +742,19 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
         + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared())
             / (2.0 * axb.norm_squared());
     let (axis, _) = axb.checked_direction().ok()?;
-    let center = plus_zero_point(center);
-    let axis = plus_zero(axis);
     let major_radius = (c[0] - center).norm();
     let minor_radius =
         (1.0 / s[0].larger.abs() + 1.0 / s[1].larger.abs() + 1.0 / s[2].larger.abs()) / 3.0;
-    if !(major_radius.is_finite()
-        && minor_radius > 0.0
-        && major_radius > minor_radius
-        && in_session_box(center))
-    {
+    let (center, axis, major_radius, minor_radius) = refine_torus(
+        patch,
+        (center, axis, major_radius, minor_radius),
+    )
+    .unwrap_or((center, axis, major_radius, minor_radius));
+    if !(major_radius.is_finite() && minor_radius > 0.0 && major_radius > minor_radius) {
         return None;
     }
+    let center = plus_zero_point(center);
+    let axis = plus_zero(axis);
     let u_ref = plus_zero(seam_reference(patch, center, axis)?);
     Some(Surface::Torus {
         center,
@@ -743,6 +763,112 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
         minor_radius,
         u_ref,
     })
+}
+
+/// The fixed sample grid the torus refinement reads: 5 × 5 points at the
+/// domain fractions `(k + ½)/5`.
+const REFINE_GRID: [f64; 5] = [0.1, 0.3, 0.5, 0.7, 0.9];
+
+/// **One Gauss–Newton step on the torus's seven parameters** (centre,
+/// axis tilt, `R`, `r`) from the curvature estimate, over the points of
+/// [`REFINE_GRID`]: the residual is each point's distance from the
+/// torus, `d = √((ρ − R)² + h²) − r`, whose partials are closed form
+/// (`∂d/∂c = −n̂`, the torus's normal there; along a tilt `δa ⊥ a`,
+/// `(h/s)·(q − (ρ − R)·ŵ)·δa`; `∂d/∂R = −(ρ − R)/s`; `∂d/∂r = −1`), and
+/// the step is the least-squares solve of the linearized system by
+/// Householder reflections in a fixed order. One step, no convergence
+/// test (D9): from the curvature estimate's error, rounding-scale times
+/// the patch's reach, one step lands within the rounding of the points
+/// themselves — the curvature estimate alone stays a few times above the
+/// certificate's own floor at metre scale and fine ε. `None` where the
+/// system is singular or a reading is not finite; the caller keeps the
+/// curvature estimate then.
+fn refine_torus(
+    patch: &NurbsSurface<f64>,
+    (center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64),
+) -> Option<(Point3<f64>, Vec3<f64>, f64, f64)> {
+    // The tilt's two directions ⊥ the axis, read off the patch's own
+    // midpoint (a parameterization of the step, kept nowhere).
+    let (um, vm) = at_fraction(patch, 0.5, 0.5);
+    let u1 = radial_of(patch.eval(um, vm), center, axis)?;
+    let u2 = axis.cross(u1);
+    let mut rows: Vec<[f64; 8]> = Vec::with_capacity(REFINE_GRID.len().pow(2));
+    for fu in REFINE_GRID {
+        for fv in REFINE_GRID {
+            let (u, v) = at_fraction(patch, fu, fv);
+            let q = patch.eval(u, v) - center;
+            let h = q.dot(axis);
+            let (w_hat, rho) = (q - axis * h).checked_direction().ok()?;
+            let s = (rho - major).hypot(h);
+            if !(s.is_finite() && s > 0.0) {
+                return None;
+            }
+            let normal = w_hat * ((rho - major) / s) + axis * (h / s);
+            let tilt = (q - w_hat * (rho - major)) * (h / s);
+            rows.push([
+                -normal.x,
+                -normal.y,
+                -normal.z,
+                tilt.dot(u1),
+                tilt.dot(u2),
+                -(rho - major) / s,
+                -1.0,
+                -(s - minor),
+            ]);
+        }
+    }
+    let step = least_squares::<7, 8>(&mut rows)?;
+    let center = center + Vec3::new(step[0], step[1], step[2]);
+    let (axis, _) = (axis + u1 * step[3] + u2 * step[4])
+        .checked_direction()
+        .ok()?;
+    let (major, minor) = (major + step[5], minor + step[6]);
+    (center.x.is_finite() && major.is_finite() && minor.is_finite())
+        .then_some((center, axis, major, minor))
+}
+
+/// The least-squares solution `x` of `J·x ≈ b` for rows `[J | b]` of `N`
+/// unknowns (`W = N + 1` columns), by Householder reflections applied in
+/// column order and back substitution: closed form, a fixed number of
+/// operations for a fixed row count (D9). `None` where a column is
+/// (numerically) dependent on the ones before it.
+fn least_squares<const N: usize, const W: usize>(rows: &mut [[f64; W]]) -> Option<[f64; N]> {
+    let m = rows.len();
+    if m < N || W != N + 1 {
+        return None;
+    }
+    for k in 0..N {
+        let norm = rows[k..].iter().map(|r| r[k].powi(2)).sum::<f64>().sqrt();
+        if !(norm.is_finite() && norm > 0.0) {
+            return None;
+        }
+        let alpha = if rows[k][k] > 0.0 { -norm } else { norm };
+        let mut v: Vec<f64> = rows[k..].iter().map(|r| r[k]).collect();
+        v[0] -= alpha;
+        let vv: f64 = v.iter().map(|x| x.powi(2)).sum();
+        if vv.is_nan() || vv <= 0.0 {
+            return None;
+        }
+        for j in k..W {
+            let dot: f64 = rows[k..].iter().zip(&v).map(|(r, vi)| r[j] * vi).sum();
+            let f = 2.0 * dot / vv;
+            for (r, vi) in rows[k..].iter_mut().zip(&v) {
+                r[j] -= f * vi;
+            }
+        }
+    }
+    let mut x = [0.0; N];
+    for k in (0..N).rev() {
+        let mut acc = rows[k][N];
+        for j in k + 1..N {
+            acc -= rows[k][j] * x[j];
+        }
+        x[k] = acc / rows[k][k];
+        if !x[k].is_finite() {
+            return None;
+        }
+    }
+    Some(x)
 }
 
 /// Whether the promoted chart's normal OPPOSES the NURBS chart's at
@@ -800,10 +926,10 @@ mod review_probes {
         NurbsSurface::new(ku, kv, control, vec![weights_value; 34]).unwrap()
     }
 
-    /// **P1 — the missing between-samples envelope, plane/rational
-    /// track.** Uniform weights 2.0 route the polynomial geometry
-    /// onto the sampled track; the patch lies on z = 0 at every
-    /// certification sample but bulges to ±0.25 between them.
+    /// **P1 — a rational plane bulged between a 9×9 grid's samples.**
+    /// Uniform weights 2.0 make the net rational; the patch lies on z = 0
+    /// at every integer `u` but bulges to ±0.25 between them, which the
+    /// whole-patch certificate reads.
     #[test]
     fn p1_rational_plane_bulge_between_samples() {
         let patch = bulged_plane(0.5, 2.0);
@@ -812,23 +938,22 @@ mod review_probes {
         match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { residual, kind, .. } => panic!(
                 "PROMOTED a patch that deviates {z_mid} from the plane \
-                 (kind {kind:?}, certified residual {residual:e}) — the fixed \
-                 9x9 grid missed every bulge; no between-samples envelope"
+                 (kind {kind:?}, certified residual {residual:e})"
             ),
             other => println!("stayed unpromoted: {other:?}"),
         }
     }
 
-    /// **P1b — same construction, non-rational.** The hull sup-bound
-    /// track must catch it (control points deviate by `bulge`).
+    /// **P1b — same construction, non-rational**: the certificate reads
+    /// the bulged controls.
     #[test]
-    fn p1b_nonrational_plane_bulge_is_caught_by_the_hull() {
+    fn p1b_nonrational_plane_bulge_is_caught_by_the_certificate() {
         let patch = bulged_plane(0.5, 1.0);
         match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
-                panic!("hull track promoted the bulged net: {kind:?} at {residual:e}")
+                panic!("the bulged net promoted: {kind:?} at {residual:e}")
             }
-            other => println!("hull track refused, as designed: {other:?}"),
+            other => println!("refused, as designed: {other:?}"),
         }
     }
 
@@ -864,14 +989,13 @@ mod review_probes {
         match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => panic!(
                 "PROMOTED a bulged non-cylinder (true radial deviation {dev}) as \
-                 {kind:?} with certified residual {residual:e} — the fixed 9x9 \
-                 grid sampled only the exact-cylinder points"
+                 {kind:?} with certified residual {residual:e}"
             ),
             other => println!("stayed unpromoted: {other:?}"),
         }
     }
 
-    /// **P3 — the ε_in boundary on the hull track.** One control
+    /// **P3 — the ε_in boundary on a plane.** One control
     /// point of an otherwise exact plane lifted by δ; the fitted
     /// plane's residual is 5δ/6 on this 6-point net.
     #[test]
@@ -919,13 +1043,11 @@ mod review_probes {
         }
     }
 
-    /// **P4 — a rational EXACT plane still promotes.** (Originally
-    /// "via the sampled track"; the M-1 fix collapsed the plane
-    /// certificate onto the hull sup-bound for BOTH tracks — the
-    /// positive-weight convexity argument — so this now pins that the
-    /// rational plane rides the whole-patch hull certificate.)
+    /// **P4 — a rational EXACT plane promotes**, its certificate
+    /// rounding-small: the coefficient-ratio bound holds the weights'
+    /// variation exactly.
     #[test]
-    fn p4_rational_exact_plane_promotes_via_the_hull_track() {
+    fn p4_rational_exact_plane_promotes() {
         let patch = bulged_plane(0.0, 3.0);
         match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
@@ -1422,6 +1544,249 @@ mod review_probes {
                 Recognition::Promoted { .. }
             ),
             "at 1e-9 the apex root does not clear the band"
+        );
+    }
+
+    /// A frustum of half-angle `alpha` about `+z`, its apex at the origin,
+    /// over heights `[z0, z1]`, as a half turn (two quarter spans) in `v`
+    /// and a line in `u`, then moved by `shift`.
+    fn frustum(alpha: f64, z0: f64, z1: f64, shift: Vec3<f64>) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [
+            ((1.0, 0.0), 1.0),
+            ((1.0, 1.0), w),
+            ((0.0, 1.0), 1.0),
+            ((-1.0, 1.0), w),
+            ((-1.0, 0.0), 1.0),
+        ];
+        let t = alpha.tan();
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for z in [z0, z1] {
+            let rho = z * t;
+            for &((c, s), wt) in &turn {
+                control.push(Point3::new(rho * c, rho * s, z) + shift);
+                weights.push(wt);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    /// A turn of `angle` (< π/2) about `+y` of a one-span meridian
+    /// profile `(ρ, y)`: Piegl–Tiller's surface of revolution, one span.
+    fn revolved_by(
+        profile: &[(f64, f64)],
+        profile_w: &[f64],
+        degree: usize,
+        angle: f64,
+    ) -> NurbsSurface<f64> {
+        let mut knots = vec![0.0; degree + 1];
+        knots.extend(vec![1.0; degree + 1]);
+        let ku = KnotVector::clamped(knots, degree).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (s, c) = angle.sin_cos();
+        let half = 0.5 * angle;
+        let turn = [
+            ((1.0, 0.0), 1.0),
+            ((1.0, half.tan()), half.cos()),
+            ((c, s), 1.0),
+        ];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for (&(rho, y), &wp) in profile.iter().zip(profile_w) {
+            for &((ca, sa), wt) in &turn {
+                control.push(Point3::new(rho * ca, y, -rho * sa));
+                weights.push(wp * wt);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    /// **P15 — each curved estimator declines a candidate it cannot tell
+    /// from its degenerate neighbour over the patch at the band**, and
+    /// proposes it where it can. At ε_in = 1e-6:
+    ///
+    /// * a frustum of half-angle `1e-9` over a metre (radius change 1e-9
+    ///   m): no cone, it is its cylinder's; at `1e-3` rad, a cone;
+    /// * a 1 m patch of a torus of `R = 1e6 m` (its core's sagitta over the
+    ///   patch about 1e-7 m): no torus; at `R = 10`, a torus;
+    /// * a 1 m patch of a sphere of radius `1e6 m` (sagitta about 1e-7 m):
+    ///   no sphere, it is its plane's; at radius 10, a sphere.
+    ///
+    /// Each refusal is the guard's alone: remove one and its row proposes.
+    #[test]
+    fn p15_each_estimator_declines_its_degenerate_neighbour() {
+        let band = crate::interpret::FileBand::test(1e-6);
+        let shallow = frustum(1e-9, 1.0, 2.0, Vec3::zero());
+        assert!(
+            estimate_cone(&shallow, band).is_none(),
+            "a cone indistinguishable from its cylinder"
+        );
+        assert!(
+            estimate_cone(&frustum(1e-3, 1.0, 2.0, Vec3::zero()), band).is_some(),
+            "a cone"
+        );
+        let arc = |radius: f64, angle: f64| {
+            let half = 0.5 * angle;
+            [
+                (radius, 0.0),
+                (radius, radius * half.tan()),
+                (radius * angle.cos(), radius * angle.sin()),
+            ]
+        };
+        let arc_w = |angle: f64| [1.0, (0.5 * angle).cos(), 1.0];
+        let tube = |major: f64| {
+            let profile: Vec<(f64, f64)> =
+                arc(1.0, 1.0).iter().map(|&(x, y)| (major + x, y)).collect();
+            revolved_by(&profile, &arc_w(1.0), 2, 1.0 / major)
+        };
+        assert!(
+            estimate_torus(&tube(1e6), band).is_none(),
+            "a torus whose core runs straight over the patch"
+        );
+        assert!(estimate_torus(&tube(10.0), band).is_some(), "a torus");
+        let cap = |radius: f64| {
+            revolved_by(
+                &arc(radius, 1.0 / radius),
+                &arc_w(1.0 / radius),
+                2,
+                1.0 / radius,
+            )
+        };
+        assert!(
+            estimate_sphere(&cap(1e6), band).is_none(),
+            "a sphere indistinguishable from its plane"
+        );
+        assert!(estimate_sphere(&cap(10.0), band).is_some(), "a sphere");
+    }
+
+    /// **P16 — a cone promotes wherever it is, however shallow, at any
+    /// distance of its apex**: a 0.1 rad frustum moved 995 m along its axis,
+    /// its apex ~1 km out with every patch point near the origin, and a
+    /// 0.05° draft cone. Neither the apex's position nor the half-angle is
+    /// a reason to refuse; only the radius change over the patch is (P15).
+    #[test]
+    fn p16_a_far_apex_and_a_draft_angle_promote() {
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        let alpha = 0.1_f64;
+        let z0 = 1.0 / alpha.tan();
+        let far = frustum(alpha, z0, z0 + 1.0, Vec3::new(0.0, 0.0, -z0 - 995.0));
+        let draft_alpha = 0.05_f64.to_radians();
+        let zd = 1.0 / draft_alpha.tan();
+        let draft = frustum(draft_alpha, zd, zd + 1.0, Vec3::new(0.0, 0.0, -zd));
+        for (what, p) in [("far apex", far), ("draft", draft)] {
+            for (how, q) in [("as stated", p.clone()), ("transposed", p.transposed())] {
+                match recognize(&q, band) {
+                    Recognition::Promoted { kind, .. } => {
+                        assert_eq!(kind, PromotedKind::Cone, "{what} {how}");
+                    }
+                    other => panic!("the {what} cone, {how}, promotes: {other:?}"),
+                }
+            }
+        }
+    }
+
+    /// **P17 — the headline's conic torus wall promotes at 1e-12**: nine
+    /// conic spans each way at `R = 24`, `r = 6` m. The curvature estimate
+    /// alone sits a few times over the certificate's own floor at this
+    /// scale; the refinement step (`refine_torus`) brings it under 1e-12.
+    #[test]
+    fn p17_the_headline_torus_wall_promotes_at_1e_12() {
+        type Arc = (Vec<((f64, f64), f64)>, Vec<f64>);
+        let arc = |a0: f64, a1: f64, n: usize| -> Arc {
+            let mut pts = Vec::new();
+            let mut knots = vec![0.0; 3];
+            for k in 0..n {
+                let (b0, b1) = (
+                    a0 + (a1 - a0) * (k as f64) / (n as f64),
+                    a0 + (a1 - a0) * ((k + 1) as f64) / (n as f64),
+                );
+                let half = 0.5 * (b1 - b0);
+                let (bm, w) = (0.5 * (b0 + b1), half.cos());
+                if k == 0 {
+                    pts.push(((b0.cos(), b0.sin()), 1.0));
+                }
+                pts.push(((bm.cos() / w, bm.sin() / w), w));
+                pts.push(((b1.cos(), b1.sin()), 1.0));
+                if k + 1 < n {
+                    knots.push((k + 1) as f64);
+                    knots.push((k + 1) as f64);
+                }
+            }
+            knots.extend([n as f64; 3]);
+            (pts, knots)
+        };
+        let (big_r, r) = (24.0, 6.0);
+        let (minor, ku) = arc(0.0, core::f64::consts::PI, 9);
+        let (major, kv) = arc(0.0, core::f64::consts::FRAC_PI_2, 9);
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &((cx, sx), wm) in &minor {
+            for &((ca, sa), wa) in &major {
+                let d = big_r + r * cx;
+                control.push(Point3::new(d * ca, r * sx, -d * sa));
+                weights.push(wm * wa);
+            }
+        }
+        let patch = NurbsSurface::new(
+            KnotVector::clamped(ku, 2).unwrap(),
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            weights,
+        )
+        .unwrap();
+        match recognize(&patch, crate::interpret::FileBand::test(1e-12)) {
+            Recognition::Promoted { kind, residual, .. } => {
+                assert_eq!(kind, PromotedKind::Torus);
+                assert!(residual <= 1e-12, "{residual:e}");
+            }
+            other => panic!("the headline wall promotes at 1e-12: {other:?}"),
+        }
+    }
+
+    /// **P18 — the refusal class does not depend on transposition**: a
+    /// closed freeform revolution (a cubic profile no kind is, `v` the full
+    /// turn) reports one outcome either way round.
+    #[test]
+    fn p18_a_closed_freeform_reports_one_class_either_way_round() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut kv = vec![0.0; 3];
+        for t in 1..4 {
+            kv.push(f64::from(t));
+            kv.push(f64::from(t));
+        }
+        kv.extend([4.0; 3]);
+        let kv = KnotVector::clamped(kv, 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let dirs = [
+            (1.0, 0.0, 1.0),
+            (1.0, 1.0, w),
+            (0.0, 1.0, 1.0),
+            (-1.0, 1.0, w),
+            (-1.0, 0.0, 1.0),
+            (-1.0, -1.0, w),
+            (0.0, -1.0, 1.0),
+            (1.0, -1.0, w),
+            (1.0, 0.0, 1.0),
+        ];
+        let profile = [(1.0, 0.0), (1.6, 0.4), (0.7, 0.8), (1.2, 1.3)];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &(rho, z) in &profile {
+            for &(c, s, wt) in &dirs {
+                control.push(Point3::new(rho * c, rho * s, z));
+                weights.push(wt);
+            }
+        }
+        let p = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        let class =
+            |q: &NurbsSurface<f64>| match recognize(q, crate::interpret::FileBand::test(1e-6)) {
+                Recognition::Promoted { kind, .. } => format!("promoted {kind:?}"),
+                Recognition::StaysNurbs => "stays".to_owned(),
+                Recognition::IllConditioned { kind, margin } => format!("ill {kind:?} {margin:e}"),
+            };
+        assert_eq!(
+            class(&p),
+            class(&p.transposed()),
+            "one class either way round"
         );
     }
 
