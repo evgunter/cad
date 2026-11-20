@@ -88,6 +88,7 @@
 
 use core::cmp::Ordering;
 use core::fmt;
+use std::sync::Arc;
 
 use quantity::{Notation, UnitDef};
 
@@ -680,7 +681,10 @@ pub trait Tell {
     fn tell(&self, notation: Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
     /// This, as text in `notation`.
-    fn told_in(&self, notation: Notation) -> ToldIn<'_, Self> {
+    fn told_in(&self, notation: Notation) -> ToldIn<'_, Self>
+    where
+        Self: Sized,
+    {
         ToldIn {
             what: self,
             notation,
@@ -696,14 +700,81 @@ impl<S: Tell + ?Sized> Tell for &S {
 
 /// [`Tell::told_in`]'s text.
 #[derive(Clone, Copy, Debug)]
-pub struct ToldIn<'a, S: ?Sized> {
+pub struct ToldIn<'a, S> {
     what: &'a S,
     notation: Notation,
 }
 
-impl<S: Tell + ?Sized> fmt::Display for ToldIn<'_, S> {
+impl<S: Tell> fmt::Display for ToldIn<'_, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.what.tell(self.notation, f)
+    }
+}
+
+/// Text that quotes no quantity reads the same in every notation.
+impl Tell for str {
+    fn tell(&self, _: Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self)
+    }
+}
+
+impl Tell for String {
+    fn tell(&self, _: Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self)
+    }
+}
+
+/// **A sentence kept to be told later**: what a value that outlives
+/// the refusal it reports holds in place of the refusal's text, so the
+/// notation is still the reader's to choose when it is shown. A
+/// `String` taken from a refusal's `Display` has already chosen metres.
+///
+/// Its `Debug` and `Display` are the canonical text, and two are equal
+/// when their canonical texts are.
+#[derive(Clone)]
+pub struct Sentence(Arc<dyn Tell + Send + Sync>);
+
+impl Sentence {
+    /// `said`, kept.
+    #[must_use]
+    pub fn new(said: impl Tell + Send + Sync + 'static) -> Self {
+        Self(Arc::new(said))
+    }
+}
+
+impl From<String> for Sentence {
+    fn from(text: String) -> Self {
+        Self::new(text)
+    }
+}
+
+impl From<&str> for Sentence {
+    fn from(text: &str) -> Self {
+        Self::new(text.to_owned())
+    }
+}
+
+impl Tell for Sentence {
+    fn tell(&self, notation: Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.tell(notation, f)
+    }
+}
+
+impl fmt::Display for Sentence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl fmt::Debug for Sentence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl PartialEq for Sentence {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
     }
 }
 
@@ -1879,6 +1950,23 @@ mod tests {
         }
         let tolerance = Told::at_most(&2e-10, Dimension::Length).of_the_tolerance();
         assert_eq!(tolerance.told_in(NOTATIONS[1]).to_string(), "2e-10 m");
+    }
+
+    /// A kept sentence is told in the notation of whoever reads it,
+    /// whenever that is.
+    #[test]
+    fn a_kept_sentence_reads_in_the_notation_it_is_shown_in() {
+        let kept = super::Sentence::new(Told::computed(&0.25, Dimension::Length));
+        assert_eq!(kept.to_string(), "0.25 m");
+        assert_eq!(kept.told_in(NOTATIONS[1]).to_string(), "250 mm");
+        assert_eq!(format!("{kept:?}"), "\"0.25 m\"");
+        assert_eq!(kept, super::Sentence::from("0.25 m"));
+        assert_eq!(
+            super::Sentence::from("no number")
+                .told_in(NOTATIONS[1])
+                .to_string(),
+            "no number"
+        );
         assert_ne!(tolerance, Told::at_most(&2e-10, Dimension::Length));
     }
 

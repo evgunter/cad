@@ -2573,6 +2573,16 @@ impl<T: Real> ReplayError<T> {
 // declares). The sketch preview's refusal is that case.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        geom_core::Tell::tell(self, geom_core::Notation::CANONICAL, f)
+    }
+}
+
+impl<T: Real> geom_core::Tell for ReplayError<T> {
+    fn tell(
+        &self,
+        notation: geom_core::Notation,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         match &self.kind {
             ReplayErrorKind::Transition { state, verb } => {
                 let refused = state.refused(*verb, Vocabulary::Program);
@@ -2588,7 +2598,7 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 )
             }
             ReplayErrorKind::Path(source) => {
-                write!(f, "step {}: {source}", self.step)
+                write!(f, "step {}: {}", self.step, source.told_in(notation))
             }
         }
     }

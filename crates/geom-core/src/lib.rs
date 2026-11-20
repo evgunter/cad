@@ -82,7 +82,7 @@ pub use predicate::{
     UNNAMED_PREDICATE, UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE,
     UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };
-pub use quantity::Notation;
+pub use quantity::{self, Notation};
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, TangentTransport, Uncertified, Witness,
@@ -93,7 +93,9 @@ pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use structure::{structure_ascends, structure_nonzero};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
-pub use told::{Compared, Dimension, Member, Position, Tell, Told, ToldIn, WIDEST_NUMBER};
+pub use told::{
+    Compared, Dimension, Member, Position, Sentence, Tell, Told, ToldIn, WIDEST_NUMBER,
+};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,

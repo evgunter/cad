@@ -76,6 +76,15 @@
 #    as any other `{}`; rule 1 is what keeps an `f64` from being there.
 #  - A `Formatter` reached through a closure (`fmt::from_fn(|f| …)`)
 #    outside any body rule 2 reads.
+#  - A told quantity a notation-taking body writes with a bare `{}`.
+#    A sentence is written once, in `geom_core::Tell::tell` (a function
+#    taking a `Formatter`, so rule 2 reads it), and each quantity in it
+#    goes through `told_in(notation)`; one formatted with `{}` reads in
+#    metres whatever the reader's notation, and so does a whole inner
+#    sentence forwarded with `{}`. The text is true (its unit word says
+#    metres) and the formatter does not say what type it prints.
+#    `profile`'s rows `a_refusal_reads_in_the_readers_units` render its
+#    refusals in millimetres and degrees and refuse a canonical word.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
