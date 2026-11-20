@@ -49,7 +49,7 @@ Choose between renaming or splitting the class, or keeping the kind and rewritin
 to say "the turn at this junction is zero at tolerance" with both
 factors and a "lengthen the shorter leg" lever. This binds the Python tag and
 the shared recourse constant, so it is a decision for the owner. The neighbouring
-`work/profiletail/a-zero-length-line-leg-refuses-as-a-tangent-junction.md`
+`work/profile/a-zero-length-line-leg-refuses-as-a-tangent-junction.md`
 covers the zero-length case, which is a different defect: there the stand-in ray is the problem.
 The driving probe is in the ROUND PR that filed this row (the
 sibling sweep of `round/turn-gate-names-its-factors`).

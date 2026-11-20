@@ -8129,7 +8129,7 @@ enum Holder {
 /// 2026-09-15 over every literal passed to the two `&'static str` door
 /// parameters under `src/py/`), every one minted at a call site and
 /// read by no instrument —
-/// `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
+/// `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
 /// is that row, and it is not this one. A SECOND such field arrives
 /// with this census silent, which
 /// `the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
@@ -8174,7 +8174,7 @@ enum Holder {
 /// answers less well. They stay because `crates/test-utils/*` is
 /// another program's territory and widening its grammar is a filed row
 /// rather than one taken here —
-/// `work/census/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
+/// `work/bind/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
 ///
 /// What is about THIS census and nothing else is the
 /// `(self type, trait, item name)` key, the attribution of a literal
@@ -8236,7 +8236,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         held_by: &[Holder::Outside(
             "nothing: its `op` parameter's twelve words are minted at call sites \
              under `src/py/` and no instrument reads them, which is \
-             `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
+             `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
         )],
     },
     MintingItem {
@@ -9738,7 +9738,7 @@ fn tracker_row_exists(id: &str) -> bool {
 /// (`rg ': Final$' crates/pncad-py/pncad.pyi` is empty, 2026-09-15),
 /// so the divergence was latent and the fixture below now holds one.
 /// That is the instance closed and not the class:
-/// `work/census/one-stub-convention-has-two-readers-in-two-languages.md`
+/// `work/bind/one-stub-convention-has-two-readers-in-two-languages.md`
 /// carries the pair. This check stays in Rust because its other half
 /// is `crate::errors::EvalReason::ATTRIBUTES` — a Rust const read as a
 /// const, which a Python copy would have to re-spell, and re-spelling
@@ -10198,7 +10198,7 @@ fn the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal() {
 /// and interpolated into the class's message. Twelve words arrive that
 /// way today, every one of them minted at a call site under `src/py/`
 /// and read by no instrument
-/// (`work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
+/// (`work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
 /// measured 2026-09-15). A SECOND such field would arrive with this
 /// census silent, and that is what this executes.
 ///
