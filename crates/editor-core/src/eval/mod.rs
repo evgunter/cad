@@ -3668,15 +3668,12 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         use geom_core::Bounds;
         self.lo() == 0.0 && self.hi() == 0.0
     }
-
-    fn solve_atan2(y: Self, x: Self) -> Self {
-        crate::mate::solve::box_atan2(y, x)
-    }
 }
 
-/// The seed lane's solve: a refusal quotes the value channel — the
-/// `f64` lane's own number — and the angle's value channel is the
-/// `f64` lane's `atan2` with the dual's own tangent beside it.
+/// The seed lane's solve: a refusal quotes the value channel — its
+/// lane's own number — and the angle's value channel is its lane's
+/// `solve_atan2` (the platform's over `f64`, `box_atan2` over an
+/// interval) with the dual's own tangent beside it.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Dual<T>
 where
     geom_core::Dual<T>: geom_core::Decide,
@@ -3732,10 +3729,6 @@ where
 
     fn spins_by_frames() -> bool {
         T::spins_by_frames()
-    }
-
-    fn solve_atan2(y: Self, x: Self) -> Self {
-        crate::mate::solve::box_atan2(y, x)
     }
 }
 

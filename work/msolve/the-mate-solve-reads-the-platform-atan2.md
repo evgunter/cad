@@ -57,4 +57,8 @@ for that one site.
 
 ## The box lanes left the trait's branch rule (CHARTTAIL, 2026-11-20)
 
-CHARTTAIL's `charttail/solve-atan2` deleted `Atan2Branch` and `SolveScalar::atan2_branch`. The `Interval` and `Sym` lanes now read `mate::solve::box_atan2`, which is the angle window's `geom::Azimuth` read (cut at `−1`, F31). Only `f64`, `Probe` and `Dual`'s value channel still read the platform `atan2`. If this row closes by moving `f64` onto `Real`, `f64` can read `box_atan2` as well and the trait method can go. One thing to weigh first: at `f64` the spin is not read only through its sine and cosine. The gesture read-back quotes it (`mate/value.rs`, `Coord::Spin(None) => chart.spin(..)` over `Chart::<f64>`), so through `box_atan2` a read-back spin would leave `(−π, π]` for `(−1, τ − 1]`.
+CHARTTAIL's `charttail/solve-atan2` deleted `Atan2Branch` and `SolveScalar::atan2_branch`. `solve_atan2`'s default is now `mate::solve::box_atan2`, the angle window's `geom::Azimuth` read (cut at `−1`, F31). It is read by `Interval`, by `Sym`, and by a dual over `Interval`'s value channel (`analysis.rs`, `clearance.rs`).
+
+Only `f64`, `Probe` and a dual over `f64` still read the platform `atan2`. If this row closes by moving `f64` onto `Real`, the `f64` and `Probe` overrides can go.
+
+Weigh one thing first: at `f64` the spin is not read only through its sine and cosine. The gesture read-back quotes it (`mate/value.rs`, `Coord::Spin(None) => chart.spin(..)` over `Chart::<f64>`). Through `box_atan2` a read-back spin would leave `(−π, π]` for `(−1, τ − 1]`.

@@ -1534,24 +1534,26 @@ Flagged, NOT fixed here (dispositions):
     the span's middle) and `props::curved`'s `torus_angle` (near `0`).
   - `editor_core::mate::solve`'s `box_atan2` (`mate_spin_cut_side`):
     the same choice, through `Azimuth::principal_as`, for the spin a
-    mate's chart reads at a box scalar and at a symbolic one, which is
-    read only through its sine and cosine (`turn_to`), never renamed.
+    mate's chart reads at a box scalar and at a symbolic one. No outcome
+    is a reading there because the spin is read only through its sine
+    and cosine, never renamed; that invariant's home is `box_atan2`'s doc.
 
   What keeps them off the logged doors is that no outcome is a reading:
   both copies name the same point, and an undecided decision picks a
   formula or copy that is continuous over the enclosure, so it reads as
   narrow either way. That holds for a direction of definitely positive
   length only. One whose enclosure reaches zero length decides no
-  angle at all, and `Azimuth::near` reads it as the whole window about
-  the reference, `[reference − π, reference + π]`, without asking
-  either decision (an exact zero point reads the reference, which every
-  angle names). Logged, an undecided mark at `Interval` would hand
+  angle at all, and neither door asks it either decision:
+  `Azimuth::near` reads it as the whole window about the reference,
+  `[reference − π, reference + π]` (an exact zero point reads the
+  reference, which every angle names), and `box_atan2` as the whole
+  angle window, `[−1, τ − 1]`, an exact zero point included. Logged, an undecided mark at `Interval` would hand
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
   **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
   `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
-  still reach the sink under the three names above. A
+  still reach the sink under the names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads

@@ -62,6 +62,12 @@ ONECOPY's `harmonic-phases-pick-their-cut-side-by-hand` read `plane_crossing_pha
 
 ## editor-core's box read goes through Azimuth (2026-11-20, `charttail/solve-atan2`)
 
-The `Interval` and `Sym` impls of `SolveScalar::solve_atan2` read `mate::solve::box_atan2`: `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`, the shape of `Azimuth::near`'s own read. The spin is read only through its sine and cosine at those lanes (`turn_to`), so the cut side is a renaming, as F31 argues. The read's one jump is the angle window's cut at `−1`; across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`. The exact-zero tightening (`y` exactly zero over `x` structure-positive reads `0`) stays, as an exact value rather than a branch. `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding: it records whichever formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.
+`SolveScalar::solve_atan2`'s default is now `mate::solve::box_atan2`. The `Interval` and `Sym` lanes read it, and so does a dual over `Interval` through its value channel. It reads `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`. It is a renaming by F31's argument: the invariant that the spin is read only through its sine and cosine has its home in `box_atan2`'s doc. The read's one jump is the angle window's cut at `−1`. Across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`.
 
-The `f64` lane, the `Probe` lane and `Dual`'s value channel still read the platform `atan2`, whose one jump is at `±π`. That is MSOLVE's `the-mate-solve-reads-the-platform-atan2`, with the reason it stays there written on that row.
+Two cases are not decided:
+- A direction whose enclosure may reach zero length reads the whole window `[−1, τ − 1]`.
+- An exact zero `y` over a structure-positive `x` reads `0`.
+
+`Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding, since it records the formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.
+
+`f64`, `Probe` and a dual over `f64` still read the platform `atan2`, whose one jump is at `±π`. That is MSOLVE's `the-mate-solve-reads-the-platform-atan2`, and the reason is written there. The missing guard on the sine-and-cosine invariant is MSOLVE's `no-row-guards-that-an-f31-renamings-readers-take-only-its-sine-and-cosine`.
