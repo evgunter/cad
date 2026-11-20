@@ -10,7 +10,7 @@ Every f64 rounding charge, lever arm and consumed extent reads its one ratified 
 
 ## Posture
 
-State on 2026-11-20, 20:40Z. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's 19:30Z entry and the entries after it.
+State on 2026-11-20, 20:15Z. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's 19:30Z entry and the entries after it.
 
 - **Landed:** `oneround/rounded-room` (PR 7145).
 - **In a fix pass, then a delta review by the same reviewer:**
