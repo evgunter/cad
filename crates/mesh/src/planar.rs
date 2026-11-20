@@ -34,7 +34,10 @@
 //! * Across a boundary edge the classification necessarily *differs*,
 //!   so every boundary segment is an edge of exactly one kept triangle
 //!   on this face — watertightness by construction rather than by
-//!   numerical luck.
+//!   numerical luck. That holds for a side traversed an odd number of
+//!   times; an even one (a slit) separates nothing, and loops with no
+//!   odd side bound no region and refuse
+//!   ([`TessellateError::BoundaryBoundsNoRegion`]).
 //! * A degenerate needle may still be kept (a zero-area sliver inside
 //!   the region) or dropped (outside it), but never emitted on the
 //!   outside — which is the defect that leaks meshes.
@@ -410,6 +413,12 @@ fn triangulate_chart(
             }
         }
         base += hs.len();
+    }
+    // The even-odd reading toggles only across an odd side, so with none
+    // it marks no face inside: the loops retrace themselves (two
+    // coincident edges) and bound no region.
+    if crossings.values().all(|n| n % 2 == 0) {
+        return Err(TessellateError::BoundaryBoundsNoRegion { face: fk });
     }
 
     // Outer-loop orientation in the chart frame decides the flip.

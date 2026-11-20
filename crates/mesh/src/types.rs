@@ -278,6 +278,16 @@ pub enum TessellateError {
         /// The face whose boundary meets the point.
         face: FaceKey,
     },
+    /// A planar face's loops, realised as its triangulation's boundary
+    /// sides, traverse every side an even number of times: they
+    /// retrace themselves and bound no region of the chart, as a face
+    /// bounded by two coincident edges does (a lamina, which tier 3
+    /// refuses). The even-odd reading would mark no triangle inside,
+    /// so the refusal is decided on the parities that reading takes.
+    BoundaryBoundsNoRegion {
+        /// The face whose loops bound nothing.
+        face: FaceKey,
+    },
     /// A curved face's boundary walk does not trace its own UV
     /// bounding rectangle: some walk entry lies strictly inside the
     /// box, by more than the band, on a face whose domain the SHAPE
@@ -876,6 +886,12 @@ impl TessellateError {
                  another chord point of its own trim loop, so the neighbouring \
                  faces would disagree about that vertex — a 3-D T-junction no \
                  grid retry repairs",
+            ),
+            Self::BoundaryBoundsNoRegion { .. } => f.write_str(
+                "tessellate: a planar face's boundary retraces itself — every side \
+                 of it is traversed an even number of times, so its loops bound no \
+                 region to mesh, as two coincident edges bounding one face do; the \
+                 body is a lamina there, not a solid",
             ),
             Self::PinchWedge { .. } => f.write_str(
                 "tessellate: a face's boundary passes several vertices at one \
