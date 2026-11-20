@@ -78,3 +78,31 @@ At 1e-6 all six caps refuse `Pose`, as at 1e-9.
 The fix therefore belongs to the general lane's image of an arc with an
 end on the singular set, not to the join. Several answers are viable, so
 the row carries a design question.
+
+## Built: the pole end reads the reduced radial (2026-11-20)
+
+The orchestrator chose the first answer above: a pole-ended piece in the
+projected lane, with the end read from the vertex's incidence and never
+from the carrier's end point. The fix is on `charttail/pole-section`.
+
+- `topo::pcurves::singular_ends` decides each end of a half-edge's edge
+  on the chart's singular points from its vertex, by
+  `chart_singularity::vertex_at_singular_point`, the reading the walk's
+  joints use. The mint's derivations, the lift's, and the site mint's
+  (an existing half's vertices, a new edge's carrier ends, a split
+  child's inherited end) hand it to `geom_brep::chart_pcurve_over_ends`.
+- On a sphere, a conic's projected image with an end on the pole stores
+  that end (`PoleEnd`). It reads its azimuth off
+  `g = ±(b_r cos m − a_r sin m)`, `m = (t + t_p)/2`. This is
+  `r(t) − r(t_p)` divided by `2 sin((t − t_p)/2)`, nonzero at the pole.
+  The read covers its point, its piece boxes (so sector, branch, window
+  and sweep) and its azimuth speed bound. Check 4 adds the pole term
+  `2·L·(|r(t_p)| + e·sup|g|)` to fidelity.
+
+The six caps (plain and tipped hemisphere at normals `(1, 2, 0)`,
+`(1, 1, 0)` and `(0, 1, 1)`) build at `π h² (3 − h)/3` at ε 1e-6, 1e-9
+and 1e-12, with tiers 3 and 3′ and a point lattice. The remainder builds
+at `(1, 2, 0)`. At the two normals where the circle touches the base rim,
+the remainder's face has a zero-angle corner and its measure refuses
+(`work/nearpoint/a-sphere-face-with-a-zero-angle-corner-refuses-its-measure.md`).
+The two-ball radical circle builds at the lens closed form.

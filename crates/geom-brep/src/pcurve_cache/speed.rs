@@ -702,7 +702,8 @@ pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
                 } => v3(*point) && v3(*dir) && all(&[*origin, *span]),
                 FramedCarrier::Net(n) => n.control().iter().all(|q| all(&[q.x, q.y, q.z])),
             };
-            chart && carrier && all(&[u_off, v_off, v_sign])
+            let pole = p.pole().is_none_or(|pole| pole.at().is_finite());
+            chart && carrier && pole && all(&[u_off, v_off, v_sign])
         }
     }
 }

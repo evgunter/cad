@@ -350,8 +350,7 @@ fn the_image_at_a_pole_end_is_its_limit_along_the_edge() {
     let circle = pole_circle_at::<f64>();
     let surface = sphere::<f64>();
     for ((a, b), ends) in pole_ended_arcs() {
-        let image =
-            geom_brep::chart_pcurve_over_ends(&circle, a, b, ends, &surface, band).unwrap();
+        let image = geom_brep::chart_pcurve_over_ends(&circle, a, b, ends, &surface, band).unwrap();
         for (at, leaving) in [(a, true), (b, false)] {
             if !(if leaving { ends.start } else { ends.end }) {
                 continue;
@@ -403,9 +402,7 @@ fn a_pole_end_stated_off_the_pole_refuses() {
         &sphere::<f64>(),
         band,
     )
-    .and_then(|image| {
-        PcurveCache::certify(image, t0, t1, &general_circle(), &sphere(), band)
-    });
+    .and_then(|image| PcurveCache::certify(image, t0, t1, &general_circle(), &sphere(), band));
     assert!(
         matches!(
             at_f64,
