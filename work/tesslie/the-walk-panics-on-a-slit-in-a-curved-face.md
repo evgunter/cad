@@ -2,10 +2,11 @@
 id: the-walk-panics-on-a-slit-in-a-curved-face
 kind: issue
 title: The chart walk panics on a cylinder face carrying a slit, its parted end two declared vertices on one point
-status: open
+status: dispatched
 opened: 2026-10-30
 priority: P1
 cost: M
+branch: tesslie/walk-slit
 ---
 
 

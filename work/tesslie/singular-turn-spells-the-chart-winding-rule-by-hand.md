@@ -2,10 +2,11 @@
 id: singular-turn-spells-the-chart-winding-rule-by-hand
 kind: issue
 title: pcurves::singular_turn's step spells the polygon-orientation rule by hand; its home is geom_brep::PolygonOrientation
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: E
+branch: tesslie/wrap-strip-period
 ---
 
 

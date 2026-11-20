@@ -2,10 +2,12 @@
 id: a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert
 kind: issue
 title: A curved wall pinched at one vertex reaches trimmed.rs's 'vacuous' one-column repeated-id debug_assert at delta 0.02
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: tesslie/nu-2-repeat
+rides_with: the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta
 ---
 
 
