@@ -2,11 +2,12 @@
 id: the-line-roots-door-is-still-built-in-topo
 kind: issue
 title: "[topo.homes] arm 1: route's LineRoots door (solid_contain's line × quadric roots, reduce::line_wall_roots_of) takes no Body and is still built in topo"
-status: open
+status: review
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: curve-surface-crossing-has-no-kind-pair-table
+pr: 7179
 branch: germ/line-roots-door
 ---
 
