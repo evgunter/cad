@@ -47,7 +47,7 @@ volume.
 - **The 3° slanted bores:** PR 6466 (`sectarms/cylinder-node-listing`,
   merge `c053873aa`). At its first parent `6775be78c` the row builds ∩
   and stops at ∪'s tier-3′ census
-  (`work/flush/main-red-slanted-bores-a-union-b-census-ray-exhausted-at-1e-12.md`).
+  (`work/honejoin/main-red-slanted-bores-a-union-b-census-ray-exhausted-at-1e-12.md`).
   The row evaluates ∩ before ∪, so ∩ built there. From the merge on,
   ∩ refuses its volume here, and so does every other cell. This predates
   PR 6505.

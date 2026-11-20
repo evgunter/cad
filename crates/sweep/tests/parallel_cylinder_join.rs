@@ -34,7 +34,7 @@ const TURNED_PAD_GUARD: f64 = 9.1e-6;
 /// times the widest volume half-width its six runs measured at ε `1e-12`
 /// (`4.02e-8`; every run stops at the work wall there, short of the
 /// pinned resolution,
-/// `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// `work/quad/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
 /// The resolution's ceiling (`1.6e-8` at 1e-12) does not bound a
 /// measurement that stopped short; this does ([`judged_at_resolution`]).
 const TURNED_WALL_GUARD: f64 = 1.7e-7;

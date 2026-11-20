@@ -1208,6 +1208,66 @@ with no signed residual is given none: a point is decided on it by a
 certified foot within the band, and off it by a lower bound on its
 distance past the band. A meeting inside the chart is placed in or out
 of the face by the face's trim.
+The interior is read through the span's carrier, and the carrier
+reading reads no face. Its *pose* (`curve_face::pose`), one exhaustive
+match over the two kinds, says how the span's carrier stands to the
+surface: it lies in it (`Lies`), is apart from it (`Apart`), touches it
+(`Tangent`, a point of the in-band arc together with the arc, as a
+curve pair's touch is reported), passes through a point where the
+surface has no tangent plane (`Through`: a cone's apex, a spindle
+sheet's apexes or its horn's cusp), or meets it at finitely many
+isolated points, which the arm's method places and reports each as a
+crossing or a touch (`Isolated`; `Tangent` is the special case the pose
+alone decides, one meeting that is a touch); in band it escalates. The analytic curves are smooth, and a
+chart pole is the parameterisation's singularity, not the surface's, so
+these classes are exhaustive for every kind pair with a closed pose. `Lies` holds over the whole span: a line or conic that lies
+in an analytic surface over an arc lies in it everywhere. `Lies` is a
+reading of values only: whether an edge is recorded on a face stays
+with the coincidence door and the face's declared cover, in `topo`. An
+enclosure cull that clears the span decides `Apart`, and it is the
+pose's method for `Apart`, a stage of the pose's reading run before the
+roots; in band it hands on to the pose's other classes and never
+refuses alone. No door decides a pose of its own. A spline arm has no
+closed pose, and its enclosures are its one method; a run of a spline
+span within the band of the surface over part of the span is an
+undecided window, and no run meeting is read. The span's meetings with
+the surface are `curve_face::cross(span, surface, band)`: the pose
+first, then the one method `curve_face::route` names for the arm,
+answering in the curve-pair vocabulary, each meeting a crossing, a
+touch or an end hit with its place on the span. The conic × quadric
+arm's first-harmonic core is its closed form for a second harmonic read
+Zero, and the half-angle ladder is its general lane: a lane choice
+(DESIGN `[verdicts.consumers]`), Zero taking the closed form and in band
+and definite the general lane. Where an arm cannot decide, its refusal
+is part of the answer: the meetings it found, and the span's *undecided
+windows*, each an interval of the span outside which the arm has
+decided everything, given by the arm's own method (a closed form's
+unsettled candidate spread, a subdivision's undecided cells,
+`composite`'s in-band pieces, `spline_face`'s undecided floor boxes),
+each with why it did not decide inside (the shape of the boundary pass
+read past its refusals, `curve_face::located`). An arm with nothing
+local leaves the whole span as one window, and no arm refuses whole by
+kind. A door takes typed operands. The plane door has one entry point;
+dropping a root at an end of the span is the consumer's choice on the
+answer's end hit, not the door's. Every door is here (DESIGN's
+Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
+`circle_torus`, `ellipse_torus`, `composite` and `spline_face`. A span
+on one of two cylinders of equal radii whose axes meet is read against
+the other through their bisector planes (`factored_crossing`), reached
+only where the surface-pair pose decides that pose; where it declines
+(at a node, or for a conic in a bisector plane) it refuses typed and
+never hands the span back to the quadric door. Every consumer of where
+a curve meets a surface reads `pose` or `cross` (the boolean's sweep,
+the plane split, the slit, the sketch trace, the point-in-solid ray,
+the co-surface arm, the ring path's plane roots through the co-surface
+arm, the census's touch confirm), and one that serves fewer answers
+matches on the answer and refuses the rest typed.
+The face's interior is `cross`'s answer read through the trim, every
+time: each meeting is placed by the trim. A window whose region on the
+surface the face's own placement certifies wholly outside the face,
+with no boundary of the face reaching it, holds no point of the face;
+any other window refuses the face reading, naming the window and its
+why.
 Implemented: the table (`curve_face::route`), the boundary pass
 (`curve_face::boundary`), which the boolean's sweep reads ahead of the
 carrier for a spline face and through which its on-carrier crossing
@@ -1223,10 +1283,7 @@ otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite is formed
 in a chart frame built in certification arithmetic, so the frame's
-rounding enters its enclosures. Where it refuses a count, the boolean
-localizes the span's meetings with the carrier and reads them against
-the face's trim: certified off the face, the span meets it nowhere
-inside. The span ×
+rounding enters its enclosures. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
@@ -1257,8 +1314,7 @@ plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
 a conic's roots against the plane) and the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
 shared half-angle root cores `curve_face::circle_roots`) are built
-here; the line × quadric and conic × quadric arms are the boolean's
-root doors in `topo`. A meeting inside a spline
+here. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);
 a point in space has its placement built
