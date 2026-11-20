@@ -7,8 +7,10 @@
 //! either returns a certified [`EdgeCurve`] — whose fields are private,
 //! so **an uncertified carrier is unrepresentable** — or fails with a
 //! typed [`CertifyError`] (operation-time enforcement, D4 ¶3). The
-//! tier-3 validator re-runs the same checks at rest
-//! ([`EdgeCurve::recertify`]).
+//! tier-3 validator runs the same checks at rest
+//! ([`EdgeCurve::recertify`]), reading check 6's locus certificate where
+//! its support is the edge's as it stands
+//! ([`crate::LocusCertificate`]).
 //!
 //! # The deterministic sampling schedule (D9)
 //!

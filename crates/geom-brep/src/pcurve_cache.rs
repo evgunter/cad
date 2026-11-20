@@ -5436,8 +5436,8 @@ impl<T: Decide> PcurveCache<T> {
     /// projection over a rung-3 carrier on a SPLINE chart. No mint site
     /// derives one today; a caller that holds one (an attach path, the
     /// cut-loft unit's future producer) certifies it here, and the tier-3
-    /// validator re-derives the certificate per half-edge through
-    /// [`PcurveCache::recertify`].
+    /// validator reads it per half-edge through [`PcurveCache::recertify`],
+    /// which derives it again wherever its support has moved.
     ///
     /// `lane` is the door itself, not an `Option`: only a scalar that
     /// may certify can hold one ([`crate::FittedLane`]), so this door
@@ -5616,11 +5616,13 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// `lane` is the pass's fitted door (`topo::AtRestPolicy::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
-    /// withholds it. Only the `Fitted | General` arm reads it, where
-    /// [`PcurveCache::certify_general`] does: `None` is check 4's
-    /// refusal, [`PcurveCertifyError::FittedLaneUnsupported`] naming
-    /// the scalar by [`geom_core::Real::NAME`], after checks 1–3 have
-    /// run.
+    /// withholds it. The arms whose check 4 reads it are those of
+    /// [`Pcurve::needs_fitted_door`]: the `Fitted | General` arm, where
+    /// [`PcurveCache::certify_general`] does, and a projected net on a
+    /// curved chart ([`PcurveCache::certify_projected`]). There `None`
+    /// is check 4's refusal, [`PcurveCertifyError::FittedLaneUnsupported`]
+    /// naming the scalar by [`geom_core::Real::NAME`], after checks 1–3
+    /// have run; whether it is held is part of the row's support.
     ///
     /// # Errors
     ///
@@ -8813,8 +8815,9 @@ fn escape<T: Real>(gap: T) -> T {
 /// 3. **Schedule**: identical, and shared code.
 /// 4. **Envelope**: the hull bound on `|S(P(t)) − C(t)|` over the
 ///    image's domain, by the tensor composite against this chart alone
-///    ([`EnvelopeStatement::MapResidualComposite`]), re-derived here at
-///    rest, never trusted from storage. A spline carrier enters as its
+///    ([`EnvelopeStatement::MapResidualComposite`]), derived here at
+///    rest wherever the row's support has moved
+///    ([`PcurveCache::recertify`]). A spline carrier enters as its
 ///    own net, a closed-form one as its enclosing net
 ///    (`crate::carrier_net`). The row reads no mate surface: an
 ///    intersection carrier's uniqueness tube is the edge's certificate

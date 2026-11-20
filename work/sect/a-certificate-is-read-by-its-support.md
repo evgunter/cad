@@ -52,3 +52,13 @@ is not a restriction of one already held. That question is
 that keep its support read it. Split rows and split edges, whose spans
 differ from their parent's, derive: that is the same restriction
 question, filed there.
+
+Nothing is read at `Sym` or at `Probe` (orchestrator's ruling on PR
+7193, 2026-11-20, after the agreement pin found it at `Sym`): a symbolic
+derivation mints fresh unknowns and writes the decision record that is
+that tier's purpose, and the recording scalar's K samples are its own.
+`Real::same_value` is the one knob: it is false at those scalars and at
+a dual, so they derive every certificate where it is asked. The pin
+runs in test builds only (geom-brep's `read-pins-testing`, on through
+every workspace crate's dev-dependencies), detached from the decision
+record; the release profile, debug assertions and all, carries none.

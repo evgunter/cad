@@ -7694,9 +7694,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// `None` when the check was not made or a subject could not be derived
 /// at all, which the vector then says.
 ///
-/// Check 2 re-derives every edge through the scalar's edge door
-/// ([`crate::AtRestPolicy::reattach_edge`]): the certificate in full at
-/// a certifying scalar, at every door alike, and the mint at a dual.
+/// Check 2 certifies every edge again through the scalar's edge door
+/// ([`crate::AtRestPolicy::reattach_edge`]): every check at a certifying
+/// scalar (its locus read by its support), at every door alike, and the
+/// mint at a dual.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -8700,8 +8701,9 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     // Tier 3, check 8 (M5 PR 6, C4): the stored pcurve caches — the
     // certificate must be PRESENT on every half-edge of a minting
-    // chart's face, the certification must REPLAY at rest (re-derived,
-    // never trusted), and domain validity (trim containment + the
+    // chart's face, the certification must REPLAY at rest (a row's own
+    // certificate read only where its support compares the same, derived
+    // everywhere else), and domain validity (trim containment + the
     // loop's one-branch continuity) must hold. Bodies carrying no
     // stored pcurves — every all-planar body — contribute nothing.
     // The gating runs ONE way, and both directions are worth saying.

@@ -3893,8 +3893,9 @@ impl<T: Decide> Body<T> {
     /// run from. So the operator asks, before it mutates, whether that
     /// certificate is still true of the edge it is about to make —
     /// through [`EdgeCurve::recertify`], the same door `split_edge`
-    /// certifies its children through, which re-derives rather than
-    /// trusting the stored certificate. Where it holds the certificate
+    /// certifies its children through, which runs every check again and
+    /// reads the edge's locus certificate only where its support is the
+    /// edge's as it stands. Where it holds the certificate
     /// is carried untouched (the coincident-point case: no endpoint
     /// moved, so nothing is re-minted and no byte changes); where it
     /// fails because of the move the operator refuses
@@ -3958,9 +3959,10 @@ impl<T: Decide> Body<T> {
     /// `work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`.
     /// Every other doc that meets this question points here.
     ///
-    /// **Each edge is re-derived through the scalar's edge door**
-    /// ([`crate::AtRestPolicy::reattach_edge`]): its certificate in full
-    /// where the scalar certifies, its mint where it never does. A run
+    /// **Each edge is certified again through the scalar's edge door**
+    /// ([`crate::AtRestPolicy::reattach_edge`]): every check where the
+    /// scalar certifies (its locus read by its support), its mint where it
+    /// never does. A run
     /// moving one half of a null edge is refused at the old point at
     /// every scalar, an over-refusal of a move that moves nothing. A fan split that
     /// keeps the old point is [`Body::mev_null`](crate::construction::Construct::mev_null)'s, which copies the old
