@@ -98,3 +98,28 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   it, and the fair-pair rule says to reduce simultaneous work rather
   than narrow a reviewer; the places unit also edits files the two
   DL5 units in flight edit. It goes out when one of them lands.
+
+- 2026-11-20 — **PR 7159's dual review is in and adjudicated.** Both
+  reviews: APPROVE-WITH-FIXES; the rounding core survived
+  exact-arithmetic sweeps on the parsed-float reading. Taken into the
+  fix pass (`fix-list-7159.md` in the forks scratch, twelve items): an
+  `ArcLen` leg's `len / r` told as given (float noise back in a
+  sentence and out through `as_given`); `Told::beside` false for an
+  offered or enclosure member; `Debug` and `PartialEq` as ways back to
+  a computed number; the field gate failing open on shapes its blind
+  list does not name, and its count pin; four unpinned or loosened
+  contracts in the suites. Nothing argued down. The orchestrator's
+  brief was wrong on one claim and both reviewers corrected it:
+  `Band::offer_deciding` has no production caller outside `geom-core`.
+  - **Class — a role is a constructor name nothing checks.**
+    `authored_*` makes any scalar "given", and `as_given()` then hands
+    it back; every per-crate sweep will make that choice at dozens of
+    sites. To be filed by the fix pass; it shapes how unit 3's sweeps
+    are briefed (each lists the provenance of every given it tells).
+  - **Class — a suite re-baselined onto the function under test.**
+    Seven consumer rows replaced `m / k` with `Band::offer_deciding`.
+    A re-baseline brief has to say that the new expected value is
+    derived independently.
+  - **Friction**: both reviewers lost 25 to 35 minutes at a stretch to
+    the width-one build mutex and ran fewer mutants than they meant
+    to; neither was narrowed by the orchestrator, so the pair is fair.
