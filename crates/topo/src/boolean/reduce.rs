@@ -9431,35 +9431,96 @@ mod spline_face_rows {
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
-mod torus_root_tests {
-    use super::{BooleanDecision, BooleanError};
-    use geom_brep::curve_face::line_quadric::line_quadric_roots;
-    use geom_core::{Band, Point3, Vec3};
+mod line_root_lane_tests {
+    //! Each arm of the line × quadric door escalates as its own
+    //! decision ([`BooleanError::of_line_quadric_refusal`]).
 
-    /// **The line × torus lane escalates as its own decision**: the
-    /// door's thin-tube pose (`line_quadric::door_rows`), whose quartic
-    /// count is in band at `ε = 10⁻⁶`, is [`BooleanDecision::TorusRoots`].
-    #[test]
-    fn the_torus_root_lane_escalates_as_its_own_decision() {
-        let (rr, rm) = (1.0, 1e-4);
-        let torus = geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            major_radius: rr,
-            minor_radius: rm,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let line = geom::Line {
-            origin: Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm),
-            dir: Vec3::new(-0.8, -0.33, 0.31).normalize(),
-        };
-        let band = Band::new(1e-6, 1e-5).expect("the band");
-        let got = line_quadric_roots(line, (-1.0, 1.0), &torus, band)
+    use super::{BooleanDecision, BooleanError};
+    use geom_brep::curve_face::line_quadric::fixtures::{
+        THIN_TUBE, oblique_through_the_tube, torus_about_y,
+    };
+    use geom_brep::curve_face::line_quadric::line_quadric_roots;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// The decision `line`'s run `span` against `surface` escalates as.
+    fn escalated_as(
+        line: geom::Line<f64>,
+        span: (f64, f64),
+        surface: &geom::Surface<f64>,
+        band: Band,
+    ) -> BooleanDecision {
+        let got = line_quadric_roots(line, span, surface, band)
             .map_err(BooleanError::of_line_quadric_refusal);
         let Err(BooleanError::Escalated { decision, .. }) = got else {
             panic!("the lane escalates: {got:?}");
         };
-        assert_eq!(decision, BooleanDecision::TorusRoots);
+        decision
+    }
+
+    /// A margin in the band's gap, between its zero and its escalation.
+    fn in_the_gap(band: Band) -> f64 {
+        (band.zero() + band.escalate()) / 2.0
+    }
+
+    /// **The torus arm**: the door's thin-tube pose ([`THIN_TUBE`]),
+    /// whose quartic count is in band at `ε = 10⁻⁶`.
+    #[test]
+    fn the_torus_root_lane_escalates_as_its_own_decision() {
+        let (rr, rm) = THIN_TUBE;
+        let band = Band::new(1e-6, 1e-5).expect("the band");
+        assert_eq!(
+            escalated_as(
+                oblique_through_the_tube(rr, rm),
+                (-1.0, 1.0),
+                &torus_about_y(rr, rm),
+                band
+            ),
+            BooleanDecision::TorusRoots
+        );
+    }
+
+    /// **The sphere arm**: a line passing the unit sphere's centre at
+    /// the distance that puts the discriminant's depth `(r² − d²)/2r` in
+    /// the band's gap.
+    #[test]
+    fn the_sphere_root_lane_escalates_as_its_own_decision() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let d = (1.0 - 2.0 * in_the_gap(band)).sqrt();
+        let sphere = geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let line = geom::Line {
+            origin: Point3::new(d, -2.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        };
+        assert_eq!(
+            escalated_as(line, (0.0, 4.0), &sphere, band),
+            BooleanDecision::SphereRoots
+        );
+    }
+
+    /// **The cone arm**: a segment passing the apex at a distance in the
+    /// band's gap, where the apex rung escalates.
+    #[test]
+    fn the_cone_root_lane_escalates_as_its_own_decision() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let line = geom::Line {
+            origin: Point3::new(in_the_gap(band), -1.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        };
+        assert_eq!(
+            escalated_as(line, (0.0, 2.0), &cone, band),
+            BooleanDecision::ConeRoots
+        );
     }
 }
 

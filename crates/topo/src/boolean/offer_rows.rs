@@ -697,9 +697,10 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         geom_brep::curve_face::line_quadric::About::Start,
     )
     .map(|_| ())
-    .map_err(|fault| BooleanError::Escalated {
-        decision: BooleanDecision::WallRoots(fault.rung),
-        diag: fault.diag,
+    .map_err(|fault| {
+        BooleanError::of_line_quadric_refusal(
+            geom_brep::curve_face::line_quadric::LineQuadricRefusal::Wall(fault),
+        )
     })
 }
 

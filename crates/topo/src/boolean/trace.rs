@@ -24,7 +24,7 @@ use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sig
 use super::BooleanError;
 use crate::validate::decide;
 use geom_brep::curve_face::circle_roots::CircleRoots;
-use geom_brep::curve_face::line_quadric::{LineQuadricRefusal, LineRoots, line_quadric_roots};
+use geom_brep::curve_face::line_quadric::{LineRoots, line_quadric_roots};
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
@@ -165,16 +165,6 @@ fn door_refusal(
     }
 }
 
-/// The line × quadric door's refusal, as the trace's: its escalation is
-/// the trace's own, whichever arm raised it.
-fn line_door_refusal(refusal: LineQuadricRefusal) -> TraceFault {
-    use geom_brep::curve_face::circle_roots::DoorRefusal;
-    match refusal.door_refusal() {
-        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
-        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
-    }
-}
-
 fn unsettled(why: Unsettled) -> TraceFault {
     match why {
         Unsettled::Tangency => TraceFault::Grazing,
@@ -235,7 +225,9 @@ pub fn ray_crossings<T: Decide>(
         }
         _ => {
             let run = (ray.start(), ray.from_start(reach));
-            match line_quadric_roots(ray.line(), run, surface, band).map_err(line_door_refusal)? {
+            match line_quadric_roots(ray.line(), run, surface, band)
+                .map_err(|refusal| door_refusal(refusal.door_refusal()))?
+            {
                 None => {
                     return Err(TraceFault::Unsupported {
                         carrier: surface.kind(),
