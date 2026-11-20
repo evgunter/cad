@@ -2,7 +2,7 @@
 id: tesslie
 kind: program
 title: TESSLIE — the mesh answers Ok, or panics, where it should refuse or mesh right: non-manifold meshes, short meshes, debug asserts that fire and empty patches
-status: ready
+status: active
 opened: 2026-10-28
 group: kernel/mesh
 prefix: tesslie/
