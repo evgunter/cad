@@ -332,12 +332,9 @@ fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
 /// `Interval` (the cone revolved from the same triangle, the box turned
 /// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
 /// the lune as a ring on the cone face, pass tier 3 and their volume
-/// enclosures bracket the closed forms (2.6e-11 and 5e-11 wide for the
-/// two ∪ orders, measured), as wide as each other in both orders
-/// ([`one_body_reads_alike_in_both_orders`]).
-/// At the 1e-12 row the build stops before the volume, typed: the join
-/// certifies each section on its surfaces, and that residual's
-/// enclosure, ±1.3e-12 wide, escalates against the band's 1e-12.
+/// enclosures bracket the closed forms (3.4e-11 and 5.5e-11 wide for
+/// the two ∪ orders, measured), as wide as each other in both orders
+/// ([`one_body_reads_alike_in_both_orders`]), at every ε row.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     use crate::common::interval::{iv, p2, p3, v2, v3};
@@ -380,23 +377,6 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
         ("cone ∖ box", topo::subtract(&c, &x, tol), vc - i),
     ] {
-        if tol.eps() <= 1e-12 {
-            assert!(
-                matches!(
-                    &r,
-                    Err(topo::BooleanError::Join(j)) if matches!(
-                        j.error(),
-                        topo::JoinError::Euler(topo::EulerOpError::Certification {
-                            error: topo::CertifyError::Escalated { .. }
-                        })
-                    )
-                ),
-                "{op}: at ε = {}, the join's certification escalates, got {:?}",
-                tol.eps(),
-                r.as_ref().map(|r| r.body().map(|b| b.kind))
-            );
-            continue;
-        }
         let bb = match r.as_ref().map(topo::BooleanResult::body) {
             Ok(Some(bb)) => bb,
             _ => panic!("{op}: wanted a body, got {r:?}"),

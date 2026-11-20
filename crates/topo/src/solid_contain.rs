@@ -3470,8 +3470,8 @@ fn carrier_roots<T: Decide>(
                     {
                         // Unordered: `A` may be negative, and the count
                         // orders by advance anyway.
-                        Some(ConeRoots::Two(ts, slack)) => {
-                            for t in ts {
+                        Some(ConeRoots::Two(ts)) => {
+                            for (t, slack) in ts {
                                 push(t, slack, RootSide::Cone);
                             }
                         }
@@ -4181,7 +4181,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     .map_err(escalate)?
                 {
                     Some(ConeRoots::Miss) => continue,
-                    Some(ConeRoots::Two(ts, _)) => ts,
+                    Some(ConeRoots::Two(ts)) => ts.map(|(t, _)| t),
                     Some(ConeRoots::Apex(_)) | None => return Err(RayFault::Graze),
                 };
                 for t in ts {

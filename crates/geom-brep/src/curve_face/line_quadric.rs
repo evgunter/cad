@@ -276,7 +276,6 @@ pub fn line_wall_roots<T: Decide>(
         (w0, d, shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
-        T::one(),
     );
     let disc = centred.disc();
     match decide(
@@ -318,11 +317,10 @@ pub struct Centred<T> {
     /// `|w₀| + |d|·|shift|`, `w₀` the start's offset from the quadric.
     far: T,
     /// The moved offset's length, with the quadric's radius where it
-    /// has one.
+    /// has one: the residual's gradient against the offset is at most
+    /// `2·near`, for a wall, a sphere and a cone alike (the cone's,
+    /// `2((w·â)â − cos²α·w)`, is at most `2|w|·max(sin²α, cos²α)`).
     near: T,
-    /// The residual's gradient against the offset, over `2|w|`: `1` for
-    /// a wall or a sphere, `2` for a cone.
-    gradient: T,
     /// `|d|`.
     speed: T,
 }
@@ -330,20 +328,13 @@ pub struct Centred<T> {
 impl<T: Decide> Centred<T> {
     /// The quadratic `coeffs`, read `shift` along `d` from a start
     /// offset `w0` from the quadric, at the moved offset `w` (across the
-    /// axis, for a wall), of a quadric of `radius` (`0` for a cone) whose
-    /// residual's gradient is `gradient·2|w|`.
-    fn new(
-        (w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>),
-        coeffs: [T; 3],
-        radius: T,
-        gradient: T,
-    ) -> Self {
+    /// axis, for a wall), of a quadric of `radius` (`0` for a cone).
+    fn new((w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>), coeffs: [T; 3], radius: T) -> Self {
         Self {
             shift,
             coeffs,
             far: w0.norm() + d.norm() * shift.abs(),
             near: w.norm() + radius,
-            gradient,
             speed: d.norm(),
         }
     }
@@ -358,7 +349,7 @@ impl<T: Decide> Centred<T> {
     /// on it: moved toward zero by that rounding, and zero within it,
     /// where the line passes too near tangency for its sign to be read.
     /// The residual `c` read about the shift is off by
-    /// [`geom_core::rounding_charge`] of `far·gradient·near` (as at a
+    /// [`geom_core::rounding_charge`] of `far·near` (as at a
     /// root, [`Self::roots`]), and `b` by that of `far·|d|`, so `disc` by
     /// `|a|` and `2|b|` times them. Read about the start
     /// ([`About::Start`]) it is the plain `disc`.
@@ -367,7 +358,7 @@ impl<T: Decide> Centred<T> {
             return disc;
         }
         let [a, b, _] = self.coeffs;
-        let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
+        let e = a.abs() * geom_core::rounding_charge(self.far * self.near)
             + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
         geom_core::Rounded {
             value: disc,
@@ -380,20 +371,23 @@ impl<T: Decide> Centred<T> {
     /// rounding there**, for a definitely positive `disc`. The residual
     /// at a root `s` is read off offsets of length at most `far + |d|·|s|`
     /// (each rounded by `u` of that), against a gradient of at most
-    /// `2·gradient·(near + |d|·|s|)`: so it is off by at most
+    /// `2·(near + |d|·|s|)`: so it is off by at most
     /// [`geom_core::rounding_charge`] of their product, and the root by
     /// that over the residual's slope there ([`over_root_slope`]).
     /// Moving the root back by `shift` rounds it once more.
     pub fn roots(&self, disc: T) -> ([T; 2], T) {
         let [a, b, c] = self.coeffs;
         let roots = quadratic_roots(a, b, c, disc);
-        let s = roots[0].abs().max(roots[1].abs());
-        let run = self.speed * s;
-        let residual =
-            geom_core::rounding_charge((self.far + run) * (self.gradient * (self.near + run)));
-        let slack =
-            over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s);
+        let slack = self.slack_at(roots[0].abs().max(roots[1].abs()), disc);
         (roots.map(|r| r + self.shift), slack)
+    }
+
+    /// **The rounding of a root `s` from the shift**, in the line's
+    /// parameter: [`Self::roots`]' bound read at that root alone.
+    fn slack_at(&self, s: T, disc: T) -> T {
+        let run = self.speed * s.abs();
+        let residual = geom_core::rounding_charge((self.far + run) * (self.near + run));
+        over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s.abs())
     }
 }
 
@@ -432,10 +426,11 @@ pub struct WallRootFault {
 /// **The line × cone quadratic**: the cone's quadric form along the
 /// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A s² + 2B s + C` with
 /// `w = q + d·t − apex`, `s = t − shift` — `A` in `d`'s units squared,
-/// `B` in metres times them, `C` in m² — read about the line's closest
-/// approach to the apex ([`About::Nearest`], [`Centred`]), where it is
-/// well-conditioned whatever the line's start. Its zero set is the
-/// DOUBLE cone; which nappe a root lands on is the caller's question.
+/// `B` in metres times them, `C` in m² — read about the line's point at
+/// `shift` ([`Centred`]), the run's nearest point to the apex, where it
+/// is well-conditioned over the run whatever the line's start. Its zero
+/// set is the DOUBLE cone; which nappe a root lands on is the caller's
+/// question.
 /// `A = (d·â)² − |d|²cos²α` vanishes exactly when the line runs parallel
 /// to a generator. Each square straddling zero is a `powi(2)`, the tight
 /// square.
@@ -443,6 +438,7 @@ fn line_cone_quadratic<T: Decide>(
     line: geom::Line<T>,
     cone: geom::Line<T>,
     half_angle: T,
+    shift: T,
 ) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let geom::Line {
@@ -450,7 +446,6 @@ fn line_cone_quadratic<T: Decide>(
         dir: axis,
     } = cone;
     let w0 = q - apex;
-    let shift = line.param(apex);
     let w = w0 + d * shift;
     let cos2 = half_angle.cos().powi(2);
     let (da, wa) = (d.dot(axis), w.dot(axis));
@@ -459,7 +454,7 @@ fn line_cone_quadratic<T: Decide>(
         da * wa - w.dot(d) * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero(), T::from_f64(2.0))
+    Centred::new((w0, d, shift, w), coeffs, T::zero())
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -499,7 +494,6 @@ pub fn line_sphere_roots<T: Decide>(
         (w0, d, shift, w),
         [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
         radius,
-        T::one(),
     );
     let disc = centred.disc();
     let two_r = T::from_f64(2.0) * radius;
@@ -644,9 +638,9 @@ fn apex_root_spread<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 pub enum ConeRoots<T> {
     /// Two definite roots of the line's own parameter, unordered (`A`
-    /// may be negative), and a bound on either's rounding in that
-    /// parameter ([`Centred::roots`]).
-    Two([T; 2], T),
+    /// may be negative), each with a bound on its rounding in that
+    /// parameter ([`Centred::roots`]' bound, read at that root).
+    Two([(T, T); 2]),
     /// The run reaches the apex, where the cone has no tangent plane: the
     /// line's one root, a double one, at the end the apex is decided at,
     /// else at the line's foot from it. An edge reads it as its incidence
@@ -662,7 +656,7 @@ impl<T: geom_core::Real> ConeRoots<T> {
     /// incidence, placed twice.
     fn edge(self) -> CircleRoots<T> {
         match self {
-            Self::Two(ts, _) => Roots::<T, 2>::all(ts).widen(),
+            Self::Two(ts) => Roots::<T, 2>::all(ts.map(|(t, _)| t)).widen(),
             Self::Apex(t) => Roots::<T, 2>::all([t, t]).widen(),
             Self::Miss => CircleRoots::Miss,
         }
@@ -675,8 +669,9 @@ impl<T: geom_core::Real> ConeRoots<T> {
 /// the run of its line inside the ball holding the face. The cone's
 /// quadric form along it is the quadratic [`line_cone_quadratic`]
 /// `G = A s² + 2B s + C` (`G = −Q`, `Q = cos²α·ρ² − sin²α·h²`), read
-/// about the line's closest approach to the apex, whose zero set is the
-/// double cone. Its rungs, each a length:
+/// about the run's nearest point to the apex, as the wall's is held to
+/// its run ([`line_wall_roots`]), whose zero set is the double cone. Its
+/// rungs, each a length:
 ///
 /// - **`line_quadric_cone_apex`** — the run's distance from the apex.
 ///   Not definitely positive: the run reaches the apex, where the cone's
@@ -704,7 +699,8 @@ impl<T: geom_core::Real> ConeRoots<T> {
 ///   shift's rounding ([`Centred::charged`]). Positive: two roots; Zero:
 ///   a tangency, [`Unsettled::Tangency`]; Negative: a miss.
 /// - **`line_quadric_cone_root_slack`** — each root's slack along the
-///   line ([`Centred::roots`], at the line's speed), less the root's
+///   line ([`Centred::roots`]' bound read at that root, at the line's
+///   speed), less the root's
 ///   distance outside the run. Not definitely inside the band:
 ///   [`Unsettled::Meter`]. A root inside the run is placed within the
 ///   band; one outside it is placed no nearer the run than the band,
@@ -729,7 +725,7 @@ pub fn line_cone_roots<T: Decide>(
     let at = |t: T| w0 + dir * t;
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     let foot = line.param_within(apex, (lo, hi));
-    let centred = line_cone_quadratic(line, cone, half_angle);
+    let centred = line_cone_quadratic(line, cone, half_angle, foot);
     let [a2, b2, _] = centred.coeffs;
     // Unsourced lever: a length read off the parameter run, not the
     // run's end points; the end points' distance rounds differently.
@@ -792,16 +788,18 @@ pub fn line_cone_roots<T: Decide>(
         Sign::Zero => return Ok(Err(Unsettled::Tangency)),
         Sign::Negative => return Ok(Ok(ConeRoots::Miss)),
     }
-    let (roots, slack) = centred.roots(disc);
+    let (roots, _) = centred.roots(disc);
     let speed = dir.norm();
-    for t in roots {
+    let mut placed = [(T::zero(), T::zero()); 2];
+    for (t, at) in roots.into_iter().zip(&mut placed) {
+        let slack = centred.slack_at(t - centred.shift, disc);
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "line_quadric_cone_root_slack",
             Margin::of(speed * slack - outside),
             band,
         ) {
-            Ok(Sign::Zero | Sign::Negative) => {}
+            Ok(Sign::Zero | Sign::Negative) => *at = (t, slack),
             Ok(Sign::Positive) | Err(_) => {
                 return Ok(Err(Unsettled::Meter {
                     row: "line_quadric_cone_root_slack",
@@ -809,7 +807,7 @@ pub fn line_cone_roots<T: Decide>(
             }
         }
     }
-    Ok(Ok(ConeRoots::Two(roots, slack)))
+    Ok(Ok(ConeRoots::Two(placed)))
 }
 
 #[cfg(test)]
@@ -1011,6 +1009,7 @@ mod wall_root_rows {
                 dir: Vec3::new(0.0, 0.0, 1.0),
             },
             core::f64::consts::FRAC_PI_4,
+            big,
         );
         let (ts, slack) = cone.roots(cone.disc());
         let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));
