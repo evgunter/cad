@@ -445,7 +445,7 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (frame.origin().z - 1.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(circle @ geom::Circle { .. })) if (circle.frame().origin().z - 1.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -459,7 +459,8 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
             .unwrap()
             .carrier()
         {
-            geom::Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+                let frame = the_circle.frame();
                 let center = frame.origin();
                 [
                     center.x.to_bits(),

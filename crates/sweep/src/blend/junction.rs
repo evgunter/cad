@@ -606,29 +606,21 @@ pub(super) fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        radius: pr,
-        ..
-    }) = *first_trim
-    else {
+    let Curve3::Circle(the_circle @ geom::Circle { radius: pr, .. }) = *first_trim else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let carrier_frame = the_circle.frame();
     let pc = carrier_frame.origin();
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        radius: sr,
-        ..
-    }) = *other_trim
-    else {
+    let Curve3::Circle(circle_2 @ geom::Circle { radius: sr, .. }) = *other_trim else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let carrier_frame = circle_2.frame();
     let sc = carrier_frame.origin();
     Ok(((pc, pr), (sc, sr)))
 }
@@ -659,17 +651,14 @@ pub(super) fn rim_carrier<T: Decide>(
     let c = certified_curve(body, e)?;
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        ..
-    }) = *c.carrier()
-    else {
+    let Curve3::Circle(circle_3 @ geom::Circle { .. }) = *c.carrier() else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
             "a rim edge's carrier is not a circle, the only rim carrier the band is built \
              for",
         ));
     };
+    let carrier_frame = circle_3.frame();
     let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let (t0, t1) = c.params();
     Ok(RimCarrier {

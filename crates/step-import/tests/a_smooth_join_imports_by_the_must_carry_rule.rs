@@ -123,8 +123,8 @@ fn ring_at(margin: f64) -> (AtRestBody<f64>, f64) {
 /// radius: the smooth join and the base rim.
 fn bore_circles(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool + Copy {
     move |c| {
-        matches!(c, Curve3::Circle(geom::Circle { frame, radius, .. })
-            if frame.axis().y.abs() > 0.5 && (radius - r_bore).abs() <= r_bore * 1e-9)
+        matches!(c, Curve3::Circle(the_circle @ geom::Circle { radius, .. })
+            if the_circle.frame().axis().y.abs() > 0.5 && (radius - r_bore).abs() <= r_bore * 1e-9)
     }
 }
 
@@ -153,10 +153,12 @@ fn a_bore_join_round_trips_as_the_rule_describes_it() {
         "under-determined: the native ring stores the pair"
     );
     match import(&write(&ring)) {
-        Err(StepImportError::NotYetSupported { lane, .. }) => assert!(
-            lane.contains("under-determined smooth join"),
-            "under-determined: the refusal names the lane: {lane}"
-        ),
+        Err(StepImportError::NotYetSupported { lane, .. }) => {
+            assert!(
+                lane.contains("under-determined smooth join"),
+                "under-determined: the refusal names the lane: {lane}"
+            )
+        }
         other => panic!("under-determined: the join refuses not-yet-supported, got {other:?}"),
     }
 }

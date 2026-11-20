@@ -185,9 +185,9 @@ impl<T: Real> BallSection<T> {
 pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle(c) => {
-            Some(c.frame.origin() + perp_unit(p - c.frame.origin(), c.frame.axis()) * c.radius)
-        }
+        Curve3::Circle(c) => Some(
+            c.frame().origin() + perp_unit(p - c.frame().origin(), c.frame().axis()) * c.radius,
+        ),
         _ => None,
     }
 }
@@ -1583,9 +1583,9 @@ pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option
     };
     let axis = carrier_frame.axis();
     let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
-    let radial = perp_unit(rim - a.frame.origin(), axis);
-    let fa = a.frame.origin() + radial * a.radius;
-    let fb = b.frame.origin() + radial * b.radius;
+    let radial = perp_unit(rim - a.frame().origin(), axis);
+    let fa = a.frame().origin() + radial * a.radius;
+    let fb = b.frame().origin() + radial * b.radius;
     let (sin_a, cos_a) = half_angle.sin_cos();
     Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
 }

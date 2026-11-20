@@ -159,14 +159,10 @@ fn die_pip_subtract_is_green() {
         let Some(curve) = cut.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let &Curve3::Circle(geom::Circle {
-            frame: carrier_frame,
-            radius,
-            ..
-        }) = curve.carrier()
-        else {
+        let &Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = curve.carrier() else {
             continue;
         };
+        let carrier_frame = the_circle.frame();
         let center = carrier_frame.origin();
         if (radius - rho).abs() < slack() && (center.z - 1.0).abs() < slack() {
             seam_arcs += 1;

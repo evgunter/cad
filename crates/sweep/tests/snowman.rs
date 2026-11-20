@@ -1529,7 +1529,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         .map(|(v, d)| (v, caps.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("a cap circle's conventional vertex");
     let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle(geom::Circle { frame, .. }) = *caps
+    let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = *caps
         .get_curve_geom(caps.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()
@@ -1538,6 +1538,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
     else {
         panic!("the cap's edge is a circle")
     };
+    let frame = the_circle.frame();
     let (center, axis) = (frame.origin(), frame.axis());
     // The cap lies on the side of its plane away from the unit sphere's
     // centre.
@@ -1684,7 +1685,7 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
         .map(|(v, d)| (v, cap.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("the cap circle's conventional vertex");
     let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle(geom::Circle { frame, .. }) = *cap
+    let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = *cap
         .get_curve_geom(cap.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()
@@ -1693,6 +1694,7 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
     else {
         panic!("the cap's edge is a circle")
     };
+    let frame = the_circle.frame();
     let (center, axis) = (frame.origin(), frame.axis());
     let half = cap_volume(1.0, 0.015) / 2.0;
     let cap = finished("the cap", cap.into_body(), tol);

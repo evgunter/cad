@@ -48,10 +48,11 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom::Curve3::Circle(geom::Circle { frame, radius, .. }) = *c.carrier()
-            && (frame.origin().z - 1.0).abs() < 1e-9
+        if let geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = *c.carrier()
+            && (the_circle.frame().origin().z - 1.0).abs() < 1e-9
             && (radius - 0.5).abs() < 1e-9
         {
+            let frame = the_circle.frame();
             seam_arcs += 1;
             assert!(
                 matches!(

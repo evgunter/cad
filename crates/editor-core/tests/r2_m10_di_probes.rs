@@ -90,7 +90,8 @@ impl Fnv {
                 self.p3(origin);
                 self.v3(dir);
             }
-            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+            Curve3::Circle(circle @ geom::Circle { radius, .. }) => {
+                let frame = circle.frame();
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(41);
                 self.p3(&center);
@@ -98,12 +99,8 @@ impl Fnv {
                 self.s(*radius);
                 self.v3(&u_ref);
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-                ..
-            }) => {
+            Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+                let frame = ellipse.frame();
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 self.u64(42);
                 self.p3(&center);

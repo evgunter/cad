@@ -81,7 +81,8 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(
                 plus_zero_point(center),
@@ -90,20 +91,18 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
                 plus_zero(u_ref),
             )
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-            ..
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(
-                plus_zero_point(frame.origin()),
-                plus_zero(frame.axis()),
-                plus_zero(frame.u_ref()),
-            ),
-            semi_u,
-            semi_v,
-        )),
+        Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+            let frame = ellipse.frame();
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    plus_zero_point(frame.origin()),
+                    plus_zero(frame.axis()),
+                    plus_zero(frame.u_ref()),
+                ),
+                semi_u,
+                semi_v,
+            ))
+        }
         other => other,
     }
 }

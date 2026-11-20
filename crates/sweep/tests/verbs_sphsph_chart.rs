@@ -400,9 +400,10 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
             let c = body
                 .get_curve_geom(ed.curve)
                 .and_then(topo::null::CurveGeom::certified)?;
-            let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+            let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = *c.carrier() else {
                 return None;
             };
+            let frame = the_circle.frame();
             let n = frame.axis();
             ((n.dot(axis).abs() < 1e-9) == meridian).then(|| body.get_half_edge(he).unwrap().edge)
         })
@@ -577,9 +578,10 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
 
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
-    let geom::Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
+    let geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = carrier else {
         panic!("a meridian great circle")
     };
+    let frame = the_circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     // Which seam: the azimuth-0 meridian's plane holds the chart's seam
     // direction, the other's its quadrature partner.
@@ -904,9 +906,10 @@ fn boundary_pick(
         else {
             continue;
         };
-        let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+        let geom::Curve3::Circle(circle @ geom::Circle { .. }) = *c.carrier() else {
             continue;
         };
+        let frame = circle.frame();
         let n = frame.axis();
         let is_meridian = n.dot(axis).abs() < 1e-9;
         if is_meridian != meridian {

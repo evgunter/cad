@@ -57,9 +57,10 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(geom::Circle { frame, radius, .. })
-                    if frame.origin().z > 0.5 =>
+                geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })
+                    if the_circle.frame().origin().z > 0.5 =>
                 {
+                    let frame = the_circle.frame();
                     let axis = frame.axis();
                     Some((k, axis, *radius))
                 }
@@ -262,7 +263,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if frame.origin().z > 0.5
+                    Some(geom::Curve3::Circle(circle @ geom::Circle { .. })) if circle.frame().origin().z > 0.5
                 )
             })
             .expect("a raised arc")
@@ -488,7 +489,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
             .filter_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z > 0.5 => {
+                    geom::Curve3::Circle(circle @ geom::Circle { .. })
+                        if circle.frame().origin().z > 0.5 =>
+                    {
+                        let frame = circle.frame();
                         Some(k)
                     }
                     _ => None,

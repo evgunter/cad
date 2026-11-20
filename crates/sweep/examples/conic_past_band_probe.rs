@@ -173,15 +173,10 @@ const U: f64 = f64::EPSILON / 2.0;
 /// is harmonic in `t`).
 fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -> Vec<(f64, f64)> {
     let tau = core::f64::consts::TAU;
-    let Curve3::Ellipse(geom::Ellipse {
-        frame,
-        semi_u,
-        semi_v,
-        ..
-    }) = *e
-    else {
+    let Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = *e else {
         unreachable!()
     };
+    let frame = ellipse.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v = axis.cross(u_ref);
     let c = coord(center);
@@ -288,10 +283,10 @@ fn read(
         &Surface::Cone {
             frame: cone_frame, ..
         },
-        &Curve3::Ellipse(geom::Ellipse { frame, semi_u, .. }),
+        &Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, .. }),
     ) = (&image, quadric, e)
     {
-        let (e_u, center) = (frame.u_ref(), frame.origin());
+        let (e_u, center) = (ellipse.frame().u_ref(), ellipse.frame().origin());
         let (apex, axis, u_ref) = (cone_frame.origin(), cone_frame.axis(), cone_frame.u_ref());
         let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
         let start = ra * (center - apex).dot(axis).signum();

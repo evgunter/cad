@@ -216,15 +216,10 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame,
-        semi_u,
-        semi_v,
-        ..
-    }) = *curve
-    else {
+    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = *curve else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    let frame = the_ellipse.frame();
     let center = frame.origin();
     assert!(
         semi_u.is_finite() && semi_v.is_finite(),

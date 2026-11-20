@@ -236,14 +236,13 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             (center, axis, radius, radius)
         }
-        ref e @ Curve3::Ellipse(geom::Ellipse {
-            frame: carrier_frame,
-            ..
-        }) => {
+        ref e @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+            let carrier_frame = the_ellipse.frame();
             let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             let frame = e.major_frame().unwrap();
             (center, axis, frame.major, frame.minor)
@@ -378,15 +377,10 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// The point of an ellipse carrier at its angle parameter `t`, and the
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-        ..
-    }) = e
-    else {
+    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = e else {
         panic!("an ellipse")
     };
+    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),
@@ -396,15 +390,10 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-        ..
-    }) = e
-    else {
+    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = e else {
         panic!("an ellipse")
     };
+    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),

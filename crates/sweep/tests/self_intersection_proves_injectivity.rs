@@ -1542,7 +1542,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (mid(the_circle.frame().origin().z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -3124,9 +3124,10 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         .get_curve_geom(curve)
         .and_then(|g| g.certified())
         .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(geom::Circle { frame, radius, .. })) = carrier else {
+    let Some(geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })) = carrier else {
         panic!("the refusing edge is a meridian circle: {carrier:?}");
     };
+    let frame = the_circle.frame();
     assert!(
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"

@@ -663,9 +663,10 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(geom::Circle { frame, radius, .. })
-                    if frame.origin().z > 0.5 =>
+                geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })
+                    if the_circle.frame().origin().z > 0.5 =>
                 {
+                    let frame = the_circle.frame();
                     Some((k, *radius))
                 }
                 _ => None,

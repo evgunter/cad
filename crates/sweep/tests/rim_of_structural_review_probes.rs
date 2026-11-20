@@ -68,7 +68,8 @@ fn lower_he(body: &Body<f64>, k: EdgeKey) -> HalfEdgeKey {
 fn circle(body: &Body<f64>, k: EdgeKey) -> Option<(Vec3<f64>, f64, Vec3<f64>)> {
     let e = body.get_edge(k)?;
     match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             Some((
                 Vec3::new(center.x, center.y, center.z),

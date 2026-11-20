@@ -158,9 +158,10 @@ fn perpendicular_cut_stays_rung_1_circles() {
             let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
             };
-            if let Curve3::Circle(geom::Circle { frame, radius, .. }) = *c.carrier()
-                && (frame.origin().z - 0.5).abs() < 1e-12
+            if let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = *c.carrier()
+                && (the_circle.frame().origin().z - 0.5).abs() < 1e-12
             {
+                let frame = the_circle.frame();
                 assert!((radius - 0.5).abs() < 1e-12);
                 section_circles += 1;
             }

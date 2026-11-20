@@ -360,11 +360,11 @@ fn a_tilted_cut_clear_of_a_tipped_cylinder_hosts_trim_carves() {
             let Some(g) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame, radius, .. })
+            matches!(*g.carrier(), geom::Curve3::Circle(the_conic @ geom::Circle { radius, .. })
                 if (radius - 1.0).abs() < 1e-9
-                    && (frame.origin().x - centre.x).abs() < 1e-9
-                    && (frame.origin().y - centre.y).abs() < 1e-9
-                    && frame.origin().z.abs() < 1e-9)
+                    && (the_conic.frame().origin().x - centre.x).abs() < 1e-9
+                    && (the_conic.frame().origin().y - centre.y).abs() < 1e-9
+                    && the_conic.frame().origin().z.abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .expect("the tipped rim's seed arc");

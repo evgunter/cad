@@ -287,12 +287,10 @@ fn split_along_a_meridian(
     let mut seam = None;
     let mut inside = None;
     for e in &edges {
-        let Curve3::Circle(geom::Circle {
-            frame, radius: r, ..
-        }) = e.carrier
-        else {
+        let Curve3::Circle(circle @ geom::Circle { radius: r, .. }) = e.carrier else {
             continue;
         };
+        let frame = circle.frame();
         let (c, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         if near(c, center) && (r - radius).abs() < 1e-9 && n.dot(pole).abs() < 1e-9 {
             seam = Some(n.normalize());

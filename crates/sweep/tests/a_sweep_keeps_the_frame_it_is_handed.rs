@@ -347,7 +347,7 @@ fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::E
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
-            circle.frame.u_ref(),
+            circle.frame().u_ref(),
         );
         seen += 1;
     }
@@ -666,7 +666,7 @@ where
             carrier
                 .as_circle()
                 .expect("a latitude is a circle")
-                .frame
+                .frame()
                 .u_ref(),
         );
     }

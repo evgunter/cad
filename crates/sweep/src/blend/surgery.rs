@@ -2561,7 +2561,7 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
             (line.at(ta) - c).norm().max((line.at(tb) - c).norm()),
         )),
         Curve3::Ellipse(ref e) => {
-            let (d, major) = ((e.frame.origin() - c).norm(), geom::Conic::speed_hi(e));
+            let (d, major) = ((e.frame().origin() - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => carrier.as_circle().map(|k| k.arc_distance((ta, tb), c)),
@@ -2595,7 +2595,7 @@ pub(super) fn piece_along<T: Decide + Bounds>(
             Some((la.min(lb), la.max(lb)))
         }
         Curve3::Ellipse(ref e) => {
-            let f = e.frame;
+            let f = e.frame();
             let unit = geom::Circle::new(f, T::one());
             let (p, q) = geom::Conic::along(e, u);
             let lifted = f.u_ref() * p + f.v_ref() * q;
@@ -2667,7 +2667,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     }
 
     fn arc_past(&self, t: T, q: Point3<T>) -> T {
-        self.frame.azimuth(q).near(t + T::pi()) - t
+        self.frame().azimuth(q).near(t + T::pi()) - t
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -2689,8 +2689,8 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).norm(),
             (self.point_at(tb) - c).norm(),
         );
-        let (o, radius) = (self.frame.origin(), self.radius);
-        let axis = self.frame.axis_line();
+        let (o, radius) = (self.frame().origin(), self.radius);
+        let axis = self.frame().axis_line();
         let h = (axis.foot(c) - o).norm();
         let plane = axis.offset(c);
         let rho = plane.norm();
@@ -2728,9 +2728,9 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).dot(u),
             (self.point_at(tb) - c).dot(u),
         );
-        let (o, radius) = (self.frame.origin(), self.radius);
+        let (o, radius) = (self.frame().origin(), self.radius);
         let mid = (o - c).dot(u);
-        let plane = u - self.frame.axis() * u.dot(self.frame.axis());
+        let plane = u - self.frame().axis() * u.dot(self.frame().axis());
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
@@ -3520,12 +3520,12 @@ impl<T: Decide + Bounds> StripLevel<T> {
             match body.get_surface(fd.surface) {
                 Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius),
                 Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                    let u = rim_circle.frame.axis();
+                    let u = rim_circle.frame().axis();
                     (
                         ci,
                         Some(u),
                         T::zero(),
-                        (rim_circle.frame.origin() - ci).dot(u),
+                        (rim_circle.frame().origin() - ci).dot(u),
                     )
                 }
                 Some(_) => {
@@ -3562,7 +3562,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 // as many equal pieces as keep each below it; a piece not
                 // read certainly below takes the whole circle.
                 Some(c) => {
-                    let o = c.frame.origin();
+                    let o = c.frame().origin();
                     for (ta, tb) in arc_pieces(t0, t1).unwrap_or_default() {
                         window.push(vec![
                             (o, rim_carrier.deriv(ta).normalize()),
@@ -3894,9 +3894,9 @@ impl<T: Decide + Bounds> StripLevel<T> {
         (o, u): (Point3<T>, Vec3<T>),
         band: Band,
     ) -> Vec<Clip<T>> {
-        let plane = u - c.frame.axis() * u.dot(c.frame.axis());
+        let plane = u - c.frame().axis() * u.dot(c.frame().axis());
         let reach = c.radius * plane.norm();
-        let k = (c.frame.origin() - o).dot(u);
+        let k = (c.frame().origin() - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
             return windows;
         }
@@ -3911,7 +3911,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         let mut clipped = Vec::with_capacity(2 * windows.len());
         for clip in windows {
             let (lo, hi) = clip.window;
-            let phi = c.frame.azimuth(c.frame.origin() + plane).near(lo);
+            let phi = c.frame().azimuth(c.frame().origin() + plane).near(lo);
             let (c0, c1) = (phi - alpha, phi + alpha);
             #[allow(clippy::cast_possible_truncation)]
             let (first, last) = (
