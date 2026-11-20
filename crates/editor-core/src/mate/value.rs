@@ -336,7 +336,7 @@ impl<T: SolveScalar> Chart<T> {
 
     /// **The chart of a mate equating `on` with `to`**, as [`Self::of`]
     /// reads it, its refusal naming no mate: what a placement and a
-    /// face's chart ([`face_chart`]) both read.
+    /// face's chart ([`FaceChart::carry`]) both read.
     ///
     /// # Errors
     ///
@@ -1057,7 +1057,7 @@ impl ValueAt for MateRef {
     }
 }
 
-/// **One of a face's chart's values** ([`face_chart`]): its spin, or
+/// **One of a face's chart's values** ([`FaceChart`]): its spin, or
 /// one of its two slides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FaceValue {
@@ -1479,78 +1479,106 @@ pub fn face_chart_slides(orient: Orientation) -> [TargetAxis; 2] {
     }
 }
 
-/// **A face's chart** ([`crate::pose::PoseDef::FaceChart`]; D10
-/// `[placement]`): the motion a plane placement onto `to`, the face's
-/// plane in its space, places its copy at under `orient`, `spin` (its
-/// number and the fraction of a turn it is written as) and `slides`
-/// (along [`face_chart_slides`]). The copy's mated pose is its own `xy`
-/// facing its own `z`, a start cap flipped to look up its `z` as DM1's
-/// placement mates one, so the frame's `z` is the face's outward normal.
+/// **A face's chart, undecided** ([`crate::pose::PoseDef::FaceChart`];
+/// D10 `[placement]`): what the motion a plane placement onto `to`, the
+/// face's plane in its space, places its copy at is computed from, under
+/// `orient`, its spin (its number and the fraction of a turn it is
+/// written as) and its slides (along [`face_chart_slides`]). The copy's
+/// mated pose is its own `xy` facing its own `z`, a start cap flipped to
+/// look up its `z` as DM1's placement mates one, so the frame's `z` is
+/// the face's outward normal.
 ///
-/// It is computed by the placement's own code, called and never spelled
-/// again: the chart's arm ([`super::solve::arm_of`], over no copy's
-/// reach, so its slides and the face's distance from the origin), its
-/// chart ([`Chart::read`]), the mate's coset
-/// ([`super::solve::fold_cosets`]) and the values settled on it
-/// ([`settle`]), the four a placement's fold calls on the same reads.
-///
-/// # Errors
-///
-/// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the band
-/// about the least turn's pole, naming the orientation to write;
-/// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for an arm
-/// past the format's reach; a direction the band cannot mint; a motion's
-/// overflow.
-pub(crate) fn face_chart<T: SolveScalar>(
+/// It decides nothing alone: what stands in it is carried over its own
+/// reach ([`Self::carry`]), as a placement's copy is.
+#[derive(Debug, Clone)]
+pub(crate) struct FaceChart<T: geom_core::Real> {
     to: PoseValue<T>,
     orient: Orientation,
-    (spin, turns): (T, Option<crate::expr::Ratio>),
+    spin: (T, Option<crate::expr::Ratio>),
     slides: [T; 2],
-    band: Band,
-    tol: geom_core::Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    use crate::pose::PoseConstruction;
-    let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
-    let to = super::solve::tightened(to);
-    let on = PoseValue::Plane {
-        normal: UnitVec3::exact_z(),
-        offset: T::zero(),
-    };
-    let [a, b] = face_chart_slides(orient);
-    let value = |value, coord, by, turns| ReadValue {
-        value,
-        coord,
-        by,
-        turns,
-        line: None,
-    };
-    let values = [
-        value(FaceValue::Spin, Coord::SPIN, spin, turns),
-        value(FaceValue::Slide(a), Coord::slide(a), slides[0], None),
-        value(FaceValue::Slide(b), Coord::slide(b), slides[1], None),
-    ];
-    let mates = [(&on, &to)];
-    let arm = super::solve::arm_of(0.0, mates, &values).map_err(|refusal| match refusal {
-        super::LeverRefusal::OutOfRange { parts, datum } => {
-            refuse(PoseConstruction::FaceChartUnleverable { parts, datum })
+}
+
+impl<T: SolveScalar> FaceChart<T> {
+    /// The chart onto `to` under `orient`, `spin` and `slides`.
+    pub(crate) fn new(
+        to: PoseValue<T>,
+        orient: Orientation,
+        spin: (T, Option<crate::expr::Ratio>),
+        slides: [T; 2],
+    ) -> Self {
+        Self {
+            to: super::solve::tightened(to),
+            orient,
+            spin,
+            slides,
         }
-        other => unreachable!("an arm refuses out of range alone: {other:?}"),
-    })?;
-    let chart = match Chart::read(&on, &to, false, orient, arm, band, tol) {
-        Ok(Some(chart)) => chart,
-        Ok(None) => unreachable!("a plane mate fixes a direction"),
-        Err(ChartFault::Backwards { write }) => {
-            return Err(refuse(PoseConstruction::FaceChartBackwards {
-                orient,
-                write,
-            }));
-        }
-        Err(ChartFault::Kind(kind)) => return Err(*kind),
-    };
-    let Some(coset) = super::solve::fold_cosets(mates).map_err(NodeErrorKind::Motion)? else {
-        unreachable!("one mate meets the unconstrained coset")
-    };
-    settle(coset, &values, Some(chart))
+    }
+
+    /// **The chart, carrying what reaches `reach` from its own origin**:
+    /// the placement's own code, called and never spelled again, with
+    /// the carried body where the copy sits: the arm
+    /// ([`super::solve::arm_of`], over `reach`, the slides and the face's
+    /// distance from the origin), the chart ([`Chart::read`]), the mate's
+    /// coset ([`super::solve::fold_cosets`]) and the values settled on it
+    /// ([`settle`]). The arm enters the verdicts alone, so every carriage
+    /// of one chart is the same motion, bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the
+    /// band about the least turn's pole, naming the orientation to write;
+    /// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for a
+    /// carried body with no reach, or an arm past the format's reach; a
+    /// direction the band cannot mint; a motion's overflow.
+    pub(crate) fn carry(
+        &self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<RigidMotion<T>, NodeErrorKind> {
+        use crate::pose::PoseConstruction;
+        let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
+        let unleverable = |refusal| {
+            refuse(PoseConstruction::FaceChartUnleverable {
+                refusal: Box::new(refusal),
+            })
+        };
+        let on = PoseValue::Plane {
+            normal: UnitVec3::exact_z(),
+            offset: T::zero(),
+        };
+        let [a, b] = face_chart_slides(self.orient);
+        let value = |value, coord, by, turns| ReadValue {
+            value,
+            coord,
+            by,
+            turns,
+            line: None,
+        };
+        let values = [
+            value(FaceValue::Spin, Coord::SPIN, self.spin.0, self.spin.1),
+            value(FaceValue::Slide(a), Coord::slide(a), self.slides[0], None),
+            value(FaceValue::Slide(b), Coord::slide(b), self.slides[1], None),
+        ];
+        let mates = [(&on, &self.to)];
+        let arm = super::solve::arm_of(reach.map_err(unleverable)?, mates, &values)
+            .map_err(unleverable)?;
+        let chart = match Chart::read(&on, &self.to, false, self.orient, arm, band, tol) {
+            Ok(Some(chart)) => chart,
+            Ok(None) => unreachable!("a plane mate fixes a direction"),
+            Err(ChartFault::Backwards { write }) => {
+                return Err(refuse(PoseConstruction::FaceChartBackwards {
+                    orient: self.orient,
+                    write,
+                }));
+            }
+            Err(ChartFault::Kind(kind)) => return Err(*kind),
+        };
+        let Some(coset) = super::solve::fold_cosets(mates).map_err(NodeErrorKind::Motion)? else {
+            unreachable!("one mate meets the unconstrained coset")
+        };
+        settle(coset, &values, Some(chart))
+    }
 }
 
 /// **The turn about the line through `at` along `d` that takes a copy

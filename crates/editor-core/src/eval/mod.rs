@@ -5431,7 +5431,7 @@ where
                 resolved,
                 pre: Box::new(pre),
                 form,
-                frame: drawn.map(|d| d.frame),
+                frame: drawn.map(|d| d.on),
             }
         }
         // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and

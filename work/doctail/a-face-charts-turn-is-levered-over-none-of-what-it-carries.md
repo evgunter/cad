@@ -2,12 +2,12 @@
 id: a-face-charts-turn-is-levered-over-none-of-what-it-carries
 kind: issue
 title: A face's chart levers its least turn over its slides and the face's distance alone, so a wide profile on it builds where a placement of that size refuses backwards
-status: parked
+status: closed
 opened: 2026-11-18
 priority: P1
 cost: M
 refs: [a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero]
-blocked_on: [7122]
+closed: 2026-11-20
 ---
 
 Found by the FULL review of `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` (PR 7111, MINOR 2), and left open by its fix pass because the fix has more than one home.
@@ -32,3 +32,7 @@ Whatever the frame carries is levered as a placement levers its copy: it refuses
 Each re-decision at a carrier records its own `mate_chart_pole` funnel sample. When this lands, the pinned row above turns over (the frame, or its boss, refuses backwards) and is re-pinned with the outcome.
 
 2026-11-18 (DOCTAIL `tracing-reads-the-faces-chart-and-traced-frame-retires` lane): **a zero arm refuses every tilted face through its space's origin.** A face whose plane passes through the origin, drawn on with no slides, gives `solve::arm_of(0.0, ..)` an arm of 0: no slide, and both poses' `pose_origin` at the origin. The pole verdict `Margin::levered(chord, 0)` then reads Zero, `least_turn` refuses `Opposed`, and `Chart::charted` maps that to `ChartRefusal::Pole`, so the chart refuses `FaceChartBackwards`. The orientation it names to write is the one already written. Measured on a cylinder whose disc is drawn on a frame spun about `x` by a free angle at 0.2 rad: its bottom cap (outward normal `(0, 0.199, −0.980)`, written `x: +x, z: −z`) refuses "puts the frame's z opposite the face's outward normal … write the orientation x: +x, z: −z", and its top cap, a height off the origin, charts. An untilted cap through the origin charts only because the least turn's exact-identity read skips the verdict. Any home above that levers over what the frame carries fixes this too. `intent_s6_e_traced_on_a_face::a_tilted_cylinders_boss_is_tangent_for_every_tilt` draws on the top cap for this reason.
+
+## Closed
+
+2026-11-20, by PR (branch `doctail/a-face-charts-band-is-decided-at-each-carriage`), under Ev's ruling on #7122: no home above, but its answer. A face's chart holds its inputs undecided (`mate::value::FaceChart`), and each body that stands in it is carried over its own reach by the placement's own four calls (`FaceChart::carry`): the profile over its loops' reach (`eval::anchor::DrawnFrame::carrying`, so every reader of the profile reads a decided frame), each sweep over its body's (`ProfileValue::framed` / `lifted`, both now fallible node doors), and the traced faces over their covers' (`eval::wire::trace::drawn`). The pose door refuses a face chart outside a profile's frame seat (`PoseConstruction::FaceChartUnseated`). The pinned row turned over: `face_chart_and_signed_depth::near_the_pole_a_wide_boss_refuses_where_the_equal_placed_cube_does`; the two edges of the band are pinned by `a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band`.

@@ -164,8 +164,82 @@ pub(crate) fn eval_posed<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Posed<T>, NodeErrorKind> {
     let admits = read.admits(slot.kind());
-    let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol)?;
+    let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol, None)?;
     Ok(value.through(read.role))
+}
+
+/// **The frame a profile drawn on `read` stands in**, as its frame seat
+/// reads it: a face's chart undecided, its plane read as a placement's
+/// target reads it, and the slides, spins and flips that move it read in
+/// its own coordinates; or any other frame pose, bound as [`eval_pose`]
+/// binds it.
+///
+/// # Errors
+///
+/// As [`eval_pose`]; [`PoseConstruction::FaceChartUnseated`] for a move
+/// of a face's chart that reads anything but the chart.
+pub(crate) fn on_frame<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: VarId,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<super::trace::OnFrame<T>, NodeErrorKind> {
+    use super::trace::OnFrame;
+    let slot = OperandSlot::Frame;
+    let plain = |read| RoleRead { read, role: None };
+    let b = band(tol)?;
+    let Some(seated) = seated_chart(doc, read) else {
+        let PoseValue::Frame(frame) = eval_pose(doc, results, slot, plain(read), env, tol)? else {
+            unreachable!("the frame seat admits a frame alone")
+        };
+        return Ok(OnFrame::Posed(frame));
+    };
+    let Some(VarDef::Pose(PoseDef::FaceChart {
+        face,
+        orient,
+        spin,
+        slides: [a, c],
+    })) = doc.var(seated).map(crate::Var::def)
+    else {
+        unreachable!("a seated chart is a face's chart")
+    };
+    let scalar = |var: VarId, dim| {
+        eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
+    };
+    let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
+    let spin = (
+        scalar(*spin, crate::expr::Dimension::Angle)?,
+        env.turns.get(spin).copied(),
+    );
+    let slides = [
+        scalar(*a, crate::expr::Dimension::Length)?,
+        scalar(*c, crate::expr::Dimension::Length)?,
+    ];
+    let chart = crate::mate::value::FaceChart::new(to, *orient, spin, slides);
+    let moved = if seated == read {
+        None
+    } else {
+        let admits = crate::SlotKind::Is(K::Frame);
+        let posed = eval_pose_as(doc, results, slot, admits, read, env, tol, Some(seated))?;
+        let PoseValue::Frame(moved) = posed.in_its_space(b)? else {
+            unreachable!("the frame seat admits a frame alone")
+        };
+        Some(moved)
+    };
+    Ok(OnFrame::Chart { chart, moved })
+}
+
+/// **The face's chart a frame seat's read stands on**, where it is one,
+/// or one moved by slides, spins and flips of it read plainly.
+fn seated_chart(doc: &crate::doc::Doc<ProfileProgram>, read: VarId) -> Option<VarId> {
+    match doc.var(read).map(crate::Var::def)? {
+        VarDef::Pose(PoseDef::FaceChart { .. }) => Some(read),
+        VarDef::Pose(
+            PoseDef::Slide { pose, .. } | PoseDef::Spin { pose, .. } | PoseDef::Flip { pose },
+        ) if pose.role.is_none() => seated_chart(doc, pose.read),
+        _ => None,
+    }
 }
 
 /// **A pose read bound against an evaluation's results**, with no
@@ -188,6 +262,7 @@ pub(crate) fn read_pose<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         read.read,
         env,
         tol,
+        None,
     )?
     .in_its_space(band(tol)?)?;
     Ok(match read.role {
@@ -214,7 +289,11 @@ fn through<T: Decide>(value: PoseValue<T>, role: Option<crate::pose::PoseRole>) 
 
 /// [`eval_pose`] for a read admitting `admits`: the reader's seat's
 /// kind at the top, a read's own kind inside a definition, where the
-/// door checked it against what the definition admits there.
+/// door checked it against what the definition admits there. Under
+/// `chart`, a face's chart a profile's frame seat moves (`on_frame`),
+/// the read is in that chart's coordinates: the chart is the identity
+/// there, and a read of anything else refuses.
+#[allow(clippy::too_many_arguments)] // `eval_pose`'s reads, and the chart they stand in
 fn eval_pose_as<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -223,19 +302,40 @@ fn eval_pose_as<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     var: VarId,
     env: &VarEnv<T>,
     tol: Tol,
+    chart: Option<VarId>,
 ) -> Result<Posed<T>, NodeErrorKind> {
     let Some(held) = doc.var(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
-    let value = match held.def() {
-        VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
-        VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_)
-        | VarDef::Defined(_)
-        | VarDef::Select(_)
-        | VarDef::Pick(_)
-        | VarDef::Source(_)
-        | VarDef::Index(_) => {
+    let unseated = NodeErrorKind::PoseDegenerate {
+        construction: PoseConstruction::FaceChartUnseated,
+    };
+    let value = match (held.def(), chart) {
+        (VarDef::Pose(PoseDef::FaceChart { .. }), Some(seated)) if seated == var => Posed {
+            value: PoseValue::Frame(RigidMotion::identity()),
+            frame: Frame::Own,
+        },
+        (VarDef::Output { .. }, Some(_)) => return Err(unseated),
+        (VarDef::Output { node, port }, None) => {
+            output(doc, results, admits, *node, *port, env, tol)?
+        }
+        (
+            VarDef::Pose(
+                def @ (PoseDef::Slide { .. } | PoseDef::Spin { .. } | PoseDef::Flip { .. }),
+            ),
+            Some(_),
+        )
+        | (VarDef::Pose(def), None) => definition(doc, results, slot, def, env, tol, chart)?,
+        (VarDef::Pose(_), Some(_)) => return Err(unseated),
+        (
+            VarDef::Free(_)
+            | VarDef::Defined(_)
+            | VarDef::Select(_)
+            | VarDef::Pick(_)
+            | VarDef::Source(_)
+            | VarDef::Index(_),
+            _,
+        ) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
@@ -284,7 +384,10 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             // frame the profile is drawn on, where it is drawn on one.
             Ok(Posed {
                 value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
-                frame: drawn.frame.clone().unwrap_or(Frame::Own),
+                frame: drawn
+                    .frame
+                    .as_ref()
+                    .map_or(Frame::Own, |d| d.frame().clone()),
             })
         }
         // A read the door would have refused, in a document built past
@@ -310,12 +413,13 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     def: &PoseDef,
     env: &VarEnv<T>,
     tol: Tol,
+    chart: Option<VarId>,
 ) -> Result<Posed<T>, NodeErrorKind> {
     // A read inside the definition admits its own kind: the door checked
     // it against what the definition reads there.
     let pose = |read: &RoleRead<VarId>| {
         let admits = crate::SlotKind::Is(doc.var(read.read).map_or(K::Scalar, crate::Var::kind));
-        let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol)?;
+        let value = eval_pose_as(doc, results, slot, admits, read.read, env, tol, chart)?;
         Ok::<_, NodeErrorKind>(value.through(read.role))
     };
     let scalar = |var: VarId, dim| {
@@ -425,25 +529,13 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let first = pose(read)?;
             in_frame(first.frame, flip(first.value, b)?)
         }
-        // The chart a plane placement onto the face gives, in the face's
-        // space: the face's plane read as a placement's target reads it.
-        PoseDef::FaceChart {
-            face,
-            orient,
-            spin,
-            slides: [a, c],
-        } => {
-            let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
-            let angle = (
-                scalar(*spin, crate::expr::Dimension::Angle)?,
-                env.turns.get(spin).copied(),
-            );
-            let slides = [
-                scalar(*a, crate::expr::Dimension::Length)?,
-                scalar(*c, crate::expr::Dimension::Length)?,
-            ];
-            let chart = crate::mate::value::face_chart(to, *orient, angle, slides, b, tol)?;
-            in_frame(Frame::Own, PoseValue::Frame(chart))
+        // A face's chart is read in a profile's frame seat alone
+        // (`on_frame`), where what stands in it is carried over its own
+        // reach; read anywhere else it would carry geometry unlevered.
+        PoseDef::FaceChart { .. } => {
+            return Err(NodeErrorKind::PoseDegenerate {
+                construction: PoseConstruction::FaceChartUnseated,
+            });
         }
         // The pose as its copy carries it: its frame moved by the motion
         // the copy's placement solved to, the pose itself unchanged.

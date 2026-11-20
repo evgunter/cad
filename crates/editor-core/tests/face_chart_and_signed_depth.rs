@@ -136,16 +136,36 @@ fn written(doc: &ProfileDoc, profile: RecipeNodeId) -> PoseDef {
         .expect("a pose definition")
 }
 
-/// The face's chart the profile is drawn on, as the profile reads it.
+/// The face's chart the profile is drawn on, as the profile's own
+/// carriage decides it (over its loops' reach), or the profile's refusal.
 fn chart(doc: &ProfileDoc, profile: RecipeNodeId) -> Result<RigidMotion<f64>, NodeErrorKind> {
-    let Some(Node::Profile(program)) = doc.node(profile) else {
-        panic!("a profile")
-    };
-    let frame = program.on.as_ref().expect("drawn on a frame").frame;
-    match bound_pose(doc, &eval(doc), OperandSlot::Frame, frame, Tol::witness())? {
-        PoseValue::Frame(f) => Ok(f),
-        other => panic!("a frame, not {other:?}"),
+    chart_in(&mut eval(doc), profile)
+}
+
+/// [`chart`], taken out of an evaluation.
+fn chart_in(
+    ev: &mut Evaluation<f64>,
+    profile: RecipeNodeId,
+) -> Result<RigidMotion<f64>, NodeErrorKind> {
+    match ev.nodes.remove(&profile) {
+        Some(NodeResult::Ok(value)) => match &value.payload {
+            ValuePayload::Profile(drawn) => Ok(*drawn.drawn_frame().expect("drawn on a frame")),
+            other => panic!("a profile's value, not {}", other.kind_name()),
+        },
+        Some(NodeResult::Failed(refused)) => Err(refused.kind),
+        other => panic!("the profile runs: {other:?}"),
     }
+}
+
+/// Whether `refused` is the face's chart refusing backwards under
+/// `orient`, naming an orientation to write that differs from it.
+fn refuses_backwards(refused: &NodeErrorKind, orient: Orientation) -> bool {
+    matches!(
+        refused,
+        NodeErrorKind::PoseDegenerate {
+            construction: PoseConstruction::FaceChartBackwards { orient: o, write },
+        } if *o == orient && *write != orient
+    )
 }
 
 fn xyz(v: geom_core::Vec3<f64>) -> [f64; 3] {
@@ -531,60 +551,267 @@ fn the_chart_is_the_placements_for_a_spin_written_as_a_fraction_of_a_turn() {
     assert_eq!(chart, placed, "the chart is the placement's, every bit");
 }
 
-/// **Near the pole the frame charts where a wide placement refuses.** A
-/// top cap `100` from the origin, tilted about `x` off the pole of the
-/// orientation `x: +x, z: −z`, which puts the frame's `z` all but
-/// opposite the face's outward normal. The chart levers its least turn
-/// over its slides and the face's distance alone, an arm of `100`, so it
-/// charts, and a square of side 500 drawn on it sweeps to a boss. A cube
-/// on that square, placed on the same face under the same orientation, levers
-/// the turn over its own reach too, an arm of `500·√3 + 100`, and refuses
-/// backwards. The divergence is
-/// `work/doctail/a-face-charts-turn-is-levered-over-none-of-what-it-carries.md`'s.
-///
-/// The tilt sits between the two arms' verdicts at the run's ε: past the
-/// frame's pole band (`Kε` over its arm) and its conditioning edge, and
-/// short of the cube's conditioning edge
-/// ([`geom_core::test_support::least_turn_band_edge`]).
-#[test]
-fn near_the_pole_the_frame_charts_where_a_wide_placement_refuses() {
-    let tol = Tol::witness();
-    let (side, height) = (500.0, 100.0);
-    let (frame_arm, cube_arm) = (height, side * 3f64.sqrt() + height);
-    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
-    let charts = (tol.k() * tol.eps() / frame_arm).max(edge(frame_arm));
-    let refuses = edge(cube_arm);
-    assert!(
-        2.0 * charts < refuses,
-        "FIXTURE: the frame's verdict {charts} and the cube's {refuses} leave room between them"
-    );
-    let tilt = (charts * refuses).sqrt();
-    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+/// The tilted block's top cap `height` from the origin, under the
+/// backwards orientation `x: +x, z: −z` tilted `tilt` off its pole: the
+/// document, the block's copy, the cap, and the orientation.
+fn near_the_pole(tilt: f64, height: f64) -> (ProfileDoc, RecipeNodeId, StableName, Orientation) {
     let (doc, body, copy) = tilted_by([tilt, 0.0, 0.0], [0.0, 0.0, height - 1.0]);
     let top = cap(body, CapEnd::End);
+    (
+        doc,
+        copy,
+        top,
+        oriented(SignedAxis::PlusX, SignedAxis::MinusZ),
+    )
+}
+
+/// What a boss drawn on the cap and the same body placed there do at
+/// `tilt`: a square of side `side` from the frame's origin drawn on the
+/// face's chart under the backwards orientation and extruded `side`
+/// (the cube), and a cube of side `side` placed on the same face by a
+/// plane mate under the same orientation. The profile's result, the
+/// boss's, and the placement's.
+struct Carried {
+    profile: Result<RigidMotion<f64>, NodeErrorKind>,
+    /// `Err(None)` where the boss never ran, its profile having refused.
+    boss: Result<(), Option<NodeErrorKind>>,
+    placed: Result<geom_core::Affine3<f64>, MateFault>,
+}
+
+fn carried(tilt: f64, height: f64, side: f64) -> Carried {
+    let (doc, copy, top, backwards) = near_the_pole(tilt, height);
     let at = on(Some(backwards), 0.0, [0.0, 0.0]);
     let square = LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
         .expect("finite corners");
     let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, square);
-    chart(&drawn_doc, profile).unwrap_or_else(|e| panic!("the frame charts at tilt {tilt}: {e:?}"));
     let (drawn_doc, boss) = fixture::insert(
         drawn_doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(side),
+        },
+    );
+    let mut ev = eval(&drawn_doc);
+    let boss = match ev.nodes.remove(&boss) {
+        Some(NodeResult::Ok(_)) => Ok(()),
+        Some(NodeResult::Failed(refused)) => Err(Some(refused.kind)),
+        Some(NodeResult::Poisoned { through }) if through == profile => Err(None),
+        other => panic!("the boss runs: {other:?}"),
+    };
+    Carried {
+        profile: chart_in(&mut ev, profile),
+        boss,
+        placed: placed_on(doc, (copy, top), backwards, (ang(0.0), [0.0, 0.0]), side),
+    }
+}
+
+/// **Near the pole a wide boss refuses where the equal placed cube
+/// does, past its profile's edge** (`[placement]`: what stands in a
+/// face's chart is carried over its own reach). A top cap `100` from the
+/// origin, tilted about `x` off the pole of the orientation `x: +x,
+/// z: −z`. A square of side 500 drawn on the chart is carried over its
+/// loops' reach, `500·√2 + 100`; its boss of height 500, the cube, over
+/// its own, `500·√3 + 100`, the arm a placed cube of side 500 levers the
+/// same turn over. The tilt sits between the two arms' conditioning
+/// edges ([`geom_core::test_support::least_turn_band_edge`]): the profile
+/// charts, and its boss refuses backwards, naming the orientation to
+/// write, as the placed cube does.
+#[test]
+fn near_the_pole_a_wide_boss_refuses_where_the_equal_placed_cube_does() {
+    let tol = Tol::witness();
+    let (side, height) = (500.0, 100.0);
+    let (loops_arm, cube_arm) = (side * 2f64.sqrt() + height, side * 3f64.sqrt() + height);
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let (charts, refuses) = (pole(loops_arm).max(edge(loops_arm)), edge(cube_arm));
+    assert!(
+        1.1 * charts < refuses,
+        "FIXTURE: the profile's verdict {charts} and the cube's {refuses} leave room between them"
+    );
+    let tilt = (charts * refuses).sqrt();
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let run = carried(tilt, height, side);
+    run.profile
+        .unwrap_or_else(|e| panic!("the profile charts at tilt {tilt}: {e:?}"));
+    assert!(
+        run.boss
+            .as_ref()
+            .is_err_and(|e| e.as_ref().is_some_and(|e| refuses_backwards(e, backwards))),
+        "the boss refuses backwards at tilt {tilt}: {:?}",
+        run.boss
+    );
+    assert!(
+        matches!(run.placed, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
+        "the equal placed cube refuses backwards at tilt {tilt}: {:?}",
+        run.placed
+    );
+}
+
+/// **A boss on a face and the same body placed there agree on both
+/// edges of the pole's band**: the band has two edges that move apart
+/// as the arm grows (the pole verdict's, `Kε` over the arm, and the
+/// conditioning's, `2·arm/R`), and at each a boss drawn on the face's
+/// chart refuses and builds where the equal cube placed by a plane mate
+/// does, both carried over the cube's reach.
+///
+/// - **The wide edge**: a cube of side 500 at 100 from the origin, at
+///   half its conditioning edge (refused) and at twice it (built).
+/// - **The narrow edge**: a cube a twentieth of the arm at which the two
+///   edges meet (`√(Kε·R/2)`), as far from the origin as it is wide, at
+///   half its pole edge (refused) and four times its profile's (built).
+///   Below the narrow edge the profile, the shorter arm, refuses first,
+///   so the boss refuses through it, as a placement of the profile's
+///   size would.
+#[test]
+fn a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band() {
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let arms = |side: f64, height: f64| (side * 2f64.sqrt() + height, side * 3f64.sqrt() + height);
+    let refused = |row: &str, tilt, height, side| {
+        let run = carried(tilt, height, side);
+        assert!(
+            run.boss.is_err(),
+            "{row}: the boss refuses at tilt {tilt}: {:?}",
+            run.profile
+        );
+        assert!(
+            matches!(run.placed, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
+            "{row}: the placed cube refuses backwards at tilt {tilt}: {:?}",
+            run.placed
+        );
+        run
+    };
+    let built = |row: &str, tilt, height, side| {
+        let run = carried(tilt, height, side);
+        assert!(
+            run.profile.is_ok() && run.boss.is_ok(),
+            "{row}: the profile and its boss build at tilt {tilt}: {:?} / {:?}",
+            run.profile.err(),
+            run.boss
+        );
+        assert!(
+            run.placed.is_ok(),
+            "{row}: the placed cube builds at tilt {tilt}: {:?}",
+            run.placed
+        );
+    };
+
+    let (side, height) = (500.0, 100.0);
+    let (_, cube) = arms(side, height);
+    assert!(
+        pole(cube) < 0.1 * edge(cube),
+        "FIXTURE: the wide cube's band is its conditioning edge"
+    );
+    refused("wide edge", 0.5 * edge(cube), height, side);
+    built("wide edge", 2.0 * edge(cube), height, side);
+
+    let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
+    let side = meet / 20.0;
+    let (loops, cube) = arms(side, side);
+    assert!(
+        edge(loops) < 0.1 * pole(cube),
+        "FIXTURE: the narrow cube's band is its pole verdict"
+    );
+    let narrow = refused("narrow edge", 0.5 * pole(cube), side, side);
+    assert!(
+        narrow
+            .profile
+            .as_ref()
+            .is_err_and(|e| refuses_backwards(e, backwards)),
+        "narrow edge: the profile refuses backwards first: {:?}",
+        narrow.profile
+    );
+    built("narrow edge", 4.0 * pole(loops), side, side);
+}
+
+/// **A tilted face through its space's origin charts with zero slides**:
+/// the block's copy spun about `x`, its bottom cap's plane through the
+/// origin, drawn on under the nearest orientation with no slides. The
+/// chart's arm, its slides and the face's distance, is zero there, and
+/// what the frame carries reaches out to the disc's radius: the profile
+/// charts and its boss builds.
+///
+/// *Breaks if* the frame decides its turn over its own arm alone: it
+/// then refuses backwards naming the orientation already written.
+#[test]
+fn a_tilted_face_through_its_spaces_origin_charts_at_zero_slides() {
+    let (doc, body, copy) = tilted_by([0.2, 0.0, 0.0], [0.0, 0.0, 0.0]);
+    let (doc, profile) = drawn(
+        &doc,
+        copy,
+        cap(body, CapEnd::Start),
+        on(None, 0.0, [0.0, 0.0]),
+    );
+    let f = chart(&doc, profile).unwrap_or_else(|e| panic!("the cap charts: {e:?}"));
+    let o = f.origin();
+    assert!(
+        o.x.abs() + o.y.abs() + o.z.abs() < 1e-12,
+        "the frame stands at the origin, on the face: {o:?}"
+    );
+    let (doc, boss) = fixture::insert(
+        doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
         },
     );
-    let built = eval(&drawn_doc);
+    let ev = eval(&doc);
     assert!(
-        matches!(built.nodes.get(&boss), Some(NodeResult::Ok(_))),
-        "the disc's boss builds: {:?}",
-        built.nodes.get(&boss)
+        matches!(ev.nodes.get(&boss), Some(NodeResult::Ok(_))),
+        "its boss builds: {:?}",
+        ev.nodes.get(&boss)
     );
-    let refused = placed_on(doc, (copy, top), backwards, (ang(0.0), [0.0, 0.0]), side);
+}
+
+/// **A face's chart read anywhere but a profile's frame seat refuses
+/// typed**: the frame variable a profile is drawn on, bound by the pose
+/// door as a split's tool or a mate's side would bind it, refuses
+/// [`PoseConstruction::FaceChartUnseated`], so nothing carries geometry
+/// by the chart unlevered. The profile itself, drawn on it, charts.
+#[test]
+fn a_face_chart_read_outside_a_frame_seat_refuses() {
+    let (doc, body) = block(2.0, 1.0);
+    let (doc, profile) = drawn(&doc, body, cap(body, CapEnd::End), OnFace::nearest());
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("a profile")
+    };
+    let frame = program.on.as_ref().expect("drawn on a frame").frame;
+    let mut ev = eval(&doc);
+    for slot in [OperandSlot::Tool, OperandSlot::Frame] {
+        let read = bound_pose(&doc, &ev, slot, frame, Tol::witness());
+        assert!(
+            matches!(
+                read,
+                Err(NodeErrorKind::PoseDegenerate {
+                    construction: PoseConstruction::FaceChartUnseated
+                })
+            ),
+            "{slot:?}: the pose door refuses the chart: {read:?}"
+        );
+    }
+    let text = NodeErrorKind::PoseDegenerate {
+        construction: PoseConstruction::FaceChartUnseated,
+    }
+    .to_string();
     assert!(
-        matches!(refused, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
-        "the wide placement refuses backwards at tilt {tilt}: {refused:?}"
+        text.contains("Recourse: draw a profile on the chart itself"),
+        "{text}"
     );
+    chart_in(&mut ev, profile).unwrap_or_else(|e| panic!("the profile charts: {e:?}"));
+}
+
+/// **An un-swept profile on a face stands in a decided frame**: nothing
+/// sweeps the disc drawn on the top cap, and the profile's own carriage,
+/// over its loops' reach, decides the chart: the frame stands on the cap.
+#[test]
+fn an_unswept_profile_on_a_face_has_its_frame() {
+    let (doc, body) = block(2.0, 1.0);
+    let (doc, profile) = drawn(&doc, body, cap(body, CapEnd::End), OnFace::nearest());
+    let f = chart(&doc, profile).unwrap_or_else(|e| panic!("the profile charts: {e:?}"));
+    let o = f.origin();
+    assert_eq!([o.x, o.y, o.z], [0.0, 0.0, 1.0], "on the cap");
 }
 
 /// The plane `split`'s tool reads, as its reader binds it.
