@@ -49,18 +49,20 @@ pub(crate) struct Taylor<T> {
     pub(crate) bend_drift: T,
 }
 
-/// `c·wᵏ/k!`, the `k`-th Taylor term of a coefficient bound `c`.
+/// `c·wᵏ/k!`, the `k`-th Taylor term of a coefficient bound `c`, for
+/// `k` up to five (the longest jet [`Taylor::over`] takes, and its
+/// remainder).
 fn term<T: Real>(c: T, w: T, k: usize) -> T {
-    const FACTORIALS: [f64; 6] = [1.0, 1.0, 2.0, 6.0, 24.0, 120.0];
-    match k {
-        0 => c,
-        1 => c * w,
-        _ => {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let power = w.powi(k as i32);
-            c * power / T::from_f64(FACTORIALS[k])
-        }
-    }
+    let factorial = match k {
+        0 | 1 => return if k == 0 { c } else { c * w },
+        2 => T::from_f64(2.0),
+        3 => T::from_f64(6.0),
+        4 => T::from_f64(24.0),
+        _ => T::from_f64(120.0),
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    let power = w.powi(k as i32);
+    c * power / factorial
 }
 
 impl<T: Real> Taylor<T> {
