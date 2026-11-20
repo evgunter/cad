@@ -1146,7 +1146,9 @@ pub enum ValidationError {
     },
     /// A face of the body has no cover, so the session box cannot bound
     /// its region, and no point known to lie on the body is past the box.
-    /// A limit, as [`Self::SessionBoxUnshown`] is. Reported alone.
+    /// A limit, as [`Self::SessionBoxUnshown`] is. Reported alone, and at
+    /// the finished-body gate only where tier 3's checks find nothing:
+    /// they name why a carrier or boundary bounds nothing.
     SessionBoxUncovered {
         /// The face with no cover (the first, in key order).
         face: FaceKey,
@@ -4693,12 +4695,11 @@ impl ValidationError {
                  not built yet",
                 margin.readable_below_zero()
             ),
-            Self::SessionBoxUncovered { face } => write!(
+            Self::SessionBoxUncovered { .. } => write!(
                 f,
-                "{} has no bound on the region it may occupy, so the kernel cannot show the body \
-                 inside the {SESSION_BOX_EXTENT:e} m session box, and no point known to lie on \
-                 the body is past it",
-                EntityId::Face(*face)
+                "a face of the body has no bound on the region it may occupy, so the kernel \
+                 cannot show the body inside the {SESSION_BOX_EXTENT:e} m session box, and no \
+                 point known to lie on the body is past it"
             ),
             Self::Band { error } => write!(
                 f,
@@ -6654,7 +6655,7 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
     let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
@@ -6663,10 +6664,10 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
         plus_v,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
-    if errors.is_empty() {
-        Ok(certificate)
-    } else {
-        Err(errors)
+    match (errors.is_empty(), uncovered) {
+        (true, None) => Ok(certificate),
+        (true, Some(uncovered)) => Err(vec![uncovered]),
+        (false, _) => Err(errors),
     }
 }
 
@@ -11037,10 +11038,13 @@ fn pseudomanifold_certificate_via<
     // predicate ([`structural_via`]), so a body past it refuses here as
     // there, and a tier-3′ pass records the one decision a finish then a
     // census over a kept verdict records.
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
+    }
+    if let Some(uncovered) = uncovered {
+        return Err(vec![uncovered]);
     }
     census_verdict(body, contacts, band, tol, region)?;
     Ok(certificate_of_a_clean_verdict(certificate))
