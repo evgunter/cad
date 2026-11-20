@@ -4315,7 +4315,7 @@ impl<T: Decide> IslandReading<T> {
             Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
         Ok(Ok(Self {
-            surface: surface.clone(),
+            surface: view.surface().clone(),
             carrier,
             arcs,
             q,
