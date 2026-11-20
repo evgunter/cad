@@ -109,6 +109,9 @@ interval-transcendentals = { workspace = true }
 # maps deciding units — `topo`'s face walks, `editor-core`'s node
 # schedule — sits above this one. The workspace pin.
 rayon = { workspace = true }
+# The notation a told quantity is rendered in (`told`): the units, and
+# the pair of them one person reads in. A leaf with no dependencies.
+quantity = { path = "../quantity" }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -72,10 +72,12 @@
 //! exactly as for raw `f64` authoring today.
 
 mod fmt;
+mod notation;
 mod units;
 mod written;
 
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
+pub use notation::Notation;
 pub use units::{
     AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, ONE, PI, RAD, ScalarUnit, UNITS,
     UnitDef, UnitQuantity, unit_by_symbol,

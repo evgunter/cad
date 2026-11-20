@@ -170,6 +170,15 @@ impl UnitDef {
         self.factor
     }
 
+    /// The number that, typed in this unit, is `canonical` to the bit
+    /// (the text door's `number * factor`), choosing the one with the
+    /// shortest spelling. `None` where no number is (a multiply by the
+    /// factor can step over a float), or `canonical` is not finite.
+    #[must_use]
+    pub fn authored(self, canonical: f64) -> Option<f64> {
+        crate::fmt::authored(canonical, self.factor)
+    }
+
     /// This row as a [`LengthUnit`], or `None` when the row measures an
     /// angle — the public route from a table row to the typed view that
     /// builds a [`crate::Length`].

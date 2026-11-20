@@ -112,6 +112,24 @@ fn fmt_in(
     if !value.is_finite() {
         return Err(FmtQuantityError::NonFinite { value });
     }
+    let best = authored(value, factor).map(render_shortest);
+    Ok(match best {
+        Some(digits) => format!("{digits} {symbol}"),
+        // No preimage in the requested unit: canonical fallback —
+        // factor exactly 1.0, multiplication is the identity, the
+        // rendered digits ARE the value's shortest round-trip form.
+        None => format!("{} {canonical_symbol}", render_shortest(value)),
+    })
+}
+
+/// The number that, typed in a unit of `factor`, is `value` to the bit
+/// (`number * factor`, the text door's one multiply), choosing the one
+/// with the shortest spelling; `None` where no number is, or `value`
+/// is not finite.
+pub(crate) fn authored(value: f64, factor: f64) -> Option<f64> {
+    if !value.is_finite() {
+        return None;
+    }
     let q = value / factor;
     // The five candidates within 2 ulps of the rounded quotient. This
     // set is COMPLETE (the PR #267 review's derivation, confirmed by a
@@ -123,25 +141,16 @@ fn fmt_in(
     // boundary halves the spacing. For subnormal value the quotient
     // interval is wide and q itself is a preimage. If none of the five
     // reproduces the bits, no decimal in this unit does.
-    let candidates = [
+    [
         q,
         q.next_up(),
         q.next_down(),
         q.next_up().next_up(),
         q.next_down().next_down(),
-    ];
-    let best = candidates
-        .into_iter()
-        .filter(|d| (d * factor).to_bits() == value.to_bits())
-        .map(render_shortest)
-        .min_by_key(String::len);
-    Ok(match best {
-        Some(digits) => format!("{digits} {symbol}"),
-        // No preimage in the requested unit: canonical fallback —
-        // factor exactly 1.0, multiplication is the identity, the
-        // rendered digits ARE the value's shortest round-trip form.
-        None => format!("{} {canonical_symbol}", render_shortest(value)),
-    })
+    ]
+    .into_iter()
+    .filter(|d| (d * factor).to_bits() == value.to_bits())
+    .min_by_key(|&d| render_shortest(d).len())
 }
 
 /// `{:?}`'s shortest-round-trip digits, with a bare integral form
@@ -150,9 +159,8 @@ fn fmt_in(
 /// the spec's `25 mm` surface shape.
 ///
 /// This is the same rendering as `geom_core::Readable`, character for
-/// character. It is a second copy because neither crate depends on the
-/// other, and a dependency edge added for one formatting function would
-/// be the larger cost.
+/// character. It is a second copy because this crate is a leaf:
+/// `geom-core` depends on it, never the reverse.
 fn render_shortest(d: f64) -> String {
     let repr = format!("{d:?}");
     match repr.strip_suffix(".0") {
