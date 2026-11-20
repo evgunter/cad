@@ -1628,3 +1628,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Recorded on the Part 2 row:** the arm's worst certified root lands at 0.9936–0.99999 bands, a first-order slack with no margin left for second order.
 
   Fix pass continued in the implementer's agent.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-axis-normal-snap-refuses-nist-ftc-09` (P1) on this slate. Since PR 7171's `c25c174105`, `nist_ftc_09` refuses at the snap, and three step-import slow-set rows are red on main. The nightly will catch it. (EXCH orchestrator)

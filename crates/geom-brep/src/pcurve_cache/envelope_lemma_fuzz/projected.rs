@@ -2858,3 +2858,89 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// **A pole-ended image's envelope dominates its displacement.** Random
+/// spheres, each cut by a random plane through its north pole: an arc of
+/// the circle leaving the pole, one arriving at it, or the whole circle
+/// from the pole round to it, its pole end stated. Each certifies at
+/// `f64` and at `Interval`, and each certificate's envelope is at least the
+/// densely sampled `|S(P(t)) − C(t)|`. A counterexample search.
+#[test]
+fn a_pole_ended_images_envelope_dominates_its_displacement() {
+    let mut s = fuzz::start("projected_pole_end");
+    for _ in 0..fuzz::scaled(24) {
+        let sphere = surface(Chart::Sphere, &mut s);
+        let Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } = sphere
+        else {
+            unreachable!()
+        };
+        let pole = center + axis * radius;
+        // A plane through the pole at least a little off the axis, so the
+        // section is no meridian, and off tangency, so it is a circle.
+        let n = loop {
+            let n = unit(&mut s);
+            let lean = n.cross(axis).norm();
+            if lean > 0.05 && n.dot(axis).abs() > 0.05 {
+                break n;
+            }
+        };
+        let d = n.dot(pole - center);
+        let centre = center + n * d;
+        let r = (radius * radius - d * d).sqrt();
+        let u_ref = (pole - centre).normalize();
+        let circle = Curve3::circle(centre, n, r, u_ref);
+        let length = s.range(0.3, TAU);
+        let (span, ends) = match s.range(0.0, 3.0) as u32 {
+            0 => ((0.0, length), (true, false)),
+            1 => ((-length, 0.0), (false, true)),
+            _ => ((0.0, TAU), (true, true)),
+        };
+        let ends = super::super::SingularEnds {
+            start: ends.0,
+            end: ends.1,
+        };
+        let b = band();
+        let image = super::super::chart_pcurve_over_ends(&circle, span.0, span.1, ends, &sphere, b)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: the arc images, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let cache = PcurveCache::certify(image.clone(), span.0, span.1, &circle, &sphere, b)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: f64 certifies, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let sup = sampled(&image, &circle, &sphere, span.0, span.1);
+        assert!(
+            cache.certificate().envelope >= sup * (1.0 - 1e-9) - 1e-15,
+            "{span:?} {ends:?}: f64 envelope {:e} under sampled {sup:e} — {}",
+            cache.certificate().envelope,
+            fuzz::replay()
+        );
+        let (ci, si) = (lift(&circle), sphere.map_scalar(Interval::from_f64));
+        let (i0, i1) = (Interval::from_f64(span.0), Interval::from_f64(span.1));
+        let certified = super::super::chart_pcurve_over_ends(&ci, i0, i1, ends, &si, b)
+            .and_then(|image| PcurveCache::certify(image, i0, i1, &ci, &si, b))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: interval certifies, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let envelope = certified.certificate().envelope.hi();
+        assert!(
+            envelope >= sup * (1.0 - 1e-9) - 1e-15,
+            "{span:?} {ends:?}: interval envelope {envelope:e} under sampled {sup:e} — {}",
+            fuzz::replay()
+        );
+    }
+}

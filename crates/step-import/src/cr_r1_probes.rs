@@ -183,21 +183,24 @@ fn p5_reported_residual_dominates_measured_deviation() {
     .unwrap();
     let CurveRecognition::Promoted {
         curve:
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                radius,
-            }),
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
+                    ..
+                },
+            ),
         residual,
         ..
     } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
     else {
         panic!("a sub-eps dent must still certify");
     };
+    let radius = circle.radius();
     let (a, b) = curve.domain();
     let mut worst = 0.0f64;
     for k in 0..=4096 {
