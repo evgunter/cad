@@ -58,7 +58,7 @@
 
 use crate::gate::{Gate, decide};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
-use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Told, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
@@ -343,7 +343,9 @@ pub(crate) fn radius_carrier<T: Decide>(
     band: Band,
 ) -> Result<(Point2<T>, ArcSweep), PathError<T>> {
     gate_positive(Gate::PathArcCenterRadius, spec.r, band, |radius| {
-        PathError::DegenerateArcCenter { radius }
+        PathError::DegenerateArcCenter {
+            radius: super::authored_length(radius),
+        }
     })?;
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let centre = dp.at + n * (spec.side.sign::<T>() * spec.r);
@@ -365,14 +367,20 @@ pub(crate) fn via_carrier<T: Decide>(
     let d = q - dp.at;
     let chord = d.norm_squared().sqrt();
     gate_positive(Gate::PathArcChord, chord, band, |c| {
-        PathError::DegenerateArcChord { chord: c }
+        PathError::DegenerateArcChord {
+            chord: super::length(c),
+        }
     })?;
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let across = d.dot(n);
     // The signed offset of q from the tangent LINE, meters — zero means
     // no tangent circle reaches q (the collinear class).
     let winding = match decide(Gate::PathArcViaOffset, Margin::of(across), band) {
-        Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset: across }),
+        Ok(Sign::Zero) => {
+            return Err(PathError::ArcViaCollinear {
+                offset: super::length(across),
+            });
+        }
         Ok(Sign::Positive) => ArcSweep::Ccw,
         Ok(Sign::Negative) => ArcSweep::Cw,
         Err(source) => return Err(PathError::escalated(source)),
@@ -413,11 +421,58 @@ pub struct TangentArcLeg<T: Real> {
     pub chord: T,
 }
 
-/// An endpoint-free leg's swept angle `angle` on radius `r`, gated: its
-/// arc length definitely positive (`path_arc_sweep`, the span from the
-/// start's angle at the radius) and definitely short of a full turn
-/// (`path_arc_sweep_full`, the turn rule at `r`).
-pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), PathError<T>> {
+/// What the author wrote that fixes an endpoint-free leg's swept angle.
+#[derive(Clone, Copy)]
+pub(crate) enum SweepDatum<T: Real> {
+    /// The swept angle itself.
+    Angle(T),
+    /// An arc length along a carrier of radius `r`: the angle is their
+    /// quotient, which the kernel derives.
+    ArcLength {
+        /// The authored length.
+        len: T,
+        /// The authored radius.
+        r: T,
+    },
+}
+
+impl<T: Real> SweepDatum<T> {
+    /// The swept angle.
+    fn angle(self) -> T {
+        match self {
+            Self::Angle(angle) => angle,
+            Self::ArcLength { len, r } => len / r,
+        }
+    }
+
+    /// The datum as the author wrote it.
+    fn authored(self) -> Told {
+        match self {
+            Self::Angle(angle) => super::authored_angle(angle),
+            Self::ArcLength { len, .. } => super::authored_length(len),
+        }
+    }
+
+    /// The angle the leg turns: the author's own where they wrote one,
+    /// derived where they wrote a length.
+    fn turn(self) -> Told {
+        match self {
+            Self::Angle(angle) => super::authored_angle(angle),
+            Self::ArcLength { .. } => super::angle(self.angle()),
+        }
+    }
+}
+
+/// An endpoint-free leg's swept angle, from `datum`, on radius `r`,
+/// gated: its arc length definitely positive (`path_arc_sweep`, the span
+/// from the start's angle at the radius) and definitely short of a full
+/// turn (`path_arc_sweep_full`, the turn rule at `r`).
+pub(crate) fn sweep_gates<T: Decide>(
+    r: T,
+    datum: SweepDatum<T>,
+    band: Band,
+) -> Result<(), PathError<T>> {
+    let angle = datum.angle();
     let sweep = Gate::PathArcSweep
         .read(
             |name| match Extent::forward(name, T::zero(), angle, InfSpeed::new(r), band) {
@@ -426,7 +481,9 @@ pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), P
                 Err(NotForward::Zero(_) | NotForward::Reversed(_)) => Ok(None),
             },
         )?
-        .ok_or(PathError::DegenerateArcSpec { value: angle })?;
+        .ok_or(PathError::DegenerateArcSpec {
+            value: datum.authored(),
+        })?;
     let short = Gate::PathArcSweepFull.read(|name| {
         Period::angle()
             .strictly_partial(TurnRows::exact(name), sweep, Exact::new(r), band)
@@ -435,7 +492,9 @@ pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), P
     if short {
         Ok(())
     } else {
-        Err(PathError::ArcSweepNotShortOfFullTurn { angle })
+        Err(PathError::ArcSweepNotShortOfFullTurn {
+            angle: datum.turn(),
+        })
     }
 }
 
@@ -443,13 +502,16 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     dp: DirectedPoint<T>,
     r: T,
     side: ArcSide,
-    angle: T,
+    datum: SweepDatum<T>,
     band: Band,
 ) -> Result<TangentArcLeg<T>, PathError<T>> {
+    let angle = datum.angle();
     gate_positive(Gate::PathArcCenterRadius, r, band, |radius| {
-        PathError::DegenerateArcCenter { radius }
+        PathError::DegenerateArcCenter {
+            radius: super::authored_length(radius),
+        }
     })?;
-    sweep_gates(r, angle, band)?;
+    sweep_gates(r, datum, band)?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let centre = dp.at + n * (sgn * r);

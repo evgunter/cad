@@ -931,6 +931,59 @@ pub(super) fn singular_at<T: Decide>(
     }
 }
 
+/// **Which ends of `half_edge`'s edge lie on `surface`'s singular set**,
+/// for the image of `carrier` that reads them
+/// ([`geom_brep::reads_singular_ends`]: a conic's on a sphere): each end's
+/// vertex decided on a pole by [`singular_at`]'s reading,
+/// [`geom_brep::chart_singularity::vertex_at_singular_point`], the one the
+/// loop walk decides a joint there by. Every other pair decides nothing
+/// and states no end. The image is derived wherever the edge's own joints
+/// are read, by the mint, the lift and the site mint. An end undecided in
+/// the band reads as off it: its image then takes the lane that reads no
+/// pole end, and the joint's own reading refuses it.
+pub(crate) fn singular_ends<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    carrier: &geom::Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> geom_brep::SingularEnds {
+    if !geom_brep::reads_singular_ends(carrier, surface) {
+        return geom_brep::SingularEnds::default();
+    }
+    let (start, end) = super::mint::edge_vertex_points(body, half_edge);
+    geom_brep::SingularEnds {
+        start: on_a_pole(carrier, surface, start, band),
+        end: on_a_pole(carrier, surface, end, band),
+    }
+}
+
+/// Whether `point` is decided on one of `carrier`'s chart's poles, where
+/// `carrier`'s image on `surface` reads a stated end
+/// ([`geom_brep::reads_singular_ends`]: a conic's on a sphere); `false`,
+/// deciding nothing, for every other pair. The point is an end's vertex,
+/// or for an edge an Euler operator has yet to mint, or a split's new
+/// vertex, the carrier's point there: the point the site walk decides
+/// that joint at ([`super::site::site_rows`]), so the end and its joint
+/// read one point.
+pub(crate) fn on_a_pole<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    surface: &Surface<T>,
+    point: geom_core::Point3<T>,
+    band: Band,
+) -> bool {
+    use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
+    if !geom_brep::reads_singular_ends(carrier, surface) {
+        return false;
+    }
+    let Ok(inverse) = geom::ChartInverse::of(surface) else {
+        unreachable!("on_a_pole: a sphere's chart has a closed inverse")
+    };
+    singular_points(&inverse)
+        .iter()
+        .any(|&(_, p)| matches!(vertex_at_singular_point(point, p, band), Ok(true)))
+}
+
 /// Whether `surface`'s chart has a singular point at all, asked of the
 /// chart's own list ([`geom_brep::chart_singularity::singular_points`])
 /// rather than of a kind roster: a tip off every point of a non-empty

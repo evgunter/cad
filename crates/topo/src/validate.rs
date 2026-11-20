@@ -1381,9 +1381,8 @@ pub enum ValidationError {
     /// ([`geom::Curve3::representability_margins`]) — the curve half of
     /// [`ValidationError::UnrepresentableSurfaceDatum`], with that
     /// variant's posture: refused on representability (a circle of
-    /// radius zero is a point, and one of negative radius is the circle
-    /// of the opposite radius spelled as this one), and not a metered
-    /// predicate.
+    /// radius zero is a point; a negative one is unrepresentable,
+    /// [`geom::Circle::new`]), and not a metered predicate.
     UnrepresentableCurveDatum {
         /// The edge whose carrier stores the datum.
         edge: EdgeKey,
@@ -3543,13 +3542,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             ..
         }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
-        CertifyError::SemiAxisNegative { .. } => {
-            "its conic carrier stores a negative semi-axis, which no edge can have"
-        }
-        CertifyError::SemiAxisNotFinite { .. } => {
-            "its conic carrier stores a semi-axis that is not a finite number, which no edge can \
-             have"
-        }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {
@@ -3740,8 +3732,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
-            | CertifyError::SemiAxisNegative { .. }
-            | CertifyError::SemiAxisNotFinite { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }
@@ -7898,8 +7888,7 @@ pub(crate) fn tier3_local_checks_marked<
     // (`analytic_datum_verdicts`). Certification meters a carrier
     // against its endpoints and description, and a carrier whose datum
     // describes no curve of its kind can pass that (a circle whose
-    // `axis` is zero traces the diameter it spans; a negative radius
-    // traces the circle of the opposite radius), so the datum is asked
+    // `axis` is zero traces the diameter it spans), so the datum is asked
     // by name here and not left to check 2's residuals.
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
@@ -9844,7 +9833,7 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            circles_of(o.frame.origin, o.radius(), r.frame.origin, r.radius()),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -9984,15 +9973,18 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
                 center,
@@ -10324,14 +10316,14 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            let carrier = geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            });
+            ));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
             match span.place(p, geom::mid_param(t0, t1), band) {
                 Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
@@ -10544,21 +10536,24 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: *center,
                 dir: *axis,
             }
             .height_and_distance(p);
-            let radial = rho - *radius;
+            let radial = rho - radius;
             Some((radial.powi(2) + along.powi(2)).sqrt())
         }
         _ => None,
@@ -15223,14 +15218,14 @@ mod tests {
         assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
@@ -16492,14 +16487,14 @@ mod tests {
                 ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
             .expect("one sense of the circle is the arc asked for");
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
             spec,

@@ -608,7 +608,7 @@ mod tests {
         // The children share the parent's carrier bitwise.
         assert!(matches!(
             c2.carrier(),
-            Curve3::Circle(geom::Circle { radius, .. }) if *radius == 1.0
+            Curve3::Circle(circle) if circle.radius() == 1.0
         ));
         // The restricted description is still a placed arc.
         assert!(matches!(

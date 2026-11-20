@@ -111,6 +111,15 @@ fn validate_ok(lp: &ProfileLoop<f64>) {
 /// tautology the census retired into; this row smokes the plumbing
 /// (recording, driver arms, the state walk) rather than proving two
 /// implementations equivalent.
+/// A tip state's identifier, which the lattice refusal writes, is the
+/// name its declaration gives it.
+#[test]
+fn every_tip_state_is_identified_by_its_declared_name() {
+    for state in profile::test_support::every_state() {
+        assert_eq!(state.identifier(), format!("{state:?}"));
+    }
+}
+
 #[test]
 fn the_fused_family_records_and_replays_bit_identically() {
     use profile::{ArcSide, Center, Radius, Sweep};
