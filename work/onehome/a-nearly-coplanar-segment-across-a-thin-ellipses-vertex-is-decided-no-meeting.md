@@ -122,13 +122,21 @@ the tilt read level holds a slant, so at the extreme the distance is
 the slant alone.
 
 Fixed with it: a Level pair is read with its slant (`pose`'s module
-docs, "A slanted pair in one plane"). Each root or touch reads its
-stretch, the arc of `|R| ≤ e`, under a window floor of the least `|H|`
-there, at its candidate: `θ` where its own distance is within the zero,
-else the nearer root. Its Off prunes only where the floor clears, and
-otherwise escalates. Row:
-`meet_rows::a_segment_slanted_over_a_thin_ellipses_vertex_meets_it_at_a_root`
-(draw 7969, one meeting in either order).
+docs, "A slanted pair in one plane"). Each candidate reads its stretch,
+the arc of `|R| ≤ e`, under a window floor of the least `|H|` there. A
+root is read at itself. A touch is read at its extreme where that is
+proved within the zero, and otherwise at both roots, where the zero set
+may part. Its Off prunes only where the floor clears, and otherwise
+escalates. Row:
+`meet_rows::a_segment_slanted_over_a_thin_ellipses_vertex_is_never_one_meeting`
+(draw 7969, whose two roots are two meetings `2.3·10⁻⁹` m apart; never
+one meeting nor none, in either order).
+
+PR 7208's full review found the touch read at one root alone (the
+`phi = 0` select always took `θ_hi − φ₀`), which missed the other
+meeting where the zero set parts. Rows:
+`meet_rows::a_touch_parted_about_its_roots_meets_at_both` and
+`…_in_the_band_escalates`.
 
 **Measured** (the same probe, two seeds):
 

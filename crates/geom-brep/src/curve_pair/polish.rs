@@ -273,7 +273,7 @@ pub(super) fn bound<T: Decide>(
             .map_or_else(|| T::from_f64(f64::NEG_INFINITY), |h| h - bend),
         reach,
         bend,
-        on_spans: false,
+        spans: super::pose::WindowSpans::MayPass,
     })
 }
 
@@ -309,7 +309,7 @@ pub(super) fn undecided<T: Decide>() -> WindowBound<T> {
         floor: T::from_f64(f64::NEG_INFINITY),
         reach: T::from_f64(f64::INFINITY),
         bend: T::from_f64(f64::INFINITY),
-        on_spans: false,
+        spans: super::pose::WindowSpans::MayPass,
     }
 }
 

@@ -115,6 +115,22 @@ fn run(
     let mut vols = std::collections::BTreeMap::new();
     for (op, r, want) in ops {
         let inv = matches!(&r, Err(e) if format!("{e:?}").contains("Invariant"));
+        // The predicate a result's tier 3′ census refuses on, for a known
+        // failure to be pinned by it and not by its line alone.
+        let census = r
+            .as_ref()
+            .ok()
+            .and_then(|built| built.body())
+            .and_then(|bb| topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err())
+            .map(|e| {
+                let e = format!("{e:?}");
+                let name = e.split("predicate: Some(\"").nth(1);
+                format!(
+                    " census={}",
+                    name.and_then(|n| n.split('"').next()).unwrap_or("none")
+                )
+            })
+            .unwrap_or_default();
         let j = judged(r, v.2.map(|_| want), tol());
         println!("{row}: {op}: {}", j.line);
         if let Some(vol) = j.volume {
@@ -126,7 +142,7 @@ fn run(
                 Verdict::Bad | Verdict::EmptyWrong | Verdict::Unmeasured
             );
         if fail {
-            bad.push(format!("{row}: {op}: {}", j.line));
+            bad.push(format!("{row}: {op}: {}{census}", j.line));
         }
     }
     // Inclusion–exclusion where no closed form is written.
@@ -246,17 +262,23 @@ fn review_curved() {
     // in reach), as it does at θ = −0.1; and the disc below with the
     // boss dipping 1e-4 into it refuses an invariant (main as here).
     // Not on main: the small disc above, its arc crossing the boss's edge
-    // at the shared vertex at θ = 1e-4, fails tier 3′ on the census's
+    // at the shared vertex at θ = 1e-4, and below at θ = −1e-4 (there
+    // beside main's `MayOverlap`), fails tier 3′ on the census's
     // `curve_pair_span_past_reach_straddle`, its second root past the
     // edge on one stretch with the vertex
     // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
+    let straddle = " census=curve_pair_span_past_reach_straddle";
     report(bad, |b| {
-        (b.contains(" c=-") && b.contains("∪") && b.contains("t3p=false"))
+        (b.contains(" c=-")
+            && b.contains("∪")
+            && b.contains("t3p=false")
+            && b.ends_with(" census=none")
             || b.contains("surviving record with an On code after srecledges")
-            || (b.starts_with("r=0.05 c=0.05 ")
-                && b.contains(" θ=0.0001: ")
+            || ((b.starts_with("r=0.05 c=0.05 ") && b.contains(" θ=0.0001: ")
+                || b.starts_with("r=0.05 c=-0.05 ") && b.contains(" θ=-0.0001: "))
                 && (b.contains("∪") || b.contains("B ∖ A"))
-                && b.contains("t3p=false"))
+                && b.contains("t3p=false")
+                && b.ends_with(straddle)))
     });
 }
 
@@ -300,6 +322,7 @@ fn review_curved_plate() {
         b.starts_with("plate r=0.05 lb=0.04 θ=0.0001: ")
             && b.contains("∪")
             && b.contains("t3p=false")
+            && b.ends_with(" census=curve_pair_span_past_reach_straddle")
     });
 }
 

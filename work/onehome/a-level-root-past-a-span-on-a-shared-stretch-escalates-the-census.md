@@ -26,15 +26,15 @@ the `report` filters at `review_curved` and `review_curved_plate`).
 arc share the vertex at the origin, where the edge crosses the circle
 at `1e-4` rad. The ends are read first (`crates/geom-brep/src/curve_pair.rs:424`),
 so the vertex is a known meeting, and `owed`
-(`crates/geom-brep/src/curve_pair/pose.rs:2245`) hands the Level route
+(`crates/geom-brep/src/curve_pair/pose.rs:2285`) hands the Level route
 only the mirror root, at `x ≈ −10⁻⁵`. That root is placed past the line
 span (and past the arc, where the arc is split there). The two roots lie
 on one stretch: the sagitta between them is `2.5·10⁻¹⁰`, inside
 `e = 10⁻⁸`, so `R ≤ e` all round. The stretch's run is `~10⁻⁴` m, so
-the mirror root's window (`place`, `pose.rs:1436`) holds the vertex
+the mirror root's window (`place`, `pose.rs:1454`) holds the vertex
 meeting itself. Its ball is not clear of either span, and `Span::past_by`
 straddles. Main read the root posed, as apart; the slant reading reads
-it as a pair (`WindowBound::on_spans` false, `curve_pair.rs:474`),
+it as a pair (`WindowSpans::MayPass`, `curve_pair.rs:474`),
 whose window does not lie on the spans.
 
 **The open argument.** Drop a candidate placed past a span when a
@@ -69,3 +69,28 @@ stretch whose one candidate reads a meeting is read as one meeting,
 and a second component of the kind above would be a second meeting
 with no candidate. This is to be checked, with a row if it can be posed
 at the band's scale. The bound on `H`'s turn would close both.
+
+**Where the rootless second component is ruled out** (PR 7208's full
+review, at `ab853f5899`). Write `z` and `e` for the band's zero and
+escalation.
+- **Proved, on a side arc** (a stretch on one side of an extreme), for
+  `e/z ≳ 2.33`. Along the arc, the distance's square `g` has
+  `g″ = ab·|n·u|/|R′|³`. The second tilt branch reads `a·|d̂·n̂| ≤ e`.
+  Together these bound the dip a second component needs:
+  `A < z²e²/(e − z)³`, which no second component inside the zero meets
+  past that ratio.
+- **Refused, not read** (PR 7208, `curve_pair_pose_slant_tight`): a
+  slanted pair at `e/z` below `2.33`.
+- **Read, not proved: the remaining proof of this item.** At the wide
+  band, `e/z ≥ 2.33`:
+  - the first tilt branch, where `tilt·(len + 2e)` reads zero, up to
+    about `0.5` rad on short segments;
+  - one-arc stretches, those about an extreme, slanted.
+
+  In the plane every part holds a root or the extreme (`pose`'s module
+  docs, "One meeting to a part"), but only for `H` constant. The pose
+  reads "flat" where `H`'s swing is proved below the zero, and a swing
+  below the zero that turns over the arc is not argued either.
+- **Searched, not broken**: 400,000 draws in the plane and 30,000 in
+  space per branch. They found two parts only where the parts lie less
+  than `e` apart, which ring as one.

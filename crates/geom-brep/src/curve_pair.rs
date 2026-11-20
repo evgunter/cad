@@ -57,7 +57,7 @@ pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, WindowSpans, pose};
 pub use span::{AtFoot, GapMeter, Hit, OffBy, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
 
 use geom::CurveKind;
@@ -452,7 +452,7 @@ fn closed<T: Decide>(
 /// **A posed candidate read**: the pose's closest pair, its window on the
 /// spans, as that pair ([`Found::read_posed`]); a slanted pair in one
 /// plane, whose stretch may reach past a span, as the walk's pair is
-/// ([`Found::read_pair`], `WindowBound::on_spans`); any other at its
+/// ([`Found::read_pair`], [`WindowSpans`]); any other at its
 /// point ([`Found::read`]). A pose read with the spans swapped gives back
 /// the other carrier's point, so the pair's point is the first carrier's
 /// at its parameter.
@@ -471,11 +471,12 @@ fn posed<T: Decide>(
         point: a.carrier().eval(c.ta),
         ..c
     };
-    if bound.on_spans {
-        found.read_posed(a, b, c, band);
-    } else {
-        let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
-        found.read_pair(a, b, c, places, band);
+    match bound.spans {
+        WindowSpans::Held => found.read_posed(a, b, c, band),
+        WindowSpans::MayPass => {
+            let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
+            found.read_pair(a, b, c, places, band);
+        }
     }
 }
 
