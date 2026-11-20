@@ -172,8 +172,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, SegmentCurve,
-    SegmentEdge,
+    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::{NormalAtError, face_outward_normal};
@@ -1093,9 +1092,8 @@ fn closes_at_its_site<T: Decide>(
     winds: Option<[bool; 2]>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let reads = |body: &Body<T>, f: FaceKey| {
-        crate::chord_join::reads_loop_side(keyed_surface(body, f).1)
-    };
+    let reads =
+        |body: &Body<T>, f: FaceKey| crate::chord_join::reads_loop_side(keyed_surface(body, f).1);
     let planar = |body: &Body<T>, f: FaceKey| {
         matches!(keyed_surface(body, f).1, geom::Surface::Plane { .. })
     };
@@ -1104,7 +1102,8 @@ fn closes_at_its_site<T: Decide>(
         site_cell(&red.b, g0.b_locus, b_he)?,
     );
     match (cells, winds) {
-        ((_, SiteCell::Pierce(_)), Some([_, true])) | ((SiteCell::Pierce(_), _), Some([true, _])) => {
+        ((_, SiteCell::Pierce(_)), Some([_, true]))
+        | ((SiteCell::Pierce(_), _), Some([true, _])) => {
             return Err(BooleanError::JoinDesync {
                 what: "a one-site loop pierces a face whose surface it winds round: an at-rest \
                        face is one disc of its chart, so a winding loop meets the face's seam",

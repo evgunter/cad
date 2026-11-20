@@ -494,6 +494,7 @@ slow-timeout = { period = "10s", terminate-after = 3 }
 [[profile.ci.overrides]]
 filter = '''(binary_id(sweep::all) & (
   test(=a_ringed_wall_divided_by_a_carried_chord::a_wall_holding_one_balls_ring_is_divided_by_the_others_chord) |
+  test(=a_closed_conic_in_the_partners_face::a_tube_through_a_ball_across_its_wrap_edge_builds_every_op) |
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops) |
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops_turned) |
   test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_turned_chart) |

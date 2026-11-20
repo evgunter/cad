@@ -4080,9 +4080,7 @@ fn loop_references<T: Decide>(
 ) -> Result<Vec<Point3<T>>, JoinError> {
     let mut points = loop_points(body, l)?;
     let cycle = match body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary {
-        LoopBoundary::Cycle { first } => {
-            body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?
-        }
+        LoopBoundary::Cycle { first } => body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?,
         _ => Vec::new(),
     };
     for he in cycle {
