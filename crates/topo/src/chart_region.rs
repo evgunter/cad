@@ -138,12 +138,14 @@
 //! (edge index, advance). Every decision goes through a named
 //! `decide` row with a `Margin` door (no `decide_flagged` site
 //! exists in this module); each row's metering derivation lives at
-//! its call site. Three-outcome honesty everywhere: definite margins
-//! walk on, exact zeros take their stated branch, the in-band residue
-//! escalates typed.
+//! its call site. Three-outcome honesty everywhere: a definite margin
+//! walks on where its row passes that sign, and a band-decided zero
+//! takes its stated branch. A row that cannot use a decided sign refuses
+//! it through its gate (`decide_positive`, `decide_nonzero`), which names
+//! that sign. The in-band residue escalates typed.
 
 use geom::Surface;
-use geom_core::k_stats::{Magnitude, decide_magnitude, decide_nonzero};
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
@@ -155,7 +157,7 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::validate::{decide, decide_positive};
+use crate::validate::{decide, decide_nonzero, decide_positive};
 
 /// The certified overlap answer (both outcomes are *definite*; every
 /// non-definite configuration is a typed error).
@@ -1662,7 +1664,11 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     // --- The transfer parameters (doc above). The sense margin is the
     //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
     //     the pair's own extent per unit axial step, so the sign read
-    //     goes through the metres door with an honest length.
+    //     goes through the metres door with an honest length. With unit
+    //     axes, (a·b)² + |a×b|² = 1, so `hyp` is at most
+    //     √(ε² + ε_gate²) when this row and the tilt gate both decide
+    //     Zero. Because `hyp ≥ r_max`, that happens only for a pair
+    //     smaller than the band, and the Zero it decides is honest.
     let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
         Margin::levered(
@@ -3805,7 +3811,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // here (a ring deduction may legitimately drive this one
     // negative), and one K row each.
     //
-    // Positive certifies; an exact Zero or a definite Negative after
+    // Positive certifies; a band-decided Zero or a definite Negative after
     // the conservative ring deduction cannot certify EITHER direction
     // (the region exists; only its hole-adjusted area is unresolved),
     // so the positive gate rejects it with the sign it decided.
@@ -4207,20 +4213,68 @@ mod tests {
     /// A `ScaledFace` from raw polygons (already metred), rings by
     /// their measures.
     pub(super) fn face_of(outer: Vec<Point2<f64>>, rings: &[Vec<Point2<f64>>]) -> ScaledFace<f64> {
-        let (a2, p) = loop_measures(&outer);
-        assert!(a2 > 0.0, "test polygons are CCW");
+        face_in(&outer, rings)
+    }
+
+    /// [`face_of`] at the lane `T`, its polygons lifted from `f64`.
+    pub(super) fn face_in<T: Decide>(
+        outer: &[Point2<f64>],
+        rings: &[Vec<Point2<f64>>],
+    ) -> ScaledFace<T> {
+        assert!(loop_measures(outer).0 > 0.0, "test polygons are CCW");
+        let lift = |poly: &[Point2<f64>]| -> Vec<Point2<T>> {
+            poly.iter()
+                .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
+                .collect()
+        };
+        let outer = lift(outer);
+        let (outer_2a, outer_p) = loop_measures(&outer);
         ScaledFace {
             outer,
-            outer_2a: a2,
-            outer_p: p,
+            outer_2a,
+            outer_p,
             rings: rings
                 .iter()
                 .map(|r| {
-                    let (a2, p) = loop_measures(r);
+                    let (a2, p) = loop_measures(&lift(r));
                     (a2.abs(), p)
                 })
                 .collect(),
         }
+    }
+
+    /// The escalation `got` carries, which must be a gate's rejection of
+    /// `sign` under `predicate` on a reading of `kind`. The payload must
+    /// tell the decided verdict, not an in-band one.
+    pub(super) fn gate_rejected(
+        what: &str,
+        got: Result<ChartOverlap, ChartRegionError>,
+        predicate: &str,
+        sign: Sign,
+        kind: geom_core::MarginKind,
+    ) {
+        let Err(ChartRegionError::Escalated(diag)) = got else {
+            panic!("{what}: a gate's rejection escalates, got {got:?}")
+        };
+        assert_eq!(diag.predicate, Some(predicate), "{what}");
+        assert_eq!(
+            diag.margin.rejected_sign(),
+            Some(sign),
+            "{what}: the refusal names the decided sign"
+        );
+        assert_eq!(diag.margin.kind(), kind, "{what}: the lane's own reading");
+        let text = diag.payload().to_string();
+        let placed = match sign {
+            Sign::Zero => text.contains("within the zero band"),
+            Sign::Positive | Sign::Negative => {
+                text.contains("past the ambiguity band")
+                    && text.contains("a decided sign this decision cannot use")
+            }
+        };
+        assert!(
+            placed && !text.contains("inside the ambiguity band"),
+            "{what}: a decided {sign:?} reads as decided, not in band: {text}"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -4341,16 +4395,19 @@ mod tests {
             Err(ChartRegionError::TouchingBoundary)
         ));
         // A ring swallowing the thin overlap: the conservative
-        // deduction drives the mean width out of the certifiable
-        // range and the query escalates — never a false positive,
+        // deduction drives the mean width definitely negative, and the
+        // positive gate refuses that sign — never a false positive,
         // never an Empty.
         let thin = uv(wrap_rect(4.4, 0.999, 1.2), vec![]);
         let bt = wrap_band(&thin.outer, r, band()).unwrap().unwrap();
         let ringed = uv(wrap_rect(0.3, 0.0, 1.0), vec![rect(0.1, 0.99, 6.1, 1.0)]);
-        assert!(matches!(
+        gate_rejected(
+            "a ring swallowing the band",
             band_overlap(&ringed, &thin, ba, bt, r, band()),
-            Err(ChartRegionError::Escalated(_))
-        ));
+            "chart_region_cyl_band_area",
+            Sign::Negative,
+            geom_core::MarginKind::Value,
+        );
     }
 
     // ------------------------------------------------------------------
@@ -4736,66 +4793,63 @@ mod tests {
     /// labelled as a point value.
     #[test]
     fn a_swallowed_overlap_refuses_its_decided_negative_area_at_both_lanes() {
-        use geom_core::Real as _;
-        // One fixture per lane, spelled once: a macro rather than a
-        // generic helper, which would write a compound bracket bound.
-        macro_rules! refusal {
-            ($t:ty) => {{
-                let ring = |c: &[(f64, f64)]| -> Vec<Point2<$t>> {
-                    c.iter()
-                        .map(|&(x, y)| Point2::new(<$t>::from_f64(x), <$t>::from_f64(y)))
-                        .collect()
-                };
-                let face = |outer: &[(f64, f64)], holes: &[&[(f64, f64)]]| {
-                    let outer = ring(outer);
-                    let (outer_2a, outer_p) = loop_measures(&outer);
-                    let rings = holes
-                        .iter()
-                        .map(|h| {
-                            let (a2, p) = loop_measures(&ring(h));
-                            (a2.abs(), p)
-                        })
-                        .collect();
-                    ScaledFace {
-                        outer,
-                        outer_2a,
-                        outer_p,
-                        rings,
-                    }
-                };
-                let big_hole = face(
-                    &[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)],
-                    &[&[(0.5, 0.5), (0.5, 2.5), (2.5, 2.5), (2.5, 0.5)]],
-                );
-                let inner = face(&[(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)], &[]);
-                match overlap_of_regions(&big_hole, &inner, false, band()) {
-                    Err(ChartRegionError::Escalated(diag)) => diag,
-                    other => panic!("a swallowed overlap must escalate, got {other:?}"),
-                }
-            }};
-        }
-        for (lane, diag, kind) in [
-            ("f64", refusal!(f64), geom_core::MarginKind::Value),
-            (
-                "Interval",
-                refusal!(geom_core::Interval),
-                geom_core::MarginKind::Enclosure,
+        let outer = rect(0.0, 0.0, 3.0, 3.0);
+        let hole = vec![
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, 2.5),
+            Point2::new(2.5, 2.5),
+            Point2::new(2.5, 0.5),
+        ];
+        let inner = rect(1.0, 1.0, 2.0, 2.0);
+        let holes = [hole];
+        gate_rejected(
+            "f64",
+            overlap_of_regions(
+                &face_in::<f64>(&outer, &holes),
+                &face_in::<f64>(&inner, &[]),
+                false,
+                band(),
             ),
-        ] {
-            assert_eq!(diag.predicate, Some("chart_region_area"), "{lane}");
-            assert_eq!(
-                diag.margin.rejected_sign(),
-                Some(Sign::Negative),
-                "{lane}: the refusal names the decided sign"
-            );
-            assert_eq!(diag.margin.kind(), kind, "{lane}: the lane's own reading");
-            let text = diag.payload().to_string();
-            assert!(
-                text.contains("past the ambiguity band")
-                    && text.contains("a decided sign this decision cannot use"),
-                "{lane}: a decided Negative reads as decided, not in band: {text}"
-            );
-        }
+            "chart_region_area",
+            Sign::Negative,
+            geom_core::MarginKind::Value,
+        );
+        gate_rejected(
+            "Interval",
+            overlap_of_regions(
+                &face_in::<geom_core::Interval>(&outer, &holes),
+                &face_in::<geom_core::Interval>(&inner, &[]),
+                false,
+                band(),
+            ),
+            "chart_region_area",
+            Sign::Negative,
+            geom_core::MarginKind::Enclosure,
+        );
+    }
+
+    /// **A pair smaller than the band decides its axis sense Zero**,
+    /// and the nonzero gate refuses that sign. Here a unit patch is
+    /// read against a band wider than the patch. Every carrier gate
+    /// decides Zero, and so does the axis dot levered by `hyp`.
+    #[test]
+    fn a_pair_inside_the_band_refuses_its_zero_axis_sense() {
+        let twin = crate::pcurves::pole_slit_tests::cylinder_patch_below(0.0).unwrap();
+        let (face, _) = twin.faces().next().unwrap();
+        gate_rejected(
+            "a patch inside a 10 m band",
+            cylinder_pair_overlap(
+                &twin,
+                face,
+                &twin,
+                face,
+                CarrierPremise::Decided,
+                Band::new(10.0, 100.0).unwrap(),
+            ),
+            "chart_region_cyl_axis_sense",
+            Sign::Zero,
+            geom_core::MarginKind::Value,
+        );
     }
 
     // ------------------------------------------------------------------
@@ -5511,6 +5565,31 @@ mod tests {
                 Err(ChartRegionError::Escalated(_)) => {}
                 other => panic!("spike overlap must escalate, got {other:?}"),
             }
+        }
+
+        /// Two crossings of one edge closer than the zero band: the
+        /// sorted order's separation decides Zero, and the positive
+        /// gate refuses it — the order is not certified.
+        #[test]
+        fn r1_crossings_inside_the_zero_band_refuse_their_order() {
+            let (w, x) = (2e-10, 0.5);
+            let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+            let needle = face_of(
+                vec![
+                    Point2::new(x - w, -1.0),
+                    Point2::new(x + w, -1.0),
+                    Point2::new(x + w, 0.5),
+                    Point2::new(x - w, 0.5),
+                ],
+                &[],
+            );
+            gate_rejected(
+                "a needle narrower than the zero band",
+                overlap_of_regions(&a, &needle, false, band()),
+                "chart_region_cross_order",
+                Sign::Zero,
+                geom_core::MarginKind::Value,
+            );
         }
 
         #[test]
