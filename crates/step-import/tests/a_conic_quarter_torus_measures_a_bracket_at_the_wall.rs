@@ -417,15 +417,19 @@ fn faces_where(body: &topo::AtRestBody<f64>, kind: impl Fn(&geom::Surface<f64>) 
 }
 
 /// `body` measured under a resolution of 1.024e-6 m: the bracket holds
-/// Pappus's `pappus`, and every face meets the resolution.
-fn measures_pappus(body: &topo::AtRestBody<f64>, pappus: f64, what: &str, tol: Tol) {
+/// Pappus's `pappus` to within `moved` — what the import moved the walls
+/// by, as a volume — and the oracle's own `f64` rounding, and every face
+/// meets the resolution.
+fn measures_pappus(body: &topo::AtRestBody<f64>, pappus: f64, moved: f64, what: &str, tol: Tol) {
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))
         .unwrap_or_else(|e| panic!("{what} measures, never refuses: {e:?}"));
     let e = measured.enclosure;
+    let oracle = 8.0 * f64::EPSILON * pappus;
     assert!(
-        (e.volume - pappus).abs() <= e.volume_pad,
-        "{what}: the bracket {} ± {:e} holds Pappus's {pappus}",
+        (e.volume - pappus).abs() <= e.volume_pad + moved + oracle,
+        "{what}: the bracket {} ± {:e} holds Pappus's {pappus} to within the walls' \
+         move {moved:e} m³ and the oracle's rounding {oracle:e} m³",
         e.volume,
         e.volume_pad
     );
@@ -484,16 +488,21 @@ fn the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus() {
         2,
         "both walls report their promotion: {normalizations:?}"
     );
-    for residual in promoted {
+    for &residual in &promoted {
         assert!(
             residual <= imported.eps_in(),
             "the promotion moved the geometry by at most ε_in = {:e}: {residual:e}",
             imported.eps_in()
         );
     }
+    // The promoted walls lie within the certified residual of the
+    // file's, so the volume moves by at most that times the walls' area,
+    // `(2πr)(2πR)/4` on the quarter torus.
+    let moved = promoted.iter().copied().fold(0.0, f64::max) * PI * PI * MINOR * R;
     measures_pappus(
         &body,
         PI * MINOR * MINOR * R * FRAC_PI_2,
+        moved,
         "conic quarter torus",
         tol,
     );
@@ -518,6 +527,7 @@ fn the_conic_quarter_elliptic_tube_answers_a_bracket_holding_pappus() {
     measures_pappus(
         &body,
         PI * MINOR * (ASPECT * MINOR) * R * FRAC_PI_2,
+        0.0,
         "conic quarter elliptic tube",
         tol,
     );
