@@ -888,30 +888,47 @@ fn tessellate_impl(
         return Err(error);
     }
 
-    let mesh = Mesh {
-        positions,
-        patches,
-        boundaries,
-    };
-
-    // THE SIDE CENSUS, where the patches join. Two patches can share a
-    // triangle side only between two shared ids (topology vertices and
-    // chord points), so the census reads those sides and nothing else:
-    // its footprint is the cross-face question, where `check_mesh` reads
-    // every edge of every patch, overwhelmingly patch-interior ones, and
-    // re-checks winding and degeneracy, which are other rows' classes.
-    // It is a census of ids and counts and reads no tolerance.
-    let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
+    // The one place patches become the mesh. No lane-produced body is
+    // known to reach the census inside it (the trimmed lane's shared-side
+    // cure clears every one measured), so its rows drive `joined` itself
+    // on a real mesh (`side_census`), and this call is held by reading.
     #[allow(clippy::cast_possible_truncation)]
+    let mesh = joined(
+        Mesh {
+            positions,
+            patches,
+            boundaries,
+        },
+        shared_below as u32,
+    )?;
+    Ok((mesh, keys))
+}
+
+/// **The faces' patches as the body's mesh**, once the census of the
+/// sides where they meet has read them. Two patches can share a triangle
+/// side only between two shared ids (topology vertices and chord points,
+/// below `shared_below`), so the census reads those sides and nothing
+/// else: its footprint is the cross-face question, where `check_mesh`
+/// reads every edge of every patch, overwhelmingly patch-interior ones,
+/// and re-checks winding and degeneracy, which are other rows' classes.
+/// It reads ids and counts, no tolerance.
+///
+/// A side of more than two triangles per chord carrying it is an edge
+/// that is not manifold, whichever lane made it: two faces across one
+/// chord chain that both use a chord between two of its points as an
+/// interior edge use it twice each, and no patch sees that alone. It
+/// refuses [`TessellateError::OverusedSide`].
+fn joined(mesh: Mesh, shared_below: u32) -> Result<Mesh, TessellateError> {
+    let polylines: Vec<&[u32]> = mesh
+        .boundaries
+        .iter()
+        .map(|b| b.points.as_slice())
+        .collect();
     let uses = side_uses(
         &polylines,
         mesh.patches.iter().map(|p| p.triangles.as_slice()),
-        shared_below as u32,
+        shared_below,
     );
-    // A side of more than two triangles per chord carrying it is an edge
-    // that is not manifold, whichever lane made it: two faces across one
-    // chord chain that both use a chord between two of its points as an
-    // interior edge use it twice each, and no patch sees that alone.
     if let Some((side, uses)) = overused_side(&uses) {
         return Err(TessellateError::OverusedSide {
             faces: faces_using(&mesh, side),
@@ -935,8 +952,7 @@ fn tessellate_impl(
             bad.map_or(0, |(_, n)| n)
         );
     }
-
-    Ok((mesh, keys))
+    Ok(mesh)
 }
 
 /// **The triangle uses of every side between two shared ids**, across
@@ -961,11 +977,11 @@ fn side_uses<'a>(
             uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
         }
     }
-    for t in patches.into_iter().flatten() {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
-            if a < shared_below && b < shared_below {
-                uses.entry(crate::walk::edge_key(a, b)).or_default().1 += 1;
+    for &t in patches.into_iter().flatten() {
+        for (a, b) in crate::walk::sides(t) {
+            // `a < b` (`edge_key`): both ends are shared when `b` is.
+            if b < shared_below {
+                uses.entry((a, b)).or_default().1 += 1;
             }
         }
     }
@@ -991,15 +1007,15 @@ fn overused_side(uses: &HashMap<(u32, u32), (usize, usize)>) -> Option<((u32, u3
         .min()
 }
 
-/// The faces whose patches hold a triangle with side `side`, in the
-/// mesh's patch order.
+/// The faces whose patches hold a triangle with side `side`, in arena
+/// order (the patches').
 fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
     mesh.patches
         .iter()
         .filter(|p| {
             p.triangles
                 .iter()
-                .any(|t| (0..3).any(|k| crate::walk::edge_key(t[k], t[(k + 1) % 3]) == (a, b)))
+                .any(|&t| crate::walk::sides(t).contains(&(a, b)))
         })
         .map(|p| p.face)
         .collect()
@@ -1101,10 +1117,9 @@ mod tests {
     /// internally clean while the pair of patches is not.
     fn per_patch_max_use(tris: &[[u32; 3]]) -> usize {
         let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-        for t in tris {
-            for k in 0..3 {
-                let (a, b) = (t[k], t[(k + 1) % 3]);
-                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+        for &t in tris {
+            for side in crate::walk::sides(t) {
+                *uses.entry(side).or_insert(0) += 1;
             }
         }
         uses.values().copied().max().unwrap_or(0)
@@ -1319,6 +1334,43 @@ mod patch_tests {
             assert_eq!(overused(&poly, &[&tris], 2), None);
             let five = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12], [0, 1, 13]];
             assert_eq!(overused(&poly, &[&five], 2), Some(((0, 1), 5)));
+        }
+
+        /// **A body's own patches join; with one face's triangles copied
+        /// into another patch they do not.** The cube's mesh as `tessellate`
+        /// makes it, its patches handed to the join with a second copy of the
+        /// first face's triangles in the second face's patch: each side of
+        /// those triangles is then a side of more triangles than its chords
+        /// allow.
+        #[test]
+        fn a_mesh_whose_patches_overuse_a_side_does_not_join() {
+            let tol = geom_core::Tol::witness();
+            let body = sweep::test_support::cube::<f64>(1.0, tol);
+            let mesh = crate::tessellate(&body, 0.1, tol).expect("the cube meshes");
+            let shared_below = 1 + mesh
+                .boundaries
+                .iter()
+                .flat_map(|b| b.points.iter().copied())
+                .max()
+                .expect("the cube has edges");
+            let faces = [mesh.patches[0].face, mesh.patches[1].face];
+            let mut overused = mesh.clone();
+            let copy = overused.patches[0].triangles.clone();
+            overused.patches[1].triangles.extend(copy);
+            assert!(
+                joined(mesh, shared_below).is_ok(),
+                "the cube's own patches join"
+            );
+            match joined(overused, shared_below) {
+                Err(TessellateError::OverusedSide { faces: got, uses }) => {
+                    assert!(
+                        faces.iter().all(|f| got.contains(f)),
+                        "the patch copied from and the one copied into: {got:?}"
+                    );
+                    assert!(uses > 2, "{uses} uses");
+                }
+                other => panic!("a copied face's sides refuse OverusedSide, got {other:?}"),
+            }
         }
 
         #[test]

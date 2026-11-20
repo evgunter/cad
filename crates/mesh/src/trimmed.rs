@@ -77,9 +77,12 @@
 //! included, a triangle with a side a neighbouring face may make too (a
 //! side joining two polygon points that are not neighbours on their loop
 //! and that one neighbour holds both of) is split by a point inside it
-//! and rebuilt, or refuses ([`TessellateError::BoundaryEar`]). A
-//! **fitted** (rung-3) chart image still refuses typed on every chart: the chord pass has no
-//! certified UV chord-step bound for a fitted image (the
+//! and rebuilt, or refuses ([`TessellateError::UnclearedSharedSide`]). On
+//! the spline arm that is unwitnessed: no door yet trims a spline face
+//! thin against such a neighbour
+//! (`work/tesslie/the-shared-side-rule-on-the-spline-arm-has-no-witness.md`).
+//! A **fitted** (rung-3) chart image still refuses typed on every chart:
+//! the chord pass has no certified UV chord-step bound for a fitted image (the
 //! boundary-tightening contract in `crate::chords`), and its first
 //! genuine consumer is the edge×NURBS-face boolean layer (the cut-loft
 //! unit).
@@ -829,8 +832,9 @@ struct TrimmedFace<'a> {
     creases: Option<&'a Creases>,
     shared: &'a [Point3<f64>],
     tol: &'a SizingTols,
-    /// The other faces holding each boundary mesh id ([`faces_across`]),
-    /// which the shared-side rule reads ([`Self::attempt`]).
+    /// The faces across the loops' edges at each boundary mesh id
+    /// ([`faces_across`]), which the shared-side rule reads
+    /// ([`Self::attempt`]).
     across: &'a HashMap<u32, Vec<FaceKey>>,
     /// The runs of the polygon the development holds as one CDT vertex
     /// each ([`developed_runs`]); none in the chart.
@@ -978,25 +982,24 @@ impl TrimmedFace<'_> {
             folded,
             shared_sides,
         } = self.emit(&at, &crossings, candidates, measure, falsification)?;
-        // THE SHARED-SIDE CURE (every arm). A triangle side joining two points of the trim polygon is the same two mesh
-        // vertices whichever face makes it. Where one neighbouring face
-        // holds both points and they are not neighbours on the polygon,
-        // that face's triangulation may join them too (a plane cap, whose
-        // triangulation has no interior point, joins its boundary points
-        // freely): the side is then an interior edge of both patches, an
-        // edge of four triangles. No patch sees that alone, since each
-        // uses it twice, as any interior edge. So a face keeps no triangle
-        // with such a side: a point strictly inside it where the CDT runs,
-        // and so inside the polygon (`TrimmedFace::inside_point`), is
-        // inserted and the face rebuilt. An ear of a chain (three
-        // consecutive points) is its nearest case: its third side joins
-        // two points of one neighbour's chain. A triangle the retry budget
-        // does not clear refuses typed. Where a lane's side reaches four
-        // triangles anyway, the census where `tessellate` joins the
-        // patches refuses it (`tessellate::overused_side`).
+        // THE SHARED-SIDE CURE (every arm). A triangle side joining two points
+        // of the trim polygon is the same two mesh vertices whichever face makes
+        // it. Where one neighbouring face holds both points and they are not
+        // neighbours on the polygon, that face's triangulation may join them too
+        // (a plane cap, whose triangulation has no interior point, joins its
+        // boundary points freely): the side is then an interior edge of both
+        // patches, an edge of four triangles. No patch sees that alone, since
+        // each uses it twice, as any interior edge. So a face keeps no triangle
+        // with such a side: a point strictly inside it where the CDT runs, and
+        // so inside the polygon (`TrimmedFace::inside_point`), is inserted and
+        // the face rebuilt. An ear of a chain (three consecutive points) is its
+        // nearest case: its third side joins two points of one neighbour's
+        // chain. A triangle the retry budget does not clear refuses typed. Where
+        // a lane's side reaches four triangles anyway, the census where
+        // `tessellate` joins the patches refuses it (`tessellate::joined`).
         if !shared_sides.is_empty() {
             if attempt == last_attempt() {
-                return Err(TessellateError::BoundaryEar { face: fk });
+                return Err(TessellateError::UnclearedSharedSide { face: fk });
             }
             candidates.extend(shared_sides);
             return Ok(Next::Rebuild);
@@ -1742,13 +1745,14 @@ impl Corner<'_> {
     }
 }
 
-/// **The other faces holding each boundary mesh id of face `fk`'s loops
-/// (its outer loop and its rings)**: at each of an edge's chord ids
-/// (`crate::chords`), the face its other half-edge bounds, and at an
-/// end's id every face about that vertex, so a face meeting `fk` at a
-/// corner alone is there too. Ids two faces share are those and no
-/// others (D9's minting order). Two polygon points that one face here
+/// **The faces across the edges of face `fk`'s loops (its outer loop and
+/// its rings) at each boundary mesh id**: for every edge of a loop, the
+/// face its other half-edge bounds, at each of the edge's chord ids
+/// (`crate::chords`), ends included, so a vertex's id holds the faces
+/// across both edges meeting there. Two polygon points that one face here
 /// holds both of are two points that face's own triangulation may join.
+/// A face meeting `fk` at a corner alone is not here; a side it and `fk`
+/// both make is the census's (`tessellate::overused_side`).
 ///
 /// An edge a loop uses twice (a seam) has `fk` across it, and `fk` is
 /// left out: a side between two of its points is this face's own, made
@@ -1783,30 +1787,10 @@ fn faces_across(
         let ids = chords.ids.get(&ek).ok_or(TessellateError::MissingEntity {
             what: "edge chords",
         })?;
-        let mut hold = |id: u32, f: FaceKey| {
-            let at = out.entry(id).or_default();
-            if f != fk && !at.contains(&f) {
-                at.push(f);
-            }
-        };
         for &id in ids {
-            hold(id, other);
-        }
-        // An end's id is held by every face about its vertex, a face that
-        // meets this one at that corner alone included. Chord ids run
-        // `he_plus`-forward, as the edge's vertices do.
-        let (start, end) = crate::chords::edge_ends(body, ek)?;
-        for (v, id) in [(start, ids.first()), (end, ids.last())] {
-            let id = *id.ok_or(TessellateError::MissingEntity {
-                what: "edge chords",
-            })?;
-            for f in body
-                .faces_of_vertex(v)
-                .ok_or(TessellateError::MissingEntity {
-                    what: "the faces about a vertex",
-                })?
-            {
-                hold(id, f);
+            let at = out.entry(id).or_default();
+            if !at.contains(&other) {
+                at.push(other);
             }
         }
     }
@@ -4762,7 +4746,7 @@ pub(super) mod tests {
         topo::Body::clone(&met.body().expect("a sliver").body)
     }
 
-    /// **A side the retry budget leaves refuses `BoundaryEar`.** The rod
+    /// **A side the retry budget leaves refuses `UnclearedSharedSide`.** The rod
     /// sliver's cylinder face keeps, on its first attempt, a side between
     /// two points of one ellipse arc that are not neighbours on it, which
     /// the plane face across that arc joins too; the shared-side cure
@@ -4784,7 +4768,7 @@ pub(super) mod tests {
                 let first = crate::tessellate(&body, delta, Tol::witness());
                 LAST_ATTEMPT.with(|a| a.set(None));
                 assert!(
-                    matches!(first, Err(TessellateError::BoundaryEar { .. })),
+                    matches!(first, Err(TessellateError::UnclearedSharedSide { .. })),
                     "δ {delta:e}: the first attempt keeps the side, got {first:?}"
                 );
                 let m = crate::tessellate(&body, delta, Tol::witness())

@@ -1292,7 +1292,7 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
 /// The funnel of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
 /// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `BoundaryEar` at `2·10⁻⁴`, the half below meshes, and
+/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
 /// a cut at `10⁻³` meshes both halves. No mesh is returned where it
 /// refuses. Off the default ε a split that refuses or leaves no half is
 /// printed and skipped, and each cell's answer is printed, not held.
@@ -1302,7 +1302,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
     let deltas = [1e-3, 2e-4, 3e-5];
     // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "BoundaryEar", "FoldedTriangle"];
+    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
@@ -1333,7 +1333,7 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                 let refusal = match mesh::tessellate(half, delta, tol()) {
                     Ok(_) => None,
                     Err(E::FoldedTriangle { .. }) => Some("FoldedTriangle"),
-                    Err(E::BoundaryEar { .. }) => Some("BoundaryEar"),
+                    Err(E::UnclearedSharedSide { .. }) => Some("UnclearedSharedSide"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
                 let want = if h > 1e-5 || side != "above" {
@@ -2136,59 +2136,55 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
     }
 }
 
-/// **Two faces meeting at two corners alone.** The intersection of two
-/// unit rods crossing at right angles is four cylinder faces; each meets
-/// the face opposite it at the two points where the section ellipses
-/// cross, and shares no edge with it. The shared-side rule knows a face by
-/// the ids it holds, so the opposite face is in its map at those corners
-/// (`mesh::trimmed`, `faces_across`). The side between them is a diameter
-/// of the rods, which no face keeps at these δ: the shape a side two
-/// faces could both make with no edge between them needs is here, and
-/// meshes.
+/// **Two crossing rods keep no side a neighbour can make.** A rod
+/// `rod(r, −2, 4)` met by a second `rod(r′, −2, 4)` turned `θ` about `y`:
+/// each cylinder face of the result is bounded by arcs of the two rods'
+/// intersection curve, and the face across each arc joins its points
+/// freely at a coarse δ. With the cylinder arm reading the ear alone each
+/// cell here meshed with an edge of four triangles; the shared-side cure
+/// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
 #[test]
-fn two_faces_meeting_at_two_corners_alone_mesh() {
-    let a = posed("a rod", rod(1.0, -2.0, 4.0), Affine3::identity());
-    let b = posed(
-        "a rod across it",
-        rod(1.0, -2.0, 4.0),
-        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
-    );
-    let what = "two unit rods crossing";
-    let body = match topo::intersect(&a, &b, tol()).as_ref().map(|m| m.body()) {
-        Ok(Some(body)) => Body::clone(&body.body),
-        other => {
-            let other = format!("{:?}", other.map(|b| b.is_some()));
-            assert!(
-                tol().eps() != geom_core::tolerance::DEFAULT_EPS,
-                "{what}: a body at the default ε, got {other}"
-            );
-            eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
-            return;
+fn crossing_rods_keep_no_side_a_neighbour_can_make() {
+    for (r, r2, theta, op, deltas) in [
+        (1.0, 0.999, FRAC_PI_2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),
+        (1.0, 0.999, 1.2, "A ∖ B", &[0.5, 0.1, 2e-2][..]),
+        (0.3, 0.3, 0.5, "A ∩ B", &[0.1, 2e-2][..]),
+    ] {
+        let a = posed("a rod", rod(r, -2.0, 4.0), Affine3::identity());
+        let b = posed(
+            "a rod across it",
+            rod(r2, -2.0, 4.0),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), theta),
+        );
+        let what = format!("rods of radius {r} and {r2} crossing at {theta}, {op}");
+        let run = if op == "A ∩ B" {
+            topo::intersect(&a, &b, tol())
+        } else {
+            topo::subtract(&a, &b, tol())
+        };
+        match run.as_ref().map(|m| m.body()) {
+            // The volume a full reading takes off the B-rep costs seconds
+            // on these bodies, so it is read once, at δ 0.1; the other δ
+            // are held to the class's own question, `check_mesh`.
+            Ok(Some(body)) => {
+                let body = &body.body;
+                assert_eq!(got(body, 0.1), Got::Meshed, "{what}, δ = 0.1");
+                for &delta in deltas.iter().filter(|&&d| d != 0.1) {
+                    let mesh = mesh::tessellate(body, delta, tol())
+                        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
+                    mesh::validate::check_mesh(&mesh)
+                        .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e:?}"));
+                }
+            }
+            // Off the default ε the boolean may not build the pair.
+            other => {
+                let other = format!("{:?}", other.map(|b| b.is_some()));
+                assert!(
+                    tol().eps() != geom_core::tolerance::DEFAULT_EPS,
+                    "{what}: a body at the default ε, got {other}"
+                );
+                eprintln!("{what}: not built at ε {:e}: {other}", tol().eps());
+            }
         }
-    };
-    let corners = |f: topo::FaceKey| -> HashSet<topo::VertexKey> {
-        body.vertices()
-            .map(|(v, _)| v)
-            .filter(|&v| body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f)))
-            .collect()
-    };
-    let adjacent = |f: topo::FaceKey, g: topo::FaceKey| {
-        body.edges().any(|(ek, _)| {
-            let (p, m) = topo::readback::edge_sides(&body, ek).unwrap().faces();
-            (p, m) == (f, g) || (p, m) == (g, f)
-        })
-    };
-    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
-    let corner_only = faces
-        .iter()
-        .flat_map(|&f| faces.iter().map(move |&g| (f, g)))
-        .filter(|&(f, g)| {
-            f < g && !adjacent(f, g) && corners(f).intersection(&corners(g)).count() == 2
-        })
-        .count();
-    assert_eq!(
-        corner_only, 2,
-        "{what}: two pairs of faces meet at two corners alone"
-    );
-    assert_at_every(what, &body, &[0.5, 0.1], &Got::Meshed);
+    }
 }

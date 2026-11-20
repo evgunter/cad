@@ -117,7 +117,7 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         UnresolvedWinding,
-        BoundaryEar,
+        UnclearedSharedSide,
         OverusedSide,
         SphereTrimShape,
     ];
@@ -344,7 +344,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            TessellateError::BoundaryEar { face },
+            TessellateError::UnclearedSharedSide { face },
             vec!["boundary chord points", "four"],
         ),
         (

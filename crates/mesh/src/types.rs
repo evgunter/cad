@@ -626,7 +626,7 @@ pub enum TessellateError {
     /// neighbour holds both of (an ear's third side is the nearest case).
     /// The neighbour may join the same two points, which would make that
     /// side an edge of four triangles, so it refuses.
-    BoundaryEar {
+    UnclearedSharedSide {
         /// The face whose patch keeps the triangle.
         face: FaceKey,
     },
@@ -1017,7 +1017,7 @@ impl TessellateError {
                     ulps = crate::cert::ROUNDING_ULPS,
                 )
             }
-            Self::BoundaryEar { .. } => f.write_str(
+            Self::UnclearedSharedSide { .. } => f.write_str(
                 "tessellate: a trimmed face's patch keeps, after its retries, a \
                  triangle with a side between two boundary chord points the face \
                  across them may join too, leaving an edge of four triangles; a \

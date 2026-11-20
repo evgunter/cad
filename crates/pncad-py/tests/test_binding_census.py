@@ -4034,7 +4034,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
     "TessellateError::UnresolvedWinding": "TessellateError.variant",
-    "TessellateError::BoundaryEar": "TessellateError.variant",
+    "TessellateError::UnclearedSharedSide": "TessellateError.variant",
     "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
