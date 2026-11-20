@@ -4,6 +4,8 @@ kind: issue
 title: A malformed or sub-floor CAD_TOLERANCE_EPS falls back to the default silently in every test binary but geom-core's, so an eps row can run at 1e-9 and report green
 status: open
 opened: 2026-10-13
+priority: P3
+cost: E
 ---
 
 (Filed by the ENCL lane on PR 4925, the ε floor, from that PR's review.)

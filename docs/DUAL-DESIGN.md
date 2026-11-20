@@ -158,14 +158,13 @@ no refusing lane, ratified when `Bounds` had no `Dual` impl; that
 guard lapsed at D1, and what is owed is "a lane, or a written
 reason it needs none," on the public surface.
 
-**Proposal — the written reason, as a ratified general rule**: a
-`Bounds` read is lane-exempt when it (a) feeds an error payload or
-report, or (b) selects among constructions whose classification is
-value-channel-decided — both sound at any scalar by value-part
-delegation (the value channel's bracket is the base scalar's; its
-branch is the base scalar's branch). A read that MINTS a
-certificate object or feeds a `CertifiedEnclosure` consumer is
-never exempt. The fillet seam's fourteen reads were enumerated
+**Proposal — the written reason, as a ratified general rule**: the
+delegation rule, whose text is `crates/geom-core/README.md`,
+"Reading a bracket where nothing certifies": a bracket read whose
+`f64` leaves or is only compared needs no lane (DL5.1), a computed
+`f64` that re-enters the scalar answers to DL5.2, and a read that
+mints a certificate object or feeds a `CertifiedEnclosure` consumer
+is never exempt. The fillet seam's fourteen reads were enumerated
 twice under exactly this test (ten payloads, four selections, the
 two consequential ones delegation-sound; PR 682's body); the rule
 generalizes the audit into the standing criterion, recorded on the

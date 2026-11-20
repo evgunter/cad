@@ -2,10 +2,11 @@
 id: tangent-perp-takes-an-unchecked-unit-direction
 kind: issue
 title: geom-brep tangent.rs perp takes a unit direction it does not check — carrier-derived, so no caller holds the witness yet
-status: open
+status: parked
 opened: 2026-09-15
 priority: P1
 cost: E
+blocked_on: [carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes]
 ---
 
 ## Where this came from
@@ -42,3 +43,20 @@ open program's `paths` (`scripts/work.py territory` names no owner);
 it goes to whichever program takes the geom-brep seam.
 
 Moved from `work/issues/` to `work/scalar/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Re-measured and parked (2026-11-19, SCALAR orchestrator)
+
+Read against main `00a5903654`. `perp` is unchanged
+(`x - a * x.dot(a)`), and its only callers are inside
+`circle_span_bounds`, each passing an axis destructured from a stored
+`Surface::Cylinder`, `Torus` or `Cone`. No caller holds a witness, and
+a cone's axis is one tier-3 check 1 does not certify.
+
+The row waits "on either a decision at the read … or the carrier rule
+changing", and the carrier rule changed: Fork 274 (PR 7006, decided
+2026-11-16), built by ONEHOME's
+`carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes`
+(P1 H). When `Surface::*.axis` is a `UnitVec3`, `perp` takes it and
+this row is one signature. Minting inside `circle_span_bounds` now
+would hand that function a band and a site name it has no other use
+for. Parked on that row.

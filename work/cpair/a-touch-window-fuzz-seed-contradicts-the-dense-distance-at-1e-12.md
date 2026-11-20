@@ -103,3 +103,11 @@ readings contradicted on a circle of radius 569.93 m whose axis tilts
 (−2.509e-9, −2.367e-9) and (1.0218e-9, 1.0227e-9). Found on
 importgate/build's local run (2026-11-18), which does not touch the
 pose's window code.
+
+## At effort 20 it reds most runs (ONEHOME, PR 7137, 2026-11-19)
+At the default ε, `CAD_FUZZ_EFFORT=20` reds
+`each_window_reading_holds_on_a_dense_distance` in 9 runs out of 10 on
+PR 7137's head. Each red is an unringed `Recedes` on a conic of radius
+280–930 m. Three seeds replayed red on the merge base `3bddaf8a60` too:
+`0xf0018fd9fa4abc02`, `0x9fc6cc9735038399`, `0xc1ab1587225e7a95`.
+PR 7137 changes only a comment in `curve_pair/pose/window.rs`.

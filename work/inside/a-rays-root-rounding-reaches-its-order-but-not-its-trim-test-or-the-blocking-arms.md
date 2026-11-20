@@ -10,7 +10,7 @@ opened: 2026-10-31
 Found by FLUSH's `flush/aimed-ray-reach` (the aimed rays' reach and
 re-centred ray × quadric roots). That branch reads each ray × wall,
 sphere and cone root about the line's closest approach and gives it a
-first-order rounding bound (`solid_contain.rs` `Centred::roots`); a
+first-order rounding bound (`geom_brep::curve_face::line_quadric::Centred::roots`); a
 plane crossing gets one too (`PlaneCross::slack`). The bound reaches
 the count's order (each hit's span, and `RayHit::pair`'s margin), and
 nothing else. Three readers of the same roots still take them as exact:
