@@ -100,7 +100,6 @@ use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
@@ -181,7 +180,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         return Err(corrupt());
     };
     let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &planar)? else {
+    let Some(edges) = region::boundary(body, face, &planar)? else {
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion::on(
@@ -1141,17 +1140,7 @@ mod tests {
             );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
         }
-        let null = nulled
-            .edges()
-            .find(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
-            .map(|(e, _)| e)
-            .unwrap();
-        let far = nulled
-            .get_half_edge(nulled.get_edge(null).unwrap().he_minus)
-            .unwrap()
-            .start;
-        let moved = nulled.add_point(at(1.0, 0.0));
-        nulled.get_vertex_mut(far).unwrap().point = moved;
+        crate::region::part_null_edge(&mut nulled, at(1.0, 0.0));
         assert!(
             matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
             "a parted null edge is a gap in the boundary"

@@ -350,7 +350,8 @@ pub enum PointInSolidError {
     /// a circle arc is the root of a first harmonic. An edge on any other
     /// carrier — a spline, or the quartic a torus, a cylinder or a cone
     /// whose axis misses the sphere's centre leaves on it — has no such
-    /// crossing here, and neither has an edge with no certified carrier.
+    /// crossing here, and neither has an edge with no certified carrier
+    /// that is no placeholder ([`crate::null::is_placeholder`]).
     PartialSphereFace {
         /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
