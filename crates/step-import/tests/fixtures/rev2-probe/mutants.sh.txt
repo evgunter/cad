@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -u
+C=~/.local/share/cad-work/exch-a-rev2/cad; S=~/.local/share/cad-work/exch-a-rev2-scratch
+export CARGO_TARGET_DIR=/home/user/exch-a-rev2-target
+cd $C
+F=crates/geom-brep/src/patch_carrier.rs
+run() {
+  local name=$1
+  cargo nextest run -p step-import --no-fail-fast --no-capture -E 'test(/review_probes/) | test(=a_conic_quarter_torus_measures_a_bracket_at_the_wall::the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus)' > $S/mut-$name.log 2>&1
+  echo "$name rc=$?" >> $S/mutants.out
+}
+cp $F $S/patch_carrier.orig
+run M0
+# M1: the certificate reads zero everywhere it certifies (no bound at all).
+sed -i 's/            worst = max_bound(worst, bound);/            worst = max_bound(worst, bound * 0.0);/' $F
+run M1
+cp $S/patch_carrier.orig $F
+# M2: the lever positivity check is dropped.
+sed -i 's/lever.is_certified() \&\& lever.lo() > 0.0/lever.is_certified() || true/' $F
+run M2
+cp $S/patch_carrier.orig $F
+# M3: round-to-nearest: read the midpoint of |f| instead of its upper end.
+sed -i 's/let f_sup = f.lo().abs().max(f.hi().abs());/let f_sup = (0.5 * (f.lo() + f.hi())).abs();/' $F
+run M3
+cp $S/patch_carrier.orig $F
+# M4: the assemble join keyed by j.kept again (the pre-fix code).
+A=crates/step-import/src/assemble.rs
+cp $A $S/assemble.orig
+python3 -I - "$A" <<'PY'
+import sys
+p=sys.argv[1]; s=open(p).read()
+s=s.replace(".get_edge(survivor)", ".get_edge(j.kept)",1)
+s=s.replace("            let survivor =", "            let _survivor =",1)
+open(p,'w').write(s)
+PY
+run M4
+cp $S/assemble.orig $A
+git -C $C diff --stat -- $F >> $S/mutants.out
+echo DONE >> $S/mutants.out
