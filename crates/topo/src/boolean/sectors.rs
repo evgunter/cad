@@ -469,8 +469,9 @@ pub(crate) fn NO_CURVATURE<T: Decide>() -> T {
 /// `vtxfac`'s on-edge resolution and `recl::resolve_bisector_graze`
 /// refuse it.
 ///
-/// A charge that does not clear the band is a typed refusal, never a
-/// first-order guess.
+/// A charge decided Zero ties the bound, and the tie is read one order
+/// down by its jet ([`crate::bound_side::TiedBy::Charge`]); a charge in
+/// the band escalates. Neither is a first-order guess.
 pub(super) fn datum_code<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
@@ -522,14 +523,17 @@ pub(super) fn pierce_side<T: Decide>(
 /// ties, and the tie itself where it did.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct BoundRead {
-    /// The side: `In`/`Out` off the face or leaving it tangent, `On`
-    /// riding it.
+    /// The side: `In`/`Out` off the face or leaving it tangent or near
+    /// tangent, `On` riding it or back on it at the arm.
     pub code: SideCode,
-    /// The first-order tie, where first order tied.
+    /// The tie, where the bound tied: at first order, or on its charge
+    /// ([`crate::bound_side::TiedBy`]; a consumer keying on the bound
+    /// lying in the face's tangent plane reads
+    /// [`crate::bound_side::TiedBy::at_first_order`]).
     pub tie: Option<BoundTie>,
 }
 
-/// A bound's first-order tie with a face, as [`BoundRead`] keeps it.
+/// A bound's tie with a face, as [`BoundRead`] keeps it.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct BoundTie {
     /// The Zero the tie was decided on.
@@ -624,6 +628,9 @@ pub(super) fn given_side_read<T: Decide>(
                 Ok(Descent::Leaves(side)) => (side, on),
                 Ok(Descent::Rides) => return (Some(Sign::Zero), on),
                 Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => return (on_face, on),
+                Err(fault @ ReadFault::Charge(_)) => {
+                    return (None, Some(SheetRead::Fault(BoundSideFault::Read(fault))));
+                }
                 Err(_) => return (None, on),
             }
         }
@@ -716,6 +723,9 @@ fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
         ReadFault::Parting(escalation) => {
             BooleanError::of_lever(LeverArm::SectorCurving, DeclarationRead::Moot, escalation)
         }
+        ReadFault::Charge(classified) => BooleanError::CurvedSectorSideUnsupported {
+            verdict: geom_brep::recourse::Refused::Zero(classified),
+        },
     }
 }
 
@@ -4160,9 +4170,12 @@ mod tests {
     /// length where it should read `sqrt(band/R)` (or the reverse)
     /// lands on the wrong arm. The rows, and the slip each pins:
     ///
-    /// - `Q = 0.3·zero`, a long reach: the near-tangent residue refuses
-    ///   `CurvedSectorSideUnsupported`, although the first-order reading
-    ///   is definite at the reach;
+    /// - `Q = 0.3·zero`, a long reach: the near-tangent residue is tied
+    ///   on the charge's Zero, although the first-order reading is
+    ///   definite at the reach, and read one order down: a face bending
+    ///   toward the bound (a hollow) takes it back in (`In`), one
+    ///   bending away (a ball) leaves it out (`Out`); a first-order
+    ///   reading reads `Out` for both;
     /// - `Q = 0.7·escalate`: the separation is in the band and escalates;
     ///   a charge without the sagitta reads `2Q` and certifies;
     /// - `Q = 1.2·escalate`, a long reach: certifies; a charge read at
@@ -4198,18 +4211,33 @@ mod tests {
             };
             // The residue: the reach is long enough that the first-order
             // reading itself is definite (`s·reach ≥ escalate`).
-            let (_, peak) = at(0.3 * zero);
+            let (d, peak) = at(0.3 * zero);
             let long = 2.0 * esc / (4.0 * 0.3 * zero / r).sqrt() / peak;
             assert!(
                 long > 1.0,
                 "R = {r}: the residue row's reach is past the peak"
             );
-            assert!(
-                matches!(
-                    code(0.3 * zero, long),
-                    Err(BooleanError::CurvedSectorSideUnsupported { .. })
-                ),
-                "R = {r}: a slope inside 2·sqrt(zero/R) refuses"
+            let residue = |gradient: Vec3<f64>| {
+                datum_code(
+                    d,
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                        peak * long,
+                    )),
+                    FaceDatum::of_face(n, FaceBend::ball(gradient, r), r),
+                    b,
+                )
+            };
+            assert_eq!(
+                residue(-n.vec()).unwrap(),
+                SideCode::In,
+                "R = {r}: a slope inside 2·sqrt(zero/R) is read one order down: a hollow \
+                 takes the bound back in"
+            );
+            assert_eq!(
+                residue(n.vec()).unwrap(),
+                SideCode::Out,
+                "R = {r}: a slope inside 2·sqrt(zero/R) is read one order down: a ball \
+                 leaves the bound out"
             );
             assert!(
                 charge_escalated(code(0.7 * esc, 4.0)),
@@ -4241,6 +4269,132 @@ mod tests {
             .unwrap(),
             SideCode::Out,
             "against a plane the first-order reading is the truth"
+        );
+    }
+
+    /// **A tie the charge made refuses what its descent leaves
+    /// unresolved, never reading `On`.** A bound rising at `1.5·escalate`
+    /// off a face charged at a unit lever: its first order is decided,
+    /// its charge Zero. Against a spline face (no certified bend), a
+    /// straight chord and a straight bisector each refuse
+    /// `CurvedSectorSideUnsupported` on the charge's Zero, as does a
+    /// bisector of no certified bend against a ball; handed to a cone,
+    /// each hands nothing and the charge's refusal. Red if the descent's
+    /// `Uncertified` is read `On` as a first-order tie's is.
+    #[test]
+    fn a_charge_tie_refuses_a_descent_that_reads_no_side() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let s = 1.5 * b.escalate();
+        let d = Vec3::new((1.0 - s * s).sqrt(), 0.0, s);
+        let o = Point3::origin();
+        let arm = geom_core::test_support::fixture_lever(1.0);
+        let fitted = FaceDatum::of_face(n, FaceBend::Fitted, 1.0);
+        let ball = FaceDatum::of_face(n, FaceBend::ball(n.vec(), 1.0), 1.0);
+        for (what, reach, face) in [
+            (
+                "a chord on a spline face",
+                BoundSupport::Chord {
+                    base: o,
+                    far: o + d,
+                },
+                fitted,
+            ),
+            (
+                "a bisector on a spline face",
+                BoundSupport::straight_bisector(arm),
+                fitted,
+            ),
+            (
+                "an uncertified bisector on a ball",
+                BoundSupport::Bisector { arm, bend: None },
+                ball,
+            ),
+        ] {
+            let got = datum_code(d, reach, face, b);
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::CurvedSectorSideUnsupported {
+                        verdict: geom_brep::recourse::Refused::Zero(_),
+                    })
+                ),
+                "{what}: {got:?}"
+            );
+            let (given, on) =
+                given_side_read(d, reach, face, Reading::plain(b), Unparted::OnTheFace);
+            assert!(
+                given.is_none()
+                    && matches!(
+                        on.map(|on| on.corner_on(b)),
+                        Some(super::super::CornerOn::Refused(
+                            BooleanError::CurvedSectorSideUnsupported { .. }
+                        ))
+                    ),
+                "{what}: handed {given:?}"
+            );
+        }
+    }
+
+    /// **A tie the charge made reads its side by its jet, standing on a
+    /// decided parting.** A bisector rising at `s = sqrt(zero)` off a
+    /// unit ball charged at a unit lever (its charge `zero/4`, Zero), its
+    /// own bend `rel` past the ball's normal section, read at the unit
+    /// arm:
+    ///
+    /// - `rel = −s`: the parting `−s/2` is decided below and the jet
+    ///   `s/2` above, so the bound leaves `Out`. Red if the charge tie
+    ///   descends by its parting alone (`In`).
+    /// - `rel = −2s`: the jet is `0`, the bound back on the face at the
+    ///   arm, `Returned`: handed to a cone, `Nothing` hands nothing and
+    ///   `OnTheFace` the face. Red if the charge tie's zero jet rides
+    ///   (`Nothing` would hand the face).
+    /// - `rel = 0`, an osculating bisector: the parting is Zero, and the
+    ///   jet would be the rise alone, `Out`, against an order it does not
+    ///   read; it refuses on the charge.
+    #[test]
+    fn a_charge_tie_reads_its_jet_on_a_decided_parting() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let s = b.zero().sqrt();
+        assert!(
+            s * s / 4.0 < b.zero() && s / 2.0 > 10.0 * b.escalate(),
+            "the charge is Zero, and the parting and the jet are decided"
+        );
+        let d = Vec3::new((1.0 - s * s).sqrt(), 0.0, s);
+        let face = FaceDatum::of_face(n, FaceBend::ball(n.vec(), 1.0), 1.0);
+        let section = face.bend.section(d, n.vec()).unwrap();
+        let bisector = |rel: f64| BoundSupport::Bisector {
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: Some(n.vec() * (section + rel)),
+        };
+        assert_eq!(
+            datum_code(d, bisector(-s), face, b).unwrap(),
+            SideCode::Out,
+            "a parting below, a jet above"
+        );
+        let returned = bisector(-2.0 * s);
+        let read = bound_read(d, returned, face, Reading::plain(b)).unwrap();
+        assert_eq!(read.code, SideCode::On, "a jet within the zero band");
+        assert!(
+            read.tie
+                .is_some_and(|tie| tie.on.by == crate::bound_side::TiedBy::Charge),
+            "tied on the charge"
+        );
+        for (unparted, want) in [
+            (Unparted::Nothing, None),
+            (Unparted::OnTheFace, Some(Sign::Zero)),
+        ] {
+            assert_eq!(
+                given_side(d, returned, face, Reading::plain(b), unparted),
+                want,
+                "{unparted:?}: a jet back on the face at the arm"
+            );
+        }
+        let got = datum_code(d, bisector(0.0), face, b);
+        assert!(
+            matches!(got, Err(BooleanError::CurvedSectorSideUnsupported { .. })),
+            "an osculating bisector: {got:?}"
         );
     }
 
