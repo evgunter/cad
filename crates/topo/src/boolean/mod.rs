@@ -1570,8 +1570,9 @@ pub(crate) fn unreadable_extent(face: geom_brep::PairSide) -> BooleanError {
 /// the reading that put it there carries it ([`unglued_corner`]).
 #[derive(Debug)]
 enum CornerOn {
-    /// A bound's first-order tie with the face's plane: a Zero, or a side
-    /// the reading's slack hid ([`sectors::OnReading`]).
+    /// A bound's tie with the face's plane: a Zero, a side the reading's
+    /// slack hid, or a charge's Zero whose jet read the bound back on the
+    /// face ([`sectors::OnReading`]).
     Tie(sectors::OnReading),
     /// A bound's side reading that refused, reading no side: its refusal
     /// (a line cone's representative handed to the face on it).
