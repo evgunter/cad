@@ -828,7 +828,7 @@ fn rest_reads_a_locus_only_at_its_own_band_and_surfaces() {
     let wider = Surface::Cylinder {
         origin: Point3::origin(),
         axis: Vec3::unit_z(),
-        radius: 1.0 + f64::EPSILON,
+        radius: f64::from_bits(1.0_f64.to_bits() + 1),
         u_ref: Vec3::unit_x(),
     };
     assert_eq!(at(wider, band()), (0, 1), "a surface an ulp off derives");

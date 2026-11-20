@@ -141,7 +141,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, FaceSurface, MefSite};
+use crate::euler::{EulerOpError, FaceSurface, MefSite, NewCurve};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
@@ -5413,7 +5413,12 @@ impl ChordJoiner {
                     let created = match spec {
                         None => body.mef_chord(site, tol)?,
                         Some(spec) => body
-                            .mef_kept(site, spec, curve.kept.clone(), FaceSurface::Inherit, tol)
+                            .mef(
+                                site,
+                                NewCurve::keeping(spec, curve.kept.clone()),
+                                FaceSurface::Inherit,
+                                tol,
+                            )
                             .map_err(refused)?,
                     };
                     self.slivers.insert(created.face, ());
@@ -5427,7 +5432,7 @@ impl ChordJoiner {
                     let made = match spec {
                         None => body.mekr_chord(site, tol)?,
                         Some(spec) => body
-                            .mekr_kept(site, spec, curve.kept.clone(), tol)
+                            .mekr(site, NewCurve::keeping(spec, curve.kept.clone()), tol)
                             .map_err(refused)?,
                     };
                     minted.push(made.edge);
@@ -5451,7 +5456,12 @@ impl ChordJoiner {
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
                 Some(spec) => body
-                    .mef_kept(site, spec, curve.kept.clone(), FaceSurface::Inherit, tol)
+                    .mef(
+                        site,
+                        NewCurve::keeping(spec, curve.kept.clone()),
+                        FaceSurface::Inherit,
+                        tol,
+                    )
                     .map_err(refused)?,
             };
             self.slivers.insert(created.face, ());

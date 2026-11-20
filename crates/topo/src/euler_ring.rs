@@ -232,6 +232,7 @@
 //! # run().unwrap();
 //! ```
 
+#[cfg(test)]
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
@@ -711,7 +712,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn mekr(
         &mut self,
         site: MekrSite,
-        curve: EdgeCurveSpec<T>,
+        curve: impl Into<NewCurve<T>>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError>
     where
@@ -719,27 +720,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
-        Ok(created)
-    }
-
-    /// [`Body::mekr`] minting a copy of an edge whose locus certificate
-    /// `kept` the caller holds ([`NewCurve::Kept`]).
-    pub(crate) fn mekr_kept(
-        &mut self,
-        site: MekrSite,
-        curve: EdgeCurveSpec<T>,
-        kept: Option<geom_brep::LocusCertificate<T>>,
-        tol: Tol,
-    ) -> Result<MekrResult, EulerOpError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-        let created = self.mekr_with(site, NewCurve::keeping(curve, kept), tol)?;
+        let created = self.mekr_with(site, curve.into(), tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
         Ok(created)

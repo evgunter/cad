@@ -733,6 +733,12 @@ pub(crate) enum NewCurve<T: Real> {
     Chord,
 }
 
+impl<T: Real> From<EdgeCurveSpec<T>> for NewCurve<T> {
+    fn from(spec: EdgeCurveSpec<T>) -> Self {
+        Self::Given(spec)
+    }
+}
+
 impl<T: Real> NewCurve<T> {
     /// The spec to certify from `p_from` to `p_to`; `one_vertex` is
     /// structural key equality of the endpoints, never a scalar
@@ -2348,7 +2354,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn mef(
         &mut self,
         site: MefSite,
-        curve: EdgeCurveSpec<T>,
+        curve: impl Into<NewCurve<T>>,
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError>
@@ -2357,28 +2363,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mef_with(site, NewCurve::Given(curve), surface, tol)?;
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
-        Ok(created)
-    }
-
-    /// [`Body::mef`] minting a copy of an edge whose locus certificate
-    /// `kept` the caller holds ([`NewCurve::Kept`]).
-    pub(crate) fn mef_kept(
-        &mut self,
-        site: MefSite,
-        curve: EdgeCurveSpec<T>,
-        kept: Option<geom_brep::LocusCertificate<T>>,
-        surface: FaceSurface<T>,
-        tol: Tol,
-    ) -> Result<MefCreated, EulerOpError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-        let created = self.mef_with(site, NewCurve::keeping(curve, kept), surface, tol)?;
+        let created = self.mef_with(site, curve.into(), surface, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
         Ok(created)
