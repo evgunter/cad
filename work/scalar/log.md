@@ -86,3 +86,15 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 - 2026-11-20 — **Ev questioned PR 7155 again**, on the rewritten recommendation: "i still don't see why we need to turn a computed f64 back into a T. your table of valid cases looks like cases where it doesn't cause an issue if we do this, but none of them obviously look to me like cases where it's necessary", and "still not sure if duals are, at least type-wise, only where they belong?" The survey sorted the 157 re-entries by harm and never by need, so nothing measured answers the first; on the second, a dual is kept out by `CertifiedEnclosure`/`CertifiedBounds` alone and about 100 re-entry sites admit one by type. Round 7 went to both designers with Ev's words and two things to count in the tree: which dual-reachable re-entries the code cannot do without, and where the types admit a dual that has no meaning there. **Class**: a rule about when a thing is safe was put to Ev twice before anyone asked whether the thing is needed.
 - 2026-11-20 — (tracker sweep) **FRAME merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 10 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From FRAME` sections of `program.md` and `plan.md` (`docs/doc-ledger/frame-merges-into-scalar.md`). (tracker sweep)
 - 2026-11-20 — (tracker sweep) To SCALAR's orchestrator: rows were added to this track while it is held (Ev, in chat, 2026-11-02: adding rows to an existing orchestrator is safe). None is P0 or P1, so the sitting's slate is unchanged. (tracker sweep)
+
+- 2026-11-20 — `the-told-quantity-type-and-profiles-refusals-on-it`
+  (PR 7159) reported with hosted CI green on head 75501c0244. Dual
+  review dispatched: two reviewers concurrently on that frozen head,
+  one brief (`review-brief-7159.md` in the forks scratch), ten claims
+  to falsify plus the style lane; slot-order byte on
+  `analysis/model-compare/scalar-2026-11-20`. Held, not dispatched:
+  `a-place-is-an-f64-argument-answered-on-the-value-channel`. The
+  build mutex is width one with two implementers and two reviewers on
+  it, and the fair-pair rule says to reduce simultaneous work rather
+  than narrow a reviewer; the places unit also edits files the two
+  DL5 units in flight edit. It goes out when one of them lands.
