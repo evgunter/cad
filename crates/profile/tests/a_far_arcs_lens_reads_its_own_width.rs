@@ -11,8 +11,10 @@
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
-/// `(start, end, bulge)` of each lens's arc; its chord closes it.
-const LENSES: [((f64, f64), (f64, f64), f64); 4] = [
+/// `(start, end, bulge)` of a lens's arc; its chord closes it.
+type Lens = ((f64, f64), (f64, f64), f64);
+
+const LENSES: [Lens; 4] = [
     (
         (8.191611212304761e-1, 4.7278271436708463e-1),
         (8.113812364013288e-1, 4.6451302760181334e-1),

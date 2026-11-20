@@ -44,7 +44,7 @@ At `R = 1e4`, `d = 20 ε` the split returns
 `VolumeSignUnresolved { limit: Quadrature, volume: Some((-7.67e-13, 1.80e-14)) }`
 (the bits on PR 7146's head: `-7.665647174464286e-13`,
 `1.803049920254766e-14`; on `7b752a7a` they differ from the thirteenth
-digits). The pair is a bracket `(lo, hi)`: it holds zero and the true
+digit). The pair is a bracket `(lo, hi)`: it holds zero and the true
 volume, and an unresolved sign is the right refusal for it. What it
 shows is the bracket's width, ten orders above the solid's volume
 (`work/boxfinish/a-cylinder-faces-flux-sums-two-terms-of-its-far-axis-origins-size.md`).
