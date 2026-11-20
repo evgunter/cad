@@ -923,7 +923,7 @@ BOUND_AS = {
     # value side's spelling: the carrier projects every field as an
     # attribute, so its discriminant is one of those fields — a word at
     # `kind`, with the one arm's payload beside it at `promoted_to`
-    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # (which analytic kind certified, `PromotedKind`'s own words)
     # and `residual`, `None` on the other four arms. The word does NOT
     # fold the kind in: a caller reading "a patch was promoted" reads
     # `surface_promotion` whichever kind it was, and branches on the

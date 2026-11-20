@@ -1386,7 +1386,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 /// Which analytic kind's estimator declined, read off the arm that
 /// reports it — `None` on every other refusal.
 ///
-/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// The kinds are matched EXHAUSTIVELY, so a new one recognised
 /// kernel-side stops this compiling rather than arriving under an
 /// existing word. Their recourses differ, which is why the
 /// discriminant is worth a curated name: a plane that will not
@@ -1397,6 +1397,9 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
         StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
             PromotedKind::Plane => "plane",
             PromotedKind::Cylinder => "cylinder",
+            PromotedKind::Cone => "cone",
+            PromotedKind::Sphere => "sphere",
+            PromotedKind::Torus => "torus",
         }),
         _ => None,
     }
@@ -1562,6 +1565,9 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+                PromotedKind::Cone => "surface_promotion_cone",
+                PromotedKind::Sphere => "surface_promotion_sphere",
+                PromotedKind::Torus => "surface_promotion_torus",
             }
         }
         NormalizationKind::OneRecord {

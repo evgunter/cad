@@ -361,14 +361,19 @@ pub struct PlacedInstance {
 }
 
 /// The analytic kinds D7 stage-1 surface recognition can promote a
-/// NURBS patch to. Cone, sphere, and torus recognition are banked
-/// (unimplemented; such patches stay NURBS).
+/// NURBS patch to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedKind {
     /// A plane.
     Plane,
     /// A cylinder.
     Cylinder,
+    /// A cone.
+    Cone,
+    /// A sphere.
+    Sphere,
+    /// A ring torus.
+    Torus,
 }
 
 impl core::fmt::Display for PromotedKind {
@@ -377,6 +382,9 @@ impl core::fmt::Display for PromotedKind {
             match self {
                 Self::Plane => geom::SurfaceKind::Plane,
                 Self::Cylinder => geom::SurfaceKind::Cylinder,
+                Self::Cone => geom::SurfaceKind::Cone,
+                Self::Sphere => geom::SurfaceKind::Sphere,
+                Self::Torus => geom::SurfaceKind::Torus,
             }
             .name(),
         )

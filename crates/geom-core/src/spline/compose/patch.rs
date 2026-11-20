@@ -504,6 +504,124 @@ impl PatchSpans {
                 .collect(),
         }
     }
+    /// The control points of a RATIONAL vector form on cell `(su, sv)`:
+    /// `(X_k/W_k, Y_k/W_k, Z_k/W_k)` with weight `W_k` for each
+    /// coefficient index `k`, `points` the homogeneous channels and
+    /// `weight` the weight channel. With every `W_k > 0` the form's
+    /// values on the cell are convex combinations of these points (the
+    /// rational Bernstein basis is a nonnegative partition of unity), so
+    /// any bound read off them holds over the cell. `None` where the
+    /// channels do not share one cell structure and bidegree, the cell is
+    /// out of range, or a weight coefficient is not certified positive.
+    pub fn rational_cell_controls(
+        points: [&Self; 3],
+        weight: &Self,
+        su: usize,
+        sv: usize,
+    ) -> Option<Vec<(crate::Vec3<Interval>, Interval)>> {
+        use crate::real::Bounds as _;
+        let [a, b, c] = points;
+        let shared = |o: &Self| a.aligned(o) && a.degree() == o.degree();
+        if !(shared(b) && shared(c) && shared(weight)) {
+            return None;
+        }
+        let (na, nb, nc, nw) = (
+            a.block(su, sv)?,
+            b.block(su, sv)?,
+            c.block(su, sv)?,
+            weight.block(su, sv)?,
+        );
+        let mut out = Vec::with_capacity(nw.len());
+        for k in 0..nw.len() {
+            let w = nw[k];
+            if !(w.is_certified() && w.lo() > 0.0) {
+                return None;
+            }
+            out.push((crate::Vec3::new(na[k] / w, nb[k] / w, nc[k] / w), w));
+        }
+        Some(out)
+    }
+}
+
+/// A composite residual of a tensor-product patch in rational
+/// Bernstein form: `num/den` cell by cell, both on one cell structure.
+/// The patch-side twin of [`super::CompositeForm`].
+#[derive(Clone, Debug)]
+pub struct PatchComposite {
+    /// The numerator channel.
+    pub num: PatchSpans,
+    /// The denominator channel: a power of the weight function, so
+    /// strictly positive for valid data.
+    pub den: PatchSpans,
+}
+
+impl PatchComposite {
+    /// A certified enclosure of the composite's values on cell
+    /// `(su, sv)`: the numerator's hull over the denominator's.
+    /// Interval division refuses a zero-touching divisor, so a
+    /// degenerate denominator or an out-of-range cell refuses.
+    pub fn cell_bound(&self, su: usize, sv: usize) -> Interval {
+        self.num.cell_hull(su, sv) / self.den.cell_hull(su, sv)
+    }
+}
+
+/// The composite `f ∘ S` for a [`super::CanonicalSurface`] over a
+/// tensor-product patch already written in that surface's chart frame,
+/// in rational Bernstein form cell by cell: `points` are the patch's
+/// homogeneous channels in that frame and `weight` its weight channel
+/// ([`super::tensor::SurfaceCertData::bernstein_channels`]). The forms are
+/// [`super::canonical_composite`]'s, one parameter up, in the same
+/// association, so a curve and a patch composed against one chart read
+/// one polynomial.
+pub fn canonical_patch_composite(
+    points: &[PatchSpans; 3],
+    weight: &PatchSpans,
+    form: &super::CanonicalSurface,
+) -> PatchComposite {
+    use super::CanonicalSurface;
+    let g = points;
+    let w = weight;
+    let squared = || w.mul(w);
+    let radial = || g[0].mul(&g[0]).add(&g[1].mul(&g[1]));
+    let sum_of_squares = || {
+        let zero = g[0].constant(Interval::zero());
+        zero.add(&g[0].mul(&g[0]))
+            .add(&g[1].mul(&g[1]))
+            .add(&g[2].mul(&g[2]))
+    };
+    match *form {
+        CanonicalSurface::Plane => PatchComposite {
+            num: g[2].clone(),
+            den: w.clone(),
+        },
+        CanonicalSurface::Cylinder { radius } => {
+            let w2 = squared();
+            PatchComposite {
+                num: radial().sub(&w2.scale(radius.sqr())),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Sphere { radius } => {
+            let w2 = squared();
+            PatchComposite {
+                num: sum_of_squares().sub(&w2.scale(radius.sqr())),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Cone { cos2, sin2 } => PatchComposite {
+            num: radial().scale(cos2).sub(&g[2].mul(&g[2]).scale(sin2)),
+            den: squared(),
+        },
+        CanonicalSurface::Torus { major, minor } => {
+            let w2 = squared();
+            let shifted = sum_of_squares().add(&w2.scale(major.sqr() - minor.sqr()));
+            let four_r2 = Interval::point(4.0) * major.sqr();
+            PatchComposite {
+                num: shifted.mul(&shifted).sub(&radial().mul(&w2).scale(four_r2)),
+                den: w2.mul(&w2),
+            }
+        }
+    }
 }
 
 /// Degree elevation's per-direction multiplier: the all-ones row of

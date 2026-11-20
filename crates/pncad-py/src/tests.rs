@@ -2924,6 +2924,9 @@ fn promoted_kind_tags_are_stable() {
     for (kind, word) in [
         (pncad::step_import::PromotedKind::Plane, "plane"),
         (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+        (pncad::step_import::PromotedKind::Cone, "cone"),
+        (pncad::step_import::PromotedKind::Sphere, "sphere"),
+        (pncad::step_import::PromotedKind::Torus, "torus"),
     ] {
         assert_eq!(promoted_kind_tag(&kind), word);
         assert_eq!(
@@ -3017,7 +3020,13 @@ fn import_report_row_tags_are_stable() {
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
-    for kind in [PromotedKind::Plane, PromotedKind::Cylinder] {
+    for kind in [
+        PromotedKind::Plane,
+        PromotedKind::Cylinder,
+        PromotedKind::Cone,
+        PromotedKind::Sphere,
+        PromotedKind::Torus,
+    ] {
         assert_eq!(
             normalization_kind_tag(&NormalizationKind::SurfacePromotion {
                 to: kind,

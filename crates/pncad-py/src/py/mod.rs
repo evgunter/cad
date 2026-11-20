@@ -256,7 +256,8 @@ pyo3::create_exception!(
      promotion sits on a surface whose recognition estimator is \
      ill-conditioned at the file's own tolerance — and \
      `promoted_kind` says which analytic kind's estimator declined, \
-     `plane` or `cylinder`. The two lead different places: a plane \
+     one of `plane`, `cylinder`, `cone`, `sphere` and `torus` (today \
+     only the cylinder's declines). The two lead different places: a plane \
      that will not certify is a flatness question at the import \
      tolerance, a cylinder that will not is an ill-conditioned axis \
      and wants more of the patch. The entity ids and the conditioning \

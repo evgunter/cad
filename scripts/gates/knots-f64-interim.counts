@@ -26,11 +26,14 @@ crates/geom 212
 # moves from mesh::chords to geom_brep (pcurve_cache::speed), its one
 # reader with it; mesh's rows of it move too and read the held values
 # (TESSLANE, the one chord rule).
-crates/geom-brep 221
+# geom-brep 221 -> 224: patch_carrier's patch × analytic surface
+# certificate reads the patch's knots and weights for SurfaceCertData, as
+# composite_rows does for CurveCertData (EXCH, whole-patch promotion).
+crates/geom-brep 224
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9
-crates/step-import 39
+crates/step-import 37
 crates/sweep 139
 crates/topo 36
 demos/tour 2

@@ -1,27 +1,36 @@
-//! **Acceptance 5 on the conic quarter torus** (`docs/QUAD-MEASURE-SPEC.md`;
-//! PR 5741's review, m3): a closed body whose walls are the review's
-//! costly face class — PR 5589's first reviewer's 9×9 conic torus, a
-//! rational surface of revolution at `R = 24 m, r = 6 m` — measured
-//! through the door under `Resolution(1.024e-6 m)`, answers a bracket
-//! that holds Pappus's volume, never a refusal. The import splits each
-//! wall at its C⁰ knots into one-span walls (`docs/DESIGN.md`
-//! [topology]), and each meets the resolution.
+//! **Acceptance 5 on a foreign conic patch** (`docs/QUAD-MEASURE-SPEC.md`;
+//! PR 5741's review, m3), and the promotion that keeps the analytic
+//! case off it.
 //!
-//! **The body.** No builder closes a body around a conic patch, so the
+//! **The bodies.** No builder closes a body around a conic patch, so the
 //! file is made: the kernel revolves a circle of radius `r` centred at
 //! `R` a quarter turn about `y` and writes it, and the two toroidal
-//! half-bands it writes are swapped for the same torus as rational
-//! B-spline surfaces of 9 conic spans each way (u the minor half
-//! circle, 20° a span; v the major quarter turn, 10° a span; Piegl–
-//! Tiller's surface of revolution, the review's `conic_quarter_torus`
-//! over a half minor circle). The two equator circles the halves meet
-//! on are swapped for their own boundary columns, the same bits, which
-//! the importer adopts as iso-curves (two tangent walls have no
-//! transverse intersection to adopt the circle by). The caps stay the
-//! writer's planes.
+//! half-bands it writes are swapped for rational B-spline surfaces of 9
+//! conic spans each way (u the minor half arc, 20° a span; v the major
+//! quarter turn, 10° a span; Piegl–Tiller's surface of revolution, the
+//! review's `conic_quarter_torus` over a half minor arc). The two equator
+//! circles the halves meet on are swapped for their own boundary columns,
+//! the same bits, which the importer adopts as iso-curves (two tangent
+//! walls have no transverse intersection to adopt the circle by). The
+//! caps stay the writer's planes.
 //!
-//! **The oracle** is independent of the quadrature: Pappus, the disc's
-//! area times the path of its centre, `π r² · R · π/2 = 432 π²` m³.
+//! - **The conic quarter torus** (`R = 24 m, r = 6 m`, PR 5589's first
+//!   reviewer's 9×9 conic torus): each wall's net is exactly a torus, so
+//!   stage-1 recognition promotes it on the whole patch before the
+//!   C⁰-knot split (`[ev]` PR 6014's ruling), and the body imports with
+//!   two torus walls and no spline wall at all.
+//! - **The conic quarter elliptic tube**: the same file with the minor
+//!   profile an ellipse of semi-axes `r` and `ASPECT·r` (its height
+//!   scaled), the rim semicircles swapped for the bands' own boundary
+//!   rows. A rational conic of revolution that is no analytic kind, so
+//!   it stays a spline: the import splits each wall at its C⁰ knots into
+//!   one-span walls (`docs/DESIGN.md` [topology]), and measured through
+//!   the door under `Resolution(1.024e-6 m)` it answers a bracket, never
+//!   a refusal, with every one-span wall meeting the resolution.
+//!
+//! **The oracle** is independent of the quadrature: Pappus, the
+//! profile's area times the path of its centre, `π r·(ASPECT·r) · R · π/2`
+//! m³ (`432 π²` for the torus).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -39,6 +48,9 @@ use step_import::{ImportOptions, StepImport, import_step};
 const R: f64 = 24.0;
 const MINOR: f64 = 6.0;
 const SPANS: usize = 9;
+
+/// The elliptic tube's height over its width.
+const ASPECT: f64 = 0.75;
 
 /// An exact unit value where the angle is a multiple of `π/2`: the
 /// boundary columns must be the equators' bits, and `sin π` is not `0`.
@@ -101,20 +113,20 @@ fn points(xyz: &[(f64, f64, f64)], next: &mut usize, points: &mut String) -> Vec
         .collect()
 }
 
-/// A point on the torus revolved about `y` from `+x` toward `−z`, at
-/// the minor arc's control point `(cx, sx)` and the major arc's
-/// `(ca, sa)`.
-fn on_torus((cx, sx): (f64, f64), (ca, sa): (f64, f64)) -> (f64, f64, f64) {
+/// A point on the tube of height `aspect` over its width revolved about
+/// `y` from `+x` toward `−z`, at the minor arc's control point
+/// `(cx, sx)` and the major arc's `(ca, sa)`.
+fn on_tube((cx, sx): (f64, f64), (ca, sa): (f64, f64), aspect: f64) -> (f64, f64, f64) {
     let d = R + MINOR * cx;
-    (d * ca, MINOR * sx, -d * sa)
+    (d * ca, MINOR * aspect * sx, -d * sa)
 }
 
 /// The half band `φ ∈ [φ0, φ1]` as the conic surface, u the minor arc.
-fn conic_band(phi: (f64, f64), next: &mut usize, extra: &mut String) -> String {
+fn conic_band(phi: (f64, f64), aspect: f64, next: &mut usize, extra: &mut String) -> String {
     let (minor, major) = (unit_arc(phi.0, phi.1), unit_arc(0.0, FRAC_PI_2));
     let (mut rows, mut weights) = (Vec::new(), Vec::new());
     for &(m, wm) in &minor {
-        let xyz: Vec<_> = major.iter().map(|&(a, _)| on_torus(m, a)).collect();
+        let xyz: Vec<_> = major.iter().map(|&(a, _)| on_tube(m, a, aspect)).collect();
         rows.push(format!("({})", points(&xyz, next, extra).join(", ")));
         let w: Vec<String> = major
             .iter()
@@ -152,6 +164,33 @@ fn equator(rho: f64, next: &mut usize, extra: &mut String) -> String {
     )
 }
 
+/// The half band `φ ∈ [φ0, φ1]`'s boundary row at the major arc's end
+/// `(ca, sa)` — the rim it shares with a cap — as a curve, the same bits
+/// as the band's row, running with the band's `u`.
+fn rim(
+    phi: (f64, f64),
+    (ca, sa): (f64, f64),
+    aspect: f64,
+    next: &mut usize,
+    extra: &mut String,
+) -> String {
+    let minor = unit_arc(phi.0, phi.1);
+    let xyz: Vec<_> = minor
+        .iter()
+        .map(|&(m, _)| on_tube(m, (ca, sa), aspect))
+        .collect();
+    let refs = points(&xyz, next, extra);
+    let w: Vec<String> = minor.iter().map(|&(_, wm)| format!("{wm:?}")).collect();
+    let (mult, values) = knots();
+    format!(
+        "( BOUNDED_CURVE() B_SPLINE_CURVE(2, ({}), .UNSPECIFIED., .F., .F.) \
+         B_SPLINE_CURVE_WITH_KNOTS({mult}, {values}, .UNSPECIFIED.) CURVE() \
+         GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE(({})) REPRESENTATION_ITEM('') )",
+        refs.join(", "),
+        w.join(", ")
+    )
+}
+
 /// The record `#id = <head>...;` of `text` whose head is `head`, as its
 /// id and the whole record.
 fn records<'t>(text: &'t str, head: &str) -> Vec<(&'t str, &'t str)> {
@@ -163,8 +202,54 @@ fn records<'t>(text: &'t str, head: &str) -> Vec<(&'t str, &'t str)> {
         .collect()
 }
 
-/// The quarter-turn torus segment's file with its walls made conic.
-fn conic_quarter_torus_step(tol: Tol) -> String {
+/// The record `#r = …;` of `text`.
+fn record<'t>(text: &'t str, r: &str) -> &'t str {
+    let head = format!("{r} = ");
+    text.lines()
+        .find(|l| l.starts_with(&head))
+        .unwrap_or_else(|| panic!("record {r}"))
+}
+
+/// A record's `#` references, in order.
+fn refs(l: &str) -> Vec<String> {
+    l.split('#')
+        .skip(2)
+        .map(|s| {
+            format!(
+                "#{}",
+                s.split(|c: char| !c.is_ascii_digit()).next().unwrap()
+            )
+        })
+        .collect()
+}
+
+/// The coordinate triple a `CARTESIAN_POINT` or `DIRECTION` record `r`
+/// states.
+fn triple(text: &str, r: &str) -> [f64; 3] {
+    let l = record(text, r);
+    let inner = &l[l.rfind('(').unwrap() + 1..l.find(')').unwrap()];
+    let v: Vec<f64> = inner
+        .split(',')
+        .map(|s| s.trim().parse().unwrap())
+        .collect();
+    [v[0], v[1], v[2]]
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// The quarter-turn segment's file with its walls made conic, the tube's
+/// height `aspect` times its width (module docs).
+fn conic_quarter_step(tol: Tol, aspect: f64) -> String {
     let lp = bulge_loop(vec![
         (Point2::new(R - MINOR, 0.0), 1.0),
         (Point2::new(R + MINOR, 0.0), 1.0),
@@ -203,7 +288,7 @@ fn conic_quarter_torus_step(tol: Tol) -> String {
         } else {
             (PI, 2.0 * PI)
         };
-        let band = conic_band(phi, &mut next, &mut extra);
+        let band = conic_band(phi, aspect, &mut next, &mut extra);
         swaps.push((record.to_owned(), format!("#{id} = {band};")));
         swaps.push((face.to_owned(), face.replace(".T.);", ".F.);")));
     }
@@ -214,6 +299,51 @@ fn conic_quarter_torus_step(tol: Tol) -> String {
             .expect("the equator circle");
         let column = equator(rho, &mut next, &mut extra);
         swaps.push((record.to_owned(), format!("#{id} = {column};")));
+    }
+    // The tube's rims, where it is no circle: each rim semicircle is
+    // swapped for its band's boundary row at its cap, and its edge
+    // takes the sense that keeps its run from one vertex to the other.
+    if aspect.to_bits() != 1.0_f64.to_bits() {
+        for (id, circle) in records(&text, "CIRCLE")
+            .into_iter()
+            .filter(|(_, l)| l.ends_with(&format!(", {MINOR:?});")))
+        {
+            let edge = records(&text, "EDGE_CURVE")
+                .into_iter()
+                .find(|(_, l)| l.contains(&format!(", #{id}, .T.);")))
+                .expect("the rim's edge")
+                .1;
+            let place = refs(record(&text, &refs(circle)[0]));
+            let (centre, axis, refd) = (
+                triple(&text, &place[0]),
+                triple(&text, &place[1]),
+                triple(&text, &place[2]),
+            );
+            let start = triple(&text, &refs(record(&text, &refs(edge)[0]))[0]);
+            // The semicircle's middle, a quarter turn on from its start.
+            let s: [f64; 3] = core::array::from_fn(|k| (start[k] - centre[k]) / MINOR);
+            let side = cross(axis, refd);
+            let (c0, s0) = (dot(s, refd), dot(s, side));
+            let upper = -s0 * refd[1] + c0 * side[1] > 0.0;
+            let phi = if upper { (0.0, PI) } else { (PI, 2.0 * PI) };
+            // The cap at the turn's start is the `xy` plane, its rims
+            // centred on `+x`; the other's on `−z`.
+            let cap = if centre[0].abs() > centre[2].abs() {
+                (1.0, 0.0)
+            } else {
+                (0.0, 1.0)
+            };
+            let curve = rim(phi, cap, aspect, &mut next, &mut extra);
+            swaps.push((circle.to_owned(), format!("#{id} = {curve};")));
+            let first = on_tube(unit_arc(phi.0, phi.1)[0].0, cap, aspect);
+            let along = (start[0] - first.0).abs()
+                + (start[1] - first.1).abs()
+                + (start[2] - first.2).abs()
+                < 1e-9;
+            if !along {
+                swaps.push((edge.to_owned(), edge.replace(".T.);", ".F.);")));
+            }
+        }
     }
     for (old, new) in swaps {
         text = text.replacen(&old, &new, 1);
@@ -226,43 +356,16 @@ fn conic_quarter_torus_step(tol: Tol) -> String {
 /// its reference direction toward `axis × ref`, so the semicircle — and
 /// the band it bounds — is above the plane where that vector is `+y`.
 fn face_is_upper(text: &str, face: &str) -> bool {
-    let record = |r: &str| -> &str {
-        let head = format!("{r} = ");
-        text.lines()
-            .find(|l| l.starts_with(&head))
-            .unwrap_or_else(|| panic!("record {r}"))
-    };
-    // A record's `#` references, in order.
-    let refs = |l: &str| -> Vec<String> {
-        l.split('#')
-            .skip(2)
-            .map(|s| {
-                format!(
-                    "#{}",
-                    s.split(|c: char| !c.is_ascii_digit()).next().unwrap()
-                )
-            })
-            .collect()
-    };
-    let dir = |r: &str| -> [f64; 3] {
-        let l = record(r);
-        let inner = &l[l.rfind('(').unwrap() + 1..l.find(')').unwrap()];
-        let v: Vec<f64> = inner
-            .split(',')
-            .map(|s| s.trim().parse().unwrap())
-            .collect();
-        [v[0], v[1], v[2]]
-    };
-    let lp = &refs(record(&refs(face)[0]))[0];
-    for oe in refs(record(lp)) {
-        let ec = &refs(record(&oe))[0];
-        let curve = record(&refs(record(ec))[2]);
+    let lp = &refs(record(text, &refs(face)[0]))[0];
+    for oe in refs(record(text, lp)) {
+        let ec = &refs(record(text, &oe))[0];
+        let curve = record(text, &refs(record(text, ec))[2]);
         let rim = curve.contains("CIRCLE") && curve.ends_with(&format!(", {MINOR:?});"));
         if !rim {
             continue;
         }
-        let place = refs(record(&refs(curve)[0]));
-        let (axis, refd) = (dir(&place[1]), dir(&place[2]));
+        let place = refs(record(text, &refs(curve)[0]));
+        let (axis, refd) = (triple(text, &place[1]), triple(text, &place[2]));
         return axis[2] * refd[0] - axis[0] * refd[2] > 0.0;
     }
     panic!("the band carries a rim semicircle")
@@ -292,51 +395,130 @@ fn one_span_walls(text: &str) -> usize {
         .sum()
 }
 
-/// **The conic quarter torus answers a bracket at the wall that holds
-/// Pappus** under a resolution of 1.024e-6 m, at every ε.
-#[test]
-fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
-    let tol = Tol::witness();
-    let text = conic_quarter_torus_step(tol);
-    let imported = import_step(&text, &ImportOptions::default(), tol);
-    let body = match imported {
-        Ok(StepImport::Solid { body, .. }) => body,
-        Ok(_) => panic!("the conic torus segment imports as a solid, not a wireframe"),
-        Err(e) => panic!("the conic torus segment imports as a solid: {}", e.render()),
-    };
-    let walls = body
-        .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
-        .count();
-    // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
-    // [topology]); the measure then reads one-span walls.
-    assert_eq!(
-        walls,
-        one_span_walls(&text),
-        "each half band's conic spans import as one wall per span"
-    );
+/// The file `text` imported as a solid at `tol`.
+fn solid(text: &str, tol: Tol) -> (topo::AtRestBody<f64>, StepImport) {
+    match import_step(text, &ImportOptions::default(), tol) {
+        Ok(imported @ StepImport::Solid { .. }) => {
+            let StepImport::Solid { ref body, .. } = imported else {
+                unreachable!("matched as a solid")
+            };
+            (body.clone(), imported)
+        }
+        Ok(_) => panic!("the conic segment imports as a solid, not a wireframe"),
+        Err(e) => panic!("the conic segment imports as a solid: {}", e.render()),
+    }
+}
+
+/// The body's faces whose surface `kind` accepts.
+fn faces_where(body: &topo::AtRestBody<f64>, kind: impl Fn(&geom::Surface<f64>) -> bool) -> usize {
+    body.faces()
+        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&kind))
+        .count()
+}
+
+/// `body` measured under a resolution of 1.024e-6 m: the bracket holds
+/// Pappus's `pappus`, and every face meets the resolution.
+fn measures_pappus(body: &topo::AtRestBody<f64>, pappus: f64, what: &str, tol: Tol) {
     let measured = body
         .measure(topo::Settle::Resolution(Length::from_meters(1.024e-6)))
-        .unwrap_or_else(|e| panic!("the conic torus measures, never refuses: {e:?}"));
+        .unwrap_or_else(|e| panic!("{what} measures, never refuses: {e:?}"));
     let e = measured.enclosure;
-    let pappus = PI * MINOR * MINOR * R * FRAC_PI_2;
     assert!(
         (e.volume - pappus).abs() <= e.volume_pad,
-        "the bracket {} ± {:e} holds Pappus's {pappus}",
+        "{what}: the bracket {} ± {:e} holds Pappus's {pappus}",
         e.volume,
         e.volume_pad
     );
     assert_eq!(
         measured.stop,
         topo::Stop::Met,
-        "every one-span wall meets the resolution, so no face is the review's costly \
-         case any more: {measured:?}"
+        "{what}: every wall meets the resolution: {measured:?}"
     );
     eprintln!(
-        "ACCEPTANCE-5 conic quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",
+        "ACCEPTANCE-5 {what} @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",
         tol.eps(),
         measured.stop,
         e.volume,
         e.volume_pad
+    );
+}
+
+/// **The conic quarter torus imports with two torus walls, promoted on
+/// the whole patch, and its bracket holds Pappus**, at every ε: each
+/// wall's 81 conic spans become one analytic face, which the C⁰-knot
+/// split never cuts, and each promotion is reported with the certified
+/// residual it moved the geometry by, within ε_in.
+#[test]
+fn the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus() {
+    let tol = Tol::witness();
+    let text = conic_quarter_step(tol, 1.0);
+    assert_eq!(
+        one_span_walls(&text),
+        162,
+        "the file states 81 spans per wall"
+    );
+    let (body, imported) = solid(&text, tol);
+    let normalizations = imported.normalizations();
+    assert_eq!(
+        faces_where(&body, |s| matches!(s, geom::Surface::Torus { .. })),
+        2,
+        "each half band imports as one torus wall"
+    );
+    assert_eq!(
+        faces_where(&body, |s| matches!(s, geom::Surface::Nurbs(_))),
+        0,
+        "no spline wall is left to split"
+    );
+    let promoted: Vec<f64> = normalizations
+        .iter()
+        .filter_map(|n| match n.kind {
+            step_import::NormalizationKind::SurfacePromotion {
+                to: step_import::PromotedKind::Torus,
+                residual,
+            } => Some(residual),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        promoted.len(),
+        2,
+        "both walls report their promotion: {normalizations:?}"
+    );
+    for residual in promoted {
+        assert!(
+            residual <= imported.eps_in(),
+            "the promotion moved the geometry by at most ε_in = {:e}: {residual:e}",
+            imported.eps_in()
+        );
+    }
+    measures_pappus(
+        &body,
+        PI * MINOR * MINOR * R * FRAC_PI_2,
+        "conic quarter torus",
+        tol,
+    );
+}
+
+/// **The conic quarter elliptic tube answers a bracket at the wall that
+/// holds Pappus** under a resolution of 1.024e-6 m, at every ε: no kind
+/// promotes it, so the import splits each wall at its C⁰ knots, and every
+/// one-span wall meets the resolution.
+#[test]
+fn the_conic_quarter_elliptic_tube_answers_a_bracket_holding_pappus() {
+    let tol = Tol::witness();
+    let text = conic_quarter_step(tol, ASPECT);
+    let (body, _) = solid(&text, tol);
+    // The import splits each wall at its C⁰ knots (`docs/DESIGN.md`
+    // [topology]); the measure then reads one-span walls.
+    assert_eq!(
+        faces_where(&body, |s| matches!(s, geom::Surface::Nurbs(_))),
+        one_span_walls(&text),
+        "each half band's conic spans import as one wall per span"
+    );
+    measures_pappus(
+        &body,
+        PI * MINOR * (ASPECT * MINOR) * R * FRAC_PI_2,
+        "conic quarter elliptic tube",
+        tol,
     );
 }

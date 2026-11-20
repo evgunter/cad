@@ -6,17 +6,21 @@
 //! certifies nowhere stays NURBS silently — the M7-3-legal state:
 //! recognition failing must never refuse a face that imports today.
 //!
+//! Promotion runs on the WHOLE patch, at the face, before
+//! `normalize_shell`'s C⁰-knot split: a promoted carrier has no knots,
+//! so the split never cuts it, and a foreign rational conic arrives as
+//! one analytic face rather than one face per span.
+//!
 //! # Kind scope
 //!
-//! Plane and cylinder — the measured need of the wild corpus (dm1's 17
-//! exact planes + 7 exact rational cylinders). Cone, sphere, and torus
-//! recognition are unimplemented and stay-NURBS (banked; no dead
-//! per-kind code here).
+//! Plane, cylinder, cone, sphere and torus — every analytic kind with an
+//! implicit form. The spindle sheet (a torus with `R ≤ r`) is not
+//! proposed: such a patch stays NURBS.
 //!
 //! # Certification (D4 ¶2 shapes, ε_in budget) — whole-patch, always
 //!
-//! NO promotion without a whole-patch certificate (R1 fix pass, M-1 —
-//! a bare sampled grid is not one):
+//! NO promotion without a whole-patch certificate (a bare sampled grid is
+//! not one):
 //!
 //! - **Plane, both tracks**: the closed-form control-net hull
 //!   sup-bound. With strictly positive weights the (rational) basis
@@ -24,18 +28,24 @@
 //!   convex combination of its control points and its deviation from
 //!   a plane is bounded by the worst CONTROL-POINT deviation.
 //!   Whole-patch and total, no sampling anywhere.
-//! - **Cylinder**: the span-aware fixed schedule PLUS a first-order
-//!   between-samples envelope ([`enveloped_residual_sup`]): a
-//!   [`geom_brep::CERT_SAMPLES`]² grid per knot-span cell, and the
-//!   grid sup widened by `L·(Du·δu + Dv·δv)` from the whole-patch
-//!   quotient stretch bounds ([`geom::NurbsSurface::stretch_sup`]) and the
-//!   residual's own Lipschitz constant. Fixed, never data-dependent
-//!   (D9). The envelope's slack is patch-scale over the sample count,
-//!   so it honestly REFUSES curved-kind certification at fine ε even
-//!   for exactly cylindrical geometry — the measured consequence the
-//!   fix-pass report states; the algebraic tightening (exact
-//!   spline-product hulls) is banked, and looseness is never grounds
-//!   to widen the budget.
+//! - **Cylinder, cone, sphere, torus**: [`geom_brep::patch_distance_sup`],
+//!   an upper bound on the distance of every point of the patch from the
+//!   candidate's locus. The candidate's canonical implicit form is
+//!   composed with the patch as a tensor-product rational Bernstein form
+//!   in interval arithmetic, per knot-span cell; the coefficient hull
+//!   bounds the form on the cell, and the chart's `|f|`-to-metres
+//!   conversion turns it into a distance using the cell's control box.
+//!   On exact geometry the form vanishes identically, so its
+//!   coefficients are rounding-width and the bound is too: an exact
+//!   conic certifies at fine ε, and a bulge between any samples needs
+//!   bulged coefficients, which the hull reads.
+//!
+//! A cheap refutation runs before each curved certificate: the
+//! candidate's implicit residual at a fixed 3×3 grid per knot-span cell
+//! ([`refuted_at_samples`]). It can only refuse — a sample off the locus
+//! past ε_in is a point the certificate would have to read anyway — so it
+//! never makes promotion incorrect, only cheaper; it keeps a freeform
+//! patch from paying for four algebraic certificates.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
@@ -53,17 +63,35 @@
 //!   projected ⊥ axis; the exact circumcenter solve for center and
 //!   radius; `u_ref` toward the first sample (the patch's u-start
 //!   azimuth — the seam, so a full-period patch's seam generator
-//!   certifies as the seam image). Closed form
-//!   throughout.
+//!   certifies as the seam image).
+//! - **Cone, sphere, torus** read the patch's curvature at fixed domain
+//!   fractions ([`curvature_at`]: the first and second fundamental forms
+//!   and the closed-form principal curvatures). A point plus its normal
+//!   over a principal curvature is that curvature's centre, and each
+//!   kind's centres lie on a locus it names: the **sphere**'s at its
+//!   centre (one sample, the domain midpoint); the **torus**'s
+//!   larger-magnitude centre on its core circle (three diagonal samples,
+//!   whose circumcircle is the core: centre, axis and `R`; `r` the mean
+//!   of the three radii of curvature); the **cone**'s larger-magnitude
+//!   centre on its axis (two diagonal samples give the axis; the samples'
+//!   heights and axial distances give the slope `tan α` and the apex,
+//!   the axis oriented so the patch is on the opening nappe). The seam
+//!   `u_ref` sits at the patch's start azimuth ([`seam_reference`]); a
+//!   sphere's axis runs through the patch's own pole where its net has a
+//!   collapsed side, so the promoted chart is singular where the NURBS
+//!   chart was.
 //!
 //! Each estimator only PROPOSES; the certificate above decides. A
 //! wrong estimate fails certification and the patch stays NURBS — an
 //! estimator can therefore never make promotion incorrect, only
-//! incomplete.
+//! incomplete. (A torus with `R < 2r` whose diagonal samples reach the
+//! inner equator, where the parallel curvature outgrows the meridian's,
+//! proposes a wrong core and stays NURBS.)
 //!
 //! Every DERIVED frame here (origin/normal/axis/u_ref) goes through
 //! [`crate::signed_zero`], for the reason that module states — the same
-//! posture [`crate::recognize_curve`] takes for curves.
+//! posture [`crate::recognize_curve`] takes for curves — and the
+//! certificate reads the surface as stored, after that pass.
 //!
 //! # Conditioning (D7's typed ambiguity, its only stage-1 site)
 //!
@@ -72,11 +100,12 @@
 //! finite radius (the near-flat patch), and one whose v-columns sum
 //! below ε_in determines no axis. Either is
 //! [`Recognition::IllConditioned`] — the estimator cannot answer at
-//! the interpretation budget. The caller escalates that to the typed
+//! the interpretation budget — unless a later kind certifies. The caller escalates that to the typed
 //! `RecognitionAmbiguous` refusal ONLY where promotion was needed to
 //! import at all (the multi-bound curved-face gate); an importable
 //! face with an ill-conditioned estimator stays NURBS, exactly like a
-//! refuted one.
+//! refuted one. The cone, sphere and torus estimators carry no trilean:
+//! a degenerate curvature reading proposes nothing.
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{LengthOutOfFormat, NoDirection, Point3, Vec3};
@@ -92,10 +121,10 @@ pub(crate) enum Recognition {
     /// A kind certified at ε_in.
     Promoted {
         /// The analytic surface. A plane's normal is aligned to the
-        /// NURBS chart normal; a cylinder's chart normal is radially
-        /// outward by construction, whatever the patch's orientation
-        /// — the caller composes [`chart_flipped`] into the face's
-        /// `same_sense` so orientation survives the promotion.
+        /// NURBS chart normal; every curved kind's chart normal points
+        /// out of its locus by construction, whatever the patch's
+        /// orientation — the caller composes [`chart_flipped`] into the
+        /// face's `same_sense` so orientation survives the promotion.
         surface: Surface<f64>,
         /// The certified residual sup (meters).
         residual: f64,
@@ -126,27 +155,15 @@ pub(crate) enum Recognition {
 /// in band and apart; an estimator's conditioning that reads Zero is its
 /// refusal.
 ///
-/// Selection is the fixed kind-preference order **Plane > Cylinder**.
-/// A patch that certifies as BOTH is canonicalization, not ambiguity:
-/// both analytic surfaces agree with the patch — hence with each
-/// other — within 2·ε_in everywhere on it, so either answer is a
-/// correct reading of the file and the fixed order merely picks the
-/// canonical one (D7's typed ambiguity is reserved for the estimator's
-/// own conditioning, where no answer exists at the budget).
-///
-/// **Both arms of that order execute, and the condition that reaches
-/// them is a RATIO.** Every certificate here is scale-covariant:
-/// [`enveloped_residual_sup`]'s slack is
-/// `L·(Du·Δu + Dv·Δv)/(2·(k−1))` per knot-span cell — a patch extent,
-/// not an ε — so what decides a cylinder certificate is per-span
-/// extent measured AGAINST `eps_in`, never the geometry's absolute
-/// size. A patch whose per-span extent is small enough in that ratio
-/// promotes as a cylinder (P9); one coarser still certifies as BOTH
-/// kinds, and the order selects [`PromotedKind::Plane`] (P10). The
-/// wild corpus sits at the other end of the same ratio — metre-scale
-/// cylinders read at an import budget many orders finer, where the
-/// first-order envelope honestly refuses (P7) until the algebraic
-/// tightening lands.
+/// Selection is the fixed kind-preference order **Plane > Cylinder >
+/// Cone > Sphere > Torus**. A patch that certifies as two kinds is
+/// canonicalization, not ambiguity: both analytic surfaces agree with the
+/// patch — hence with each other — within 2·ε_in everywhere on it, so
+/// either answer is a correct reading of the file and the fixed order
+/// merely picks the canonical one (D7's typed ambiguity is reserved for
+/// the estimator's own conditioning, where no answer exists at the
+/// budget). A cylinder estimator that declines does not stop the later
+/// kinds: its refusal is the answer only where none of them certifies.
 pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognition {
     if let Some((surface, residual)) = try_plane(patch, file) {
         return Recognition::Promoted {
@@ -155,18 +172,87 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, file: FileBand) -> Recognitio
             kind: PromotedKind::Plane,
         };
     }
-    match try_cylinder(patch, file) {
-        Ok(Some((surface, residual))) => Recognition::Promoted {
+    let cylinder = try_cylinder(patch, file);
+    if let Ok(Some((surface, residual))) = cylinder {
+        return Recognition::Promoted {
             surface,
             residual,
             kind: PromotedKind::Cylinder,
-        },
-        Ok(None) => Recognition::StaysNurbs,
+        };
+    }
+    let curved: [(PromotedKind, Estimator); 3] = [
+        (PromotedKind::Cone, estimate_cone),
+        (PromotedKind::Sphere, estimate_sphere),
+        (PromotedKind::Torus, estimate_torus),
+    ];
+    for (kind, estimate) in curved {
+        if let Some((surface, residual)) =
+            estimate(patch).and_then(|candidate| certify_curved(patch, candidate, file))
+        {
+            return Recognition::Promoted {
+                surface,
+                residual,
+                kind,
+            };
+        }
+    }
+    match cylinder {
         Err(margin) => Recognition::IllConditioned {
             kind: PromotedKind::Cylinder,
             margin,
         },
+        Ok(_) => Recognition::StaysNurbs,
     }
+}
+
+/// A curved kind's estimator: the candidate it proposes, if any.
+type Estimator = fn(&NurbsSurface<f64>) -> Option<Surface<f64>>;
+
+/// The curved-kind certificate (module docs): `candidate` and its
+/// certified residual where [`geom_brep::patch_distance_sup`] reads Zero at the
+/// band, after the sampled refutation has not refused it.
+fn certify_curved(
+    patch: &NurbsSurface<f64>,
+    candidate: Surface<f64>,
+    file: FileBand,
+) -> Option<(Surface<f64>, f64)> {
+    if refuted_at_samples(patch, &candidate, file) {
+        return None;
+    }
+    let residual = geom_brep::patch_distance_sup(patch, &candidate);
+    (file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero).then_some((candidate, residual))
+}
+
+/// Whether some point of a fixed 3×3 grid per knot-span cell (the cell's
+/// corners, edge midpoints and centre) has an implicit residual from
+/// `candidate` that does not read Zero at the band — a point the
+/// whole-patch certificate would read too, so a refusal here is one the
+/// certificate would give. The schedule depends on the knot vectors
+/// alone (D9). Poison refutes.
+fn refuted_at_samples(patch: &NurbsSurface<f64>, candidate: &Surface<f64>, file: FileBand) -> bool {
+    let bu: Vec<f64> = patch.knot_values_u().breakpoints().collect();
+    let bv: Vec<f64> = patch.knot_values_v().breakpoints().collect();
+    for cu in bu.windows(2) {
+        let (ua, ub) = (cu[0], cu[1]);
+        for cv in bv.windows(2) {
+            let (va, vb) = (cv[0], cv[1]);
+            let Some(win) = patch.window_at(geom::mid_param(ua, ub), geom::mid_param(va, vb))
+            else {
+                return true;
+            };
+            for i in 0..3 {
+                let u = ua + (ub - ua) * f64::from(i) / 2.0;
+                for j in 0..3 {
+                    let v = va + (vb - va) * f64::from(j) / 2.0;
+                    let r = geom_brep::implicit_residual(candidate, win.eval_in_span(u, v));
+                    if file.read(STEP_RECOGNIZED_RESIDUAL, r) != Read::Zero {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// The NURBS chart normal (unnormalized `∂u × ∂v`) at the domain
@@ -340,112 +426,259 @@ fn try_cylinder(
         radius,
         u_ref: plus_zero(radial_hat),
     };
-    // The residual's Lipschitz constant in the point (envelope docs):
-    // `|∇ implicit| = ρ/r`, and with positive weights the patch lies
-    // in its control hull, on which the radial distance — a norm of
-    // an affine map, hence convex — is maximized at a vertex.
-    let mut rho_max = 0.0f64;
-    let spine = geom::Line {
-        origin: center,
-        dir: axis,
-    };
-    for p in control {
-        rho_max = rho_max.max(spine.distance(*p));
-    }
-    let lipschitz = rho_max / radius;
-    let residual = enveloped_residual_sup(patch, &cylinder, lipschitz);
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
     // caller compares chart normals and composes `same_sense`.
-    Ok(
-        (file.read(STEP_RECOGNIZED_RESIDUAL, residual) == Read::Zero)
-            .then_some((cylinder, residual)),
-    )
+    Ok(certify_curved(patch, cylinder, file))
 }
 
-/// **The certified sampled-track residual: per-span schedule PLUS a
-/// between-samples envelope** (R1 fix pass, M-1 — a fixed whole-domain
-/// grid is not a certificate: a patch exact at the grid and bulging
-/// between samples, or one with more spans than grid columns, promotes
-/// silently wrong; the review executed both falsifiers).
-///
-/// The certificate, per nonempty knot-span cell:
-///
-/// * a fixed [`geom_brep::CERT_SAMPLES`]² grid over the CELL (the
-///   schedule is span-aware and D9-fixed: cell count and sample
-///   placement depend only on the knot vectors, never on data);
-/// * every domain point lies within half a sample spacing of a sample
-///   in each direction, so with `Du`, `Dv` the whole-patch derivative
-///   sup bounds ([`NurbsSurface::stretch_sup`]) and `L` the candidate's implicit-
-///   residual Lipschitz constant in the point,
-///   `sup |r| ≤ grid sup + L·(Du·δu + Dv·δv)`, `δ = span/(2·(k−1))` —
-///   a first-order whole-patch envelope, conservative by construction.
-///
-/// The envelope is HONEST about its looseness: its slack is
-/// `O(L·D·span/k)` — patch-scale over the sample count, not ε-scale —
-/// so a curved-kind certificate at fine ε is refused even for exactly
-/// cylindrical geometry (the measured own-corpus consequence; the M7-6
-/// fix-pass report carries the numbers). Tightening it to certify real
-/// cylinders again needs the algebraic route (exact spline-product
-/// hulls of the radial-square channel), banked with the R1 findings —
-/// NO promotion without a whole-patch certificate, and this is the
-/// certificate the derivative-hull machinery supports today.
-///
-/// Poison anywhere makes the sup NaN, which certifies nothing (D4 ¶2).
-fn enveloped_residual_sup(
+/// The parameters at the domain fractions `(fu, fv)`.
+fn at_fraction(patch: &NurbsSurface<f64>, fu: f64, fv: f64) -> (f64, f64) {
+    let (u0, u1) = patch.knot_values_u().domain();
+    let (v0, v1) = patch.knot_values_v().domain();
+    (u0 + (u1 - u0) * fu, v0 + (v1 - v0) * fv)
+}
+
+/// One curvature sample: the point, the unit chart normal `n`, and the
+/// two principal curvatures with the larger magnitude first, signed so
+/// that `point + n/κ` is that curvature's centre.
+#[derive(Clone, Copy, Debug)]
+struct CurvatureSample {
+    point: Point3<f64>,
+    normal: Vec3<f64>,
+    larger: f64,
+    smaller: f64,
+}
+
+impl CurvatureSample {
+    /// The centre of the larger-magnitude principal curvature.
+    fn centre(self) -> Point3<f64> {
+        self.point + self.normal / self.larger
+    }
+}
+
+/// The curvature sample at domain fractions `(fu, fv)`: with `E, F, G`
+/// and `L, M, N` the fundamental forms, the principal curvatures are
+/// `H ± √(H² − K)`, `H = (EN + GL − 2FM)/(2(EG − F²))`,
+/// `K = (LN − M²)/(EG − F²)` — closed form, no iteration. `None` where
+/// the chart is singular there or a reading is not finite.
+fn curvature_at(patch: &NurbsSurface<f64>, fu: f64, fv: f64) -> Option<CurvatureSample> {
+    let (u, v) = at_fraction(patch, fu, fv);
+    let jet = patch.ders(u, v);
+    let (normal, _) = jet.du.cross(jet.dv).checked_direction().ok()?;
+    let (e, f, g) = (jet.du.dot(jet.du), jet.du.dot(jet.dv), jet.dv.dot(jet.dv));
+    let (l, m, n) = (
+        jet.duu.dot(normal),
+        jet.duv.dot(normal),
+        jet.dvv.dot(normal),
+    );
+    let det = e * g - f.powi(2);
+    if det.is_nan() || det <= 0.0 {
+        return None;
+    }
+    let h = (e * n + g * l - 2.0 * f * m) / (2.0 * det);
+    let k = (l * n - m.powi(2)) / det;
+    let root = (h.powi(2) - k).max(0.0).sqrt();
+    let (a, b) = (h + root, h - root);
+    let (larger, smaller) = if a.abs() >= b.abs() { (a, b) } else { (b, a) };
+    (larger.is_finite() && smaller.is_finite() && larger != 0.0).then_some(CurvatureSample {
+        point: jet.point,
+        normal,
+        larger,
+        smaller,
+    })
+}
+
+/// The diagonal fractions the cone and torus estimators sample: distinct
+/// in both parameters, so the samples sit at distinct azimuths and
+/// heights whichever parameter is the azimuth.
+const DIAGONAL: [f64; 3] = [1.0 / 8.0, 1.0 / 2.0, 7.0 / 8.0];
+
+/// The unit direction of `p − centre` with its component along `axis`
+/// removed.
+fn radial_of(p: Point3<f64>, centre: Point3<f64>, axis: Vec3<f64>) -> Option<Vec3<f64>> {
+    let d = p - centre;
+    (d - axis * d.dot(axis))
+        .checked_direction()
+        .ok()
+        .map(|(r, _)| r)
+}
+
+/// The seam reference for a carrier of revolution about `axis` through
+/// `centre`: the radial direction of the patch's start in its azimuthal
+/// parameter — `S(u0, v_mid)` where `u` runs more nearly around the axis
+/// at the domain midpoint, `S(u_mid, v0)` otherwise — so a full-period
+/// patch's seam is its own start boundary, as the cylinder's is.
+fn seam_reference(
     patch: &NurbsSurface<f64>,
-    candidate: &Surface<f64>,
-    lipschitz: f64,
-) -> f64 {
-    let (du_sup, dv_sup) = patch.stretch_sup();
-    let (du_sup, dv_sup) = (du_sup.get(), dv_sup.get());
-    // A poisoned net poisons the bound; `f64::max` below would drop
-    // that NaN, so it is surfaced here (D4 ¶2).
-    if du_sup.is_nan() || dv_sup.is_nan() {
-        return f64::NAN;
+    centre: Point3<f64>,
+    axis: Vec3<f64>,
+) -> Option<Vec3<f64>> {
+    let (um, vm) = at_fraction(patch, 0.5, 0.5);
+    let jet = patch.ders(um, vm);
+    let tangential = axis.cross(radial_of(jet.point, centre, axis)?);
+    let along = |d: Vec3<f64>| {
+        d.checked_direction()
+            .ok()
+            .map_or(0.0, |(t, _)| t.dot(tangential).abs())
+    };
+    let (u0, v0) = at_fraction(patch, 0.0, 0.0);
+    let start = if along(jet.du) >= along(jet.dv) {
+        patch.eval(u0, vm)
+    } else {
+        patch.eval(um, v0)
+    };
+    radial_of(start, centre, axis)
+}
+
+/// The cone candidate (module docs): the larger principal curvature's
+/// centre lies on the axis, so two diagonal samples give it; their
+/// heights `h` and axial distances `ρ` along it give `tan α` as the slope
+/// `Δρ/Δh` and the apex where `ρ` reaches zero, the axis oriented so the
+/// slope is positive (the patch on the opening nappe).
+fn estimate_cone(patch: &NurbsSurface<f64>) -> Option<Surface<f64>> {
+    let s0 = curvature_at(patch, DIAGONAL[0], DIAGONAL[0])?;
+    let s2 = curvature_at(patch, DIAGONAL[2], DIAGONAL[2])?;
+    let base = s0.centre();
+    let (mut axis, _) = (s2.centre() - base).checked_direction().ok()?;
+    let read = |p: Point3<f64>, axis: Vec3<f64>| {
+        let d = p - base;
+        let h = d.dot(axis);
+        (h, (d - axis * h).norm())
+    };
+    let (h0, rho0) = read(s0.point, axis);
+    let (h2, rho2) = read(s2.point, axis);
+    let (mut h0, mut slope) = (h0, (rho2 - rho0) / (h2 - h0));
+    if slope < 0.0 {
+        axis = -axis;
+        (h0, slope) = (-h0, -slope);
     }
-    let k = geom_brep::CERT_SAMPLES;
-    let ku = patch.knots_u_f64_interim();
-    let kv = patch.knots_v_f64_interim();
-    let mut worst = 0.0f64;
-    for su in ku.first_span()..=ku.last_span() {
-        let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
-        for sv in kv.first_span()..=kv.last_span() {
-            // The emptiness skip, the span validation and the window
-            // construction are one operation, both directions; the
-            // window itself is built once per span cell.
-            let Some(win) = patch.window(su, sv) else {
-                continue;
-            };
-            let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
-            let mut cell = 0.0f64;
-            for i in 0..k {
-                let u = ua + (ub - ua) * f64::from(i) / f64::from(k - 1);
-                for j in 0..k {
-                    let v = va + (vb - va) * f64::from(j) / f64::from(k - 1);
-                    let p = win.eval_in_span(u, v);
-                    let r = geom_brep::implicit_residual(candidate, p).abs();
-                    // NaN-propagating max: a poison residual must not
-                    // be masked by an earlier finite one.
-                    cell = if r.is_nan() { f64::NAN } else { cell.max(r) };
-                    if cell.is_nan() {
-                        return cell;
-                    }
-                }
-            }
-            let slack =
-                lipschitz * (du_sup * (ub - ua) + dv_sup * (vb - va)) / (2.0 * f64::from(k - 1));
-            worst = worst.max(cell + slack);
+    if !(slope.is_finite() && slope > 0.0) {
+        return None;
+    }
+    let apex = base + axis * (h0 - rho0 / slope);
+    let axis = plus_zero(axis);
+    let apex = plus_zero_point(apex);
+    let u_ref = plus_zero(seam_reference(patch, apex, axis)?);
+    Some(Surface::Cone {
+        apex,
+        axis,
+        half_angle: slope.atan(),
+        u_ref,
+    })
+}
+
+/// The side of the net that collapses to one point — every control point
+/// of a boundary row or column bitwise equal — as that point and whether
+/// it is a `u` side (a row of fixed `iu`), in the fixed order `u` start,
+/// `u` end, `v` start, `v` end.
+fn collapsed_side(patch: &NurbsSurface<f64>) -> Option<(Point3<f64>, bool)> {
+    let (nu, nv) = patch.control_counts();
+    let control = patch.control();
+    let at = |iu: usize, iv: usize| control[iu * nv + iv];
+    let bits = |p: Point3<f64>| p.to_array().map(f64::to_bits);
+    let side = |count: usize, point: &dyn Fn(usize) -> Point3<f64>| {
+        let first = point(0);
+        (1..count)
+            .all(|k| bits(point(k)) == bits(first))
+            .then_some(first)
+    };
+    [
+        (side(nv, &|iv| at(0, iv)), true),
+        (side(nv, &|iv| at(nu - 1, iv)), true),
+        (side(nu, &|iu| at(iu, 0)), false),
+        (side(nu, &|iu| at(iu, nv - 1)), false),
+    ]
+    .into_iter()
+    .find_map(|(p, u_side)| p.map(|p| (p, u_side)))
+}
+
+/// The sphere candidate (module docs): the midpoint's centre of mean
+/// curvature, the radius its distance from the midpoint. The axis runs
+/// through the patch's collapsed side where it has one (the NURBS chart's
+/// own pole), else along `∂S/∂u` at the midpoint, which puts the
+/// midpoint on the equator and the poles a quarter turn off it; the seam
+/// at the patch's start in the parameter that runs around that axis.
+fn estimate_sphere(patch: &NurbsSurface<f64>) -> Option<Surface<f64>> {
+    let s = curvature_at(patch, 0.5, 0.5)?;
+    let mean = 0.5 * (s.larger + s.smaller);
+    if !(mean.is_finite() && mean != 0.0) {
+        return None;
+    }
+    let center = plus_zero_point(s.point + s.normal / mean);
+    let radius = (s.point - center).norm();
+    let (um, vm) = at_fraction(patch, 0.5, 0.5);
+    let (u0, v0) = at_fraction(patch, 0.0, 0.0);
+    let (axis, seam) = match collapsed_side(patch) {
+        Some((pole, u_side)) => {
+            let (axis, _) = (pole - center).checked_direction().ok()?;
+            (
+                axis,
+                if u_side {
+                    patch.eval(um, v0)
+                } else {
+                    patch.eval(u0, vm)
+                },
+            )
         }
+        None => {
+            let (axis, _) = patch.ders(um, vm).du.checked_direction().ok()?;
+            (axis, patch.eval(um, v0))
+        }
+    };
+    let axis = plus_zero(axis);
+    let u_ref = plus_zero(radial_of(seam, center, axis)?);
+    (radius.is_finite() && radius > 0.0).then_some(Surface::Sphere {
+        center,
+        radius,
+        axis,
+        u_ref,
+    })
+}
+
+/// The torus candidate (module docs): the larger principal curvature's
+/// centres at the three diagonal samples lie on the core circle, whose
+/// exact circumcircle solve gives the centre, the axis (the samples'
+/// winding) and `R`; `r` is the mean radius of curvature. A ring torus
+/// only: `R > r > 0`.
+fn estimate_torus(patch: &NurbsSurface<f64>) -> Option<Surface<f64>> {
+    let s = [
+        curvature_at(patch, DIAGONAL[0], DIAGONAL[0])?,
+        curvature_at(patch, DIAGONAL[1], DIAGONAL[1])?,
+        curvature_at(patch, DIAGONAL[2], DIAGONAL[2])?,
+    ];
+    let c = s.map(CurvatureSample::centre);
+    let a = c[1] - c[0];
+    let b = c[2] - c[0];
+    let axb = a.cross(b);
+    let center = c[0]
+        + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared())
+            / (2.0 * axb.norm_squared());
+    let (axis, _) = axb.checked_direction().ok()?;
+    let center = plus_zero_point(center);
+    let axis = plus_zero(axis);
+    let major_radius = (c[0] - center).norm();
+    let minor_radius =
+        (1.0 / s[0].larger.abs() + 1.0 / s[1].larger.abs() + 1.0 / s[2].larger.abs()) / 3.0;
+    if !(major_radius.is_finite() && minor_radius > 0.0 && major_radius > minor_radius) {
+        return None;
     }
-    worst
+    let u_ref = plus_zero(seam_reference(patch, center, axis)?);
+    Some(Surface::Torus {
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+        u_ref,
+    })
 }
 
 /// Whether the promoted chart's normal OPPOSES the NURBS chart's at
 /// the domain midpoint — the `same_sense` composition bit. Computed
 /// against the promoted surface's own chart normal via the implicit
-/// gradient (plane: the stored normal; cylinder: radially outward),
-/// which equals the chart normal for both promoted kinds.
+/// gradient (plane: the stored normal; the curved kinds: out of their
+/// locus, on either cone nappe), which points along the chart normal for
+/// every promoted kind.
 pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) -> bool {
     let (u0, u1) = patch.knots_u_f64_interim().domain();
     let (v0, v1) = patch.knots_v_f64_interim().domain();
@@ -455,13 +688,10 @@ pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) 
     nurbs_normal.dot(grad) < 0.0
 }
 
-/// **R1 adversarial review probes (PR #264)** — NOT part of the PR;
-/// these live on the review branch only. They feed the recognizer
-/// hostile patches to falsify the certification claims by execution.
-/// P1/P2 FAIL as of 35aa0c0: the sampled certificate has no
-/// between-samples envelope (spec D-c says "schedule + envelope"), so
-/// a patch exact at the 9×9 grid but bulging between samples PROMOTES
-/// silently wrong.
+/// **Adversarial probes**: hostile patches fed to the recognizer to
+/// falsify the certification claims by execution — a patch exact at
+/// every sample and bulging between them, near-boundary nets, exact
+/// conics, and the selection order.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod review_probes {
@@ -698,19 +928,6 @@ mod review_probes {
         }
     }
 
-    /// **P7 (fix pass) — the envelope is honest on an EXACT cylinder,
-    /// and honestly loose.** A unit-radius rational quarter-cylinder's
-    /// grid residual is ~1e-16, but the first-order between-samples
-    /// envelope is patch-scale (measured here at ~1e-1 m — the slack
-    /// is `L·D·span/(2(k−1))`, patch size over the sample count), so
-    /// recognition refuses to certify it at every ε_in fine against
-    /// the patch's own span extent and the patch stays NURBS — the
-    /// import budgets a metre-scale part is read at, all of them.
-    /// (The certificate is a ratio, not an absolute: the same patch
-    /// read at a metre-scale budget certifies, which is P9.) This is
-    /// the M-1 fix's measured consequence, pinned: a tighter
-    /// certificate (algebraic spline-product hulls) is what restores
-    /// the cylinder track at a real budget, never a wider budget.
     /// A unit-radius rational quarter cylinder: `u` runs the arc CCW
     /// from `(1,0)` toward `(0,1)`, `v` runs `+z` — so the chart
     /// normal `∂u × ∂v = tangential × ẑ` points radially OUTWARD,
@@ -741,23 +958,35 @@ mod review_probes {
         }
     }
 
+    /// **P7 — an EXACT cylinder certifies at a fine budget.** The unit
+    /// quarter cylinder's implicit form vanishes identically, so the
+    /// composite's coefficients are rounding-width and so is the
+    /// certificate: it promotes at ε_in = 1e-9 with a residual many
+    /// orders below it, and the certificate it reads is the one
+    /// [`geom_brep::patch_distance_sup`] gives the stored carrier.
     #[test]
-    fn p7_exact_cylinder_envelope_is_honest() {
+    fn p7_an_exact_cylinder_certifies_at_a_fine_budget() {
         let patch = unit_quarter_cylinder();
-        let cylinder = unit_cylinder();
-        // The mid control point sits at radius √2: L = ρ_max/r = √2.
-        let envelope = enveloped_residual_sup(&patch, &cylinder, core::f64::consts::SQRT_2);
-        println!("P7 exact-cylinder certified envelope: {envelope:e} m");
+        let direct = geom_brep::patch_distance_sup(&patch, &unit_cylinder());
         assert!(
-            envelope > 1e-3,
-            "the first-order envelope is patch-scale by construction: {envelope:e}"
+            direct < 1e-14,
+            "the exact cylinder's certificate: {direct:e}"
         );
         match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
-            Recognition::Promoted { kind, residual, .. } => panic!(
-                "an exact cylinder must NOT certify under the first-order envelope \
-                 (promoted {kind:?} at {residual:e})"
-            ),
-            other => println!("exact cylinder stays unpromoted, honestly: {other:?}"),
+            Recognition::Promoted {
+                kind,
+                residual,
+                surface,
+            } => {
+                assert_eq!(kind, PromotedKind::Cylinder);
+                assert!(residual < 1e-14, "the certified residual: {residual:e}");
+                assert_eq!(
+                    residual.to_bits(),
+                    geom_brep::patch_distance_sup(&patch, &surface).to_bits(),
+                    "the residual is the stored carrier's certificate"
+                );
+            }
+            other => panic!("an exact cylinder promotes at 1e-9: {other:?}"),
         }
     }
 
@@ -819,8 +1048,7 @@ mod review_probes {
     /// A unit-radius, `h`-tall FULL-PERIOD rational cylinder: four
     /// 90-degree quadratic Bézier spans (double interior knots), `u`
     /// CCW from `(1, 0)`, `v` along `+z`. Exact — every surface point
-    /// is at radius 1 — so a certificate on it is the envelope's
-    /// slack and nothing else.
+    /// is at radius 1.
     fn unit_full_cylinder(h: f64) -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(
             vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0],
@@ -846,21 +1074,14 @@ mod review_probes {
         NurbsSurface::new(ku, kv, control, weights).unwrap()
     }
 
-    /// **P9 — the cylinder PROMOTING arm executes**, on the same
-    /// [`unit_full_cylinder`] the fine-budget rows refuse. The
-    /// certificate is a ratio (`recognize`'s docs): the envelope's
-    /// slack is a per-span patch extent, so the arm is reached by
-    /// reading a patch at a budget coarse against its own span
-    /// extent, never by shrinking the geometry. At ε_in = 0.9 m the
-    /// unit cylinder certifies and the plane does not, so `recognize`
-    /// takes the cylinder arm; at 1e-3 m — still enormous next to any
-    /// import budget — it refuses, which is P7's looseness from the
-    /// other side.
+    /// **P9 — the cylinder arm executes at every budget an exact
+    /// cylinder meets**, on [`unit_full_cylinder`]: a coarse one, where the
+    /// plane certificate still refuses so the selection reaches the
+    /// cylinder, and a fine one, where only the cylinder could certify.
     #[test]
     fn p9_the_cylinder_promoting_arm_executes() {
         let patch = unit_full_cylinder(1.0);
-        // The fixture is an EXACT cylinder: what certifies below is
-        // the envelope's slack, not a fitted approximation.
+        // The fixture is an EXACT cylinder.
         for (i, j) in [(0, 0), (1, 3), (2, 5), (3, 7)] {
             let p = patch.eval(f64::from(i) + 0.375, f64::from(j) / 8.0);
             let rho = (p.x * p.x + p.y * p.y).sqrt();
@@ -888,18 +1109,19 @@ mod review_probes {
             }
             other => panic!("the cylinder arm must fire at eps_in = 0.9: {other:?}"),
         }
-        match recognize(&patch, crate::interpret::FileBand::test(1e-3)) {
+        match recognize(&patch, crate::interpret::FileBand::test(EPS_IN)) {
             Recognition::Promoted { kind, residual, .. } => {
-                panic!("the loose envelope promoted {kind:?} at 1e-3 m: {residual:e}")
+                assert_eq!(kind, PromotedKind::Cylinder);
+                assert!(residual < 1e-14, "the fine budget's residual: {residual:e}");
             }
-            other => println!("fine budget refuses the same patch: {other:?}"),
+            other => panic!("the exact cylinder promotes at 1e-9 too: {other:?}"),
         }
     }
 
     /// **P10 — the `Plane > Cylinder` order decides a patch that
     /// certifies as BOTH.** At ε_in = 0.99 m the same
     /// [`unit_full_cylinder`] certifies as a plane (0.969) and as a
-    /// cylinder (0.443); `recognize` returns the plane. P9 reads the
+    /// cylinder (rounding-scale); `recognize` returns the plane. P9 reads the
     /// same patch one budget finer, where only the cylinder holds —
     /// so the pair brackets the plane certificate's own boundary. This is the
     /// canonicalization `recognize`'s docs claim, executed rather
@@ -929,6 +1151,177 @@ mod review_probes {
                 assert_eq!(residual.to_bits(), plane_residual.to_bits());
             }
             other => panic!("a double-certifying patch promotes: {other:?}"),
+        }
+    }
+
+    /// A quarter turn about `+y` of a meridian profile `(ρ, y)` — control
+    /// points `profile` with weights `profile_w` at `degree` over one
+    /// span — as Piegl–Tiller's rational surface of revolution: `u` the
+    /// profile, `v` the quarter turn from `+x` toward `−z`. The profile
+    /// point `index` is lifted by `lift` along `+y` (zero: exact).
+    fn revolved(
+        profile: &[(f64, f64)],
+        profile_w: &[f64],
+        degree: usize,
+        (index, lift): (usize, f64),
+    ) -> NurbsSurface<f64> {
+        let mut knots = vec![0.0; degree + 1];
+        knots.extend(vec![1.0; degree + 1]);
+        let ku = KnotVector::clamped(knots, degree).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for (i, (&(rho, y), &wp)) in profile.iter().zip(profile_w).enumerate() {
+            let y = if i == index { y + lift } else { y };
+            for &((c, s), wt) in &turn {
+                control.push(Point3::new(rho * c, y, -rho * s));
+                weights.push(wp * wt);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    /// The quarter of a minor circle of radius `r` about `(major, 0)`
+    /// from the outer equator up, as a rational quadratic profile with
+    /// semi-axes `(r, r·aspect)` — a circle at `aspect = 1`.
+    fn tube_profile(major: f64, r: f64, aspect: f64) -> [(f64, f64); 3] {
+        [
+            (major + r, 0.0),
+            (major + r, r * aspect),
+            (major, r * aspect),
+        ]
+    }
+
+    const QUARTER_W: [f64; 3] = [1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+
+    /// The kind and residual `patch` promotes to at `eps_in`, or a panic
+    /// naming `what`.
+    fn promoted(patch: &NurbsSurface<f64>, eps_in: f64, what: &str) -> (Surface<f64>, f64) {
+        match recognize(patch, crate::interpret::FileBand::test(eps_in)) {
+            Recognition::Promoted {
+                surface, residual, ..
+            } => (surface, residual),
+            other => panic!("{what} promotes at ε_in = {eps_in:e}: {other:?}"),
+        }
+    }
+
+    /// **P11 — exact torus, sphere and cone patches promote to their
+    /// kinds at 1e-9 and at 1e-12**, with the carrier the geometry is,
+    /// and a residual that is the stored carrier's own certificate.
+    #[test]
+    fn p11_exact_conics_promote_to_their_kinds() {
+        let torus = revolved(&tube_profile(3.0, 1.0, 1.0), &QUARTER_W, 2, (0, 0.0));
+        let sphere = revolved(&tube_profile(0.0, 2.0, 1.0), &QUARTER_W, 2, (0, 0.0));
+        let cone = revolved(&[(1.0, 0.0), (2.0, 1.0)], &[1.0, 1.0], 1, (0, 0.0));
+        for eps_in in [1e-9, 1e-12] {
+            let (surface, residual) = promoted(&torus, eps_in, "the exact torus");
+            match surface {
+                Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
+                    assert!((major_radius - 3.0).abs() < 1e-12, "R = {major_radius}");
+                    assert!((minor_radius - 1.0).abs() < 1e-12, "r = {minor_radius}");
+                    assert!(axis.y.abs() > 1.0 - 1e-12, "axis {axis:?}");
+                    assert!(
+                        (center - Point3::origin()).norm() < 1e-12,
+                        "centre {center:?}"
+                    );
+                }
+                ref other => panic!("the torus promotes to a torus: {other:?}"),
+            }
+            assert_eq!(
+                residual.to_bits(),
+                geom_brep::patch_distance_sup(&torus, &surface).to_bits()
+            );
+            let (surface, _) = promoted(&sphere, eps_in, "the exact sphere octant");
+            match surface {
+                Surface::Sphere {
+                    center,
+                    radius,
+                    axis,
+                    ..
+                } => {
+                    assert!((radius - 2.0).abs() < 1e-12, "radius {radius}");
+                    assert!(
+                        (center - Point3::origin()).norm() < 1e-12,
+                        "centre {center:?}"
+                    );
+                    // The octant's net collapses at its pole `(0, 2, 0)`.
+                    assert!(
+                        axis.y > 1.0 - 1e-12,
+                        "the axis runs through the pole: {axis:?}"
+                    );
+                }
+                ref other => panic!("the sphere promotes to a sphere: {other:?}"),
+            }
+            let (surface, _) = promoted(&cone, eps_in, "the exact cone frustum");
+            match surface {
+                Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ..
+                } => {
+                    assert!(
+                        (half_angle - core::f64::consts::FRAC_PI_4).abs() < 1e-12,
+                        "half-angle {half_angle}"
+                    );
+                    assert!(
+                        (apex - Point3::new(0.0, -1.0, 0.0)).norm() < 1e-12,
+                        "apex {apex:?}"
+                    );
+                    assert!(
+                        axis.y > 1.0 - 1e-12,
+                        "the opening nappe holds the patch: {axis:?}"
+                    );
+                }
+                ref other => panic!("the cone promotes to a cone: {other:?}"),
+            }
+        }
+    }
+
+    /// **P12 — a conic patch that is no analytic kind stays NURBS, and
+    /// so does an exact one with one control point lifted between the
+    /// samples' reach.** The elliptic tube (semi-axes 1 and 1.2) is a
+    /// rational conic of revolution, a torus nowhere; each exact kind's
+    /// net with its profile's middle control lifted 1e-6 m (the cone's a
+    /// straight generator raised to degree 2) bulges off its locus by a
+    /// fraction of that, past ε_in = 1e-9.
+    #[test]
+    fn p12_off_locus_conics_stay_nurbs() {
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        let cases = [
+            (
+                "the elliptic tube",
+                revolved(&tube_profile(3.0, 1.0, 1.2), &QUARTER_W, 2, (0, 0.0)),
+            ),
+            (
+                "the lifted torus",
+                revolved(&tube_profile(3.0, 1.0, 1.0), &QUARTER_W, 2, (1, 1e-6)),
+            ),
+            (
+                "the lifted sphere",
+                revolved(&tube_profile(0.0, 2.0, 1.0), &QUARTER_W, 2, (1, 1e-6)),
+            ),
+            (
+                "the lifted cone",
+                revolved(
+                    &[(1.0, 0.0), (1.5, 0.5), (2.0, 1.0)],
+                    &[1.0; 3],
+                    2,
+                    (1, 1e-6),
+                ),
+            ),
+        ];
+        for (what, patch) in cases {
+            if let Recognition::Promoted { kind, residual, .. } = recognize(&patch, band) {
+                panic!("{what} promoted as {kind:?} at {residual:e}");
+            }
         }
     }
 }

@@ -1458,8 +1458,9 @@ impl<'a> Resolver<'a> {
                        recognized periodic band — an interior ring on a curved patch \
                        (a promoted cylinder's, or a NURBS patch's that certified as no \
                        implemented analytic kind at ε_in — stage-1 recognition \
-                       promotes certified planes and cylinders, and rings on promoted \
-                       planes import; this reader adopts a ring on no curved chart \
+                       promotes certified planes, cylinders, cones, spheres and tori, \
+                       and rings on promoted planes import; this reader adopts a ring \
+                       on no curved chart \
                        yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere zone stated as its two rims \
