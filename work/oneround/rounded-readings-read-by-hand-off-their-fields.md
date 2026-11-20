@@ -2,10 +2,12 @@
 id: rounded-readings-read-by-hand-off-their-fields
 kind: issue
 title: Three sites read a Rounded's room or magnitude by hand off its fields
-status: open
+status: dispatched
 opened: 2026-11-19
 priority: P1
 cost: E
+branch: oneround/rounded-pairs
+rides_with: value-error-pairs-are-carried-beside-rounded-in-four-modules
 ---
 
 
