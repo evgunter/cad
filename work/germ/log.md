@@ -1540,3 +1540,21 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   Nothing past U1 builds until Ev answers.
 - 2026-11-20 — **Claimed by CHARTTAIL** by `git mv`: `tilted-section-through-a-chart-pole-is-not-split-at-the-pole` (P2 M). It rides with CHARTTAIL's P1 `a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve`: one defect, a section through a sphere pole minted without a vertex there, on two witnesses. (CHARTTAIL orchestrator)
+- 2026-11-20 — **PR 7167 (U0) merged: C5 states the curve × surface crossing reading.** Ev ratified it in the PR's comments with three changes:
+  - `Through` is any point where the surface has no tangent plane (a cone's apex, a spindle sheet's apexes or its horn's cusp).
+  - `Generic` is renamed `Isolated`, and `Tangent` is its special case that the pose alone decides. D3's "generic" stays, because it covers surface pairs.
+  - A spline run lying within the band over part of a span refuses as an undecided window for now.
+
+  Decisions 2–4 stand as proposed. U1 is in flight. U1b, U2 and U3 can be dispatched once their predecessors merge; U2 waits on the P0 implementer's PR, which shares `conic_quadric`.
+- 2026-11-20 — **U3 spec written** (`germ/crossing-u3-spec`, `docs/GERM-CROSSING-U3-SPEC.md`). Its open questions went to both crossing designers, who agreed on Q1–Q4, Q8 and Q9. Two were reconciled by reading DESIGN:
+  - **Q7, the ring path's stored-term charge.** `[simple.conditioned]` says "nothing charges, pads or estimates float rounding" of every computation, which is the condition one designer had named for its own answer. So `cross` charges nothing, and the ring path drops `slack_of`.
+  - **Q5, the census.** The curvature check is `Tangent`'s own rung, and `Conic::along` is re-posed to the cancellation-free form.
+
+  Build-point rulings:
+  - The wrappers carry the pose's class, and the sweep's own offset re-decision goes in U3a.
+  - `conic_clearance` moves into `pose` as `Apart`'s stage in U3a.
+  - Every arm gets a general not-`Lies` rung before `Isolated`; I took this over a "method decides" class, because it keeps the pose total and meaningful.
+
+  Sequencing: U3 splits into U3a (types, `pose`, `cross`, trace, census; tier dual) and U3b (ring path, classify, `on_surface`, region; tier single FULL). `slit` and `factored_crossing` go to U4. Local windows are a prerequisite of U4. None of the questions is Ev's.
+- 2026-11-20 13:45 — **Friction: the container's disk filled** (264 MB free, writable allowance about 70 GB) with four implementer lanes live. Two lanes' targets had reached 24 GB and 19 GB; their local ε-row and profile rebuilds each grow their own target. I reclaimed the finished measurement lane's 4.1 GB target and the three finished doc and spec clones, which brought free space to 7 GB. The live lanes were warned that results from 13:20 to 13:45 are suspect. Going forward, a sitting with more than two concurrent build lanes runs the extras as their own cloud sessions (`memories/orchestration-model.md`, "Lanes may run in their own cloud sessions").
+- 2026-11-20 — **U3 spec final** (`germ/crossing-u3-spec` at `0e3cf52`): §U3a and §U3b, with every question answered in the body. It cites seven rows that arrived from GERMTAIL and HONEROOT and that U3 touches; it closes none of them. U3a dispatches once U1 and U2 merge, and U2 waits on the P0 lane's PR. PRs 7171 (section-class) and 7174 (sector side) are open.
