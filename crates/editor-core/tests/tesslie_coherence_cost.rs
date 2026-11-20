@@ -121,7 +121,10 @@ fn coherence_census_over_the_corpus() {
             match &x.evidence {
                 CheckEvidence::ChartCoherence { finding } => {
                     f += 1;
-                    why.push(format!("{:?} metres={:e}", finding.condition, finding.metres));
+                    why.push(format!(
+                        "{:?} metres={:e}",
+                        finding.condition, finding.metres
+                    ));
                 }
                 CheckEvidence::ChartCoherenceUnexamined { unexamined } => {
                     u += 1;
@@ -156,7 +159,10 @@ fn coherence_census_over_the_corpus() {
                     let s = body.get_surface(face.surface).unwrap();
                     println!(
                         "    result-body NonIso: carrier={} surface={}",
-                        format!("{:?}", c.carrier()).split(['(', ' ', '{']).next().unwrap(),
+                        format!("{:?}", c.carrier())
+                            .split(['(', ' ', '{'])
+                            .next()
+                            .unwrap(),
                         format!("{s:?}").split(['(', ' ', '{']).next().unwrap(),
                     );
                 }

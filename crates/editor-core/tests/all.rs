@@ -297,10 +297,10 @@ mod resolve_upstream_scope;
 mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
-#[path = "tesslie_coherence_cost.rs"]
-mod tesslie_coherence_cost;
 #[path = "takeover_door.rs"]
 mod takeover_door;
+#[path = "tesslie_coherence_cost.rs"]
+mod tesslie_coherence_cost;
 
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
