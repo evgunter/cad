@@ -8,7 +8,7 @@ pr: 3406
 opened: 2026-09-28
 priority: P1
 cost: M
-refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere, nurbs-plane-section-has-no-component-arm, volume-backstop-reads-a-nurbs-operands-unimplemented-closed-form-as-a-classification-invariant]
+refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere, nurbs-plane-section-has-no-component-arm]
 closed: 2026-09-29
 ---
 

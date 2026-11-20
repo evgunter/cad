@@ -4,6 +4,9 @@ kind: issue
 title: Curve-surface crossing has no kind-pair table: wildcard arms, fallback ladders, and circle-plane solved in six places
 status: open
 opened: 2026-10-14
+priority: P1
+cost: X
+points: 16
 ---
 
 Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
@@ -41,3 +44,34 @@ Re-aimed to D3 "One reading per question". A curve's crossings of a surface are 
 `carrier_cross`'s curve×plane parts and the census edge-face cut (`Uncrossable`) are in `fuse/the-curve-pair-reader`'s callers and are left to it. This row is the rest.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Priced (GERM orchestrator, 2026-11-20)
+
+P1: two or more implementations of one question (circle × plane in
+about six places, line × cone in two) and wildcard arms that entrench
+as each new carrier pair is built on them. `X`, 16 points: one reading
+with an exhaustive `(CurveKind, SurfaceKind)` match, the wildcards
+turned into typed arms, the fallback ladders retired or shown total,
+and every consumer moved onto the reading — about two hard rows of
+work, staged by a spec before any lane builds.
+
+## Ratified (Ev, PR 7167, 2026-11-20)
+
+C5's curve × face paragraph (`crates/geom-brep/README.md`) states the
+design:
+- a curve × surface pose: `Lies | Apart | Tangent | Through | Isolated`.
+  `Through` is any point where the surface has no tangent plane.
+  `Tangent` is `Isolated`'s pose-decided special case;
+- one `curve_face::cross` through `route`;
+- refusals that carry each arm's own undecided windows, read against
+  the trim every time;
+- every door in geom-brep.
+
+Ev also ruled that a spline span lying within the band over part of
+its length refuses as an undecided window for now; a run meeting is
+not read. Staging: U1 moves the line roots door with no behaviour
+change; U1b gives line × cone one rule set; U2 moves the ConicQuadric
+door before the first-harmonic arm's Part 2; U3 builds `pose`, `cross`
+and the windows and moves the small consumers onto them; U4 merges the
+sweep's two lanes; U5 moves the remaining readers. The `design` flag
+was never set on this row; the U0 PR settled the shape.

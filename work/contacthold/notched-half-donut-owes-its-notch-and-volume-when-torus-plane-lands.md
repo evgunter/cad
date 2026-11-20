@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-08
 priority: P3
 cost: E
-blocked_on: [point-in-solid-refuses-an-l-shaped-torus-face]
 ---
 
 Found by CONTACT-11's review (Style 6).

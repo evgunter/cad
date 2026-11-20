@@ -735,7 +735,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
-///   (`work/honeroot/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
+///   (`work/germ/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
 #[test]
@@ -976,7 +976,7 @@ fn the_stadium_answers_every_op() {
 /// lane), and the bore is turned 45° so its seams leave the slab's
 /// rulings.
 #[test]
-#[ignore = "disabled red: work/tangrim/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
+#[ignore = "disabled red: work/tang/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
 fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let tol = Tol::witness();
     let block: AtRestBody<f64> = finished(
