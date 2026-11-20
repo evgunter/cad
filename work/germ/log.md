@@ -1619,3 +1619,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The torn-body red is confirmed inherited.
 
   **MINORs:** no row reds if the depth charge or the per-root slack is weakened (three mutants pass all 142 rows), and the INSIDE closure witness tests the door, not the ray. **NOTE:** the rounding of `a` and of cos²α is uncharged, up to 3.2× the bound near the generator, with no sign flip; this is not a regression, and a P3 row is owed. Fix pass sent to the cloud session.
+- 2026-11-20 — **PR 7183 (P0) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Held:** the diagnosis replays; a sphere and wall probe of about 1.0M cases found 0 roots past the band; both kernel fixes keep their decisions; 30+ unaudited sites gave no reachable negative size.
+  - **MINORs:**
+    - the circle's straddle readers have no row that can fail;
+    - the pinned row accepts any meter.
+  - **Taken as well:** two literal builders bypass `stored_size` (N5), and `semi_u()`/`semi_v()` exist only to keep `cover-kind-match`'s lexical count, which is API shaped to a gate, so they are to be dropped.
+  - **Recorded on the Part 2 row:** the arm's worst certified root lands at 0.9936–0.99999 bands, a first-order slack with no margin left for second order.
+
+  Fix pass continued in the implementer's agent.
