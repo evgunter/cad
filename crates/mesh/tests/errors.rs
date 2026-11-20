@@ -273,7 +273,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
         (
             TessellateError::BoundaryBoundsNoRegion { face },
-            vec!["retraces itself", "even number", "no region", "lamina"],
+            vec!["no region", "odd number", "even-odd"],
         ),
         (
             TessellateError::UnsupportedCurvedDomain {

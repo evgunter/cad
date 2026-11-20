@@ -318,7 +318,8 @@ use crate::cert;
 use crate::chart_table::{Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
-use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
+use crate::planar::{Pinches, Walk, shoelace2};
+use crate::region::{Crossings, classify_faces, edge_key};
 use crate::sizing::{SizingTols, ceil_count};
 use crate::tessellate::{Lane, Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
@@ -495,10 +496,9 @@ pub(crate) fn tessellate_trimmed(
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
     // last point; ids stay the shared 3-D chord ids), every loop.
+    // Every loop has at least three points: the chord pass's short-loop
+    // floor (`chords`).
     let polygon = trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?;
-    if polygon.loops().any(|l| l.len() < 3) {
-        return Err(TessellateError::BoundaryBoundsNoRegion { face: fk });
-    }
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -977,7 +977,7 @@ impl TrimmedFace<'_> {
         let fk = self.fk;
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
-        crate::planar::require_a_region(fk, &crossings)?;
+        crate::region::require_a_region(fk, &crossings)?;
         let Some(orientation) = self.orientation else {
             return Err(TessellateError::TrimLoopOrientation { face: fk });
         };
@@ -2828,7 +2828,7 @@ fn sort_nodes(nodes: &mut [Node]) {
 /// `None` where a loop's signed area reads neither way (exactly zero,
 /// or poisoned): it has no orientation. Whether such loops bound a
 /// region at all is not this area's to say; the constraint pass decides
-/// it on the boundary's parities (`planar::require_a_region`), and a face
+/// it on the boundary's parities (`region::require_a_region`), and a face
 /// whose loops do bound one refuses for the orientation it lacks
 /// (`TrimmedFace::attempt`).
 ///
@@ -3131,7 +3131,7 @@ type LoopPoints = (Vec<(f64, f64, u32)>, Vec<EdgeKey>);
 /// **A face's trim polygon**: every loop of its domain, outer loop first
 /// and then the rings in the face's order, each in walk order. The CDT
 /// takes every loop's sides as constraints, and the even-odd reading
-/// (`planar::classify_faces`) is what makes a ring's inside a hole.
+/// (`region::classify_faces`) is what makes a ring's inside a hole.
 ///
 /// Built only by [`TrimPolygon::new`] and [`TrimPolygon::push_ring`], so
 /// a point and its edge enter together and the loops are one list of

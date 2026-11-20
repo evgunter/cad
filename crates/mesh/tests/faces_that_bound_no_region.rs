@@ -297,3 +297,190 @@ fn a_spline_lamina_bounds_no_region_and_refuses() {
         }
     }
 }
+
+/// The flat bilinear NURBS patch over the unit square at `z = 0`.
+fn flat_patch() -> Surface<f64> {
+    let unit = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    Surface::Nurbs(Arc::new(
+        NurbsSurface::new(
+            unit.clone(),
+            unit,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ))
+}
+
+/// **A lens of two short arcs meshes at a coarse δ.** Two DISTINCT arcs
+/// from `Q = (0.8, 0.5)` to `P = (0.2, 0.5)` on the flat NURBS patch,
+/// bulging either way: each is one chord at δ = 0.1 by its sagitta, so
+/// its loop would draw two points and nothing to triangulate. The chord
+/// pass's short-loop floor gives each two, and the face meshes. Red
+/// without the floor: the loop of two points refuses.
+#[test]
+fn a_lens_of_two_short_arcs_meshes_at_a_coarse_delta() {
+    let tol = Tol::witness();
+    let r = 1.09_f64.sqrt();
+    let (t0, t1) = (1.0_f64.atan2(0.3), 1.0_f64.atan2(-0.3));
+    let below = Curve3::circle(
+        Point3::new(0.5, -0.5, 0.0),
+        z_axis(),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let above = Curve3::circle(
+        Point3::new(0.5, 1.5, 0.0),
+        -z_axis(),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(below.eval(t0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: flat_patch(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            below.eval(t1),
+            arc(&below, t0, t1),
+            tol,
+        )
+        .unwrap();
+    // `above`'s frame is mirrored, so it too runs from Q to P over
+    // `t0 → t1`, bulging the other way.
+    body.mef(
+        MefSite::Chords {
+            he1: first.he_plus,
+            he2: first.he_minus,
+        },
+        arc(&above, t0, t1),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    for delta in [1e-1, 2e-2] {
+        let mesh = mesh::tessellate(&body, delta, tol)
+            .unwrap_or_else(|e| panic!("δ = {delta:e}: the lens meshes: {e:?}"));
+        let lens = mesh
+            .patches
+            .iter()
+            .find(|p| p.face == seed.face)
+            .expect("the seed face's patch");
+        assert!(
+            !lens.triangles.is_empty(),
+            "δ = {delta:e}: the lens has triangles"
+        );
+    }
+}
+
+/// **A face holding a ring that retraces itself refuses for its
+/// orientation**, from the trimmed lane's `None` arm. The face lies on
+/// the flat NURBS patch: its outer loop is a triangle, and its ring is
+/// two edges along one arc, the far side of a lamina face. The outer
+/// loop gives the boundary sides of odd count, so the loops bound a
+/// region. The ring's two traversals meet the same chart points, so its
+/// shoelace sum is exactly zero, and the ring has no orientation to read
+/// against the outer loop's. The lamina face itself bounds nothing.
+#[test]
+fn a_face_holding_a_retraced_ring_refuses_for_its_orientation() {
+    let tol = Tol::witness();
+    let line = EdgeCurveSpec::line_between;
+    let (p0, p1, p2, q) = (
+        Point3::new(0.1, 0.1, 0.0),
+        Point3::new(0.9, 0.1, 0.0),
+        Point3::new(0.5, 0.9, 0.0),
+        Point3::new(0.5, 0.4, 0.0),
+    );
+    let circle = Curve3::circle(
+        Point3::new(0.5, 0.5, 0.0),
+        z_axis(),
+        0.1,
+        Vec3::new(0.0, -1.0, 0.0),
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(p0, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: flat_patch(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let fan = |body: &mut Body<f64>, at, to, spec| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, spec, tol)
+            .unwrap()
+    };
+    let e01 = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            line(p0, p1),
+            tol,
+        )
+        .unwrap();
+    let e12 = fan(&mut body, e01.he_minus, p2, line(p1, p2));
+    body.mef(
+        MefSite::Chords {
+            he1: e12.he_minus,
+            he2: e01.he_plus,
+        },
+        line(p2, p0),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    // A strut from the triangle's corner into the seed face, the lamina
+    // at its tip, and the strut killed so the lamina's far side is a ring.
+    let strut = fan(&mut body, e01.he_plus, q, line(p0, q));
+    let a = fan(
+        &mut body,
+        strut.he_minus,
+        circle.eval(2.0),
+        arc(&circle, 0.0, 2.0),
+    );
+    body.mef(
+        MefSite::Chords {
+            he1: a.he_plus,
+            he2: a.he_minus,
+        },
+        arc(&circle, 0.0, 2.0),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    assert_eq!(
+        body.face(seed.face).unwrap().loops().count(),
+        2,
+        "the seed face holds the ring"
+    );
+    assert!(topo::validate_geometric(&body, tol).is_err(), "tier 3");
+    for delta in [1e-1, 1e-2] {
+        // The seed face is first in arena order, so `tessellate` answers
+        // for it; the lamina face behind it bounds nothing.
+        assert_eq!(
+            mesh::tessellate(&body, delta, tol).map(|_| ()),
+            Err(TessellateError::TrimLoopOrientation { face: seed.face }),
+            "δ = {delta:e}"
+        );
+    }
+}

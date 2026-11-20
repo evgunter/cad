@@ -31,6 +31,13 @@
 //! trimmed lane's arms. This is `crates/mesh/README.md` `[mesh.sizing]`'s
 //! *rim chords use the face's grid step*, stated once.
 //!
+//! **The short-loop floor** ([`short_loop_floors`]): a loop whose
+//! traversals' counts sum to fewer than three (a lens of two short
+//! arcs, a closed edge at a coarse δ) has its edges raised to `⌈3/k⌉`
+//! for its `k` traversals, through the rule above, so every loop draws a
+//! polygon of at least three points and no lane reads a coarse
+//! schedule as a loop with no region.
+//!
 //! **Crease joints**: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
 //! creases at the sub-arc joints, and the trimmed lane cuts its triangles
 //! along those creases, so the count is rounded up to a multiple of `m`:
@@ -94,12 +101,9 @@ pub(crate) fn compute_chords(
     let mut params = HashMap::new();
     // Each face's lattice, read once for the whole pass.
     let mut lattices = HashMap::new();
-    for (ek, edge) in body.edges() {
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .certified()
-            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+    let mut counts: HashMap<EdgeKey, usize> = HashMap::new();
+    for (ek, _) in body.edges() {
+        let curve = certified(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let target = edge_target(body, routes, ek, delta)?;
@@ -150,6 +154,20 @@ pub(crate) fn compute_chords(
         // wall edge is one 3-D chord but many UV steps of its wall's
         // lattice.
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, n)?;
+        counts.insert(ek, n);
+    }
+    // The short-loop floor (module docs): raised through `tighten`, so a
+    // raised count still lands on every crease joint.
+    for (ek, floor) in short_loop_floors(body, &counts) {
+        let curve = certified(body, ek)?;
+        let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
+        counts.insert(ek, n);
+    }
+    for (ek, _) in body.edges() {
+        let curve = certified(body, ek)?;
+        let (t0, t1) = curve.params();
+        let span = t1 - t0;
+        let n = counts[&ek];
         let (vs, ve) = edge_ends(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -757,6 +775,50 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
 
 /// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's
 /// miss named as the tessellator names it.
+/// An edge's certified curve.
+fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
+    let edge = body
+        .get_edge(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
+    body.get_curve_geom(edge.curve)
+        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+        .certified()
+        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
+}
+
+/// **The short-loop floor**: the counts a loop's edges are raised to
+/// where its traversals' chords sum to fewer than three, `⌈3/k⌉` for a
+/// loop of `k` traversals, so every loop draws a polygon of at least
+/// three points. Answered per edge, the largest any of its loops asks,
+/// in edge-arena order.
+fn short_loop_floors(body: &Body<f64>, counts: &HashMap<EdgeKey, usize>) -> Vec<(EdgeKey, usize)> {
+    let mut floors: HashMap<EdgeKey, usize> = HashMap::new();
+    for (fk, _) in body.faces() {
+        let Some(face) = body.face(fk) else { continue };
+        for (lk, _, _) in face.loops() {
+            // A loop that does not walk is its face's lane's to report,
+            // in its own turn.
+            let Ok(walk) = crate::walk::loop_edges(body, lk, fk) else {
+                continue;
+            };
+            let drawn: usize = walk.iter().map(|(ek, _)| counts[ek]).sum();
+            if drawn >= 3 {
+                continue;
+            }
+            let floor = 3usize.div_ceil(walk.len());
+            for &(ek, _) in &walk {
+                if counts[&ek] < floor {
+                    let f = floors.entry(ek).or_insert(floor);
+                    *f = (*f).max(floor);
+                }
+            }
+        }
+    }
+    body.edges()
+        .filter_map(|(ek, _)| floors.get(&ek).map(|&f| (ek, f)))
+        .collect()
+}
+
 pub(crate) fn edge_ends(
     body: &Body<f64>,
     ek: EdgeKey,
