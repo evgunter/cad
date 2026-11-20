@@ -65,6 +65,11 @@
 #    in a trait impl for `geom_brep::Reach` in another crate (impls of
 #    `Lever` and `ExtentBall`, and renames or aliases of the three
 #    types and of the held free fns, are red);
+#  - generics nested three deep in a turbofish or a qualified path to
+#    one of the three types (the normalisation reads two levels);
+#  - a variant door reached by import inside geom-brep
+#    (`use crate::Reach::*;`, then a bare `Measured { .. }` or
+#    `Face { .. }`);
 #  - a lever's length read back (`Lever::length`) and multiplied by
 #    hand outside `Margin::levered`.
 set -euo pipefail

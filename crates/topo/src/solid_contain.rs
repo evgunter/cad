@@ -1345,9 +1345,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
-    axis: Vec3<T>,
+    (sphere, center, radius, axis): (&geom::Surface<T>, Point3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
@@ -1355,8 +1353,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = f.surface().clone();
-    let arm = geom_brep::uniform_curvature_arm(&surf);
+    let arm = geom_brep::uniform_curvature_arm(sphere);
     let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
@@ -1458,7 +1455,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
+                        geom_brep::ExtentBall::of_covered(sphere.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )

@@ -771,9 +771,7 @@ fn a_sphere_closed_on_a_slit_has_no_trim() {
             let trim = crate::solid_contain::sphere_chart_trim(
                 &body,
                 seed.face,
-                s.f.o,
-                s.r,
-                s.f.z,
+                (&s.surface(), s.f.o, s.r, s.f.z),
                 band(),
             )
             .unwrap()

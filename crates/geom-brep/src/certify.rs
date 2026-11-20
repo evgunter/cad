@@ -5504,11 +5504,17 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             band,
             &mut max_residual,
         )?;
-        // Every interior sample of a tangent edge read its arm in the
-        // loop above or returned its refusal, and there is one.
+        // Every interior sample of a tangent edge folded its arm in the
+        // loop above or returned its refusal, and there is one. Each
+        // arm is `folded_lever_arm`'s, never past a carrier's own
+        // curvature arm, which no kind states above `f64::MAX`.
         const _: () = assert!(CERT_SAMPLES >= 3);
         let Some(arm) = tangent_arm_min else {
-            unreachable!("a tangent edge's interior samples each read their arm");
+            unreachable!(
+                "a tangent edge folded no arm over its {} interior samples, each of which \
+                 folds one or returns its refusal",
+                CERT_SAMPLES - 2
+            );
         };
         tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
