@@ -66,7 +66,7 @@ gone under an axis nothing reads.
 
 ## Not a duplicate of three neighbours
 
-- `work/tcost/run-pncad-py-is-computed-and-gates-nothing` (open) is the
+- `work/green/run-pncad-py-is-computed-and-gates-nothing` (open) is the
   same fact from the other side: it asks whether the computed-and-unread
   AXIS should be given a consumer or deleted. It does not touch the
   standing doc, and the doc is wrong whichever way that is decided.
