@@ -147,7 +147,7 @@ fn circle_plane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
-    let (c, a, r) = (circle.frame.origin, circle.frame.axis, circle.radius);
+    let (c, a, r) = (circle.frame.origin, circle.frame.axis, circle.radius());
     let arm = geom_brep::circle_curvature_arm(circle);
     let d = plane_across(a, n);
     let (toward, sin) = d.direction_and_length();
@@ -435,14 +435,14 @@ mod tests {
         let band = Band::new(1e-12, 1e-11).unwrap();
         let mut errors = Vec::new();
         let at = match circle_plane(
-            &geom::Circle {
-                frame: geom::Frame {
+            &geom::Circle::new(
+                geom::Frame {
                     origin: c,
                     axis: a,
                     u_ref: plane_across(a, n).normalize(),
                 },
-                radius: 1.0,
-            },
+                1.0,
+            ),
             (c - n * sin, n),
             band,
             &mut errors,

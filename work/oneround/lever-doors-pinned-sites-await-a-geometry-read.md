@@ -96,7 +96,7 @@ topo:
 - `topo::pcurves::decision::edge_reach(carrier, span, points)` — `pub(super)`, takes extra points beside the carrier. 33.
 - `topo::boolean::join::frame_reading(sa, on_a, on_b)` — `pub(super)`, takes two point lists. 1.
 
-**Hand-built geometry.** `Surface`, `Circle`, `Frame` and `Curve3` have public fields, and `geom::cover::Cover` has public constructors (`points`, `segment`, `sphere`, …, referenced in about 24 files outside `geom`'s cover home). A length from any crate reaches every reading constructor through a carrier, a span or a cover the caller made: `circle_curvature_arm(&Circle { radius: len, .. })`, `ExtentBall::of_cover(&Cover::segment(p, q)?)`.
+**Hand-built geometry.** `Surface`, `Frame` and `Curve3` have public fields, a conic has a public constructor (`Circle::new(frame, radius)`), and `geom::cover::Cover` has public constructors (`points`, `segment`, `sphere`, …, referenced in about 24 files outside `geom`'s cover home). A length from any crate reaches every reading constructor through a carrier, a span or a cover the caller made: `circle_curvature_arm(&Circle::new(frame, len))`, `ExtentBall::of_cover(&Cover::segment(p, q)?)`.
 
 **A caller's point.** `lever_from(p)` reads from any pivot. The curvature home's `curvature_lever_arm(cone, p)` and `parallel_curvature_arm(s, p)` read `p`'s distance from the surface's axis, so a far point is a long arm.
 

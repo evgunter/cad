@@ -1401,19 +1401,20 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         };
         let (t0, t1) = curve.params();
         let geom::Curve3::Circle(
-            ref circle @ geom::Circle {
+            conic_k @ geom::Circle {
                 frame:
                     geom::Frame {
                         origin: c_c,
                         axis: n_c,
                         u_ref: u_c,
                     },
-                radius: r_c,
+                ..
             },
         ) = *curve.carrier()
         else {
             return Ok(None);
         };
+        let r_c = conic_k.radius();
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
@@ -1478,7 +1479,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     origin: center,
                     dir: axis,
                 },
-                circle,
+                &conic_k,
             );
             if !zero_as("bool_sphere_iso_rim", tilt)?
                 || !zero_as("bool_sphere_iso_rim", off)?
@@ -3109,15 +3110,18 @@ fn wall_crosses_by_turn<T: Decide>(
                 geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
                     .value()
             }
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: normal,
-                        ..
-                    },
-                radius: r,
-            }) => {
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis: normal,
+                            ..
+                        },
+                    ..
+                },
+            ) => {
+                let r = circle.radius();
                 r.abs() * normal.normalize().cross(axis).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
             }

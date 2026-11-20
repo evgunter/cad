@@ -2967,14 +2967,14 @@ mod tests {
             axis,
             u_ref,
         };
-        let equator = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let equator = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
         let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn));
         assert!(

@@ -47,7 +47,7 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
 /// plane or along it.
 #[must_use]
 pub fn circle_curvature_arm<T: Real>(circle: &Circle<T>) -> Lever<T> {
-    Lever::curvature_radius(circle.radius)
+    Lever::curvature_radius(circle.radius())
 }
 
 /// **`arm`, no longer than `carrier`'s radius of curvature at `t`**:

@@ -6607,24 +6607,29 @@ fn sphere_pair_cut<T: Decide>(
         ));
     };
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: foot,
-                    axis: normal,
-                    u_ref,
-                },
-            radius: rho,
-        }))) => Ok(SphereCutIn {
-            operand,
-            face: holder,
-            center,
-            radius,
-            foot,
-            rho,
-            normal,
-            u_ref,
-        }),
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: foot,
+                        axis: normal,
+                        u_ref,
+                    },
+                ..
+            },
+        ))) => {
+            let rho = circle.radius();
+            Ok(SphereCutIn {
+                operand,
+                face: holder,
+                center,
+                radius,
+                foot,
+                rho,
+                normal,
+                u_ref,
+            })
+        }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
@@ -7245,9 +7250,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let (t0, t1) = curve.params();
                 let carrier = curve.carrier();
-                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
+                let &geom::Curve3::Circle(conic_k) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
+                let cr = conic_k.radius();
                 let uncertified = || {
                     refuse(
                         "a boundary arc of the sphere face meets the cut's meridian plane where \

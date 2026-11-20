@@ -528,7 +528,10 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(fold(*radius)),
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            chord.max(fold(radius))
+        }
         Curve3::Ellipse(e) => chord.max(fold(e.speed_lo())).max(pairs()),
         Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
         Curve3::Nurbs(_) | Curve3::Periodic(_) => chord.max(pairs()),
@@ -604,7 +607,10 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     };
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(two * *radius * fold),
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            chord.max(two * radius * fold)
+        }
         Curve3::Ellipse(e) => {
             let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
@@ -1195,7 +1201,7 @@ mod tests {
                     let w = pivot - c.frame.origin;
                     let h = w.dot(c.frame.axis);
                     let rho = (w - c.frame.axis * h).norm();
-                    let exact = (h * h + (rho + c.radius).powi(2)).sqrt();
+                    let exact = (h * h + (rho + c.radius()).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
                         "{carrier:?}: {lever} is not the circle's farthest point {exact}"
@@ -1249,8 +1255,14 @@ mod tests {
             ];
             for carrier in carriers {
                 let (a, b) = match carrier {
-                    Curve3::Circle(geom::Circle { radius, .. }) => (radius, radius),
-                    Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u, semi_v),
+                    Curve3::Circle(circle) => {
+                        let radius = circle.radius();
+                        (radius, radius)
+                    }
+                    Curve3::Ellipse(ellipse) => {
+                        let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                        (semi_u, semi_v)
+                    }
                     _ => unreachable!(),
                 };
                 let big = a.max(b);

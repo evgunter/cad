@@ -248,7 +248,7 @@ pub(super) fn wrap_rims_within<T: Decide>(
             .map(|(_, circle)| Rim {
                 center: circle.frame.origin,
                 axis: circle.frame.axis,
-                radius: circle.radius,
+                radius: circle.radius(),
                 u_ref: circle.frame.u_ref,
             })
             .collect(),
@@ -293,13 +293,15 @@ mod wrap_rims_holds_rows {
                 dir: Vec3::unit_z(),
             },
         };
-        let rim = |center: Point3<f64>| geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis: Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
-                u_ref: Vec3::unit_x(),
-            },
-            radius: 1.0,
+        let rim = |center: Point3<f64>| {
+            geom::Circle::new(
+                geom::Frame {
+                    origin: center,
+                    axis: Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
+                    u_ref: Vec3::unit_x(),
+                },
+                1.0,
+            )
         };
         assert_eq!(
             rims.holds(&rim(Point3::new(1.0, 0.0, 0.0)), band),

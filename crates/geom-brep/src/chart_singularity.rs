@@ -1192,14 +1192,19 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                radius,
-            }) => Self {
-                speed,
-                line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
-            },
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: geom::Frame { axis: n, .. },
+                    ..
+                },
+            ) => {
+                let radius = circle.radius();
+                Self {
+                    speed,
+                    line: false,
+                    height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
+                }
+            }
             _ => Self {
                 speed,
                 line: false,

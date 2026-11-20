@@ -380,10 +380,10 @@ impl<T: Decide> ConicArc<T> {
     /// the far end, so the point lies on the edge.
     fn at(self, l: T) -> Point3<T> {
         let (carrier, speed) = match self.conic {
-            ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius.abs()),
+            ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius().abs()),
             ArcConic::Ellipse(ellipse) => (
                 geom::Curve3::Ellipse(ellipse),
-                ellipse.semi_u.abs().max(ellipse.semi_v.abs()),
+                ellipse.semi_u().abs().max(ellipse.semi_v().abs()),
             ),
         };
         let span = self.to - self.from;

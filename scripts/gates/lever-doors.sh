@@ -54,10 +54,10 @@
 #  - a WRAPPER: a `pub fn` in a pinned file that takes a number or a
 #    point and hands it to its pinned site is callable from any file,
 #    unpinned (the row lists the ones that exist);
-#  - geometry built by hand: `Surface`, `Circle`, `Frame` and `Curve3`
-#    have public fields and `geom::cover::Cover` public constructors, so
-#    a caller's length reaches every reading constructor through a
-#    carrier, a span or a cover it made;
+#  - geometry built by hand: `Surface`, `Frame` and `Curve3` have
+#    public fields, and a conic and `geom::cover::Cover` public
+#    constructors, so a caller's length reaches every reading
+#    constructor through a carrier, a span or a cover it made;
 #  - a caller's point: `lever_from(p)` reads from any pivot, and the
 #    curvature home's `curvature_lever_arm(cone, p)` and
 #    `parallel_curvature_arm(s, p)` read `p`'s distance from an axis;
