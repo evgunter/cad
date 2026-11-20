@@ -25,7 +25,7 @@ Filed by the SCALAR orchestrator, 2026-11-19; restated 2026-11-20 on Ev's ruling
 
 ## What is still open (the design question on this row)
 
-A solved value the result is built on: a root, a foot, a crossing, about 9 calls (`curve_face/composite.rs` and `spline_face.rs` `settle`, `replace_face.rs` `corner_of_root`, the two polishes). Ev: "there's also no obvious way to convert to f64 and back in a way that's valid". The designers walked two sites scalar by scalar and it goes to Ev as its own PR.
+A solved value the result is built on: a root, a foot, a crossing, about 9 calls (`curve_face/composite.rs` and `spline_face.rs` `settle`, `replace_face.rs` `corner_of_root`, the two polishes). Ev: "there's also no obvious way to convert to f64 and back in a way that's valid". The designers walked two sites scalar by scalar; their recommendation is with Ev as its own `[ev]` PR, on `scalar/solved-value`: a closed form stays in `T`, and otherwise one door admits an `f64` candidate by the check at `T`, bounded `Certifies`.
 
 What the walks found, read in the code:
 

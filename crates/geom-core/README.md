@@ -181,10 +181,17 @@ back is sorted by what the `f64` is:
 | data built whole at `f64` | builds it at `T` |
 | a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
 
-One runtime `f64` still becomes a `T`: a solved value the result is
-built on (a root, a foot, a crossing), through `Real::from_computed`.
-Where the solve has a closed form the value stays in `T` and nothing
-re-enters.
+A solved value the result is built on (a root, a foot, a crossing) is
+not converted to `f64` and back. Where the solve has a closed form,
+the value stays in `T`. Where it does not, an `f64` search proposes a
+candidate and one door admits it: the candidate and the residual at
+`T` go in, the door runs the check that the candidate's point reads
+on within the band, and the admitted `T` or the refusal comes out. A
+caller cannot have the `T` without the residual, so what the value
+claims is what was checked: this number reads on, never that it is
+the true root. At `Sym` it is an opaque unknown and claims nothing.
+The door is bounded `Certifies` (DL5.3), so a dual cannot reach it,
+and it is the one caller of `Real::from_computed`.
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
 and its measurements run, and passes through decisions on its value
