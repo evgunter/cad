@@ -1847,13 +1847,7 @@ fn ring_struts<T: Decide>(
         let (Some(x), Some(y)) = (bends[from], bends[to]) else {
             return Ok(None);
         };
-        match geom_brep::tied_germ_turn(
-            normal,
-            germs[from].0.dir,
-            [x.bend, y.bend],
-            arm.length(),
-            band,
-        ) {
+        match geom_brep::tied_germ_turn(normal, germs[from].0.dir, [x.bend, y.bend], arm, band) {
             Ok(Sign::Zero) => Ok(None),
             Ok(sign) => Ok(Some(sign)),
             Err(geom_brep::TiedGermsError::Singular) => {
@@ -3518,7 +3512,7 @@ mod tests {
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
-        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, (arc.eval(0.0), arc.eval(span)));
+        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span);
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),

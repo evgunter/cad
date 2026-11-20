@@ -63,3 +63,16 @@ row's own differential.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Added 2026-11-19 (`oneround/lever-doors`)
+
+- First bullet: `Reach::Face` is still built in topo from bare measures. `scripts/gates/lever-doors.sh` pins `Reach::of_face`'s three production callers; nothing else about it changed.
+- Second bullet: sweep `blend::battery::extent_of` is pinned by the same gate as a `points_diameter` site (`lever-doors-pinned-sites-await-a-geometry-read`).
+- `edge_extent_inf` and `edge_extent_sup` lost their end-points argument: the chord is read off the carrier at the span's ends, so a caller no longer hands the extent home two points of its own.
+- **Hidden levers, the `Margin` doors that take a bare arm** (asked by the ONEROUND orchestrator, checked in the tree):
+  - `Margin::sagitta(κ_rel, arm)` took `arm: T` and squared it. It takes `Lever<T>` now. Its 11 production callers and the functions that carried the arm to them (`enters_material_order2`, `parting`, `parting_side`, `tied_germ_turn`, `bends_into_material`, certify's `tube_separation`, topo's census `separates`) are retyped; nearly every caller already held a `Lever` and stripped it with `.length()`. The census point lanes mint theirs from the face's sphere and the edge's circle.
+  - `Margin::over_lever(measure, lever: T)` and `over_lever_down` are untouched: 32 and 2 production calls. The lever is a divisor, so it is a reciprocal arm as `levered_inv`'s `per_length` is, and a longer one shrinks the margin. The sites hold a perimeter, an area, a radius, a straddle height or a rate bound computed in place: `pcurve_cache` (8), `quartic` (7), `solid_contain` (4), `props::settle` (2), `loop_winding` (2), `geom::curves::compose` (2), `offset_meters` (2), and one each in `splitting::join`, `ray_walk`, `profile::validate`, `props::quad::run`, `props::curved`, `half_angle`, `edge_nurbs`. Few hold a `Lever`, and what the divisor's source should be is a design question, so it was not started.
+  - `geom_brep::sector_shape::metering_arm(arm: T) -> Lever<T>` is a door: 9 production calls reach its one pinned `unsourced` reference (2 in its own file, 2 in topo's `sector_shape`, 3 in `star::walk`, 2 in `splitting::insert`). Left to `unsourced-levers-await-a-source`.
+- **`Lever::max` is called where its two arms do not share a pivot** (PR 7143's delta review). Its doc states the rule: the larger of two arms is a read of the union of their extents where both are read from one pivot. Two callers break it:
+  - `geom_brep::curve_pair::pose`: `ball(a.carrier()).lever().max(ball(b.carrier()).lever())` maxes two carriers' cover balls, each a radius about its own centre. It should read one ball enclosing both (`ExtentBall::enclosing`) from the pivot the reading is taken at.
+  - `geom_brep::intersect`: `ExtentBall::of_cover(&c).lever().max(extent)` maxes a rim's ball radius against an extent read elsewhere. It should read the rim's cover from the extent's own pivot (`lever_from`), or enclose both.
