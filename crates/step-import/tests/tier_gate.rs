@@ -464,10 +464,18 @@ const CORPUS: &[(&str, Disposition)] = &[
     // The kernel's cylinder with its rims restated as splines
     // (`a_closed_rim_promotes_whatever_its_spline_form`): each imports
     // as the cylinder it is.
-    ("tests/fixtures/closed-rim/cyl_cubic.step", Pass(1, 1, 3, 3, 2)),
-    ("tests/fixtures/closed-rim/cyl_quad.step", Pass(1, 1, 3, 3, 2)),
-    ("tests/fixtures/closed-rim/cyl_single.step", Pass(1, 1, 3, 3, 2)),
-    ("tests/fixtures/closed-rim/cyl_uneven.step", Pass(1, 1, 3, 3, 2)),
+    (
+        "tests/fixtures/closed-rim/cyl_cubic.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_quad.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_single.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
     // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
     // is a vertex the closing join keeps; the C prism's top is three

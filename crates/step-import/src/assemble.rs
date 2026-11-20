@@ -1009,16 +1009,9 @@ fn join(
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()
-        .enumerate()
-        .map(|(i, j)| {
-            // A later join may have killed this one's kept edge (three
-            // pieces of one circle join twice); the edge they all are now
-            // is the one the last of them kept.
-            let kept = joins[i + 1..].iter().fold(j.kept, |kept, later| {
-                if later.gone == kept { later.kept } else { kept }
-            });
+        .map(|j| {
             let face = body
-                .get_edge(kept)
+                .get_edge(j.kept)
                 .into_iter()
                 .flat_map(|e| [e.he_plus, e.he_minus])
                 .filter_map(|h| body.face_of_half_edge(h))

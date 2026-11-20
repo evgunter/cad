@@ -1495,7 +1495,12 @@ fn cap_row(
                 // edge's) is the line its ends span, on the chord's arc
                 // length, as a straight column is: read off the iso, not
                 // the printed carrier's type, which only has to lie on it.
-                if let Some((origin, chord, forward)) = line_iso_match(&iso, p_start, p_end, file) {
+                // The chord's affine image holds only where the iso reads as
+                // the straight MAP (INV-C5); a re-timed straight row is
+                // carried on itself, below.
+                if let Some((origin, chord, forward)) = line_iso_match(&iso, p_start, p_end, file)
+                    && crate::recognize_curve::straight_map(&iso, file).is_some()
+                {
                     let (dir, len) = chord.direction_and_length();
                     let line = Curve3::line(origin, dir);
                     if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
@@ -1705,11 +1710,15 @@ fn column_match(
 /// by the triangle inequality: five times the file band's zero at most,
 /// reported as the edge's `CarrierBuilt` move.
 ///
-/// **No reversed arm**, unlike [`line_iso_match`]: the edge is carried
-/// on the column's own parameter ([`Running::Own`]), which has no
-/// reversed form, and a printed spline that ran against the column was
-/// never this rung's either (the bitwise match is forward too). Such an
-/// edge takes the section.
+/// **No reversed arm**, unlike [`line_iso_match`]: the iso rung carries
+/// a matched edge on the column's own parameter ([`Running::Own`]), and
+/// a printed spline that ran against the column was never this rung's
+/// either (the bitwise match is forward too); [`iso_of_wall`] reads both
+/// walls' columns, so an edge reversed on one wall is forward on the
+/// other where the two walls run opposite. An edge against every column
+/// takes the section. The reversed own-parameter image exists
+/// ([`cap_row`]'s [`Running::Mirror`]); carrying it here is not owed by
+/// any fixture measured.
 fn circle_iso_match(
     iso: &geom::NurbsCurve3<f64>,
     circle: &geom::Circle<f64>,
