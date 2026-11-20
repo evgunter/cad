@@ -51,3 +51,15 @@ round-to-nearest at f64 too and dominates the bound. So making only
 `stretch_sup` outward would not make the f64 promotion certified. The
 choice is about the whole bound: certify it at Interval, or word the
 f64 lane as an estimate.
+
+## Addendum (EXCH, whole-patch promotion, 2026-11-20)
+
+The cylinder half is gone: the cylinder, cone, sphere and torus arms
+certify through `geom_brep::patch_distance_sup`, a tensor-product
+Bernstein hull in interval arithmetic whose bound is the upper end of an
+enclosure, and `enveloped_residual_sup` is deleted. What is left is the
+plane arm's control-net hull, `geom::plane_offset(...).abs()` folded with
+`f64::max` in round-to-nearest (`recognize.rs` `try_plane`). It can read
+the same door (`CanonicalSurface::Plane`), which would make every surface
+certificate one mechanism; that arm is being reworked by unit C
+(`exch/plane-normal-witness`), so it was left to land on it.

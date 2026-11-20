@@ -762,12 +762,12 @@ mod review_probes {
         }
     }
 
-    /// **P2 — the missing envelope, cylinder track (non-rational).**
-    /// Integer-u samples lie EXACTLY on the unit cylinder (the whole
-    /// 9×9 grid and the estimator's three azimuth samples); span-mid
-    /// control points pushed radially bulge ~0.15 off the cylinder
-    /// between samples. Every cylinder certificate is grid-only, so a
-    /// missing envelope PROMOTES a non-cylinder silently.
+    /// **P2 — a bulge between samples, cylinder track (non-rational).**
+    /// Integer-u samples lie EXACTLY on the unit cylinder (a 9×9 grid
+    /// and the estimator's three azimuth samples); span-mid control
+    /// points pushed radially bulge ~0.15 off the cylinder between
+    /// samples, so a certificate that reads samples alone promotes a
+    /// non-cylinder silently.
     #[test]
     fn p2_cylinder_bulge_between_samples() {
         let mut knots = vec![0.0, 0.0, 0.0];
