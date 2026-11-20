@@ -1587,3 +1587,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Main path sound:** the jet reading on decided Implicit bends gave no wrong side in a hollow and ball probe scan.
   - **Fix pass:** continued in the implementer's agent, with an osculating-contact probe (n1) owed. A delta review by the same reviewer follows.
 - 2026-11-20 — **PR 7179 (U1) merged** (`16346f7aa8`). Its row is closed. The disk filled a third time, at 15:15; the merged lane's 9.8 GB target and clone are reclaimed, leaving 13 GB free. U1b's cloud session is told to merge main and retarget to it. **U2** (move the ConicQuadric door) still waits on the P0 lane, which edits that module's fuzz row.
+- 2026-11-20 16:00 — **The P0 lane's checked constructor found kernel sites that compute a negative or NaN radius** (PR 7183 red on 6 rows):
+  - `band_chamfer_frustum` reaches −0.1196, too large to be rounding: either a wrong answer or a signed-radius convention;
+  - a coaxial spine reaches −2.5e-17, a degenerate circle undecided as a pose;
+  - NaN appears in `pcurve_cache` limb2 rows and in the tier-3 poison row.
+
+  Ruling, to the lane: no clamp or `abs` at any site. Each site is either fixed as a defect (with a row that fails on main), or decides its degeneracy as a pose before it constructs. The poison row is re-aimed at the deciding door, with no unchecked back door, and certify's NaN arm retires if it is now unreachable. The lane also owes a class sweep of every computed-radius construction. The P0's unit has grown from a reader fix into a kernel-wide invariant enforcement; its review tier stays single FULL.
