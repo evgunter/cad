@@ -172,7 +172,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, RimSide, SegmentCurve,
+    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, SegmentCurve,
     SegmentEdge,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -979,7 +979,7 @@ fn one_site_segments<T: Decide>(
         // site this join builds: every closing [`closes_at_its_site`]
         // admits has a planar partner or a closed edge. Its record is
         // left to the refusal.
-        let Some((g0, Some(frame))) = one_site(red, rec, band)? else {
+        let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
         if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
@@ -1007,15 +1007,17 @@ fn one_site_segments<T: Decide>(
         {
             return Err(desync("a one-site record's two germs agree in sense"));
         }
-        let p = germ_site(red, &g0)?;
-        let senses = (
-            rotational_sense(frame.axis, p, g0.dir, band)?,
-            rotational_sense(frame.axis, p, g1.dir, band)?,
-        );
-        if senses.0 == senses.1 {
-            return Err(desync(
-                "a one-site record's two germs turn one way round its loop",
-            ));
+        if let Some(frame) = frame {
+            let p = germ_site(red, &g0)?;
+            let senses = (
+                rotational_sense(frame.axis, p, g0.dir, band)?,
+                rotational_sense(frame.axis, p, g1.dir, band)?,
+            );
+            if senses.0 == senses.1 {
+                return Err(desync(
+                    "a one-site record's two germs turn one way round its loop",
+                ));
+            }
         }
         out.push(SectionSegment {
             ends: [(r, 0), (r, 1)],
@@ -1028,55 +1030,104 @@ fn one_site_segments<T: Decide>(
 
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
-/// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face or a vertex of its boundary, or a closed circle or
-/// ellipse against a pierce of a face [`RimSide::of`] sides, against a
-/// vertex on the boundary of a planar face it stands on from the other
-/// side ([`stands_on`]), against a wrap edge, or against another closed
-/// circle or ellipse. Against a wrap edge the closed edge's side copies
-/// it whole and the wall's side runs from the site round the wall back
-/// to it, as a transverse section's does: the wall's kind is not read.
-/// At a boundary vertex the germ's cell is the face, so the loop leaves
-/// the vertex into the face and
-/// returns to it; the joiner mints it in that face as one chord from the
-/// vertex round to itself, dividing the face
-/// (`crate::chord_join::ChordJoiner`'s null strut). A closed edge of
-/// any other carrier has no copy, and its loop is refused. A pierce is
-/// joined in its face as a ring of its own
-/// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
-/// [`RimSide`]; the transverse section's conic is the wall's, not a
-/// plane section, so only a planar face takes it.
+/// on each operand ([`site_cell`]): a wrap edge or a closed circle or
+/// ellipse against a pierce of a face, or a wrap edge against a vertex of
+/// its boundary, where the face is one the chord joiner sides a closed
+/// loop in ([`crate::chord_join::reads_loop_side`]); a closed circle or
+/// ellipse against a vertex on the boundary of a planar face it stands on
+/// from the other side ([`stands_on`]), against a wrap edge, or against
+/// another closed circle or ellipse. Against a wrap edge the closed
+/// edge's side copies it whole and the wall's side runs from the site
+/// round the wall back to it, as a transverse section's does: the wall's
+/// kind is not read. At a boundary vertex the germ's cell is the face, so
+/// the loop leaves the vertex into the face and returns to it; the joiner
+/// mints it in that face as one chord from the vertex round to itself,
+/// dividing the face (`crate::chord_join::ChordJoiner`'s null strut). A
+/// closed edge of any other carrier has no copy, and its loop is refused.
+/// A pierce is joined in its face as a ring of its own
+/// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
+/// [`crate::chord_join::loop_holds_outer`].
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the loop winds round the surface of
+/// the face it pierces ([`pierce_is_null`]).
 fn closes_at_its_site<T: Decide>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let rim = |body: &Body<T>, f: FaceKey| RimSide::of(keyed_surface(body, f).1);
-    Ok(
-        match (
-            site_cell(&red.a, g0.a_locus, g0.he)?,
-            site_cell(&red.b, g0.b_locus, b_he)?,
-        ) {
-            (SiteCell::Wrap, SiteCell::Pierce(f) | SiteCell::Other(f)) => {
-                rim(&red.b, f) == Some(RimSide::Plane)
-            }
-            (SiteCell::Pierce(f) | SiteCell::Other(f), SiteCell::Wrap) => {
-                rim(&red.a, f) == Some(RimSide::Plane)
-            }
-            (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f).is_some(),
-            (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f).is_some(),
-            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_)) | SiteCell::Wrap)
-            | (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
-            (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
-                rim(&red.b, f) == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
-            }
-            (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
-                rim(&red.a, f) == Some(RimSide::Plane) && stands_on(red, (Operand::B, e), f, band)?
-            }
-            _ => false,
-        },
-    )
+    let reads = |body: &Body<T>, f: FaceKey| {
+        crate::chord_join::reads_loop_side(keyed_surface(body, f).1)
+    };
+    let planar = |body: &Body<T>, f: FaceKey| {
+        matches!(keyed_surface(body, f).1, geom::Surface::Plane { .. })
+    };
+    let cells = (
+        site_cell(&red.a, g0.a_locus, g0.he)?,
+        site_cell(&red.b, g0.b_locus, b_he)?,
+    );
+    match cells {
+        (_, SiteCell::Pierce(_)) => pierce_is_null(red, g0, Operand::B)?,
+        (SiteCell::Pierce(_), _) => pierce_is_null(red, g0, Operand::A)?,
+        _ => {}
+    }
+    Ok(match cells {
+        (SiteCell::Wrap | SiteCell::Closed(Some(_)), SiteCell::Pierce(f))
+        | (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
+        (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_)))
+        | (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
+        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_)) | SiteCell::Wrap)
+        | (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+        (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
+            planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
+        }
+        (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
+            planar(&red.a, f) && stands_on(red, (Operand::B, e), f, band)?
+        }
+        _ => false,
+    })
+}
+
+/// **A one-site loop piercing `pierced`'s face is null there**: a loop
+/// that winds round the face's surface does not bound a disc in it, and
+/// an at-rest face is one disc of its chart, so a winding loop meets the
+/// face's seam and reaches no pierce cell. Read off the germ pair's
+/// listed section: where every loop it counts winds round the pierced
+/// surface (`SectionComponent::winds`), whichever loop this is winds,
+/// and the pierce is a kernel fault. A section that lists no count, or
+/// counts a loop that does not wind, says nothing here.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the loop winds.
+fn pierce_is_null<T: Decide>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    pierced: Operand,
+) -> Result<(), BooleanError> {
+    let Some(Ok(section)) = red
+        .sections
+        .listed((&red.a, g0.a_face), (&red.b, g0.b_face))
+    else {
+        return Ok(());
+    };
+    let geom_brep::Components::Counted(components) = section.components() else {
+        return Ok(());
+    };
+    let side = usize::from(pierced == Operand::B);
+    let mut loops = components
+        .iter()
+        .filter(|c| c.shape == geom_brep::ComponentShape::Loop)
+        .peekable();
+    if loops.peek().is_some() && loops.all(|c| c.winds[side]) {
+        return Err(BooleanError::JoinDesync {
+            what: "a one-site loop pierces a face whose surface it winds round: an at-rest face \
+                   is one disc of its chart, so a winding loop meets the face's seam",
+        });
+    }
+    Ok(())
 }
 
 /// **Whether closed edge `e` of operand `x` stands on planar face `f` of
