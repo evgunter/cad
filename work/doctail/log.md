@@ -254,3 +254,15 @@ body has the reasons):
   order constructs a continuation, every other joint is a corner, and a
   `Zero`-fit piece counts as drawn. Written into DM7 (`218d30e`, with
   main merged in). The runwall P0 stays parked on 7082 until Ev reads it.
+- 2026-11-20 02:40 — **Ev on `[ev]` 7122:** "i think this is good", and
+  asked how ugly the build is. Answered on the PR with the code footprint
+  on main: about one H unit.
+  - `face_chart` already makes the placement's four calls, with a
+    carried reach of `0.0`.
+  - The carriages are `ProfileValue::framed`/`lifted` (three sweep
+    sites), the revolve axis port and the tracing read, plus the
+    pose-door admission.
+
+  The awkward case is an un-swept profile on a face, which nothing
+  carries. That changed the orchestrator's lean on residue 2: count the
+  profile's loops as carried. The PR waits on Ev's answer to that.
