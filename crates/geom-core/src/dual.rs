@@ -673,6 +673,17 @@ impl<T: KinkJacobian> Real for Dual<T> {
         )
     }
 
+    /// `(a − sin a, 2·sin²(a/2)·a')`: the value is `T`'s door verbatim,
+    /// and the derivative `1 − cos a` is read as the half-angle square,
+    /// which cancels nowhere.
+    fn less_sin(self) -> Self {
+        let half = self.value.scale_pow2(0.5).sin();
+        Self {
+            value: self.value.less_sin(),
+            deriv: half.powi(2).scale_pow2(2.0) * self.deriv,
+        }
+    }
+
     /// `(tan a, (1 + t.powi(2))·a')` where `t` is the value-channel
     /// tangent — the `1 + tan²` form of `sec²` reuses the already-computed
     /// value instead of spending a second transcendental on `cos²`.
