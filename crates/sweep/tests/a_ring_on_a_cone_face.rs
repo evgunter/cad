@@ -332,8 +332,8 @@ fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
 /// `Interval` (the cone revolved from the same triangle, the box turned
 /// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
 /// the lune as a ring on the cone face, pass tier 3 and their volume
-/// enclosures bracket the closed forms (3.4e-11 and 5.5e-11 wide for
-/// the two ∪ orders, measured), as wide as each other in both orders
+/// enclosures bracket the closed forms, each under `1e-10` wide and as
+/// wide as each other in both orders
 /// ([`one_body_reads_alike_in_both_orders`]), at every ε row.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {

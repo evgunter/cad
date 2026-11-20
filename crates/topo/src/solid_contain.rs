@@ -877,8 +877,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         axis: geom::Line<T>,
         /// The half-angle.
         half_angle: T,
-        /// A radius about the apex the face lies within, which is also
-        /// the lever of the ray margins.
+        /// A radius about the apex the face lies within: the ball whose
+        /// run of the ray's line the cone door reads ([`cone_door`]).
         reach: Lever<T>,
     },
     /// A cylinder wall face whose region this door cannot read, as
@@ -3367,19 +3367,30 @@ fn worse<E>(
 /// ball of radius `reach` about the apex, which holds the face. No point
 /// of the line outside that run is on the face, so the run is centred on
 /// the line's closest approach to the apex and `reach` long either side.
-/// A ray needs an outward side at each crossing, so what the door leaves
-/// undecided, a tangency, a generator-parallel line or a meter included,
-/// is `None`, which the ray reads as a graze; so is the apex's double
-/// root ([`ConeRoots::Apex`]), where the cone has no tangent plane.
+/// `None` is a definite miss; `Some` the two roots, each with its slack.
+///
+/// # Errors
+///
+/// A graze: a ray needs an outward side at each crossing, so what the
+/// door leaves undecided (a tangency, a generator-parallel line, a root
+/// the meter cannot place) grazes, and so does the apex's double root
+/// ([`ConeRoots::Apex`]), where the cone has no tangent plane. A rung in
+/// band, escalated at `face`.
 fn cone_door<T: Decide>(
     ray: &geom::Ray<T>,
-    cone: (geom::Line<T>, T),
+    (cone, face): ((geom::Line<T>, T), FaceKey),
     reach: T,
     band: Band,
-) -> Result<Option<ConeRoots<T>>, Indeterminate> {
+) -> Result<Option<[(T, T); 2]>, RayFault<PointInSolidError>> {
     let line = ray.line();
     let (centre, half) = (line.param(cone.0.origin), reach / line.dir.norm());
-    Ok(line_cone_roots(line, cone, (centre - half, centre + half), band)?.ok())
+    match line_cone_roots(line, cone, (centre - half, centre + half), band)
+        .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
+    {
+        Ok(ConeRoots::Two(ts)) => Ok(Some(ts)),
+        Ok(ConeRoots::Miss) => Ok(None),
+        Ok(ConeRoots::Apex(_)) | Err(_) => Err(RayFault::Graze),
+    }
 }
 
 /// **The roots of each trimmed curved face's carrier** on the ray `q +
@@ -3396,12 +3407,11 @@ fn cone_door<T: Decide>(
 /// enters the wall's chart and the far one leaves it, read off the
 /// decided discriminant (`d·rad = ∓√disc` at the roots).
 ///
-/// The cone arm (issue 1011): the roots of `G(t) = (w·â)² − |w|²cos²α`
-/// on the double cone. A ray parallel to a generator (`A` in band,
-/// levered by the face's slant extent) leaves no certified pair and
-/// grazes, and so does a tangent one (the discriminant `B² − AC`, metered
-/// by that extent); `bool2_r1_probes::probe_generator_parallel_schedule_rays_graze_and_the_door_recovers`
-/// is the generator-parallel row.
+/// The cone arm: the line × cone door's roots on the double cone over
+/// the run inside the ball holding the face ([`cone_door`]); a ray
+/// parallel to a generator, a tangent one and one through the apex graze
+/// (`bool2_r1_probes::probe_generator_parallel_schedule_rays_graze_and_the_door_recovers`
+/// is the generator-parallel row).
 ///
 /// The sphere patch: [`line_sphere_roots`], the near root entering the
 /// ball and the far one leaving it. The torus patch: [`line_torus_roots`]
@@ -3466,18 +3476,15 @@ fn carrier_roots<T: Decide>(
                 } => {
                     // The face lies within its reach of the apex, never
                     // under it (`RuledFaceRegion::reach`).
-                    match cone_door(ray, (cone, half_angle), region.reach(), band)
-                        .map_err(escalate)?
-                    {
+                    match cone_door(ray, ((cone, half_angle), face), region.reach(), band)? {
                         // Unordered: `A` may be negative, and the count
                         // orders by advance anyway.
-                        Some(ConeRoots::Two(ts)) => {
+                        Some(ts) => {
                             for (t, slack) in ts {
                                 push(t, slack, RootSide::Cone);
                             }
                         }
-                        Some(ConeRoots::Miss) => missed.push(face),
-                        Some(ConeRoots::Apex(_)) | None => return Err(RayFault::Graze),
+                        None => missed.push(face),
                     }
                 }
                 FaceGeo::SpherePatch {
@@ -4178,14 +4185,11 @@ pub(crate) fn ray_crossings<T: Decide>(
                 // leaves undecided, or a `Zero` on a row below, grazes, as
                 // on the trimmable arm, since a tighter tolerance could
                 // decide it either way.
-                let ts = match cone_door(ray, (cone, half_angle), reach.length(), band)
-                    .map_err(escalate)?
-                {
-                    Some(ConeRoots::Miss) => continue,
-                    Some(ConeRoots::Two(ts)) => ts.map(|(t, _)| t),
-                    Some(ConeRoots::Apex(_)) | None => return Err(RayFault::Graze),
+                let Some(ts) = cone_door(ray, ((cone, half_angle), face), reach.length(), band)?
+                else {
+                    continue;
                 };
-                for t in ts {
+                for (t, _) in ts {
                     let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
@@ -5764,5 +5768,59 @@ mod reach_tests {
             "at ε {:e}: {decided} decided, {in_band} in band",
             tol.eps()
         );
+    }
+}
+
+#[cfg(test)]
+mod cone_ray_rows {
+    //! The ray's cone arm reads the line × cone door's rungs.
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::Tol;
+
+    /// **A ray a centiradian off a cone face's generator and a micrometre
+    /// off the face is decided, not grazed.** The cap of the right cone
+    /// about `+z` to height 2; a ray in the tangent plane at `(1, 0, 1)`,
+    /// turned `0.01` rad off the generator there and moved `10⁻⁶` m off
+    /// the cone along its normal, misses it outward and crosses it twice
+    /// inward, at ε 1e-9. The depth the door reads is the discriminant
+    /// over `|A|·R`, `|A| ≈ 5·10⁻⁵` here: a discriminant read over the
+    /// face's reach alone puts both in the zero band, and the ray grazes.
+    #[test]
+    fn a_ray_near_a_generator_and_just_off_a_cone_face_is_decided() {
+        let (body, face) = crate::test_support_fixtures::cone_cap(
+            core::f64::consts::FRAC_PI_4,
+            2.0,
+            Tol::witness(),
+        );
+        let band = Band::new(1e-9, 1e-8).expect("the band");
+        let charts = SolidFaces::of_body(&body).expect("its faces").charts;
+        let geos = [(
+            face,
+            face_geo(&body, face, &charts, band).expect("the face's geometry"),
+        )];
+        assert!(
+            matches!(
+                geos[0].1,
+                FaceGeo::Cone { .. } | FaceGeo::PartialCone { .. }
+            ),
+            "a cone face"
+        );
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
+        let d = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
+        for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
+            let ray = geom::Ray::new(Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5, d);
+            let (roots, missed) = match carrier_roots(&geos, &ray, 4.0, band, SCHEDULE_ROWS) {
+                Ok(got) => got,
+                Err(fault) => panic!("{label}: decided, got {fault:?}"),
+            };
+            if two {
+                assert_eq!(roots.len(), 2, "{label}: two crossings");
+            } else {
+                assert!(roots.is_empty() && missed == [face], "{label}: a miss");
+            }
+        }
     }
 }
