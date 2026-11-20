@@ -18,25 +18,22 @@ use step_import::{ImportOptions, NormalizationKind, StepImport, import_step};
 
 #[test]
 fn each_straight_rim_is_carried_on_its_wall_boundary() {
-    for name in ["side_column"] {
-        let path = format!(
-            "{}/tests/fixtures/retimed-rim/{name}.step",
-            env!("CARGO_MANIFEST_DIR")
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/retimed-rim/side_column.step"
+    ))
+    .unwrap();
+    let normalizations = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+        Ok(StepImport::Solid { normalizations, .. }) => normalizations,
+        Ok(StepImport::Wireframe { .. }) => panic!("a solid"),
+        Err(e) => panic!("the cube imports: {e}"),
+    };
+    for rim in [95, 101] {
+        assert!(
+            normalizations
+                .iter()
+                .any(|n| n.face == rim && matches!(n.kind, NormalizationKind::CarrierBuilt { .. })),
+            "rim #{rim} is carried on the wall's column: {normalizations:?}"
         );
-        let text = std::fs::read_to_string(path).unwrap();
-        let normalizations = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-            Ok(StepImport::Solid { normalizations, .. }) => normalizations,
-            Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid"),
-            Err(e) => panic!("{name}: the cube imports: {e}"),
-        };
-        for rim in [95, 101] {
-            assert!(
-                normalizations
-                    .iter()
-                    .any(|n| n.face == rim
-                        && matches!(n.kind, NormalizationKind::CarrierBuilt { .. })),
-                "{name}: rim #{rim} is carried on the wall's boundary: {normalizations:?}"
-            );
-        }
     }
 }

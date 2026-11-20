@@ -574,10 +574,11 @@ pub enum NormalizationKind {
     /// segment or full turn between its ends in the curve's sense, so
     /// the edges on it read the analytic carrier ([`CurvePromotion`] is
     /// this record read off the ledger). The promotion is the CURVE's:
-    /// it is recorded where some edge on the curve carries the analytic
-    /// curve. An edge the build carries on a wall's own column instead
-    /// holds that spline, and its own `CarrierBuilt` record says so; a
-    /// curve every edge of which does that has no `CurvePromoted` record.
+    /// it is recorded unless every edge that reads the curve is carried on
+    /// a spline the body holds instead (a wall's own column), each such
+    /// edge reporting that through its own `CarrierBuilt`. An edge built
+    /// with any analytic carrier keeps the record, and so does a curve no
+    /// edge reads (a wireframe's, which hands back the promoted curve).
     /// Keyed by the curve entity, not a face; its census pair is empty,
     /// since nothing is re-tessellated.
     CurvePromoted {
@@ -1245,15 +1246,18 @@ pub fn import_step(
 }
 
 /// **Whether a ledger record stands, given what the edges hold**: every
-/// record but a [`NormalizationKind::CurvePromoted`] whose curve NO edge
-/// carries as the analytic curve — where every edge on it holds a spline
-/// the body built instead (a wall's column), the promotion reached
-/// nothing, and each of those edges reports what it holds through its
-/// own `CarrierBuilt`. A curve shared by an edge holding the spline and
-/// one holding the analytic curve keeps its record (the second edge's
-/// carrier is the promotion), and the first edge's `CarrierBuilt` says
-/// what it holds instead: per edge, the ledger is never silent and never
-/// false.
+/// record but a [`NormalizationKind::CurvePromoted`] whose curve some
+/// edge holds as a spline and NO edge holds analytic — every edge on it
+/// holds a spline the body built instead (a wall's column), the
+/// promotion reached nothing, and each of those edges reports what it
+/// holds through its own `CarrierBuilt`. "Analytic" counts any analytic
+/// carrier an edge on the curve is built with (the promoted one, or one
+/// the build constructed in its place, which its own `CarrierBuilt`
+/// reports). A curve shared by an edge holding the spline and one
+/// holding an analytic carrier keeps its record, and the first edge's
+/// `CarrierBuilt` says what it holds instead. A curve no edge reads (a
+/// wireframe's) keeps its record: the wireframe hands back the promoted
+/// curve. Per edge, the ledger is never silent and never false.
 fn promotion_carried(record: &StructureNormalization, holders: &build::CurveHolders) -> bool {
     !(matches!(record.kind, NormalizationKind::CurvePromoted { .. })
         && holders.spline.contains(&record.face)

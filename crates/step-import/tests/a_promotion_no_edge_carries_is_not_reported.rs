@@ -37,9 +37,17 @@ fn a_rim_the_build_carries_on_its_row_reports_its_carrier_not_a_promotion() {
     else {
         unreachable!("matched above")
     };
-    // The rim is split at the wall's C⁰ knot, so its pieces, minted
-    // edges, carry the `CarrierBuilt` records; the promotion's absence is
-    // what this row holds.
+    // The rim PROMOTED: a promoted carrier has no knots, so the C⁰-knot
+    // split cuts no edge (the stated spline, unpromoted, is cut at its
+    // double knot, `EdgeSplitAtC0Knot`); the wall's split cuts the rim,
+    // and its pieces, carried on the wall's row, report the carriers they
+    // hold.
+    assert!(
+        !normalizations
+            .iter()
+            .any(|n| matches!(n.kind, NormalizationKind::EdgeSplitAtC0Knot)),
+        "the rim's spline promoted, so no edge is cut at a knot: {normalizations:?}"
+    );
     let built = normalizations
         .iter()
         .filter(|n| matches!(n.kind, NormalizationKind::CarrierBuilt { .. }))

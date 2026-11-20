@@ -316,6 +316,36 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     }
 }
 
+/// A spline's chord from its first control to its last ([`chord_of`]).
+struct Chord {
+    first: Point3<f64>,
+    chord: Vec3<f64>,
+    dir: Vec3<f64>,
+    length: f64,
+}
+
+/// **The chord both line readings start from** ([`try_line`],
+/// [`straight_map`]): first control to last, its direction where its
+/// length reads apart from zero at the file's band. The complement of
+/// the circle limb's closure gate (module docs, "Kind scope"): ends that
+/// read Zero determine no direction, and that carrier is the closed
+/// class anyway, so it is never a line.
+fn chord_of(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<Chord> {
+    let control = curve.control();
+    let (first, last) = (*control.first()?, *control.last()?);
+    let chord = last - first;
+    let (dir, length) = chord
+        .checked_direction()
+        .ok()
+        .filter(|&(_, n)| file.read(STEP_RECOGNIZED_CONDITIONING, n) != Read::Zero)?;
+    Some(Chord {
+        first,
+        chord,
+        dir,
+        length,
+    })
+}
+
 /// A promoted line, its residual, and the length of the chord it
 /// covers ([`try_line`]).
 pub(crate) type LineCandidate = (Curve3<f64>, f64, f64);
@@ -335,16 +365,12 @@ pub(crate) type LineCandidate = (Curve3<f64>, f64, f64);
 /// is the circle limb's.
 pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineCandidate> {
     let control = curve.control();
-    let (first, last) = (control.first()?, control.last()?);
-    let chord = *last - *first;
-    // The complement of the circle limb's closure gate (module docs,
-    // "Kind scope"): ends that read Zero at the file's band determine
-    // no direction, and that carrier is the closed class
-    // anyway, so it can never promote to a line.
-    let (dir, length) = chord
-        .checked_direction()
-        .ok()
-        .filter(|&(_, n)| file.read(STEP_RECOGNIZED_CONDITIONING, n) != Read::Zero)?;
+    let Chord {
+        first,
+        chord,
+        dir,
+        length,
+    } = chord_of(curve, file)?;
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
     // schedule — rooted outward. NaN (a refused hull, or a structural
@@ -384,7 +410,7 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
     if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
         return None;
     }
-    let line = Curve3::line(plus_zero_point(*first), plus_zero(dir));
+    let line = Curve3::line(plus_zero_point(first), plus_zero(dir));
     Some((line, residual, length))
 }
 
@@ -404,12 +430,9 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
 /// (`docs/DESIGN.md` `[simple.conditioned]`).
 pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curve3<f64>, f64)> {
     let control = curve.control();
-    let (first, last) = (control.first()?, control.last()?);
-    let chord = *last - *first;
-    let (dir, _) = chord
-        .checked_direction()
-        .ok()
-        .filter(|&(_, n)| file.read(STEP_RECOGNIZED_CONDITIONING, n) != Read::Zero)?;
+    let Chord {
+        first, chord, dir, ..
+    } = chord_of(curve, file)?;
     let degree = curve.knots_f64_interim().degree();
     if degree == 0 || curve.constant_weight().is_none() {
         return None;
@@ -424,7 +447,7 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     for (i, p) in control.iter().enumerate() {
         #[allow(clippy::cast_precision_loss)]
         let xi = flat[i + 1..=i + degree].iter().sum::<f64>() / degree as f64;
-        let dev = distance_sup(*p, *first + chord * ((xi - d0) / span));
+        let dev = distance_sup(*p, first + chord * ((xi - d0) / span));
         if !dev.is_finite() {
             return None;
         }
@@ -433,7 +456,7 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    Some((Curve3::line(plus_zero_point(*first), plus_zero(dir)), hull))
+    Some((Curve3::line(plus_zero_point(first), plus_zero(dir)), hull))
 }
 
 /// An upper bound on `|p − q|`, rounded outward.
@@ -1011,7 +1034,7 @@ mod tests {
         let arc = NurbsCurve3::new(knots, control.clone(), weights).unwrap();
         let file = crate::interpret::FileBand::test(EPS_IN);
         let CurveRecognition::Promoted {
-            curve: circle @ Curve3::Circle(geom::Circle { radius, .. }),
+            curve: circle @ Curve3::Circle(promoted),
             residual,
             kind: PromotedCurveKind::Circle,
             covers: Some(covers),
@@ -1019,6 +1042,7 @@ mod tests {
         else {
             panic!("an exact rational-quadratic arc must promote, covering part of its circle");
         };
+        let radius = promoted.radius();
         assert!(residual < 1e-15, "an exact arc's residual: {residual:e}");
         assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
         let third = core::f64::consts::TAU / 3.0;
@@ -1803,7 +1827,7 @@ mod tests {
         );
         let band = crate::interpret::FileBand::test(EPS_IN);
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle(geom::Circle { radius, .. }),
+            curve: Curve3::Circle(promoted),
             residual,
             covers: None,
             ..
@@ -1811,6 +1835,7 @@ mod tests {
         else {
             panic!("the cubic circle promotes to its full circle");
         };
+        let radius = promoted.radius();
         assert!(
             (radius - 0.005).abs() < 1e-15 && residual < 1e-15,
             "{radius:e} {residual:e}"

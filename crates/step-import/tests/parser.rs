@@ -29,17 +29,15 @@ fn nurbs_wireframe_disposition() {
     };
     assert_eq!(eps_in, 1e-9, "the file's declared uncertainty");
     assert_eq!(curves.len(), 1, "one curve in the set");
-    let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin,
-            axis,
-            u_ref,
-        },
-        radius,
-    }) = curves[0].carrier
-    else {
+    let geom::Curve3::Circle(circle) = curves[0].carrier else {
         panic!("the quarter circle promotes: {:?}", curves[0]);
     };
+    let geom::Frame {
+        origin,
+        axis,
+        u_ref,
+    } = circle.frame;
+    let radius = circle.radius();
     assert!(
         origin.to_array().iter().all(|c| c.abs() < 1e-15),
         "centre {origin:?}"

@@ -37,7 +37,7 @@ pub(crate) fn trim_within(
     file: crate::interpret::FileBand,
 ) -> Result<(f64, f64), StepImportError> {
     let rate = match carrier {
-        Curve3::Circle(c) => c.radius,
+        Curve3::Circle(c) => c.radius(),
         _ => 1.0,
     };
     let past = |shift: f64| ((a - (t0 + shift)).max(0.0)).max(t1 + shift - b) * rate;
