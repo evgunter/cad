@@ -2160,12 +2160,10 @@ fn mint_carrier<T: Decide>(
     // sphere's great circle, a torus's meridian circle — and each
     // certifies its own posture.
     if ca.old_key == cb.old_key {
-        if let Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
-        }) = old
-            && latitude_posture(frame, circle.axis_line(), band)?.is_none()
+        if let Curve3::Circle(the_circle) = old
+            && latitude_posture(frame, the_circle.frame().axis_line(), band)?.is_none()
         {
+            let carrier_frame = the_circle.frame();
             let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
@@ -2205,17 +2203,14 @@ fn mint_carrier<T: Decide>(
                     frame: sphere_frame,
                     ..
                 },
-                Curve3::Circle(geom::Circle {
-                    frame: seam_frame,
-                    radius,
-                    ..
-                }),
+                Curve3::Circle(circle_2 @ geom::Circle { radius, .. }),
             ) => {
+                let seam_frame = circle_2.frame();
                 let (center, cc) = (sphere_frame.origin(), seam_frame.origin());
                 let off = cc.distance(center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
                     Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
-                        *seam_frame,
+                        seam_frame,
                         *radius + ca.distance,
                     ))),
                     Ok(_) => Err(refuse(
@@ -2239,17 +2234,14 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle(geom::Circle {
-                    frame: seam_frame,
-                    radius,
-                    ..
-                }),
+                Curve3::Circle(circle_3 @ geom::Circle { radius, .. }),
             ) => {
+                let seam_frame = circle_3.frame();
                 let (center, cc) = (torus_frame.origin(), seam_frame.origin());
                 let off = tube_centre_offset(frame, cc, center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
                     Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
-                        *seam_frame,
+                        seam_frame,
                         *radius + ca.distance,
                     ))),
                     Ok(_) => Err(refuse(
@@ -2462,8 +2454,9 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                c.frame().map(|frame| frame.axis().normalize())
+            }
             Curve3::Spiric { frame, .. } => {
                 let u_ref = frame.u_ref();
                 Some(u_ref.normalize())
@@ -2520,10 +2513,9 @@ fn mint_carrier<T: Decide>(
             .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
-        }) => {
+        Curve3::Circle(circle_5) => {
+            let circle = circle_5.frame();
+            let carrier_frame = circle;
             let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
@@ -2811,7 +2803,8 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let n = axis.normalize();
             let axis_line = geom::Line {
@@ -3071,11 +3064,13 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
+                        let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = carrier
+                        else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let frame = the_circle.frame();
                         let center = frame.origin();
                         let centre = flat(center);
                         let (u, v) = (a - centre, b - centre);

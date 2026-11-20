@@ -6605,11 +6605,10 @@ fn sphere_pair_cut<T: Decide>(
     };
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame,
-            radius: rho,
-            ..
-        }))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            the_circle @ geom::Circle { radius: rho, .. },
+        ))) => {
+            let frame = the_circle.frame();
             let (foot, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Ok(SphereCutIn {
                 operand,
@@ -6649,10 +6648,10 @@ fn pair_seam<T: Decide>(
         Operand::B => (y, x),
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame,
-            ..
-        }))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            the_circle @ geom::Circle { .. },
+        ))) => {
+            let frame = the_circle.frame();
             let u_ref = frame.u_ref();
             Ok(u_ref)
         }

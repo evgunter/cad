@@ -1422,9 +1422,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) = along.carrier
-            else {
+            let Some(frame) = along.carrier.conic().map(geom::Conic::frame) else {
                 return Err(no_arm());
             };
             let (center, axis) = (frame.origin(), frame.axis());
@@ -1463,8 +1461,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 KindArm::Spheres => {
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-                            geom::Circle { frame, .. },
+                            circle_2 @ geom::Circle { .. },
                         ))) => {
+                            let frame = circle_2.frame();
                             let (center, axis) = (frame.origin(), frame.axis());
                             (center, germ_normal(germ_reach(&red.a)?, center, axis)?)
                         }
@@ -2719,10 +2718,9 @@ fn germ_section_loops<T: Decide>(
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
-            geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Ok(Some(SectionLoops::conic(frame.axis_line())))
-            }
+            ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => Ok(conic
+                .frame()
+                .map(|frame| SectionLoops::conic(frame.axis_line()))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
@@ -3993,10 +3991,12 @@ fn conic_section_frame_at<T: Decide>(
                 (sb, sa)
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
-                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-                    frame,
-                    ..
-                }))) => Ok(Some(frame.axis_line())),
+                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(
+                    the_circle @ geom::Circle { .. },
+                ))) => {
+                    let frame = the_circle.frame();
+                    Ok(Some(frame.axis_line()))
+                }
                 Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
                     "plane×sphere classification carried a non-circle",
                 )),
@@ -4029,8 +4029,11 @@ fn conic_section_frame_at<T: Decide>(
         (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-                    geom::Circle { frame, .. },
-                ))) => Ok(Some(frame.axis_line())),
+                    circle_2 @ geom::Circle { .. },
+                ))) => {
+                    let frame = circle_2.frame();
+                    Ok(Some(frame.axis_line()))
+                }
                 Ok(geom_brep::SphereSphereSection::Circle(_)) => Err(FrameError::Desync(
                     "sphere×sphere classification carried a non-circle",
                 )),
@@ -4087,13 +4090,10 @@ fn conic_section_frame_at<T: Decide>(
         }
     };
     match section {
-        Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle(geom::Circle {
-            frame,
-            ..
-        })))
-        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse(
-            geom::Ellipse { frame, .. },
-        ))) => Ok(Some(frame.axis_line())),
+        Ok(geom_brep::PlaneCylinderSection::Rim(conic @ geom::Curve3::Circle(_)))
+        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(conic @ geom::Curve3::Ellipse(_))) => {
+            Ok(conic.frame().map(|frame| frame.axis_line()))
+        }
         Ok(
             geom_brep::PlaneCylinderSection::ParallelLines { .. }
             | geom_brep::PlaneCylinderSection::TangentLine(_),
@@ -4197,15 +4197,14 @@ pub(super) fn pk_section<T: Decide>(
     };
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
-            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame,
-                ..
-            }))
-            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame,
-                ..
-            })),
-        ) => Ok(PkSection::Loop(frame.axis_line())),
+            geom_brep::PlaneConeSection::TiltedEllipse(conic @ geom::Curve3::Ellipse(_))
+            | geom_brep::PlaneConeSection::AxisNormalCircle(conic @ geom::Curve3::Circle(_)),
+        ) => {
+            let frame = conic
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and an ellipse have a frame"));
+            Ok(PkSection::Loop(frame.axis_line()))
+        }
         Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => {
             let geom::Surface::Cone {
                 frame: carrier_frame,
@@ -4308,10 +4307,13 @@ fn pt_germ_frame<T: Decide>(
     let (c, a) = (torus_frame.origin(), torus_frame.axis());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
-        geom::Curve3::Circle(geom::Circle { frame, .. }) => Ok(SectionLoop {
-            axis: frame.axis_line(),
-            ball: None,
-        }),
+        geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
+            Ok(SectionLoop {
+                axis: frame.axis_line(),
+                ball: None,
+            })
+        }
         _ => Err(carried()),
     };
     let section = geom_brep::plane_torus_section(plane, torus, lever, band);

@@ -1267,7 +1267,8 @@ fn transport_curve<T: Decide>(
                     let delta = radial * d;
                     Some((translate_curve(curve, delta), Some(delta)))
                 }
-                Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+                Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+                    let frame = the_circle.frame();
                     let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     Some((Curve3::circle(center, ca, *radius + d, u_ref), None))
                 }
@@ -1306,7 +1307,8 @@ fn transport_curve<T: Decide>(
                 // A parallel: `v` shifts by the action's own shift, and
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
-                Curve3::Circle(geom::Circle { frame, .. }) => {
+                Curve3::Circle(circle_2 @ geom::Circle { .. }) => {
+                    let frame = circle_2.frame();
                     let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     let v = (center - apex).dot(axis) / cos_a;
                     let v_new = v + action.shift();
@@ -1340,11 +1342,8 @@ fn transport_curve<T: Decide>(
         } => {
             let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             match curve {
-                Curve3::Circle(geom::Circle {
-                    frame: carrier_frame,
-                    radius,
-                    ..
-                }) => {
+                Curve3::Circle(circle_3 @ geom::Circle { radius, .. }) => {
+                    let carrier_frame = circle_3.frame();
                     let (c, ca, u_ref) = (
                         carrier_frame.origin(),
                         carrier_frame.axis(),
@@ -1426,8 +1425,8 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Curve3<T> {
     match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(c) => Curve3::Circle(c.carried(c.frame.translated(delta), |p| p + delta)),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.carried(e.frame.translated(delta), |p| p + delta)),
+        Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(delta))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(|f| f.translated(delta))),
         Curve3::Spiric {
             frame: carrier_frame,
             major_radius,
@@ -1458,7 +1457,8 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::circle(map(center), axis, *radius * k, u_ref)
         }
@@ -2521,7 +2521,8 @@ fn cone_v_range<T: Decide>(
         // amplitude is the semi-axes' own components along the cone
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis) * *radius).powi(2) + (v_ref.dot(axis) * *radius).powi(2))
@@ -2530,12 +2531,8 @@ fn cone_v_range<T: Decide>(
             let c = v_of(center);
             (c - amp, c + amp)
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-            ..
-        }) => {
+        Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+            let frame = the_ellipse.frame();
             let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
