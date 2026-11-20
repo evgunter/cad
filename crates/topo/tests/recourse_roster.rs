@@ -183,6 +183,7 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("join_regular_point", &BOOLEAN),
     ("sector_apex_tilt", &BOOLEAN),
     ("sector_apex_window", &BOOLEAN),
+    ("session_box_point", &BOOLEAN),
     ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
     // A point against a spline face's trim (`spline_trim`). Two doors
@@ -382,6 +383,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTION_PIN_WITHIN"),
     NameCarrier::Const("SECTOR_APEX_TILT"),
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
+    NameCarrier::Const("SESSION_BOX_POINT"),
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("CELL_REGION_SINGULAR"),
     NameCarrier::Const("SELF_INTERSECTION_SLIVER"),

@@ -1790,6 +1790,18 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
     ));
     s.push((
+        "SessionBoxUnshown".into(),
+        ValidationError::SessionBoxUnshown {
+            margin: geom_core::MarginDiag::value(-75.0),
+        },
+    ));
+    s.push((
+        "SessionBoxUncovered".into(),
+        ValidationError::SessionBoxUncovered {
+            face: crate::entity::FaceKey::default(),
+        },
+    ));
+    s.push((
         "Unmovable".into(),
         ValidationError::Unmovable {
             found: "a null scaffold",

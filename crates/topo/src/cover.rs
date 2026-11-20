@@ -397,6 +397,131 @@ fn face_cover_in<T: Decide>(
     }
 }
 
+/// **A face's region bounded by its carrier and its boundary alone**:
+/// the cover [`face_cover`] meets its proven constraints into, before
+/// any is read, of a face whose carrier is `surface` and whose boundary
+/// cover `boundary` reads, as the face stands. A ruled face lies in its
+/// boundary's convex hull, a cone face with its apex (each ruling
+/// through a point of the face leaves it at the boundary, or ends at the
+/// apex); every other kind in its carrier's cover. `bounded` is whether
+/// its outer loop is a cycle: a lone-vertex loop bounds no hull. So it
+/// holds [`face_cover`]'s region, and reads no decision.
+///
+/// # Errors
+///
+/// [`FaceUncovered`]: the carrier's refusal where no boundary bounds the
+/// face.
+pub(crate) fn face_cover_unproven<T: Decide>(
+    surface: &Surface<T>,
+    bounded: bool,
+    boundary: impl FnOnce() -> BoundaryCovered<T>,
+) -> FaceCovered<T> {
+    let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    match surface {
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
+            carrier
+        }
+        Surface::Cylinder { axis, .. } if !crate::validate::is_direction(axis) => carrier,
+        Surface::Plane { .. } | Surface::Cylinder { .. } => {
+            and_trim(carrier, boundary().map(Cover::convex))
+        }
+        Surface::Cone { apex, .. } => match Cover::points(vec![*apex]) {
+            Some(at_apex) => and_trim(carrier, boundary().map(|b| b.hull(at_apex).convex())),
+            None => carrier,
+        },
+        Surface::Sphere { .. }
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => carrier,
+    }
+}
+
+/// **Points known to lie on `face` where its extremes along the world
+/// axes need not be on its boundary**: the inside read of the session
+/// box (`crate::session_box`). Each candidate is a point of the carrier
+/// where a world coordinate restricted to it is extreme, and is kept
+/// only where [`crate::contain::curved_face_placement`] places it on the
+/// face (in it, on an edge of it or at a vertex of it). A candidate not
+/// so placed is not a point of the face, whatever it would reach.
+///
+/// - **Sphere**: its six axis poles `c ± r·eᵢ`, the only critical
+///   points of `xᵢ` on it.
+/// - **Torus**: along each axis `e` with a part `ê` off the torus axis,
+///   its two extremes `c ± (R·ê + r·e)` (the other two critical points
+///   are saddles, never a patch's interior extreme); along the torus
+///   axis, whose extremes are the top and bottom circles, eight points
+///   of each.
+/// - **Cone**: its apex. A coordinate is linear along each ruling, so a
+///   ruled face's extremes are on its boundary or at the apex.
+/// - **Plane and cylinder**: none, for the same reason.
+/// - **Spindle**: none. Its extremes are a torus's, but the placement
+///   reads no spindle face's trim, so none is shown on the face.
+/// - **Spline**: none. Its critical points have no closed form.
+///
+/// A kind with no point here is bounded from below by its boundary's
+/// points alone.
+pub(crate) fn face_extreme_points<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Vec<Point3<T>> {
+    let axes = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+    let candidates: Vec<Point3<T>> = match *body.proven_face(face).surface() {
+        Surface::Sphere { center, radius, .. } => axes
+            .into_iter()
+            .flat_map(|e| [center + e * radius.abs(), center - e * radius.abs()])
+            .collect(),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let (big, small) = (major_radius.abs(), minor_radius.abs());
+            let mut at = Vec::new();
+            for e in axes {
+                let off = e - axis * axis.dot(e);
+                if crate::validate::is_direction(&off) {
+                    let reach = off * (big / off.norm()) + e * small;
+                    at.extend([center + reach, center - reach]);
+                } else {
+                    let across = axis.cross(u_ref);
+                    for k in 0..8 {
+                        let turn = T::from_f64(core::f64::consts::TAU * f64::from(k) / 8.0);
+                        let (sin, cos) = turn.sin_cos();
+                        let ring = center + (u_ref * cos + across * sin) * big;
+                        at.extend([ring + e * small, ring - e * small]);
+                    }
+                }
+            }
+            at
+        }
+        Surface::Cone { apex, .. } => vec![apex],
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => Vec::new(),
+    };
+    candidates
+        .into_iter()
+        .filter(|&q| {
+            constraint(|| {
+                use crate::contain::{CurvedPlacement, FaceContainment as F};
+                match crate::contain::curved_face_placement(body, face, q, band) {
+                    Ok(CurvedPlacement::Trim(Some(F::In | F::OnEdge(_) | F::OnVertex(_)))) => {
+                        Ok(())
+                    }
+                    _ => Err(()),
+                }
+            })
+            .is_some()
+        })
+        .collect()
+}
+
 /// **The farthest `face` stands from `at`**: its cover's far distance
 /// ([`face_cover`], [`Cover::distance_range`]), as a lever. It holds what
 /// bulges past the boundary (a sphere's far side, a cone's apex), and
@@ -544,20 +669,40 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
 ///
 /// As [`face_cover`]: `f` is `face`'s record.
 pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> BoundaryCovered<T> {
+    boundary_cover_by(body, f, |p| p, |ek, edge| edge_cover_linked(body, ek, edge))
+}
+
+/// [`boundary_cover`] where the face stands under a map: each point the
+/// walk reads placed by `place`, and each edge's cover `edge_cover` of
+/// the edge as it stands there (the image's [`edge_cover_linked`]).
+///
+/// # Errors
+///
+/// As [`boundary_cover`].
+///
+/// # Panics
+///
+/// As [`boundary_cover`].
+pub(crate) fn boundary_cover_by<T: Decide>(
+    body: &Body<T>,
+    f: FaceView<'_, T>,
+    place: impl Fn(Point3<T>) -> Point3<T>,
+    edge_cover: impl Fn(EdgeKey, &Edge) -> Result<Cover<T>, EdgeUncovered>,
+) -> BoundaryCovered<T> {
     let mut acc: Option<BoundaryCovered<T>> = None;
     for member in f.boundary() {
         let one = match member {
-            BoundaryMember::Isolated { vertex, point } => {
-                Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
-            }
+            BoundaryMember::Isolated { vertex, point } => Cover::points(vec![place(point)])
+                .ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)]),
             // A placeholder is a zero-length copy of its one point
             // (`crate::null::is_placeholder`), which its neighbours hold.
             BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
-                Cover::points(vec![body.member_point(&member)])
+                Cover::points(vec![place(body.member_point(&member))])
                     .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
             }
-            BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
-                .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
+            BoundaryMember::Edge { ek, edge, .. } => {
+                edge_cover(ek, edge).map_err(|why| vec![BoundaryUnknown::Edge(ek, why)])
+            }
         };
         acc = Some(match (acc, one) {
             (None, one) => one,

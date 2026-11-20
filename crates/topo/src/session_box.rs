@@ -1,73 +1,111 @@
 //! **The session box** (D4 ¶4; `crates/geom-core/README.md`, "Float
-//! rounding"): one predicate over a body's largest `|coordinate|`, read
-//! from below off its vertices' and its edges' own points, never a
-//! carrier's stored terms. The finished-body gate asks it first, so a
-//! body it refuses has a point past the box. What it does not certify is
-//! the converse: a curved face's interior extreme, bounded by no edge,
-//! is not read, so a body it admits may still reach past the box there
-//! (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
+//! rounding"): one predicate over the region a body occupies, never a
+//! carrier's stored terms. The box bounds each coordinate
+//! (`[tolerance.units]`), so it is a cube, and the measure is the
+//! largest `|coordinate|`.
 //!
-//! An edge's reach is the edge's one reading, its cover
-//! (`Body::edge_cover`), read along the world axes from below
-//! ([`geom_brep::edge_coordinate_reach_below`]), so a body is refused
-//! only where points of it lie past the box.
+//! The region is read two ways, by the one fold [`reach_of`] over the
+//! body's vertices, edges and faces as they stand:
+//!
+//! - **From outside, by its cover**: each face's region bounded by its
+//!   carrier and its boundary alone (`cover::face_cover_unproven`, which
+//!   reads no decision), and, only where that reaches past the box, each
+//!   face's own cover (`cover::face_cover`, its proven constraints met
+//!   in). A face with no cover is a region the box cannot bound.
+//! - **From inside, by points known to lie on it**: each vertex, each
+//!   certified edge's own points over its span
+//!   (`geom_brep::edge_coordinate_reach_below`, exact on lines and circle
+//!   arcs), and each face's points where its extremes need not be on its
+//!   boundary (`cover::face_extreme_points`, each placed on the face).
+//!
+//! A body is in the box only where its cover is (`session_box_reach`).
+//! Where the cover reaches past it, one with a point past it is refused
+//! as past the box (`session_box_point`,
+//! [`ValidationError::OutsideSessionBox`]); one whose cover alone
+//! reaches past it is refused as a limit
+//! ([`ValidationError::SessionBoxUnshown`],
+//! [`ValidationError::SessionBoxUncovered`]). The finished-body gate,
+//! tier 3′, every move's image and the door that places a body
+//! ([`in_session_box_at`]) all ask it.
 
-use geom::cover::BoxAxes;
+use geom::Surface;
+use geom::cover::{BoxAxes, Cover};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
+use crate::cover::EdgeUncovered;
+use crate::entity::{EdgeKey, FaceKey};
 use crate::validate::ValidationError;
 
-/// **`body`'s largest `|coordinate|`, bounded from below** — the
-/// session box's measure (`[tolerance.units]`: no coordinate of a model
-/// is larger in magnitude than the box, so the box is a cube, not a
-/// ball): each vertex's point and each certified edge's largest
-/// `|coordinate|` over its own span, every one a coordinate of a point
-/// of the body.
-pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
-    unmoved_reach(body, edge_world_box)
+/// **`body`'s largest `|coordinate|`, bounded from below**: each vertex's
+/// point and each certified edge's largest `|coordinate|` over its own
+/// span, every one a coordinate of a point of the body. The fold's
+/// inside read of the vertices and edges ([`Reads::points`]).
+#[cfg(test)]
+fn body_reach<T: Decide>(body: &Body<T>) -> T {
+    unmoved_reads(body, edge_cover_where).points
 }
 
-/// [`reach_of`] over the body as it stands, each edge's world box read
-/// by `world_box`: no map, so nothing refuses.
-fn unmoved_reach<T: Decide>(
+/// **What the one fold reads of a body as it stands.**
+#[derive(Clone, Copy, Debug)]
+struct Reads<T> {
+    /// The largest `|coordinate|` of points known to lie on the body:
+    /// its vertices and its certified edges' own points.
+    points: T,
+    /// The largest `|coordinate|` of its vertices and of each face's
+    /// region bounded by its carrier and boundary alone; the first face
+    /// with no such cover where one has none.
+    cover: Result<T, FaceKey>,
+}
+
+/// [`reach_of`] over the body as it stands, each edge's cover read by
+/// `cover_of_edge`: no map, so nothing refuses.
+fn unmoved_reads<T: Decide>(
     body: &Body<T>,
-    world_box: impl Fn(
+    cover_of_edge: impl Fn(
         &geom_brep::EdgeCurve<T>,
         (Point3<T>, Point3<T>),
-    ) -> Option<(Point3<T>, Point3<T>)>,
-) -> T {
-    match reach_of::<T, core::convert::Infallible>(body, |p| p, |_| Ok(None), world_box) {
-        Ok(reach) => reach,
+    ) -> Result<Cover<T>, EdgeUncovered>,
+) -> Reads<T> {
+    match reach_of::<T, core::convert::Infallible>(
+        body,
+        |p| p,
+        |_| Ok(None),
+        |_| Ok(None),
+        cover_of_edge,
+    ) {
+        Ok(reads) => reads,
         Err(never) => match never {},
     }
 }
 
-/// **`body`'s largest `|coordinate|` where it stands under `motion`,
-/// bounded from below** ([`body_reach`] of its image, the body unmoved):
-/// the one fold [`body_reach`] reads, over the data
-/// `transform::map_isometry` writes into the image. Each vertex's point
-/// goes through the motion's affine; each certified edge's stored
-/// carrier through `map_carrier`, its reading over its span re-taken on
-/// the image (`EdgeCurve::carried`); its two ends through the affine. So
-/// it reads the image's own quantity, from the image's own data, which a
-/// placement holds without building the image.
+/// **[`Reads`] of `body` where it stands under `motion`**, the body
+/// unmoved: the one fold over the data `transform::map_isometry`
+/// writes into the image. Each vertex's point goes through the motion's
+/// affine; each certified edge's stored carrier through `map_carrier`,
+/// its reading over its span re-taken on the image
+/// (`EdgeCurve::carried`); its two ends through the affine; each face's
+/// carrier through `transform::surface_at`. So it reads the image's own
+/// quantities, from the image's own data, which a placement holds
+/// without building the image.
 ///
 /// # Errors
 ///
 /// A carrier the motion does not map ([`crate::TransformError`]), which
 /// the image's map refuses too.
-pub(crate) fn body_reach_at<T: Decide>(
+fn reads_at<T: Decide>(
     body: &Body<T>,
     motion: &geom_core::RigidMotion<T>,
-) -> Result<T, crate::TransformError> {
+) -> Result<Reads<T>, crate::TransformError> {
     let iso = crate::Isometry::Proper(*motion);
     let map = iso.to_affine();
     reach_of(
         body,
         |p| map.transform_point(p),
         |curve| placed_edge(&iso, curve).map(Some),
-        edge_world_box,
+        |surface| crate::transform::surface_at(motion, surface).map(Some),
+        edge_cover_where,
     )
 }
 
@@ -90,42 +128,49 @@ fn placed_edge<T: Decide>(
     Ok(curve.carried(carrier, curve.description().clone(), curve.authority()))
 }
 
-/// **One edge's world box**, its ends as they stand: its carrier's
-/// cover over its span hulled with the ends (`cover::edge_cover_over`,
-/// the image's `Body::edge_cover`), read along the world axes; `None`
-/// where the cover refuses.
-fn edge_world_box<T: Decide>(
+/// **One edge's cover where it stands**: its carrier's cover over its
+/// span hulled with its two ends as they stand (`cover::edge_cover_over`,
+/// the image's `Body::edge_cover`).
+fn edge_cover_where<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     ends: (Point3<T>, Point3<T>),
-) -> Option<(Point3<T>, Point3<T>)> {
+) -> Result<Cover<T>, EdgeUncovered> {
     crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
-        .ok()
-        .map(|cover| cover.box_in(&BoxAxes::World))
 }
 
-/// **The one reach fold**, over the body's data as `place` and
-/// `curve_of` carry it into the space it is read in: each vertex's
-/// placed point, and each certified edge's largest `|coordinate|` over
-/// its span (`geom_brep::edge_coordinate_reach_below`), its world box
-/// `world_box` of the edge with its two placed ends ([`edge_world_box`] in
-/// every caller but a row's). `curve_of` gives the edge as it stands
-/// there, or `None` where it stands as stored. An edge with no world box
-/// reads its own sampled points, so one missing reading never silences
-/// the rest of the body.
+/// The largest `|coordinate|` of a cover: of its box along the world
+/// axes.
+fn cover_reach<T: Decide>(cover: &Cover<T>) -> T {
+    let origin = Point3::origin();
+    let (lo, hi) = cover.box_in(&BoxAxes::World);
+    (lo - origin).norm_inf().max((hi - origin).norm_inf())
+}
+
+/// **The one reach fold**, over the body's data as `place`, `curve_of`
+/// and `surface_of` carry it into the space it is read in: each vertex's
+/// placed point; each certified edge's cover `cover_of_edge` of the edge
+/// with its two placed ends ([`edge_cover_where`] in every caller but a
+/// row's), and its largest `|coordinate|` over its span read from below
+/// off it (`geom_brep::edge_coordinate_reach_below`); and each face's
+/// region bounded by its placed carrier and its boundary, the hull of
+/// those edges' covers and its placed points
+/// (`cover::face_cover_unproven`). `curve_of` and `surface_of` give the
+/// carrier as it stands there, or `None` where it stands as stored. An
+/// edge with no cover reads its own sampled points, so one missing
+/// reading never silences the rest of the body.
 fn reach_of<T: Decide, E>(
     body: &Body<T>,
     place: impl Fn(Point3<T>) -> Point3<T>,
     curve_of: impl Fn(&geom_brep::EdgeCurve<T>) -> Result<Option<geom_brep::EdgeCurve<T>>, E>,
-    world_box: impl Fn(
+    surface_of: impl Fn(&Surface<T>) -> Result<Option<Surface<T>>, E>,
+    cover_of_edge: impl Fn(
         &geom_brep::EdgeCurve<T>,
         (Point3<T>, Point3<T>),
-    ) -> Option<(Point3<T>, Point3<T>)>,
-) -> Result<T, E> {
-    let origin = Point3::origin();
-    let mut reach = body
-        .vertices()
-        .map(|(v, data)| (place(body.point_of(v, data)) - origin).norm_inf())
-        .fold(T::zero(), T::max);
+    ) -> Result<Cover<T>, EdgeUncovered>,
+) -> Result<Reads<T>, E> {
+    let vertices = points_only(body, &place);
+    let mut points = vertices;
+    let mut covers: SecondaryMap<EdgeKey, Result<Cover<T>, EdgeUncovered>> = SecondaryMap::new();
     for (e, data) in body.edges() {
         let Some(stored) = body.edge_curve_linked(e, data).certified() else {
             continue;
@@ -134,59 +179,152 @@ fn reach_of<T: Decide, E>(
         let curve = moved.as_ref().unwrap_or(stored);
         let end = |he, which| place(crate::cover::edge_end_point(body, e, he, which));
         let ends = (end(data.he_plus, "he_plus"), end(data.he_minus, "he_minus"));
-        reach = reach.max(geom_brep::edge_coordinate_reach_below(
+        let cover = cover_of_edge(curve, ends);
+        points = points.max(geom_brep::edge_coordinate_reach_below(
             curve.carrier(),
             curve.params(),
-            world_box(curve, ends),
+            cover.as_ref().ok().map(|c| c.box_in(&BoxAxes::World)),
         ));
+        covers.insert(e, cover);
     }
-    Ok(reach)
+    let mut cover = Ok(vertices);
+    for (face, _) in body.faces() {
+        let f = body.proven_face(face);
+        let moved = surface_of(f.surface())?;
+        let surface = moved.as_ref().unwrap_or(f.surface());
+        let bounded = matches!(
+            f.outer().1.boundary,
+            crate::entity::LoopBoundary::Cycle { .. }
+        );
+        let read = crate::cover::face_cover_unproven(surface, bounded, || {
+            crate::cover::boundary_cover_by(body, f, &place, |ek, _| {
+                covers
+                    .get(ek)
+                    .cloned()
+                    .unwrap_or(Err(EdgeUncovered::Scaffold))
+            })
+        });
+        cover = match (cover, read) {
+            (Ok(far), Ok(c)) => Ok(far.max(cover_reach(&c))),
+            (Ok(_), Err(_)) => Err(face),
+            (Err(first), _) => Err(first),
+        };
+    }
+    Ok(Reads { points, cover })
 }
 
-/// The session box's decision: its margin the box's extent less the
-/// body's largest `|coordinate|`.
+/// The largest `|coordinate|` of `body`'s vertices as `place` sets them.
+fn points_only<T: Decide>(body: &Body<T>, place: impl Fn(Point3<T>) -> Point3<T>) -> T {
+    let origin = Point3::origin();
+    body.vertices()
+        .map(|(v, data)| (place(body.point_of(v, data)) - origin).norm_inf())
+        .fold(T::zero(), T::max)
+}
+
+/// The session box's decision on a region's cover: its margin the box's
+/// extent less the cover's largest `|coordinate|`.
 pub(crate) const SESSION_BOX_REACH: &str = "session_box_reach";
 
-/// **`session_box_reach`**: whether `body` lies in the session box, the
-/// margin the box's extent less [`body_reach`], its largest
-/// `|coordinate|`. Only a definitely negative
-/// margin refuses: geometry within the band of the box's edge is in it.
+/// The session box's decision on points known to lie on a body, asked
+/// where its cover reaches past the box: its margin the box's extent
+/// less their largest `|coordinate|`.
+pub(crate) const SESSION_BOX_POINT: &str = "session_box_point";
+
+/// **`session_box_reach`**: whether `body` lies in the session box
+/// ([`reach_of`] unmoved, then [`past_its_carriers`]). Only a definitely
+/// negative margin refuses: geometry within the band of the box's edge
+/// is in it.
 ///
 /// # Errors
 ///
-/// [`ValidationError::OutsideSessionBox`], with the margin.
+/// [`ValidationError::OutsideSessionBox`], with the points' margin, or a
+/// limit ([`ValidationError::SessionBoxUnshown`],
+/// [`ValidationError::SessionBoxUncovered`]).
 pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
-    box_decided(body_reach(body), band)
+    let reads = unmoved_reads(body, edge_cover_where);
+    if within(reads.cover, band) {
+        return Ok(());
+    }
+    past_its_carriers(body, reads.points, band)
 }
 
 /// **`session_box_reach` of `body` where it stands under `motion`**:
 /// [`in_session_box`] of its image, read off the body unmoved
-/// ([`body_reach_at`]).
+/// ([`reads_at`]) where its carriers and boundaries bound it in the box,
+/// and off the image (`transform::map_isometry`) only where they do not.
 ///
 /// # Errors
 ///
 /// [`crate::MoveError::Map`] where the motion does not map a carrier;
-/// [`crate::MoveError::NotFinished`] holding
-/// [`ValidationError::OutsideSessionBox`], with the margin.
+/// [`crate::MoveError::NotFinished`] holding the box's finding.
 pub(crate) fn in_session_box_at<T: Decide>(
     body: &Body<T>,
     motion: &geom_core::RigidMotion<T>,
     band: Band,
 ) -> Result<(), crate::MoveError> {
-    let reach = body_reach_at(body, motion).map_err(crate::MoveError::Map)?;
-    box_decided(reach, band)
+    let reads = reads_at(body, motion).map_err(crate::MoveError::Map)?;
+    if within(reads.cover, band) {
+        return Ok(());
+    }
+    let image = crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion))
+        .map_err(crate::MoveError::Map)?;
+    past_its_carriers(&image, reads.points, band)
         .map_err(|finding| crate::MoveError::NotFinished(crate::NotFinished::new(vec![finding])))
 }
 
-/// The box's decision on a reach: its margin the box's extent less it.
-fn box_decided<T: Decide>(reach: T, band: Band) -> Result<(), ValidationError> {
+/// Whether a cover's reach decides its region in the box: anything but a
+/// definitely negative margin, and no face left uncovered.
+fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
+    cover.is_ok_and(|reach| past(SESSION_BOX_REACH, reach, band).is_none())
+}
+
+/// The margin of a reach past the box, where it is definitely past.
+fn past<T: Decide>(name: &'static str, reach: T, band: Band) -> Option<geom_core::MarginDiag> {
     let margin = Margin::of(Lever::<T>::session_box().length() - reach);
-    match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
+    match crate::validate::decide_reported(name, margin, band) {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
             margin,
-        }) => Err(ValidationError::OutsideSessionBox { margin }),
-        _ => Ok(()),
+        }) => Some(margin),
+        _ => None,
+    }
+}
+
+/// **The box past `body`'s carriers and boundaries**, which reach past
+/// it: each face's own cover ([`crate::cover::face_cover`]) bounds the
+/// body from outside, and where that too reaches past the box, the
+/// points known to lie on it decide which refusal it is. `points` is the
+/// fold's inside read of the vertices and edges ([`Reads::points`]); each
+/// face's extremes are read here ([`crate::cover::face_extreme_points`]).
+fn past_its_carriers<T: Decide>(
+    body: &Body<T>,
+    points: T,
+    band: Band,
+) -> Result<(), ValidationError> {
+    let mut cover = Ok(points_only(body, |p| p));
+    for (face, _) in body.faces() {
+        cover = match (cover, crate::cover::face_cover(body, face, band)) {
+            (Ok(far), Ok(c)) => Ok(far.max(cover_reach(&c))),
+            (Ok(_), Err(_)) => Err(face),
+            (Err(first), _) => Err(first),
+        };
+    }
+    let unshown = match cover {
+        Ok(reach) => match past(SESSION_BOX_REACH, reach, band) {
+            None => return Ok(()),
+            Some(margin) => ValidationError::SessionBoxUnshown { margin },
+        },
+        Err(face) => ValidationError::SessionBoxUncovered { face },
+    };
+    let origin = Point3::origin();
+    let inside = body
+        .faces()
+        .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
+        .map(|q| (q - origin).norm_inf())
+        .fold(points, T::max);
+    match past(SESSION_BOX_POINT, inside, band) {
+        Some(margin) => Err(ValidationError::OutsideSessionBox { margin }),
+        None => Err(unshown),
     }
 }
 
@@ -285,12 +423,12 @@ mod tests {
     fn an_uncovered_edge_leaves_the_rest_of_the_reach() {
         let tol = Tol::witness();
         let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let reach = unmoved_reach(&far, |_, _| None);
+        let reach = unmoved_reads(&far, |_, _| Err(EdgeUncovered::Ends)).points;
         assert!(reach >= 1.1e3 + 1.0, "{reach}");
     }
 
     /// **A placement's reach is its image's, to the bit**
-    /// ([`body_reach_at`] against [`body_reach`] of the moved body): a
+    /// ([`reads_at`] against [`unmoved_reads`] of the moved body, points and cover): a
     /// brick and a sphere cap (its rim a circle arc, read off its cover)
     /// under a motion off every axis, and a brick 900 m out moved back to
     /// the origin, where an edge's unmapped ends would hull its cover 900 m
@@ -337,10 +475,19 @@ mod tests {
         for (body, motion) in &cases {
             let image =
                 crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion)).unwrap();
+            let (placed, imaged) = (
+                reads_at(body, motion).unwrap(),
+                unmoved_reads(&image, edge_cover_where),
+            );
             assert_eq!(
-                body_reach_at(body, motion).unwrap().to_bits(),
-                body_reach(&image).to_bits(),
-                "the placement reads its image's reach"
+                placed.points.to_bits(),
+                imaged.points.to_bits(),
+                "the placement reads its image's points"
+            );
+            assert_eq!(
+                placed.cover.unwrap().to_bits(),
+                imaged.cover.unwrap().to_bits(),
+                "the placement reads its image's cover"
             );
         }
         assert!(
@@ -356,7 +503,7 @@ mod tests {
     /// bit**: forty edges, each a span of one closed periodic cubic in a
     /// plane, the spans straddling its knots, under a motion off every
     /// axis. Each edge's reach as the placement reads it ([`placed_edge`]
-    /// then its world box, [`edge_world_box`]) is its image's: the edge planted
+    /// then its cover's world box, [`edge_cover_where`]) is its image's: the edge planted
     /// in a brick and the brick mapped by `transform::map_isometry`. The body-level row cannot hold
     /// one: no body fixture has periodic cubic edges. *Breaks if* the
     /// placement maps the edge's clamped view instead, which rounds off
@@ -439,7 +586,9 @@ mod tests {
                 geom_brep::edge_coordinate_reach_below(
                     c.carrier(),
                     c.params(),
-                    edge_world_box(c, ends),
+                    edge_cover_where(c, ends)
+                        .ok()
+                        .map(|c| c.box_in(&BoxAxes::World)),
                 )
             };
             let placed = reach(&placed_edge(&iso, &curve).unwrap());

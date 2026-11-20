@@ -202,20 +202,25 @@
 //!   cover lengthens the margin and the transfer lever, so the pair
 //!   declines (`CarrierTilt`) or escalates more, never accepts a pair
 //!   whose carriers part on its region.
-//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
-//!   read along the world axes, `Cover::box_in`, from below through
-//!   `geom_brep::edge_coordinate_reach_below`) reads NO looseness: on a
-//!   line the cover's box is its segment's, at its ends, and on a circle
-//!   arc its support along each axis is the arc's own extreme (the
-//!   window's, exact for a circle in an orthonormal frame), each hulled
-//!   only with the edge's own end vertices, so it is the edge's exact
-//!   largest `|coordinate|`; on any other carrier, and on an edge with no
-//!   cover, the bound from below is the edge's own sampled points. So the
-//!   box refuses (`OutsideSessionBox`) only on a true lower bound of the
-//!   body's largest `|coordinate|`
+//! - `session_box` reads a body two ways. From outside, each face's
+//!   region bounded by its carrier and boundary alone
+//!   (`face_cover_unproven`), and where that reaches past the box each
+//!   face's own [`face_cover`]: a looser cover refuses a body that lies
+//!   in the box, and only as a limit (`SessionBoxUnshown`), never admits
+//!   one past it. From inside, points known to lie on the body: each
+//!   edge's [`edge_cover`] read along the world axes (`Cover::box_in`)
+//!   from below through `geom_brep::edge_coordinate_reach_below`, which
+//!   reads NO looseness (on a line the cover's box is its segment's, at
+//!   its ends, and on a circle arc its support along each axis is the
+//!   arc's own extreme, each hulled only with the edge's own end
+//!   vertices; on any other carrier, and on an edge with no cover, the
+//!   edge's own sampled points), and each face's extremes placed on it
+//!   (`face_extreme_points`). So the box refuses as past it
+//!   (`OutsideSessionBox`) only on a true lower bound of the body's
+//!   largest `|coordinate|`
 //!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
 //!   line or arc arm made looser than exact would be the unsound
-//!   direction: it could refuse a body that lies in the box.
+//!   direction: it could refuse a body that lies in the box as past it.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The doors are not

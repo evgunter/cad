@@ -1125,12 +1125,31 @@ pub enum ContactMark {
 )]
 pub enum ValidationError {
     /// The body reaches definitely past the session box
-    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
-    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
-    /// Reported alone, before any check reads a margin on the geometry.
+    /// (`session_box_point`, D4 ¶4): a point known to lie on it has a
+    /// coordinate larger in magnitude than
+    /// `geom_core::tolerance::SESSION_BOX_EXTENT`, which no coordinate of
+    /// a model may exceed. Reported alone, before any check reads a
+    /// margin on the geometry.
     OutsideSessionBox {
-        /// The box's extent less the body's reach, metres (negative).
+        /// The box's extent less the points' reach, metres (negative).
         margin: geom_core::MarginDiag,
+    },
+    /// The body's cover reaches definitely past the session box
+    /// (`session_box_reach`) and no point known to lie on it does: the
+    /// kernel's bound on its faces' regions is too loose to show the body
+    /// in the box. A limit (`[failure.taxonomy]` row 2: a tighter bound
+    /// is not built), not a finding that the body leaves the box.
+    /// Reported alone, as [`Self::OutsideSessionBox`] is.
+    SessionBoxUnshown {
+        /// The box's extent less the cover's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
+    /// A face of the body has no cover, so the session box cannot bound
+    /// its region, and no point known to lie on the body is past the box.
+    /// A limit, as [`Self::SessionBoxUnshown`] is. Reported alone.
+    SessionBoxUncovered {
+        /// The face with no cover (the first, in key order).
+        face: FaceKey,
     },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -4665,6 +4684,21 @@ impl ValidationError {
                 "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
                  coordinate of a model may exceed (D4 ¶4)",
                 margin.readable_below_zero()
+            ),
+            Self::SessionBoxUnshown { margin } => write!(
+                f,
+                "the region the body's faces may occupy, as the kernel bounds it, reaches {} m \
+                 past the {SESSION_BOX_EXTENT:e} m session box, and no point known to lie on the \
+                 body does: the body may lie inside the box, but a tighter bound of its faces is \
+                 not built yet",
+                margin.readable_below_zero()
+            ),
+            Self::SessionBoxUncovered { face } => write!(
+                f,
+                "{} has no bound on the region it may occupy, so the kernel cannot show the body \
+                 inside the {SESSION_BOX_EXTENT:e} m session box, and no point known to lie on \
+                 the body is past it",
+                EntityId::Face(*face)
             ),
             Self::Band { error } => write!(
                 f,
