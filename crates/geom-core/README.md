@@ -445,9 +445,10 @@ This section is where that rule's parts live.
   where `R` is at least the box). `R` is read through one `Tolerance`
   door, never a site's own constant. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
-  (as a distance). A stored form that loses digits (a conic whose centre
-  lies far from the arc it serves) is re-minted in a well-conditioned
-  form. No `Margin` door takes hand-written slack. The backstop is a
+  (as a distance). A stored form that loses digits is re-minted in a
+  well-conditioned form: a conic is stored anchored on the arc it
+  serves, its parameter zero at the anchor and its centre derived,
+  never stored. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
   site is a listed entry with its reason: in production, a formula or a
