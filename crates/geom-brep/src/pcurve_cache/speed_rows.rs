@@ -571,6 +571,7 @@ fn projected(
         u_off: 0.25,
         v_off: -0.5,
         v_sign: -1.0,
+        pole: None,
     }))
 }
 

@@ -419,3 +419,155 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
          a new construction is a second decision of a joint's branch."
     );
 }
+
+/// The circle through the north pole of [`quarter`]'s sphere on the plane
+/// with unit normal `(sin τ cos φ, sin τ sin φ, cos τ)`: tilted `τ` off
+/// the axis and turned `φ` about it, the pole at `t = π`.
+fn pole_circle(tilt: f64, turn: f64) -> Curve3<f64> {
+    let (s, c) = tilt.sin_cos();
+    let (sp, cp) = turn.sin_cos();
+    let normal = Vec3::new(s * cp, s * sp, c);
+    let u_ref = Vec3::new(c * cp, c * sp, -s);
+    Curve3::circle(Point3::origin() + normal * c, normal, s, u_ref)
+}
+
+/// **A sphere cut by one circle through its pole, as a cap does.** The
+/// circle is one closed edge whose vertex is the pole, bounding two
+/// sphere faces, the cap and the rest. Its rows are images read off the
+/// pole end: the minting pass's.
+fn pole_cap() -> Body<f64> {
+    let tol = Tol::witness();
+    let circle = pole_circle(0.6, 0.0);
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(circle.eval(PI), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::origin(),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    body.mef(
+        MefSite::Lone {
+            r#loop: start.r#loop,
+        },
+        EdgeCurveSpec::arc_of_circle(circle, PI, 3.0 * PI).unwrap(),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+/// **An edge ending on the pole lifts, decided as stored, and derives on
+/// demand.** On [`pole_cap`] each face's decided lift — the walk that
+/// derives every image afresh — is the chain the mint stored, and with a
+/// row detached the derive-on-demand door answers that row again, an
+/// image read off the pole end. Red if either derivation stops stating the
+/// edge's pole end (the image then refuses at the piece holding it).
+#[test]
+fn an_edge_ending_on_the_pole_lifts_and_derives_as_minted() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut body = pole_cap();
+    for face in body.face_views() {
+        let outer = face.record().outer;
+        let cycle = loop_rows(&body, outer);
+        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
+            .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
+        let read = Lift::read(&body, outer).unwrap();
+        let chain = |lift: &Lift<f64>| -> Vec<_> {
+            lift.rows()
+                .iter()
+                .map(|row| (row.half_edge, row.lift))
+                .collect()
+        };
+        assert_eq!(chain(&decided), chain(&read));
+        assert_eq!(decided.winding(), read.winding());
+    }
+    let he = body.half_edges().map(|(he, _)| he).next().unwrap();
+    let stored = body.detach_pcurve(he).expect("the mint stored a row");
+    let derived = crate::pcurves::pcurve_of(&body, he, band)
+        .unwrap_or_else(|e| panic!("the row derives on demand: {e:?}"));
+    assert!(
+        matches!(&derived, geom_brep::Pcurve::Projected(p) if p.pole().is_some()),
+        "the derived row reads its pole end: {derived:?}"
+    );
+    for k in 0..=8 {
+        let t = PI + 2.0 * PI * f64::from(k) / 8.0;
+        assert!(
+            (derived.eval(t) - stored.pcurve().eval(t)).norm() < 1e-12,
+            "t {t}: the derived row is the stored one"
+        );
+    }
+}
+
+/// **An operator's new edge from the pole mints its rows.** On
+/// [`pole_cap`], whose faces are complete, a spur leaves the pole along
+/// another circle through it (`mev`): the site mint derives the new edge's
+/// images before the surgery, its end on the pole read at the carrier's
+/// end, where the walk decides that joint. Red if the new halves' ends go
+/// unstated (their images refuse at the piece holding the pole, and so
+/// does the operator).
+#[test]
+fn a_spur_leaving_the_pole_mints_its_rows() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let mut body = pole_cap();
+    let spur = pole_circle(0.3, 0.4);
+    let he = body.half_edges().map(|(he, _)| he).next().unwrap();
+    let made = body
+        .mev(
+            MevSite::Fan { he1: he, he2: he },
+            spur.eval(PI + 1.0),
+            EdgeCurveSpec::arc_of_circle(spur, PI, PI + 1.0).unwrap(),
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("the spur from the pole: {e:?}"));
+    for half in [made.he_plus, made.he_minus] {
+        let row = body
+            .pcurve(half)
+            .unwrap_or_else(|| panic!("the site mint stored {half:?}'s row"));
+        assert!(
+            matches!(row.pcurve(), geom_brep::Pcurve::Projected(p) if p.pole().is_some()),
+            "the spur's row reads its pole end: {row:?}"
+        );
+    }
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+}
+
+/// **A re-described edge ending on the pole keeps its rows.** On
+/// [`pole_cap`], whose faces are complete, the circle is restated under
+/// its own description (`restate_stored_edge`, the door the Boolean's
+/// `describe_edges` restates its section edges through): the site mint
+/// re-derives the described halves' images, each read off the pole end,
+/// and writes them. Red if the described halves' ends go unstated: their
+/// derivation then refuses at the piece holding the pole, and the site
+/// mint leaves the faces rowless (`SiteRows::Clear`) for a later pass.
+#[test]
+fn a_re_described_edge_ending_on_the_pole_keeps_its_rows() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let mut body = pole_cap();
+    let edge = body.edges().map(|(edge, _)| edge).next().unwrap();
+    let description = body.stored_curve(edge).unwrap().restated_spec().description;
+    body.restate_stored_edge(edge, description, tol)
+        .unwrap_or_else(|e| panic!("the circle restates: {e:?}"));
+    let record = body.get_edge(edge).unwrap();
+    for half in [record.he_plus, record.he_minus] {
+        let row = body
+            .pcurve(half)
+            .unwrap_or_else(|| panic!("the site mint re-derived {half:?}'s row"));
+        assert!(
+            matches!(row.pcurve(), geom_brep::Pcurve::Projected(p) if p.pole().is_some()),
+            "the re-described row reads its pole end: {row:?}"
+        );
+    }
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+}
