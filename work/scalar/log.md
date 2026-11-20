@@ -255,3 +255,21 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   measures, without changing, how many error types would cross
   clippy's size line with an inline `Told` (the boxing row). The
   positions row and the per-crate sweeps stay open behind it.
+
+- 2026-11-20 — **PR 7185 merges**: its delta re-review is APPROVE, no
+  finding above NOTE, on head `840cfead10` (green run 44828404802).
+  Against the merge-base spellings the allowance measured identical at
+  `f64`, `Interval`, `Dual` (value and tangent) and, in sign and
+  `proven()`, at `Sym`; the reviewer could write no `f64 → T` exit.
+  The one such step left is the decision's own, private to
+  `predicate.rs`. The implementer's two argued-down items were upheld.
+  The four notes are on
+  `the-margin-allowance-parameter-spreads-to-every-funnel`. The
+  comparison row is `docs/model-compare-log/rows/PR-7185.md`.
+  - **Class — "a `T` or a bound" as a local enum.** `chain_parity::Gap`
+    and `spline_trim::Floor` are two instances, the second grown by the
+    fix pass. A third mixed site gives the pair one home.
+  - **For briefs on a contended slot**: a local compile that times out
+    is not a pass; the fix pass sent two type errors to CI that way.
+  - The places unit (`a-place-is-an-f64-argument-answered-on-the-value-channel`)
+    is dispatchable now that this has landed.

@@ -19,3 +19,27 @@ Recorded by the review of `a-bound-to-decide-against-never-becomes-a-t` (PR 7185
 ## The question
 
 Whether the parameter earns its spread once a second bound-carrying site wants a funnel it does not yet reach, and whether `Arm::lever` readers should be counted per reader.
+
+## From the delta re-review of PR 7185 (2026-11-20)
+
+- The cost is not prospective: about twenty funnel signatures carry the
+  parameter today. With the runtime "none" gone the reviewer judged the
+  parameter sound and its no-`value()` guarantee real.
+- **The either-enum is the pattern to watch, and it already has two
+  instances**: `chain_parity::Gap::{Read, Bound}` and
+  `spline_trim::Floor::{Charged, Uncharged}`
+  (`crates/topo/src/spline_trim.rs:133-160`), each "a `T` or a bound"
+  with its own `decide`. The fix pass grew the second. A third mixed
+  site is the trigger to give the pair one home.
+- `replace_face::bound_within_eps`
+  (`crates/topo/src/replace_face.rs:4236-4249`) copies
+  `gap_within_eps`'s body and restates `ladder::decided`'s non-finite
+  rule by hand, because `decided` takes `Margin<T>` and reads
+  `.value()`. One rule in two places; they agree while ε is finite.
+- `Margin<f64, Allowance>::at_f64`
+  (`crates/geom-core/src/predicate.rs:1004-1008`) is `pub` with only
+  test callers.
+- The `Arm::lever` gate question (who counts unsourced readers) is a
+  separate matter from the parameter and wants its own row when it is
+  taken up.
+
