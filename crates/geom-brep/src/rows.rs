@@ -499,8 +499,6 @@ geom_core::row_registry! {
         "props_cone_ellipse_span_winding_straddle",
     );
 
-    // ------------------------------------------------- topo's readers
-
     /// The conic × quadric first-harmonic arm's rows
     /// (`curve_face::conic_quadric`).
     pub const CONIC_QUADRIC_FIRST: FirstHarmonicRows = FirstHarmonicRows {
@@ -542,6 +540,8 @@ geom_core::row_registry! {
         split: "line_quadric_torus_split",
         split_lead: "line_quadric_torus_split_lead",
     };
+
+    // ------------------------------------------------- topo's readers
 
     /// The subdivision rows every `topo` section ruling chart walks under
     /// (`topo::boolean::section_cert`).

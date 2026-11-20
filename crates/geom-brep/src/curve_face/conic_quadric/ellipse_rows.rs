@@ -212,7 +212,7 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
             );
         } else {
             assert!(
-                matches!(got, Ok(Err(_)) | Err(ConicQuadricRefusal::Cylinder(_))),
+                matches!(got, Ok(Err(Unsettled::Tangency))),
                 "{label}: a tangency is no certified answer, got {got:?}"
             );
         }

@@ -252,8 +252,9 @@ fn refused(
 /// [`ConicQuadricRefusal::Invariant`] when `carrier` is neither a
 /// circle nor an ellipse or `surface` not a sphere, a cylinder or a cone —
 /// the caller dispatched on those kinds, so a mismatch is a desync,
-/// never an answer. The surface's arm for an in-band classifying sign: an extreme or constant residual of the
-/// first-harmonic arm, or a rung of the ladder. A second harmonic in the
+/// never an answer. The surface's arm for an in-band classifying sign:
+/// an extreme or constant residual of the first-harmonic arm, or a rung
+/// of the ladder. A second harmonic in the
 /// band's GAP is not an error: it takes the ladder. A count the door
 /// cannot certify is the inner [`Unsettled`].
 pub fn conic_quadric_roots<T: Decide>(
@@ -767,7 +768,8 @@ mod tests {
     }
 
     /// **A desynced caller is a kernel defect, loudly.** The door is
-    /// dispatched on a circle or an ellipse against a sphere or a wall;
+    /// dispatched on a circle or an ellipse against a sphere, a wall or a
+    /// cone;
     /// anything else reaching it is the caller's broken invariant, never
     /// an answer.
     #[test]
