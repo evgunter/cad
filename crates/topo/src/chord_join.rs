@@ -4062,11 +4062,26 @@ fn outer_references<T: Decide>(
 ) -> Result<Vec<Point3<T>>, JoinError> {
     let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
     let mut points = loop_points(body, outer)?;
+    let mut edges = Vec::new();
     for he in outer_cycle(body, face)?.unwrap_or_default() {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        if skip.contains(&edge) {
-            continue;
+        if !skip.contains(&edge) {
+            edges.push(edge);
         }
+    }
+    points.extend(edge_midpoints(body, &edges)?);
+    Ok(points)
+}
+
+/// The midpoints of those of `edges` whose curve is certified; a null
+/// edge, which has no length, has none, and an edge whose curve is not
+/// yet certified is passed over.
+fn edge_midpoints<T: Decide>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+) -> Result<Vec<Point3<T>>, JoinError> {
+    let mut points = Vec::with_capacity(edges.len());
+    for &edge in edges {
         let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
         if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
             let (t0, t1) = curve.params();
@@ -4318,7 +4333,7 @@ impl<T: Decide> IslandReading<T> {
         let references = outer_references(body, face, &[])?;
         climb_agreeing(
             references,
-            |w| paths_rung(&self.carrier, (w, self.q), band, &mut read),
+            |w| paths_rung(self.carrier.paths((w, self.q), band), &mut read),
             |a, b| a == b,
         )
         .map(Climb::into_reading)
@@ -4358,10 +4373,11 @@ impl<T: Decide> IslandReading<T> {
     }
 }
 
-/// The paths [`Carrier::paths`] offers between two points, read by
-/// `read` as one rung of a **side ladder**: the first path that decides
-/// answers ([`Rung::of_reading`]); an escalation choosing the paths is
-/// the rung's kept reading.
+/// The paths offered between two points ([`Carrier::paths`], or a
+/// detour's [`Carrier::detours`]), read by `read` as one rung of a
+/// **side ladder**: the first path that decides answers
+/// ([`Rung::of_reading`]); an escalation choosing the paths is the
+/// rung's kept reading.
 ///
 /// **The premise**, which makes every side ladder [`Answering::Any`]:
 /// the decided readings agree. Every reading answers one question —
@@ -4394,12 +4410,10 @@ impl<T: Decide> IslandReading<T> {
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
-    carrier: &Carrier<T>,
-    ends: (Point3<T>, Point3<T>),
-    band: Band,
+    paths: Result<Vec<Path<T>>, Indeterminate>,
     mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
 ) -> Rung<R, Indeterminate> {
-    match carrier.paths(ends, band) {
+    match paths {
         Ok(paths) => Rung::of_reading(
             climb(Answering::Any, paths, |path| Rung::of_reading(read(path))).into_reading(),
         ),
@@ -4417,11 +4431,17 @@ fn paths_rung<T: Decide, R>(
 /// copy of a run vertex ([`crate::ring_path::path_parity`]). A path with
 /// a reading in the zero band says nothing and the next path or pair is
 /// asked: one ending on the run does, so a ring vertex on the run never
-/// decides. One with a reading in the escalation band says nothing
-/// either; the first escalation escalates only where no pair decides.
-/// The decided pairs agree because the ring does not cross the run
-/// ([`paths_rung`]'s premise). A ring no pair decides otherwise is
-/// [`RingSide::Undecided`]. The parity does not depend on the path on any
+/// decides. A path with a reading in the escalation band says nothing
+/// either; the first escalation escalates only where nothing decides.
+///
+/// After every pair, each pair's detours are asked
+/// ([`Carrier::detours`]), steered by the midpoint of each run edge with
+/// a certified curve: where a ring vertex and the outer loop share every
+/// azimuth and height with run vertices, as on coaxial revolves' walls,
+/// every plain path runs through one. The decided readings agree because
+/// the ring does not cross the run ([`paths_rung`]'s premise), so a
+/// detour may decide a ring whose plain pairs only escalated. A ring
+/// nothing decides otherwise is [`RingSide::Undecided`]. The parity does not depend on the path on any
 /// of these kinds (`crate::ring_path`'s module docs: on a cylinder, an
 /// annulus, two closed curves cross an even number of times), so a run
 /// edge of any carrier the lane reads, a spline chord's included, is read
@@ -4443,13 +4463,21 @@ fn path_ring_side<T: Decide>(
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
         .collect::<Result<Vec<_>, JoinError>>()?;
     let outside = outer_references(body, oldf, &run_edges)?;
-    let pairs = loop_points(body, ring)?
-        .into_iter()
-        .flat_map(|p| outside.iter().map(move |&w| (p, w)));
-    match climb(Answering::Any, pairs, |ends| {
-        paths_rung(carrier, ends, band, |path| {
-            path_parity(&path, &arcs, None, band)
-        })
+    let guides = edge_midpoints(body, &run_edges)?;
+    let points = loop_points(body, ring)?;
+    let pairs = || {
+        points
+            .iter()
+            .flat_map(|&p| outside.iter().map(move |&w| (p, w)))
+    };
+    let detours = pairs().flat_map(|ends| {
+        guides
+            .iter()
+            .flat_map(move |&guide| carrier.detours(ends, guide, band))
+    });
+    let offered = pairs().map(|ends| carrier.paths(ends, band)).chain(detours);
+    match climb(Answering::Any, offered, |paths| {
+        paths_rung(paths, |path| path_parity(&path, &arcs, None, band))
     })
     .into_reading()
     {
@@ -6015,7 +6043,7 @@ mod side_ladder_rows {
         );
         let rung = |margins: [f64; 2]| {
             let mut next = margins.into_iter();
-            super::paths_rung(&super::Carrier::Quadric(quadric), ends, band, |_| {
+            super::paths_rung(super::Carrier::Quadric(quadric).paths(ends, band), |_| {
                 let m = next.next().unwrap();
                 crate::validate::decide("test_side", Margin::of(m), band)
                     .map(|sign| (sign != Sign::Zero).then_some(sign))

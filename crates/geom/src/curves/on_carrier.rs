@@ -205,11 +205,13 @@ impl<'c, T: Decide> Foot<'c, T> {
         let clear = match self.carrier.clearance(self.q) {
             Some(lower) => decide_reported("curve_carrier_clear", Margin::of(lower), band),
             None => {
-                match self
-                    .carrier
-                    .walk_kept(self.q, self.carrier.domain(), band, |mid| {
-                        self.restart(mid, band)
-                    })? {
+                match self.carrier.walk_kept(
+                    self.q,
+                    self.carrier.domain(),
+                    Clear::Point,
+                    band,
+                    |mid| self.restart(mid, band),
+                )? {
                     (Clearance::Clear, _) => return Ok(OnCarrier::Off),
                     (_, Some(Some(on))) => return Ok(on),
                     (Clearance::Near(near), _) => near,
@@ -774,7 +776,31 @@ impl<T: Decide> Curve3<T> {
         span: (T, T),
         band: Band,
     ) -> Result<Clearance, CarrierRefusal> {
-        Ok(self.walk_kept(q, span, band, |_| ())?.0)
+        Ok(self.walk_kept(q, span, Clear::Point, band, |_| ())?.0)
+    }
+
+    /// **Whether the ball of `radius` metres about `q` is clear of the
+    /// interval `(t0, t1)` of the carrier**: [`Self::clear_of`]'s walk,
+    /// each piece's middle point's distance less its reach less `radius`
+    /// deciding positive (`curve_carrier_piece_clear_by`). A lower bound,
+    /// past the band, on the distance from the ball to the interval, in
+    /// metres, where it is `Clear`. `Near` at the first piece that does
+    /// not clear once its reach is within the band, where some point of
+    /// the interval may lie within the ball.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::clear_of`].
+    pub fn clear_by(
+        &self,
+        q: Point3<T>,
+        span: (T, T),
+        radius: T,
+        band: Band,
+    ) -> Result<Clearance, CarrierRefusal> {
+        Ok(self
+            .walk_kept(q, span, Clear::Ball(radius), band, |_| ())?
+            .0)
     }
 
     /// [`Self::clear_of`]'s walk, `kept` read once, at the middle of the
@@ -791,6 +817,7 @@ impl<T: Decide> Curve3<T> {
         &self,
         q: Point3<T>,
         (t0, t1): (T, T),
+        clear: Clear<T>,
         band: Band,
         kept: impl FnOnce(T) -> R,
     ) -> Result<(Clearance, Option<R>), CarrierRefusal> {
@@ -803,11 +830,18 @@ impl<T: Decide> Curve3<T> {
         }
         let near = self
             .point_walk(q, (t0, t1), hi, |p| {
-                let clear = decide_reported(
-                    "curve_carrier_piece_clear",
-                    Margin::of(p.gap - p.reach),
-                    band,
-                );
+                let clear = match clear {
+                    Clear::Point => decide_reported(
+                        "curve_carrier_piece_clear",
+                        Margin::of(p.gap - p.reach),
+                        band,
+                    ),
+                    Clear::Ball(radius) => decide_reported(
+                        "curve_carrier_piece_clear_by",
+                        Margin::of(p.gap - p.reach - radius),
+                        band,
+                    ),
+                };
                 if matches!(
                     clear,
                     Ok(Decided {
@@ -831,6 +865,15 @@ impl<T: Decide> Curve3<T> {
             None => (Clearance::Clear, None),
         })
     }
+}
+
+/// What [`Curve3::walk_kept`]'s pieces clear: the point itself
+/// ([`Curve3::clear_of`]), or the ball of a radius about it
+/// ([`Curve3::clear_by`]).
+#[derive(Clone, Copy)]
+enum Clear<T> {
+    Point,
+    Ball(T),
 }
 
 /// **A lower bound on an in-plane point's distance from an ellipse,

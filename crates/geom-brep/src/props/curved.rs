@@ -2356,7 +2356,7 @@ fn cone_face_read<T: Decide>(
         // boundary is a slit cap, a cap less a sector at the apex), but
         // these windings are no closed boundary's on the chart, and the
         // closed form refuses them rather than read them
-        // (`work/conearm/cone-apex-loop-beside-a-winding-rim-refuses-a-region-it-bounds`).
+        // (`work/spiricarm/cone-apex-loop-beside-a-winding-rim-refuses-a-region-it-bounds`).
         if windings.iter().any(|&k| k != [0]) {
             return Err(PropsError::LoopsWindChart);
         }

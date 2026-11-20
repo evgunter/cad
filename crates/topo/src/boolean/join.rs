@@ -1084,7 +1084,7 @@ fn closes_at_its_site<T: Decide>(
 /// both faces facing one way, is not: joined there, the piece of the
 /// face the rim walls off is bounded by the copy's half that runs
 /// against the rim's own
-/// (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+/// (`work/tang/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
@@ -5886,7 +5886,7 @@ impl HoldingUnread {
 /// read a germ ([`seam_germ_side`]). A crossing's two flanks can both do
 /// that only where no region face offers an interior witness off it.
 /// One such face is curved
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// Another is planar, with an inward line from each edge's midpoint that
 /// meets no line or conic carrier beyond the band (`crate::stands`,
 /// rung 3), such as one whose nearest boundary there is a spline or a

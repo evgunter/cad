@@ -298,7 +298,7 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
 /// circle in the plane `z = 1`, so every section segment runs along a
 /// seam edge of the ball, and both section loops' regions are the ball's
 /// two hemispheres, every witness of which lies on the cube's top face
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// The join reads their sides at the seam instead, each hemisphere
 /// leaving the top face to its own side at first order
 /// (`boolean::join`'s `seam_germ_side`), so every op builds: `∪` the cube
@@ -529,7 +529,7 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// projected lane's own gap where the lane choice sent the circle,
 /// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
 /// such an arc at the pole is the join's
-/// (`work/germ/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+/// (`work/charttail/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
 ///
 /// **What the mesher answers** (measured in release, PR 5920's second
 /// fix pass; `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):

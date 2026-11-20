@@ -1069,3 +1069,23 @@ fn a_gap_from_a_spans_end_is_metered_over_the_gap() {
         "the pointwise meter errs both ways: {over} over, {under} under"
     );
 }
+
+/// **A ball about a point is clear of the span only where its walk
+/// decides it, in metres** (`Span::clear_by`). On the unit circle's arc
+/// `(0, π/2)`, a point `1 + R + δ` from the centre on the arc's middle
+/// ray lies `R + δ` from the arc: the ball of radius `R = 10⁻³` about it
+/// is clear for `δ = 10 e` and not for `δ = 0` (within the band) or `−10 e`,
+/// `e` the band's escalation; and an endless span is never clear.
+#[test]
+fn a_ball_is_clear_of_a_span_only_by_its_walk() {
+    let circle = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+    let span = Span::new(&circle, (0.0, PI / 2.0));
+    let (radius, e) = (1e-3, band().escalate());
+    let ray = Vec3::new(1.0, 1.0, 0.0).normalize();
+    let at = |delta: f64| Point3::origin() + ray * (1.0 + radius + delta);
+    for (delta, clear) in [(10.0 * e, true), (0.0, false), (-10.0 * e, false)] {
+        assert_eq!(span.clear_by(at(delta), radius, band()), clear, "δ {delta}");
+    }
+    let endless = Span::new(&circle, (0.0, TAU)).endless();
+    assert!(!endless.clear_by(at(1.0), radius, band()));
+}

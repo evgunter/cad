@@ -341,6 +341,10 @@ pub trait Real:
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
+    ///
+    /// Which code may call it, and the door every other computed value
+    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
+    /// where nothing certifies").
     fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
@@ -1380,15 +1384,16 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// 2. **Refusal payloads need nothing new**, since (1) leaves a refusing
 ///    door holding the caller's own number. What remains are DERIVED
 ///    quantities — margins, realized radii, values that exist only at `T` —
-///    and those are deliberately NOT echoed outside the ratified seams: an
-///    `f64` in an error payload is a branchable channel, the same unmetered
-///    decision surface at one remove, so the honest spelling outside a seam
-///    is the variant name plus the run's threshold. A door that wants to
-///    echo a derived margin is asking to be a seam, ratified individually.
-///    **No general projection helper exists, by this ruling** — a
-///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
-///    precisely what was asked for and refused. The classify seam's own
-///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    and those never leave a door as a number: an `f64` in an error
+///    payload is a branchable channel, the same unmetered decision surface
+///    at one remove. **No projection to a number exists, by this ruling**
+///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
+///    precisely what was asked for and refused. A derived quantity leaves
+///    as text and only as text (the crate README, "A number told
+///    to a person"): the one projection
+///    is into a told quantity, which renders and offers nothing a
+///    comparison could read. The classify seam's own diagnostic has that
+///    shape for a decided margin: `MarginDiag`, minted inside each
 ///    scalar's `Decide` impl on every outcome of a verdict the funnel
 ///    records under its name (definite and indeterminate alike), is the
 ///    one projection of a decided margin. A refusal payload may echo it,
@@ -1647,16 +1652,13 @@ pub mod bounds_allowlist {
     //! empty is dead code, not a guard.
     //!
     //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
-    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
-    //! feeds an error payload or report, or (b) selects among constructions
-    //! whose classification is value-channel-decided AND whose selected
-    //! quantity is locally constant in the parameters — sound by value-part
-    //! delegation: a dual's bracket is its value channel's, so the read's
-    //! branch is the base scalar's branch. The locally-constant condition is
-    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
-    //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
-    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! lane-less `Bounds` seam.** Its text is the crate README's "Reading a
+    //! bracket where nothing certifies": a `Bounds` read is lane-exempt when
+    //! its `f64` (a) leaves, as an error payload or report, or (b) is only
+    //! compared, a pick among constructions (DL5.1). An `f64` that comes
+    //! back as a `T` is neither, and answers to DL5.2 at
+    //! [`Real::from_computed`](super::Real::from_computed):
+    //! `geom::projection_policy`'s `mid` (issue 874's class) is that shape. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own

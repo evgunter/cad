@@ -40,6 +40,7 @@
 //! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign, Tol};
@@ -1040,19 +1041,24 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
 /// else. `f64` is the one lane; the analysis scalars the check is also
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
 pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
-    /// The findings of the copies `a` and `b` of `product`, which the
-    /// census decided interfere ([`partition`]): by default one
-    /// [`Unlocalized::Lane`] finding, the scalar having no lane.
+    /// The findings of each pair of copies of `product` the census
+    /// decided interfere ([`partition`]), in `pairs`' order: by default
+    /// one [`Unlocalized::Lane`] finding a pair, the scalar having no
+    /// lane.
     fn localize(
         product: &Product<Self>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
+        pairs: Vec<(Pair, Vec<ValidationError>)>,
         _: Tol,
     ) -> Vec<InterferenceFinding> {
-        unlocalized_at_lane(product, a, b, evidence)
+        pairs
+            .into_iter()
+            .flat_map(|((a, b), evidence)| unlocalized_at_lane(product, a, b, evidence))
+            .collect()
     }
 }
+
+/// Two copies of a product, by index, the smaller first.
+pub type Pair = (usize, usize);
 
 /// A gathered copy, as a finding names it.
 fn copy_ref<T: Decide + topo::AtRestPolicy>(copy: &GatheredCopy<T>) -> CopyRef {
@@ -1099,12 +1105,14 @@ impl<T> LocalizeLane for geom_core::Sym<T> where
 impl LocalizeLane for f64 {
     fn localize(
         product: &Product<f64>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
+        pairs: Vec<(Pair, Vec<ValidationError>)>,
         tol: Tol,
     ) -> Vec<InterferenceFinding> {
-        localize(product, a, b, evidence, tol)
+        let operands = Operands::of(product);
+        pairs
+            .into_iter()
+            .flat_map(|((a, b), evidence)| localize(product, &operands, a, b, evidence, tol))
+            .collect()
     }
 }
 
@@ -1129,7 +1137,7 @@ pub(crate) fn partition<T: LocalizeLane>(
         let (x, y) = (*copy_of.get(&x)?, *copy_of.get(&y)?);
         (x != y).then_some((x.min(y), x.max(y)))
     };
-    let mut pairs: Vec<((usize, usize), Vec<ValidationError>)> = Vec::new();
+    let mut pairs: Vec<(Pair, Vec<ValidationError>)> = Vec::new();
     let mut rest = Vec::new();
     for error in errors {
         let pair = topo::census_interference_solids(&product.body, &error)
@@ -1172,11 +1180,7 @@ pub(crate) fn partition<T: LocalizeLane>(
             None => kept.push(error),
         }
     }
-    let findings = pairs
-        .into_iter()
-        .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
-        .collect();
-    (findings, kept)
+    (T::localize(product, pairs, tol), kept)
 }
 
 /// **The two solids a census finding is about**, smaller key first:
@@ -1469,6 +1473,41 @@ pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
         .collect()
 }
 
+/// **Each copy of a product as the intersection takes it**, read once
+/// per localization however many interfering pairs it is in: a finished
+/// body in the product's frame. A copy in another frame is what its
+/// source holds, moved, its verdict carried (`Held::moved`); a finished
+/// copy is taken as it is, and a leaf is finished here, once.
+struct Operands<'p> {
+    product: &'p Product<f64>,
+    read: Vec<std::cell::OnceCell<Result<Arc<topo::AtRestBody<f64>>, String>>>,
+}
+
+impl<'p> Operands<'p> {
+    fn of(product: &'p Product<f64>) -> Self {
+        Self {
+            product,
+            read: product
+                .copies
+                .iter()
+                .map(|_| std::cell::OnceCell::new())
+                .collect(),
+        }
+    }
+
+    /// Copy `i` in the product's frame, finished, or why it is not.
+    fn get(&self, i: usize, tol: Tol) -> &Result<Arc<topo::AtRestBody<f64>>, String> {
+        self.read[i].get_or_init(|| {
+            self.product.copies[i]
+                .body
+                .read_into(&self.product.frame, tol)
+                .map_err(|kind| kind.to_string())?
+                .finished(tol)
+                .map_err(|refused| refused.to_string())
+        })
+    }
+}
+
 /// **Two copies intersected**: the overlap of their material, `None`
 /// when it is empty.
 ///
@@ -1476,25 +1515,20 @@ pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
 ///
 /// Why it could not be formed.
 fn intersection(
-    product: &Product<f64>,
+    operands: &Operands<'_>,
     a: usize,
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    // The intersection takes the two copies as finished bodies. A copy
-    // the gather read through a placement's map holds what its source
-    // held, moved, its verdict carried (`Held::moved`): a finished copy
-    // is taken as it is, and a leaf is finished here, once.
-    let operand = |i: usize| product.copies[i].body.clone().finished(tol);
-    let (body_a, body_b) = match (operand(a), operand(b)) {
+    let (body_a, body_b) = match (operands.get(a, tol), operands.get(b, tol)) {
         (Ok(x), Ok(y)) => (x, y),
-        (Err(refused), _) | (_, Err(refused)) => {
+        (Err(refusal), _) | (_, Err(refusal)) => {
             return Err(Unlocalized::Refused {
-                refusal: refused.to_string(),
+                refusal: refusal.clone(),
             });
         }
     };
-    match topo::intersect(&*body_a, &*body_b, tol) {
+    match topo::intersect(&**body_a, &**body_b, tol) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {
@@ -1516,6 +1550,7 @@ struct Component {
 /// the two copies' intersection, each quieted by [`quiet_verdicts`].
 fn localize(
     product: &Product<f64>,
+    operands: &Operands<'_>,
     a: usize,
     b: usize,
     evidence: Vec<ValidationError>,
@@ -1535,7 +1570,7 @@ fn localize(
         }
     };
     let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, false)];
-    let result = match intersection(product, a, b, tol) {
+    let result = match intersection(operands, a, b, tol) {
         Ok(Some(result)) => result,
         Ok(None) => return unlocalized(Unlocalized::Empty),
         Err(why) => return unlocalized(why),

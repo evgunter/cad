@@ -44,7 +44,7 @@ pub(crate) use anchor::{derive_naming, validated_naming};
 pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
-pub(crate) use framed::Frame;
+pub(crate) use framed::{Frame, GraftIn};
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub(crate) use topo::Seat;
@@ -3669,37 +3669,15 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
-    /// Across the negative `x` axis the principal branch's cut widens
-    /// the enclosure to the whole circle, so there the angle is read on
-    /// the branch about `π`: the solve reads an angle only through its
-    /// sine and cosine, which every branch encloses alike. An exact zero
-    /// `y` over a positive `x` is the angle zero exactly, which the
-    /// backend's `atan2` encloses as subnormal dust whose cosine is an
-    /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match Self::atan2_branch(y, x) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        use geom_core::Bounds;
-        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
-            crate::mate::Atan2Branch::Zero
-        } else if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
-            crate::mate::Atan2Branch::AboutPi
-        } else {
-            crate::mate::Atan2Branch::Principal
-        }
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 
-/// The seed lane's solve: a refusal quotes the value channel — the
-/// `f64` lane's own number — and the angle's value channel is the
-/// `f64` lane's `atan2` with the dual's own tangent beside it.
+/// The seed lane's solve: a refusal quotes the value channel — its
+/// lane's own number — and the angle's value channel is its lane's
+/// `solve_atan2` (the platform's over `f64`, `box_atan2` over an
+/// interval) with the dual's own tangent beside it.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Dual<T>
 where
     geom_core::Dual<T>: geom_core::Decide,
@@ -3729,10 +3707,6 @@ where
             deriv: angle.deriv,
         }
     }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
-    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3761,20 +3735,8 @@ where
         T::spins_by_frames()
     }
 
-    /// On the branch its lane scalar reads ([`crate::mate::SolveScalar::atan2_branch`]),
-    /// so a box tier's angle near the cut is the lane's and not the
-    /// whole circle.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match T::atan2_branch(y.value, x.value) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 

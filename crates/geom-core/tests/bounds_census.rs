@@ -560,11 +560,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/topo/src/chart_region.rs",
-        subject: "definite_diag",
-        why: Payload("echoes a classified margin's conservative end into a diagnostic"),
-    },
-    Site {
-        path: "crates/topo/src/chart_region.rs",
         subject: "exact_pair",
         why: Selection(
             "the bit-identical-region fast path: an exact-f64 structure read, which is \

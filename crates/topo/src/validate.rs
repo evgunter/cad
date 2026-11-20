@@ -10857,9 +10857,9 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let body =
-            crate::finish::moved_body(&self.body, iso, tol).map_err(crate::MoveError::Map)?;
-        crate::finish::asked_after_isometry(&body, tol).map_err(crate::MoveError::NotFinished)?;
+        // Logged, at every scalar: the finish is carried, and nothing
+        // else asks the image (`FinishedBody::MOVE_LOGS_ITS_ASK`).
+        let body = crate::finish::moved_and_asked(&self.body, iso, true, tol)?;
         Ok(Self {
             body,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
