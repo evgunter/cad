@@ -66,13 +66,14 @@
 
 use crate::gate::{Escalation, Gate, decide};
 use geom_core::{
-    Band, Bounds, Circles, Decide, LengthOutOfFormat, Line2, Margin, Point2, Real, Sign, Tol, Vec2,
+    Band, Bounds, Circles, Decide, Dimension, LengthOutOfFormat, Line2, Margin, Point2, Real, Sign,
+    Tol, Told, Vec2,
 };
 
 use super::program::Overrun;
 use super::{
-    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, LeverValue, PathError,
-    PathNoCornerReason, TurnLever, linear_band,
+    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, PathError, PathNoCornerReason,
+    TurnLever, angle, authored_length, length, linear_band, radius_lever, ratio,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -218,7 +219,10 @@ impl<T: Real> FilletSide<T> {
 /// construction refuse is a fact about that corner and rides the
 /// envelope instead, with its point.
 fn no_corner<T: Real>(reason: PathNoCornerReason<T>, radius: T) -> PathError<T> {
-    PathError::NoCornerForFillet { reason, radius }
+    PathError::NoCornerForFillet {
+        reason,
+        radius: authored_length(radius),
+    }
 }
 
 /// An anchor-window gate's refusal: which window the corner falls
@@ -294,20 +298,20 @@ fn circle_circle<T: Decide>(
     let carriers = Circles::new(d_len, r1_sq.sqrt(), r2_sq.sqrt());
     // Concentric carriers name no corner (identical ones name every
     // point of the circle, which is worse, not better).
-    let gone = PathNoCornerReason::CarriersDoNotMeet;
-    let tangent = PathNoCornerReason::CarriersTangent;
+    let gone = || PathNoCornerReason::CarriersDoNotMeet;
+    let tangent = || PathNoCornerReason::CarriersTangent;
     for (margin, on_zero) in [
         // concentric: no transversal crossing at any radius pair
-        (carriers.d(), gone),
+        (carriers.d(), gone()),
         // externally tangent / disjoint
-        (carriers.reach(), tangent),
+        (carriers.reach(), tangent()),
         // internally tangent / one inside the other
-        (carriers.internal(), tangent),
+        (carriers.internal(), tangent()),
     ] {
         match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => return Err(no_corner(on_zero, radius)),
-            Ok(Sign::Negative) => return Err(no_corner(gone, radius)),
+            Ok(Sign::Negative) => return Err(no_corner(gone(), radius)),
             Err(source) => return Err(PathError::escalated(source)),
         }
     }
@@ -429,10 +433,12 @@ fn derive<T: Decide>(
 enum CornerOutcome<T: Real> {
     /// A statement about this corner: it becomes an envelope entry,
     /// beside the corner point.
-    Reason(CornerReason<T>),
-    /// An anchor-fit entry, and the candidate circle it reports, which a
-    /// pass that draws records when the entry answers.
-    Overrun(CornerReason<T>, Overrun<T>),
+    Reason(CornerReason),
+    /// An anchor-fit entry, the candidate circle it reports, which a
+    /// pass that draws records when the entry answers, and where it has
+    /// a radius lever, the key the pair picks its own lever by: the
+    /// boundary's enclosure lower bound.
+    Overrun(CornerReason, Overrun<T>, Option<f64>),
     /// A refusal that names no corner — the pair's carriers touch, the
     /// turn at the derived corner is zero at tolerance, a leg has no
     /// length scale, the band failed, or the conditioning gate aborted. First one wins, and it OUTRANKS
@@ -466,6 +472,15 @@ enum CornerOutcome<T: Real> {
 /// the value channel's bit for bit (D9), and a degraded tangent cannot
 /// reach them; at an `Interval` scalar they are enclosure lower bounds
 /// and the pick is that lane's own (see the arm).
+/// A radius lever before it is told: the largest radius that fits, and
+/// the far edge of the radii that still end at the anchor
+/// ([`radius_lever`]).
+#[derive(Clone, Copy)]
+struct RadiusWindow<T> {
+    boundary: T,
+    exact_fit_edge: T,
+}
+
 fn map_refusal<T: Bounds>(
     refusal: ArcTrimRefusal<T>,
     corner: Point2<T>,
@@ -493,9 +508,9 @@ fn map_refusal<T: Bounds>(
             arm,
         } => CornerOutcome::Whole(no_corner(
             PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever: arm,
+                sin_turn: ratio(sin_turn),
+                align: ratio(align),
+                lever: length(arm),
                 lever_of: TurnLever::ShorterLeg,
                 corner: Some(corner),
             },
@@ -519,10 +534,10 @@ fn map_refusal<T: Bounds>(
             margin,
         } => CornerOutcome::Whole(PathError::FilletOffsetLeverTooShort {
             side: leg,
-            carrier_radius,
-            offset_radius,
-            least_lever,
-            margin,
+            carrier_radius: length(carrier_radius),
+            offset_radius: length(offset_radius),
+            least_lever: length(least_lever),
+            margin: length(margin),
         }),
         // The enclosing class, refused in its own words. Like the
         // conditioning gate above it is deliberately NOT laundered into
@@ -543,9 +558,10 @@ fn map_refusal<T: Bounds>(
             ..
         } => CornerOutcome::Reason(CornerReason::EnclosesLegCarrier {
             side: leg,
-            carrier_radius,
-            offset_radius,
-            largest_tangent_radius,
+            carrier_radius: length(carrier_radius),
+            offset_radius: length(offset_radius),
+            largest_tangent_radius: largest_tangent_radius
+                .map(|bound| Told::at_most(&bound, Dimension::Length)),
         }),
         // §3c: the anchor-fit refusal carries the CARRIER KIND, so
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
@@ -622,13 +638,13 @@ fn map_refusal<T: Bounds>(
             // anchor moved `fit_reach` toward the corner, read by the
             // same rule, on a leg long enough to hold that point and
             // below the boundary.
-            let lever = |k: usize| -> Option<LeverValue<T>> {
+            let lever = |k: usize| -> Option<RadiusWindow<T>> {
                 let (exact, edge) = (&at_anchor[k], &exact_fit_edge[k]);
                 (on_branch(exact)
                     && on_branch(edge)
                     && nearest.legs[k].leg_length.lo() > fit_reach.lo()
                     && edge.radius.lo() < exact.radius.lo())
-                .then_some(LeverValue {
+                .then_some(RadiusWindow {
                     boundary: exact.radius,
                     exact_fit_edge: edge.radius,
                 })
@@ -640,7 +656,7 @@ fn map_refusal<T: Bounds>(
                 // The binding leg's whole window: the smaller boundary,
                 // with its own edge, so the named radius fits that leg
                 // exactly (the other leg's margin is then larger).
-                .try_fold(None, |least: Option<LeverValue<T>>, fit| {
+                .try_fold(None, |least: Option<RadiusWindow<T>>, fit| {
                     fit.map(|r| {
                         Some(least.map_or(r, |least| {
                             if r.boundary.lo() < least.boundary.lo() {
@@ -652,25 +668,25 @@ fn map_refusal<T: Bounds>(
                     })
                 })
                 .flatten();
-            let leg = |leg: OverrunLeg<T>| LegFit {
-                carrier: match leg.carrier_radius {
+            let leg = |leg: OverrunLeg<T>| {
+                let carrier = match leg.carrier_radius {
                     None => FilletLegCarrier::Line,
                     Some(r) => FilletLegCarrier::Arc {
-                        radius: r.lo(),
-                        angular_margin: (leg.margin / r).lo(),
+                        radius: length(r),
+                        angular_margin: angle(leg.margin / r),
                     },
-                },
-                setback: leg.setback,
-                available: leg.leg_length,
+                };
+                LegFit::new(carrier, leg.setback, leg.leg_length, fit_reach)
             };
             CornerOutcome::Overrun(
                 CornerReason::AnchorOutsideTrimmedExtent {
                     legs: nearest.legs.map(leg),
                     overrun: nearest.overrun,
-                    fit_reach,
-                    radius_at_anchor,
+                    radius_at_anchor: radius_at_anchor
+                        .map(|r| radius_lever(r.boundary, r.exact_fit_edge)),
                 },
                 Overrun::new(corner, nearest.center, radius, nearest.tangents, sense),
+                radius_at_anchor.map(|r| r.boundary.lo()),
             )
         }
     }
@@ -739,7 +755,8 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // answer is noise, not attribution. Within the answering channel
     // nothing is picked: every corner that refused there is an entry,
     // with its own reason and its own point.
-    let mut build_entries: Vec<CornerRefusal<T>> = Vec::new();
+    // Each with its radius lever's key, where it has one.
+    let mut build_entries: Vec<(CornerRefusal<T>, Option<f64>)> = Vec::new();
     // The candidate circles the anchor-fit entries among them report.
     let mut overruns: Vec<Overrun<T>> = Vec::new();
     let mut gate_entries: Vec<CornerRefusal<T>> = Vec::new();
@@ -905,10 +922,10 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             Err(refusal) => match map_refusal(refusal, corner, radius) {
                 CornerOutcome::Reason(reason) => {
-                    build_entries.push(CornerRefusal { at: corner, reason });
+                    build_entries.push((CornerRefusal { at: corner, reason }, None));
                 }
-                CornerOutcome::Overrun(reason, overrun) => {
-                    build_entries.push(CornerRefusal { at: corner, reason });
+                CornerOutcome::Overrun(reason, overrun, radius_key) => {
+                    build_entries.push((CornerRefusal { at: corner, reason }, radius_key));
                     overruns.push(overrun);
                 }
                 CornerOutcome::Whole(e) => {
@@ -936,6 +953,9 @@ pub(crate) fn resolve<T: Decide + Bounds>(
         }
         let mut entries = if build_entries.is_empty() {
             gate_entries
+                .into_iter()
+                .map(|entry| (entry, None))
+                .collect()
         } else {
             if !overruns.is_empty()
                 && let Some(drawing) = guide.drawn()
@@ -953,12 +973,26 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             // no caller branches on the order — so this is the module's
             // ratified diagnostic channel and not a re-decision.
             entries.sort_by(|a, b| {
-                anchor_span(a.at, &incoming, &arrival)
-                    .total_cmp(&anchor_span(b.at, &incoming, &arrival))
+                anchor_span(a.0.at, &incoming, &arrival)
+                    .total_cmp(&anchor_span(b.0.at, &incoming, &arrival))
             });
+            // The pair's radius lever is the anchor-fit corner's with
+            // the largest boundary, the first of equals: at or below it
+            // the fillet clears that corner's anchors. The same channel
+            // as the order above: a selection among payloads.
+            let radius_lever_of = entries
+                .iter()
+                .enumerate()
+                .filter_map(|(k, (_, key))| key.map(|key| (k, key)))
+                .fold(None, |best: Option<(usize, f64)>, next| match best {
+                    Some(best) if best.1 >= next.1 => Some(best),
+                    _ => Some(next),
+                })
+                .map(|(k, _)| k);
             return Err(PathError::NoCornerOfPair {
-                radius,
-                corners: entries,
+                radius: authored_length(radius),
+                corners: entries.into_iter().map(|(entry, _)| entry).collect(),
+                radius_lever_of,
             });
         }
         return Err(no_corner(PathNoCornerReason::CarriersDoNotMeet, radius));
@@ -1120,12 +1154,22 @@ pub(crate) fn carrier_tangent<T: Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
     let radius = v.checked_length().map_err(|e| match e {
-        LengthOutOfFormat::NonFinite => PathError::NonFiniteDirection { dx: v.x, dy: v.y },
-        LengthOutOfFormat::Underflowed => PathError::UnderflowedDirection { dx: v.x, dy: v.y },
+        LengthOutOfFormat::NonFinite => PathError::NonFiniteDirection {
+            dx: ratio(v.x),
+            dy: ratio(v.y),
+        },
+        LengthOutOfFormat::Underflowed => PathError::UnderflowedDirection {
+            dx: ratio(v.x),
+            dy: ratio(v.y),
+        },
     })?;
     match decide(Gate::PathArcCenterRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
+        Ok(_) => {
+            return Err(PathError::DegenerateArcCenter {
+                radius: length(radius),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     }
     let turn = winding.sign::<T>();

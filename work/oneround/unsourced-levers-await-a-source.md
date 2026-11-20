@@ -5,7 +5,7 @@ title: 74 lever arms fit none of the three sources and are pinned unsourced, awa
 status: open
 opened: 2026-11-02
 priority: P1
-cost: M
+cost: H
 pr: 7141
 ---
 
