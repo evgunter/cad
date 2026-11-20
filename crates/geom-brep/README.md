@@ -1215,9 +1215,10 @@ surface: it lies in it (`Lies`), is apart from it (`Apart`), touches it
 (`Tangent`, a point of the in-band arc together with the arc, as a
 curve pair's touch is reported), passes through a point where the
 surface has no tangent plane (`Through`: a cone's apex, a spindle
-sheet's apexes or its horn's cusp), or is none of these and meets it at
-finitely many isolated candidates, which the arm's method places
-(`Generic`); in band it escalates. The analytic curves are smooth, and a
+sheet's apexes or its horn's cusp), or meets it at finitely many
+isolated points, which the arm's method places and reports each as a
+crossing or a touch (`Isolated`; `Tangent` is the special case the pose
+alone decides, one meeting that is a touch); in band it escalates. The analytic curves are smooth, and a
 chart pole is the parameterisation's singularity, not the surface's, so
 these classes are exhaustive for every kind pair with a closed pose. `Lies` holds over the whole span: a line or conic that lies
 in an analytic surface over an arc lies in it everywhere. `Lies` is a
