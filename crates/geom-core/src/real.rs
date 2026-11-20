@@ -341,6 +341,12 @@ pub trait Real:
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
+    ///
+    /// At a dual the value returns with tangent zero, so a caller owes
+    /// DL5.2 (the crate README, "Reading a bracket where nothing
+    /// certifies"): what is built from it does not move with it to first
+    /// order, or it cannot move with the inputs, or the caller is
+    /// unreachable at a dual or forfeits the tangent in its type.
     fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
@@ -1583,16 +1589,13 @@ pub mod bounds_allowlist {
     //! empty is dead code, not a guard.
     //!
     //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
-    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
-    //! feeds an error payload or report, or (b) selects among constructions
-    //! whose classification is value-channel-decided AND whose selected
-    //! quantity is locally constant in the parameters — sound by value-part
-    //! delegation: a dual's bracket is its value channel's, so the read's
-    //! branch is the base scalar's branch. The locally-constant condition is
-    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
-    //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
-    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! lane-less `Bounds` seam.** Its text is the crate README's "Reading a
+    //! bracket where nothing certifies": a `Bounds` read is lane-exempt when
+    //! its `f64` (a) leaves, as an error payload or report, or (b) is only
+    //! compared, a pick among constructions (DL5.1). An `f64` that comes
+    //! back as a `T` is neither, and answers to DL5.2 at
+    //! [`Real::from_computed`](super::Real::from_computed):
+    //! `geom::projection_policy`'s `mid` (issue 874's class) is that shape. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own

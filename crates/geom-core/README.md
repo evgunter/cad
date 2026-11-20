@@ -142,6 +142,52 @@ value proved interior to one vector's domain, carried without that
 vector — stays crate-private for it, the type being a guard only in
 combination with the privacy of its two consumers, argued at its doc.
 
+## Reading a bracket where nothing certifies (DUAL-DESIGN DL5)
+
+A *bracket read* is `Bounds::lo`/`hi`: it turns a scalar `T` into an
+`f64`, and so drops whatever else the scalar carries, a dual's tangent
+or `Sym`'s symbols. A *lane door* is a bound that keeps such a scalar
+out (`CertifiedBounds`). *Re-entry* is a computed `f64` turned back
+into a `T` through `Real::from_computed`; at a dual it returns with
+tangent zero. Two clauses say when each is right, and every other
+statement of them (`real.rs`, `dual.rs`, the bounds census) cites
+these and restates neither.
+
+**DL5.1 — the read.** At a dual a bracket read returns the base
+scalar's bracket, bit for bit. A read that is legitimate at the base
+scalar therefore needs no lane door, provided the `f64` it yields
+never re-enters `T`. That `f64` ends one of two ways:
+
+- it **leaves**: an error field, a box, a report;
+- it is **only compared**: a branch, an index, a flag, the pick of
+  which candidate is built or reported.
+
+Neither owes a tangent. The branch taken carries `T` values computed
+at `T`, with their own tangents, exactly as `min` returns its winner's.
+A read that mints a certificate object or feeds a `CertifiedEnclosure`
+consumer is never exempt: it takes a lane door. Whether a bracket may
+decide anything at all is not this clause's question; that is the
+`Bounds` scope rule's ("brackets never decide", `real.rs`), at every
+scalar.
+
+**DL5.2 — re-entry.** Let `f` be the re-entered `f64`, `p` the inputs
+and `out` any `T` value built from `f`. A dual's tangent of `out` is
+missing the term `∂out/∂f · df/dp`. A re-entry is right where that
+term is zero:
+
+- `f` cannot move with the inputs; or
+- `out` does not depend on `f` to first order: a seed the iteration at
+  `T` converges away from, a march or sample point the result is
+  insensitive to the position of.
+
+Anywhere else the code is guarded, and two things are guards: it is
+unreachable at a dual (a lane door, as `geom`'s `project` has), or the
+value forfeits its tangent in its type (E9's `UnavailableBecause`, or
+poison). A sentence saying a tangent is partial is not a guard: a
+reader of the dual sees the tangent and not the sentence. This holds
+whatever door produced the `f64`, a `Bounds` read or any other.
+`Sym`'s half of the same door is ERROR-DESIGN E12.
+
 ## Choosing among spellings of one quantity (W1)
 
 **W1 — a spelling is chosen by what its width and its error scale
