@@ -107,6 +107,8 @@ mod k_stats_doors;
 mod k_stats_roles;
 #[path = "knot_queries_differential.rs"]
 mod knot_queries_differential;
+#[path = "review_less_sin_probe.rs"]
+mod review_less_sin_probe;
 #[path = "less_sin_rows.rs"]
 mod less_sin_rows;
 #[path = "loose_knots_span_fuzz.rs"]
