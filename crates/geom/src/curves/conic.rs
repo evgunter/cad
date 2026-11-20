@@ -1092,6 +1092,12 @@ mod tests {
                 };
                 let c = centred.conic().unwrap();
                 assert!(c.anchor().is_none() && !carrier.same_content(&centred));
+                // Born with a centre, it holds the frame it was given,
+                // bit for bit.
+                let held = c.frame();
+                assert_eq!(bits(held.origin() - o), bits(f.origin() - o));
+                assert_eq!(bits(held.axis()), bits(f.axis()));
+                assert_eq!(bits(held.u_ref()), bits(f.u_ref()));
                 assert!(carrier.same_content(&carrier.clone()));
                 let scale = (f.origin() - o).norm() + 2.0 * a;
                 for t in [-3.0, -1.2, -2e-3, 1e-7, 0.4, 1.55, 2.9] {
