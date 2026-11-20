@@ -785,10 +785,9 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
-        if let Surface::Sphere { center, radius, .. } = *self.surface {
+        if let Surface::Sphere { center, .. } = *self.surface {
             match sphere_pole_left(
                 center,
-                radius,
                 crate::uniform_curvature_arm(self.surface),
                 x,
                 self.loops[l],

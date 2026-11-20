@@ -820,16 +820,18 @@ pub enum Reach<T: Real> {
 }
 
 impl<T: Real> Reach<T> {
-    /// **A germ frame's reach, read at `at`** ([`Self::Measured`]): the
-    /// curved wall's own length scale there
-    /// ([`crate::curvature_lever_arm`], a cylinder's radius), for a pair
-    /// handed without its faces.
+    /// **A plane×cylinder germ frame's reach, read at `at`**
+    /// ([`Self::Measured`]): the cylinder wall's radius
+    /// ([`crate::uniform_curvature_arm`]), for a pair handed without its
+    /// faces. Any other surface has no frame here and reads poison,
+    /// which a reading levered at it escalates.
     #[must_use]
     pub fn of_frame(at: Point3<T>, wall: &geom::Surface<T>) -> Self {
-        Self::Measured {
-            at,
-            lever: crate::curvature_lever_arm(wall, at).length(),
-        }
+        let lever = match wall {
+            geom::Surface::Cylinder { .. } => crate::uniform_curvature_arm(wall).length(),
+            _ => poison(),
+        };
+        Self::Measured { at, lever }
     }
 
     /// **A face measured from `at`** ([`Self::Face`]): its window along

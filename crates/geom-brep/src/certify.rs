@@ -5504,10 +5504,13 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             band,
             &mut max_residual,
         )?;
-        // No sample's jet read means no tube to state.
-        if let Some(arm) = tangent_arm_min {
-            tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
-        }
+        // Every interior sample of a tangent edge read its arm in the
+        // loop above or returned its refusal, and there is one.
+        const _: () = assert!(CERT_SAMPLES >= 3);
+        let Some(arm) = tangent_arm_min else {
+            unreachable!("a tangent edge's interior samples each read their arm");
+        };
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their

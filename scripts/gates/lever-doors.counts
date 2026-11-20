@@ -1,34 +1,44 @@
-# Lever doors that take a caller's number or point (scripts/gates/lever-doors.sh): production references per
-# file outside each door's home, with the doors referenced. A pin only falls: each site is owed a constructor
-# that reads its geometry (work/oneround/lever-doors-pinned-sites-await-a-geometry-read.md).
-crates/geom-brep/src/carrier_eq.rs 3 # lever_from_within x3
-crates/geom-brep/src/dihedral.rs 1 # curvature_radius
-crates/geom-brep/src/intersect.rs 2 # generator_lever, ruled_lever
-crates/geom-brep/src/lib.rs 2 # points_diameter, points_lever_from
-crates/geom-brep/src/pair_section.rs 1 # of_cover_within
-crates/geom-brep/src/pair_section/cylinders.rs 4 # ExtentBall::point x3, of_crossing_cylinders
-crates/geom-brep/src/props/curved.rs 1 # curvature_radius
-crates/geom-brep/src/ssi.rs 1 # within_curvature
-crates/step-import/src/build.rs 2 # points_diameter x2
-crates/step-import/src/reach.rs 1 # points_diameter
-crates/sweep/src/blend/battery.rs 2 # curvature_radius, points_diameter
-crates/topo/src/boolean/fate.rs 2 # ExtentBall::point x2
-crates/topo/src/boolean/join.rs 5 # ExtentBall::point x4, Reach::of_face
-crates/topo/src/boolean/overlap.rs 1 # ExtentBall::point
-crates/topo/src/bound_side.rs 2 # ExtentBall::point, curvature_radius
-crates/topo/src/chord_join.rs 1 # Reach::of_face
-crates/topo/src/cover.rs 2 # Reach::of_face, of_cover_within
-crates/topo/src/link.rs 3 # ExtentBall::point x3
-crates/topo/src/link/second_order.rs 1 # ExtentBall::point
-crates/topo/src/offset_axial.rs 3 # ExtentBall::point x3
-crates/topo/src/offset_together.rs 1 # ExtentBall::point
-crates/topo/src/pcurves/decision.rs 1 # points_lever_from
-crates/topo/src/ring_path.rs 2 # ExtentBall::point x2
-crates/topo/src/ring_path/spline_wall.rs 1 # ExtentBall::point
-crates/topo/src/separating.rs 1 # ExtentBall::box_diagonal
-crates/topo/src/solid_contain.rs 1 # ExtentBall::point
-crates/topo/src/splitting/containment.rs 4 # ExtentBall::point x4
-crates/topo/src/splitting/join.rs 2 # ExtentBall::point x2
-crates/topo/src/splitting/order.rs 2 # ExtentBall::point x2
-crates/topo/src/test_support_fixtures.rs 1 # ExtentBall::point
-crates/topo/src/wedge_reach.rs 1 # points_lever_from
+# The named lever doors that take a caller's number or point (scripts/gates/lever-doors.sh): production
+# references per door and file outside the door's home. A pin only falls
+# (work/oneround/lever-doors-pinned-sites-await-a-geometry-read.md).
+# door count file
+lever_from_within 3 crates/geom-brep/src/carrier_eq.rs
+curvature_radius 1 crates/geom-brep/src/dihedral.rs
+generator_lever 1 crates/geom-brep/src/intersect.rs
+ruled_lever 1 crates/geom-brep/src/intersect.rs
+points_diameter 1 crates/geom-brep/src/lib.rs
+points_lever_from 1 crates/geom-brep/src/lib.rs
+of_cover_within 1 crates/geom-brep/src/pair_section.rs
+ExtentBall::point 3 crates/geom-brep/src/pair_section/cylinders.rs
+of_crossing_cylinders 1 crates/geom-brep/src/pair_section/cylinders.rs
+curvature_radius 1 crates/geom-brep/src/props/curved.rs
+within_curvature 1 crates/geom-brep/src/ssi.rs
+points_diameter 2 crates/step-import/src/build.rs
+points_diameter 1 crates/step-import/src/reach.rs
+curvature_radius 1 crates/sweep/src/blend/battery.rs
+points_diameter 1 crates/sweep/src/blend/battery.rs
+ExtentBall::point 2 crates/topo/src/boolean/fate.rs
+ExtentBall::point 4 crates/topo/src/boolean/join.rs
+Reach::Face 1 crates/topo/src/boolean/join.rs
+Reach::of_face 1 crates/topo/src/boolean/join.rs
+ExtentBall::point 1 crates/topo/src/boolean/overlap.rs
+lever_from_point_and_plane 1 crates/topo/src/boolean/section_cert.rs
+ExtentBall::point 1 crates/topo/src/bound_side.rs
+curvature_radius 1 crates/topo/src/bound_side.rs
+Reach::of_face 1 crates/topo/src/chord_join.rs
+Reach::of_face 1 crates/topo/src/cover.rs
+of_cover_within 1 crates/topo/src/cover.rs
+ExtentBall::point 3 crates/topo/src/link.rs
+ExtentBall::point 1 crates/topo/src/link/second_order.rs
+ExtentBall::point 3 crates/topo/src/offset_axial.rs
+ExtentBall::point 1 crates/topo/src/offset_together.rs
+points_lever_from 1 crates/topo/src/pcurves/decision.rs
+ExtentBall::point 2 crates/topo/src/ring_path.rs
+ExtentBall::point 1 crates/topo/src/ring_path/spline_wall.rs
+ExtentBall::box_diagonal 1 crates/topo/src/separating.rs
+ExtentBall::point 1 crates/topo/src/solid_contain.rs
+ExtentBall::point 4 crates/topo/src/splitting/containment.rs
+ExtentBall::point 2 crates/topo/src/splitting/join.rs
+ExtentBall::point 2 crates/topo/src/splitting/order.rs
+ExtentBall::point 1 crates/topo/src/test_support_fixtures.rs
+points_lever_from 1 crates/topo/src/wedge_reach.rs

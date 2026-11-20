@@ -471,7 +471,6 @@ impl<T: Decide> CylinderSpherePose<T> {
             n: toward,
             v: self.axis.cross(toward),
             axis: self.axis,
-            r: self.r,
             d: self.offset,
             big_r: self.big_r,
             lever: crate::uniform_curvature_arm(&self.cylinder),

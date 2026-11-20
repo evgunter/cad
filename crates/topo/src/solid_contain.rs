@@ -227,7 +227,6 @@ use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, qua
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use crate::region::RegionRefusal;
-use crate::rim_wedge::Rim;
 use crate::ruled_region::{RuledFaceRegion, ruled_face_region};
 use crate::sphere_region::{SphereFaceRegion, sphere_face_region};
 use crate::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
@@ -1398,21 +1397,19 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             continue;
         };
         let (t0, t1) = curve.params();
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: c_c,
-                    axis: n_c,
-                    u_ref: u_c,
-                },
-            radius: r_c,
-        }) = *curve.carrier()
+        let geom::Curve3::Circle(
+            ref circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: c_c,
+                        axis: n_c,
+                        u_ref: u_c,
+                    },
+                radius: r_c,
+            },
+        ) = *curve.carrier()
         else {
             return Ok(None);
-        };
-        let rim_arm = match curve.carrier() {
-            geom::Curve3::Circle(circle) => geom_brep::circle_curvature_arm(circle),
-            _ => unreachable!("the carrier just read as a circle"),
         };
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
@@ -1478,13 +1475,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     origin: center,
                     dir: axis,
                 },
-                &Rim {
-                    center: c_c,
-                    axis: n_c,
-                    radius: r_c,
-                    u_ref: u_c,
-                },
-                rim_arm,
+                circle,
             );
             if !zero_as("bool_sphere_iso_rim", tilt)?
                 || !zero_as("bool_sphere_iso_rim", off)?
@@ -1582,9 +1573,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             south: None,
         }));
     };
-    let Some((north, south)) =
-        latitude_extremes(first, rest, (radius, arm), band).map_err(escalate)?
-    else {
+    let Some((north, south)) = latitude_extremes(first, rest, arm, band).map_err(escalate)? else {
         return Ok(None);
     };
     Ok(Some(SphereChartTrim { az, north, south }))
@@ -1642,12 +1631,12 @@ fn latitude_sine<T: geom_core::Real>(a: (T, T), b: (T, T), r: T) -> T {
 fn latitude_after<T: Decide>(
     a: (T, T),
     b: (T, T),
-    (radius, arm): (T, Lever<T>),
+    arm: Lever<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, radius), arm),
+        Margin::levered(latitude_sine(a, b, arm.length()), arm),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1680,15 +1669,15 @@ fn latitude_after<T: Decide>(
 fn latitude_extremes<T: Decide>(
     first: (T, T),
     rest: &[(T, T)],
-    (radius, arm): (T, Lever<T>),
+    arm: Lever<T>,
     band: Band,
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let (mut lo, mut hi) = (first, first);
     for &e in rest {
-        if latitude_after(e, lo, (radius, arm), band)? {
+        if latitude_after(e, lo, arm, band)? {
             lo = e;
         }
-        if latitude_after(hi, e, (radius, arm), band)? {
+        if latitude_after(hi, e, arm, band)? {
             hi = e;
         }
     }
@@ -1719,7 +1708,7 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(latitude_sine(lo, hi, radius), arm),
+            Margin::levered(latitude_sine(lo, hi, arm.length()), arm),
             band,
         )?,
         Sign::Zero

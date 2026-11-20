@@ -98,8 +98,8 @@ pub(crate) enum Quadric<T: Real> {
     },
     Sphere {
         centre: Point3<T>,
-        radius: T,
-        /// The sphere's curvature arm, read off the surface.
+        /// The sphere's curvature arm, read off the surface; its length
+        /// is the radius.
         arm: Lever<T>,
     },
     /// `axis` from the apex.
@@ -122,9 +122,8 @@ impl<T: Decide> Quadric<T> {
                 axis: surface.axis_line()?,
                 radius,
             }),
-            geom::Surface::Sphere { center, radius, .. } => Some(Self::Sphere {
+            geom::Surface::Sphere { center, .. } => Some(Self::Sphere {
                 centre: center,
-                radius,
                 arm: geom_brep::uniform_curvature_arm(surface),
             }),
             geom::Surface::Cone { half_angle, .. } => Some(Self::Cone {
@@ -160,7 +159,7 @@ impl<T: Decide> Quadric<T> {
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
             Self::Cylinder { axis, radius } => axis.offset(p) / radius,
-            Self::Sphere { centre, radius, .. } => (p - centre) / radius,
+            Self::Sphere { centre, arm } => (p - centre) / arm.length(),
             Self::Cone {
                 axis: line @ geom::Line { dir: axis, .. },
                 half_angle,
@@ -237,11 +236,8 @@ impl<T: Decide> Quadric<T> {
             Self::Cylinder { axis, .. } => {
                 self.ruled_paths(axis, (from, to), resolution(&[from, to, axis.origin]), band)
             }
-            Self::Sphere {
-                centre,
-                radius,
-                arm,
-            } => {
+            Self::Sphere { centre, arm } => {
+                let radius = arm.length();
                 let slack = resolution(&[from, to, centre]);
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;

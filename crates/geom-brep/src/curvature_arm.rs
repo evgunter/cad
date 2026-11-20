@@ -2,9 +2,13 @@
 //! curvature (`crates/geom-core/README.md`, "Float rounding": a
 //! verdict's lever arm is a read of the consumed extent, a curvature arm
 //! `1/κ_rel`, or the session box). Each reader here takes the carrier it
-//! reads, so a call site hands geometry and never a radius it computed.
-//! `geom_core::Lever`'s bare curvature doors are referenced in this file
-//! alone, which `scripts/gates/lever-doors.sh` holds.
+//! reads, and returns a magnitude ([`arm`]). A reader that also takes a
+//! point reads that point's distance from the carrier's axis, so the
+//! point is the caller's to answer for.
+//!
+//! `geom_core::Lever`'s bare curvature doors are this file's to call.
+//! `scripts/gates/lever-doors.sh` pins the references that still stand
+//! elsewhere, each a site with a number where a carrier belongs.
 
 use geom::{Circle, Curve3, Surface};
 use geom_core::spline::SpanLocate;
@@ -34,20 +38,23 @@ use geom_core::{Lever, Point3, Real, poison};
 /// (their margins shrink toward Zero), while a smaller radius of
 /// curvature tightens a sagitta charge.
 pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
-    match *s {
-        Surface::Cone { apex, axis, .. } => {
-            let (_, w) = crate::implicit::axial_radial(p, apex, axis);
-            Lever::curvature_radius(w.norm())
-        }
+    match s {
+        Surface::Cone { .. } => parallel_curvature_arm(s, p),
         _ => uniform_curvature_arm(s),
     }
+}
+
+/// **A radius of curvature as an arm**: its magnitude. The one mint of
+/// this home, so no reader hands on a carrier's sign.
+fn arm<T: Real>(radius: T) -> Lever<T> {
+    Lever::curvature_radius(radius.abs())
 }
 
 /// **A circle's curvature arm**: its radius, the arm of a turn of its
 /// plane or along it.
 #[must_use]
 pub fn circle_curvature_arm<T: Real>(circle: &Circle<T>) -> Lever<T> {
-    Lever::curvature_radius(circle.radius)
+    arm(circle.radius)
 }
 
 /// **`arm`, no longer than `carrier`'s radius of curvature at `t`**:
@@ -66,7 +73,7 @@ pub fn within_carrier_bend<T: SpanLocate>(arm: Lever<T>, carrier: &Curve3<T>, t:
 /// through the point read, and for a spline.
 #[must_use]
 pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
-    Lever::curvature_radius(match *s {
+    arm(match *s {
         Surface::Plane { .. } => T::from_f64(f64::MAX),
         Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
         Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
@@ -78,10 +85,10 @@ pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
 
 /// **The radius of `s`'s parallel through `p`**: `p`'s distance from the
 /// surface's own axis ([`Surface::axis_line`]), the arm of a turn about
-/// that axis at `p`. On a cone it is [`curvature_lever_arm`]; on a torus
-/// it is the scale its azimuthal sections bend at, which the tube radius
-/// does not bound. Poison for a surface with no axis.
+/// that axis at `p`, and a cone's whole arm ([`curvature_lever_arm`]).
+/// On a torus it is the scale its azimuthal sections bend at, which the
+/// tube radius does not bound. Poison for a surface with no axis.
 #[must_use]
 pub fn parallel_curvature_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
-    Lever::curvature_radius(s.axis_line().map_or_else(poison, |axis| axis.distance(p)))
+    arm(s.axis_line().map_or_else(poison, |axis| axis.distance(p)))
 }

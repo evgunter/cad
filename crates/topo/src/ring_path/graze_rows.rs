@@ -188,7 +188,6 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let far = o - Vec3::unit_x() * r;
     let sphere = Quadric::Sphere {
         centre: o,
-        radius: r,
         arm: geom_core::test_support::fixture_lever(r),
     };
     let leg = |a, b| sphere.paths((a, b), band).unwrap().remove(0);

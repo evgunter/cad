@@ -761,26 +761,44 @@ impl Band {
 /// [`Margin::metered`] or [`Margin::metered_sup`], and a reciprocal arm
 /// through [`Margin::levered_inv`].
 ///
-/// **What holds this, and what does not.** The type has no constructor
-/// that takes a bare length without naming a source, and two gates hold
-/// the doors that do take one. `scripts/gates/lever-sources.sh`: the
-/// extent's own door ([`Lever::of_consumed_extent`]) is read only in
-/// the extent's home, and the escape hatch for an arm that fits no
-/// source ([`Lever::unsourced`]) and a test's fixture length
-/// (`test_support::fixture_lever`) are counted per file with their
-/// reasons. `scripts/gates/lever-doors.sh`: the bare curvature doors
+/// **What holds this, and what does not.** The field is private to
+/// this module, so a lever is built only through the doors here. Two
+/// gates hold the doors that take a bare length, by name.
+/// `scripts/gates/lever-sources.sh`: the extent's own door
+/// ([`Lever::of_consumed_extent`]) is read only in the extent's home,
+/// and the escape hatch for an arm that fits no source
+/// ([`Lever::unsourced`]) and a test's fixture length
+/// ([`fixture_lever`]) are counted with their reasons.
+/// `scripts/gates/lever-doors.sh`: the bare curvature doors
 /// ([`Lever::curvature_radius`], [`Lever::within_curvature`]) are read
-/// only in the curvature home, and with the extent's doors that take a
-/// caller's point or number they stand elsewhere at pins that only
-/// fall. Geometry a caller builds by hand (a carrier, a span, a cover)
-/// and the pivot a lever is read from are review's to hold.
+/// only in the curvature home, and with the extent's named doors that
+/// take a caller's point or number they stand elsewhere at pins, per
+/// file and door, that only fall.
+///
+/// That is a ratchet on those doors' names, not the rule itself. A
+/// function that wraps a pinned site, geometry a caller builds by hand
+/// (a carrier, a span, a cover) and the point a lever is read from all
+/// carry a caller's length to an arm with no gate seeing it; review
+/// holds those.
 ///
 /// Reading the arm back as a length ([`Lever::length`]) is the exit, not
 /// an entrance. [`Lever::max`] folds two reads into a read of their
 /// union; [`Lever::min`] keeps the shorter of two arms.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct Lever<T>(pub(crate) T);
+pub struct Lever<T>(T);
+
+/// **A fixture's length as a lever arm**: a test's arm with no geometry
+/// behind it (a hand-stated row, a probe at a stated scale). The one
+/// door for it, read as `test_support::fixture_lever` and counted by
+/// `scripts/gates/lever-sources.sh`; production code builds its levers
+/// from their sources. It stands here because [`Lever`]'s field is
+/// private to this module.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn fixture_lever<T: crate::real::Real>(length: T) -> Lever<T> {
+    Lever(length)
+}
 
 impl<T: crate::real::Real> Lever<T> {
     /// **A curvature arm read as its radius**: a principal radius of
@@ -791,7 +809,8 @@ impl<T: crate::real::Real> Lever<T> {
     /// (a fat torus bends harder along its inner equator). The curvature
     /// home's door (`geom_brep::curvature_arm`), whose readers take the
     /// carrier: `scripts/gates/lever-doors.sh` holds every other
-    /// reference.
+    /// reference. Public because that home is in another crate;
+    /// `doc(hidden)` keeps it off the rendered page and is no privacy.
     #[doc(hidden)]
     #[must_use]
     pub fn curvature_radius(radius: T) -> Self {

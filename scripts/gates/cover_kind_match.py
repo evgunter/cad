@@ -109,6 +109,8 @@ import bisect
 import re
 import sys
 
+import pin_ledger
+
 COVER_HOMES = re.compile(r'^crates/(geom/src/cover\.rs|geom/src/cover/|topo/src/cover\.rs)')
 READER_HOMES = ('crates/topo/src/boxes.rs', 'crates/topo/src/cover.rs')
 # The homes' public free fns that are not region doors, each with why.
@@ -710,28 +712,6 @@ def sites(path, lines, variants, doors):
     return out
 
 
-def read_pins(path):
-    pins, origins, bad, dup = {}, {}, [], []
-    with open(path, encoding='utf-8') as fh:
-        for n, raw in enumerate(fh, 1):
-            code, _, note = raw.partition('#')
-            line = code.strip()
-            if not line:
-                continue
-            parts = line.split()
-            if len(parts) != 3 or parts[0] not in PINNED_KINDS or not parts[1].isdigit():
-                bad.append(f'{path}:{n}: {raw.rstrip()}')
-                continue
-            key = (parts[0], parts[2])
-            if key in pins:
-                dup.append(f'{path}:{n}: {raw.rstrip()}')
-            pins[key] = int(parts[1])
-            m = re.match(r'\s*from\s+(\S+)', note)
-            if m:
-                origins[key] = m.group(1)
-    return pins, origins, bad, dup
-
-
 def read_registry(path):
     reg, bad = {}, []
     with open(path, encoding='utf-8') as fh:
@@ -765,7 +745,7 @@ def main():
     renames_file = option(args, '--renames')
     registry = option(args, '--readers')
     lines_for = option(args, '--lines')
-    pins, origins, bad, dup = read_pins(args[0])
+    pins, origins, bad, dup = pin_ledger.read_pins(args[0], PINNED_KINDS)
     for b in bad:
         print(f'MALFORMED {b}')
     for d in dup:
@@ -793,25 +773,11 @@ def main():
                 counts[(kind, path)] = counts.get((kind, path), 0) + 1
             if path == lines_for:
                 print(f'LINES {kind} {path}:{n} {fn}')
-    for key in sorted(set(counts) | set(pins), key=lambda k: (k[1], k[0])):
-        now, was = counts.get(key, 0), pins.get(key, 0)
-        if now > was:
-            print(f'ROSE {key[0]} {key[1]}: {was} -> {now}')
-        elif now < was:
-            print(f'FELL {key[0]} {key[1]}: {was} -> {now}')
+    for line in pin_ledger.moved(pins, counts):
+        print(line)
     if base_file is not None:
-        base, _, _, _ = read_pins(base_file)
-        if renames_file:
-            with open(renames_file, encoding='utf-8') as fh:
-                moved = dict(line.split()[:2] for line in fh if len(line.split()) >= 2)
-            base = {(k, moved.get(p, p)): n for (k, p), n in base.items()}
-        held = {}
-        for key, pin in pins.items():
-            target = (key[0], origins.get(key, key[1]))
-            held[target] = held.get(target, 0) + pin
-        for target, total in sorted(held.items(), key=lambda kv: (kv[0][1], kv[0][0])):
-            if total > base.get(target, 0):
-                print(f'RAISED {target[0]} {target[1]}: {base.get(target, 0)} -> {total}')
+        for line in pin_ledger.raised(pins, origins, base_file, renames_file, PINNED_KINDS):
+            print(line)
     if registry is not None:
         reg, bad_reg = read_registry(registry)
         for b in bad_reg:
