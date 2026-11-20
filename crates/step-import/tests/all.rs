@@ -51,8 +51,6 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
-#[path = "zz_review_ledger.rs"]
-mod zz_review_ledger;
 #[path = "a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one.rs"]
 mod a_carrier_the_kernel_builds_is_reported_where_it_is_not_the_printed_one;
 #[path = "a_certified_body_measures_only_itself.rs"]
@@ -181,6 +179,8 @@ mod the_interpretation_layer_reads_the_file_at_its_band;
 mod tier_gate;
 #[path = "two_records_of_one_round_surface_become_one.rs"]
 mod two_records_of_one_round_surface_become_one;
+#[path = "zz_review_ledger.rs"]
+mod zz_review_ledger;
 
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;

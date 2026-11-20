@@ -52,8 +52,6 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
-#[path = "zz_review_patch_carrier_fuzz.rs"]
-mod zz_review_patch_carrier_fuzz;
 #[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
 mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
@@ -94,6 +92,8 @@ mod chart_singularity_locate;
 mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
+#[path = "zz_review_patch_carrier_fuzz.rs"]
+mod zz_review_patch_carrier_fuzz;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
