@@ -2,10 +2,13 @@
 id: recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness
 kind: issue
 title: step-import recognize.rs normalizes a plane normal with no length decision and plus_zero's it, so it cannot mint the unit witness — the bare Vec3::orthonormal_basis stays for it
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: M
+closed: 2026-11-20
+pr: 7166
+branch: exch/plane-normal-witness
 ---
 
 ## Where this came from
@@ -116,7 +119,7 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
 - **The kept `u_ref`** is a kept frame, so its roll is the input's
   (D10 `[placement.frame]`): the patch's own `∂u` made perpendicular
   to the normal, pinned by
-  `recognize::plane_frame::a_promoted_planes_roll_turns_with_its_patch`.
+  `recognize::plane_frame::a_promoted_planes_frame_turns_with_its_patch`.
 - **`adopt::line_frame`** is `RigidMotion::gram_schmidt` of the line's
   direction and the least-component axis, under `STEP_RIM_LINE_FRAME` at
   `Band::least()`. Its roll
@@ -132,7 +135,7 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
 - **`step-export`'s `direction` and `axis2_placement`** are the carrier
   case on the way out, on export's ground, and the carrier rule they
   write under is what `[ev]` PR 7131 (open) is changing; they are left
-  for it.
+  for it: `work/export/step-export-writes-stored-directions-under-a-unit-convention-no-witness-carries.md`.
 - **The bare `Vec3::orthonormal_basis`** keeps about twenty callers
   outside this crate pair (`topo`, `geom-brep`, `geom`), so it does not
   retire here; `geom_brep::newell` is no longer one of them.
@@ -141,3 +144,7 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
   `generators_through`, `normalize::singularity`'s seam-azimuth
   fallback, and `recognize_curve.rs`'s line and circle estimators:
   `work/exch/a-stored-direction-is-taken-from-a-format-gate-with-no-length-decision.md`.
+
+## Closed
+
+PR 7166 (2026-11-20). The plane arm mints its normal and roll as one frame, its `u_ref` the patch's own `∂u` (a kept frame, D10 `[placement.frame]`), in range at every scale the format holds; `line_frame` goes through `gram_schmidt`. Residue each has its own file: `a-line-rims-placed-segment-frame-rolls-off-the-world-axes`, `circle-recognition-normalizes-its-plane-normal-with-no-mint`, `a-stored-direction-is-taken-from-a-format-gate-with-no-length-decision` (this directory), and the export writers' row in `work/export/`. The bare `Vec3::orthonormal_basis` keeps its other callers.
