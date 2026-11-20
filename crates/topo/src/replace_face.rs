@@ -4314,7 +4314,7 @@ const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
 
 /// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
 fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
-    Margin::of(eps_of(tol) - gap)
+    Margin::of(eps_of::<T>(tol) - gap)
 }
 
 /// The run's ε at `T`, the file's one read of it on the chain.
