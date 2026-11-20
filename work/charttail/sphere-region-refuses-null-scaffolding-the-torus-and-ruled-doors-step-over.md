@@ -2,10 +2,13 @@
 id: sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over
 kind: issue
 title: The sphere region's gather refuses a face holding null scaffolding, which the torus and ruled gathers step over
-status: open
+status: closed
 priority: P1
 cost: E
 opened: 2026-10-24
+branch: charttail/sphere-scaffolding
+pr: 7169
+closed: 2026-11-20
 ---
 
 ## What
@@ -64,3 +67,28 @@ to one home, `topo::null` (`Scaffolding`, `is_placeholder`). Both
 (`Scaffolding::Skipped`). The sphere region is now the only boundary
 reader that refuses a placeholder: `sphere_face_region` passes
 `Scaffolding::Refused`, pinned by its `a_zones_null_edge_leaves_no_region`.
+
+## Decided: the sphere region steps over it (2026-11-20)
+
+`sphere_face_region` steps over a placeholder, as the torus and ruled
+regions do. Nothing in the sphere reading depends on one: it reads the
+face's arcs, a placeholder is no arc, and the half-edges either side of
+it meet at its one point, so the arcs left are the face's boundary.
+Pinned by `sphere_region.rs`'s rows: a placeholder at a strut's tip
+(`a_placeholder_at_a_struts_tip_bounds_nothing`), one on a rim vertex
+between the sphere face and its plane neighbour, which the surface
+boundary keeps and only the gather's skip drops
+(`a_placeholder_between_two_faces_bounds_nothing`), `point_in_solid`
+and the pierce door through them, and a parted null edge as a gap.
+These replace `a_zones_null_edge_leaves_no_region`.
+
+With every region door skipping, `region::boundary` takes no
+`Scaffolding` argument: it always leaves a placeholder out. The enum
+stays for the loop lift, whose strict reads (`Lift::read`,
+`Lift::read_from`, the public `loop_lift`) pass `Scaffolding::Refused`,
+so the Owed text's "then retire `Scaffolding`" holds for the gather's
+argument only.
+
+## Closed (2026-11-20)
+
+By PR 7169: every region reader steps over a placeholder (`crate::null::is_placeholder`), the sphere's included. `region::boundary` no longer takes a `Scaffolding` argument; the enum stays for the strict public lift. A parted null edge is still a gap and leaves no region. Pinned by `sphere_region`'s five rows, including a placeholder between two faces.

@@ -784,15 +784,11 @@ fn vertex_bounds<T: editor_core::test_support::AnyEvaluate>(
 ///
 /// An axis mate off the origin turns about its line: the box's edge on
 /// the edge of a copy slid to `(1, 2)`, spun `turn/4`. There the copy's
-/// measured spin is undone before the written one is made, and at
-/// `Interval` an exact zero measured spin is the exact zero, not the
-/// backend `atan2`'s dust, whose cosine is an ulp wide and would widen
-/// the copy's translation by the line's lever.
+/// measured spin is undone before the written one is made.
 ///
 /// *Breaks if* a rotation by a written fraction of a turn reads the
 /// sine and cosine of its value: a coordinate then carries `6.1e-17`
-/// at `f64` and an enclosure of that width at `Interval`; or if an
-/// exactly zero measured spin is undone through a widened zero.
+/// at `f64` and an enclosure of that width at `Interval`.
 #[test]
 fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes() {
     use editor_core::TargetAxis::{X, Y, Z};

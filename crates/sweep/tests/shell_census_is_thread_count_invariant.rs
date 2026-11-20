@@ -87,10 +87,10 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     }
     got.sort();
     let want: Vec<(String, usize)> = [
-        ("bool_point_in_solid_denom Positive Check", 2),
-        ("bool_ray_cylinder_disc Positive Check", 2),
         ("bool_wall_turn_true Positive Check", 16),
         ("curve_carrier_clear Positive Check", 20),
+        ("line_quadric_cylinder_axis_parallel Positive Check", 2),
+        ("line_quadric_cylinder_disc Positive Check", 2),
         ("pm_census_curved_speed_floor Positive Check", 6),
         ("pm_census_curved_speed_hi Positive Check", 6),
         ("props_chart_axis_inside Positive Choice", 2),
