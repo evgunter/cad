@@ -1437,8 +1437,9 @@ impl<'a> Resolver<'a> {
             // this gate only AFTER promotion was tried: rings on
             // promoted PLANES have already left through the
             // plane-guard on this branch, so what refuses is rings on
-            // genuinely curved patches — promoted cylinders included
-            // (this crate adopts a ring on no curved chart yet) — and
+            // genuinely curved patches — promoted cylinders, cones,
+            // spheres and tori included (this crate adopts a ring on no
+            // curved chart yet) — and
             // rings on NURBS that certified as
             // no implemented analytic kind. Where the face could ONLY
             // import by promotion and the recognizer's estimator was
@@ -1456,10 +1457,11 @@ impl<'a> Resolver<'a> {
                 id,
                 what: "a curved ADVANCED_FACE with more than one bound that is not a \
                        recognized periodic band — an interior ring on a curved patch \
-                       (a promoted cylinder's, or a NURBS patch's that certified as no \
+                       (a promoted curved kind's, or a NURBS patch's that certified as no \
                        implemented analytic kind at ε_in — stage-1 recognition \
-                       promotes certified planes and cylinders, and rings on promoted \
-                       planes import; this reader adopts a ring on no curved chart \
+                       promotes certified planes, cylinders, cones, spheres and tori, \
+                       and rings on promoted planes import; this reader adopts a ring \
+                       on no curved chart \
                        yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere zone stated as its two rims \

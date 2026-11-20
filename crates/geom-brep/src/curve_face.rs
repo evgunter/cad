@@ -44,7 +44,8 @@ pub enum Door {
     /// ([`line_quadric`]).
     LineRoots,
     /// A circle or an ellipse against a cylinder, a cone or a sphere: the
-    /// residual's trigonometric polynomial in the conic's angle.
+    /// residual's trigonometric polynomial in the conic's angle
+    /// ([`conic_quadric`]).
     ConicQuadric,
     /// A circle or an ellipse against a torus ([`circle_torus`],
     /// [`ellipse_torus`]).
@@ -158,6 +159,7 @@ const PERIODIC_READS_ITS_VIEW: &str = "a periodic cubic's span is read on its cl
 pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
     (Door::PlaneCrossing, "plane_crossing_"),
     (Door::LineRoots, "line_quadric_"),
+    (Door::ConicQuadric, "conic_quadric_"),
     (Door::ConicTorus, "circle_torus_"),
     (Door::ConicTorus, "ellipse_torus_"),
     (Door::SplineComposite, "spline_composite_"),
@@ -556,6 +558,7 @@ pub mod composite;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod conic_oracle;
+pub mod conic_quadric;
 pub mod ellipse_torus;
 pub mod line_quadric;
 pub mod plane_crossing;

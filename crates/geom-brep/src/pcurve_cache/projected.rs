@@ -1855,6 +1855,85 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T
     (boxed.max(T::zero()), support, b.z, far)
 }
 
+/// A part's axial reach off its controls `q` ([`part_floors`]): the
+/// least `ρ` (the box's floor, raised to the chord support where that
+/// support's divisor certifies), the greatest `ρ`, and the range of `z`.
+/// The one reading of a part's floors that its metres conversion
+/// ([`Meters::part_bound`]) divides by.
+pub(crate) fn part_reach(
+    q: &[(Vec3<geom_core::Interval>, geom_core::Interval)],
+) -> (
+    geom_core::Interval,
+    geom_core::Interval,
+    (geom_core::Interval, geom_core::Interval),
+) {
+    let (boxed, support, z, far) = part_floors(q);
+    // The support's divisor may not certify (a chord through the axis):
+    // the box's floor stands alone then.
+    let rho = if support.is_certified() {
+        boxed.max(support)
+    } else {
+        boxed
+    };
+    (rho, far, z)
+}
+
+/// Which locus a cone part's metres bound is read against
+/// ([`Meters::part_bound`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConeLocus {
+    /// The stored nappe: the generator lever's reading, and the apex root
+    /// only where that lever does not read ([`Meters::certified`]), since
+    /// the root bounds the distance from the DOUBLE cone and must not
+    /// undercut the nappe's own reading.
+    Nappe,
+    /// The double cone (the carrier's complete locus): both readings bound
+    /// its distance, so the lesser is taken.
+    Double,
+}
+
+impl Meters<geom_core::Interval> {
+    /// **A part's metres bound** — the one cell-to-metres step: a part
+    /// whose `|f|` is at most `f_sup`, whose `ρ` ranges over
+    /// `(rho_lo, rho_hi)` and whose `z` over `z`, read through
+    /// [`Self::certified`] with each lever decided positive where its
+    /// `lower` end is, and its reading's `upper` end taken. On a cone read
+    /// against [`ConeLocus::Double`] the apex root is a second bound, and
+    /// the lesser holds. `NaN` where an input is not finite, `+∞` where no
+    /// reading reads (a torus or sheet lever not decided positive).
+    pub(crate) fn part_bound(
+        self,
+        f_sup: f64,
+        (rho_lo, rho_hi): (f64, f64),
+        z: (f64, f64),
+        locus: ConeLocus,
+        lower: impl Fn(geom_core::Interval) -> f64,
+        upper: impl Fn(geom_core::Interval) -> f64,
+    ) -> f64 {
+        if !(f_sup.is_finite()
+            && rho_lo.is_finite()
+            && rho_hi.is_finite()
+            && z.0.is_finite()
+            && z.1.is_finite())
+        {
+            return f64::NAN;
+        }
+        let point = |x: f64| geom_core::Interval::from_bounds(x, x);
+        let f = point(f_sup);
+        let read = self
+            .certified(f, (point(rho_lo), point(rho_hi)), z, |lever| {
+                lower(lever) > 0.0
+            })
+            // `+∞` off the cone and the sheet only: on them the apex
+            // reading always reads.
+            .map_or(f64::INFINITY, &upper);
+        match (locus, self.apex_root(f)) {
+            (ConeLocus::Double, Some(root)) => geom_core::interval::min_bound(read, upper(root)),
+            _ => read,
+        }
+    }
+}
+
 /// The one decision every condition of this module reads: whether
 /// `value` decides positive. Not positive (zero or negative) is
 /// `Ok(false)`; the band's undecided answer escalates.
@@ -2448,6 +2527,10 @@ pub(super) fn net_incidence<T: Decide>(
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
+        // Not [`Meters::part_bound`]: this reading is at the lane scalar
+        // `T`, and decides each lever at the band, escalating where the
+        // band cannot tell, where `part_bound` reads interval enclosures
+        // and takes a lever positive only where its lower end is.
         let disp = meters
             .over(
                 f,

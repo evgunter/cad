@@ -2,11 +2,14 @@
 id: main-red-endpoint-census-moves-interval-rs-on-less-sin
 kind: issue
 title: Main red: certified_endpoint_census gains one geom-core interval.rs endpoint read (less_sin's series test) unrostered, since PR 7146
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: E
 refs: [7146]
+branch: oneround/less-sin-census
+closed: 2026-11-20
+pr: 7223
 ---
 
 
@@ -31,3 +34,9 @@ Disposition the read (it bounds the argument for the series switch, not a certif
     cargo nextest run -p geom-core --ignore-default-filter -E 'test(every_production_endpoint_read)'
 
 Signed: (EXCH orchestrator)
+
+## Closed (2026-11-20, PR 7223)
+
+The read is not a certification read and no code changed. `Interval`'s `less_sin` reads the magnitude's upper end to pick between two arms that each enclose `x − sin x` over the whole set and each carry the operand's decoration through their arithmetic: an uncertified enclosure with ordinary ends takes the series arm, which is sound for it, and comes out uncertified; a NaN end (NaI, empty) compares false, takes the difference and propagates; an unbounded end takes the difference. `less_sin_rows::an_uncertified_enclosure_stays_uncertified_on_either_arm` shows each case. The roster line for `interval.rs` reads (37, 8) with a sentence for this read and one for SCALAR's two (`told_reading` hands both ends to a type that only renders), counted here because neither fix could go green alone.
+
+The census test is still red on main after this, on one line that is not ONEROUND's: `pcurve_cache/speed.rs` (`work/charttail/main-red-endpoint-census-reads-41-in-speed-rs-since-pole-section.md`). The PR gate did not run the test on this PR either: a diff that edits the roster and not the test function's name line selects no slow test (`work/green/a-slow-row-whose-assertion-moves-without-its-name-line-is-not-gated.md`).
