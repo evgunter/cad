@@ -191,7 +191,7 @@ fn arc_between(
 
 /// The ruling segment from `x0` to `x1`, both on one ruling of the
 /// cone at `apex`.
-fn ruling(apex: Point3<f64>, (x0, x1): (Point3<f64>, Point3<f64>)) -> IslandEdge {
+pub(crate) fn ruling(apex: Point3<f64>, (x0, x1): (Point3<f64>, Point3<f64>)) -> IslandEdge {
     let dir = (x1 - x0).normalize();
     IslandEdge {
         carrier: geom::Curve3::Line(geom::Line { origin: apex, dir }),

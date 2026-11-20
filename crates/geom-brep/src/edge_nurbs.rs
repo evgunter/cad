@@ -1595,7 +1595,7 @@ pub fn first_within<C, T: Decide>(
 /// Incidence on an `Approx` wall's description is this bound plus the
 /// fit's own recorded distance from it, which the surface carries
 /// ([`geom::ApproxSurface`]); nothing here adds the two
-/// (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
+/// (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
 ///
 /// # Errors
 ///

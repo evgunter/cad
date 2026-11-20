@@ -5548,7 +5548,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // they meet. The wall side is metered against its spline chart, an
     // `Approx` wall's fit; incidence on that wall's description adds the
     // fit's own recorded distance, which this certificate does not
-    // read (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
+    // read (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
     // the `Intersection` lane's posture too). ----
     if let Resolved::OnPairNurbs {
         plane,

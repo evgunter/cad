@@ -768,10 +768,16 @@ fn a_sphere_closed_on_a_slit_has_no_trim() {
             .unwrap();
             // The trim reads the face's stored lift.
             crate::pcurves::mint_pcurves(&mut body, tol()).unwrap();
-            let trim =
-                crate::solid_contain::sphere_chart_trim(&body, seed.face, &s.surface(), band())
-                    .unwrap()
-                    .unwrap_or_else(|| panic!("z {z}: a whole sphere is expressible"));
+            let trim = crate::solid_contain::sphere_chart_trim(
+                &body,
+                seed.face,
+                s.f.o,
+                s.r,
+                s.f.z,
+                band(),
+            )
+            .unwrap()
+            .unwrap_or_else(|| panic!("z {z}: a whole sphere is expressible"));
             assert!(
                 trim.az.is_none() && trim.north.is_none() && trim.south.is_none(),
                 "z {z}: {:?}",

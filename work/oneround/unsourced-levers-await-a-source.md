@@ -120,3 +120,6 @@ Two designers agree after four rounds (`docs/DESIGN-FORK-LOG.md` row 290): no fo
 
 The design question is closed; what is left on this row is the build, cut into units at spec time.
 
+## Added 2026-11-20 (`oneround/lever-doors`, the lever-fields pass)
+
+- **`geom_brep::pair_section::ruling::RuledCylinders { rho, r, lever }` holds a lever beside the scalars it was read with: a half-fix.** `lever` is the lesser of the two cylinders' curvature arms, minted from the carriers in `CylinderCylinderPose::ruled`; `rho` and `r` are their radii, selected by `pick`. The lever is a min of two, so neither scalar can be read from it. Holding both cylinders and deriving all three means reworking the `pick`-selected record and about 14 uses of `rho`. Every other pair PR 7143 introduced holds one of the two or the carrier.

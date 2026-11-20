@@ -698,7 +698,14 @@ fn sphere_window<T: Decide>(
         {
             return Err(());
         }
-        let trim = match crate::solid_contain::sphere_chart_trim(body, f.key(), surface, band) {
+        let trim = match crate::solid_contain::sphere_chart_trim(
+            body,
+            f.key(),
+            *center,
+            *radius,
+            *axis,
+            band,
+        ) {
             Ok(Some(trim)) => trim,
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),

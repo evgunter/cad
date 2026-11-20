@@ -682,7 +682,7 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 /// by `drift` over the unit run its edge covers.
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
-    crate::solid_contain::line_wall_roots(
+    geom_brep::curve_face::line_quadric::line_wall_roots(
         geom::Line {
             origin: Point3::new(0.5, 0.0, 0.0),
             dir: Vec3::new(drift, 0.0, 1.0),
@@ -694,12 +694,13 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         1.0,
         1.0,
         band(),
-        crate::solid_contain::About::Start,
+        geom_brep::curve_face::line_quadric::About::Start,
     )
     .map(|_| ())
-    .map_err(|fault| BooleanError::Escalated {
-        decision: BooleanDecision::WallRoots(fault.rung),
-        diag: fault.diag,
+    .map_err(|fault| {
+        BooleanError::of_line_quadric_refusal(
+            geom_brep::curve_face::line_quadric::LineQuadricRefusal::Wall(fault),
+        )
     })
 }
 
@@ -2478,7 +2479,10 @@ fn top_level_fn(line: &str) -> Option<String> {
         return None;
     }
     let mut rest = body;
-    for prefix in ["pub(crate) ", "pub(super) ", "pub ", "const "] {
+    if let Some(scoped) = rest.strip_prefix("pub(") {
+        rest = scoped.split_once(") ").map_or(rest, |(_, after)| after);
+    }
+    for prefix in ["pub ", "const "] {
         rest = rest.strip_prefix(prefix).unwrap_or(rest);
     }
     let rest = rest.strip_prefix("fn ")?;
@@ -2635,6 +2639,30 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
     ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
+    (
+        "mod.rs",
+        "of_line_quadric_refusal",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_line_quadric_refusal",
+        "BooleanDecision::SphereRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_line_quadric_refusal",
+        "BooleanDecision::TorusRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_line_quadric_refusal",
+        "BooleanDecision::WallRoots",
+        1,
+    ),
     ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
@@ -2793,30 +2821,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
-    (
-        "reduce.rs",
-        "line_cone_roots",
-        "BooleanDecision::ConeRoots",
-        1,
-    ),
-    (
-        "reduce.rs",
-        "line_wall_roots_of",
-        "BooleanDecision::SphereRoots",
-        1,
-    ),
-    (
-        "reduce.rs",
-        "line_wall_roots_of",
-        "BooleanDecision::TorusRoots",
-        1,
-    ),
-    (
-        "reduce.rs",
-        "line_wall_roots_of",
-        "BooleanDecision::WallRoots",
-        1,
-    ),
     (
         "reduce.rs",
         "twin_edge",
