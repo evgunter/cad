@@ -321,13 +321,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
-    NameCarrier::Const("CONE_APEX"),
-    NameCarrier::Const("CONE_APEX_SPREAD"),
-    NameCarrier::Const("CONE_DEFLATED_CLEAR"),
-    NameCarrier::Const("CONE_DEFLATED_DEPTH"),
-    NameCarrier::Const("CONE_DEFLATED_SIDE"),
-    NameCarrier::Const("CONE_ON_SURFACE"),
-    NameCarrier::Const("CONE_ROOT_SLACK"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER_DEPARTS"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER_VERTEX"),
@@ -377,7 +370,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("RULINGS"),
     NameCarrier::Const("SEAM_GERM_ON_PLANE"),
     NameCarrier::Const("SEAM_GERM_SIDE"),
-    NameCarrier::Const("SECOND_HARMONIC"),
     NameCarrier::Const("SECOND_ORDER"),
     NameCarrier::Const("SECTION_PIN_WITHIN"),
     NameCarrier::Const("SECTOR_APEX_TILT"),
@@ -414,6 +406,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("GERM_SENSE"),
     NameCarrier::Const("GERM_SIDE"),
     NameCarrier::Const("WINDING_PREDICATE"),
+    NameCarrier::Const("TANGENT_SECTOR_ORDER2"),
     NameCarrier::Const("TANGENT_SECTOR_WITNESS"),
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
@@ -512,10 +505,6 @@ const INDIRECT: &[(&str, &str)] = &[
     (
         "boolean/cone_frame_rows.rs: declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops: x",
         NOT_A_NAME,
-    ),
-    (
-        "boolean/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
-        ROW_FIELD,
     ),
     (
         "boolean/contact_verify.rs: a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim: &first",
