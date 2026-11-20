@@ -14,7 +14,7 @@
 //! valid, one loop placed twice resolves to two ids, and a reshape that
 //! changes the prefix refuses it.
 
-use profile::{ArcSide, ArcSweep, PieceRole, RoleList, Step, Verb};
+use profile::{FormLowered, FormTarget, PieceRole, RoleList, Step, Verb};
 
 use crate::names::ProfileEdgeRef;
 use crate::node::StepId;
@@ -23,7 +23,8 @@ use crate::program::{
     program_index,
 };
 
-/// Where a target-taking step ends, value erased.
+/// Where a target-taking step ends, value erased: the kernel's target
+/// forms, and the ones the pen finds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetShape {
     /// An authored point.
@@ -40,192 +41,179 @@ pub enum TargetShape {
     AtY,
 }
 
-/// An arc spec's mode and structural tags, values erased.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ArcShape {
-    /// `Radius`, and the side its centre sits on.
-    Radius(ArcSide),
-    /// `Bulge`, and its target.
-    Bulge(TargetShape),
-    /// `Via`, and its target.
-    Via(TargetShape),
-    /// `Center`, its travel sense and its target.
-    Center(ArcSweep, TargetShape),
-    /// `Sweep`, and the side its centre sits on.
-    Sweep(ArcSide),
-    /// `ArcLen`, and the side its centre sits on.
-    ArcLen(ArcSide),
+impl TargetShape {
+    /// Whether the pen finds this target: a trace's crossing or a
+    /// written coordinate.
+    #[must_use]
+    pub fn found_from_the_pen(self) -> bool {
+        matches!(self, Self::OnTrace | Self::AtX | Self::AtY)
+    }
 }
 
-/// **One authored step, values erased**: its verb and the structural
-/// tags it carries (targets, arc modes, sides, senses, a split's count).
+impl FormTarget for TargetShape {
+    /// A target found from the pen lowers to the point it finds.
+    fn kernel(self) -> profile::TargetKind {
+        match self {
+            Self::Point | Self::OnTrace | Self::AtX | Self::AtY => profile::TargetKind::Point,
+            Self::Start => profile::TargetKind::Start,
+            Self::StartArriving => profile::TargetKind::StartArriving,
+        }
+    }
+}
+
+impl From<profile::TargetKind> for TargetShape {
+    fn from(kind: profile::TargetKind) -> Self {
+        match kind {
+            profile::TargetKind::Point => Self::Point,
+            profile::TargetKind::Start => Self::Start,
+            profile::TargetKind::StartArriving => Self::StartArriving,
+        }
+    }
+}
+
+/// **A program step the kernel has no verb for**, value erased
+/// ([`profile::StepForm::Lowered`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StepShape {
-    /// `at`.
-    At,
-    /// `angle`.
-    Angle,
-    /// `toward`.
-    Toward,
-    /// `tangent`.
-    Tangent,
-    /// `cusp`.
-    Cusp,
-    /// `turn`.
-    Turn,
-    /// `line`.
-    Line,
-    /// `line_to`.
-    LineTo(TargetShape),
-    /// `continue_to`.
-    ContinueTo(TargetShape),
-    /// `arc_to`.
-    ArcTo(ArcShape),
-    /// `tangent_arc_to`.
-    TangentArcTo(TargetShape),
-    /// `arc_onto`.
-    ArcOnto(TargetShape),
-    /// `fillet`.
-    Fillet,
-    /// `fillet_arc`, and its arrival spec.
-    FilletArc(ArcShape),
-    /// `arc_fillet`, and its incoming spec.
-    ArcFillet(ArcShape),
-    /// `arc_fillet_arc`, its incoming spec and its arrival spec.
-    ArcFilletArc(ArcShape, ArcShape),
-    /// `to(anchor)`, the far end.
-    FarEndTo,
-    /// `to(Start)`, the seam-fillet close.
-    CloseTo,
+pub enum PenStep {
     /// The heading along a face's trace: the `toward` director it
     /// lowers to.
     AlongTrace,
-    /// `circle`.
-    Circle,
-    /// `circle_split`, and its count.
-    CircleSplit {
-        /// The subdivision count.
-        n: usize,
-    },
-    /// `rectangle`.
-    Rectangle,
 }
 
-impl StepShape {
-    /// The verb this step names.
-    #[must_use]
-    pub fn verb(self) -> Verb {
+impl FormLowered for PenStep {
+    fn verb(self) -> Verb {
         match self {
-            Self::At => Verb::At,
-            Self::Angle => Verb::Angle,
-            Self::Toward => Verb::Toward,
-            Self::Tangent => Verb::Tangent,
-            Self::Cusp => Verb::Cusp,
-            Self::Turn => Verb::Turn,
-            Self::Line => Verb::Line,
-            Self::LineTo(_) => Verb::LineTo,
-            Self::ContinueTo(_) => Verb::ContinueTo,
-            Self::ArcTo(_) => Verb::ArcTo,
-            Self::TangentArcTo(_) => Verb::TangentArcTo,
-            Self::ArcOnto(_) => Verb::ArcOnto,
-            Self::Fillet => Verb::Fillet,
-            Self::FilletArc(_) => Verb::FilletArc,
-            Self::ArcFillet(_) => Verb::ArcFillet,
-            Self::ArcFilletArc(..) => Verb::ArcFilletArc,
-            Self::FarEndTo => Verb::FarEndTo,
-            Self::CloseTo => Verb::CloseTo,
             Self::AlongTrace => Verb::Toward,
-            Self::Circle => Verb::Circle,
-            Self::CircleSplit { .. } => Verb::CircleSplit,
-            Self::Rectangle => Verb::Rectangle,
-        }
-    }
-
-    /// The roles this step may draw: its verb's list.
-    #[must_use]
-    pub fn roles(self) -> RoleList {
-        RoleList::of(self.verb())
-    }
-
-    /// How many pieces a complete-loop form draws; `0` for every other step,
-    /// whose roles are not indexed ([`profile::carrier_pieces`]).
-    #[must_use]
-    pub fn pieces(self) -> u32 {
-        let n = match self {
-            Self::CircleSplit { n } => n,
-            _ => 0,
-        };
-        profile::carrier_pieces(self.verb(), n)
-    }
-
-    /// Whether this step may draw `role` ([`RoleList::admits`]).
-    #[must_use]
-    pub fn admits(self, role: PieceRole) -> bool {
-        self.roles().admits(role, self.pieces())
-    }
-
-    /// A recorded step, values erased.
-    #[must_use]
-    pub fn of_recorded<T: geom_core::Real>(step: &Step<T>) -> Self {
-        match step {
-            Step::At(_) => Self::At,
-            Step::Angle(_) => Self::Angle,
-            Step::Toward { .. } => Self::Toward,
-            Step::Tangent => Self::Tangent,
-            Step::Cusp => Self::Cusp,
-            Step::Turn(_) => Self::Turn,
-            Step::Line(_) => Self::Line,
-            Step::LineTo(t) => Self::LineTo(target_of_recorded(t)),
-            Step::ContinueTo(t) => Self::ContinueTo(target_of_recorded(t)),
-            Step::ArcTo(spec) => Self::ArcTo(arc_of_recorded(spec)),
-            Step::TangentArcTo(t) => Self::TangentArcTo(target_of_recorded(t)),
-            Step::ArcOnto(t) => Self::ArcOnto(target_of_recorded(t)),
-            Step::Fillet { .. } => Self::Fillet,
-            Step::FilletArc { spec, .. } => Self::FilletArc(arc_of_recorded(spec)),
-            Step::ArcFillet { spec, .. } => Self::ArcFillet(arc_of_recorded(spec)),
-            Step::ArcFilletArc { spec, spec2, .. } => {
-                Self::ArcFilletArc(arc_of_recorded(spec), arc_of_recorded(spec2))
-            }
-            Step::FarEndTo(_) => Self::FarEndTo,
-            Step::CloseTo => Self::CloseTo,
-            Step::Circle { .. } => Self::Circle,
-            Step::CircleSplit { n, .. } => Self::CircleSplit { n: *n },
-            Step::Rectangle { .. } => Self::Rectangle,
-        }
-    }
-
-    fn of_program<S>(step: &ProgramStep<S>) -> Self {
-        match step {
-            ProgramStep::At(_) => Self::At,
-            ProgramStep::Angle(_) => Self::Angle,
-            ProgramStep::Toward { .. } => Self::Toward,
-            ProgramStep::Tangent => Self::Tangent,
-            ProgramStep::Cusp => Self::Cusp,
-            ProgramStep::Turn(_) => Self::Turn,
-            ProgramStep::Line(_) => Self::Line,
-            ProgramStep::LineTo(t) => Self::LineTo(target_of_program(t)),
-            ProgramStep::ContinueTo(t) => Self::ContinueTo(target_of_program(t)),
-            ProgramStep::ArcTo(spec) => Self::ArcTo(arc_of_program(spec)),
-            ProgramStep::TangentArcTo(t) => Self::TangentArcTo(target_of_program(t)),
-            ProgramStep::ArcOnto(t) => Self::ArcOnto(target_of_program(t)),
-            ProgramStep::Fillet(_) => Self::Fillet,
-            ProgramStep::FilletArc { spec, .. } => Self::FilletArc(arc_of_program(spec)),
-            ProgramStep::ArcFillet { spec, .. } => Self::ArcFillet(arc_of_program(spec)),
-            ProgramStep::ArcFilletArc { spec, spec2, .. } => {
-                Self::ArcFilletArc(arc_of_program(spec), arc_of_program(spec2))
-            }
-            ProgramStep::FarEndTo(_) => Self::FarEndTo,
-            ProgramStep::CloseTo => Self::CloseTo,
-            ProgramStep::AlongTrace { .. } => Self::AlongTrace,
         }
     }
 }
 
-fn target_of_recorded<T: geom_core::Real>(t: &profile::Target<T>) -> TargetShape {
-    match t {
-        profile::Target::Point(_) => TargetShape::Point,
-        profile::Target::Start => TargetShape::Start,
-        profile::Target::StartArriving => TargetShape::StartArriving,
+/// An arc spec's mode and structural tags, values erased: the kernel's
+/// one form ([`profile::ArcForm`]) over the editor's targets.
+pub type ArcShape = profile::ArcForm<TargetShape>;
+
+/// **One authored step, values erased**: its verb and the structural
+/// tags it carries (targets, arc modes, sides, senses, a split's
+/// count). It is the kernel's one value-free form
+/// ([`profile::StepForm`]) over the editor's targets and its traced
+/// heading, so the address a step is bound by and the walk the door
+/// asks ([`step_kernel`]) read the same thing.
+pub type StepShape = profile::StepForm<TargetShape, PenStep>;
+
+/// A recorded step, values erased.
+#[must_use]
+pub fn shape_of_recorded<T: geom_core::Real>(step: &Step<T>) -> StepShape {
+    step.form().lower(TargetShape::from, |never| match never {})
+}
+
+/// A program step, values erased.
+pub(crate) fn shape_of_program<S>(step: &ProgramStep<S>) -> StepShape {
+    use profile::StepForm as F;
+    match step {
+        ProgramStep::At(_) => F::At,
+        ProgramStep::Angle(_) => F::Angle,
+        ProgramStep::Toward { .. } => F::Toward,
+        ProgramStep::Tangent => F::Tangent,
+        ProgramStep::Cusp => F::Cusp,
+        ProgramStep::Turn(_) => F::Turn,
+        ProgramStep::Line(_) => F::Line,
+        ProgramStep::LineTo(t) => F::LineTo(target_of_program(t)),
+        ProgramStep::ContinueTo(t) => F::ContinueTo(target_of_program(t)),
+        ProgramStep::ArcTo(spec) => F::ArcTo(arc_of_program(spec)),
+        ProgramStep::TangentArcTo(t) => F::TangentArcTo(target_of_program(t)),
+        ProgramStep::ArcOnto(t) => F::ArcOnto(target_of_program(t)),
+        ProgramStep::Fillet(_) => F::Fillet,
+        ProgramStep::FilletArc { spec, .. } => F::FilletArc(arc_of_program(spec)),
+        ProgramStep::ArcFillet { spec, .. } => F::ArcFillet(arc_of_program(spec)),
+        ProgramStep::ArcFilletArc { spec, spec2, .. } => {
+            F::ArcFilletArc(arc_of_program(spec), arc_of_program(spec2))
+        }
+        ProgramStep::FarEndTo(_) => F::FarEndTo,
+        ProgramStep::CloseTo => F::CloseTo,
+        ProgramStep::AlongTrace { .. } => F::Lowered(PenStep::AlongTrace),
+    }
+}
+
+/// **How a step found from the pen lowers** ([`pen_run`]): the one map
+/// from a pen step's shape to what `crate::trace` lowers it to, read by
+/// that lowering, by the door's lattice ([`ProfileProgram::lattice`])
+/// and by an editor holding steps back ([`crate::trace::pen_order`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PenRun {
+    /// `along_trace`: a `toward` along the trace the step before ran
+    /// onto.
+    Heading,
+    /// `line_to` (`wants_director`) or `continue_to` to a trace or a
+    /// coordinate: a `line` along the pen's heading, ending on the
+    /// trace (`onto_trace`) or at the coordinate.
+    Leg {
+        /// Whether a director binds the heading (`line_to`), not the
+        /// incoming tangent (`continue_to`).
+        wants_director: bool,
+        /// Whether it ends on a trace's crossing.
+        onto_trace: bool,
+    },
+    /// `arc_to` about a centre onto a trace's crossing: the centre arc
+    /// to the point it crosses at.
+    Arc,
+    /// Any other step that reads a trace or a coordinate: not a run
+    /// (`TraceStepFault::NotARun`).
+    NotARun,
+}
+
+impl PenRun {
+    /// Whether the run ends on a trace, which an `along_trace` after it
+    /// reads.
+    #[must_use]
+    pub fn reaches_a_trace(self) -> bool {
+        matches!(
+            self,
+            Self::Leg {
+                onto_trace: true,
+                ..
+            } | Self::Arc
+        )
+    }
+}
+
+/// **How `shape` lowers from the pen**, where it reads a trace or a
+/// written coordinate; `None` for every other step.
+#[must_use]
+pub fn pen_run(shape: StepShape) -> Option<PenRun> {
+    use profile::StepForm as F;
+    let pen = TargetShape::found_from_the_pen;
+    let arc_pen = |a: ArcShape| a.target().is_some_and(pen);
+    Some(match shape {
+        F::Lowered(PenStep::AlongTrace) => PenRun::Heading,
+        F::LineTo(t) if pen(t) => PenRun::Leg {
+            wants_director: true,
+            onto_trace: t == TargetShape::OnTrace,
+        },
+        F::ContinueTo(t) if pen(t) => PenRun::Leg {
+            wants_director: false,
+            onto_trace: t == TargetShape::OnTrace,
+        },
+        F::ArcTo(profile::ArcForm::Center(_, TargetShape::OnTrace)) => PenRun::Arc,
+        F::TangentArcTo(t) | F::ArcOnto(t) if pen(t) => PenRun::NotARun,
+        F::ArcTo(a) | F::FilletArc(a) | F::ArcFillet(a) if arc_pen(a) => PenRun::NotARun,
+        F::ArcFilletArc(a, b) if arc_pen(a) || arc_pen(b) => PenRun::NotARun,
+        _ => return None,
+    })
+}
+
+/// **`shape` as the kernel walks it**, values erased
+/// ([`profile::chain_shape`]): a step found from the pen as the verb
+/// its lowering gives it ([`pen_run`]), every other step as written,
+/// each target as the kernel target it lowers to.
+#[must_use]
+pub fn step_kernel(shape: StepShape) -> profile::StepForm {
+    use profile::StepForm as F;
+    match pen_run(shape) {
+        Some(PenRun::Heading) => F::Toward,
+        Some(PenRun::Leg { .. }) => F::Line,
+        _ => shape.lower(FormTarget::kernel, |x| match x {
+            PenStep::AlongTrace => F::Toward,
+        }),
     }
 }
 
@@ -240,29 +228,17 @@ fn target_of_program<S>(t: &ProgramTarget<S>) -> TargetShape {
     }
 }
 
-fn arc_of_recorded<T: geom_core::Real>(spec: &profile::ArcData<T>) -> ArcShape {
-    match spec {
-        profile::ArcData::Radius { side, .. } => ArcShape::Radius(*side),
-        profile::ArcData::Bulge { target, .. } => ArcShape::Bulge(target_of_recorded(target)),
-        profile::ArcData::Via { target, .. } => ArcShape::Via(target_of_recorded(target)),
-        profile::ArcData::Center {
-            winding, target, ..
-        } => ArcShape::Center(*winding, target_of_recorded(target)),
-        profile::ArcData::Sweep { side, .. } => ArcShape::Sweep(*side),
-        profile::ArcData::ArcLen { side, .. } => ArcShape::ArcLen(*side),
-    }
-}
-
 fn arc_of_program<S>(spec: &ProgramArcData<S>) -> ArcShape {
+    use profile::ArcForm as A;
     match spec {
-        ProgramArcData::Radius { side, .. } => ArcShape::Radius(*side),
-        ProgramArcData::Bulge { target, .. } => ArcShape::Bulge(target_of_program(target)),
-        ProgramArcData::Via { target, .. } => ArcShape::Via(target_of_program(target)),
+        ProgramArcData::Radius { side, .. } => A::Radius(*side),
+        ProgramArcData::Bulge { target, .. } => A::Bulge(target_of_program(target)),
+        ProgramArcData::Via { target, .. } => A::Via(target_of_program(target)),
         ProgramArcData::Center {
             winding, target, ..
-        } => ArcShape::Center(*winding, target_of_program(target)),
-        ProgramArcData::Sweep { side, .. } => ArcShape::Sweep(*side),
-        ProgramArcData::ArcLen { side, .. } => ArcShape::ArcLen(*side),
+        } => A::Center(*winding, target_of_program(target)),
+        ProgramArcData::Sweep { side, .. } => A::Sweep(*side),
+        ProgramArcData::ArcLen { side, .. } => A::ArcLen(*side),
     }
 }
 
@@ -272,7 +248,7 @@ impl<S> LoopProgram<S> {
     #[must_use]
     pub fn shape(&self) -> Vec<StepShape> {
         match self {
-            LoopProgram::Chain(steps) => steps.iter().map(StepShape::of_program).collect(),
+            LoopProgram::Chain(steps) => steps.iter().map(shape_of_program).collect(),
             LoopProgram::Circle { .. } => vec![StepShape::Circle],
             LoopProgram::CircleSplit { n, .. } => vec![StepShape::CircleSplit { n: *n as usize }],
             LoopProgram::Rectangle { .. } => vec![StepShape::Rectangle],
@@ -303,7 +279,7 @@ impl AuthoredStep {
             return None;
         }
         Some(Self {
-            prefix: recorded.iter().map(StepShape::of_recorded).collect(),
+            prefix: recorded.iter().map(shape_of_recorded).collect(),
         })
     }
 

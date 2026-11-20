@@ -130,9 +130,9 @@ use pncad::document::{
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
-    PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
+    PersistError, PinRefusal, ProductReadFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
+    ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -147,7 +147,8 @@ use pncad::select::{
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{
-    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
+    StepImportError,
 };
 use pncad::sweep::blend::{BlendError, UnbuiltEnd};
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
@@ -1666,8 +1667,6 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
-        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
-        LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
 
@@ -1879,6 +1878,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
     match err {
         ProgramRefusal::Resolve { .. } => "resolve",
         ProgramRefusal::Transition { .. } => "transition",
+        ProgramRefusal::Order { .. } => "order",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
@@ -1993,8 +1993,6 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
-        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
-        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2041,18 +2039,6 @@ pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str 
         R::PinMismatch => "part_pin_mismatch",
         R::EpsilonSeam => "part_epsilon_seam",
         R::Unresolved => "part_unresolved",
-    }
-}
-
-/// The stable tag for a PROFILE-PROGRAM structure fault — the inner
-/// arm of [`PersistError::ProfileProgram`].
-///
-/// The fault's own payload (the slot, the two dimensions, the loop and
-/// step counters) is the profile layer's surface and stays in the
-/// message; what crosses here is the word a caller branches on.
-pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
-    match fault {
-        ProgramFault::Lattice { .. } => "lattice",
     }
 }
 
@@ -2211,17 +2197,19 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
-        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
+        StepImportError::SingularityMeetUnread { .. } => "singularity_meet_unread",
         StepImportError::Interpretation { .. } => "interpretation",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
+        StepImportError::NotYetSupported { .. } => "not_yet_supported",
+        StepImportError::BuildEscalated { .. } => "build_escalated",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2285,7 +2273,24 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
         NormalizationKind::OneRecord { .. } => "one_record",
+        NormalizationKind::Snapped { .. } => "snapped",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
+        NormalizationKind::VertexBuilt { .. } => "vertex_built",
+        NormalizationKind::CarrierBuilt { .. } => "carrier_built",
+    }
+}
+
+/// The stable tag for the snap catalogue's relation whose construction
+/// moved a surface — `NormalizationKind::Snapped`'s payload, at
+/// `relation` beside the record's `kind` word.
+///
+/// The match is exhaustive, so a fourth relation stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn snap_relation_tag(relation: &SnapRelation) -> &'static str {
+    match relation {
+        SnapRelation::Coaxial => "coaxial",
+        SnapRelation::Tangent => "tangent",
+        SnapRelation::AxisNormal => "axis_normal",
     }
 }
 

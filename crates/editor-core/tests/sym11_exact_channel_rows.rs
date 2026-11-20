@@ -88,11 +88,24 @@ use crate::m10_9_pins_interval::measured_studies;
 /// them). (PR 6988's gate did not run this
 /// slow row:
 /// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
+///
+/// **Then moved by the session box's move from the readers to the
+/// placing doors** (PR 7088; the review rulings that a reading between
+/// two operands asks no session box of an image in its own frame, and
+/// that the door placing a copy asks it of where the copy stands,
+/// `topo::session_box_at`). Each document's measure reads its placed
+/// operand through their relative motion (`topo::Seat`) and asks no box;
+/// each placement asks one. Numeric only: the plate `1046 → 1047` and the
+/// bracket `1545 → 1546`, two placements where one measure asked; the
+/// annulus, the link and the pad unmoved, one for one. No symbolic or
+/// frozen count moves, and no dispute fired. Measured by dropping the
+/// placement's ask, which takes each document one numeric per placement
+/// below these.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1046, 54]),
+    ("two_hole_plate", [979, 1047, 54]),
     ("r1_annulus", [511, 548, 54]),
     ("r2_link", [786, 943, 2738]),
-    ("r2_filleted_bracket", [1367, 1545, 84]),
+    ("r2_filleted_bracket", [1367, 1546, 84]),
     ("r2_rounded_pad", [1483, 1709, 2773]),
 ];
 

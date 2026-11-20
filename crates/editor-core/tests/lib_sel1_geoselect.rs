@@ -791,22 +791,22 @@ fn a_tied_name_meets_geometry_as_a_trilean() {
     );
 }
 
-/// **A distance is decided in the body's own frame** (D10
-/// `[placement.frame]`): a selection reads the model, so it composes
-/// nothing into a space. A copy turned about x and stood far out (a
-/// frame `Map`, its translation near 1e8) finds its bottom cap's four
-/// corners ON the cap's plane, exactly, because plane and corners are
-/// read in the copy's own coordinates. Composing both into the world
-/// rounds a corner off the composed plane by about 7.5e-9 (an ulp of
-/// 1e8 is 1.5e-8), inside the band: the world-composed read refuses
-/// `InBand` here.
+/// **A selection over a turned copy answers its own cap's corners**
+/// (D10 `[placement.frame]`): a copy turned about x and stood out at
+/// about 9e2 m (a frame `Map`) finds its bottom cap's four corners on
+/// the cap's plane and its top cap's four one metre inside, with
+/// nothing in band. Inside the session box the translation's rounding is
+/// below the band, so a selection that composed the copy into the world
+/// would answer the same: this row pins the answer, not the frame it is
+/// read in. The contrast that would tell the two apart is owed
+/// (`work/onehome/a-selections-own-frame-read-has-no-contrast-inside-the-box.md`).
 #[test]
-fn a_far_turned_copys_corners_sit_on_its_own_plane() {
+fn a_turned_copys_caps_corners_are_selected_on_their_planes() {
     let (doc, cube, floor) = box_doc();
     let (c, s) = (0.6_f64, 0.8_f64);
     let far = editor_core::Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, c, s], [0.0, -s, c]],
-        translation: [1.0e8 + 0.3, -3.0e7 - 0.7, 2.0e7 + 0.1],
+        translation: [9.0e2 + 0.3, -3.0e2 - 0.7, 2.0e2 + 0.1],
     };
     let (doc, copy) = fixture::in_world(doc, cube, &far);
     let ev = eval(&doc);

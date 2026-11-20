@@ -955,7 +955,7 @@ impl PickedEntity for crate::session::VertexSelection {
 /// pick — and every node and fact its words name as the document held
 /// them then ([`held_by`]), spoken again after each operation
 /// ([`HeldPick::respoken`]). The one shape for a held pick: the mate
-/// tool's two, the mirror's plane, and the traced-profile form's two
+/// tool's two, the mirror's plane, and the profile-on-a-face form's two
 /// latches. Its row, its panel line and its drop notice all
 /// say it from here ([`Say`]), so a drop says what the line said,
 /// whatever the document lost in between.

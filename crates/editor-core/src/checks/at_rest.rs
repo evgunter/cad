@@ -40,6 +40,7 @@
 //! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign, Tol};
@@ -292,7 +293,7 @@ where
     let said = saying(row)?;
     let band = Band::linear(tol).ok()?;
     let kinds = if said.poses {
-        let read = said.read(doc, evaluation, tol)?;
+        let read = said.read(doc, evaluation)?;
         let kinds = [
             pose_kind::<T>(&read.cells[0])?,
             pose_kind::<T>(&read.cells[1])?,
@@ -368,10 +369,11 @@ impl RowCell {
 }
 
 /// **A row's entity cells, read as a measure reads its references**: in
-/// one computing frame (`Framed::computing_among`), the other read into
-/// it through `relative`.
+/// one computing frame (`Framed::computing_among`), each off its own
+/// body, the other's data taken through their relative motion
+/// (`crate::eval::Seat`).
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
+    cells: Vec<(crate::eval::Seat<'e, T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -383,7 +385,6 @@ impl Saying {
         &self,
         doc: &Doc<P>,
         evaluation: &'e Evaluation<T>,
-        tol: Tol,
     ) -> Option<ReadCells<'e, T>> {
         let mut framed = Vec::with_capacity(2);
         for (i, cell) in self.cells.iter().enumerate() {
@@ -407,7 +408,7 @@ impl Saying {
         let computing = crate::eval::Framed::computing_among(framed.iter().map(|(f, _)| *f))?;
         let cells = framed
             .iter()
-            .map(|(f, ent)| Some((computing.read_in(f, tol).ok()?, *ent)))
+            .map(|(f, ent)| Some((computing.seat(f).ok()?, *ent)))
             .collect::<Option<Vec<_>>>()?;
         Some(ReadCells { cells, computing })
     }
@@ -447,8 +448,9 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(crate::eval::Held<T>, EntityRef),
+    (seat, ent): &(crate::eval::Seat<'_, T>, EntityRef),
 ) -> Option<crate::VarKind> {
+    let body = seat.body();
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
         return None;
@@ -469,8 +471,8 @@ fn axes_parallel<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     band: Band,
 ) -> Option<bool> {
     let axis = |i: usize| {
-        let (body, ent) = &read.cells[i];
-        crate::eval::read_off_cell(body, *ent, crate::VarKind::Axis, band).ok()
+        let (seat, ent) = &read.cells[i];
+        crate::eval::read_off_cell(*seat, *ent, crate::VarKind::Axis, band).ok()
     };
     let (a, b) = (axis(0)?, axis(1)?);
     crate::eval::measure::axes_parallel(&a, &b, band)
@@ -500,7 +502,7 @@ where
     let quietable = || -> Option<bool> {
         let band = Band::linear(tol).ok()?;
         let said = saying(row)?;
-        let read = said.read(doc, evaluation, tol)?;
+        let read = said.read(doc, evaluation)?;
         let zero = |a: &crate::eval::measure::Carrier<'_, T>,
                     b: &crate::eval::measure::Carrier<'_, T>| {
             said.verbs.iter().any(|&verb| {
@@ -517,11 +519,11 @@ where
         if let Some(tool) = tool {
             // A split's ON row: its tool read as its plane, in its
             // space's coordinates, against the vertex.
-            let [(body, ent)] = read.cells.as_slice() else {
+            let [(seat, ent)] = read.cells.as_slice() else {
                 return None;
             };
             let crate::eval::measure::Carrier::Point { at, .. } =
-                crate::eval::measure::carrier_of(body, *ent, band)
+                crate::eval::measure::carrier_of(*seat, *ent, band)
             else {
                 return None;
             };
@@ -548,12 +550,12 @@ where
             return Some(zero(&plane, &vertex));
         }
         let carrier = |i: usize| {
-            let (body, ent) = &read.cells[i];
+            let (seat, ent) = &read.cells[i];
             if !said.poses {
-                return Some(crate::eval::measure::carrier_of(body, *ent, band));
+                return Some(crate::eval::measure::carrier_of(*seat, *ent, band));
             }
             let kind = pose_kind::<T>(&read.cells[i])?;
-            crate::eval::read_off_cell(body, *ent, kind, band).ok()
+            crate::eval::read_off_cell(*seat, *ent, kind, band).ok()
         };
         let (a, b) = (carrier(0)?, carrier(1)?);
         let axes = said.poses
@@ -1014,7 +1016,7 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
     let carrier = |key| {
         crate::eval::measure::carrier_of(
-            body,
+            crate::eval::Seat::own(body),
             EntityRef {
                 body: 0,
                 key: EntityKey::Face(key),
@@ -1039,19 +1041,24 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
 /// else. `f64` is the one lane; the analysis scalars the check is also
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
 pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
-    /// The findings of the copies `a` and `b` of `product`, which the
-    /// census decided interfere ([`partition`]): by default one
-    /// [`Unlocalized::Lane`] finding, the scalar having no lane.
+    /// The findings of each pair of copies of `product` the census
+    /// decided interfere ([`partition`]), in `pairs`' order: by default
+    /// one [`Unlocalized::Lane`] finding a pair, the scalar having no
+    /// lane.
     fn localize(
         product: &Product<Self>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
+        pairs: Vec<(Pair, Vec<ValidationError>)>,
         _: Tol,
     ) -> Vec<InterferenceFinding> {
-        unlocalized_at_lane(product, a, b, evidence)
+        pairs
+            .into_iter()
+            .flat_map(|((a, b), evidence)| unlocalized_at_lane(product, a, b, evidence))
+            .collect()
     }
 }
+
+/// Two copies of a product, by index, the smaller first.
+pub type Pair = (usize, usize);
 
 /// A gathered copy, as a finding names it.
 fn copy_ref<T: Decide + topo::AtRestPolicy>(copy: &GatheredCopy<T>) -> CopyRef {
@@ -1098,12 +1105,14 @@ impl<T> LocalizeLane for geom_core::Sym<T> where
 impl LocalizeLane for f64 {
     fn localize(
         product: &Product<f64>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
+        pairs: Vec<(Pair, Vec<ValidationError>)>,
         tol: Tol,
     ) -> Vec<InterferenceFinding> {
-        localize(product, a, b, evidence, tol)
+        let operands = Operands::of(product);
+        pairs
+            .into_iter()
+            .flat_map(|((a, b), evidence)| localize(product, &operands, a, b, evidence, tol))
+            .collect()
     }
 }
 
@@ -1128,7 +1137,7 @@ pub(crate) fn partition<T: LocalizeLane>(
         let (x, y) = (*copy_of.get(&x)?, *copy_of.get(&y)?);
         (x != y).then_some((x.min(y), x.max(y)))
     };
-    let mut pairs: Vec<((usize, usize), Vec<ValidationError>)> = Vec::new();
+    let mut pairs: Vec<(Pair, Vec<ValidationError>)> = Vec::new();
     let mut rest = Vec::new();
     for error in errors {
         let pair = topo::census_interference_solids(&product.body, &error)
@@ -1171,11 +1180,7 @@ pub(crate) fn partition<T: LocalizeLane>(
             None => kept.push(error),
         }
     }
-    let findings = pairs
-        .into_iter()
-        .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
-        .collect();
-    (findings, kept)
+    (T::localize(product, pairs, tol), kept)
 }
 
 /// **The two solids a census finding is about**, smaller key first:
@@ -1468,6 +1473,41 @@ pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
         .collect()
 }
 
+/// **Each copy of a product as the intersection takes it**, read once
+/// per localization however many interfering pairs it is in: a finished
+/// body in the product's frame. A copy in another frame is what its
+/// source holds, moved, its verdict carried (`Held::moved`); a finished
+/// copy is taken as it is, and a leaf is finished here, once.
+struct Operands<'p> {
+    product: &'p Product<f64>,
+    read: Vec<std::cell::OnceCell<Result<Arc<topo::AtRestBody<f64>>, String>>>,
+}
+
+impl<'p> Operands<'p> {
+    fn of(product: &'p Product<f64>) -> Self {
+        Self {
+            product,
+            read: product
+                .copies
+                .iter()
+                .map(|_| std::cell::OnceCell::new())
+                .collect(),
+        }
+    }
+
+    /// Copy `i` in the product's frame, finished, or why it is not.
+    fn get(&self, i: usize, tol: Tol) -> &Result<Arc<topo::AtRestBody<f64>>, String> {
+        self.read[i].get_or_init(|| {
+            self.product.copies[i]
+                .body
+                .read_into(&self.product.frame, tol)
+                .map_err(|kind| kind.to_string())?
+                .finished(tol)
+                .map_err(|refused| refused.to_string())
+        })
+    }
+}
+
 /// **Two copies intersected**: the overlap of their material, `None`
 /// when it is empty.
 ///
@@ -1475,25 +1515,20 @@ pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
 ///
 /// Why it could not be formed.
 fn intersection(
-    product: &Product<f64>,
+    operands: &Operands<'_>,
     a: usize,
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    // The intersection takes the two copies as finished bodies. A copy
-    // the gather read through a placement's map holds what its source
-    // held, moved, its verdict carried (`Held::moved`): a finished copy
-    // is taken as it is, and a leaf is finished here, once.
-    let operand = |i: usize| product.copies[i].body.clone().finished(tol);
-    let (body_a, body_b) = match (operand(a), operand(b)) {
+    let (body_a, body_b) = match (operands.get(a, tol), operands.get(b, tol)) {
         (Ok(x), Ok(y)) => (x, y),
-        (Err(refused), _) | (_, Err(refused)) => {
+        (Err(refusal), _) | (_, Err(refusal)) => {
             return Err(Unlocalized::Refused {
-                refusal: refused.to_string(),
+                refusal: refusal.clone(),
             });
         }
     };
-    match topo::intersect(&*body_a, &*body_b, tol) {
+    match topo::intersect(&**body_a, &**body_b, tol) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {
@@ -1515,6 +1550,7 @@ struct Component {
 /// the two copies' intersection, each quieted by [`quiet_verdicts`].
 fn localize(
     product: &Product<f64>,
+    operands: &Operands<'_>,
     a: usize,
     b: usize,
     evidence: Vec<ValidationError>,
@@ -1534,7 +1570,7 @@ fn localize(
         }
     };
     let unlocalized = |why| vec![finding(Overlap::Unlocalized(why), None, false)];
-    let result = match intersection(product, a, b, tol) {
+    let result = match intersection(operands, a, b, tol) {
         Ok(Some(result)) => result,
         Ok(None) => return unlocalized(Unlocalized::Empty),
         Err(why) => return unlocalized(why),
@@ -1643,7 +1679,7 @@ fn could_quiet(
     };
     let carrier = |key| {
         carrier_of(
-            body,
+            crate::eval::Seat::own(body),
             EntityRef {
                 body: 0,
                 key: EntityKey::Face(key),
@@ -1856,7 +1892,7 @@ fn beyond(
         .map(|f| f.sense)
         .ok_or("an unreadable face")?;
     let carrier = carrier_of(
-        aggregate,
+        crate::eval::Seat::own(aggregate),
         EntityRef {
             body: 0,
             key: EntityKey::Face(face),

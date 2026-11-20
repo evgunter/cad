@@ -1,10 +1,8 @@
 //! M4 PR 4 spec D2: the verdict-vector diff engine — one engine, one
 //! call signature, cause-agnostic. Identical runs diff empty; no-flip
-//! parameter motion diffs empty (memo transfer included); a
-//! flip-inducing edit reports exactly the flipped predicates,
-//! localized to the deciding node; structural edits surface as
-//! divergence/status rows; and the report is the `SetTolerance`
-//! audit surface (H4 — PR 6 reuses it untouched).
+//! parameter motion diffs empty (memo transfer included); an edit whose
+//! runs part at their pruning names no flip read off different pairs;
+//! structural edits name no fake flip and surface as status rows.
 //!
 //! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
@@ -137,39 +135,136 @@ fn no_flip_parameter_motion_diffs_empty() {
 }
 
 #[test]
-fn flip_edit_reports_flips_localized_to_the_deciding_node() {
+fn a_disjoining_edit_names_no_flip_read_off_other_pairs() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
     let doc2 = slide_to(&s, 2.5); // overlapping -> disjoint
     let ev2 = run(&doc2, Some(&ev1));
+    // Both runs' first choice is a parallelism reading of two face
+    // planes, which no slide can turn: the overlapping run's is a pair
+    // the union's box query handed on, the disjoint run's another pair,
+    // after a query that handed on none. The candidate marks show the
+    // two runs parting there, so the engine names no turn, rather than
+    // a "flip" between decisions about two different pairs.
+    let union = ev1.value(s.union).expect("the overlapping union builds");
+    assert!(
+        union
+            .marks
+            .iter()
+            .any(|m| matches!(m.item, geom_core::k_stats::MarkItem::Candidate(_))),
+        "the union's box queries hand on candidates: {:?}",
+        union.marks.len()
+    );
     let flips = diff_verdicts(&ev1, &ev2);
-    assert!(!flips.is_empty(), "the flip edit must report");
-    // Every recorded delta lives at the boolean (the deciding node):
-    // the operands' derivations are untouched (N7 localization), and
-    // the placement's own decisions do not flip.
-    for (&node, delta) in &flips.nodes {
-        assert_eq!(node, s.union, "delta outside the boolean: {delta:?}");
-    }
-    // The report surface (the SetTolerance audit shape): exactly the
-    // flipped predicates, deterministically ordered, every entry a
-    // real k_stats name with from != to.
-    let report = flips.report();
-    assert!(!report.is_empty());
-    for (node, f) in &report {
-        assert_eq!(*node, s.union);
-        assert!(!f.predicate.is_empty());
-        assert_ne!(f.from, f.to, "a flip must change sign: {f:?}");
-    }
+    assert!(flips.is_empty(), "no turn on the record: {flips:?}");
     // Deterministic: diffing again yields the identical FlipSet.
     assert_eq!(flips, diff_verdicts(&ev1, &ev2));
 }
 
+/// **An n-ary union whose hull test pairs other members names no flip
+/// read off the other pair.** Members `[C1, B, C2]`, `C1` and `C2`
+/// congruent and apart; `B` slides from across `C1` to across `C2`. The
+/// union's hull test (`topo`'s `judged_pairs`) runs the pair boolean
+/// `(C1, B)` in one run and `(B, C2)` in the other: congruent pairs,
+/// whose decisions can read alike or differ by place, about two different
+/// pairs either way. The test's outcomes are marked, so the two runs
+/// part at the first pair the test judged differently, and no flip is
+/// named. Read with no mark, the choices alone name a fake turn here
+/// (`bool_vertex_face_side`, decided about the other pair), and the row
+/// holds that the hull test's marks alone remove it.
 #[test]
-fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
+fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
+    let (doc, c1) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c2_block) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    // Both are placed in `c1`'s space, as a union's members must be.
+    let (doc, c2) = fixture::slid(doc, c1, c2_block, [3.0, 0.0, 0.0]);
+    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placement) = fixture::slid(doc, c1, b0, [0.5, 0.25, 0.25]);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![c1.into(), placement.into(), c2.into()]),
+        },
+    );
+    let s = Slide {
+        doc,
+        placement,
+        union,
+    };
+    let ev1 = run(&s.doc, None);
+    let ev2 = run(&slide_to(&s, 3.5), Some(&ev1));
+    let marked = |ev: &Evaluation<f64>| {
+        ev.value(union)
+            .expect("the union builds")
+            .marks
+            .iter()
+            .filter(|m| m.site == "nary_hulls_meet")
+            .map(|m| m.item)
+            .collect::<Vec<_>>()
+    };
+    let (m1, m2) = (marked(&ev1), marked(&ev2));
+    assert!(!m1.is_empty(), "the hull test marks each pair it judges");
+    assert_ne!(m1, m2, "the hull test pairs other members in the two runs");
+    // The union's two paths part, at the hull test's marks: read with
+    // those marks alone beside the verdicts, the paths still part.
+    let (v1, v2) = (
+        ev1.value(union).expect("the union builds"),
+        ev2.value(union).expect("the union builds"),
+    );
+    let hull_only = |v: &editor_core::NodeValue<f64>| -> Vec<geom_core::k_stats::Mark> {
+        v.marks
+            .iter()
+            .filter(|m| m.site == "nary_hulls_meet")
+            .copied()
+            .collect()
+    };
+    let (h1, h2) = (hull_only(v1), hull_only(v2));
+    let turn = |m1: &[geom_core::k_stats::Mark], m2: &[geom_core::k_stats::Mark]| {
+        editor_core::resolve::first_turn(
+            editor_core::resolve::Path {
+                verdicts: &v1.verdicts,
+                marks: m1,
+            },
+            editor_core::resolve::Path {
+                verdicts: &v2.verdicts,
+                marks: m2,
+            },
+        )
+    };
+    assert_eq!(
+        turn(&v1.marks, &v2.marks),
+        editor_core::resolve::FirstTurn::Parted,
+        "the union's runs part"
+    );
+    assert_eq!(
+        turn(&h1, &h2),
+        editor_core::resolve::FirstTurn::Parted,
+        "the hull test's marks alone part them"
+    );
+    // Read with no mark at all, the choices alone name a turn: the
+    // first pair each run judged decides one predicate with the other
+    // sign, about two different pairs. That fake turn is what the hull
+    // test's marks remove.
+    assert!(
+        matches!(turn(&[], &[]), editor_core::resolve::FirstTurn::Turned(_)),
+        "without marks the choices read a turn between two pairs: {:?}",
+        turn(&[], &[])
+    );
+    let flips = diff_verdicts(&ev1, &ev2);
+    assert!(
+        flips.nodes.get(&union).is_none_or(|d| d.flip.is_none()),
+        "no turn at the union: {flips:?}"
+    );
+}
+
+#[test]
+fn structural_count_edit_names_no_fake_flip() {
     // A union over a row of overlapping blocks whose index's count is
     // the knob: the union's decision SEQUENCE changes length (one
-    // member fewer to judge), which must surface as divergence, never
-    // as sign flips of unrelated positions.
+    // member fewer to judge). Its choices part where one run judges a
+    // member the other does not, which is no turn of a sign, so no flip
+    // is named at all.
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, k, row) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 0.5, 3);
@@ -184,10 +279,8 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let (doc2, _) = step(doc, edit);
     let ev2 = run(&doc2, Some(&ev1));
     let flips = diff_verdicts(&ev1, &ev2);
-    let delta = flips.nodes.get(&union).expect("union delta");
-    assert!(delta.flips.is_empty(), "no fake flips: {delta:?}");
-    assert!(!delta.diverged.is_empty(), "count change is divergence");
-    assert_eq!(flips.nodes.len(), 1, "localized to the union");
+    assert_eq!(flips.flip_at(union), None, "no fake flip: {flips:?}");
+    assert!(flips.is_empty(), "no node's standing moved: {flips:?}");
 }
 
 #[test]

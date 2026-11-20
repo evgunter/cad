@@ -95,13 +95,9 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
 /// chamfer's `r²/2`). The wall's name at the blend node, which resolved
 /// before the edit, resolves `Vanished` after it, its cause a
 /// `Positive → Negative` flip of one of the two clearance verdicts the
-/// consumption is logged under. Which one is the first net flip in
-/// predicate-name order (N5's population diff, `resolve/vdiff.rs`), and
-/// which flips there are depends on what the old run's reach metered:
-/// the chamfer's smaller box at `0.005` never meters the bore's walls,
-/// so its face clearance only gains verdicts and has no net flip, and
-/// its name vanishes on ring clearance where the fillet's vanishes on
-/// face clearance. The row holds the cause to the two, not to one.
+/// consumption is logged under: the first choice the two runs take
+/// differently (N5's first turn, `resolve/vdiff.rs`). The row holds the
+/// cause to the two, not to one.
 #[test]
 fn a_bore_a_size_edit_puts_inside_a_planar_sliver_vanishes_on_the_blends_verdict() {
     for chamfer in [false, true] {

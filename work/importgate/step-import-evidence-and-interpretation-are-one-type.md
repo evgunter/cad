@@ -2,11 +2,12 @@
 id: step-import-evidence-and-interpretation-are-one-type
 kind: issue
 title: step-import: SolidSpec/EdgeSpec still conflate the file's evidence with the interpreted model
-status: open
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: M
 parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
+closed: 2026-11-18
 ---
 
 Found by `importgate/interp-layer`, which was to carry it
@@ -43,3 +44,5 @@ An evidence type the resolver produces and the interpretation readings
 consume (stated carriers, parameters, points, records), and the
 interpreted model `assemble`/`adopt` take; the edge's file carrier
 crosses as an explicitly named evidence field until the build unit.
+
+- 2026-11-18 — Closed by PR 7128 (the build: every cache kernel-built from the interpreted description).

@@ -59,10 +59,10 @@ ball 1 crates/mesh/src/cert.rs
 arm 3 crates/mesh/src/sizing.rs
 ball 1 crates/mesh/src/sizing.rs
 arm 2 crates/step-export/src/writer.rs
-arm 1 crates/step-import/src/adopt.rs
 arm 1 crates/step-import/src/geometry.rs
-arm 4 crates/step-import/src/knot_split.rs
+arm 3 crates/step-import/src/knot_split.rs
 arm 2 crates/step-import/src/normalize.rs
+arm 1 crates/step-import/src/normalize/surgery.rs
 arm 6 crates/sweep/src/blend/arms.rs
 arm 4 crates/sweep/src/blend/battery.rs
 arm 5 crates/sweep/src/blend/open/end_face.rs

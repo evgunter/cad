@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -2331,23 +2331,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
     );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
@@ -2966,8 +2949,18 @@ fn promoted_kind_tags_are_stable() {
 #[test]
 fn import_report_row_tags_are_stable() {
     use pncad::step_import::{
-        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
     };
+    // The snap relation's word is the kernel's own name for it, one
+    // spelling in both languages (the table keeps the literals the tag
+    // inventory reads).
+    for relation in [
+        SnapRelation::Coaxial,
+        SnapRelation::Tangent,
+        SnapRelation::AxisNormal,
+    ] {
+        assert_eq!(crate::tags::snap_relation_tag(&relation), relation.name());
+    }
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
         (
@@ -2997,6 +2990,22 @@ fn import_report_row_tags_are_stable() {
                 moved_by: 1e-12,
             },
             "one_record",
+        ),
+        (
+            NormalizationKind::Snapped {
+                surface: 30,
+                relation: pncad::step_import::SnapRelation::Tangent,
+                moved_by: 2e-6,
+            },
+            "snapped",
+        ),
+        (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
         ),
         (
             NormalizationKind::CurvePromoted {
@@ -5100,12 +5109,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5366,6 +5370,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
             "curve_promoted",
             "edge_free_sphere",
@@ -5375,7 +5380,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
+            "snapped",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },
@@ -5505,11 +5512,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
-            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
-            "pin_unwritten_index",
         ],
         delegates: &[],
     },
@@ -5587,14 +5592,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",
@@ -5909,6 +5910,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["operand_slot_tag"],
     },
     TagEntry {
+        function: "snap_relation_tag",
+        values: &["axis_normal", "coaxial", "tangent"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "snapshot_error_tag",
         values: &[
             "anonymous_var_unread",
@@ -6034,6 +6040,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "build_escalated",
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
@@ -6043,11 +6050,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
+            "not_yet_supported",
             "nothing_to_import",
             "pcurves",
             "placement",
             "recognition_ambiguous",
-            "rim_off_wall_boundary",
+            "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",
             "structure",
@@ -6405,6 +6413,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
+    // Two vocabularies naming one geometric relation: a document's
+    // declared coincidence (`coincidence_relation_tag`) and the import's
+    // snap catalogue (`snap_relation_tag`). Neither is read against the
+    // other, so no pin is owed.
+    ("coaxial", 2),
     ("containment", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
@@ -6602,6 +6615,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
     ("stopped", 2),
     ("structure", 3),
+    // As `coaxial`: the coincidence relation and the snap relation.
+    ("tangent", 2),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.

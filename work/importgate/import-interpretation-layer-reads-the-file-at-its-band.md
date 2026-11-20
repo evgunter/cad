@@ -2,12 +2,13 @@
 id: import-interpretation-layer-reads-the-file-at-its-band
 kind: unit
 title: step-import: the interpretation layer — evidence and description as two types, every ε_in reading through the kernel's readings at the file band, the move ledger, build_axes for every placement
-status: dispatched
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: H
 parent: adoption-rebuilds-caches-at-eps-from-eps-in-interpretation
 branch: importgate/interp-layer
+closed: 2026-11-18
 ---
 
 

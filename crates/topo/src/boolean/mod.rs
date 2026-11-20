@@ -79,6 +79,7 @@ mod carrier_ladder_rows;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
+pub use combine::{PlacedGraftError, graft_placed};
 /// **A pierce's refusal as a rung of the pierce pass's ladder**, by its
 /// own standing ([`BooleanError::refusal`]): kept by its kind, or, where
 /// it refuses the whole query, stopping the pass with the refusal itself.
@@ -268,7 +269,7 @@ pub use crate::solid_contain::{
 };
 pub use carrier_pair::{
     PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
-    flush_pair_relation,
+    flush_pair_relation, seated_pair_decided,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use voids::{
@@ -308,6 +309,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        crate::side_reader::SIDE => "which side of a selection of faces lies outside every face",
         "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
         "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
@@ -426,6 +428,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "curve_carrier_straddle"
         | "curve_carrier_piece_clear"
         | "curve_carrier_piece" => "whether a point lies on an edge's carrier",
+        // The same walk with a radius, read by the pose alone: whether the
+        // window about a crossing misses an edge's span.
+        "curve_carrier_piece_clear_by" => "how two edges' carriers meet",
         // Every row of `geom_brep::curve_pair::pose`, by its prefix.
         p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
         "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",

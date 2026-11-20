@@ -56,11 +56,14 @@
 //!
 //! **A traced profile is that rung's statement too** ([`traced`]): a
 //! tangency row between a face and an extrude's wall over a piece that
-//! leaves the face's trace along its tangent holds where the extrude's
-//! heading, its frame's `z`, is one `Axis` with the face's, and the face
-//! is itself an extrude's wall, which its own construction slides along
-//! that axis. A wall that would keep the tangency but for its heading
-//! names the axis to read off the face ([`Recourse::ReadTheAxis`]).
+//! leaves the face's trace along its tangent holds where the face is
+//! itself an extrude's wall, which its own construction slides along its
+//! axis, and the extrude runs along that axis: its frame's `z` one
+//! `Axis` with the face's, or, read off the replay, the face's axis
+//! along the sketch's `z` as a polynomial identity (a profile on a cap
+//! of the face's own sweep, whose normal and generator are one heading).
+//! A wall that would keep the tangency but for its heading names where
+//! to draw ([`Recourse::ReadTheAxis`]).
 //!
 //! A profile's junction no constructor made is a row of the profile
 //! node itself, its cells the two pieces that meet there
@@ -96,6 +99,8 @@ use crate::node::{Node, RecipeNodeId};
 
 mod replay;
 mod stated;
+
+pub(crate) use stated::meet_by_construction;
 
 pub use replay::with_replay_session;
 
@@ -261,8 +266,10 @@ pub enum Rung {
     /// carriers in the replay at `Sym`, decided them one carrier, every
     /// Zero it stands on proven by the symbolic tier.
     CarrierVerdict,
-    /// The deciding margin, read in the replay at `Sym`, is proven zero
-    /// by the symbolic tier.
+    /// A margin read in the replay at `Sym` is proven zero by the
+    /// symbolic tier: the deciding margin, or a traced sweep's heading
+    /// off the traced face's axis, the one component of the trace
+    /// statement the first rung left ([`traced`]).
     MarginIdentity,
 }
 
@@ -587,12 +594,14 @@ pub enum Recourse {
     /// ([`geom_core::sym::deferred::Undischarged::OverTheBudget`]), so
     /// whether it is zero is not decided there.
     Budget,
-    /// Read the sweep's heading off the face the profile traces: the
-    /// wall leaves that face's trace along its tangent and a slide along
-    /// that face's axis would keep the tangency, but no statement the
-    /// door reads makes the extrude's heading that axis (a frame read off
-    /// a rim may be coaxial with its wall for every value, and the door
-    /// does not read it so) ([`traced`]).
+    /// Draw the profile where its sweep runs along the face it traces:
+    /// the wall leaves that face's trace along its tangent and a slide
+    /// along that face's axis would keep the tangency, but the door
+    /// shows the extrude's heading that axis neither by a statement it
+    /// reads nor, with every variable a symbol, as an identity: a frame
+    /// spun about an axis off its `z` turns the heading by a variable,
+    /// and a turn written in radians (a float `π/2`) by its rounding,
+    /// which a frame read off the face's axis does not carry ([`traced`]).
     ReadTheAxis,
     /// Raise the evaluation's member budget, or lower a count: the
     /// replay ran out of it before the row ([`Unreplayed::Exhausted`]).
@@ -641,8 +650,10 @@ impl Recourse {
                 "what decided it, read as a function of the variables, outgrew the door's budget"
             ),
             Self::ReadTheAxis => {
-                "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
-                 keeps the tangency the profile draws whatever the values"
+                "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
+                 face mated flat onto its cap, or on a frame whose z is read off the traced face's \
+                 axis, which no turn's rounding tilts, so the sweep runs along the face and keeps \
+                 the tangency the profile draws whatever the values"
             }
             Self::MemberBudget => {
                 "Recourse: raise the evaluation's member budget, or lower a count, so the replay \
@@ -785,10 +796,28 @@ pub fn prove<P: crate::ProfilePayload>(
                 .collect()
         })
         .collect();
+    // The traced sweeps whose heading the replay reads.
+    let headings: Vec<Vec<Option<Heading>>> = traced
+        .iter()
+        .map(|traced| {
+            traced
+                .iter()
+                .map(|t| match *t {
+                    Traced::HeadingUnread(heading) => Some(heading),
+                    Traced::No | Traced::Stated => None,
+                })
+                .collect()
+        })
+        .collect();
     let replayed = match P::evaluable(doc) {
-        Some(doc) if left.iter().flatten().any(|&l| l) => {
-            replay::rungs(doc, nodes, (&left, &axes_one), resolver, tol, stop)?
-        }
+        Some(doc) if left.iter().flatten().any(|&l| l) => replay::rungs(
+            doc,
+            nodes,
+            (&left, &axes_one, &headings),
+            resolver,
+            tol,
+            stop,
+        )?,
         _ => left
             .iter()
             .map(|left| {
@@ -833,7 +862,9 @@ pub fn prove<P: crate::ProfilePayload>(
                             // construction; no construction changes a sense
                             // the row decided.
                             let recourse = match (left, recourse) {
-                                _ if traced == Traced::AxisUnread => Recourse::ReadTheAxis,
+                                _ if matches!(traced, Traced::HeadingUnread(_)) => {
+                                    Recourse::ReadTheAxis
+                                }
                                 (Some(Component::Axis), Recourse::Assert) => {
                                     Recourse::OneConstruction
                                 }
@@ -913,11 +944,23 @@ enum Traced {
     /// The row is no wall leaving a traced face's trace along its
     /// tangent, by a sweep along that face's generators.
     No,
-    /// It is, but the extrude's heading is not one `Axis` with the
-    /// face's by any statement the door reads.
-    AxisUnread,
+    /// It is, but no statement the door reads makes the extrude's
+    /// heading one `Axis` with the face's: the replay reads whether the
+    /// sweep runs along the face's slide ([`Heading`]).
+    HeadingUnread(Heading),
     /// It is, and the heading is that `Axis`: the row holds.
     Stated,
+}
+
+/// **A traced sweep whose heading the replay reads**: the profile the
+/// extrude sweeps, and the place among its traced faces
+/// ([`crate::DrawnOn::faces`]) of the face its piece leaves along.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Heading {
+    /// The profile node.
+    profile: RecipeNodeId,
+    /// The traced face's place.
+    face: usize,
 }
 
 /// **The first rung's statement by a traced profile**
@@ -928,8 +971,10 @@ enum Traced {
 /// carrier:
 ///
 /// 1. the step's own equality, the piece's heading the trace's tangent;
-/// 2. a pose the door decides: the extrude's heading, its frame's `z`
-///    ([`stated::frame_z`]), one `Axis` with `F`'s ([`stated::Stated`]);
+/// 2. the extrude's heading along `F`'s slide: its frame's `z`
+///    ([`stated::frame_z`]) one `Axis` with `F`'s ([`stated::Stated`]),
+///    or else, read off the replay at `Sym`, `F`'s axis along the
+///    sketch's `z` as a polynomial identity (`replay`'s `swept_along`);
 /// 3. the symmetry `F`'s construction states: `F` is an extrude's wall,
 ///    which its own extrude slides along its generators, and an axis
 ///    read off it runs along them.
@@ -972,7 +1017,10 @@ fn swept_tangent(
     let Some(Node::Extrude { profile, .. }) = doc.node(name.node) else {
         return Traced::No;
     };
-    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
+    let Some((at, Node::Profile(program))) = doc
+        .operation_of(*profile)
+        .and_then(|p| Some((p, doc.node(p)?)))
+    else {
         return Traced::No;
     };
     let Some(on) = &program.on else {
@@ -981,16 +1029,15 @@ fn swept_tangent(
     run.pieces()
         .iter()
         .map(|piece| {
-            let Some(traced) = leaves_along_a_trace(program, piece)
-                .and_then(|at| on.faces.get(at))
-                .and_then(|&read| {
-                    let select = doc.selection(read).filter(|s| !s.body.is_indexed())?;
-                    let [name] = select.names.as_slice() else {
-                        return None;
-                    };
-                    construction(doc, select.body.read, name, tol).ok()
-                })
-            else {
+            let Some((place, traced)) = leaves_along_a_trace(program, piece).and_then(|place| {
+                let select = doc
+                    .selection(*on.faces.get(place)?)
+                    .filter(|s| !s.body.is_indexed())?;
+                let [name] = select.names.as_slice() else {
+                    return None;
+                };
+                Some((place, construction(doc, select.body.read, name, tol).ok()?))
+            }) else {
                 return Traced::No;
             };
             let read_here = Construction {
@@ -1007,7 +1054,10 @@ fn swept_tangent(
             {
                 Traced::Stated
             } else {
-                Traced::AxisUnread
+                Traced::HeadingUnread(Heading {
+                    profile: at,
+                    face: place,
+                })
             }
         })
         .max()

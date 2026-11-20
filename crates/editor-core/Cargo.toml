@@ -101,7 +101,9 @@ topo = { path = "../topo" }
 verbs = { path = "../verbs" }
 # D6: rayon idiom-1 parallelism over independent DAG nodes (the D9
 # addendum's sanctioned idiom) — a runtime switch, so the determinism
-# cross-check can compare both schedules in one test run.
+# cross-check can compare both schedules in one test run. The maps run
+# through `geom_core::k_stats::par_map`, the one home of a recorded
+# parallel map; the tests build their own pools with this edge.
 rayon = { workspace = true }
 # M4 PR 6 (spec D1): the schema-v1 persistence layer. serde derives live
 # on the document types themselves (the recipe IS the save, D3); the

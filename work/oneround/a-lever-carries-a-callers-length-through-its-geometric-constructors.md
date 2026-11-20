@@ -2,10 +2,11 @@
 id: a-lever-carries-a-callers-length-through-its-geometric-constructors
 kind: issue
 title: A Lever can carry any length a caller writes through its geometric constructors, against the README's 'never from a length a caller vouches for'
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
+branch: oneround/lever-doors
 ---
 
 

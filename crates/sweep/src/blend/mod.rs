@@ -40,10 +40,10 @@
 //!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
-//! 5. the edge's wedge read whole (`topo::edge_wedge_as`) — at every
-//!    station `dihedral_wedge` and on a corner the blend's own
-//!    `fillet3_convexity_sign`, on a tangency `material_wedge_side` and
-//!    the end the blend's own `fillet3_knife_end`
+//! 5. the edge's wedge read whole (`topo::edge_wedge`) — at every
+//!    station `dihedral_wedge` and on a corner `dihedral_sign`, on a
+//!    tangency `material_wedge_side` and the end `material_cusp_side`,
+//!    the sign and the end read as choices
 //! 6. [`battery::corner_independence`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
@@ -269,11 +269,11 @@ pub enum BlendDecision {
     /// edge's wedge arm that escalated ([`Self::of_wedge`]): the same
     /// question of the link, which the fold asks under its own arm gate.
     ChainArm,
-    /// `fillet3_convexity_sign`: the edge is convex, concave, or neither
-    /// at its lever. The edge's wedge fold decides each corner's sign under
-    /// this name for the blend (`topo::edge_wedge_as`), since the sign
-    /// decides which body the blend builds; its words also state the
-    /// fold's class step ([`Self::of_wedge`]).
+    /// `dihedral_sign`: the edge is convex, concave, or neither at its
+    /// lever, each corner's sign as the edge's wedge fold decides it
+    /// (`topo::edge_wedge`). The blend builds from it, so it reads it as
+    /// a choice; its words also state the fold's class step
+    /// ([`Self::of_wedge`]).
     ConvexitySign,
     /// `material_wedge_side`: an edge whose faces meet smoothly is a
     /// smooth seam or a cusp or slit ([`geom_brep::MATERIAL_PAIRING`]).
@@ -282,10 +282,10 @@ pub enum BlendDecision {
     /// meet smoothly along it curve apart there or share their
     /// curvature — the fold's bend rung ([`Self::of_wedge`]).
     LinkBend,
-    /// `fillet3_knife_end`: a cusp's or slit's end, which side of the
-    /// edge its material lies on. The edge's wedge fold decides each
-    /// station's end under this name for the blend (`topo::edge_wedge_as`),
-    /// since the end picks which side the ball rests on. Passes on either
+    /// `material_cusp_side`: a cusp's or slit's end, which side of the
+    /// edge its material lies on, each station's end as the edge's wedge
+    /// fold decides it (`topo::edge_wedge`). The end picks which side the
+    /// ball rests on, so the blend reads it as a choice. Passes on either
     /// definite sign: a cusp's ball rests in the material, a slit's in
     /// the void.
     KnifeEnd,
@@ -414,10 +414,10 @@ impl BlendDecision {
             Self::SpineRegularity => "fillet3_spine_regularity",
             Self::ChainG1 => "fillet3_chain_g1",
             Self::ChainArm => "fillet3_chain_arm",
-            Self::ConvexitySign => "fillet3_convexity_sign",
+            Self::ConvexitySign => geom_brep::DIHEDRAL_SIGN,
             Self::MaterialSide => "material_wedge_side",
             Self::LinkBend => geom_brep::TANGENT_SECOND_ORDER,
-            Self::KnifeEnd => "fillet3_knife_end",
+            Self::KnifeEnd => geom_brep::MATERIAL_CUSP_SIDE,
             Self::KnifeRoom => "fillet3_knife_room",
             Self::BallRoom => "fillet3_ball_room",
             Self::RingClearance => "fillet3_ring_clearance",
@@ -1718,9 +1718,9 @@ pub enum BlendError {
         /// Meters; positive = convex. This is the link's OWN
         /// classified margin, the one its convexity was decided from
         /// when the link resolved (`battery::Link::convexity_margin`):
-        /// `((n₊ × n₋)·τ̂)·arm` under `fillet3_convexity_sign` at the
+        /// `((n₊ × n₋)·τ̂)·arm` under `dihedral_sign` at the
         /// fold's first station on a crease, and on a knife link the end's
-        /// levered sagitta under `fillet3_knife_end` (a cusp convex, a slit
+        /// levered sagitta under `material_cusp_side` (a cusp convex, a slit
         /// concave) — the reading whose sign is the disagreement,
         /// carried from the decision rather than re-derived at the
         /// refusal.
@@ -2728,7 +2728,7 @@ mod recourse_tests {
             },
             BlendError::ConvexitySignFlip {
                 edge: EdgeKey::default(),
-                margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
+                margin: decided(geom_brep::DIHEDRAL_SIGN, -1e-3, Sign::Negative),
                 chain: Convexity::Convex,
             },
             BlendError::ObliqueMixedCorner {

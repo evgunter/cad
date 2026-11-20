@@ -3114,3 +3114,4 @@ The numbers behind `dependents-slow-sets-skip-a-kernel-pr`'s policy.
 
 Signed (ONECOPY slow-set-reach lane).
 - 2026-11-15 — (BOXFINISH orchestrator) Filed here from PR 6972's two reviews: see the new row of this date.
+- 2026-11-18 — (DOCTAIL first-turn lane) Added a witness to `an-edit-inside-a-slow-test-that-does-not-respell-its-name-runs-it-nowhere-on-the-pr`: PR 7114 changed what a slow `edit_*` row reads, through `src/` alone, and the PR gate ran 0 slow tests while that row was red.

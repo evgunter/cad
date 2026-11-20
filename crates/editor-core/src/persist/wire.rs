@@ -29,8 +29,8 @@
 //! TRUSTS the program's structure — only its slot expressions pass a
 //! constructor — and what re-checks it is the load door's snapshot
 //! program walk in `persist::check`, which refuses the lattice class
-//! alone ([`ProgramFault`](crate::ProgramFault)'s doc accounts for
-//! the rest).
+//! alone ([`PersistError::ProfileProgram`](crate::PersistError::ProfileProgram)'s
+//! doc accounts for the rest).
 //!
 //! # Two KERNEL-FOREIGN tags
 //!

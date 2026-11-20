@@ -601,9 +601,10 @@ class StepImportError(PncadError):
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
-    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `singularity_undecided`, `interpretation`, `placement`,
+    `join`, `singularity_undecided`, `singularity_side_undecided`,
+    `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -3479,8 +3480,8 @@ class DocEdit:
         same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
-        `empty_station`, `station_in_first_plane`,
-        `degree_out_of_range`). A node that is not a
+        `empty_station`). A station or degree its values make degenerate
+        is admitted and refused at evaluation. A node that is not a
         loft refuses `set_loft_sections_on_non_loft`.
 
         Each section's `keep` is the `SectionId` of the old section it
@@ -3719,7 +3720,9 @@ class DocEdit:
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
-        program that does not close, replay or validate."""
+        step order the lattice refuses (a program that does not close).
+        A program whose values do not replay or validate is admitted and
+        refused when it evaluates."""
 
     @staticmethod
     def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:
@@ -4985,7 +4988,14 @@ class StructureNormalization:
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,
     the farthest a face on either of two records of one surface lies
-    from the other's), each `None` on the other arms —
+    from the other's, `snapped`'s, how far the snap catalogue moved a
+    point of a surface's faces (`relation` is which construction moved
+    it: `coaxial`, `tangent` or `axis_normal`; `face` the surface
+    record's entity id), `vertex_built`'s, how far the build moved a
+    vertex from its printed point, whose `face` is then the
+    `VERTEX_POINT`'s entity id, and `carrier_built`'s, how far the printed
+    carrier stands off the one the build constructed, whose `face` is the
+    `EDGE_CURVE`'s), each `None` on the other arms —
     present on every row, so a read never raises and a caller never has
     to branch on `kind` first. On `placement_re_minted`, `face` is the
     transformation's entity id, the row naming no face."""
@@ -5004,6 +5014,8 @@ class StructureNormalization:
     def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
+    @property
+    def relation(self) -> Optional[str]: ...
     @property
     def transform(self) -> Optional[int]: ...
     @property
@@ -5660,24 +5672,6 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
-    def traced_frame(
-        self,
-        plane: tuple[_BodyArg, str],
-        traced: tuple[_BodyArg, str],
-    ) -> PoseDef:
-        """The frame a sketch tracing a face stands on: `Through` the
-        traced face's own axis and a vertex of the plane face `plane`,
-        square to it, its origin that vertex's foot on the axis. Each is a
-        `(body, name)` of this evaluation's document; pass the answer as
-        `Node.drawn_profile`'s `frame`. A boss swept up the axis from a
-        piece leaving the traced wall's trace along its tangent is tangent
-        to the wall by construction.
-
-        Raises `ValueError` naming why no frame reads off the two: the
-        traced face has no axis, the plane face is no plane square to it,
-        or has no vertex off the axis.
-        """
-        ...
     def face_frame(self, node: NodeId | Var | IndexedRead, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand

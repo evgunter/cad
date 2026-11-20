@@ -7,15 +7,15 @@
 //! therefore persist-grade BY CONSTRUCTION: each run evaluates in its
 //! own process, serializes its verdict populations
 //! ([`editor_core::verdict_summary`]), and the report comes from
-//! [`editor_core::diff_summaries`] — the same population math as the
-//! in-process engine, via one shared core.
+//! [`editor_core::diff_summaries`], which reports where each
+//! predicate's sign counts moved.
 //!
 //! The fixture is margin-thin by design: a profile segment with
 //! sagitta 7.5e-7 (bulge 1.5e-6 on a unit chord). At ε = 1e-9 the
 //! `segment_straightness` predicate decides POSITIVE (a real arc); at
 //! ε = 1e-4 it decides ZERO (straight). Both ε values keep the margin
 //! far outside the escalation band (K = 10), so both runs stay Ok;
-//! the report — the exact net flips plus the arc→straight branch's
+//! the report — the exact net shifts plus the arc→straight branch's
 //! reshaped decision structure as loud divergence rows — is goldened
 //! below, field by field.
 //!
@@ -122,7 +122,7 @@ fn spawn_probe(eps: &str, out: &std::path::Path) -> editor_core::VerdictSummary 
 }
 
 #[test]
-fn eps_change_diff_reports_exactly_the_flipped_predicate() {
+fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     let dir = std::env::temp_dir();
     let old = spawn_probe(
         EPS_OLD,
@@ -133,15 +133,15 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
         &dir.join(format!("m4pr6_eps_new_{}", std::process::id())),
     );
 
-    let flips = editor_core::diff_summaries(&old, &new);
+    let shifts = editor_core::diff_summaries(&old, &new);
     // GOLDEN. A legitimate re-pin is a ratified change to what a log
     // holds or to the predicate vocabulary or the fixture — never a
     // number chased back into place — and it moves the populations,
-    // never which predicates flip. Exactly ONE differing node — the
+    // never which predicates shift. Exactly ONE differing node — the
     // profile — both runs Ok. The populations are the profile node's
     // WHOLE log: its pre-pass's f64 validation, then the second pass's,
     // which the `f64` lane logs in the pass's place. The ε
-    // re-classification reports as EXACTLY this net flip (the thin
+    // re-classification reports as EXACTLY this net shift (the thin
     // segment_straightness margin, twice decided per validation pass,
     // in each of the two), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
@@ -152,18 +152,18 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // share no vertex each read their gap first) —
     // never absorbed, never guessed about (vdiff module docs).
     assert_eq!(
-        flips.nodes.len(),
+        shifts.nodes.len(),
         1,
-        "exactly one differing node: {flips:?}"
+        "exactly one differing node: {shifts:?}"
     );
     // The profile is the fixture's one node. The children built the
     // same document.
     let profile = thin_profile_doc().ids()[0];
-    let delta = flips.nodes.get(&profile).expect("profile node delta");
+    let delta = shifts.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
-        flips: vec![editor_core::SummaryFlip {
+        shifts: vec![editor_core::SummaryShift {
             predicate: "segment_straightness".into(),
             from: Sign::Positive,
             to: Sign::Zero,
@@ -217,8 +217,8 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
         ],
     };
     assert_eq!(delta, &expected, "the ε audit's goldened report drifted");
-    // The report surface: exactly the flipped predicates, in order.
-    let report = flips.report();
+    // The report surface: exactly the shifted predicates, in order.
+    let report = shifts.report();
     assert_eq!(report.len(), 1);
     assert!(report.iter().all(|(node, _)| *node == profile));
 

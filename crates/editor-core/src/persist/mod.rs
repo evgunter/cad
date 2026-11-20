@@ -110,7 +110,7 @@
 //! Every direction-independent document check lives in ONE shared
 //! validator ([`check`]'s `validate_document`: non-finite floats
 //! ([`NonFiniteSite`]), profile-program structure faults
-//! ([`ProgramFault`]), the structural document invariants
+//! ([`PersistError::ProfileProgram`]), the structural document invariants
 //! ([`SnapshotError`])), invoked by BOTH doors — a document that
 //! would refuse to load cannot be saved, by construction rather than
 //! by mirrored sweeps.
@@ -164,9 +164,7 @@ use crate::var::{Var, VarId};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{
-    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
-};
+pub use check::{NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError};
 
 /// The serialized body under the header (D1).
 #[derive(serde::Deserialize)]
@@ -258,18 +256,28 @@ pub enum PersistError {
         site: NonFiniteSite,
     },
     /// A profile PROGRAM structure fault (LIB-SWITCH §4h; the retired
-    /// stored-joint refusal's successor): a wrong-dimension argument
-    /// role, or a lattice-violating step order caught by the replay
-    /// probe. The payload is `pub`, so an in-crate bug can build one
-    /// without passing an edit door, and a parsed file can carry the
-    /// same corruption. Shared-validator check: save refuses before a
-    /// byte is written, load refuses with the SAME diagnostics.
+    /// stored-joint refusal's successor): a step order wrong at every
+    /// value, which the edit door refuses too. The payload is `pub`, so
+    /// an in-crate bug can build one without passing an edit door, and
+    /// a parsed file can carry the same corruption. Shared-validator
+    /// check: save refuses before a byte is written, load refuses with
+    /// the SAME diagnostics.
+    ///
+    /// Geometry refusals, resolve failures and validate refusals (a
+    /// bowtie loop, even one drawn in literals) deliberately PASS this
+    /// door: they are V1 class 2, legal at rest, surfaced as typed node
+    /// errors at evaluation (the validate class as
+    /// [`crate::NodeErrorKind::Profile`]).
     ProfileProgram {
         /// The profile node carrying the fault, spoken from the
         /// document the validator judges.
         node: crate::SpokenNode,
-        /// The typed fault.
-        fault: check::ProgramFault,
+        /// The edit door's own refusal of it
+        /// ([`crate::ProfileProgram::lattice`]): a
+        /// [`crate::ProgramRefusal::Transition`],
+        /// [`crate::ProgramRefusal::Order`] or
+        /// [`crate::ProgramRefusal::Trace`].
+        refusal: Box<crate::ProgramRefusal>,
     },
     /// A document parameter's distribution breaks an E2 invariant
     /// (ERROR-DESIGN E2; finiteness is [`Self::NonFinite`]'s half).
@@ -452,8 +460,8 @@ impl Staged for PersistError {
     fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, _: Labels) -> core::fmt::Result {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
-            Self::ProfileProgram { node, fault } => {
-                write!(f, "{node}'s program: {fault}")
+            Self::ProfileProgram { node, refusal } => {
+                write!(f, "{node}'s program: {refusal}")
             }
             Self::Distribution { var, fault } => {
                 write!(f, "{var}: {fault}")
@@ -533,8 +541,8 @@ impl core::error::Error for PersistError {}
 /// invariants are broken (an unloadable file, refused before it
 /// exists). Plus [`PersistError::Serialize`] if the JSON writer itself
 /// fails.
-pub fn save(doc: &ProfileDoc, tol: Tol) -> Result<String, PersistError> {
-    check::validate_document(doc, tol)?;
+pub fn save(doc: &ProfileDoc, _tol: Tol) -> Result<String, PersistError> {
+    check::validate_document(doc)?;
     let body = SerBody { snapshot: doc };
     // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then laid out
@@ -568,7 +576,7 @@ struct SerBody<'a> {
 /// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
-pub fn load(text: &str, tol: Tol) -> Result<ProfileDoc, PersistError> {
+pub fn load(text: &str, _tol: Tol) -> Result<ProfileDoc, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
@@ -585,7 +593,7 @@ pub fn load(text: &str, tol: Tol) -> Result<ProfileDoc, PersistError> {
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&doc, tol)?;
+    check::validate_document(&doc)?;
     reconcile_epsilon(doc.epsilon())?;
     Ok(doc)
 }

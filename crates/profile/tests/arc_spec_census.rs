@@ -252,3 +252,110 @@ fn arc_specs_at_is_the_replays_spec_dispatch() {
         }
     }
 }
+
+/// **`chain_shape` walks the lattice the replay walks.** Every
+/// (state, verb) cell and, for an arc-spec verb, every spec cell under
+/// it, put after [`prefix`]: the shape refuses the last step exactly
+/// where the replay refuses it as a lattice violation, and where the
+/// replay lands the chain at a tip (or closes it) the shape lands it in
+/// the same state; where the shape refuses the step's order, the
+/// replay refuses that step too. A cell whose numbers refuse is the geometry's, and
+/// says nothing about where the step lands; enough cells land for the
+/// comparison to cover every state the table can reach.
+#[test]
+fn chain_shape_lands_where_the_replay_lands() {
+    use profile::{ShapeFault, ShapeFaultKind, StepForm, chain_shape};
+    // Each prefix is a cell too: its last step is the way in.
+    let mut cells: Vec<Vec<Step<f64>>> = every_state()
+        .into_iter()
+        .map(prefix)
+        .filter(|steps| !steps.is_empty())
+        .collect();
+    for state in every_state() {
+        for &verb in Verb::ALL {
+            let count = spec_count(verb);
+            if count == 0 {
+                cells.push([prefix(state), vec![sample_step(verb).unwrap()]].concat());
+                continue;
+            }
+            for (mode, target) in every_form() {
+                for position in 0..count {
+                    let table = arc_specs_at(verb, state);
+                    let specs: Vec<ArcData<f64>> = (0..count)
+                        .map(|i| {
+                            if i == position {
+                                return spec(mode, target);
+                            }
+                            let &(m, t) = table
+                                .get(i)
+                                .and_then(|forms| forms.forms().first())
+                                .unwrap_or(&(mode, target));
+                            spec(m, t)
+                        })
+                        .collect();
+                    cells.push([prefix(state), vec![arc_step(verb, &specs)]].concat());
+                }
+            }
+        }
+    }
+    let mut landed = Vec::new();
+    for steps in &cells {
+        let at = steps.len() - 1;
+        let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
+        let shape = chain_shape(&forms);
+        let lattice_here = matches!(
+            shape,
+            Err(ShapeFault { step, kind: ShapeFaultKind::Lattice { verb: Some(_) }, .. }) if step == at
+        );
+        assert_eq!(
+            lattice_here,
+            lattice_refuses(steps),
+            "{steps:?}: the shape {} the last step on the lattice",
+            if lattice_here { "refuses" } else { "admits" },
+        );
+        let replayed = replay(steps, Tol::witness());
+        if let Err(ShapeFault {
+            step,
+            kind: ShapeFaultKind::Order(fault),
+            ..
+        }) = shape
+        {
+            assert!(
+                matches!(&replayed, Err(ReplayError { step: s, .. }) if *s == step),
+                "{steps:?}: the shape refuses {fault:?} at {step}, the replay {replayed:?}",
+            );
+            continue;
+        }
+        let replayed = match replayed {
+            Ok(_) => TipState::Closed,
+            Err(ReplayError {
+                step,
+                kind: ReplayErrorKind::Transition { state, verb: None },
+            }) if step == steps.len() => state,
+            _ => continue,
+        };
+        let shaped = match shape {
+            Ok(_) => TipState::Closed,
+            Err(f)
+                if f.kind == (ShapeFaultKind::Lattice { verb: None }) && f.step == steps.len() =>
+            {
+                f.state
+            }
+            Err(f) => {
+                panic!("{steps:?}: the replay lands at {replayed:?}, the shape refuses {f:?}")
+            }
+        };
+        assert_eq!(shaped, replayed, "{steps:?}: where the step lands");
+        if !landed.contains(&replayed) {
+            landed.push(replayed);
+        }
+    }
+    for state in every_state() {
+        if state != TipState::Entry {
+            assert!(
+                landed.contains(&state),
+                "no cell lands at {state:?}: {landed:?}"
+            );
+        }
+    }
+}

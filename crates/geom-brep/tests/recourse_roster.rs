@@ -94,7 +94,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
-    NameCarrier::Call("convexity"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
@@ -121,6 +120,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
     NameCarrier::Const("AT_THE_END"),
+    NameCarrier::Const("BASIN_HELD"),
     NameCarrier::Const("CENTRES"),
     NameCarrier::Const("CLEAR"),
     NameCarrier::Const("CONE_RULING"),
@@ -130,6 +130,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("FOOT"),
     NameCarrier::Const("FORWARD_ROW"),
     NameCarrier::Const("GAP"),
+    NameCarrier::Const("HELD_ONE_PIECE"),
     NameCarrier::Const("HULL"),
     NameCarrier::Const("NODE_RAY"),
     NameCarrier::Const("OFFSET"),
@@ -237,9 +238,6 @@ const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates,
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
-const FOLD_NAMES: &str = "a `FoldNames` field, whose names are read at its literals: \
-                          `FoldNames::SHAPE`'s declared consts here, a building reader's in its \
-                          own crate";
 const LOOP_ROWS: &str = "a `for (name, …) in [(\"lit\", …), …]` loop handing its binding to a \
                          door, whose literals the census does not read \
                          (`work/onecopy/the-census-reads-no-loop-over-a-literal-array-of-names.md`)";
@@ -330,7 +328,6 @@ const INDIRECT: &[(&str, &str)] = &[
         "carrier_pose.rs: directions_parallel: what.name()",
         CLOSED_TYPE,
     ),
-    ("dihedral.rs: convexity: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
     ("dihedral.rs: decide_magnitude: name", FORWARDS),
     ("dihedral.rs: decide_magnitude_reported: name", FORWARDS),
@@ -339,8 +336,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_positive: name", FORWARDS),
     ("dihedral.rs: decide_reported: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
-    ("edge_wedge.rs: after_positive: self.end", FOLD_NAMES),
-    ("edge_wedge.rs: edge_wedge_over_as: names.sign", FOLD_NAMES),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
         "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: Interval::from_bounds(0.0, 0.0)",
@@ -390,6 +385,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: rows.width()", CARRIER_CALL),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
+    ("intersect.rs: coaxial_cone_sphere: name", LOOP_ROWS),
+    ("intersect.rs: coaxial_cone_torus: name", LOOP_ROWS),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
     ("intersect.rs: cylinder_cylinder_section: c1", NOT_A_NAME),
     ("intersect.rs: plane_cone_section: name", FORWARDS),
@@ -416,6 +413,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("pair_section.rs: decide_stance: name", FORWARDS),
+    ("pair_section.rs: coaxial_tangent_circle: a", NOT_A_NAME),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (

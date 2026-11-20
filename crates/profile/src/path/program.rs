@@ -2287,7 +2287,46 @@ pub enum TipState {
     Closed,
 }
 
+/// **What a tip offers a step found from the pen** ([`TipState::pen`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PenAt {
+    /// No position: the tip holds no pen.
+    NoPen,
+    /// A position with no heading: no direction bound, no incoming
+    /// tangent.
+    Unheaded,
+    /// A position and a heading: a bound direction (`directed`), or the
+    /// incoming tangent.
+    Heading {
+        /// Whether a director bound the heading.
+        directed: bool,
+    },
+}
+
 impl TipState {
+    /// **What a tip in this state offers the pen**: the position
+    /// states hold one, headed where a direction is bound or a leg
+    /// arrived. [`pen`] reads its tip's fields, which this state fixes.
+    #[must_use]
+    pub const fn pen(self) -> PenAt {
+        match self {
+            Self::PlainPoint => PenAt::Unheaded,
+            Self::DirectedPoint => PenAt::Heading { directed: false },
+            Self::DirectedPlain | Self::DirectedIncoming => PenAt::Heading { directed: true },
+            Self::Entry
+            | Self::Open
+            | Self::Angle
+            | Self::RadiusArrival
+            | Self::RadiusArrivalAt
+            | Self::RadiusArrivalDir
+            | Self::ViaArrival
+            | Self::ViaArrivalStart
+            | Self::ArcOnto
+            | Self::ArcOntoStart
+            | Self::Closed => PenAt::NoPen,
+        }
+    }
+
     /// **The verbs this state takes**, in declaration order: every
     /// verb with a row at this state — [`Verb::states`] read the other
     /// way, so the set is the one the replay driver has arms for.
@@ -3194,17 +3233,17 @@ pub fn replay_guided<T: ArcCarrierScalar>(
 /// the heading a leg from it would run along.
 ///
 /// The heading is the bound director where one is bound, else the
-/// incoming leg's end tangent ([`Self::directed`] says which); a plain
-/// point with no director has none.
+/// incoming leg's end tangent (the state's [`TipState::pen`] says
+/// which); a plain point with no director has none.
 #[derive(Clone, Copy, Debug)]
 pub struct Pen<T: Real> {
     /// The tip's position.
     pub at: Point2<T>,
     /// The unit ray a leg from the tip departs along, if any.
     pub heading: Option<Vec2<T>>,
-    /// Whether [`Self::heading`] is a bound director rather than the
-    /// incoming tangent.
-    pub directed: bool,
+    /// The tip's lattice state, which fixes whether `heading` is
+    /// present and whether it is a bound director ([`TipState::pen`]).
+    pub state: TipState,
 }
 
 /// **The pen after `steps`**, a prefix of a chain program: replayed
@@ -3227,21 +3266,21 @@ pub fn pen<T: ArcCarrierScalar>(
         Walked::Open(tip) => tip,
         Walked::Closed { .. } => return Ok(None),
     };
-    fn of<T: Real, P, A>(p: &PartialPath<T, P, A>) -> Option<Pen<T>> {
+    fn of<T: Real, P, A>(p: &PartialPath<T, P, A>, state: TipState) -> Option<Pen<T>> {
         let pos = p.tip.pos.as_ref()?;
         let bound = p.tip.ang.as_ref().map(|b| b.dir.unit);
         let incoming = pos.incoming.as_ref().map(|i| i.ang.unit);
         Some(Pen {
             at: pos.at,
             heading: bound.or(incoming),
-            directed: bound.is_some(),
+            state,
         })
     }
     Ok(match &tip {
-        DynTip::PlainPoint(p) => of(p),
-        DynTip::DirectedPoint(p) => of(p),
-        DynTip::DirectedPlain(p) => of(p),
-        DynTip::DirectedIncoming(p) => of(p),
+        DynTip::PlainPoint(p) => of(p, TipState::PlainPoint),
+        DynTip::DirectedPoint(p) => of(p, TipState::DirectedPoint),
+        DynTip::DirectedPlain(p) => of(p, TipState::DirectedPlain),
+        DynTip::DirectedIncoming(p) => of(p, TipState::DirectedIncoming),
         DynTip::Entry
         | DynTip::Open(_)
         | DynTip::Angle(_)

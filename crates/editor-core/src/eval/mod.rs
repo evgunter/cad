@@ -44,9 +44,10 @@ pub(crate) use anchor::{derive_naming, validated_naming};
 pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
-pub(crate) use framed::Frame;
+pub(crate) use framed::{Frame, GraftIn};
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
@@ -902,6 +903,12 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// The candidates the node's pruning queries handed on, placed among
+    /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
+    /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
+    /// one path from two whose pruning parted. No verdict, so no part of
+    /// the strict form or the summary. **Not persisted**.
+    pub marks: Arc<MarkLog>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -947,6 +954,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             family: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
+            marks: Arc::default(),
             motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -975,6 +983,7 @@ impl NodeValue<f64> {
             coincidences: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
+            marks: Arc::default(),
             motion: None,
             members: None,
             family: None,
@@ -1071,6 +1080,9 @@ impl Evaluation<f64> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's candidate marks ([`NodeValue::marks`]).
+pub type MarkLog = Vec<geom_core::k_stats::Mark>;
 
 /// One node's escalations (the [`NodeValue::escalations`] and
 /// [`NodeError::escalations`] payload):
@@ -3821,24 +3833,38 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // member reads mint their indices as counts `ev` never bound: each
-    // is a count the document holds (`edit::written_count`), bound here
-    // as the run binds it.
-    let unbound: Vec<(crate::VarId, i64)> = doc
+    // member reads mint their indices as counts `ev` never bound, and
+    // whose values (a face's chart's spin and slides) are definitions it
+    // never bound. They are bound in the run's order: each count as the
+    // document holds it (`edit::written_count`), then the definitions
+    // over them (`Doc::bind_definitions`).
+    let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
         .filter(|var| !ev.env.bindings.contains_key(var) && !ev.env.refused.contains_key(var))
+        .collect();
+    let defined = unbound.iter().any(|&var| {
+        matches!(
+            doc.var(var).map(crate::Var::def),
+            Some(crate::var::VarDef::Defined(_))
+        )
+    });
+    let counts: Vec<(crate::VarId, i64)> = unbound
+        .into_iter()
         .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
         .collect();
-    let env = match unbound.is_empty() {
-        true => std::borrow::Cow::Borrowed(&ev.env),
-        false => {
+    let env = match (defined, counts.is_empty()) {
+        (false, true) => std::borrow::Cow::Borrowed(&ev.env),
+        _ => {
             let mut env = ev.env.clone();
             env.bindings.extend(
-                unbound
+                counts
                     .into_iter()
                     .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
             );
+            if defined {
+                doc.bind_definitions(&mut env);
+            }
             std::borrow::Cow::Owned(env)
         }
     };
@@ -5525,7 +5551,8 @@ where
         let fresh = bracket.finish();
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
-                && v.escalations.starts_with(&fresh.escalations),
+                && v.escalations.starts_with(&fresh.escalations)
+                && v.marks.starts_with(&fresh.marks),
             "a memo hit's pre-key decisions differ from the reused log's prefix"
         );
         return NodeStep {
@@ -5552,6 +5579,7 @@ where
                 family: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
+                marks: Arc::new(recorded.marks),
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,

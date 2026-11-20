@@ -2,8 +2,9 @@
 id: import-adoption-keeps-two-records-of-one-carrier
 kind: issue
 title: Import adoption reads two coincident surface records one carrier and keeps both
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-18
 ---
 
 
@@ -24,3 +25,5 @@ settled home for the row: an import's cells are neither an operation's
 inputs nor (by `RowCell::Result`'s current wording) a census decision,
 and the document layer names neither for an import.
 
+
+Closed for planes by PR 7091 (faces of one plane locus facing one way become one record before anything is built). Non-planar loci are carried by `two-records-of-one-non-planar-surface-stay-two-at-import`.

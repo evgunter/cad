@@ -135,3 +135,111 @@ body has the reasons):
 
   **7073:** Ev asked for the per-node-theorem context. Answered: the 2026-10-06 rule is that rung 3, the symbolic polynomial identity, proves coincidences, and a hand statement is only a cache checked against it. So the build tries rung 3 first, like the box mitre's `dot(d, cross(d,t))`, and needs no new ruling. Awaiting OK.
 - 2026-11-18 — **7073 merged** (Ev: "that sounds good"). The face-frame unit is re-specced: the face's placement chart, one code with the plane mate's, an orientation, spin and slides, and `DrawnOn.faces` passed through. Filed: `tracing-reads-the-faces-chart-and-traced-frame-retires` (P1 H, parked on the face-frame unit). Its door tangency is tried by rung 3 first, with the stated fact allowed as a fallback (Ev). Filed on COINCIDE at Ev's request: `the-coincidence-doors-construction-facts-have-no-one-source` (P2, design). Closed FORMS' `a-sketch-frame-reads-a-space-axis-…`. Seam notes went to the vseam, pydoor and forms logs.
+- 2026-11-18 — **7075 merged** (Ev: "sounds good!", after the answer to Q3). #7082 is retargeted to main; 7075's branch is kept. The value-free door build is dispatched to its OWN cloud session (`session_013QoYWXKPPpTNyCYxsE6RS5`, branch `doctail/a-door-judges-the-document-never-one-evaluation`), since two lanes already build here and disk is at 90%. Tier: DUAL (two Opus). Ev's caveat is binding: if per-member naming is not generic, the lane stops and asks. The three valenv rows are dispatched; the parked maintenance-net row rides with them.
+- 2026-11-18 — PR 7111 (face chart, signed depth): the Opus FULL review says APPROVE WITH FIXES, no MAJOR. "One code" is bit-identical by `to_bits`, mutations confirm the rows bite, and signed depth is right (the sign is the sweep's named predicate). Fix pass ruled:
+  - a turn-fraction spin row;
+  - MINOR 2: the frame levers the pole band over its own arm but not over the profile it carries, so a big profile near a backwards orientation builds where an equal placed body refuses. `[placement]` says "refuses as a placement does", so the carried geometry is levered as a placement's copy is; the lane stops if that is larger than a fix;
+  - stale negative-depth premises (pncad-py docs, test prose, three other programs' rows);
+  - a viewer-probe row;
+  - the NITs.
+
+  The orchestrator reads it and merges.
+- 2026-11-18 — **Friction (orchestrator's own):** I removed the face-chart implementer's worktree when its first report came in, which made the agent unresumable for the fix pass ("its worktree no longer exists"). The fix pass went to a fresh lane briefed from the PR body. Lesson: keep an implementer's worktree until its PR merges; reclaim only its target dir.
+- 2026-11-18 — PR 7114 (verdict log: check/choice and first turn) is up and green. The implementer built the candidate marks, because the probe found a fake turn (`plane_eq_parallel` in the `m4_pr4` slid-union rows). The side reader's answer was found unlogged and is now a choice. The user-visible cost: booleans whose candidate pairs change name no flip and fall back to `GroupResized`. Two `revalue_corpus` floors on tcost/tint rows are re-pinned. Dual review dispatched (two Opus): A builds and probes, B reads only, to spare the disk. The implementer's worktree is KEPT until merge (lesson above).
+- 2026-11-18 — The value-free door's cloud lane opened **PR 7116**. Ev's caveat was checked: per-member naming IS generic, pinned by `g_index_families::a_profile_reading_the_index_is_a_family_named_by_its_pieces`. It also closes TRACE's P1 `set-program-on-a-traced-profile-with-named-steps-refuses`. Filed: `the-edit-and-persist-doors-take-a-tolerance-no-check-reads`. The first CI run went red in the viewer job, and the lane is fixing it. The dual review follows once CI is green.
+- 2026-11-18 — **PR 7114 dual review:** both reviewers say REQUEST CHANGES. MAJORs:
+  - (A, sure) a slow-set row is red at head: `edit_strip_mouth_cups::…vanishes_on_the_blends_verdict`. The blend reach's UNLOGGED prune `reach::sure` parts the runs, and CI's slow-set rule (by name on added lines) never ran it;
+  - (B, likely) a role leak through rayon work-stealing: `in_role` takes the max with the worker's role, so a stolen node evaluation inside a check scope runs as Check.
+
+  Fix pass ruled: mark `reach::sure`, `nary::judged_pairs` and `walk_pairs` (the production section certificate, misdescribed as test-only); a job sets its spawner's role; unit rows for every role door; restore revalue's check-escalation gate; retag `flush_at_rest` a choice; run every affected slow row; file the CI slow-set rule's blind spot; the style items. **To Ev on 7114:** whether to add a diagnosis that names WHERE two runs parted (query and candidate). Both reviewers measured that no real boolean edit names a flip after this PR. A delta review follows the fix pass.
+- 2026-11-18 — PR 7116 (value-free door) is green after one kernel re-run on the lane's side. Dual review dispatched: B reads, here; A builds and probes in its own cloud session (`session_013QoYWUKBewD54b1oF4e43M`), read via its transcript, because two lanes already build here.
+- 2026-11-18 — **PR 7111 merged** (face chart, signed depth). The fix pass stopped correctly on MINOR 2 (the frame's pole band is levered over nothing it carries) and filed `a-face-charts-turn-is-levered-over-none-of-what-it-carries` (P1 M). It is now a designer pair (`lever`): what the band is for a frame that carries geometry. Restating `[placement]` would be Ev's. It also closed lathe's negative-depth row, tightened m10_3's budget bound to 2ε/80ε, and filed chrome's `the-bounds-probe-steps-over-a-point-floor`. **Dispatched:** `tracing-reads-the-faces-chart-and-traced-frame-retires` (P1 H), with rung 3 first and the stated fact only as Ev's allowed fallback. Tier: single FULL review.
+- 2026-11-18 — **`lever` fork:** both designers agree that the pole band belongs to a carriage. The frame holds its chart undecided; each sweep, and the faces the profile traces, are carried by the placement's fold over their own reach; a face chart is admitted only in a profile's frame seat. It rewords `[placement]`, `[placement.values]` (fork 270's band text) and DM1, so it went to Ev as an `[ev]` PR. Residue for Ev: whether the profile's own loops also stand in the chart. Filed: `a-face-chart-over-a-plane-through-its-origin-refuses-backwards-at-arm-zero` (P1 E; a false Backwards at arm 0, which both designers found). Off-question, to file: `PoseDef::Through` and `Meet` decide degeneracy unlevered over their readers.
+- 2026-11-18 — **PR 7116 dual review:** both reviewers say REQUEST CHANGES, overlapping. MAJORs:
+  - a slow-set row is red at head: `edit_set_program::a_reshaping_reports_exactly_…`, whose `report_matches_resolution` holds the pre-ruling contract (CI's slow-set rule again);
+  - value-free `PathError` order faults are admitted at both doors (open-fillet arc leg, far-end anchor without a fillet, `circle_split` n<2), because `TipState` lacks the pending-fillet bit;
+  - pen loops get no lattice check.
+
+  Fix pass sent to the cloud lane: one value-erased form (the existing `StepShape`), one source for structural refusals and for the trace verb map, a randomized differential, fail-loud `drawable_pieces`, and rows for the family's bad member and the Ev caveat. A delta review follows. **Class, second instance today:** CI's slow-set step never runs slow rows whose bodies a PR changes. The row is to be filed by the 7114 fix pass.
+- 2026-11-18 — PR 7114 fix pass (head 318c5586), green. The role leak was REAL: a unit row went red under max semantics (44 of 512 outer choices recorded as checks) and is green under the fix (`checking` sets and restores; `SpawnRole` carries the spawner's role into each job; `Role` drops `Ord`). Marks were added at `reach::sure`, `nary::judged_pairs` and `ops::walk_pairs`. The strip-cup row now parts at the blend, renamed so the slow-set step selects it. 516 slow rows ran locally. `first_turn` returns `FirstTurn::{Agree, Turned, Parted}`, ready for the parting-site diagnosis if Ev wants it. Delta review dispatched.
+- 2026-11-18 — PR 7114 delta review: APPROVE WITH FIXES, no MAJOR. Both MAJORs are confirmed closed. Final pass ruled:
+  - one marked home for reach.rs's escalate thresholds (`sure`'s inline twins still steered);
+  - a red-capable nary row;
+  - `sure`'s doc, plus a cost measurement of the marks (24k per strip-cup blend node);
+  - drive-under-Interval for blends filed;
+  - one spawn-role parallel-map helper with a guard (it was hand-copied 4× and missing at tessellate.rs);
+  - the NITs.
+
+  The orchestrator reads it and merges.
+- 2026-11-18 — PR 7116 fix pass (head 0575dc16), green:
+  - one order-predicate source (`path/order.rs`) for the replay and the walk;
+  - pen loops lattice-checked through one verb map;
+  - `report_matches_resolution` restated to the ruling;
+  - one value-free input type (`StepForm`);
+  - a randomized differential, which found a REAL kernel bug: a fused step at a plain point silently overwrote an open fillet; it now refuses.
+
+  Delta review dispatched to a cloud session (`session_013QoYWU…` was the first review; this one is new). Disk hit 92% (the firstturn target at 15 GB, the tracechart target at 8.3 GB), so both lanes were told to trim.
+- 2026-11-18 — **PR 7126** (tracing on the face chart) is up and green. **Rung 3 proves the traced tangency** (2–5 ms per row, DAGs of 107–613 nodes, none over budget), so the stated-fact fallback was NOT needed; the measurement is on COINCIDE's one-source row. `traced_frame` and its sole readers are retired, and the traced-profile form is now "New profile on a face". The arm-0 defect was confirmed by measurement (a bottom cap tilted 0.2 rad). FULL review dispatched to a cloud session (disk).
+- 2026-11-18 — **PR 7114 merged** (verdict log: check/choice and first turn). The final pass: one marked home for every blend escalate threshold; mark cost measured as immaterial (worst ~1 MB, timing within noise); `k_stats::par_map` is the one recorded parallel map, with the gate `scripts/gates/parallel-maps-carry-the-role.sh`; typed `MarkItem`. ONEDOOR's wedge fold is unblocked (seam note on its log). The parting-site question moved to its own `[ev]` PR, because Ev does not scan merged PRs.
+- 2026-11-18 — **PR 7116 delta review: APPROVE WITH FIXES, no MAJOR** (the one order source holds over 228k prefixes). Last pass sent to the cloud lane:
+  - guards for `ClosesOnItsEntry` and the kernel bug;
+  - the #7082 coupling note corrected (`cosurface_pairs` is value-based, against `[recipe.doors]`);
+  - fuzz floors;
+  - one pen-order judgement (the viewer's third copy);
+  - one value-free form (`StepShape` vs `StepForm`);
+  - the load door carries `ProgramRefusal`.
+
+  **PR 7126 FULL review: APPROVE WITH FIXES, no MAJOR.** Rung 3 is sound, including the mated-flat case. Fix pass:
+  - lever over the boss wall's reach, not the session box;
+  - the viewer form's sticky trace latch, and the rows shown when nothing is latched;
+  - a recourse for float-turned frames;
+  - one home for `draw_on_face`'s defaulting;
+  - the reviewer's rows;
+  - `nearest_to_face` fails loud.
+
+  Both are bounded passes; the orchestrator reads and merges.
+
+- 2026-11-18 14:44 — **7116 merged** (`cb05ad1`). The value-free door
+  is in. The last pass's one CI failure was the Python binding census:
+  six new façade names (`PenRun`, `PenStep`, `pen_fault`, `pen_run`,
+  `shape_of_recorded`, `step_kernel`) were unlisted. `d038c60` lists them
+  as interior, and the orchestrator read that delta. Green on `gate ok`,
+  so no further review. The cloud lane is archived.
+
+- 2026-11-18 15:35 — **7126 merged** (`a350d76`). Tracing draws on the
+  face's chart, `traced_frame` and the New-traced-profile act are
+  retired, and the coincidence door proves the tangency by rung 3. The
+  orchestrator read the fix pass, which closes every item of the FULL
+  review:
+  - the heading is levered at the decided pair's own arm
+    (`carrier_pair_arm`), rounded up to a power of two, because the
+    reach's form, an opaque reach and its exact `f64` each run over the
+    budget or keep an atom;
+  - the viewer form lets its trace go on commit, on Cancel and from its
+    own button;
+  - the float-turn recourse names the axis read off the face;
+  - `chart_on_face` is the one home of the chart's defaults;
+  - `traced_faces` binds counts and then definitions;
+  - `nearest_to_face` returns a `Result`.
+
+  The merge with 7116 was a union in both conflicted files. Hardening
+  nit, not filed: `swept_along` would discharge any margin if the pair's
+  arm read zero. `consumed_arm` is the kernel's positive reach for any
+  face the replay built, so this cannot happen today, and a guard is
+  owed only if that arm ever changes. Worktree removed.
+- 2026-11-18 15:40 — **Sitting ends; the track goes back `ready`.** No
+  P0 or P1 row is dispatchable:
+  - the runwall P0 is parked on `[ev]` 7082;
+  - both face-chart P1 rows are now parked on `[ev]` 7122, because the
+    lever ruling decides where the band lives, and arm-zero is moot if
+    it lands;
+  - Diagnosis::Parted waits on `[ev]` 7129 and has no row until Ev
+    rules.
+
+  The P2/P3 tail is the successor's, per the board. Filed:
+  `through-and-meet-decide-their-degeneracy-at-unit-norm-unlevered-over-their-readers`
+  (P3 M), the `lever` designers' off-question class. This session stays
+  on the three `[ev]` PRs while it lives. On a ruling it updates the
+  diff in place, merges on approval, and unparks the rows that wait on
+  it. Whoever holds the track next dispatches them.
+- 2026-11-19 — (ONEROUND orchestrator) Nightly 97 is red on one probe-gated row that PR 7116's door move left pinned to the old behaviour: `m10_7_r1_census_probe::r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity` expects the edit door to refuse a tangent junction, which now refuses at evaluation. Filed on GREEN: `work/green/main-red-the-collinear-walls-probe-expects-the-edit-door-to-refuse-a-tangent-junction.md`.

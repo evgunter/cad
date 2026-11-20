@@ -4,6 +4,7 @@ kind: issue
 title: dm1's bolts and nuts touch the l-bracket, and the assembled body's at-rest gate refuses their shared vertices as unrecorded contacts, naming no solid
 status: open
 opened: 2026-11-04
+priority: P3
 ---
 
 

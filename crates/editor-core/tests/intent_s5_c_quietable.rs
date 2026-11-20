@@ -172,6 +172,37 @@ fn a_blind_bore_pin_is_quietable_and_refuses_until_quieted() {
     assert_eq!(holds_the_rule("blind bore", &doc), vec![true]);
 }
 
+/// **The blind-bore pin quiets alike when both copies stand turned and
+/// off the origin**: the same plate and pin, each turned a quarter turn
+/// about `z` and moved off the origin. They stand under two maps, and
+/// the gather computes in the plate's frame (`Framed::computing_among`),
+/// so the overlap is localized there, where the product's faces and
+/// carriers stand, the pin moved into it once; the rule holds as it does
+/// at rest. That a product in a shared frame localizes in it, moving no
+/// copy, is `product_finishes_once`'s
+/// `a_product_in_one_shared_frame_localizes_in_it_moving_no_copy`.
+#[test]
+fn a_blind_bore_pin_in_a_turned_frame_is_quietable() {
+    let doc = ProfileDoc::empty_derived("s5c-q-blind-turned", Tol::witness());
+    let (doc, holed) = prism(doc, vec![outline(1.0), circle(0.0, 0.0, 0.5)], 1.0);
+    let (doc, floor) = prism(doc, vec![outline(1.0)], 0.5);
+    let (doc, floor) = slid(doc, holed, floor, [0.0, 0.0, -0.5]);
+    let (doc, plate) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+        },
+    );
+    let (doc, pin) = prism(doc, vec![circle(0.0, 0.0, 0.505)], 1.7);
+    let turned = |z: f64| Frame {
+        columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [3.0, 1.0, 2.0 + z],
+    };
+    let (doc, _) = in_world(doc, plate, &turned(0.0));
+    let (doc, _) = in_world(doc, pin, &turned(-0.2));
+    assert_eq!(holds_the_rule("blind bore, turned", &doc), vec![true]);
+}
+
 /// **A coaxial press fit is quietable** (a curved pair): a `Gap` between
 /// the bore and the pin's wall quiets it, and unasserted it refuses at
 /// `Error`.

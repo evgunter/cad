@@ -349,7 +349,8 @@ fn narrow<T: Decide>(
 /// carrier's lower bound, where it has a closed form) is clear of it
 /// there. One that is not lies near the carrier, where its foot is well
 /// placed, and is carried to the ray's closest approach by alternate
-/// feet, which the point-on-span reading reads ([`geom_brep::curve_pair::Span::read`]).
+/// feet, over the edge's span ([`geom_brep::curve_pair::Span::foot`]) and
+/// on the ray, which the point-on-span reading reads ([`geom_brep::curve_pair::Span::read`]).
 fn passes<T: Decide>(
     span: &crate::census::EdgeSpan<T>,
     ray: &geom::Ray<T>,
@@ -374,7 +375,7 @@ fn passes<T: Decide>(
     let ray = ray.line();
     let mut r = seed;
     for _ in 0..FEET {
-        near = carrier.foot(r, near).seed();
+        near = span.span().foot(r, near).seed();
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
@@ -384,9 +385,9 @@ fn passes<T: Decide>(
     match span.span().read(r, near, band) {
         Ok(Reading::On { margin, .. }) => inside(Ok(margin)),
         // Off the carrier, or past the span clear of both ends, whatever
-        // the carrier refused there (an escalation or a walk that could
-        // not run): no reading of the carrier puts the point on the edge.
-        Ok(Reading::Off | Reading::Carrier) => Passes::Clear,
+        // the carrier read there: no reading of the carrier puts the point
+        // on the edge.
+        Ok(Reading::Off(_)) => Passes::Clear,
         // In band of an end, or undecided against one, whatever the
         // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.

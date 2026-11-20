@@ -36,26 +36,52 @@
 //!    cone placed at its base circle is moved to its apex; a NURBS
 //!    surface or carrier whose residual reads Zero is promoted; two
 //!    surface records of one locus become one
-//!    ([`NormalizationKind::OneRecord`]); a value no construction takes
-//!    refuses ([`InterpretationRefusal`]).
+//!    ([`NormalizationKind::OneRecord`]); a relation between two
+//!    surfaces the file's band reads `Zero` is made exact by the snap
+//!    catalogue ([`SnapRelation`], which states it), each move reported
+//!    ([`NormalizationKind::Snapped`]); a value no
+//!    construction takes refuses ([`InterpretationRefusal`]).
 //! 3. **Topology assembly** ([`assemble`]): the shell's half-edge
 //!    structure is realized through `topo`'s public Euler operators
 //!    (`mvfs`/`mev`/`mef`, the ring vocabulary, scaffold struts killed
 //!    by their inverse ops) — the sanctioned construction path, D1.
-//! 4. **Adoption** ([`adopt`]): surfaces attach (bitwise-identical
-//!    records share one kernel surface key, restoring the writer-side
-//!    key sharing), `same_sense` lands as [`topo::Face::sense`]
-//!    honored, not healed, and every edge's intensional description is
-//!    **rebuilt and certified** by the kernel's own gates: intersection
-//!    / tangent-intersection for edges between distinct surfaces, and
-//!    the pair the must-carry rule answers where they under-determine
-//!    a smooth join; seam / conventional mapped-curve for edges inside
-//!    one surface; the
-//!    boundary iso-curve rung for NURBS wall seams (M7-3). Pcurve
+//! 4. **The build and adoption** ([`build`], [`adopt`]): every edge's
+//!    description is chosen off its faces' surfaces at the file band,
+//!    and every cache is built from it by the kernel's own
+//!    constructions — the carrier (section, tangent locus, a wall's iso
+//!    or a cap's rational rim row, a surface's own generator through the
+//!    edge's built ends, the segment between them), each vertex where
+//!    the description fixes it (built carriers crossing a surface, a
+//!    pole or an apex), else, where the description leaves it free along
+//!    one built carrier, at the foot of its printed point on that
+//!    carrier, each interval by the carrier's own inverse. No curve or
+//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
+//!    share one kernel surface key, restoring the writer-side key
+//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    healed, and the one built description is **certified** by the
+//!    kernel's own gates at ε; a smooth join the must-carry rule answers
+//!    with the pair alone refuses not-yet-supported. Pcurve
 //!    caches re-mint through [`topo::mint_pcurves`] (every curved
 //!    chart that mints natively mints here — cylinder, cone, sphere,
 //!    torus, described non-rational NURBS; plane faces stay
 //!    derive-on-demand, exactly what a natively built body carries).
+//!
+//!    **A vertex the description fixes, and one it leaves free.** Where
+//!    the description fixes a vertex — an end of a wall's whole iso, a
+//!    built carrier crossing a surface around it, a sphere's pole, a
+//!    cone's apex — the build constructs it; an escalation there refuses,
+//!    and so does a vertex whose every fixing root the kernel does not
+//!    solve (not-yet-supported, never the foot). Where it
+//!    leaves the vertex free along one locus (a seam's end on a rim, an
+//!    edge split along one carrier, a whole torus's one vertex), every
+//!    point of that locus is an equally valid model of the file's
+//!    statements; the foot of the printed point on the kernel-built
+//!    carrier (or the one surface) is the printed value choosing among
+//!    them, read within the file's band, not a cache, and certification
+//!    reads it at ε on every incident carrier. Both are reported on the
+//!    ledger where they move ([`NormalizationKind::VertexBuilt`]), and a
+//!    carrier the kernel built that is not the printed one likewise
+//!    ([`NormalizationKind::CarrierBuilt`]).
 //! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
 //!    [`import_step`]): the body is handed to
 //!    the kernel's own at-rest gate — the scalar's finish
@@ -143,7 +169,7 @@
 //! Every refusal is a typed [`StepImportError`] naming the offending
 //! entity id / line: malformed syntax, dangling references,
 //! unsupported entity types, units outside the subset, and geometry
-//! the adoption ladder cannot explain. No panics; no silent guesses;
+//! the build cannot interpret at the file band or that does not certify. No panics; no silent guesses;
 //! no lenient re-interpretation.
 //!
 //! # NURBS faces (M7-3)
@@ -221,8 +247,8 @@
 //! the point of refusal: a curved face carrying a genuine interior
 //! ring, which this reader adopts on no curved chart yet — `topo`
 //! measures one on a cone wall and on a cylinder or torus wall bounded
-//! by rims and rulings, and no other — and edges the D7 ladder cannot
-//! certify, the same refusal it has always been. Open CASCADE's
+//! by rims and rulings, and no other — and edges whose built description does
+//! not certify. Open CASCADE's
 //! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
 //! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on
@@ -231,6 +257,7 @@
 
 mod adopt;
 mod assemble;
+mod build;
 mod chart;
 // `chart`'s randomized sweep, in a module of its own so the per-file test
 // gate can skip it without skipping `chart`'s deterministic rows.
@@ -246,12 +273,16 @@ mod knot_split;
 mod normalize;
 mod one_record;
 mod parse;
+mod reach;
 mod recognize;
 mod recognize_curve;
 mod signed_zero;
+mod snap;
 mod units;
 
-pub use error::{AdoptionAttempt, AdoptionCandidate, SingularityBand, StepImportError};
+pub use error::{
+    AdoptionAttempt, AdoptionCandidate, BuiltEntity, SingularityBand, StepImportError,
+};
 pub use interpret::Refusal as InterpretationRefusal;
 
 use geom_core::Tol;
@@ -498,6 +529,45 @@ pub enum NormalizationKind {
         /// record lies from the other's surface.
         moved_by: f64,
     },
+    /// **A surface the snap catalogue moved** (`[import]`, D7 step 3): a
+    /// relation the file's band reads `Zero` between it and another
+    /// surface, made exact by the catalogue's construction for
+    /// `relation`, its class solved jointly (`step_import`'s `snap`).
+    /// Keyed by the surface record; its census pair is empty, since no
+    /// face, edge or vertex changes.
+    Snapped {
+        /// The surface record moved (the earliest of its faces' records).
+        surface: u64,
+        /// The relation whose construction moved it.
+        relation: SnapRelation,
+        /// The move (metres): the farthest a point of its faces moves,
+        /// read `Zero` at the file's band.
+        moved_by: f64,
+    },
+    /// **A vertex the build put off its printed point** (`[import]`, D7
+    /// step 2): where its description fixes it (a root of a surface around
+    /// it along a carrier through it, a pole, an apex), or, where the
+    /// description leaves it free along one built carrier, the foot of its
+    /// printed point there; any move, read within the file's band. Keyed by
+    /// the `VERTEX_POINT`; its census pair is empty, since no face, edge or
+    /// vertex is added or lost.
+    VertexBuilt {
+        /// The move (metres): the built point's distance from the printed
+        /// one.
+        moved_by: f64,
+    },
+    /// **An edge whose built carrier is not the printed one** (`[import]`,
+    /// D7 step 2): the carrier the kernel constructed from the edge's
+    /// description differs from the printed carrier as a value (a datum's
+    /// bits, a re-anchored line among them); a built carrier equal to the
+    /// printed one is not reported. Keyed by the `EDGE_CURVE`; its census
+    /// pair is empty.
+    CarrierBuilt {
+        /// The move (metres): the farthest of the printed carrier's ends,
+        /// quarters and middle from the built carrier, measured as read
+        /// (zero for the same locus under another datum).
+        moved_by: f64,
+    },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
     /// #327): the carrier's residual against the analytic curve read
     /// Zero at the file's band, so every edge on it adopts the analytic
@@ -511,6 +581,42 @@ pub enum NormalizationKind {
         /// deviation from the promoted curve over its whole domain.
         residual: f64,
     },
+}
+
+/// **The snap catalogue's relations** (`[import]`, D7 step 3), each one
+/// construction that makes a relation the file's band reads `Zero` exact:
+/// with the `snap` module's docs, the one statement of the catalogue,
+/// what each construction moves and what it refuses. Two records of one
+/// surface, the catalogue's fourth relation, are
+/// [`NormalizationKind::OneRecord`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SnapRelation {
+    /// Two round surfaces on one axis: the later record moved onto the
+    /// earlier one's axis.
+    Coaxial,
+    /// A plane and a cylinder tangent along their edge: the planes kept,
+    /// the cylinder's axis translated square to itself to stand its
+    /// radius from each (one plane, or two crossing); between two parallel
+    /// planes, its axis between them, its radius half their spacing and
+    /// its axis on the mid-plane; two planes whose parallelism the file's
+    /// band does not read, the file's ambiguity.
+    Tangent,
+    /// A plane and a round surface whose axis runs along its normal: the
+    /// later record turned about where the axis meets the plane.
+    AxisNormal,
+}
+
+impl SnapRelation {
+    /// The relation's name, as a refusal states it and as the Python
+    /// binding's `relation` word spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Coaxial => "coaxial",
+            Self::Tangent => "tangent",
+            Self::AxisNormal => "axis_normal",
+        }
+    }
 }
 
 /// The K row a placement frame's two directions are decided under where
