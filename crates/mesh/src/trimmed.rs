@@ -76,9 +76,9 @@
 //! ([`TessellateError::FoldedTriangle`]). On every arm, the spline's
 //! included, a triangle with a side a neighbouring face may make too (a
 //! side joining two polygon points that are not neighbours on their loop
-//! and that one neighbour holds both of) is split by a point inside it and
-//! rebuilt, or refuses ([`TessellateError::BoundaryEar`]). A **fitted** (rung-3) chart
-//! image still refuses typed on every chart: the chord pass has no
+//! and that one neighbour holds both of) is split by a point inside it
+//! and rebuilt, or refuses ([`TessellateError::BoundaryEar`]). A
+//! **fitted** (rung-3) chart image still refuses typed on every chart: the chord pass has no
 //! certified UV chord-step bound for a fitted image (the
 //! boundary-tightening contract in `crate::chords`), and its first
 //! genuine consumer is the edge×NURBS-face boolean layer (the cut-loft
@@ -193,8 +193,8 @@
 //!   corners, which is neither the chart's box nor the development. The
 //!   fold census reads the triangle's 3-D normal against the surface's.
 //!   The shared-side test reads the polygon's order, and the polygon's
-//!   orientation and the creases the chart. A point the shared-side cure inserts
-//!   is the developed centroid read back to the chart
+//!   orientation and the creases the chart. A point the shared-side cure
+//!   inserts is the developed centroid read back to the chart
 //!   ([`TrimmedFace::inside_point`]), strictly inside its triangle where
 //!   the CDT runs.
 //! - **Replay.** `sin` and `cos` are [`geom_core::Real`]'s, the pure-Rust
@@ -254,8 +254,8 @@
 //!   every one; its triangles then stand on its boundary points, and the
 //!   per-triangle certificate bounds each as it does any other.
 //!
-//! A point the lane places later (a shared side's or a refinement's, below) is
-//! inside a kept triangle ([`TrimmedFace::inside_point`] says how far
+//! A point the lane places later (a shared side's or a refinement's,
+//! below) is inside a kept triangle ([`TrimmedFace::inside_point`] says how far
 //! down f64 holds that) and is not held to the clearance. A
 //! point of the mesher's that still enters at an existing vertex, or
 //! that a side or a crease link is realised through, refuses typed
@@ -267,10 +267,10 @@
 //! The lane rebuilds a face, at most [`MAX_GRID_RETRIES`] times, for
 //! three causes: a triangle folded over the chord beside it drops its
 //! lattice corners, a triangle with a side a neighbour may make too is
-//! split by a point inside it, and (below) a triangle certified above δ is refined. Lattice
-//! nodes are a fixed, (v, u)-sorted list computed once, before the
-//! loop; a fold drops a node by its index, and the shared-side and refinement
-//! arms append, so indices only grow.
+//! split by a point inside it, and (below) a triangle certified above δ
+//! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
+//! once, before the loop; a fold drops a node by its index, and the
+//! shared-side and refinement arms append, so indices only grow.
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
 //! refinement**: after the emit pass, any NURBS triangle whose
@@ -326,8 +326,8 @@ use crate::types::{SphereTrimCause, TessellateError};
 /// Retry budget for the rebuild loop (module docs). **Termination.**
 ///
 /// One round budget covers all three retry kinds — the
-/// certificate-driven refinement, the fold drops and the shared-side splits —
-/// and it is a typed-refusal backstop rather than a tuning
+/// certificate-driven refinement, the fold drops and the shared-side
+/// splits — and it is a typed-refusal backstop rather than a tuning
 /// knob: exhausting it raises [`TessellateError`], it never coarsens or
 /// accepts a mesh. The loop reads it through [`last_attempt`].
 const MAX_GRID_RETRIES: usize = 6;
@@ -656,7 +656,8 @@ pub(crate) fn tessellate_trimmed(
     };
     // The lattice the face lays: every node clear of the boundary
     // (`TrimmedFace::lay`), decided once, here. The retry loop appends
-    // shared-side and refinement points, each strictly inside a kept triangle.
+    // shared-side and refinement points, each strictly inside a kept
+    // triangle.
     let mut candidates = trimmed.lay(&lattice);
     for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
@@ -884,8 +885,8 @@ impl TrimmedFace<'_> {
         cdt_point(self.plane(), u, v, false)
     }
 
-    /// **The point a kept triangle's refinement or shared-side cure inserts**,
-    /// inside the triangle where the CDT runs, in exact arithmetic: in
+    /// **The point a kept triangle's refinement or shared-side cure
+    /// inserts**, inside the triangle where the CDT runs, in exact arithmetic: in
     /// the chart, the centroid of its corners. In the development, the centroid of its
     /// developed corners (`at`), read back to the chart: its angle by
     /// [`geom::Azimuth::near`] about the developed angle of a corner off
