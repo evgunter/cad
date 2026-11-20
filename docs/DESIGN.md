@@ -211,6 +211,23 @@ constructed only through doors that state its dimension
 (SPLINE-DESIGN S1); surface and curve kinds are closed enums
 ([surfaces]).
 
+A signature is a claim too. A generic bound says which types the code
+has a meaning for, not which it compiles at: where code generic over a
+scalar has no meaning at one of them (a certification at a `Dual`, a
+search at a `Sym`), its bound excludes that scalar, at compile time
+and never by a check at run time. The test of any generic signature is
+one sentence per type it admits, saying what the result means there: a
+type with no such sentence is excluded.
+
+A conversion between `f64` and a scalar `T`, in either direction, is
+always suspect. It is justified by showing that it is necessary, that
+the value cannot stay in the type it was computed in, and not by
+showing that it is valid where it is used; that it has callers is no
+evidence of either. One that is necessary says what makes its result
+true at every type it can produce
+(`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
+scalars).
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -410,7 +427,10 @@ curve pairs.
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
 - **What a lane scalar takes from `f64` is a choice, never a claim,
-  and the same across the box.** A choice is a discrete selection
+  and the same across the box.** This holds of every scalar that is
+  not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a
+  `Dual` the box is the neighbourhood its tangent speaks for, and at a
+  `Sym` the unknowns' whole range. A choice is a discrete selection
   (a structure, a branch, an order), checked at the lane scalar to
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
