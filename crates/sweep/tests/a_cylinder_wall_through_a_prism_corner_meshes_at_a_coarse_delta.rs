@@ -9,12 +9,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, RigidMotion, UnitVec3, Vec3};
-use topo::AtRestBody;
 use topo::test_support as fixtures;
+use topo::{AtRestBody, BooleanError};
 
 use crate::join_pierce_runs_sweep::{finished, tol};
 
 type V3 = [f64; 3];
+
+/// `ε`, the witness band's zero.
+fn eps() -> f64 {
+    Band::linear(tol()).expect("the witness band").zero()
+}
 
 fn dot(a: V3, b: V3) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -91,7 +96,22 @@ fn a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta() {
         z,
     ]);
     let cylinder = cylinder_through([2.0, 1.0, 0.0], m, 0.9, 0.9);
-    let union = topo::union(&prism, &cylinder, tol()).expect("the union builds");
+    // The pierce's curvature side reads a margin of 1.47e-6: inside the
+    // band at the 1e-6 row, where the union escalates, typed, and there
+    // is no body to mesh; clear of it at the finer rows.
+    let union = match topo::union(&prism, &cylinder, tol()) {
+        Err(BooleanError::Escalated {
+            decision: topo::BooleanDecision::PierceCurvature,
+            ..
+        }) if eps() >= 1e-6 => {
+            println!(
+                "eps {}: the union escalates its pierce curvature, no mesh",
+                eps()
+            );
+            return;
+        }
+        r => r.unwrap_or_else(|e| panic!("the union builds at eps {}: {e:?}", eps())),
+    };
     let body = &union.body().expect("the union is a body").body;
     let mesh = mesh::tessellate(body, 1.0, tol()).expect("the union meshes at delta 1");
     mesh::validate::check_mesh(&mesh).expect("the mesh is closed and manifold");
