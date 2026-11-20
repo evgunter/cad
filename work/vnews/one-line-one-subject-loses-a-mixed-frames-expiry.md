@@ -125,7 +125,7 @@ corrections to how the fork is framed:
   not exist. It is false twice over, because the path it names is also
   stale — this row moved to `work/vnews/` in the 2026-09-17 re-scope.
   The stale half is already filed as
-  `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`
+  `work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope`
   (its table names `crates/viewer/src/frame.rs:657` and `:704`); the
   **false-gate half is new and is this program's**, because `frame.rs`
   is this program's file and the claim is about this row.

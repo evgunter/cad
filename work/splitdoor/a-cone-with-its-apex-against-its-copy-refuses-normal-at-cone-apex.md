@@ -116,7 +116,7 @@ What B2 does not deliver, each refused by name and pinned:
 
 - a cone face cut along two rulings on both sides of its seam, kept by
   `∪` or `cone ∖ box`: `ResultPinchedAtConeApex`, the props limit
-  (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`);
+  (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`);
 - a box corner or edge a fraction of the band off the apex: box first
   `EdgeUndescribed` while cone first builds
   (`a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`),

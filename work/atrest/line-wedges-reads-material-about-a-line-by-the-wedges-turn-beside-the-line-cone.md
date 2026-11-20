@@ -30,7 +30,7 @@ material about a line by the line cone's crossing parity
 fact (which directions about the line one solid's material holds), a
 second reader. `splitting::rules::edge_wedge` (convex or reflex by
 `enters_material`) is the split's instance, filed as
-`work/oneread/the-split-rule-b-reads-an-in-plane-edges-material-by-convexity.md`.
+`work/honeone/the-split-rule-b-reads-an-in-plane-edges-material-by-convexity.md`.
 
 Not a defect: `wedge_holds_named` is one decided reader with its own K
 rows, and the overlap it asks (one wedge's sheet strictly inside the
