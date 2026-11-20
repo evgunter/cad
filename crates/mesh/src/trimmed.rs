@@ -309,6 +309,7 @@ use std::collections::{HashMap, HashSet};
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
 use geom_core::Point3;
+use geom_core::period::Period;
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::pcurves::{FaceLift, Lift};
@@ -498,7 +499,11 @@ pub(crate) fn tessellate_trimmed(
     // last point; ids stay the shared 3-D chord ids), every loop.
     // Every loop has at least three points: the chord pass's short-loop
     // floor (`chords`).
-    let polygon = trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?;
+    let polygon = one_location_per_branch(
+        trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?,
+        surface.angle_periods(),
+        &singular,
+    );
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -542,22 +547,12 @@ pub(crate) fn tessellate_trimmed(
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column
             // between two boundary entries that share a mesh vertex,
-            // which is `nu == 2`. The only repeated id at two DISTINCT UVs
-            // on a cylinder is the full-2π seam traversed twice, and there
-            // `u1 - u0` is 2π against an `hu` the sagitta cap holds at
-            // ≤ π/4 — so the two never meet. Arithmetic, not an argument,
-            // and this is the line that says so. At a singular point
-            // `pole_side_columns` keeps the count off the shape.
-            //
-            // VACUOUS, and the search that said so was adversarial
-            // rather than incidental: across the suite's 19
-            // trimmed-cylinder faces before rings reached this lane,
-            // `nu` was 5, 16 or 50 and no polygon repeated an id apart.
-            // The two conditions are arithmetically exclusive on any
-            // face — `nu == 2` needs `u1 - u0 <= π/2`, a repeat-apart
-            // needs the full `2π` seam — and a ring adds no such id: it
-            // closes in the chart, so it meets each of its vertices
-            // once.
+            // which is `nu == 2`. A cylinder has no singular point, and
+            // `one_location_per_branch` holds each vertex at one UV per
+            // branch, so a repeated id at two DISTINCT UVs is one vertex
+            // on two branches, at least half a turn apart: `u1 - u0` is
+            // at least π against an `hu` the sagitta cap holds at ≤ π/4,
+            // so `nu >= 4` and the two never meet.
             debug_assert!(
                 !matches!(a.kind(), Analytic::Cylinder { .. })
                     || nu != 2
@@ -1078,9 +1073,11 @@ impl TrimmedFace<'_> {
         // incident to a vertex this walk placed at two distinct UV
         // locations, used more than twice inside ONE patch, is the
         // non-manifold state the duplicate-id drop in `emit` is claimed
-        // never to produce. This lane's sources of such a vertex are the
-        // cylinder's full-2π seam double-traversal and a singular point's
-        // copies — the sphere's and the spindle's pole sides, and the
+        // never to produce. On an analytic chart this lane's sources of
+        // such a vertex are one vertex on two branches, a seam's double
+        // traversal (on one branch it is one location,
+        // `one_location_per_branch`; a spline chart's entries are read
+        // as walked), and a singular point's copies — the sphere's and the spindle's pole sides, and the
         // cone's apex, which its development holds as one CDT vertex, so
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
@@ -1138,7 +1135,9 @@ impl TrimmedFace<'_> {
         // `cdt_point` answers. In the chart that map is injective on
         // floored points, so two inputs share a vertex exactly when they
         // are one UV location ([`crate::cdt::ids_at_two_uvs`]'s reading):
-        // a pinch's vertices, or a vertex the walk meets again. The
+        // a pinch's vertices, or a vertex the walk meets again on one
+        // branch, which `one_location_per_branch` puts at its first
+        // entry's UV on that branch. The
         // development rounds, and puts every copy of the apex at one
         // point on purpose: there the copies of the singular vertex share
         // one, and so do the points of a run ([`Run`]), which enters the
@@ -2432,6 +2431,50 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
     !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
+/// **A vertex the walk meets again on one chart branch is one UV
+/// location**: each entry of a mesh id takes the `(u, v)` of that id's
+/// first entry on its branch, bit for bit. A later entry is on an
+/// earlier entry's branch where [`Period::near`] renames it onto that
+/// entry's copy by no whole period, in every angle channel (`near`'s
+/// half-period marks decide it, and it answers the entry itself, bit for
+/// bit, on its own copy); a length channel has one branch. An entry on
+/// no branch met yet starts one. The polygon reads each entry off its
+/// own traversal's pcurve, and two images of one vertex agree only to
+/// rounding; pinned, the CDT holds the vertex as one handle per branch,
+/// the boundary pinch [`Pinches`] meshes. So a mesh id at two UV
+/// locations is a singular vertex's copies or one vertex on two
+/// branches, at least half a period apart.
+///
+/// A spline chart (`periods` `None`) is read as walked: its periods are
+/// its knot domains' and are decided at a band, which this pass has not.
+fn one_location_per_branch(
+    mut trim: TrimPolygon,
+    periods: Option<geom::AnglePeriods<f64>>,
+    singular: &HashSet<u32>,
+) -> TrimPolygon {
+    let Some((pu, pv)) = periods else {
+        return trim;
+    };
+    #[allow(clippy::float_cmp)] // `near` answers `t` itself, bit for bit, on its own copy
+    let on_copy =
+        |p: Option<Period<f64>>, t: f64, first: f64| p.is_none_or(|p| p.near(t, first) == t);
+    let mut branches: HashMap<u32, Vec<(f64, f64)>> = HashMap::new();
+    for point in &mut trim.points {
+        if singular.contains(&point.2) {
+            continue;
+        }
+        let firsts = branches.entry(point.2).or_default();
+        match firsts
+            .iter()
+            .find(|&&(u, v)| on_copy(pu, point.0, u) && on_copy(pv, point.1, v))
+        {
+            Some(&(u, v)) => (point.0, point.1) = (u, v),
+            None => firsts.push((point.0, point.1)),
+        }
+    }
+    trim
+}
+
 /// **The loops' vertices that are the chart's singular points**, as mesh
 /// ids, a ring's as an outer loop's: each loop edge's end chord ids (the
 /// vertices' own points, bitwise, `crate::chords`), kept where
@@ -3420,8 +3463,8 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(super) mod tests {
     use super::{
-        ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, chain_creases,
-        id_repeats_apart, trim_polygon,
+        ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
+        chain_creases, id_repeats_apart, one_location_per_branch, trim_polygon,
     };
     use crate::chart_table::SingularPoint;
     use geom_brep::PolygonOrientation;
@@ -3883,6 +3926,108 @@ pub(super) mod tests {
         // self-touch) is not this shape either.
         let none = [(0.0, 0.0, 7u32), (0.0, 0.0, 8), (2.0, 0.0, 9)];
         assert!(!id_repeats_apart(&none), "distinct ids are not a repeat");
+    }
+
+    /// A vertex met again on one branch takes its first entry's UV, bit
+    /// for bit; on another branch, or at a singular point, it keeps its
+    /// own. The rounding is the measured shape: one cylinder vertex's two
+    /// pcurve images at `u = -1.7e-18` and `u = 0`, and `0.9` an ulp
+    /// apart.
+    #[test]
+    fn a_vertex_met_again_on_one_branch_is_one_uv_location() {
+        let tau = std::f64::consts::TAU;
+        let up = |x: f64| f64::from_bits(x.to_bits() + 1);
+        let cylinder = Some((Some(geom_core::period::Period::angle()), None));
+        let read = |outer: &[(f64, f64, u32)], periods, singular: &[u32]| {
+            let singular = singular.iter().copied().collect();
+            one_location_per_branch(TrimPolygon::of_loops(outer, &[]), periods, &singular).points
+        };
+
+        let rounded = [
+            (-1.7e-18, 1.0, 7u32),
+            (0.1, 0.5, 8),
+            (0.0, up(1.0), 7),
+            (0.9, 4.0, 9),
+            (0.5, 0.0, 10),
+            (up(0.9), 4.0, 9),
+        ];
+        let pinned = read(&rounded, cylinder, &[]);
+        assert_eq!(
+            (pinned[2], pinned[5]),
+            ((-1.7e-18, 1.0, 7), (0.9, 4.0, 9)),
+            "one branch: the first entry's UV"
+        );
+        assert!(!id_repeats_apart(&pinned), "pinned, no id is apart");
+        assert!(id_repeats_apart(&rounded), "as walked, both are apart");
+
+        let seam = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (tau, up(0.0), 7)];
+        assert_eq!(
+            read(&seam, cylinder, &[]),
+            seam,
+            "a whole turn away is the other branch"
+        );
+        assert_eq!(
+            read(&rounded, cylinder, &[7, 9]),
+            rounded,
+            "a singular vertex keeps its copies"
+        );
+        assert_eq!(
+            read(&rounded, None, &[]),
+            rounded,
+            "a spline chart is read as walked"
+        );
+        let torus = Some((
+            Some(geom_core::period::Period::angle()),
+            Some(geom_core::period::Period::angle()),
+        ));
+        let v_seam = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (up(0.0), tau, 7)];
+        assert_eq!(
+            read(&v_seam, torus, &[]),
+            v_seam,
+            "a whole turn away in v is the other branch"
+        );
+    }
+
+    /// Each branch has its own first entry. A vertex met at `u = 0` and
+    /// then twice a turn on, the two later entries rounding apart, is
+    /// two UV locations, not three, in either walk order.
+    #[test]
+    fn a_vertex_met_twice_on_its_second_branch_is_one_location_there() {
+        let tau = std::f64::consts::TAU;
+        let up = |x: f64| f64::from_bits(x.to_bits() + 1);
+        let cylinder = Some((Some(geom_core::period::Period::angle()), None));
+        let read = |outer: &[(f64, f64, u32)]| {
+            one_location_per_branch(TrimPolygon::of_loops(outer, &[]), cylinder, &HashSet::new())
+                .points
+        };
+        let zero_first = [
+            (0.0, 1.0, 7u32),
+            (1.0, 0.5, 8),
+            (tau, 1.0, 7),
+            (5.0, 2.0, 9),
+            (up(tau), up(1.0), 7),
+            (3.0, 3.0, 10),
+        ];
+        let pinned = read(&zero_first);
+        assert_eq!(
+            (pinned[0], pinned[4]),
+            ((0.0, 1.0, 7), (tau, 1.0, 7)),
+            "the first branch keeps its entry; the third entry takes the second's UV"
+        );
+        let tau_first = [
+            (tau, 1.0, 7u32),
+            (1.0, 0.5, 8),
+            (0.0, 1.0, 7),
+            (5.0, 2.0, 9),
+            (up(tau), up(1.0), 7),
+            (3.0, 3.0, 10),
+        ];
+        let pinned = read(&tau_first);
+        assert_eq!(
+            (pinned[2], pinned[4]),
+            ((0.0, 1.0, 7), (tau, 1.0, 7)),
+            "walked from the second branch: the same two locations"
+        );
     }
 
     /// Two unit balls 1.4 apart along `x`, poles on `y`, unioned: the
