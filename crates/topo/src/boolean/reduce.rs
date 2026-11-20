@@ -4714,7 +4714,7 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
     Constant,
     /// The conic LIES on the surface: its residual is a zero constant,
     /// decided exactly on by its root door
-    /// ([`Roots::On`]; in band it
+    /// ([`geom_brep::roots::Roots::On`]; in band it
     /// escalates there). Unlike [`Self::Constant`] this is a verdict
     /// on the side as well as the shape.
     LiesOn,
