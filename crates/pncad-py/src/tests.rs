@@ -6630,6 +6630,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // A coincidence: the kind a NURBS patch was promoted to, and a trace
+    // step's fault on a torus carrier.
+    ("torus", 2),
     // One fact at two doors: a step reading a face's trace refused
     // (`TraceRefusal`), carried by the evaluation's node error and by
     // the program's own check alike.
