@@ -1247,7 +1247,10 @@ fn a_non_finite_datum_builds_no_cover() {
     );
     for (curve, kind) in [
         (
-            Curve3::Circle(crate::Circle::new(crate::Frame::new(o, z, x), nan)),
+            Curve3::Circle(crate::Circle::new(
+                crate::Frame::new(Point3::new(nan, 0.0, 0.0), z, x),
+                1.0,
+            )),
             crate::CurveKind::Circle,
         ),
         (

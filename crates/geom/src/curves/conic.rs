@@ -760,4 +760,63 @@ mod tests {
             }
         }
     }
+
+    /// **A reflected carrier is unrepresentable**: a negative semi-axis
+    /// is the other sense of traversal, which is the frame's (`−axis`,
+    /// and `−u_ref` for `semi_u`), so the constructor refuses it loudly.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_u -0.9 is not a finite non-negative length")]
+    fn an_ellipse_with_a_negative_semi_axis_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Ellipse::new(f, -0.9, 0.4);
+    }
+
+    /// The circle's constructor refuses a negative radius as the
+    /// ellipse's does.
+    #[test]
+    #[should_panic(expected = "Circle::new: radius -0.7 is not a finite non-negative length")]
+    fn a_circle_with_a_negative_radius_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Circle::new(f, -0.7);
+    }
+
+    /// An enclosure entirely below zero is a definite negative.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_v")]
+    fn an_interval_semi_axis_definitely_negative_panics_at_construction() {
+        use geom_core::Interval;
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let _ = super::Ellipse::new(
+            f,
+            Interval::from_f64(0.9),
+            Interval::from_bounds(-0.8, -1e-20),
+        );
+    }
+
+    /// **An enclosure across zero is representable, and the speed
+    /// readers bound it**: `semi_u ∈ [−2, 1]`, `semi_v = 0.5` constructs
+    /// (its sign is undecided, which a reader takes in band), the least
+    /// speed is floored at zero, and the greatest reaches `2`, the
+    /// magnitude the enclosure's negative end carries: read as the
+    /// larger signed semi-axis it would be `1`, under the speed at
+    /// `θ = π/2`. A `−0.0` radius is no negative length.
+    #[test]
+    fn an_enclosure_across_zero_constructs_and_its_speeds_bound_it() {
+        use geom_core::{Bounds, Interval};
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let e = super::Ellipse::new(f, Interval::from_bounds(-2.0, 1.0), Interval::from_f64(0.5));
+        let k: &dyn super::Conic<Interval> = &e;
+        let (lo, hi) = (k.speed_lo(), k.speed_hi());
+        assert!(lo.lo() >= 0.0 && lo.hi() >= 0.5, "speed_lo {lo:?}");
+        assert!(hi.hi() >= 2.0, "speed_hi {hi:?} under |semi_u| = 2");
+        let at = k.speed_at(Interval::from_f64(core::f64::consts::FRAC_PI_2));
+        assert!(at.hi() >= 2.0 - 1e-12, "speed_at(π/2) {at:?}");
+        let flat = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        assert_eq!(
+            super::Circle::new(flat, -0.0).radius().to_bits(),
+            (-0.0f64).to_bits()
+        );
+    }
 }

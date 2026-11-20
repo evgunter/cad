@@ -1078,11 +1078,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
         (
-            "circle, NaN radius",
-            circle(o, z, nan, x),
-            Some(V::Poisoned(vec![D::Radius])),
-        ),
-        (
             "circle, infinite center",
             circle(Point3::new(0.0, inf, 0.0), z, 1.0, x),
             Some(V::Poisoned(vec![D::Center])),
@@ -1095,16 +1090,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Value, Lower)),
-        ),
-        (
-            "ellipse, negative major with u_ref flipped",
-            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, -x), -0.5, 0.3)),
-            Some(V::Unrepresentable(D::SemiU, Value, Lower)),
-        ),
-        (
-            "circle, negative radius",
-            circle(o, z, -1.0, x),
             Some(V::Unrepresentable(D::Radius, Value, Lower)),
         ),
         (

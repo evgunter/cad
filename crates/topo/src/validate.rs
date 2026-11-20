@@ -1379,9 +1379,8 @@ pub enum ValidationError {
     /// ([`geom::Curve3::representability_margins`]) — the curve half of
     /// [`ValidationError::UnrepresentableSurfaceDatum`], with that
     /// variant's posture: refused on representability (a circle of
-    /// radius zero is a point, and one of negative radius is the circle
-    /// of the opposite radius spelled as this one), and not a metered
-    /// predicate.
+    /// radius zero is a point; a negative one is unrepresentable,
+    /// [`geom::Circle::new`]), and not a metered predicate.
     UnrepresentableCurveDatum {
         /// The edge whose carrier stores the datum.
         edge: EdgeKey,
@@ -3541,13 +3540,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             ..
         }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
-        CertifyError::SemiAxisNegative { .. } => {
-            "its conic carrier stores a negative semi-axis, which no edge can have"
-        }
-        CertifyError::SemiAxisNotFinite { .. } => {
-            "its conic carrier stores a semi-axis that is not a finite number, which no edge can \
-             have"
-        }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {
@@ -3738,8 +3730,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
-            | CertifyError::SemiAxisNegative { .. }
-            | CertifyError::SemiAxisNotFinite { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }
@@ -7895,8 +7885,7 @@ pub(crate) fn tier3_local_checks_marked<
     // (`analytic_datum_verdicts`). Certification meters a carrier
     // against its endpoints and description, and a carrier whose datum
     // describes no curve of its kind can pass that (a circle whose
-    // `axis` is zero traces the diameter it spans; a negative radius
-    // traces the circle of the opposite radius), so the datum is asked
+    // `axis` is zero traces the diameter it spans), so the datum is asked
     // by name here and not left to check 2's residuals.
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {

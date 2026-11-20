@@ -160,7 +160,9 @@ impl<T: Real> Curve3<T> {
     /// fields through `f`, the NURBS payload through
     /// [`NurbsCurve3::map_scalar`]. Exact whenever `f` is; poison
     /// travels; the placeholder lifts to the placeholder and a
-    /// described curve to a described curve.
+    /// described curve to a described curve. A conic's sizes are rebuilt
+    /// through its constructor ([`crate::Ellipse::new`]), so a lift that
+    /// makes one non-finite or definitely negative panics there.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {

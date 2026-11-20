@@ -325,7 +325,7 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
             dhi.hi()
         );
     }
-    let poisoned = circle(Point3::origin(), axis, f64::NAN, u);
+    let poisoned = circle(Point3::new(f64::NAN, 0.0, 0.0), axis, 1.0, u);
     let (lo, hi) = conic_arc_extent_along(&poisoned, 0.1, 1.2, Point3::origin(), n).unwrap();
     assert!(
         lo.is_nan() && hi.is_nan(),

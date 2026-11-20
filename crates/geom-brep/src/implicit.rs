@@ -1094,13 +1094,12 @@ pub struct ConicHarmonics<T> {
     /// scale their rounding is charged against.
     ///
     /// **Every charge here reads the semi-axes through
-    /// [`Conic::speed_hi`]**, the larger stored one, and that is
-    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
-    /// the edge certificate refuses a stored semi-axis that is not a
-    /// finite number or is definitely negative
-    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
-    /// before any charge reads it, and its span check reads a zero one
-    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// [`Conic::speed_hi`]**, which is `max(|a|, |b|)`: a stored
+    /// semi-axis is a finite length never definitely negative
+    /// (`geom::Ellipse::new`), and the reader holds the bound over an
+    /// enclosure that reaches below zero. The edge certificate's span
+    /// check reads a zero one as a collapsed length
+    /// (`CertifyError::StatedInterval`). This is
     /// the invariant's one statement for this module's charges: these
     /// terms, the cone's reach in [`conic_cone_harmonics`] and
     /// [`conic_axis_distance_floor`]'s terms each read it.
