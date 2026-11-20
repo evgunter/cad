@@ -1544,3 +1544,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - A spline run lying within the band over part of a span refuses as an undecided window for now.
 
   Decisions 2–4 stand as proposed. U1 is in flight. U1b, U2 and U3 can be dispatched once their predecessors merge; U2 waits on the P0 implementer's PR, which shares `conic_quadric`.
+- 2026-11-20 — **U3 spec written** (`germ/crossing-u3-spec`, `docs/GERM-CROSSING-U3-SPEC.md`). Its open questions went to both crossing designers, who agreed on Q1–Q4, Q8 and Q9. Two were reconciled by reading DESIGN:
+  - **Q7, the ring path's stored-term charge.** `[simple.conditioned]` says "nothing charges, pads or estimates float rounding" of every computation, which is the condition one designer had named for its own answer. So `cross` charges nothing, and the ring path drops `slack_of`.
+  - **Q5, the census.** The curvature check is `Tangent`'s own rung, and `Conic::along` is re-posed to the cancellation-free form.
+
+  Build-point rulings:
+  - The wrappers carry the pose's class, and the sweep's own offset re-decision goes in U3a.
+  - `conic_clearance` moves into `pose` as `Apart`'s stage in U3a.
+  - Every arm gets a general not-`Lies` rung before `Isolated`; I took this over a "method decides" class, because it keeps the pose total and meaningful.
+
+  Sequencing: U3 splits into U3a (types, `pose`, `cross`, trace, census; tier dual) and U3b (ring path, classify, `on_surface`, region; tier single FULL). `slit` and `factored_crossing` go to U4. Local windows are a prerequisite of U4. None of the questions is Ev's.
