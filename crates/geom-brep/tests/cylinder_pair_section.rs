@@ -83,7 +83,7 @@ fn two_cylinders_without_a_region_refuse_typed() {
         &drum(),
         &placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)),
         None,
-        None,
+        None::<geom_core::NoLane>,
         band(),
     );
     assert!(matches!(got, Err(SectionError::NoRegion { .. })), "{got:?}");
@@ -765,7 +765,7 @@ fn a_region_through_a_branch_point_escalates() {
         &a,
         &b,
         Some(ExtentBall::fixture(Point3::origin(), through)),
-        None,
+        None::<geom_core::NoLane>,
         band(),
     ) {
         Err(SectionError::Escalated(diag)) => assert!(

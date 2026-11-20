@@ -464,7 +464,7 @@ pub(super) fn lemma_envelopes(
         carrier,
         surface,
         band(),
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     let (terms_i, _) = projected::projected_envelope(
@@ -475,7 +475,7 @@ pub(super) fn lemma_envelopes(
         &carrier.map_scalar(f),
         &surface.map_scalar(f),
         band(),
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     Ok((terms.total(), terms_i.total().hi()))
@@ -893,7 +893,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &carrier,
         &surface,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads: {e:?}"));
@@ -914,7 +914,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &ci,
         &si,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads at Interval: {e:?}"));
@@ -977,9 +977,15 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects: {e:?}"));
     image.breaks = one_piece();
     image.azimuth.truncate(1);
-    let Err(refused) =
-        PcurveCache::certify_projected(image.clone(), 0.0, SPAN, &carrier, &surface, b, None)
-    else {
+    let Err(refused) = PcurveCache::certify_projected(
+        image.clone(),
+        0.0,
+        SPAN,
+        &carrier,
+        &surface,
+        b,
+        None::<geom_core::NoLane>,
+    ) else {
         panic!("a piece reaching the axis certified")
     };
     assert!(azimuth(&refused), "f64: {refused:?}");
@@ -1005,9 +1011,15 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects at Interval: {e:?}"));
     image_i.breaks = one_piece();
     image_i.azimuth.truncate(1);
-    let Err(refused_i) =
-        PcurveCache::certify_projected(image_i.clone(), f(0.0), f(SPAN), &ci, &si, b, None)
-    else {
+    let Err(refused_i) = PcurveCache::certify_projected(
+        image_i.clone(),
+        f(0.0),
+        f(SPAN),
+        &ci,
+        &si,
+        b,
+        None::<geom_core::NoLane>,
+    ) else {
         panic!("a piece reaching the axis certified at Interval")
     };
     assert!(azimuth(&refused_i), "Interval: {refused_i:?}");
@@ -1532,11 +1544,21 @@ fn a_foreign_stored_row_never_ends_not_yet() {
         for angle in [1e-6, 1e-4, 1e-2] {
             let b = turned(&a, surface, angle);
             for (scalar, got) in [
-                ("f64", row.recertify(&b, span, surface, band(), None).err()),
+                (
+                    "f64",
+                    row.recertify(&b, span, surface, band(), None::<geom_core::NoLane>)
+                        .err(),
+                ),
                 (
                     "Interval",
                     row_i
-                        .recertify(&b.map_scalar(f), (f(span.0), f(span.1)), &s_i, band(), None)
+                        .recertify(
+                            &b.map_scalar(f),
+                            (f(span.0), f(span.1)),
+                            &s_i,
+                            band(),
+                            None::<geom_core::NoLane>,
+                        )
                         .err(),
                 ),
             ] {

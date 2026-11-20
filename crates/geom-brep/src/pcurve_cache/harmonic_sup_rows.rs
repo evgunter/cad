@@ -504,18 +504,32 @@ fn certifies_projected(
     carrier: &Curve3<f64>,
     surface: &Surface<f64>,
 ) {
-    let cache =
-        PcurveCache::certify_projected(stored.clone(), t0, t1, carrier, surface, band(), None)
-            .unwrap_or_else(|e| panic!("{what}: certifies at f64: {e:?}"));
+    let cache = PcurveCache::certify_projected(
+        stored.clone(),
+        t0,
+        t1,
+        carrier,
+        surface,
+        band(),
+        None::<geom_core::NoLane>,
+    )
+    .unwrap_or_else(|e| panic!("{what}: certifies at f64: {e:?}"));
     let f = Interval::from_f64;
     let carrier_i = carrier.map_scalar(f);
     let surface_i = surface.map_scalar(f);
     let image_i = projected::project(&carrier_i, Some((f(t0), f(t1))), &surface_i, band())
         .unwrap_or_else(|e| panic!("{what}: projects at Interval: {e:?}"));
     let image_i = shift_frame(image_i, frame_moves(stored, carrier, surface, (t0, t1)));
-    let at_interval =
-        PcurveCache::certify_projected(image_i, f(t0), f(t1), &carrier_i, &surface_i, band(), None)
-            .unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
+    let at_interval = PcurveCache::certify_projected(
+        image_i,
+        f(t0),
+        f(t1),
+        &carrier_i,
+        &surface_i,
+        band(),
+        None::<geom_core::NoLane>,
+    )
+    .unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
     covers(
         what,
         &Pcurve::Projected(Box::new(stored.clone())),

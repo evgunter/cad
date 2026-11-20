@@ -199,7 +199,7 @@ fn stated<T: geom_core::Decide>(row: &Row<T>) -> Option<CurveSelector<T>> {
 }
 
 /// `row`'s edge certified under `selector`.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
     selector: CurveSelector<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {

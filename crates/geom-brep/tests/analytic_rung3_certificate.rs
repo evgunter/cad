@@ -80,7 +80,7 @@ fn cylinder_z<T: Real>() -> Surface<T> {
 
 /// `EdgeCurve::certify` of an `Intersection` of `s1`, `s2` over
 /// `carrier`, at the scalar of its arguments.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     carrier: &NurbsCurve3<T>,
     s1: Surface<T>,
     s2: Surface<T>,

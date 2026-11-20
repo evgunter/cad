@@ -32,7 +32,7 @@
 //! code beside the fence is a statement and not a check.
 //!
 //! **Where the `Some` comes from.** One seam answers it —
-//! `topo::AtRestPolicy::fitted_lane`, DL3's per-scalar policy home
+//! `geom_core::Certifies::fitted_lane`, DL3's per-scalar policy home
 //! (`docs/DUAL-DESIGN.md`) — and every consumer reads that seam: the
 //! pcurve mint (`topo::mint_pcurves`, its general-image derivation,
 //! its chart-foot rim arms and its `certify_general` and
@@ -421,7 +421,7 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its shared body; otherwise the
     /// name of the first field that does not.
-    fn holds_the_certified_fitted_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_fitted_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = FittedLane::<T>::certified();
         if !std::ptr::fn_addr_eq(lane.fitted_lane, fitted_lane::<T> as fn(_, _, _, _, _) -> _) {

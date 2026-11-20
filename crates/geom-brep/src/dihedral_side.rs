@@ -93,6 +93,8 @@ use geom::{NurbsSurface, RunSide, SpanBeside, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Vec3};
 
+#[cfg(test)]
+use crate::certify::NurbsLane;
 use crate::certify::NurbsLaneOf;
 
 use crate::enters::{EntersMaterial, LeverEscalation, OutwardNormal, enters_material_reported};
@@ -1113,7 +1115,7 @@ mod tests {
                 ON_EDGE,
                 walk,
                 fixture_lever(1.0),
-                None,
+                None::<geom_core::NoLane>,
                 band()
             ),
             Err(SideEscalation::NoLane(SideRole::Against))
@@ -1126,7 +1128,7 @@ mod tests {
                 ON_EDGE,
                 walk,
                 fixture_lever(1.0),
-                None,
+                None::<geom_core::NoLane>,
                 band()
             )
             .map(|(s, _)| s),

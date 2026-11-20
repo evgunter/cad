@@ -980,7 +980,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &carrier,
             &surface,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads: {e:?}"));
@@ -995,7 +995,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &ci,
             &si,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));

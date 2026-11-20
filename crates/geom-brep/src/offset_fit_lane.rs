@@ -18,7 +18,7 @@
 //! refuses typed.
 //!
 //! **Where the `Some` comes from.** One seam answers it —
-//! `topo::AtRestPolicy::offset_fit_lane`, DL3's per-scalar policy home
+//! `geom_core::Certifies::offset_fit_lane`, DL3's per-scalar policy home
 //! (`docs/DUAL-DESIGN.md`) — and five sites read that seam: check 1's
 //! tier-3 battery, the two certified validation doors it serves, the
 //! offset mint (`topo::replace_face`) and the transform's surface map
@@ -35,7 +35,7 @@
 //! the typed refusal its pass already had. Under H5's ratified ruling 3
 //! (PR 2701) the door is the parameter a mixed pass takes;
 //! the scalar seam that produces it is the per-scalar policy that cut
-//! leaves standing, folded into `topo::AtRestPolicy` rather than
+//! leaves standing, folded into `geom_core::Certifies` rather than
 //! carried on a trait of its own.
 //!
 //! # This file is on the shell's offset chain

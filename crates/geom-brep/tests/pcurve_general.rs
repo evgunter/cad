@@ -290,7 +290,7 @@ fn chorded_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), feet: u32) -> Arc<
 /// `NoGeneralLane { gap: Image }`, ending "not yet" with its own lever,
 /// never a tolerance offer.
 fn a_refused_bending_image_ends_as_the_lanes_gap<
-    T: geom_core::Decide + geom_core::CertifiedBounds,
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
 >() {
     let lift = |x: f64| T::from_f64(x);
     let wall = Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall().map_scalar(lift)));
@@ -683,7 +683,7 @@ fn the_derived_route_certifies_a_line_and_a_bending_carrier<
 /// `general_image` over `span` and then `certify_general`, which
 /// certifies within ε. At `Interval` a degree-5 image is about 1e-12 m
 /// wide at a sample, which an ε of that size reads in band.
-fn derived_route_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn derived_route_certifies<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     name: &str,
     carrier: &Curve3<f64>,
     span: (f64, f64),

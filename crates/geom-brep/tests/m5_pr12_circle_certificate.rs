@@ -198,7 +198,7 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 /// by `describe` over the (plane, cylinder) keys, certified. The pair
 /// certifies in key order, so `cylinder_first` (the cylinder minted
 /// first, holding the lower key) is what puts the cylinder first.
-fn certify_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
+fn certify_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     r: f64,
     cylinder_first: bool,
     describe: impl Fn(SurfaceKey, SurfaceKey, Point3<T>) -> EdgeDescriptionSpec<T>,

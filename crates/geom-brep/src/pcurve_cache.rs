@@ -5350,7 +5350,7 @@ impl<T: Decide> PcurveCache<T> {
     ///   check 4, when `lane` is `None` — the scalar may not certify,
     ///   or the caller withheld its door.
     ///
-    /// `lane` is the scalar's fitted door (`topo::AtRestPolicy::fitted_lane`),
+    /// `lane` is the scalar's fitted door (`geom_core::Certifies::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
     /// withholds it; the refusal names the scalar by
     /// [`geom_core::Real::NAME`]. This door takes the `Option` because
@@ -5441,7 +5441,7 @@ impl<T: Decide> PcurveCache<T> {
     /// the row's span, the carrier past its edge's ends would wear an
     /// incidence ending instead.
     ///
-    /// `lane` is the pass's fitted door (`topo::AtRestPolicy::fitted_lane`),
+    /// `lane` is the pass's fitted door (`geom_core::Certifies::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
     /// withholds it. Only the `Fitted | General` arm reads it, where
     /// [`PcurveCache::certify_general`] does: `None` is check 4's

@@ -1577,9 +1577,15 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         *dir = *dir + dd / (t0.abs().max(t1.abs()).max(1.0));
         let moved_image = Pcurve::Projected(Box::new(moved.clone()));
         let worst = sampled(&moved_image, &carrier, &surf, t0, t1);
-        if let Ok(cache) =
-            PcurveCache::certify_projected(moved.clone(), t0, t1, &carrier, &surf, b, None)
-        {
+        if let Ok(cache) = PcurveCache::certify_projected(
+            moved.clone(),
+            t0,
+            t1,
+            &carrier,
+            &surf,
+            b,
+            None::<geom_core::NoLane>,
+        ) {
             let env = cache.certificate().envelope;
             assert!(
                 env >= worst - slack,
@@ -1604,8 +1610,15 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
             origin: f(o),
             span: f(span),
         };
-        if let Ok(cache) = PcurveCache::certify_projected(moved_i, f(t0), f(t1), &ci, &si, b, None)
-        {
+        if let Ok(cache) = PcurveCache::certify_projected(
+            moved_i,
+            f(t0),
+            f(t1),
+            &ci,
+            &si,
+            b,
+            None::<geom_core::NoLane>,
+        ) {
             let env = cache.certificate().envelope.hi();
             assert!(
                 env >= worst,
@@ -1999,7 +2012,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
             &c,
             &sphere,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .map(|(terms, _)| terms)
@@ -2441,7 +2454,7 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
         &c,
         &plane,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .map(|(terms, _)| terms)

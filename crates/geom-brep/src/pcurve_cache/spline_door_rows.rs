@@ -44,7 +44,7 @@ use crate::{
 /// concrete row.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-struct Lanes<T: geom_core::Real> {
+struct Lanes<T: geom_core::Certifies> {
     fitted: FittedLane<T>,
     edge: fn(
         EdgeCurveSpec<T>,
@@ -145,7 +145,7 @@ fn column_curve<T: Decide>() -> Arc<NurbsCurve2<T>> {
 }
 
 /// The doors' readings for the ruling at `place`, each named.
-fn doors<T: Decide>(
+fn doors<T: geom_core::Certifies>(
     place: Place,
     lanes: Lanes<T>,
 ) -> Vec<(&'static str, Result<(), PcurveCertifyError>)> {
@@ -310,7 +310,7 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
             &ruling::<T>(place),
             &ring::<T>(),
             b,
-            None,
+            None::<geom_core::NoLane>,
         )
         .map(|_| ())
     };
@@ -332,7 +332,7 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
 /// edge** (`recertify`): the row certified over `t ∈ [0, 1]` holds, but
 /// the edge runs to `t = 1.5`, off the bounded patch past `z = 1`, which
 /// the row's certificate says nothing about.
-fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane<T>) {
+fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let (c, b) = (T::from_f64, band());
     let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
     let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)
@@ -358,7 +358,7 @@ fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane
 /// (`covers`): the row certified over `t ∈ [0, 1]` holds no span that runs
 /// backwards, so `recertify` over `(1.5, 0)` or `(1, −0.5)`, each reaching
 /// past the patch, reads the carrier there and ends it off the chart.
-fn a_reversed_edge_span_is_read<T: Decide>(lane: FittedLane<T>) {
+fn a_reversed_edge_span_is_read<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let (c, b) = (T::from_f64, band());
     let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
     let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)

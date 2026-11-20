@@ -6074,7 +6074,7 @@ mod wiring_rows {
 
     /// `Ok(())` when the fields hold the lane's certified functions;
     /// otherwise the first wrong field's name.
-    fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_nurbs_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -6168,8 +6168,8 @@ mod wiring_rows {
     }
 
     /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
-    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
-    {
+    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds + geom_core::Certifies>()
+    -> Result<(), &'static str> {
         let foot = SplineFoot::<T>::certified();
         if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `SplineFoot::seeded_foot`");

@@ -719,7 +719,7 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 /// region, which the section value reads a pair with no bounded side
 /// over (two cylinders), and the band.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn classify<T: Decide>(
+pub(crate) fn classify<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,

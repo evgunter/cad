@@ -970,7 +970,7 @@ impl std::error::Error for OffsetFitError {}
 // module never runs at. It arrives there as provenance and never as
 // authority: at `f64` the validator re-derives against the
 // description and never consults the stored copy, and at a scalar
-// with no re-derivation lane — `topo::AtRestPolicy::offset_fit_lane`
+// with no re-derivation lane — `geom_core::Certifies::offset_fit_lane`
 // answering `None` — tier 3 REFUSES the face with
 // `ValidationError::ApproxLaneUnsupported` rather than accepting the
 // carried record. That refusal is about the derivation missing at
