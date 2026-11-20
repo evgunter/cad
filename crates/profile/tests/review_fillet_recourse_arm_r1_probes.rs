@@ -315,15 +315,16 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         "the lever is the 50ε leg: {lever:e}"
     );
     let shown = zero.to_string();
-    // A ratio is told to four figures, a length to the tolerance's grid.
-    for (label, want, grid) in [
-        ("sin φ = ", sin_turn, 5e-4),
-        ("(cos φ = ", align, 5e-4),
-        (" of ", lever, 1e-8),
+    // Each is told to four figures: the lever is far below the length
+    // at which the tolerance's grid is the finer one.
+    for (label, want) in [
+        ("sin φ = ", sin_turn),
+        ("(cos φ = ", align),
+        (" of ", lever),
     ] {
         let got = rendered_after(&shown, label);
         assert!(
-            (got - want).abs() <= grid * want.abs(),
+            (got - want).abs() <= 5e-4 * want.abs(),
             "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
         );
     }

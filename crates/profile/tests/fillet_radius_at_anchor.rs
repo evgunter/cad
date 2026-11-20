@@ -43,8 +43,8 @@
 use crate::common::{arc_arc, corners, grid_a, line_arc, on_circle, tol};
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, CornerReason, CornerRefusal, FilletLeg, Gate, LegFit, Open, PathError,
-    ProfileLoop, Start,
+    ArcSweep, Center, CornerReason, CornerRefusal, FilletLeg, Gate, Open, PathError, ProfileLoop,
+    Start,
 };
 use std::collections::BTreeMap;
 

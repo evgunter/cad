@@ -450,7 +450,6 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
 /// refuses as the tangent it is, with a margin narrow around zero.
 #[test]
 fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
-    use geom_core::Bounds;
     use std::f64::consts::{FRAC_PI_2, PI};
     let t = Tol::witness();
     let one = |v: f64| Interval::from_f64(v);

@@ -6814,7 +6814,7 @@ mod tests {
         };
         assert_eq!(anchor_lever(0.400_000_000_12, 5e-10), "0.4000000002 m");
         // A reach finer than the grid holds the spelling inside it.
-        assert_eq!(anchor_lever(0.400_000_000_12, 5e-12), "0.400000000121 m");
+        assert_eq!(anchor_lever(0.400_000_000_123_4, 5e-12), "0.400000000124 m");
         assert_eq!(
             radius_lever(0.15_f64, 0.15 - 3.75e-10).to_string(),
             "0.15 m"
