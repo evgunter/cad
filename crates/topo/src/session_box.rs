@@ -30,7 +30,8 @@
 
 use geom::Surface;
 use geom::cover::{BoxAxes, Cover};
-use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
+use geom_brep::session_box::{BoxRefusal, cover_reach};
+use geom_core::{Band, Decide, Point3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -138,14 +139,6 @@ fn edge_cover_where<T: Decide>(
     crate::cover::edge_cover_over(curve.carrier(), curve.params(), ends)
 }
 
-/// The largest `|coordinate|` of a cover: of its box along the world
-/// axes.
-fn cover_reach<T: Decide>(cover: &Cover<T>) -> T {
-    let origin = Point3::origin();
-    let (lo, hi) = cover.box_in(&BoxAxes::World);
-    (lo - origin).norm_inf().max((hi - origin).norm_inf())
-}
-
 /// **The one reach fold**, over the body's data as `place`, `curve_of`
 /// and `surface_of` carry it into the space it is read in: each vertex's
 /// placed point; each certified edge's cover `cover_of_edge` of the edge
@@ -221,14 +214,7 @@ fn points_only<T: Decide>(body: &Body<T>, place: impl Fn(Point3<T>) -> Point3<T>
         .fold(T::zero(), T::max)
 }
 
-/// The session box's decision on a region's cover: its margin the box's
-/// extent less the cover's largest `|coordinate|`.
-pub(crate) const SESSION_BOX_REACH: &str = "session_box_reach";
-
-/// The session box's decision on points known to lie on a body, asked
-/// where its cover reaches past the box: its margin the box's extent
-/// less their largest `|coordinate|`.
-pub(crate) const SESSION_BOX_POINT: &str = "session_box_point";
+pub(crate) use geom_brep::session_box::{SESSION_BOX_POINT, SESSION_BOX_REACH};
 
 /// **`session_box_reach`**: whether `body` lies in the session box
 /// ([`reach_of`] unmoved, then [`past_its_carriers`]). Only a definitely
@@ -275,19 +261,9 @@ pub(crate) fn in_session_box_at<T: Decide>(
 /// Whether a cover's reach decides its region in the box: anything but a
 /// definitely negative margin, and no face left uncovered.
 fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
-    cover.is_ok_and(|reach| past(SESSION_BOX_REACH, reach, band).is_none())
-}
-
-/// The margin of a reach past the box, where it is definitely past.
-fn past<T: Decide>(name: &'static str, reach: T, band: Band) -> Option<geom_core::MarginDiag> {
-    let margin = Margin::of(Lever::<T>::session_box().length() - reach);
-    match crate::validate::decide_reported(name, margin, band) {
-        Ok(geom_core::Decided {
-            sign: Sign::Negative,
-            margin,
-        }) => Some(margin),
-        _ => None,
-    }
+    cover.is_ok_and(|reach| {
+        geom_brep::session_box::past_the_box(SESSION_BOX_REACH, reach, band).is_none()
+    })
 }
 
 /// **The box past `body`'s carriers and boundaries**, which reach past
@@ -309,23 +285,18 @@ fn past_its_carriers<T: Decide>(
             (Err(first), _) => Err(first),
         };
     }
-    let unshown = match cover {
-        Ok(reach) => match past(SESSION_BOX_REACH, reach, band) {
-            None => return Ok(()),
-            Some(margin) => ValidationError::SessionBoxUnshown { margin },
-        },
-        Err(face) => ValidationError::SessionBoxUncovered { face },
+    let inside = || {
+        let origin = Point3::origin();
+        body.faces()
+            .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
+            .map(|q| (q - origin).norm_inf())
+            .fold(points, T::max)
     };
-    let origin = Point3::origin();
-    let inside = body
-        .faces()
-        .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
-        .map(|q| (q - origin).norm_inf())
-        .fold(points, T::max);
-    match past(SESSION_BOX_POINT, inside, band) {
-        Some(margin) => Err(ValidationError::OutsideSessionBox { margin }),
-        None => Err(unshown),
-    }
+    geom_brep::session_box::region_in_box(cover, inside, band).map_err(|refusal| match refusal {
+        BoxRefusal::Point { margin } => ValidationError::OutsideSessionBox { margin },
+        BoxRefusal::Unshown { margin } => ValidationError::SessionBoxUnshown { margin },
+        BoxRefusal::Uncovered(face) => ValidationError::SessionBoxUncovered { face },
+    })
 }
 
 #[cfg(test)]

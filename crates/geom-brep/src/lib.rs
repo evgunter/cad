@@ -115,6 +115,7 @@ pub mod roots;
 pub mod row_contact;
 pub mod rows;
 pub mod sector_shape;
+pub mod session_box;
 pub(crate) mod shape_operator;
 pub mod ssi;
 pub mod tangent;

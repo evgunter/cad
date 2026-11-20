@@ -237,9 +237,8 @@ fn p5_sweep_placeholder() {}
 /// P6 — CLAIM 2's headline digit: the huge-offset red value (PR body
 /// says 33.333333333333336 against a true 1e-9) with the pre-fix
 /// spelling. Its fixture, a 1e-3 cube at 1e8 m on every axis, is past
-/// the 1 km session box, so the extrude refuses it (at its box gate at
-/// ε = 1e-6, at certification's residual first at 1e-9 and 1e-12) and no
-/// mesh is made (D4 ¶4): the digit is not reproducible through a door, which is
+/// the 1 km session box, so the extrude refuses it at its first edge's
+/// certification, by the box, and no mesh is made (D4 ¶4): the digit is not reproducible through a door, which is
 /// what this row now records.
 #[test]
 fn p6_reproduce_the_huge_offset_red_digit() {
@@ -259,24 +258,17 @@ fn p6_reproduce_the_huge_offset_red_digit() {
         },
         Tol::witness(),
     );
-    // Past the session box, the body refuses: at the box gate, or first at
-    // an edge certificate's residual. At 1e8 m one ulp (1.49e-8) is past the
-    // ε band at 1e-9 and 1e-12, so no two spellings of a point hold within
-    // ε there and certification's `MappedSource` residual (sample 4,
-    // 1.49e-8) refuses first; at 1e-6 the ulp is inside the band and the
-    // box gate refuses (`work/oneround/a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling.md`).
-    let at_box = geom_core::Tol::witness().eps() == 1e-6;
+    // Past the session box, the body refuses with the box's story at the
+    // first edge it mints, at every ε: certification asks the box of an
+    // edge before any residual (`geom_brep::session_box::edge_in_box`), so
+    // no residual is read at 1e8 m, where one ulp (1.49e-8) is past the ε
+    // band at 1e-9 and 1e-12 and no two spellings of a point agree.
+    let said = format!("{got:?}");
     assert!(
-        matches!(&got, Err(e) if {
-            let e = format!("{e:?}");
-            if at_box {
-                e.contains("OutsideSessionBox")
-            } else {
-                e.contains("ResidualExceeded") && e.contains("MappedSource") && e.contains("sample: 4")
-            }
-        }),
-        "the 1e8 m cube: past the session box, the body refuses, at the box gate at 1e-6 and at \
-         certification's MappedSource residual at 1e-9 and 1e-12: {got:?}"
+        said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+            && !said.contains("ResidualExceeded"),
+        "the 1e8 m cube: past the session box, the extrude refuses at its first edge's \
+         certification with the box's refusal, not a residual: {said}"
     );
 }
 

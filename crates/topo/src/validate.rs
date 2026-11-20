@@ -3544,6 +3544,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }))
             .0
         }
+        CertifyError::OutsideSessionBox { .. } => "it reaches past the session box",
+        CertifyError::SessionBoxUnshown { .. } | CertifyError::SessionBoxUncovered => {
+            "the kernel cannot bound it inside the session box"
+        }
         CertifyError::StatedImageMissed { .. } => {
             "the chart image it states does not follow its carrier"
         }
@@ -3740,6 +3744,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
+            CertifyError::OutsideSessionBox { .. } => SESSION_BOX,
+            CertifyError::SessionBoxUnshown { .. } | CertifyError::SessionBoxUncovered => {
+                NOT_YET_ENDING
+            }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
             | CertifyError::StatedImageUnsettled
