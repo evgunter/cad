@@ -2,11 +2,12 @@
 id: the-cones-rung3-certificate-has-no-metres-enclosure
 kind: issue
 title: The cone has no implicit enclosure in metres, so every fitted or rational carrier on a cone pair refuses the rung-3 certificate's tube
-status: open
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: M
 refs: [torus-certificate-runs-root-free-through-its-quartic, offset-lane-has-no-conic-carrier]
+closed: 2026-11-20
 ---
 
 
@@ -33,3 +34,7 @@ Why P1: it is the shared blocker for every cone pair beyond plane×cone's
 ellipse, and for draft's cylinder→cone arm. If Ev rules on PR 5652 that a
 certificate's obligation follows the carrier's kind, the plane×cone
 hyperbola/parabola arcs wait on it too. Filed by the OFFSET orchestrator.
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Duplicate of SECTCONE's P0 `the-cone-has-no-implicit-enclosure-or-metres-conversion` (opened 2026-11-03), which cites the same sites. The torus half is done: `ssi/enclose.rs` has torus arms through `Quartic::over`. The cone still refuses (`Interval::refused()`), and the `intersect.rs` route notes are accurate for it, not stale.

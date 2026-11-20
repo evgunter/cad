@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P2
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity, tilted-section-near-a-chart-pole-refuses-arc-near-pole]
+rides_with: a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve
 ---
 
 
@@ -42,3 +43,7 @@ has no azimuth sector. Pinned by `crates/sweep/tests/tilted_sphere_pair.rs`,
 The near-pole sibling is closed: δ ≥ 1e-5 builds at every ε.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Claimed by CHARTTAIL (2026-11-20)
+
+Moved from GERM by `git mv`, id and body unchanged. It rides with `a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve` (P1), which is the same defect on a plane × hemisphere witness. Here the witness is the two-ball radical circle, and the fix is the same: split the section at the pole, so the pole is a vertex and the two pieces meet at its reset.
