@@ -5,9 +5,12 @@
 //! discharge. Evidence-only rows print; the one gate asserts that the
 //! `LineTo` spelling of such walls cannot be built.
 //!
-//! Every test here is behind the whole-file `#![cfg(feature = "probe")]`,
-//! so the per-PR gate does not run them; the nightly's all-features job
-//! does, and two of the three are `#[ignore]`d besides. They are a
+//! NO TEST IN THIS FILE IS EXECUTED BY CI in the sense
+//! `scripts/gates/probe-suite-census.sh` asks: every test is behind the
+//! whole-file `#![cfg(feature = "probe")]`, so no per-PR job runs them
+//! and `scripts/k_probe_sweep.sh` does not either. The nightly's
+//! `--all-features` suite does run the one that is not `#[ignore]`d;
+//! the other two are. They are a
 //! reviewer's counter-fixture: a profile the unit never built, run to
 //! check what the census claims about it. The claim they check is
 //! recorded in `work/tier/symbolic-tier-census.md`; the rows are how it
