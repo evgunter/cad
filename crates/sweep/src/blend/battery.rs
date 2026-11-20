@@ -1382,19 +1382,22 @@ fn classify_arm<T: Decide + Bounds>(
             // A circle where a cylinder meets a plane: the frustum, once
             // the two are decided to share the circle's axis (the plane
             // square to it), as the fillet's coaxial rows decide it.
-            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
-                (sa, sb),
-                faces,
-                (n_a, n_b),
-                senses,
-                circle,
-                (p, tau),
-                radius,
-                convexity,
-                coaxial,
-                unsupported,
-                band,
-            ),
+            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => {
+                let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
+                let room =
+                    |trim: T| face_clearance_margin(plane, trim, circle.radius(), false, band);
+                frustum_arm(
+                    (sa, sb),
+                    (n_a, n_b),
+                    senses,
+                    circle,
+                    (p, tau),
+                    radius,
+                    convexity,
+                    (coaxial, room),
+                    unsupported,
+                )
+            }
             _ => Err(unsupported()),
         };
     }
@@ -1484,22 +1487,26 @@ fn classify_arm<T: Decide + Bounds>(
 /// axis at most where it runs inward (a post's or a boss's top), so its
 /// trim circle's radius, the foot's distance from the axis along the
 /// sheet's radial (`R − s` inward, `R + s` outward), is the margin
-/// `fillet3_face_clearance` reads against the rim's radius `R`. Only a
-/// definitely positive one is a circle; zero is a cap consumed to a
-/// point and negative one consumed past the axis, and both refuse typed.
+/// `room` decides (`fillet3_face_clearance` against the rim's radius
+/// `R`). Only a definitely positive one is a circle; zero is a cap
+/// consumed to a point and negative one consumed past the axis, and
+/// both refuse typed.
 #[allow(clippy::too_many_arguments)]
-fn frustum_arm<T: Decide + Bounds>(
+fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
-    (face_a, face_b): (FaceKey, FaceKey),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
     senses: (bool, bool),
     circle: &geom::Circle<T>,
     (p, tau): (Point3<T>, Vec3<T>),
     radius: T,
     convexity: Convexity,
-    coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+    // The supports' coaxiality, and the plane trim's room (the
+    // caller's `fillet3_face_clearance` on the plane face).
+    (coaxial, room): (
+        impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+        impl FnOnce(T) -> Result<(), BlendError>,
+    ),
     unsupported: impl Fn() -> BlendError,
-    band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     let sheet = Meridian {
         axis: circle.frame.axis_line(),
@@ -1514,13 +1521,12 @@ fn frustum_arm<T: Decide + Bounds>(
     let margin = coaxial(da.max(db))?;
     let tau = tau.normalize();
     let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, radius);
-    let (plane, foot) = if sa.kind() == geom::SurfaceKind::Plane {
-        (face_a, foot_a)
+    let foot = if sa.kind() == geom::SurfaceKind::Plane {
+        foot_a
     } else {
-        (face_b, foot_b)
+        foot_b
     };
-    let trim = (foot - sheet.axis.origin).dot(sheet.radial());
-    face_clearance_margin(plane, trim, circle.radius(), false, band)?;
+    room((foot - sheet.axis.origin).dot(sheet.radial()))?;
     Ok((
         BlendArm::CylinderPlaneCone,
         chamfer_frustum(&sheet, tau, n_a, n_b, radius),
