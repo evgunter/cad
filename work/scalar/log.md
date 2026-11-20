@@ -154,3 +154,20 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   - **Dispatched**: `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (H, dual) and `a-bound-to-decide-against-never-becomes-a-t` (H, single FULL), concurrently; they share files and are logically independent (one changes bounds, the other bodies). `a-place-is-an-f64-argument-answered-on-the-value-channel` (H, dual) waits for the build slot the told-quantity lane holds: the mutex is one wide and four concurrent builders would each crawl.
   - **Friction**: a full lane clone took over ten minutes with two running beside a build; `work.py set` and `work.py lint` each exceeded two minutes once under the same load. Not measured further.
 - 2026-11-20 — **Ev ruled on PR 7176.** The door stands ("this broadly sounds good"), for values the body stores only; at an enclosure scalar the admitted value is one number checked over the family, and DESIGN `[scalars]` now says that is the one continuous value a lane takes from `f64`. Ev on the alternative (the lane builds an enclosure of each member's root): "leaving it at A is definitely fine for now although B might be needed to support booleans later", since over a box wider than the tolerance the crossings rarely meet at one place. Filed as `a-stored-solved-parameter-is-an-enclosure-of-each-members-root` (P3, design, measure first). The door is unit `a-solved-value-the-body-stores-is-admitted-by-its-check`, after the marker-bound and places units. DL5.2's place row said "a split"; it now says "the point a cell is subdivided at", since a parameter an edge is split at is stored.
+
+- 2026-11-20 — **PR 7176 merged** (Ev's ruling, above). **PR 7189**
+  approved by Ev after four changes ("this looks good!"); merges on
+  green.
+- 2026-11-20 — `a-bound-to-decide-against-never-becomes-a-t` reported
+  as **PR 7185**, hosted CI green on head 2b6ba7b1a4. Single FULL
+  review dispatched on that frozen head (`review-brief-7185.md`, nine
+  claims; reviewer byte on the analysis branch). The implementer chose
+  `Margin<T, A = ()>` with the bound applied by the run's scalar at
+  the decision through a hidden `Decide::allowing`; whether that is a
+  new door from an `f64` to a `T` is the review's first claim. It left
+  five families of bound unmoved and filed each; one is a rule
+  question (a bound a `Sym` identity is proved over has no allowance
+  spelling). Incident, reported by the lane: one pattern `pkill` run by
+  mistake, believed to have hit only its own shell. The places unit
+  stays held: it shares files with 7185, whose shape the review can
+  still change.
