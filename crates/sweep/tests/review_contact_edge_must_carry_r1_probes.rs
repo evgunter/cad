@@ -142,9 +142,10 @@ fn equator(body: &Body<f64>) -> EdgeKey {
                 .get_curve_geom(body.get_edge(k).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified rim");
-            let geom::Curve3::Circle(geom::Circle { radius, .. }) = *c.carrier() else {
+            let geom::Curve3::Circle(conic_k) = *c.carrier() else {
                 panic!("a rim is a circle");
             };
+            let radius = conic_k.radius();
             (radius, k)
         })
         .collect();
