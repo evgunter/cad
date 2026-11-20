@@ -294,6 +294,43 @@ the kernel or the file.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
+## A number told to a person
+
+**A number a sentence quotes is a told quantity, and the told quantity
+says it.** A refusal, a recourse or a readout never formats a scalar
+itself. The payload field that carries the number is one opaque type
+in `geom-core`, built where the payload is built, while the scalar is
+in hand. It holds the *reading* (a value, an enclosure, or unreadable),
+the *dimension* (length, angle, dimensionless) and the *role*, and it
+renders the number and its unit word. It offers no arithmetic, no
+ordering and no way to read a computed number back, so nothing decides
+on a payload (DESIGN [verdicts]). A refusal type declares no bare `f64` or `T`
+field.
+
+The role is where the number came from, and it fixes how the number is
+spelled:
+
+| Role | What the person reads |
+|---|---|
+| **Given**: the caller's or the file's own number | exactly what was received: the shortest digits that read back |
+| **Computed** length | the shortest spelling within the finer of ε/10 and four significant figures, and never finer than the spacing of adjacent floats at that value |
+| **Computed** angle or ratio | four significant figures; ε is a length and caps neither (DESIGN [tolerance.epsilon]) |
+| **Compared**: two numbers whose order the sentence states, or a reading beside its own threshold | each to the first precision at which they read in the stated order |
+| **Offered**: a bound the person is asked to type back | the shortest spelling on the computed grid that lies on the side that works when typed |
+
+An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
+that is not an `f64` reads as its value or its enclosure, and a zero of
+either sign reads `0`. Text that must be exact (an editable field, a
+serialized form a content key hashes, a dump) is not told text and is
+spelled exactly.
+
+**A refusal is said in the notation of whoever reads it.** Its
+rendering takes a notation, and `Display` is that rendering in metres
+and radians; the GUI passes the working notation, so a person working
+in millimetres reads a refusal in millimetres beside fields that show
+millimetres. The tolerance is set in metres, and a recourse that names
+it says it in metres.
+
 ## Float rounding
 
 DESIGN `[simple.conditioned]`: every computation is posed well-conditioned

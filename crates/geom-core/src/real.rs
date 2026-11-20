@@ -1321,7 +1321,8 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 ///    at one remove. **No projection to a number exists, by this ruling**
 ///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
 ///    precisely what was asked for and refused. A derived quantity leaves
-///    as text and only as text (DESIGN [units.told]): the one projection
+///    as text and only as text (the crate README, "A number told
+///    to a person"): the one projection
 ///    is into a told quantity, which renders and offers nothing a
 ///    comparison could read. The classify seam's own diagnostic has that
 ///    shape for a decided margin: `MarginDiag`, minted inside each

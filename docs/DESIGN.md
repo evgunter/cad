@@ -270,7 +270,7 @@ of them is a defect.
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
-| A number told to a person | the told quantity a payload field holds; no sentence formats a scalar | [units.told] |
+| A number told to a person | `crates/geom-core/README.md`, "A number told to a person": the told quantity a payload field holds; no sentence formats a scalar | [failure] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
@@ -2041,45 +2041,6 @@ written in, never a bare number — which is why a GUI creation op mints
 a free variable carrying the written unit ([variables]), and what `quantity::WrittenLength`/`WrittenAngle` are the
 library spelling of.
 
-### A number told to a person `[units.told]`
-
-*From:* [loud-failure], [unrepresentable], [one-way].
-
-**A number a sentence quotes is a told quantity, and the told quantity
-says it.** A refusal, a recourse or a readout never formats a scalar
-itself. The payload field that carries the number is one opaque type
-in `geom-core`, built where the payload is built, while the scalar is
-in hand. It holds the *reading* (a value, an enclosure, or unreadable),
-the *dimension* (length, angle, dimensionless) and the *role*, and it
-renders the number and its unit word. It offers no arithmetic, no
-ordering and no way to read a computed number back, so nothing decides
-on a payload ([verdicts]). A refusal type declares no bare `f64` or `T`
-field.
-
-The role is where the number came from, and it fixes how the number is
-spelled:
-
-| Role | What the person reads |
-|---|---|
-| **Given**: the caller's or the file's own number | exactly what was received: the shortest digits that read back |
-| **Computed** length | the shortest spelling within the finer of ε/10 and four significant figures, and never finer than the spacing of adjacent floats at that value |
-| **Computed** angle or ratio | four significant figures; ε is a length and caps neither ([tolerance.epsilon]) |
-| **Compared**: two numbers whose order the sentence states, or a reading beside its own threshold | each to the first precision at which they read in the stated order |
-| **Offered**: a bound the person is asked to type back | the shortest spelling on the computed grid that lies on the side that works when typed |
-
-An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
-that is not an `f64` reads as its value or its enclosure, and a zero of
-either sign reads `0`. Text that must be exact (an editable field, a
-serialized form a content key hashes, a dump) is not told text and is
-spelled exactly.
-
-**A refusal is said in the notation of whoever reads it.** Its
-rendering takes a notation, and `Display` is that rendering in metres
-and radians; the GUI passes the working notation, so a person working
-in millimetres reads a refusal in millimetres beside fields that show
-millimetres. The tolerance is set in metres, and a recourse that names
-it says it in metres.
-
 ## Failure, determinism and engineering
 
 ### Failure `[failure]`
@@ -2655,6 +2616,7 @@ is the board and `work/README.md` its contract.
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
+| `crates/geom-core/README.md`, "A number told to a person" section only | Ratified (Ev, PR 7154) | How a number in a refusal, a recourse or a readout is said: one opaque told quantity held by the payload field, spelled by its role (given, computed, compared, offered), in the notation of whoever reads it |
 | `crates/geom-core/README.md`, "Float rounding" section only | Ratified (Ev, PR 6329) | Float rounding: the run's admission rule on (ε, K), re-posing never charging, the `Lever` and its sources, the consumed extent, the session-box predicate ([simple.conditioned]) |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
