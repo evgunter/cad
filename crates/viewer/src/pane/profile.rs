@@ -9,7 +9,7 @@ use eframe::egui;
 use pncad::document::{
     Formula, LoopProgram, ProfileProgram, RecipeNodeId, SlotId, StepArg, StepId,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Tell, Tol};
 use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit};
 
@@ -602,7 +602,7 @@ pub(crate) fn edit_door_ui(
     if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
-    preview_verdict(ui, theme, preview);
+    preview_verdict(ui, theme, notation, preview);
     if let Some(refusal) = edit.pen_order() {
         let sentence = format!("{PENDING} the step order — {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
@@ -735,6 +735,7 @@ fn drivers_hold(
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
+    notation: Notation,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) {
     let Some(preview) = preview else {
@@ -742,7 +743,7 @@ pub(crate) fn preview_verdict(
     };
     let (sentence, tone) = match preview {
         Ok(drawn) => match drawn.hold() {
-            Some(hold) => (hold.to_string(), hold.tone()),
+            Some(hold) => (hold.told_in(notation).to_string(), hold.tone()),
             None => {
                 match drawn.loops.len() {
                     0 => ui.weak(NO_LOOPS),
@@ -751,7 +752,7 @@ pub(crate) fn preview_verdict(
                 return;
             }
         },
-        Err(error) => (error.to_string(), error.tone()),
+        Err(error) => (error.told_in(notation).to_string(), error.tone()),
     };
     crate::widgets::message_toned(ui, sentence, &theme, tone);
 }
@@ -1334,7 +1335,7 @@ mod tests {
     /// What [`preview_verdict`] painted for `preview`.
     fn drawn(preview: &Result<ProfilePreview, PreviewError>) -> (Vec<Landed>, Voices) {
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            preview_verdict(ui, *theme, Some(preview));
+            preview_verdict(ui, *theme, crate::props::Notation::DEFAULT, Some(preview));
         })
     }
 
@@ -1400,7 +1401,7 @@ mod tests {
             loop_: 0,
             step: 1,
             kind: PathErrorKind::JunctionTangent,
-            rendered: "the leg has no answer".to_owned(),
+            rendered: "the leg has no answer".into(),
         });
         for refused in [ill_typed, geometry] {
             let Err(error) = &refused else {
@@ -1544,7 +1545,7 @@ mod tests {
                 .expect("the loop carries why it is drawn short");
             if let PreviewError::Geometry { rendered, .. } = refused {
                 assert!(
-                    refused.to_string().contains(rendered.as_str()),
+                    refused.to_string().contains(&rendered.to_string()),
                     "{:?}: in the driver's own words: {refused}",
                     fixture.steps
                 );

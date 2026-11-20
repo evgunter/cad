@@ -48,7 +48,7 @@ use pncad::document::{
     RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
     TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
-use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
+use pncad::geom_core::{Arc2, Point2, Point3, Tell, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
@@ -1257,11 +1257,17 @@ impl PreviewHold<'_> {
 
 impl core::fmt::Display for PreviewHold<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl Tell for PreviewHold<'_> {
+    fn tell(&self, notation: Notation, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OpenChain => {
                 f.write_str("the chain does not close yet — its last step has to target the start")
             }
-            Self::Refusal(refused) | Self::Unfinished(refused) => write!(f, "{refused}"),
+            Self::Refusal(refused) | Self::Unfinished(refused) => refused.tell(notation, f),
             Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
         }
     }
@@ -1333,8 +1339,9 @@ pub enum PreviewError {
         step: usize,
         /// Which refusal it is.
         kind: PathErrorKind,
-        /// The driver's refusal, in its own words.
-        rendered: String,
+        /// The driver's refusal, in its own words, kept to be told in
+        /// the reader's notation.
+        rendered: pncad::geom_core::Sentence,
     },
 }
 
@@ -1349,6 +1356,12 @@ pub enum PreviewError {
 // that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl Tell for PreviewError {
+    fn tell(&self, notation: Notation, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Lowering(error) => write!(f, "{error}"),
             Self::Resolve { slot, source } => write!(f, "{}: {source}", slot.label()),
@@ -1381,7 +1394,11 @@ impl core::fmt::Display for PreviewError {
                 step,
                 rendered,
                 ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            } => write!(
+                f,
+                "loop {loop_} step {step}: {}",
+                rendered.told_in(notation)
+            ),
         }
     }
 }
@@ -2204,7 +2221,7 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
             loop_,
             step: error.step,
             kind: source.kind(),
-            rendered: source.to_string(),
+            rendered: pncad::geom_core::Sentence::new(source.clone()),
         },
     }
 }
@@ -2586,7 +2603,7 @@ mod tests {
                     loop_: 0,
                     step: 1,
                     kind: PathErrorKind::JunctionTangent,
-                    rendered: String::new(),
+                    rendered: String::new().into(),
                 },
                 Tone::Actionable,
             ),

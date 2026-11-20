@@ -975,7 +975,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 /// **A field's own render, typed back, is not an edit** — the guard,
 /// over the band where it has something to refuse.
 ///
-/// The band is the render's, not the parser's: `readout::number`
+/// The band is the render's, not the parser's: `readout::field_number`
 /// spells the shortest text that reads back on the render's own grid,
 /// so a field can be showing a text that names its value only to
 /// within that grid. That text is also what an `egui::DragValue`
@@ -999,7 +999,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None, Notation::DEFAULT);
         let showing = props::shown_in(unit, canonical);
-        let text = viewer::readout::number(showing);
+        let text = viewer::readout::field_number(showing);
         let read: f64 = text
             .parse()
             .unwrap_or_else(|_| panic!("{showing} renders as {text}, which is not a number"));
@@ -1014,7 +1014,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
         );
         // And a number the user actually moved still is.
         assert!(
-            !props::echoed(&viewer::readout::number(showing * 2.0), &text),
+            !props::echoed(&viewer::readout::field_number(showing * 2.0), &text),
             "{dimension}: a number nobody echoed is an edit"
         );
     }
@@ -1036,7 +1036,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
 #[test]
 fn no_delta_from_the_render_is_small_enough_to_be_an_echo() {
     let showing = 1000.0_f64;
-    let rendered = viewer::readout::number(showing);
+    let rendered = viewer::readout::field_number(showing);
     assert!(
         props::echoed(&rendered, &rendered),
         "the render itself is the echo"

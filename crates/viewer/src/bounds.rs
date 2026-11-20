@@ -275,7 +275,7 @@ impl Bounds {
     /// not to. A headless row pins it.
     ///
     /// **Each number is rendered rather than formatted**
-    /// ([`crate::readout::number`]), and the care above is the reason
+    /// ([`crate::readout::computed`]), and the care above is the reason
     /// rather than tidiness. A fixed `{:.4}` overclaimed at both ends
     /// of this sentence: a floor at 40 nm written in millimetres read
     /// `valid from 0.0000 mm`, which promises a range down to zero that
@@ -294,7 +294,7 @@ impl Bounds {
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::reads_back`] measures how far a
+    /// a distance ([`crate::readout::names`] measures how far a
     /// text reads FROM the value). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_in`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.

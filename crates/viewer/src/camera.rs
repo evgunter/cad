@@ -308,34 +308,31 @@ pub enum CameraError {
     },
 }
 
-/// Every number a sentence quotes is spelled by [`readout::number`]: a
-/// refused field is whatever `f64` the caller handed, and plain
-/// `Display` writes one at up to seventeen figures, or as three hundred
-/// digits of decimal expansion near `f64::MAX` — a sentence nobody can
-/// read, about a number nobody can read.
+/// Every number a sentence quotes is one the caller handed in, told
+/// exactly as received ([`readout::handed`]).
 impl core::fmt::Display for CameraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotFinite { what, value } => write!(
                 f,
                 "the camera's {what} is {}, which is not a finite number",
-                readout::number(*value)
+                readout::handed(*value)
             ),
             Self::DegenerateScene { radius } => write!(
                 f,
                 "a scene radius of {} is not a positive extent to frame against",
-                readout::number(*radius)
+                readout::handed(*radius)
             ),
             Self::SceneRadiusOverflowsZoomBand { scene_radius } => write!(
                 f,
                 "a scene radius of {} is past the largest this viewer can frame: the \
                  furthest distance its zoom band allows is not a finite number",
-                readout::number(*scene_radius)
+                readout::handed(*scene_radius)
             ),
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
                 "a vertical field of view of {} rad is not strictly inside (0, pi)",
-                readout::number(*fov_y)
+                readout::handed(*fov_y)
             ),
             Self::UndrawableProjection => f.write_str(
                 "the view projection is past the largest number a GPU matrix can hold \
@@ -438,7 +435,7 @@ pub enum CameraOpError {
     Unframeable(CameraError),
 }
 
-/// Numbers are spelled as [`CameraError`]'s are, by [`readout::number`].
+/// Numbers are spelled as [`CameraError`]'s are, by [`readout::handed`].
 impl core::fmt::Display for CameraOpError {
     /// The [`CameraOpError::Unframeable`] arm forwards to
     /// [`CameraError`]'s own `Display`: the framing layer named that
@@ -448,12 +445,12 @@ impl core::fmt::Display for CameraOpError {
             Self::NotFinite { what, value } => write!(
                 f,
                 "the operation's {what} is {}, which is not a finite number",
-                readout::number(*value)
+                readout::handed(*value)
             ),
             Self::NonPositiveDolly { factor } => write!(
                 f,
                 "a dolly factor of {} is not a positive scale for a viewing distance",
-                readout::number(*factor)
+                readout::handed(*factor)
             ),
             Self::Unframeable(error) => write!(f, "{error}"),
         }
@@ -464,11 +461,11 @@ impl core::error::Error for CameraOpError {}
 
 /// The vocabulary in prose, for the status line that reports which
 /// move was refused. Deltas are the operation's own units — radians
-/// for angles, world units for lengths — spelled by [`readout::number`],
+/// for angles, world units for lengths — spelled by [`readout::handed`],
 /// since a refused move's finite fields sit beside the one that is not.
 impl core::fmt::Display for CameraOp {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let n = |value: &f64| readout::number(*value);
+        let n = |value: &f64| readout::handed(*value);
         match self {
             Self::Orbit { yaw, pitch } => {
                 write!(f, "orbit by yaw {} rad, pitch {} rad", n(yaw), n(pitch))

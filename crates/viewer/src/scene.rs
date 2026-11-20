@@ -154,43 +154,26 @@ impl DisplayTolerance {
     /// working notation's, so δ reads in the unit every other value
     /// nobody wrote reads in.
     ///
-    /// **The δ-facing door onto [`crate::readout::number`]**, which is
-    /// the crate's one rule for a number a person reads: the shortest
-    /// decimal spelling that reads back as this value, and a scientific
-    /// one when no decimal spelling does. What this method adds is the
-    /// conversion into `unit` the δ field's own commit path inverts,
-    /// and nothing else.
+    /// **The δ-facing door onto [`crate::readout::computed_number`]**:
+    /// δ told as a computed length in `unit`, on the grid (four
+    /// figures, and a tenth of ε as a length). This type does not
+    /// remember whether its δ was typed or chosen by the triangle
+    /// budget, so it is told as the latter.
     ///
-    /// **The conversion is total on this type**, which is the door's
-    /// doing rather than this method's: [`DisplayTolerance::new`]
-    /// refuses a δ whose millimetre value is not an `f64`, and
-    /// millimetres are the finest length row ([`MM_PER_METRE`]), so
-    /// the quotient is finite in every length unit; no length row's
-    /// factor is above one, so none flushes a δ to zero. The
+    /// [`DisplayTolerance::new`] refuses a δ whose millimetre value is
+    /// not an `f64`, and millimetres are the finest length row
+    /// ([`MM_PER_METRE`]), so every length unit can say a δ; the
     /// [`crate::props::no_reading`] arm is the conversion's own
     /// refusal, kept rather than unwrapped.
     ///
-    /// **No δ renders as `0.000`.** The rule refuses it without knowing
-    /// anything about δ: a text reading zero is a hundred percent away
-    /// from a strictly positive value, and every arm of the render's
-    /// grid ([`crate::readout::reads_back`]) is proportional to the
-    /// value or finer. `no_delta_renders_as_a_number_a_delta_cannot_be`
-    /// is where that is checked.
-    ///
-    /// **What it is not is exact.** The grid is the finer of a tenth of
-    /// ε, applied to the written number, and four significant figures
-    /// of it. So a δ the triangle budget chose — `constant /
-    /// TRIANGLE_BUDGET`, seventeen figures — reads to within a tenth of
-    /// ε in every length unit (closer below 2·10⁻⁷ of `unit`, where the
-    /// four figures are the finer arm). How many figures that takes is
-    /// the unit's: the δ that reads `0.0003746123` in `mm` reads
-    /// `0.0000003746` in `m`. Either way it is a render and never a commit path: the
-    /// number a δ moves to is the one a user types, never one the
-    /// chrome echoed at them.
+    /// **No δ renders as `0.000`**: the grid has no floor
+    /// (`no_delta_renders_as_a_number_a_delta_cannot_be`). It is a
+    /// render and never a commit path: the number a δ moves to is the
+    /// one a user types, never one the chrome echoed at them.
     pub fn render_in(self, unit: LengthUnit) -> String {
         let unit = unit.def();
-        crate::props::written(self.0, unit)
-            .map_or_else(|| crate::props::no_reading(unit), crate::readout::number)
+        crate::readout::computed_number(self.0, unit)
+            .unwrap_or_else(|| crate::props::no_reading(unit))
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the

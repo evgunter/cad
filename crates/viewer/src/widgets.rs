@@ -152,7 +152,7 @@ pub(crate) fn commit_row(
 /// to the rest. Wrapping on down gives four characters a line. The
 /// floor also keeps a number whole: epaint breaks a line at a space
 /// while there is one to break at, and the floor leaves room for the
-/// widest number [`crate::readout::number`] returns and the space after
+/// widest number [`crate::readout::field_number`] returns and the space after
 /// it. A longer word — a path, or a number glued to punctuation — can
 /// still be broken where epaint's own rule breaks it.
 ///
@@ -233,7 +233,7 @@ fn wrapped_in_region(
 }
 
 /// **The narrowest width a [`message`] is laid out at**: the widest
-/// number [`crate::readout::number`] returns ([`widest_number`]) and
+/// number [`crate::readout::field_number`] returns ([`widest_number`]) and
 /// one space after it, in the font a message resolves to.
 ///
 /// The space is what keeps that number whole. epaint tests a glyph for
@@ -249,7 +249,7 @@ pub(crate) fn message_floor(ui: &egui::Ui) -> f32 {
     widest_number(ui, &font) + ui.fonts_mut(|fonts| fonts.glyph_width(&font, ' '))
 }
 
-/// **How wide the widest text [`crate::readout::number`] returns lays
+/// **How wide the widest text [`crate::readout::field_number`] returns lays
 /// out in `font`**, in points: `readout`'s own bound over the glyphs it
 /// writes ([`crate::readout::widest_render`]), and one pixel.
 ///
@@ -293,7 +293,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// becomes a field holding zero.
 ///
 /// So the widget's own spelling is kept wherever it reads back and
-/// [`crate::readout::number`] carries the rest. **Keeping it is not
+/// [`crate::readout::field_number`] carries the rest. **Keeping it is not
 /// deference**: it is what makes this change invisible to a DRAG.
 /// A drag commits `round_to_decimals(value, auto_decimals)`
 /// (`egui::DragValue::ui`), so every value a drag produces is spelled
@@ -304,7 +304,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 ///
 /// # And it is kept only while it FITS
 ///
-/// Width is no part of reading back ([`crate::readout::reads_back`]
+/// Width is no part of reading back ([`crate::readout::names`]
 /// says so in as many words), so the truth test alone takes the
 /// widget's spelling at any length. `emath::format_with_decimals_in_
 /// range` compares in `f32`, and `almost_equal(inf, inf)` is `a == b`,
@@ -322,7 +322,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// not applied: `readout`'s own header calls this function *the
 /// fields' door* onto the same rule, and `MAX_CHARS`' doc already says
 /// what a box narrower than it costs. So a field is now spelled within
-/// it wherever [`crate::readout::number`] is, which is everywhere but
+/// it wherever [`crate::readout::field_number`] is, which is everywhere but
 /// the band at the top of the type, where four figures round out of
 /// `f64` and the exact scientific spelling is twenty-two characters.
 ///
@@ -339,13 +339,13 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// # An INTEGER field is exempt, because it has no search to end
 ///
 /// [`crate::readout::MAX_CHARS`] is what ENDS A SEARCH — `readout`'s
-/// own doc says so, and [`crate::readout::number`] is a loop over
+/// own doc says so, and [`crate::readout::field_number`] is a loop over
 /// precisions that has to stop somewhere. A range of `0..=0` offers
 /// ONE spelling, so there is no search here to end, and applying the
 /// bound anyway substitutes the render's answer for the widget's: a
 /// count of `-1000000000` was rendered `-1.000e9`, and a count of
 /// `12345678901` renders as whatever reads back within
-/// [`crate::readout::reads_back`]'s grid — **a different count**. For a
+/// [`crate::readout::names`]'s grid — **a different count**. For a
 /// continuous quantity that band is the ratified render accuracy; for
 /// an integer, every value inside it is a different value, so the
 /// substitution is the wrong-number-on-screen defect this door exists
@@ -365,10 +365,10 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
     let integral = *decimals.start() == 0 && *decimals.end() == 0;
     let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
     let fits = integral || spelling.chars().count() <= readout::MAX_CHARS;
-    if fits && readout::reads_back(&spelling, value) {
+    if fits && readout::names(&spelling, value) {
         spelling
     } else {
-        readout::number(value)
+        readout::field_number(value)
     }
 }
 
@@ -394,7 +394,7 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// seeds its keyboard edit with the text it last showed and writes the
 /// parse back when focus leaves, so clicking into a field and clicking
 /// away again hands the chrome's own render straight back at it. The
-/// render names its value only to [`crate::readout::reads_back`]'s
+/// render names its value only to [`crate::readout::names`]'s
 /// grid, so that round trip can MOVE the value — by less than the
 /// grid, which is capped a decade below ε, and by more than nothing.
 ///
@@ -853,7 +853,7 @@ struct OpenEdit {
 /// into a field and clicking away again hands the chrome's own render
 /// straight back at it — a value nobody typed, committed as an edit
 /// and charged an undo step. The render is not exact
-/// ([`crate::readout::reads_back`]'s grid bounds it), so that round
+/// ([`crate::readout::names`]'s grid bounds it), so that round
 /// trip can also MOVE the value.
 ///
 /// **The echo is identifiable as text, exactly**, which is why this
@@ -2395,7 +2395,7 @@ pub(crate) mod message_tests {
         );
     }
 
-    /// Every number [`crate::readout::number`] can return at its widest:
+    /// Every number [`crate::readout::field_number`] can return at its widest:
     /// the top of the type both ways, the widest decimal spellings (22
     /// characters, a sign counted among them), the small end's
     /// three-digit exponents, and the non-finite fallbacks.
@@ -2440,7 +2440,7 @@ pub(crate) mod message_tests {
                     let font = egui::FontSelection::Default.resolve(ui.style());
                     let bound = super::widest_number(ui, &font);
                     for value in WIDEST_NUMBERS {
-                        let spelling = crate::readout::number(value);
+                        let spelling = crate::readout::field_number(value);
                         let galley = egui::WidgetText::from(spelling.as_str()).into_galley(
                             ui,
                             Some(egui::TextWrapMode::Extend),
@@ -2473,7 +2473,7 @@ pub(crate) mod message_tests {
     /// overflow ending that line fires on the space AFTER the number.
     #[test]
     fn a_line_never_breaks_inside_a_number_readout_renders() {
-        let number = crate::readout::number(-f64::MAX);
+        let number = crate::readout::field_number(-f64::MAX);
         assert!(
             ['-', '.', 'e'].iter().all(|glyph| number.contains(*glyph)),
             "the fixture carries every glyph epaint could break at: {number}"
@@ -3058,7 +3058,7 @@ mod field_tests {
     /// all**, and the second half of the row is that: a millimetre
     /// value used to keep `egui`'s rounded spelling wherever it landed
     /// within 5·10⁻⁴ of the value, and now falls to
-    /// `crate::readout::number`. That is the item this unit closes,
+    /// `crate::readout::field_number`. That is the item this unit closes,
     /// measured from the field's own door.
     #[test]
     fn a_drag_steps_through_a_text_that_names_what_it_commits() {
@@ -3091,7 +3091,7 @@ mod field_tests {
         for off_grid in [1_000.000_1_f64, -1_000.000_1, 1.000_7] {
             assert_eq!(
                 number_text(off_grid, MM),
-                crate::readout::number(off_grid),
+                crate::readout::field_number(off_grid),
                 "{off_grid} is not on the range's grid, so the widget's \
                  rounded spelling does not read back"
             );
@@ -3106,7 +3106,7 @@ mod field_tests {
 
     /// **A field's text is bounded, and by the bound this crate already
     /// had.** `crate::readout::MAX_CHARS` ends
-    /// `crate::readout::number`'s search; [`number_text`] is the same
+    /// `crate::readout::field_number`'s search; [`number_text`] is the same
     /// rule's fields' door and was applying only its truth half, so the
     /// widget's own spelling was taken at any length — three hundred
     /// and eleven characters for `f64::MAX`, which a `DragValue`
@@ -3129,7 +3129,7 @@ mod field_tests {
             let text = number_text(value, MM);
             assert_eq!(
                 text,
-                crate::readout::number(value),
+                crate::readout::field_number(value),
                 "{value} has no spelling in the field's own range that fits \
                  the bound, so the field shows the render's"
             );
@@ -3148,7 +3148,7 @@ mod field_tests {
     #[test]
     fn the_top_of_the_type_is_the_render_bounds_own_width() {
         let text = number_text(f64::MAX, MM);
-        assert_eq!(text, crate::readout::number(f64::MAX));
+        assert_eq!(text, crate::readout::field_number(f64::MAX));
         assert_eq!(
             text.chars().count(),
             crate::readout::MAX_CHARS,
@@ -3201,7 +3201,7 @@ mod field_tests {
     /// width.** The first half is inside `crate::readout::MAX_CHARS`
     /// and so would pass whatever the door did; the second is the band
     /// where the width bound would substitute
-    /// `crate::readout::number`'s answer, which for an integer is a
+    /// `crate::readout::field_number`'s answer, which for an integer is a
     /// DIFFERENT integer. Each of those is asserted to be past the
     /// bound, so the row is a row for a reason it states — and they
     /// are `f64` magnitudes because an `i64` no longer reaches past
@@ -3223,7 +3223,7 @@ mod field_tests {
                 number_text(value, 0..=0),
                 exact,
                 "an integer field spells its integer, not \
-                 crate::readout::number's nearest reading of it"
+                 crate::readout::field_number's nearest reading of it"
             );
         }
     }
@@ -4480,7 +4480,7 @@ mod value_field_tests {
         let (_, text) = row.showing();
         assert_eq!(text, "1000.0");
         assert!(
-            crate::readout::reads_back(&text, TYPED),
+            crate::readout::names(&text, TYPED),
             "the fixture must sit INSIDE the render's grid, or this row \
              is not about the guard"
         );

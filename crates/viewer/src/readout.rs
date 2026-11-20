@@ -1,356 +1,140 @@
 //! A number as text a person reads.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
-//! boundaries) — one pure function over an `f64`, the grid it renders
-//! on and the two constants that shape it, and the width of the widest
-//! text it returns ([`widest_render`]) for a box that has to hold one.
+//! boundaries): the chrome's doors onto `geom_core::Told`, which is the
+//! one rule for a number told to a person
+//! (`crates/geom-core/README.md`, "A number told to a person"), and
+//! the width of the widest text they return ([`widest_render`]) for a
+//! box that has to hold one.
 //!
-//! # The rule
+//! # The rule, and which door says what
 //!
-//! **A rendered number reads back as the value it renders.** A fixed
-//! precision does not: `{:.3}` over millimetres carries a length under
-//! half a micrometre as `0.000`, and `{:.1}` carries a camera distance
-//! under 50 µm the same way — a number the value cannot be, printed
-//! with the confidence of one it can. The same spec over-renders at the
-//! other end, where `1024.0000` claims four figures a probe never
-//! established.
+//! A told quantity is held in metres or radians with its role and its
+//! dimension, and is rendered in a notation. So a door here takes the
+//! canonical value and the unit it is read in, never a number already
+//! divided by a factor: the grid (four figures, and for a length a
+//! tenth of ε, which is a length whatever the unit) and the unit word
+//! are the quantity's.
 //!
-//! [`number`] answers both with one rule: the shortest decimal spelling
-//! that reads back as this value, and a scientific one when no decimal
-//! spelling does. Nothing here is a threshold, so there is no magnitude
-//! to go stale against a format.
+//! - [`computed`] and [`computed_number`]: a value nobody wrote (a
+//!   driven slot, a measure, a display tolerance), on the grid.
+//! - [`handed`]: a bare number a caller handed in, exactly.
+//! - [`field_number`] and [`names`]: the fields' door, which has no
+//!   unit in hand (see [`field_number`]).
 //!
-//! # What "reads back" is measured against
+//! No door renders a nonzero value as zero: the grid is relative below
+//! its cap and has no floor.
 //!
-//! [`tolerance`] is the grid, and it is **a difference the kernel can
-//! decide**, not a width a box has: an absolute cap one decade below ε
-//! met with a relative arm, the finer of the two winning. The same
-//! grid `geom_core::Told` tells a refusal sentence's computed lengths
-//! on, for the same reason — ε is a LENGTH
-//! (`docs/DESIGN.md` D4 ¶1), so a purely relative rule crosses it and
-//! is coarser above the crossing, and two lengths the kernel certifies
-//! as DIFFERENT would then render as one number. Two chrome sentences
-//! quoting a document cannot say the same thing about values the
-//! document holds apart.
+//! # The character bound
 //!
-//! # Why this is a module and not a format string per site
-//!
-//! **The population is every render of a number this crate writes**,
-//! which is not a list anyone can hold: the sweep that produces it is
-//! *every `{…}` in the crate whose argument is a quantity*, and it
-//! reaches both the sentences the chrome composes and the fields a
-//! person edits. The read-only half holds a
-//! [`crate::scene::DisplayTolerance`] in two places and a bare `f64` in
-//! a display unit in the others, so the rule cannot be a method on that
-//! type without being written twice — once as the method and once, by
-//! hand, wherever the type is absent. It is one function over the
-//! value, [`crate::scene::DisplayTolerance::render_in`] is the δ-facing
-//! door onto it (the conversion into a length unit, and nothing else), and
-//! `crate::widgets::number_text` is the fields' door.
-//!
-//! # What it is not
-//!
-//! It is not the exact value wherever a shorter spelling lands inside
-//! [`tolerance`] — that is the point of it, and it is what cuts
-//! `1024.0000` back to `1024`. What it no longer is is coarse enough
-//! for the difference between two values the kernel decides between:
-//! the grid is finer than ε everywhere, so a δ the triangle budget
-//! chose shows the figures that distinguish it from the next δ rather
-//! than four.
-//!
-//! **It is reached from a commit path and is not one.** An
-//! `egui::DragValue` seeds its keyboard edit with the text it last
-//! showed and writes the parse back when it loses focus, so what a
-//! field renders is what clicking into it and away again USED to
-//! commit — which is why `crate::widgets::number_text` exists. That
-//! coupling is cut: `crate::widgets::number_field` compares the
-//! parsed text against the text its own formatter returned
-//! (`crate::props::echoed`) and a field's own render commits
-//! nothing, so [`tolerance`] bounds the render alone and the
-//! question of what accuracy a RENDER owes is answered here on its
-//! own terms. The number a value moves to on purpose is one a user
-//! types, never one the chrome echoed at them — now enforced rather
-//! than bounded.
-//!
-//! The one field where the old sentence still holds is a bare
-//! `egui::DragValue`, which takes this render from the context and
-//! has no parser to take the veto from
-//! (`crate::widgets::install_number_formatter`, and
-//! `work/vgeom/a-bare-field-still-commits-its-own-render.md`).
+//! A sentence is as wide as it needs to be; a box is not. Every text
+//! these doors return for one number is at most [`MAX_CHARS`]
+//! characters, sign aside, because `geom_core::Told` spells a number
+//! in the notation `geom_core::Readable` picks by magnitude: decimal
+//! between `1e-4` and `1e16`, scientific outside, and never more than
+//! seventeen significant figures. The bound is `geom-core`'s
+//! (`geom_core::WIDEST_NUMBER`, pinned there over every role and
+//! unit), read here and not restated.
 
-use pncad::geom_core::tolerance::DEFAULT_EPS;
+use pncad::geom_core::{self, Tell, Told};
+use pncad::quantity::{Notation, UnitDef, UnitQuantity};
 
-/// The absolute arm of [`tolerance`]: one decade below ε.
+/// The longest spelling of one number these doors return, in
+/// characters, sign aside (`geom_core::WIDEST_NUMBER` counts the sign).
 ///
-/// **ε is a LENGTH** (`docs/DESIGN.md` D4 ¶1, [`DEFAULT_EPS`]), so a
-/// grid stated as a fraction of the value crosses it at one unit and is
-/// coarser above the crossing — at a kilometre a relative 10⁻⁹ is a
-/// micron, and two lengths the kernel certifies as different render as
-/// one number. Capping the grid a decade below ε is what makes a
-/// difference the kernel can DECIDE always a difference the chrome
-/// SPELLS.
+/// A box that meets it shows every text this module returns. A box
+/// narrower than this clips, and a clipped render reads as a different
+/// value: that is the box's number to meet, not this one's to lower.
 ///
-/// **It is the compile-time [`DEFAULT_EPS`] and never the run's live
-/// `Tolerance::eps()`**, which is the same choice
-/// `geom_core::told` states at its own site: a live
-/// ε would make one rendered value spell three ways across the ε rows
-/// CI gates, so the grid is a display choice stated once against the
-/// ratified default (`docs/DESIGN.md` D4).
-///
-/// **The unit it is stated in is the canonical one, and applying it to
-/// a WRITTEN number is conservative rather than approximate.** A value
-/// reaching [`number`] has been divided by its notation's factor
-/// (`crate::props::in_written`), and every length row of
-/// `quantity::UNITS` has a factor at most one, so the written number is
-/// never smaller than the canonical one and an absolute grid on it
-/// resolves a canonical difference at least this fine.
-/// `the_grid_is_never_coarser_than_epsilon_in_any_written_unit` reads
-/// the table rather than restating it.
-const EPS_CAP: f64 = DEFAULT_EPS * 0.1;
-
-/// The relative arm of [`tolerance`], as a fraction of the value.
-///
-/// **Not a taste: it is the four-figure scientific form's own worst
-/// case.** Four significant figures can misread the value they render
-/// by half a unit in the fourth — 5·10⁻⁴ of it — so a spelling is
-/// preferred exactly while it is no less truthful than the form that
-/// would replace it. That derivation is unchanged and was never the
-/// defect; what was missing beside it is [`EPS_CAP`], and a rule with
-/// only this arm was coarser than ε above 2·10⁻⁷ of a display unit.
-///
-/// **It governs only BELOW the crossing, and ε does not bind there.**
-/// The arms cross at `EPS_CAP / REL_TOLERANCE`; below it this arm is
-/// the finer of the two by construction, so it never decides whether
-/// the render can separate two values the kernel separates — the cap
-/// has already guaranteed that. What it decides is the figures a value
-/// too small for the cap to resolve is spelled to, and **four is the
-/// number ε justifies there**: a length below the crossing is below ε
-/// itself in every notation the chrome writes one in, so figures past
-/// the fourth would be precision no probe established — the defect
-/// [`number`] exists to cut, arriving by the other door.
-///
-/// **A FLOOR under the tolerance is the mirror defect** and is
-/// precisely what a `min` cannot become: it would round every value
-/// below the floor to the floor's own zero, which is the one thing
-/// [`number`] refuses first.
-///
-/// That is also why it is a property of this module rather than
-/// something a caller passes: the tolerance and the fallback spelling
-/// are two halves of one choice, and a caller free to name the first
-/// would be free to name one the second cannot honour.
-pub const REL_TOLERANCE: f64 = 5.0e-4;
-
-/// How far [`number`]'s text may read from the value it renders.
-///
-/// **The finer of [`EPS_CAP`] and [`REL_TOLERANCE`] of the value**,
-/// which is a `min` and not a `max`: each arm is the coarser one
-/// somewhere, and the coarser arm is never the one that may govern.
-/// Above `EPS_CAP / REL_TOLERANCE` — 2·10⁻⁷ of a display unit — the cap
-/// governs and the render separates everything ε does; below it the
-/// relative arm governs, and everything there is smaller than ε
-/// anyway.
-///
-/// `tolerance(0.0)` is `0.0` — zero has no figures to keep and only its
-/// exact spelling reads back as it, which is `0`.
-///
-/// # This is the SECOND spelling of one rule, and it is the deletable
-/// one
-///
-/// `geom_core::Told` computes the same grid for the lengths a kernel
-/// refusal sentence quotes: a tenth of ε met with four significant
-/// figures, the finer winning. This function is what moving the
-/// readout onto it deletes
-/// (`work/scalar/patherror-display-renders-float-noise.md`, the
-/// notation-taking rendering): one function, value in and tolerance
-/// out, called from [`reads_back`] alone, so nothing here spreads the
-/// two arms across the search that uses them.
-///
-/// **The two places the two deliberately differ, marked here so a lane
-/// merging them can tell a decision from drift:**
-///
-/// - **Notation.** `Told` writes metres or radians in the notation
-///   `geom_core::Readable` picks by magnitude. [`number`] writes the
-///   notation the person chose: the shortest decimal that reads back,
-///   and [`scientific`] when no decimal does, since a length they wrote
-///   in millimetres wants to read back in millimetres.
-/// - **The character bound.** `Told` has none — a refusal sentence is
-///   as wide as it needs to be. [`number`] has [`MAX_CHARS`], because
-///   its texts go in boxes and a clipped render reads as a different
-///   value. That bound is what makes the two searches different
-///   lengths of loop and is the one difference a merge cannot simply
-///   drop.
-fn tolerance(value: f64) -> f64 {
-    EPS_CAP.min(value.abs() * REL_TOLERANCE)
-}
-
-/// The decimal places [`number`] will search.
-///
-/// **Where a decimal spelling reaches [`EPS_CAP`]**: rounding to `d`
-/// places misreads the value by at most half a unit in the last, so the
-/// first `d` whose half-unit is inside the cap is the last one the cap
-/// can ask for. Derived from the cap rather than chosen, so a `d` that
-/// went stale against a moved ε is not a state this constant has.
-///
-/// **Past it, more places only serve [`REL_TOLERANCE`]** — the arm that
-/// governs below the crossing, where a decimal spelling is a run of
-/// leading zeros and [`scientific`] is the notation that reads. So the
-/// decimal arm stops where the cap stops, and the small end is the
-/// scientific arm's as it has always been.
-const DECIMALS: usize = decimals_reaching(EPS_CAP);
-
-/// [`DECIMALS`], as arithmetic rather than as a number to keep in step.
-const fn decimals_reaching(cap: f64) -> usize {
-    let mut places = 0;
-    let mut half_unit = 0.5;
-    while half_unit > cap {
-        half_unit /= 10.0;
-        places += 1;
-    }
-    places
-}
-
-/// The longest spelling [`number`] returns, in characters.
-///
-/// **[`scientific`]'s own worst case over a positive value**, which is
-/// the top of `f64`: seventeen significant figures, `e` and three
-/// exponent digits — `1.7976931348623157e308`, twenty-two characters.
-/// Nothing wider is reachable. Where the exponent needs three digits at
-/// the small end, [`tolerance`]'s relative arm governs and eleven
-/// significant figures are the most it can ask for; where seventeen are
-/// asked for, [`EPS_CAP`] governs and the exponent is at most `e308`.
-///
-/// The decimal arm is held to the same bound, which is what keeps a
-/// huge magnitude out of a three-hundred-digit spelling that reads back
-/// perfectly well. So this is the width of EVERY render, with no band
-/// excepted: a box that meets it shows every text this module returns.
-/// A box narrower than this clips, and a clipped render reads as a
-/// different value — that is the box's number to meet, not this one's
-/// to lower.
-///
-/// A sentence is bounded by its region instead —
+/// A sentence is bounded by its region instead:
 /// `crate::widgets::message`'s *Characters or width* states the rule.
-pub const MAX_CHARS: usize = 22;
+pub const MAX_CHARS: usize = geom_core::WIDEST_NUMBER - 1;
 
-/// Every character [`number`] spells a value longer than four
-/// characters in: the digits, the point, the sign and the exponent's
-/// `e`. The non-finite fallbacks (`NaN`, `inf`, `-inf`) are the only
-/// spellings with other letters, and none is wider than four widest
-/// glyphs.
+/// Every character a number longer than four characters is spelled in:
+/// the digits, the point, the sign and the exponent's `e`. The
+/// non-finite spellings (`NaN`, `inf`, `-inf`) are the only ones with
+/// other letters, and none is wider than four widest glyphs.
 pub const GLYPHS: &str = "0123456789.-e";
 
-/// **How wide the widest text [`number`] returns is**, in a font whose
-/// advance for a character is `advance(character)`: [`MAX_CHARS`] and
-/// one more character, each at the widest of [`GLYPHS`].
-///
-/// The one more is the sign. [`MAX_CHARS`] bounds the decimal arm with
-/// its sign counted and the scientific arm with it aside, so the widest
-/// spellings are two: twenty-two digits (`1000000000000000000000`), and
-/// twenty-three characters at the top of the type
-/// (`-1.7976931348623157e308`). Which is wider is the font's to say — in
-/// a proportional font the point and the sign are narrow and the
-/// digits win; in a monospace one every glyph is one width and the
-/// twenty-three do — so the bound counts twenty-three of the widest.
+/// **How wide the widest text one number renders as is**, in a font
+/// whose advance for a character is `advance(character)`:
+/// [`MAX_CHARS`] and the sign, each at the widest of [`GLYPHS`].
 pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
     let widest = GLYPHS.chars().map(&mut advance).fold(0.0, f32::max);
     (MAX_CHARS + 1) as f32 * widest
 }
 
-/// `value` as text a person reads.
-///
-/// **The shortest decimal spelling that reads back as this value, and a
-/// scientific one when no decimal spelling does.** A length wants to
-/// read as a decimal and does wherever it can (`0.05`, `0.0016`,
-/// `0.0003746`); below that a decimal spelling either misreads the
-/// value or is a run of leading zeros past [`DECIMALS`], and the
-/// scientific form carries it (`1e-12`).
-///
-/// **The choice is made on the property, not on a magnitude.** A
-/// spelling is used when it fits [`MAX_CHARS`] and reads back within
-/// [`tolerance`] of this value. So a value that is not zero never
-/// renders as zero — a text reading `0.000` is a hundred percent away
-/// from the value it claims to be, and no tolerance this function can
-/// hold admits that, since both arms are proportional to the value or
-/// finer — and a value that IS zero renders as `0`, since zero reads
-/// back as itself.
-///
-/// **A non-finite value has no reading and gets the fallback.** No
-/// spelling of `NaN` reads back as `NaN` — nothing does — so the search
-/// exhausts and the scientific arm prints `NaN` or `inf`. The
-/// behaviour is stated because it is what the rule produces rather
-/// than a case it handles.
-///
-/// **Whether the chrome can hand one is the callers' question, and it
-/// is answered at each of them rather than here.** The sweep is every
-/// call to this function under `crates/viewer/src`, read for what its
-/// argument's producer guarantees, and there are four:
-/// [`crate::scene::DisplayTolerance::render_in`], which asks
-/// [`crate::props::written`] and whose door refuses a δ whose
-/// millimetre value — the finest length unit's — is not an `f64`;
-/// [`crate::props::written_text`], which asks
-/// [`crate::props::written`] whether the notation can name the value
-/// and says so when it cannot; `crate::widgets::number_text`'s
-/// fallback, whose argument is whatever the widget was bound to; and
-/// `crate::camera`'s refusal sentences, whose arguments are whatever
-/// field a refused camera or move carried. The first two cannot reach
-/// here with a non-finite value. The third can, and `number_text` owns
-/// that. The fourth reaches here with one by design — a refused move's
-/// offending field is `NaN` or `inf` — and the fallback's `NaN` and
-/// `inf` are the spellings its sentence wants.
-///
-/// **The top of the type is no longer an exception to the width.**
-/// From `1.7975000000000001e308` up, four significant figures round
-/// out of `f64` — `1.798e308` is not a spelling of any finite number,
-/// it reads back as infinity — so the band is rendered exactly, and
-/// that exact spelling is what [`MAX_CHARS`] is the width of.
-/// `the_top_of_the_type_is_spelled_exactly` is the row.
-pub fn number(value: f64) -> String {
-    (0..=DECIMALS)
-        .map(|decimals| format!("{value:.decimals$}"))
-        .find(|spelling| spelling.chars().count() <= MAX_CHARS && reads_back(spelling, value))
-        .unwrap_or_else(|| scientific(value))
+/// The dimension a value read in `unit` has.
+fn dimension(unit: UnitDef) -> geom_core::Dimension {
+    match unit.quantity() {
+        UnitQuantity::Length => geom_core::Dimension::Length,
+        UnitQuantity::Angle => geom_core::Dimension::Angle,
+        UnitQuantity::Scalar => geom_core::Dimension::Dimensionless,
+    }
 }
 
-/// `value` in scientific notation: the shortest mantissa that reads
-/// back, and the exact spelling where none does.
+/// A canonical value nobody wrote, told in `unit` with its unit word.
 ///
-/// **The same search [`number`] runs, in the other notation.** A
-/// mantissa of seventeen significant figures names every `f64`
-/// exactly, so the loop always finds one for a finite value and the
-/// bound past it is reached only by a value with no reading at all.
-///
-/// **A non-finite value takes that fallback and is unchanged by it.**
-/// Nothing reads back as `NaN`, so every precision fails and `{:e}` is
-/// asked for — and it writes `NaN` and `inf` exactly as a rounded
-/// spelling did. The arm is reached, not the behaviour.
-fn scientific(value: f64) -> String {
-    (0..=17)
-        .map(|figures| format!("{value:.figures$e}"))
-        .find(|spelling| reads_back(spelling, value))
-        .unwrap_or_else(|| format!("{value:e}"))
+/// Where `unit` cannot say the value (its factor carries it out of the
+/// format) the text is in the canonical unit and says so: `1e306 m`
+/// for a length a millimetre reader asked about.
+pub fn computed(canonical: f64, unit: UnitDef) -> String {
+    Told::computed(&canonical, dimension(unit))
+        .told_in(Notation::CANONICAL.with(unit))
+        .to_string()
 }
 
-/// Whether `spelling` reads within [`tolerance`] of `value`.
+/// [`computed`]'s number alone, for a surface that writes the unit
+/// itself; `None` where `unit` cannot say the value, since a number
+/// with the wrong unit beside it is a different value.
+pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
+    let text = computed(canonical, unit);
+    match unit.symbol() {
+        "" => Some(text),
+        symbol => text
+            .strip_suffix(symbol)
+            .and_then(|number| number.strip_suffix(' '))
+            .map(str::to_owned),
+    }
+}
+
+/// A bare number a caller handed in, exactly as received: the shortest
+/// digits that read back, `NaN` and `inf` for a value that is neither.
+pub fn handed(value: f64) -> String {
+    Told::given(&value, geom_core::Dimension::Dimensionless).to_string()
+}
+
+/// The number a field holds, as the field shows it.
 ///
-/// The tolerance is a distance, so the test says the same thing on both
-/// sides of zero: a rendered number is judged by how far it reads from
-/// the value, and a sign is not a distance.
+/// **A field's formatter has the number and not its unit**: `egui`
+/// hands a `DragValue`'s formatter the `f64` the widget is bound to,
+/// which is the canonical value already divided by its unit's factor.
+/// So this door cannot say what the quantity is, and tells the number
+/// as a computed length in the canonical unit: four figures, and a
+/// tenth of ε of the WRITTEN number. Every length unit's factor is at
+/// most one, so that is at least as fine as the rule's grid for a
+/// length and finer than it for an angle or a ratio. Threading the
+/// unit to the formatter is
+/// `work/vgeom/the-field-door-tells-a-written-number-with-no-unit-in-hand.md`.
+pub fn field_number(value: f64) -> String {
+    let text = as_field(value).to_string();
+    text.strip_suffix(" m").map_or(text.clone(), str::to_owned)
+}
+
+/// Whether `spelling` names `value` as a field shows it: it reads as a
+/// number that [`field_number`] spells the same way.
 ///
-/// **Width is no part of reading back, which is why it is no part of
-/// this.** [`number`] is bounded by [`MAX_CHARS`] because it searches
-/// every precision and something has to end the search; a caller
-/// judging a spelling SOMEONE ELSE chose is asking only whether that
-/// text names this value, and a wide text that does is not improved by
-/// replacing it with a narrow one that does not.
-///
-/// **This is the module's truth test and the only door onto
-/// [`tolerance`]**, which is why it is public where the grid is not: a
-/// caller asking whether a text names a value is asking this, and a
-/// caller reaching for the number instead would be spelling the
-/// comparison a second time.
-pub fn reads_back(spelling: &str, value: f64) -> bool {
+/// Width is no part of it: a caller judging a spelling someone else
+/// chose is asking only whether that text names this value.
+pub fn names(spelling: &str, value: f64) -> bool {
     spelling
         .parse::<f64>()
-        .is_ok_and(|read| (read - value).abs() <= tolerance(value))
+        .is_ok_and(|read| as_field(read) == as_field(value))
+}
+
+/// A field's number as the told quantity [`field_number`] renders.
+fn as_field(value: f64) -> Told {
+    Told::computed(&value, geom_core::Dimension::Length)
 }
 
 #[cfg(test)]
@@ -359,292 +143,84 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{DECIMALS, EPS_CAP, MAX_CHARS, REL_TOLERANCE, number, tolerance};
-    use pncad::geom_core::tolerance::DEFAULT_EPS;
+    use super::{MAX_CHARS, computed, computed_number, field_number, handed, names};
+    use quantity::{DEG, IN, M, MM, ONE, PI};
 
-    /// What the rule claims, checked as a property rather than a table:
-    /// a render reads back within the render's own grid — and therefore
-    /// a value that is not zero never renders as zero, which is the
-    /// whole defect this module closes.
-    ///
-    /// The character bound is asserted here too, because there is no
-    /// longer a band it does not cover: [`MAX_CHARS`] is the width of
-    /// every text [`number`] returns, sign aside.
-    fn reads_back(value: f64) {
-        let text = number(value);
-        let read: f64 = text
-            .parse()
-            .unwrap_or_else(|error| panic!("{value} renders as {text}, not a number: {error}"));
-        assert!(
-            (read - value).abs() <= tolerance(value),
-            "{value} renders as {text}, further from it than the render's own grid"
-        );
-        assert!(
-            value == 0.0 || read != 0.0,
-            "{value} renders as {text}, which reads as a zero it is not"
-        );
-        assert!(
-            text.trim_start_matches('-').chars().count() <= MAX_CHARS,
-            "{value} renders as {text}, past the {MAX_CHARS} character bound"
-        );
+    #[test]
+    fn a_computed_value_reads_in_its_unit_on_the_grid() {
+        assert_eq!(computed(0.025, MM.def()), "25 mm");
+        assert_eq!(computed(1.5, M.def()), "1.5 m");
+        assert_eq!(computed(0.0254, IN.def()), "1 in");
+        assert_eq!(computed(core::f64::consts::FRAC_PI_2, DEG.def()), "90 deg");
+        assert_eq!(computed(0.1 + 0.2, ONE.def()), "0.3");
+        // A tenth of ε is 1e-7 mm: the micrometre a length holds is kept,
+        // and float noise below the grid is not.
+        assert_eq!(computed(1.000_001, MM.def()), "1000.001 mm");
+        assert_eq!(computed(0.008_000_000_000_000_002, MM.def()), "8 mm");
+        assert_eq!(computed(3.746_123_456e-7, MM.def()), "0.0003746 mm");
+        assert_eq!(computed(0.0, MM.def()), "0 mm");
     }
 
-    /// The whole range a chrome number can come from, both signs: a
-    /// decade below the kernel's finest length to well above the
-    /// coarsest a camera band reaches.
     #[test]
-    fn every_value_reads_back_as_itself() {
-        let mut sampled: u32 = 0;
-        let mut value = 1.0e-12_f64;
-        while value < 1.0e6 {
-            reads_back(value);
-            reads_back(-value);
-            sampled += 1;
-            value *= 1.01;
-        }
-        assert!(sampled > 2_000, "the sweep covered only {sampled} values");
-        // And both ends of the type, which a geometric grid does not
-        // reach.
-        for end in [5.0e-324, f64::MIN_POSITIVE, f64::MAX] {
-            reads_back(end);
-            reads_back(-end);
-        }
+    fn a_value_the_unit_cannot_say_reads_in_the_canonical_unit() {
+        assert_eq!(computed(1.0e306, MM.def()), "1e306 m");
+        assert_eq!(computed_number(1.0e306, MM.def()), None);
+        assert_eq!(computed(5.0e-324, PI.def()), "5e-324 rad");
+        assert_eq!(computed_number(5.0e-324, PI.def()), None);
+        assert_eq!(computed_number(0.025, MM.def()).as_deref(), Some("25"));
+        assert_eq!(computed_number(0.25, ONE.def()).as_deref(), Some("0.25"));
     }
 
-    /// **The grid separates what the kernel separates**, which is the
-    /// property the cap exists for and the one a relative rule loses
-    /// above its crossing.
-    ///
-    /// Two lengths one ε apart, at magnitudes where a relative 10⁻⁹
-    /// would have spelled them the same number: a kilometre, where ε is
-    /// 10⁻¹² of the value, and the metre scale where the row was filed.
-    /// The row goes red the moment the cap stops governing there.
     #[test]
-    fn two_values_the_kernel_decides_between_render_as_two_numbers() {
-        for metres in [1.0e3_f64, 1.0, 1.0e-1] {
-            for written in [metres, metres * 1.0e3] {
-                let apart = written + DEFAULT_EPS;
-                assert!(
-                    apart != written,
-                    "{written} plus ε is a different f64, or this row proves nothing"
-                );
-                assert_ne!(
-                    number(written),
-                    number(apart),
-                    "{written} and {apart} are further apart than ε and render as one number"
-                );
-            }
-        }
+    fn a_handed_number_reads_exactly() {
+        assert_eq!(handed(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(handed(-0.0), "0");
+        assert_eq!(handed(f64::NAN), "NaN");
+        assert_eq!(handed(f64::INFINITY), "inf");
+        assert_eq!(handed(f64::MAX), "1.7976931348623157e308");
     }
 
-    /// **The row's own worked example**, which is what a person sees
-    /// differently: a field holding 1000.001 mm showed `1000.0`, four
-    /// significant figures being all the old grid asked for.
+    /// No nonzero value reads as zero, every render reads back within
+    /// the coarser of a tenth of ε and four figures of the value, and
+    /// none passes the character bound.
     #[test]
-    fn a_millimetre_value_keeps_the_micrometre_it_holds() {
-        assert_eq!(number(1000.001), "1000.001");
-        assert_eq!(number(-1000.001), "-1000.001");
-        assert_eq!(number(1_024.000_1), "1024.0001");
-    }
-
-    /// **The grid is never coarser than ε in any notation the chrome
-    /// writes a length in**, read off `quantity::UNITS` rather than
-    /// restated: every length row's factor is at most one, so a written
-    /// number is at least its canonical metres and an absolute grid on
-    /// the written number resolves a canonical difference at least as
-    /// fine.
-    #[test]
-    fn the_grid_is_never_coarser_than_epsilon_in_any_written_unit() {
-        let lengths: Vec<_> = quantity::UNITS
-            .iter()
-            .filter(|unit| unit.as_length().is_some())
-            .collect();
-        assert_eq!(lengths.len(), 4, "the length rows of the closed table");
-        for unit in lengths {
-            assert!(
-                unit.factor() <= 1.0,
-                "{} has factor {}, above one, so a written number can be \
-                 SMALLER than its metres and this grid stops being conservative",
-                unit.symbol(),
-                unit.factor()
-            );
-            // The canonical difference the cap resolves, written in this
-            // unit: one decade below ε, divided by a factor at most one.
-            let canonical = EPS_CAP * unit.factor();
-            assert!(
-                canonical <= DEFAULT_EPS,
-                "{}'s grid resolves {canonical} m, coarser than ε",
-                unit.symbol()
-            );
-        }
-    }
-
-    /// **[`DECIMALS`] is where a decimal spelling reaches [`EPS_CAP`]**,
-    /// and one place fewer does not. Derived in `decimals_reaching`, so
-    /// this row goes red if that derivation stops answering the cap it
-    /// is handed — including if `DEFAULT_EPS` moves.
-    #[test]
-    fn the_decimal_arm_reaches_the_cap_and_stops() {
-        let half_unit = |places: i32| 0.5 * 10.0_f64.powi(-places);
-        assert!(
-            half_unit(i32::try_from(DECIMALS).expect("a small count")) <= EPS_CAP,
-            "{DECIMALS} places do not reach {EPS_CAP}"
-        );
-        assert!(
-            half_unit(i32::try_from(DECIMALS).expect("a small count") - 1) > EPS_CAP,
-            "{DECIMALS} places are one more than the cap asks for"
-        );
-    }
-
-    /// **The two arms cross where the `min` says they do**, and each is
-    /// the governing one on its own side — the claim that makes the
-    /// tolerance a `min` rather than either arm alone.
-    #[test]
-    fn each_arm_governs_on_its_own_side_of_the_crossing() {
-        let crossing = EPS_CAP / REL_TOLERANCE;
-        assert!((tolerance(crossing) - EPS_CAP).abs() <= EPS_CAP * 1.0e-12);
-        assert_eq!(
-            tolerance(crossing * 1.0e3),
-            EPS_CAP,
-            "the cap governs above"
-        );
-        let below = crossing * 1.0e-3;
-        assert_eq!(
-            tolerance(below),
-            below * REL_TOLERANCE,
-            "the relative arm governs below"
-        );
-        assert!(
-            tolerance(below) < EPS_CAP,
-            "and it is the FINER of the two there, which is what a min picks"
-        );
-        assert_eq!(tolerance(0.0), 0.0, "zero keeps only its exact spelling");
-        assert_eq!(tolerance(-1.0), tolerance(1.0), "a sign is not a distance");
-    }
-
-    /// **The top of the type is spelled exactly**, and that spelling is
-    /// what [`MAX_CHARS`] is the width of: four significant figures
-    /// round out of `f64` from `1.7975000000000001e308` up, so the only
-    /// text that names a value there is the exact one.
-    ///
-    /// **It is a band and not a value.** Every `f64` from that bound to
-    /// `f64::MAX` rounds to `1.798e308`, which is infinity — about
-    /// 9.7·10¹¹ of them, each sign. The row samples across it.
-    #[test]
-    fn the_top_of_the_type_is_spelled_exactly() {
-        assert_eq!(number(f64::MAX), "1.7976931348623157e308");
-        assert_eq!(number(f64::MAX).chars().count(), MAX_CHARS);
-        assert_eq!(number(-f64::MAX), "-1.7976931348623157e308");
-        assert_eq!(
-            number(f64::MAX).parse::<f64>(),
-            Ok(f64::MAX),
-            "the exact spelling is the arm because it is the one that reads back"
-        );
-        assert!(
-            "1.798e308".parse::<f64>().is_ok_and(f64::is_infinite),
-            "and the four-figure text it replaces names no finite value at all"
-        );
-
-        let low = 1.797_500_000_000_000_1e308_f64;
-        let (low_bits, top_bits) = (low.to_bits(), f64::MAX.to_bits());
-        let stride = (top_bits - low_bits) / 512;
-        assert!(stride > 0, "the band is wider than the grid over it");
-        for step in 0..=512 {
-            let value = f64::from_bits(low_bits + stride * step);
-            reads_back(value);
-            reads_back(-value);
-        }
-        reads_back(low);
-    }
-
-    /// **No render passes the character bound, anywhere in the type.**
-    /// The bound used to have one band excepted; it has none, and that
-    /// is what a box sized for it can now rely on.
-    ///
-    /// The sweep also counts the notations, so a change that quietly
-    /// sent every value to one arm would go red rather than pass.
-    #[test]
-    fn no_render_passes_the_character_bound() {
-        let (mut decimal, mut scientific) = (0_u32, 0_u32);
+    fn a_field_number_names_its_value_within_the_bound() {
         let mut value = 1.0e-320_f64;
         while value < 1.0e300 {
             for signed in [value, -value] {
-                let text = number(signed);
+                let text = field_number(signed);
+                let read: f64 = text
+                    .parse()
+                    .unwrap_or_else(|error| panic!("{signed} renders as {text}: {error}"));
+                assert!(read != 0.0, "{signed} renders as {text}");
+                assert!(
+                    (read - signed).abs() <= 1.0e-10_f64.max(signed.abs() * 5.0e-4),
+                    "{signed} renders as {text}"
+                );
                 assert!(
                     text.trim_start_matches('-').chars().count() <= MAX_CHARS,
                     "{signed} renders as {text}, past the {MAX_CHARS} character bound"
                 );
-                if text.contains('e') {
-                    scientific += 1;
-                } else {
-                    decimal += 1;
-                }
+                assert!(names(&text, signed), "{text} does not name {signed}");
             }
-            reads_back(value);
             value *= 1.5;
         }
-        assert!(decimal > 100, "only {decimal} values took the decimal arm");
-        assert!(
-            scientific > 1_000,
-            "only {scientific} values took a scientific arm"
-        );
+        assert_eq!(field_number(0.0), "0");
+        assert_eq!(field_number(1000.001), "1000.001");
+        assert_eq!(field_number(1024.0), "1024");
+        assert_eq!(field_number(0.0003746), "0.0003746");
+        assert_eq!(field_number(4.0e-7), "4e-7");
+        assert_eq!(field_number(f64::MAX), "1.7976931348623157e308");
     }
 
-    /// **Zero is the value the δ door's own predicate could not have
-    /// carried**, and it is why this rule is not `render_in` with the δ
-    /// taken out: a probed bound may BE zero, and zero reads back as
-    /// itself.
     #[test]
-    fn zero_renders_as_zero() {
-        assert_eq!(number(0.0), "0");
-        reads_back(0.0);
-    }
-
-    /// **A non-finite value has no reading, so the search exhausts and
-    /// the scientific arm names it.** Nothing parses back equal to
-    /// `NaN` and `inf - inf` is `NaN`, so every comparison in the
-    /// search is false — the arm is REACHED rather than special-cased,
-    /// which is what this row pins.
-    #[test]
-    fn a_non_finite_value_falls_to_the_scientific_arm() {
-        assert_eq!(number(f64::NAN), "NaN");
-        assert_eq!(number(f64::INFINITY), "inf");
-        assert_eq!(number(f64::NEG_INFINITY), "-inf");
-        assert!(
-            !super::reads_back("inf", f64::INFINITY),
-            "an infinity does not read back as itself, which is why the search exhausts"
-        );
-    }
-
-    /// A sign is not a distance: the grid is stated as a distance from
-    /// the value, so a negative value is rendered by the same rule.
-    #[test]
-    fn a_negative_value_is_rendered_by_the_same_rule() {
-        assert_eq!(number(-0.05), "-0.05");
-        assert_eq!(number(-4.0e-5), "-0.00004");
-    }
-
-    /// **The rule cuts false precision as well as false zeroes.** A
-    /// fixed spec pays for its finest case everywhere; the shortest
-    /// spelling that reads back pays per value.
-    #[test]
-    fn a_value_with_a_short_spelling_gets_it() {
-        assert_eq!(number(1024.0), "1024");
-        assert_eq!(number(0.05), "0.05");
-        assert_eq!(number(1500.0), "1500");
-        assert_eq!(number(0.0016), "0.0016");
-        assert_eq!(number(0.0003746), "0.0003746");
-    }
-
-    /// Below what [`DECIMALS`] places of decimal can spell, the
-    /// scientific arm carries it — and the boundary is the BOUND, not a
-    /// magnitude anybody wrote down.
-    #[test]
-    fn a_value_no_decimal_spelling_reaches_goes_scientific() {
-        assert_eq!(number(1.0e-11), "1e-11");
-        assert_eq!(number(5.0e-324), "5e-324");
-        // And just above it, where a decimal spelling still fits.
-        assert_eq!(number(1.0e-10), "0.0000000001");
-        assert_eq!(number(4.0e-7), "0.0000004");
+    fn a_spelling_names_a_value_it_is_told_as() {
+        assert!(names("1000.001", 1000.001));
+        assert!(names("0.3", 0.1 + 0.2));
+        assert!(!names("1000.0", 1000.001));
+        assert!(!names("0.000", 4.0e-7));
+        assert!(names("inf", f64::INFINITY));
+        assert_eq!(field_number(f64::INFINITY), "inf");
+        assert!(!names("not a number", 1.0));
     }
 }

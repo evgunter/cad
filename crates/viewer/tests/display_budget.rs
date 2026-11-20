@@ -206,7 +206,7 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
         mm.next_up().next_up(),
     ];
     assert!(
-        near.iter().any(|&value| readout::reads_back(&text, value)),
+        near.iter().any(|&value| readout::names(&text, value)),
         "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }
@@ -400,7 +400,7 @@ fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     let rendered = d.render_in(MM);
     assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
     assert!(
-        readout::reads_back(&rendered, mm),
+        readout::names(&rendered, mm),
         "which is the whole claim: {rendered} names {mm} on the render's grid"
     );
     assert!(
