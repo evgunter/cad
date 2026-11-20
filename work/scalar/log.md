@@ -185,3 +185,26 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   Only one, because the other's clone is in use by PR 7185's review;
   the pair's comparison was taken on the frozen head and is not
   affected. The row will say so.
+
+- 2026-11-20 — **PR 7185's review is in: NOT-MERGEABLE-AS-IS**, one
+  MAJOR, fix pass dispatched to the same implementer
+  (`fix-list-7185.md`, seven items). At `f64`, `Interval` and `Dual`
+  the allowance was measured bit-identical to the lifted spellings.
+  At `Sym` it changed what is proved, both ways: a bound of exactly
+  zero compared equal to "no bound" and proved a `Zero` it should not,
+  and the scaling doors made a form-zero margin opaque, losing proofs
+  the five mate sites had. Also taken: the `spline_trim` floor reorder
+  turns a clean "says nothing" into an in-band refusal; `new_scaled`
+  reads a negative arm as degenerate; two bounds left that fit the
+  form. Nothing argued down.
+  - **Class — "none" decided by a value inside a type that says
+    "some".** `Allowance == NONE` was a float comparison. Whether a
+    thing is present is a fact of its type (DESIGN `[unrepresentable]`).
+  - **Class — one rule written twice, half of it moved.** The spline
+    floor exists in `topo` and `geom-brep`; the sweep moved one and
+    they now clamp in different orders. A sweep's brief should ask for
+    the twins of each site it moves.
+  - **Open, recorded on the fix list**: whether `Margin<T, A = ()>`
+    earns its spread (nineteen funnel signatures) against a door that
+    takes the `f64` and returns a sign. The fix pass is told to say so
+    if it does not, and not to rework it unasked.
