@@ -9,6 +9,7 @@ cost: H
 refs: [a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build, an-operation-retakes-each-carried-chords-rung-3-certificate-five-times]
 branch: sect/certificate-by-support
 closed: 2026-11-20
+pr: 7193
 ---
 
 
