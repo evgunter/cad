@@ -1067,7 +1067,7 @@ fn every_disposition_that_carries_a_reason_states_a_real_one() {
 ///   pattern's names read off brackets, an `impl` head's type), with no
 ///   keyword literal;
 /// - a reader in another language (the Python gates:
-///   `work/guard/the-python-gates-scope-readers-are-hand-rolled.md`).
+///   `work/ciw/the-python-gates-scope-readers-are-hand-rolled.md`).
 ///
 /// A site of those shapes found by review is listed with an anchor, the
 /// item that does the reading, and held to it.

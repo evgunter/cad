@@ -4,7 +4,7 @@ kind: issue
 title: set_face_surface's certification note is a prose-held caller obligation: attach surfaces before upgrading edge descriptions
 status: closed
 opened: 2026-09-14
-refs: [S93, 713, set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left]
+refs: [713, set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left]
 priority: P3
 cost: E
 pr: 3580

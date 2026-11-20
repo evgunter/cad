@@ -8677,7 +8677,7 @@ mod properties_pane_tests {
         // `held_edges_refused` is non-zero here, so the whole-value
         // asserts below guard that member alone; `profiles_undrawn`
         // waits on a fixture that makes it non-zero
-        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
+        // (`work/chrome/committed-profiles-undrawn-has-no-witness.md`).
         assert_ne!(
             driven.app.viewport_reads,
             super::ViewportReads::default(),
