@@ -13,11 +13,13 @@ Found by the class sweep of
 (a spline chart's normal `S_u × S_v` read at a point with no
 regularity or crease reading).
 
-`step-import`'s `recognize::chart_normal_mid` and
+`step-import`'s `recognize::patch_jet_mid` and
 `recognize::chart_flipped` (`crates/step-import/src/recognize.rs`)
 read the NURBS chart's `S_u × S_v` at the domain midpoint. This is the
 orientation reference a promoted plane or cylinder is aligned to, so
-the face's `same_sense` keeps its meaning. Neither asks whether the
+the face's `same_sense` keeps its meaning; a promoted plane also takes
+its kept roll (`u_ref`) from the same jet's `S_u`, so a fix that moves
+the sample moves both together. Neither asks whether the
 chart is regular there:
 
 - **An irregular midpoint.** Where `S_u × S_v` vanishes (coincident

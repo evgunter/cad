@@ -99,3 +99,37 @@ at the ε_in direction reader — the same unlock this row already names.
 ## The basis is kept as a plane's `u_ref` (FRAME, PR 6465, 2026-11-03)
 
 Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-import/src/recognize.rs:231` stores `normal.orthonormal_basis()`'s first vector as `Surface::Plane.u_ref`. Since PR 6465, `Vec3::orthonormal_basis`'s doc (`crates/geom-core/src/linalg/vec.rs`) says the pair is "for scratch and input coordinates only, never a frame that is kept", and that a minted reference is a function of the inputs, not of the axes (D10 `[placement.frame]`). The site's comment argues the file's coordinates are the input; whether a STEP plane's `u_ref`, kept in the body, is input coordinates or a kept frame is exch's call. Recorded here so the bare door's retirement and the kept `u_ref` are decided together.
+
+## Where each site stands (EXCH, 2026-11-20)
+
+- **The plane arm** (`recognize::try_plane`): the oriented Newell sum
+  and the chart's `∂u` at the domain midpoint are one
+  `RigidMotion::from_axis_and_reference` mint under
+  `STEP_PLACEMENT_AXES` at `Band::least()` — both are an estimator's
+  choices, which the hull certificate decides, so only a vanishing one
+  determines no frame. The plane takes the frame's `w` and `u`; it
+  calls no `orthonormal_basis`. `plus_zero` stays at the carrier
+  store, on the bare vectors the frame hands out, so no mint is added
+  to `UnitVec3`.
+- **The kept `u_ref`** is a kept frame, so its roll is the input's
+  (D10 `[placement.frame]`): the patch's own `∂u` made perpendicular
+  to the normal, pinned by
+  `recognize::plane_frame::a_promoted_planes_roll_turns_with_its_patch`.
+- **`adopt::line_frame`** is `RigidMotion::gram_schmidt` of the line's
+  direction and the least-component axis, at `Band::least()`. Its roll
+  is still picked off the world axes:
+  `work/exch/a-line-rims-placed-segment-frame-rolls-off-the-world-axes.md`.
+- **The `entities.rs` copy** is gone: `Resolver::placement_built` and
+  `unit_line_direction` build through
+  `RigidMotion::from_axis_and_reference`.
+- **`half_turn` / `half_turn_curve`** live in `geom::pole_form` now.
+  Their one caller, `normalize::singularity`, reads the axis off a
+  chart's carrier (`chart.axis()`) and holds no witness, so the take
+  waits on the carrier rule.
+- **`step-export`'s `direction` and `axis2_placement`** are the carrier
+  case on the way out, on export's ground, and the carrier rule they
+  write under is what `[ev]` PR 7131 (open) is changing; they are left
+  for it.
+- **The bare `Vec3::orthonormal_basis`** keeps about twenty callers
+  outside this crate pair (`topo`, `geom-brep`, `geom`), so it does not
+  retire here; `geom_brep::newell` is no longer one of them.
