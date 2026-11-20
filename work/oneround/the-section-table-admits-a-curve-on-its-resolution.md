@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P1
 cost: H
 branch: oneround/anchored-conic
+refs: [4812, 7194]
 ---
 
 Part 2 of the design on
