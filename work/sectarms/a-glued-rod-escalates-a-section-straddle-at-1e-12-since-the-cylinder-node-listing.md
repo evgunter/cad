@@ -53,7 +53,7 @@ passes. The same merge moved the 3° slanted bores at 1e-12
       -E 'test(a_rod_glued_in_its_bore_answers_alike_in_either_order)'
 
 Related, not this row: the order dependence at the default ε
-(`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`)
+(`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`)
 and the long ellipse's representability
 (`work/germ/a-sliver-crossings-long-bisector-ellipse-is-served-past-representability.md`).
 

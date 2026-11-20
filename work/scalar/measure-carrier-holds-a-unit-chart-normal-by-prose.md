@@ -2,10 +2,11 @@
 id: measure-carrier-holds-a-unit-chart-normal-by-prose
 kind: issue
 title: editor-core eval/measure.rs Carrier::Plane holds its chart normal as unit by prose — read from stored geometry, so no witness is minted
-status: open
+status: parked
 opened: 2026-09-15
 priority: P1
 cost: E
+blocked_on: [carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes]
 ---
 
 ## Where this came from
@@ -63,3 +64,37 @@ unit, and are members with `Carrier::Plane`:
   (`work/msolve/subgroup-directions-are-unit-by-prose.md`).
 
 Moved from `work/issues/` to `work/scalar/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Re-measured and parked (2026-11-19, SCALAR orchestrator)
+
+Read against main `00a5903654`. The row's premise has been overtaken:
+it waits "on either a decision at the read … or the carrier rule
+changing", and the carrier rule changed. Fork 274 (PR 7006, decided
+2026-11-16) has `docs/DESIGN.md` say a carrier holds its directions and
+frame as the witness types, and ONEHOME's
+`carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes`
+(P1 H) builds it, naming "the directions of a line and a plane". Once
+that lands, `plane_of` and `carrier_of` read a `UnitVec3` out of the
+stored carrier and the take here is mechanical. Minting at the read now
+would add a site name, a band and a refusal path that the carrier
+change then deletes. So this row is parked on that one.
+
+What is true of the sites today:
+
+- `axis_offset` is gone (`31e76cd42c`): `Carrier::Cylinder` holds a
+  `geom::Line` and the arm reads `geom::Line::distance`, which is
+  correct for any nonzero direction.
+- `Carrier::Plane.normal`, `Carrier::Line.dir` and `Pose::Plane.normal`
+  are still bare `Vec3`s their docs call unit.
+- `parallel` forwards to the public
+  `geom_brep::directions_parallel` (`carrier_pose.rs`), whose doc says
+  "two unit directions" and whose margin
+  `Margin::levered(a.cross(b).norm(), arm)` scales with a non-unit
+  input. The prose precondition lives in that door, so the take is
+  there as well as here.
+- Two of `parallel`'s four callers (`pose_distance`, `axes_parallel`)
+  hold a `UnitVec3` from `pose::AxisLine::dir()` and strip it with
+  `.get()`; `Pose::of` strips two more. Those stop stripping in the
+  same change.
+- `angle` is `atan2(|u×v|, u·v)`, which does not need unit inputs; its
+  "unit" prose is not load-bearing.

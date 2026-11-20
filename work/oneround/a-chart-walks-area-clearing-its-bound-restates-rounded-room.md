@@ -2,10 +2,12 @@
 id: a-chart-walks-area-clearing-its-bound-restates-rounded-room
 kind: issue
 title: A chart walk's area clearing its error bound restates Rounded's room on a type of its own
-status: open
+status: dispatched
 priority: P1
 cost: E
 opened: 2026-11-02
+rides_with: half-angle-taylor-carries-value-error-tuples-beside-rounded
+branch: oneround/rounded-room
 ---
 
 

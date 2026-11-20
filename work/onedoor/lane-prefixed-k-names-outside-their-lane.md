@@ -38,12 +38,19 @@ file's production code:
 - `solid_contain.rs`: `bool_cone_partial_reach`, `bool_point_axis`,
   `bool_point_in_solid_{denom, infinity, infinity_enclosure, plane, sphere}`,
   `bool_point_past_every_reach`, `bool_ray_cone_{disc, incidence, lead, nappe}`,
-  `bool_ray_cylinder_disc`, `bool_ray_sphere_disc`, `bool_ray_torus_incidence`,
+  `bool_ray_torus_incidence`,
   `bool_sphere_iso_{meridian, rim}`,
   `bool_sphere_trim_{antipode, latitude, period, pole_end, pole_interior}`,
   `bool_wall_outline_reach`, `bool_wall_turn_true`.
 - `surface_group.rs`: `bool_wrap_rim`.
 
-That is 53 names in seven root modules. The `bool_ray_torus_*` ladder rows
-named through `RAY_TORUS_ROWS`, and the `RayRows` schedules, are read
-through consts, not literals, so the grep does not list them.
+That is 53 names in seven root modules. The `RayRows` schedules are
+read through consts, not literals, so the grep does not list them.
+
+**Update (2026-11-20, GERM's line roots move):** the line × quadric
+root finders left `solid_contain.rs` for
+`geom_brep::curve_face::line_quadric`, and their names took its prefix:
+`bool_ray_cylinder_disc`, `bool_ray_sphere_disc`, the `bool_ray_torus_*`
+ladder rows and the wall's `bool_point_in_solid_denom` site (the plane
+arm keeps that name) are `line_quadric_*` (`docs/K-REPORT.md`'s census
+note), so 51 names remain here.

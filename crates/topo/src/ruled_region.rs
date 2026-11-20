@@ -116,7 +116,6 @@ use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::region::{
     self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -316,7 +315,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
         geom::CurveKind::Circle,
         geom::CurveKind::Ellipse,
     ];
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &ruled)? else {
+    let Some(edges) = region::boundary(body, face, &ruled)? else {
         return Ok(None);
     };
     let covers: Vec<_> = edges

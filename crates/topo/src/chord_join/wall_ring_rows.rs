@@ -135,6 +135,80 @@ fn a_ring_vertex_on_the_run_says_nothing() {
     }
 }
 
+/// The unit wall `[0.1, 1.4] × [0, 1]` holding the island
+/// `[0.5, 1] × [0.3, 0.7]` with a vertex at azimuth 0.75 on each rim and
+/// at height 0.5 on each ruling, as two coaxial revolves leave their
+/// seam and section vertices: every outer edge's midpoint, like the
+/// island's middle `(0.75, 0.5)`, lies on azimuth 0.75 or height 0.5.
+/// Returns the body, the wall and the island's face.
+fn aligned_island() -> (Body<f64>, FaceKey, FaceKey) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        (0.1, 1.4),
+        (0.0, 1.0),
+        tol(),
+    );
+    let cyl = body.get_face(face).unwrap().surface;
+    let island = ring_at(&mut body, face, at(0.5, 0.5), &[]);
+    let fan = |he| MevSite::Fan { he1: he, he2: he };
+    let e = body
+        .mev_line(MevSite::Lone { r#loop: island }, at(0.5, 0.3), tol())
+        .unwrap();
+    let first = e.he_plus;
+    let mut last = e;
+    for (corner, rim) in [
+        (at(0.75, 0.3), Some((0.3, (0.5, 0.75)))),
+        (at(1.0, 0.3), Some((0.3, (0.75, 1.0)))),
+        (at(1.0, 0.5), None),
+        (at(1.0, 0.7), None),
+        (at(0.75, 0.7), Some((0.7, (1.0, 0.75)))),
+        (at(0.5, 0.7), Some((0.7, (0.75, 0.5)))),
+    ] {
+        last = match rim {
+            Some((v, span)) => {
+                let arc = rim_arc(&mut body, cyl, v, span);
+                body.mev(fan(last.he_minus), corner, arc, tol()).unwrap()
+            }
+            None => body.mev_line(fan(last.he_minus), corner, tol()).unwrap(),
+        };
+    }
+    let after = body.get_half_edge(last.he_plus).unwrap().next;
+    let made = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: first,
+                he2: after,
+            },
+            tol(),
+        )
+        .unwrap();
+    (body, face, made.face)
+}
+
+/// **A ring vertex every ruled path from which runs through a run
+/// vertex reads its side by a detour.** From the island's middle
+/// `(0.75, 0.5)`, the ruling meets the rims' vertices and the parallel
+/// the rulings' vertices, toward every outer-loop point: only a path
+/// turning at an azimuth or a height no run vertex has decides.
+#[test]
+fn a_ring_vertex_aligned_with_run_vertices_reads_its_side() {
+    let (mut body, face, run) = aligned_island();
+    for (u, v, want) in [
+        (0.75, 0.5, RingSide::In),
+        (0.75, 0.2, RingSide::Out),
+        (1.2, 0.5, RingSide::Out),
+    ] {
+        let ring = ring_at(&mut body, face, at(u, v), &[]);
+        assert_eq!(
+            wall_side(&body, (face, run), ring).unwrap(),
+            want,
+            "the ring vertex at ({u}, {v})"
+        );
+    }
+}
+
 /// The slope of [`tilted_island`]'s rims: their planes are tilted
 /// `atan(TILT)` about `y`, so each cuts the unit cylinder in an ellipse
 /// whose semi-axes differ by more than the island is wide.

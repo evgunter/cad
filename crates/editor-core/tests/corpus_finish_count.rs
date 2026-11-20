@@ -61,6 +61,12 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// witness) read the other through its seat and move no body (PR 7088),
 /// so no moved f64 sweep leaf is finished again on its image for them:
 /// 662 -> 466, the 196 exactly those re-finishes (routing the seat back
-/// through the whole-body move puts back 662).
+/// through the whole-body move puts back 662). Then a gather of placed
+/// copies grafts each through its seat (`topo::boolean::graft_placed`,
+/// PR 7099): the image is the aggregate's construction state, and the
+/// aggregate finishes once, so no mapped f64 leaf is finished on its
+/// image at the gather: 466 -> 445 (heat_sink 44 -> 39, declared_tangency
+/// 6 -> 4, kitchen_sink 21 -> 15, part_select 8 -> 6, pin_in_bore
+/// 12 -> 6).
 #[cfg(debug_assertions)]
-const PINNED: u64 = 466;
+const PINNED: u64 = 445;

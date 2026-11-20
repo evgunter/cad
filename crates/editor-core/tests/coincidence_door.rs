@@ -2836,7 +2836,7 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
         .copies
         .iter()
         .map(|copy| {
-            let body = &*copy.body;
+            let body = &crate::fixture::in_space(&copy.body);
             body.vertices()
                 .map(|(_, v)| body.get_point(v.point).unwrap().y)
                 .fold(f64::INFINITY, f64::min)
@@ -3202,7 +3202,7 @@ fn rounded_mouth_volume() -> f64 {
 /// (`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
 /// holds each to it), so both meet the bar of the registry they stand
 /// beside, which requires every lane green (whether they join it:
-/// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
+/// `work/ciw/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
 /// coaxial rows change in number or kind, or if its `Interval` outcome
@@ -3793,25 +3793,8 @@ fn tag(var: VarId) -> String {
 ///
 /// Red if the edit is chosen by cell order, or names a pose no mate
 /// reaches.
-///
-/// Pinned red at every ε row: the union refuses `RingHomingAmbiguous`
-/// (`work/sect/a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path.md`).
 #[test]
 fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the housing, shaft and collar union",
-        &[
-            "evaluates",
-            "UnionFoldStep { member: 2",
-            "RingHomingAmbiguous { ring: LoopKey(1v3) }",
-        ],
-        the_axis_edit_rows,
-    );
-}
-
-fn the_axis_edit_rows() {
     use crate::corpus::{Recorder, placed_in, revolved};
     use editor_core::{Coord, Dimension, Operand, TargetAxis};
     let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {

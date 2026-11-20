@@ -32,7 +32,7 @@
 //!
 //! An operand's arena storage permuted is not among them: `topo` has no
 //! helper that permutes a body
-//! (`work/namecheck/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
+//! (`work/refs/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
 //!
 //! Each test settles two lists. Its admissions are the cases a
 //! perturbation moves today, each with its exact count of differing
@@ -956,7 +956,7 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
-    "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
+    "work/borders/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
 
 // ------------------------------------------------------------------ //
 // Merged chords
