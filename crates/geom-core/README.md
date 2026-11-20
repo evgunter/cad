@@ -142,6 +142,69 @@ value proved interior to one vector's domain, carried without that
 vector — stays crate-private for it, the type being a guard only in
 combination with the privacy of its two consumers, argued at its doc.
 
+## Reading a bracket where nothing certifies (DUAL-DESIGN DL5)
+
+A *bracket read* is `Bounds::lo`/`hi`: it turns a scalar `T` into an
+`f64`, and so drops whatever else the scalar carries, a dual's tangent
+or `Sym`'s symbols. A *lane door* is a bound that keeps such a scalar
+out (`CertifiedBounds`). *Re-entry* is a computed `f64` turned back
+into a `T`. Three clauses say when each is right, and every other
+statement of them (`real.rs`, `dual.rs`, the bounds census) cites
+these and restates neither.
+
+**DL5.1 — the read.** At a dual a bracket read returns the base
+scalar's bracket, bit for bit. A read that is legitimate at the base
+scalar therefore needs no lane door, provided the `f64` it yields
+never re-enters `T`. That `f64` ends one of two ways:
+
+- it **leaves**: an error field, a box, a report;
+- it is **only compared**: a branch, an index, a flag, the pick of
+  which candidate is built or reported.
+
+Neither owes a tangent. The branch taken carries `T` values computed
+at `T`, with their own tangents, exactly as `min` returns its winner's.
+A read that mints a certificate object or feeds a `CertifiedEnclosure`
+consumer is never exempt: it takes a lane door. Whether a bracket may
+decide anything at all is not this clause's question; that is the
+`Bounds` scope rule's ("brackets never decide", `real.rs`), at every
+scalar.
+
+**DL5.2 — re-entry.** A runtime `f64` does not become a free `T`
+because a `T` was the only spelling to hand. Structure is still found
+at `f64` (a search, a subdivision, a comparison), and what that hands
+back is sorted by what the `f64` is:
+
+| The `f64` is | What the code does with it |
+|---|---|
+| a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
+| a place the code chose to evaluate at: a sample, a station, a cell corner, a split | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
+| data built whole at `f64` | builds it at `T` |
+| a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
+
+One runtime `f64` still becomes a `T`: a solved value the result is
+built on (a root, a foot, a crossing), through `Real::from_computed`.
+Where the solve has a closed form the value stays in `T` and nothing
+re-enters.
+
+**DL5.3 — where a dual is admitted.** A dual belongs where the build
+and its measurements run, and passes through decisions on its value
+alone (DL1, DL3). Code that certifies is closed to it by type, on its
+interior as well as at its doors:
+
+- `Certifies` is the bound that says a scalar certifies and nothing
+  else. It grants no bracket read, so it is free to write: no list,
+  no ratification. Only a bracket read is gated. A dual does not
+  implement it.
+- Every lane type is declared over `T: Certifies`, so every function
+  that names a lane carries the bound.
+- A scalar's lanes are an associated type with no values at a dual,
+  never an `Option` a dual answers `None` to.
+- In a file listed as certification code, a generic item without
+  `Certifies` fails the gate.
+- A bound says which scalars the code has a meaning for. It is not
+  widened to every scalar the body happens to compile at, and no work
+  is done to support a scalar the code has no meaning for.
+
 ## Choosing among spellings of one quantity (W1)
 
 **W1 — a spelling is chosen by what its width and its error scale

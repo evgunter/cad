@@ -14,7 +14,7 @@ refs: [3847]
 ## What
 
 `line_sphere_roots` (`crates/topo/src/solid_contain.rs`)
-decides the discriminant (`bool_ray_sphere_disc`, the squared
+decides the discriminant (`line_quadric_sphere_disc`, the squared
 half-chord over `2r`) and returns `quadratic_roots` with no meter on
 where the roots are. The circle doors refuse a root whose position
 the rounding moves by more than the band (`bool_circle_*_root_slack`,

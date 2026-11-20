@@ -1,7 +1,7 @@
 ---
 id: a-lily-wall-ray-reads-the-torus-quartic-disc-in-band-at-1e-6
 kind: issue
-title: k-lint (dev-probe): bool_ray_torus_disc lands in the band 14 times on the lily at 1e-6, at |m| 6.0e-6 and 7.8e-6
+title: k-lint (dev-probe): line_quadric_torus_disc lands in the band 14 times on the lily at 1e-6, at |m| 6.0e-6 and 7.8e-6
 status: open
 opened: 2026-11-10
 priority: P3
@@ -18,8 +18,8 @@ Measured with `scripts/k_probe_sweep.sh`'s dump half on main `9fe94da35`
 
 ## What
 
-`bool_ray_torus_disc` is the disc row of `topo`'s ray × torus quartic
-(`geom_brep::rows::RAY_TORUS`, read by
+`line_quadric_torus_disc` is the disc row of `topo`'s ray × torus quartic
+(`geom_brep::rows::LINE_TORUS`, read by
 `crates/topo/src/solid_contain.rs` through `RAY_TORUS_ROWS`,
 ~2880). At 1e-6 it lands in the band 14 times: 8 on `demo/lily_walls`
 and 4 on `demo/lily` at −5.966e-6, and 2 on `demo/lily_walls` at
@@ -33,7 +33,7 @@ first question to ask.
 ## The family it belongs to
 
 It is one of three small rule-1 families on the lily at 1e-6, 26
-samples in all: `bool_ray_torus_disc` (14, `inside`),
+samples in all: `line_quadric_torus_disc` (14, `inside`),
 `tangent_sector_order2` (8, `splice`) and `bool_conic_quadric_sub_clear`
 (4, `germ`). Each margin sits a few microns from zero. At 1e-6 that is
 inside the band `(1e-6, 1e-5)`, and at 1e-9 it is definite. This is the
