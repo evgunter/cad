@@ -148,8 +148,7 @@ A *bracket read* is `Bounds::lo`/`hi`: it turns a scalar `T` into an
 `f64`, and so drops whatever else the scalar carries, a dual's tangent
 or `Sym`'s symbols. A *lane door* is a bound that keeps such a scalar
 out (`CertifiedBounds`). *Re-entry* is a computed `f64` turned back
-into a `T` through `Real::from_computed`; at a dual it returns with
-tangent zero. Two clauses say when each is right, and every other
+into a `T`. Two clauses say when each is right, and every other
 statement of them (`real.rs`, `dual.rs`, the bounds census) cites
 these and restates neither.
 
@@ -170,23 +169,29 @@ decide anything at all is not this clause's question; that is the
 `Bounds` scope rule's ("brackets never decide", `real.rs`), at every
 scalar.
 
-**DL5.2 — re-entry.** Let `f` be the re-entered `f64`, `p` the inputs
-and `out` any `T` value built from `f`. A dual's tangent of `out` is
-missing the term `∂out/∂f · df/dp`. A re-entry is right where that
-term is zero:
+**DL5.2 — re-entry.** A number computed outside `T` and turned back
+into a `T` is right in its value and carries nothing else: the
+computation that could have said how it moves with the inputs did not
+run at `T`. Each door says one true thing:
 
-- `f` cannot move with the inputs; or
-- `out` does not depend on `f` to first order: a seed the iteration at
-  `T` converges away from, a march or sample point the result is
-  insensitive to the position of.
+| Door | It says | Tangent at a dual | At `Sym` |
+|---|---|---|---|
+| `Real::from_f64` | a constant of the model | zero | an exact literal |
+| `Real::from_computed` | computed outside `T` | unknown: the degraded tangent a kink gives, NaN over `f64` and the whole line over an enclosure | an opaque unknown |
+| the stationary door | computed, and what is built from it is flat in it to first order | zero | an opaque unknown |
 
-Anywhere else the code is guarded, and two things are guards: it is
-unreachable at a dual (a lane door, as `geom`'s `project` has), or the
-value forfeits its tangent in its type (E9's `UnavailableBecause`, or
-poison). A sentence saying a tangent is partial is not a guard: a
-reader of the dual sees the tangent and not the sentence. This holds
-whatever door produced the `f64`, a `Bounds` read or any other.
-`Sym`'s half of the same door is ERROR-DESIGN E12.
+An unknown tangent is always a true claim, so `from_computed` needs no
+argument at its call site and no gate: a value built from it that is
+only decided on or reported never reads the tangent, and one that is
+differentiated forfeits it (ERROR-DESIGN E9), so the sensitivity reads
+unavailable and never a number. A zero for a computed value is claimed
+only through the stationary door: the seed of a step taken at `T`, the
+position of a smooth extremum, a split the result does not depend on.
+Every use is on a gated list with its kind and is pinned against
+finite differences. A site that owes a real tangent computes it at
+`T`: it keeps the quantity it already has there, or takes a step at
+`T` from a stationary seed, which carries the implicit-function
+derivative.
 
 ## Choosing among spellings of one quantity (W1)
 

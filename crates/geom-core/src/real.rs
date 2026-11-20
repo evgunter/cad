@@ -342,11 +342,9 @@ pub trait Real:
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// At a dual the value returns with tangent zero, so a caller owes
-    /// DL5.2 (the crate README, "Reading a bracket where nothing
-    /// certifies"): what is built from it does not move with it to first
-    /// order, or it cannot move with the inputs, or the caller is
-    /// unreachable at a dual or forfeits the tangent in its type.
+    /// What the value carries at a dual, and how a caller claims a zero
+    /// tangent for a computed value instead, is DL5.2 (the crate README,
+    /// "Reading a bracket where nothing certifies").
     fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
