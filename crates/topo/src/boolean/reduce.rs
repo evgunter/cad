@@ -669,13 +669,7 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = crate::separating::planar_axis(
-            y,
-            face,
-            || crate::census::face_reach(y, face, band),
-            band,
-        )
-        .ok_or(VertexRefusal::Plane(
+        let normal = crate::separating::planar_axis(y, face, band).ok_or(VertexRefusal::Plane(
             "the face's outward normal does not read as a unit direction over its reach",
         ))?;
         Ok(SectionPlane {

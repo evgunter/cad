@@ -293,13 +293,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             .collect();
         rows.sort_unstable();
         rows.dedup();
-        for (vertex, here, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
+        for (vertex, _, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
             for p in planes {
                 if !at.iter().any(|q| q.same_move(p)) {
                     at.push(p);
                 }
             }
-            arms.extend(corner_arms(body, *vertex, *here));
+            arms.extend(corner_arms(body, *vertex)?);
         }
         let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
         solve_planar_corner(group[0], &planes, &arms, band)
@@ -677,36 +677,47 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
     Vec3::new(p.x, p.y, p.z)
 }
 
-/// The chord length of every edge ending at a vertex — the lengths the
-/// corner's conditioning is levered by (see [`solve_planar_corner`]).
+/// How far every edge ending at a vertex reaches from it — the lengths
+/// the corner's conditioning is levered by (see
+/// [`solve_planar_corner`]), each read off the edge's cover from below
+/// ([`crate::cover::edge_reach_bounds`]): a corner is resolved only on a
+/// definite sign.
 ///
 /// **The axial door keeps its own copy, levered by ARC LENGTH, and the
 /// difference is load-bearing rather than a duplication to collapse.**
-/// A chord is the arc length here because this door's bodies are
-/// all-planar and a planar edge is a straight segment: no closed edge
-/// exists for a chord to read zero on. The axial door's do — a chart
-/// with ONE seam closes on itself — and a zero arm makes every meter
-/// read `Zero` and call a perfectly transversal corner degenerate,
-/// which is what it measured on the revolved tube.
-fn corner_arms<T: Real>(
+/// A line edge's reach from its end is its arc length, and this door's
+/// bodies are all-planar, so every edge is a straight segment: no closed
+/// edge exists for the reach to read zero on. The axial door's do — a
+/// chart with ONE seam closes on itself — and a zero arm makes every
+/// meter read `Zero` and call a perfectly transversal corner
+/// degenerate, which is what it measured on the revolved tube.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::CarrierLaneUnsupported`] for an edge with no
+/// certified curve, whose reach no cover bounds.
+fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-    here: Point3<T>,
-) -> Vec<geom_core::Lever<T>> {
+) -> Result<Vec<geom_core::Lever<T>>, ReplaceFaceError<T>> {
+    let here = body.point_of(vertex, proven(&body.vertices, vertex, EntityId::Vertex));
     body.vertex_orbit_linked(vertex)
         .into_iter()
         .map(|he| {
-            let next = proven(&body.half_edges, he, EntityId::HalfEdge).next;
-            let far = linked(
-                &body.half_edges,
-                next,
-                EntityId::HalfEdge,
+            let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let edge = linked(
+                &body.edges,
+                key,
+                EntityId::Edge,
                 EntityId::HalfEdge(he),
-                "next",
-            )
-            .start;
-            let there = body.linked_vertex_point(far, EntityId::HalfEdge(next), "start");
-            geom_brep::ExtentBall::point(here).lever_from(there)
+                "edge",
+            );
+            crate::cover::edge_reach_bounds(body, key, edge, here)
+                .map(geom_brep::LeverBounds::below)
+                .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge: key,
+                    what: "it has no curve to move",
+                })
         })
         .collect()
 }

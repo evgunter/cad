@@ -2391,20 +2391,21 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
 ///
 /// [`PointInSolidError::CorruptFace`] for a face with no cover (a
 /// poisoned net, data that is not a finite number), which no reach
-/// bounds.
+/// bounds; [`PointInSolidError::ZeroVolumeBody`] for an empty
+/// selection, which holds no face to reach.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
     band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    faces
-        .iter()
-        .try_fold(geom_brep::ExtentBall::point(q).lever(), |reach, &face| {
-            crate::cover::face_reach_from(body, face, q, band)
-                .map(|far| reach.max(far))
-                .map_err(|_| PointInSolidError::CorruptFace { face })
-        })
+    let mut reach: Option<Lever<T>> = None;
+    for &face in faces {
+        let far = crate::cover::face_reach_from(body, face, q, band)
+            .map_err(|_| PointInSolidError::CorruptFace { face })?;
+        reach = Some(reach.map_or(far, |r| r.max(far)));
+    }
+    reach.ok_or(PointInSolidError::ZeroVolumeBody)
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face

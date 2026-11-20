@@ -497,13 +497,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let edge = body.get_edge(h.edge)?;
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
-    let end = body.half_edge_start_point(body.mate(he)?)?;
-    let reach = match curve.carrier() {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
-        }
-        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
-    };
+    let reach = crate::cover::edge_reach_bounds(body, h.edge, edge, base)?;
     let (dir, bend) = if secant {
         (curve.mid_point() - base, None)
     } else {
@@ -1285,10 +1279,18 @@ fn piece_beside<T: Decide>(
         if !crate::census::edge_is_line(body, e) {
             return Err(Limit::BesideNoPiece.into());
         }
-        let plus = body
+        let edge = body
             .get_edge(e)
-            .ok_or_else(|| desync("a division edge no longer resolves"))?
-            .he_plus;
+            .ok_or_else(|| desync("a division edge no longer resolves"))?;
+        let plus = edge.he_plus;
+        let curve = body
+            .edge_curve_linked(e, edge)
+            .certified()
+            .ok_or_else(|| desync("a division edge has no certified line"))?;
+        let (carrier, (t0, t1)) = (curve.carrier(), curve.params());
+        let at = carrier
+            .param_near(p, geom::mid_param(t0, t1))
+            .ok_or_else(|| desync("a division edge's line does not place its cut point"))?;
         let normal = normal_at(
             ((body, operand), f, p),
             "a piece of a fate cut's kept face has no normal on its division's edge",
@@ -1303,15 +1305,19 @@ fn piece_beside<T: Decide>(
             let (Some(run), [Some(start), Some(end)]) = (departure(body, h), ends) else {
                 return Err(desync("a division edge's half-edge does not walk").into());
             };
-            // Each bound runs straight from `p` to an end of the line edge,
-            // which is its reach from `p`.
-            let bound = |dir, far| Leaving {
+            // Each bound runs along the line edge from `p` to one of its
+            // ends: its reach is that piece's, read from `p`.
+            let bound = |dir, (t, far)| Leaving {
                 dir,
-                reach: LeverBounds::Exact(geom_brep::ExtentBall::point(far).lever_from(p)),
+                reach: crate::cover::piece_reach_bounds(carrier, (at, t), (p, far), p),
                 bend: run.bend,
             };
+            let (to_end, to_start) = if h == plus { (t1, t0) } else { (t0, t1) };
             // A straight corner's bounds leave apart: it never wraps.
-            let straight = (bound(run.dir, end), bound(-run.dir, start));
+            let straight = (
+                bound(run.dir, (to_end, end)),
+                bound(-run.dir, (to_start, start)),
+            );
             if corner_holds(Ray::bisector(d), straight, || Ok(false), normal, band)? == Holds::In {
                 holding.push(f);
             }

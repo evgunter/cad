@@ -207,12 +207,12 @@ impl<T: Decide> IsoPiece<T> {
         if self.forward { (lo, hi) } else { (hi, lo) }
     }
 
-    /// The piece's chord, the arm its readings are levered at (no longer
-    /// than the piece), and its direction of travel where it stops.
+    /// The piece's extent from below ([`geom_brep::edge_extent_inf`]),
+    /// the arm its readings are levered at (no longer than the piece),
+    /// and its direction of travel where it stops.
     pub(super) fn travel(&self) -> (Lever<T>, Vec3<T>) {
-        let (start, stop) = self.ends();
-        let chord = geom_brep::ExtentBall::point(start).lever_from(stop);
         let carrier = self.carrier();
+        let chord = geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1);
         let along = if self.forward {
             carrier.deriv(self.span.1)
         } else {

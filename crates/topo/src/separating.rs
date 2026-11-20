@@ -130,12 +130,7 @@ pub(crate) fn face_axes<'b, T: Decide + 'b>(
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for (body, face) in faces {
-        let Some(unit) = planar_axis(
-            body,
-            face,
-            || crate::census::face_reach(body, face, band),
-            band,
-        ) else {
+        let Some(unit) = planar_axis(body, face, band) else {
             continue;
         };
         if let Some(key) = key {
@@ -160,23 +155,23 @@ pub(crate) fn world_axes<T: Decide>() -> [UnitVec3<T>; 3] {
 }
 
 /// A planar face's outward normal as a unit direction, levered by the
-/// diagonal of its reach `(lo, hi)`, the length it is consumed over.
-/// `None` for a face that is not planar, one with no reach, or a normal
-/// the band cannot read. The reach is read only once the face is known
-/// planar, so a curved face costs no reach here.
+/// diameter of the face's cover ([`crate::cover::face_cover`],
+/// [`geom_brep::ExtentBall::diameter`]), the length it is consumed over.
+/// `None` for a face that is not planar, one with no cover, or a normal
+/// the band cannot read. The cover is read only once the face is known
+/// planar, so a curved face costs no cover here.
 pub(crate) fn planar_axis<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    reach: impl FnOnce() -> Option<(Point3<T>, Point3<T>)>,
     band: Band,
 ) -> Option<UnitVec3<T>> {
     let n = crate::face_normal::face_outward_normal(body, face)?;
-    let (lo, hi) = reach()?;
+    let cover = crate::cover::face_cover(body, face, band).ok()?;
     UnitVec3::levered(
         n.vec(),
         PAIR_NORMAL,
         band,
-        geom_brep::ExtentBall::box_diagonal(lo, hi),
+        geom_brep::ExtentBall::of_cover(&cover).diameter(),
     )
     .ok()
 }

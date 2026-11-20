@@ -295,6 +295,13 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent((hi - lo).norm())
     }
 
+    /// **The ball's diameter**: the farthest two of its points stand
+    /// apart, a bound from above on the diameter of the region it holds.
+    #[must_use]
+    pub fn diameter(self) -> Lever<T> {
+        Lever::of_consumed_extent(self.radius * T::from_f64(2.0))
+    }
+
     /// **The ball about `at` holding a region**: out to `cover`'s far
     /// distance from `at` ([`Cover::distance_range`]). A region with no
     /// cover (`None`) reads the poison ball ([`Self::of_covered`]), which

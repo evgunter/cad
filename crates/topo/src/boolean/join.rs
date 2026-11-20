@@ -2790,16 +2790,12 @@ fn frame_lever<T: Decide>(
     band: Band,
 ) -> Result<(geom_core::Point3<T>, FrameExtent<T>), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let witnesses = |body: &Body<T>, f: FaceKey| {
-        super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
-            unreachable!(
-                "{}, whose surface the caller resolved, does not resolve",
-                crate::entity::EntityId::Face(f)
-            )
-        })
-    };
-    let at =
-        frame_reading(sa, witnesses(body_a, face_a), witnesses(body_b, face_b)).map_err(desync)?;
+    let at = frame_reading(
+        sa,
+        || crate::cover::face_cover(body_a, face_a, band),
+        || crate::cover::face_cover(body_b, face_b, band),
+    )
+    .map_err(desync)?;
     let extent =
         frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, band).map_err(desync)?;
     Ok((at, extent))
@@ -2819,32 +2815,30 @@ fn germ_section_frame<T: Decide>(
 }
 
 /// **Where the germ frame reads its axis rows**: the centre of the
-/// curved face's boundary vertices (the first face's where both are
-/// curved), a point among those the section is consumed at, so the gap is
-/// read where the section is and not where a carrier's origin is stored.
-/// [`pair_section_frame_at`] levers the plane×cylinder pair at its wall's
-/// axial extent from this point ([`frame_extent`]). No lever is a ball
-/// chosen around the faces (`geom_brep::Reach`'s module docs).
+/// curved face's cover's ball (the first face's where both are curved;
+/// [`crate::cover::face_cover`], [`geom_brep::ExtentBall::of_cover`]), a
+/// point derived from the region the section is consumed on, so the gap
+/// is read where the section is and not where a carrier's origin is
+/// stored. [`pair_section_frame_at`] reads the datum at this point's
+/// foot and levers the plane×cylinder pair at its wall's axial extent
+/// from it ([`frame_extent`]). No lever is a ball chosen around the
+/// faces (`geom_brep::Reach`'s module docs).
 ///
 /// # Errors
 ///
-/// A face pair with no boundary vertices.
+/// A curved face with no cover.
 pub(super) fn frame_reading<T: Decide>(
     sa: &geom::Surface<T>,
-    on_a: Vec<geom_core::Point3<T>>,
-    on_b: Vec<geom_core::Point3<T>>,
+    cover_a: impl FnOnce() -> crate::cover::FaceCovered<T>,
+    cover_b: impl FnOnce() -> crate::cover::FaceCovered<T>,
 ) -> Result<geom_core::Point3<T>, &'static str> {
     let curved = match sa {
-        geom::Surface::Plane { .. } => on_b,
-        _ => on_a,
+        geom::Surface::Plane { .. } => cover_b(),
+        _ => cover_a(),
     };
-    let points: Vec<geom_brep::ExtentBall<T>> = curved
-        .into_iter()
-        .map(geom_brep::ExtentBall::point)
-        .collect();
-    geom_brep::ExtentBall::enclosing(&points)
-        .map(|ball| ball.center())
-        .ok_or("a germ face pair has no boundary vertices")
+    curved
+        .map(|cover| geom_brep::ExtentBall::of_cover(&cover).center())
+        .map_err(|_| "a germ face pair's curved face has no cover")
 }
 
 /// **What [`pair_section_frame_at`] levers a pair at**: the consumed
@@ -2967,14 +2961,14 @@ fn cone_reach<T: Decide>(
 /// the pair at (`glue::section_door`): the measure [`cone_reach`] takes
 /// of one face pair, taken over every met face pair on the surface pair
 /// (`pairs`, each its cone face then its plane face) from one point, the
-/// centre of the ball about all their cone faces' boundary vertices.
-/// How far any of them reaches either way along the cone's axis and
-/// from that point, each cone face narrowed to its plane face's window,
-/// so no one face's extent sets the lever for its pieces and siblings.
+/// centre of the ball of all their cone faces' covers' hull. How far any
+/// of them reaches either way along the cone's axis and from that point,
+/// each cone face narrowed to its plane face's window, so no one face's
+/// extent sets the lever for its pieces and siblings.
 ///
 /// # Errors
 ///
-/// A pair list with no boundary vertex, or a cone face whose reach does
+/// An empty pair list, or a cone face with no cover or whose reach does
 /// not read (a lone loop).
 pub(super) fn surface_pair_reach<T: Decide>(
     (cone_body, plane_body): (&Body<T>, &Body<T>),
@@ -2982,15 +2976,14 @@ pub(super) fn surface_pair_reach<T: Decide>(
     cone: &geom::Surface<T>,
     band: Band,
 ) -> Result<geom_brep::Reach<T>, &'static str> {
-    let corners: Vec<geom_brep::ExtentBall<T>> = pairs
-        .iter()
-        .filter_map(|&(fc, _)| super::carrier_pair::face_witnesses(cone_body, fc))
-        .flatten()
-        .map(geom_brep::ExtentBall::point)
-        .collect();
-    let at = geom_brep::ExtentBall::enclosing(&corners)
-        .ok_or("a plane×cone surface pair's cone faces have no boundary vertices")?
-        .center();
+    let at = crate::cover::hull_of_covers(
+        pairs
+            .iter()
+            .map(|&(fc, _)| crate::cover::face_cover(cone_body, fc, band)),
+    )
+    .ok_or("a plane×cone surface pair with no face pair")?
+    .map(|cover| geom_brep::ExtentBall::of_cover(&cover).center())
+    .map_err(|_| UNCOVERED_WALL)?;
     let mut most: Option<(T, T, geom_core::Lever<T>)> = None;
     for &(fc, fp) in pairs {
         let FrameExtent::Cone(geom_brep::Reach::Face {
@@ -6654,6 +6647,11 @@ mod frame_dispatch_tests {
         Point3::new(0.0, 0.0, 0.0)
     }
 
+    /// A face's boundary vertices as its cover, for a row with no body.
+    fn points(on: Vec<Point3<f64>>) -> crate::cover::FaceCovered<f64> {
+        Ok(geom::cover::Cover::points(on).expect("finite vertices"))
+    }
+
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
@@ -6693,7 +6691,7 @@ mod frame_dispatch_tests {
             ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
             ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
         ] {
-            let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+            let at = super::frame_reading(a, || points(on_a), || points(on_b)).expect("a reading");
             let got = pair_section_frame(a, b, at, band());
             assert!(
                 matches!(got, Ok(None)),
@@ -6744,7 +6742,8 @@ mod frame_dispatch_tests {
                 ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
                 ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
             ] {
-                let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+                let at =
+                    super::frame_reading(a, || points(on_a), || points(on_b)).expect("a reading");
                 let got = pair_section_frame(a, b, at, band());
                 assert!(
                     matches!(got, Ok(None)),
@@ -6764,9 +6763,9 @@ mod frame_dispatch_tests {
     /// The frame of the plane through `base` of normal `(cos β, 0, sin β)`,
     /// `sin β = k·ε/lever`, and the unit wall about `z` that `face` of
     /// `body` lies on, in both face orders, read and levered as
-    /// [`super::germ_section_frame`] reads them: at the wall's boundary
-    /// vertices' centre ([`super::frame_reading`]), levered at the wall's
-    /// axial extent from there ([`super::frame_extent`]).
+    /// [`super::germ_section_frame`] reads them: at the centre of the
+    /// wall's cover's ball ([`super::frame_reading`]), levered at the
+    /// wall's axial extent from there ([`super::frame_extent`]).
     fn wall_frames(
         body: &crate::Body<f64>,
         face: crate::entity::FaceKey,
@@ -6794,19 +6793,14 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
         };
         let wall = crate::boolean::join::keyed_surface(body, face).1.clone();
-        let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
+        let cover = || crate::cover::face_cover(body, face, band());
         [
             ("plane, wall", &plane, &wall),
             ("wall, plane", &wall, &plane),
         ]
         .into_iter()
         .map(|(label, a, b)| {
-            let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
-                (Vec::new(), on.clone())
-            } else {
-                (on.clone(), Vec::new())
-            };
-            let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+            let at = super::frame_reading(a, cover, cover).expect("a reading");
             let extent = super::frame_extent((a, body, face), (b, body, face), at, band()).unwrap();
             let got = super::one_loop(super::pair_section_frame_at(a, b, at, extent, band()));
             (label, got)

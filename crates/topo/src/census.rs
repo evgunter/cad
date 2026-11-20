@@ -9865,7 +9865,7 @@ fn backstop_apart<T: Decide>(
     use crate::separating::{Item, apart_by, planar_axis};
     let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
-        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
+        .filter_map(|(f, _)| planar_axis(body, f, band))
         .collect();
     axes.extend(proposed);
     apart_by(
