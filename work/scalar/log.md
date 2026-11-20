@@ -208,3 +208,28 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
     earns its spread (nineteen funnel signatures) against a door that
     takes the `f64` and returns a sign. The fix pass is told to say so
     if it does not, and not to rework it unasked.
+
+- 2026-11-20 — **PR 7159's delta re-review is in: APPROVE-WITH-FIXES,
+  no MAJOR**, on head `e7bd8eb468ec`. The first pass's fixes are
+  closed; the rounding core held over 70,336 floats against an exact
+  rational oracle with the grid restated independently; the three
+  items the implementer argued down stand. A second, small fix pass
+  went to the same implementer (`fix-list-7159-delta.md`, six items):
+  a read-back refusal tells a derived chain vertex as given
+  (`profile/src/path.rs:5351`); a `where` clause with parentheses
+  hides a whole type from the gate; a line pin does not stop a pinned
+  name being rebound to a scalar; two test rows; one backwards
+  sentence in the PR body. Nothing argued down. After it the unit
+  merges on green and the orchestrator's read: the remainder is
+  mechanical.
+  - **Class — a list of checked sites is the checker's own claim.**
+    The first fix pass was asked to re-read every given-role site and
+    list them; it listed the read-back point "authored, kept", and
+    the first review had passed the same site unread. The filed row
+    "a role is a constructor name nothing checks" is the durable
+    home; unit 2's brief asks for the provenance of each given, not
+    a list.
+  - **Class — a pin that names a line holds the line's text, not what
+    its names are bound to.** Inline captures (`{verb:?}`) make the
+    pinned text independent of the value formatted. A gate's header
+    must state what its pin holds.
