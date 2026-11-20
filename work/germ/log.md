@@ -1643,3 +1643,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - door K prefixes nest (`conic_quadric_cone_*` inside `conic_quadric_*`, `line_quadric_torus_*`).
 
   The U3a spec's §a.1 types are to absorb all three.
+- 2026-11-20 21:43 — **U3a dispatched**, stacked on U2's branch, as cloud session `session_01BJC3B4jUEYDs8rkzRF5xvr` (branch `germ/crossing-pose-cross`). It follows the spec at `germ/crossing-u3-spec`, plus the three U2-review items above. Tier **dual** (H): it fixes the answer and refusal types that U4 and U5 build on. With Fable out, the pair is two Opus reviewers dispatched concurrently on one frozen head, and no model-compare row is recorded.
