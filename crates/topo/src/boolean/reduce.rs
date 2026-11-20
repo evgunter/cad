@@ -2226,7 +2226,7 @@ fn edge_covers<T: Decide>(
 /// same arms as a line.** A circle or an ellipse against a sphere or a
 /// cylinder wall has a degree-2 trigonometric polynomial for its
 /// residual, in its eccentric anomaly, which one door decides
-/// ([`super::conic_quadric`]): a first harmonic, with closed-form roots,
+/// ([`geom_brep::curve_face::conic_quadric`]): a first harmonic, with closed-form roots,
 /// wherever its second harmonic is in the zero band (a circle against a
 /// sphere, a circle square to a wall's axis), a quartic in the tangent
 /// half-angle otherwise. Against a cone the same door reads the cone's
@@ -2628,7 +2628,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // root lanes.** An arc the enclosures could not clear
                 // against one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
+                // [`geom_brep::curve_face::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
                 // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
@@ -5166,7 +5166,7 @@ fn wall_crossing<T: Decide + Bounds>(
         // The conic root doors ([`geom_brep::curve_face::circle_roots`]), one answer
         // shape: one door for a circle or an ellipse against a sphere, a
         // wall or a cone, whose quadric form is of degree two along it
-        // ([`super::conic_quadric`]), and one per conic against a torus.
+        // ([`geom_brep::curve_face::conic_quadric`]), and one per conic against a torus.
         // A conic against any other kind has no root lane here.
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
             let door = match (carrier, surface) {
@@ -5175,9 +5175,12 @@ fn wall_crossing<T: Decide + Bounds>(
                     geom::Surface::Sphere { .. }
                     | geom::Surface::Cylinder { .. }
                     | geom::Surface::Cone { .. },
-                ) => Some(super::conic_quadric::conic_quadric_roots(
-                    carrier, t0, t1, surface, band,
-                )),
+                ) => Some(
+                    geom_brep::curve_face::conic_quadric::conic_quadric_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_conic_quadric_refusal),
+                ),
                 (geom::Curve3::Circle(..), geom::Surface::Torus { .. }) => Some(
                     geom_brep::curve_face::circle_torus::circle_torus_roots(
                         carrier, t0, t1, surface, band,

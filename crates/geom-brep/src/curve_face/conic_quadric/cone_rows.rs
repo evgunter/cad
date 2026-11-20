@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{crossings, ellipse, extremes, unit};
+use crate::curve_face::conic_oracle::{crossings, ellipse, extremes, unit};
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -367,8 +367,8 @@ fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
         assert!(
             match &got {
                 Ok(Err(_)) => true,
-                Err(BooleanError::Escalated { diag, .. }) => {
-                    diag.predicate == Some("bool_conic_quadric_sub_side")
+                Err(ConicQuadricRefusal::Cone(diag)) => {
+                    diag.predicate == Some("conic_quadric_sub_side")
                 }
                 Ok(Ok(_)) | Err(_) => false,
             },
@@ -428,7 +428,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
 }
 
 /// **A root the slack meter cannot place refuses** (the meter's row,
-/// `bool_conic_cone_root_slack`). A circle of radius 1 crosses a right
+/// `conic_quadric_cone_root_slack`). A circle of radius 1 crosses a right
 /// cone transversally `d` from its apex, at ε 1e-12. The root is
 /// bisected on the residual itself, so its true error is that
 /// residual's rounding over its slope (about `1e-16` m here), which no
@@ -441,7 +441,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
 /// `⊥q = d sin α·x̂`, `|Q′| = 2 cos²α · d sin α · ρ`. The reach is at
 /// least the residual's charged rounding, which holds the `cos θ` ulp
 /// carried along `û = −ẑ` into the height, `2u·ρ·sin α`
-/// ([`geom_brep::conic_cone_residual`]). Where that bound is past the
+/// ([`crate::conic_cone_residual`]). Where that bound is past the
 /// escalation threshold the door must refuse; far from the apex the same
 /// circle's roots are certified and placed.
 #[test]
@@ -685,7 +685,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
 }
 
 /// **A crossing beside the apex is never read as the apex's double
-/// root** (the spread rung, `bool_conic_cone_apex_spread`). Three
+/// root** (the spread rung, `conic_quadric_cone_apex_spread`). Three
 /// carriers a few zero bands from a cone's apex, found by a reviewer's
 /// counterexample search (PR 6424), at the ε each was found at: each
 /// genuinely crosses the cone within some tens of zero bands of the
@@ -824,13 +824,13 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
 /// hundred zero bands of the apex, where the brackets (sixty-four
 /// escalation bands of arc each side) cannot all be read.
 ///
-/// - **Clear of the apex** (`bool_conic_cone_deflated_clear`): on a
+/// - **Clear of the apex** (`conic_quadric_cone_deflated_clear`): on a
 ///   needle (half-angle 0.2), a 1 mm circle's bracket reaches the apex's
 ///   spread, and refuses [`Unsettled::AtApex`].
-/// - **A definite side change** (`bool_conic_cone_deflated_side`): on a
+/// - **A definite side change** (`conic_quadric_cone_deflated_side`): on a
 ///   wide cone (1.2), a 0.3 mm circle's bracket ends read no definite
 ///   side, and refuse [`Unsettled::Tangency`].
-/// - **The slack meter** (`bool_conic_cone_root_slack`): on a 0.6 cone, a
+/// - **The slack meter** (`conic_quadric_cone_root_slack`): on a 0.6 cone, a
 ///   1 mm circle's bracket holds the sign change, but the slope bound
 ///   over it cannot place the root to the band: [`Unsettled::Meter`].
 #[test]
@@ -844,7 +844,7 @@ fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
             0.6,
             1e-3,
             Unsettled::Meter {
-                row: "bool_conic_cone_root_slack",
+                row: "conic_quadric_cone_root_slack",
             },
         ),
     ] {
@@ -941,7 +941,7 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
-    let slack = geom_brep::rows::CONIC_QUADRIC_FIRST.root_slack();
+    let slack = crate::rows::CONIC_QUADRIC_FIRST.root_slack();
     assert!(
         matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
         "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \

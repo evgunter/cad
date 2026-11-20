@@ -29,7 +29,7 @@ Measured nearest answers to the apex:
 
 Two levers set the conic zone (the last fix pass's measurements):
 
-- The cone's root-slack meter (`bool_conic_cone_root_slack`,
+- The cone's root-slack meter (`conic_quadric_cone_root_slack`,
   `crates/topo/src/boolean/conic_quadric/mod.rs:371`) reads the
   root's slope as `F′` through the ceiling `1`
   (`crates/geom-brep/src/curve_face/circle_roots.rs:757`), and near the apex

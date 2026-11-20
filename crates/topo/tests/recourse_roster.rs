@@ -514,10 +514,6 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "boolean/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
-        ROW_FIELD,
-    ),
-    (
         "boolean/contact_verify.rs: a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim: &first",
         NOT_A_NAME,
     ),

@@ -34,7 +34,7 @@ read `OnSurface` (1200 each).
 
 `cone_roots` takes the first-harmonic arm (each harmonic of `Q` is
 rounding) and its constant residual answers `OnSurface`. It then
-reads the reach again through the floor (`bool_conic_cone_on_surface`,
+reads the reach again through the floor (`conic_quadric_cone_on_surface`,
 `reach = (max(|lo|, |hi|) + noise) / h.floor`). The floor
 (`geom_brep::conic_cone_harmonics`, in `implicit.rs`) is
 `min(sin α, cos α)·near/per`, where `near` is a lower bound on the

@@ -2,11 +2,11 @@
 //! every root it certifies within the zero band.** Circles tilted to a
 //! cylinder wall — the poses the ladder arm takes — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` against the exact oracle
-//! ([`geom_brep::curve_face::conic_oracle::exact`]):
+//! ([`crate::curve_face::conic_oracle::exact`]):
 //!
 //! - a circle tangent to the wall, or crossing or clearing it by less
 //!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
-//!   distance `d`, `geom_brep::implicit_residual`), at any tilt, is
+//!   distance `d`, `crate::implicit_residual`), at any tilt, is
 //!   escalated or `Unsettled`, never a `Miss` or a certified count (D1's
 //!   trilean), and `On` only where it lies on the wall to within
 //!   the band all round;
@@ -19,13 +19,13 @@
 //!   certified root within the zero band of a true one, and no `Miss` on
 //!   a true crossing.
 //!
-//! Circles grazing a torus ([`geom_brep::curve_face::circle_torus`], the same
+//! Circles grazing a torus ([`crate::curve_face::circle_torus`], the same
 //! subdivision) are judged against the same oracle at the zero band
 //! rather than `Kε`: none within it is answered, and every answer in the
 //! gap is true.
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/conic_quadric/mod.rs",
+    "crates/geom-brep/src/curve_face/conic_quadric.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
@@ -43,8 +43,8 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::circle_torus::circle_torus_roots;
-use geom_brep::curve_face::conic_oracle::exact;
+use crate::curve_face::circle_torus::circle_torus_roots;
+use crate::curve_face::conic_oracle::exact;
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
@@ -129,7 +129,7 @@ fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
 /// where the circle lies within `Kε` of the wall all round, and a `Miss`
 /// or a count only on a pose clear of `Kε` in the residual, and true.
 fn permitted(
-    got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>,
+    got: &Result<Result<CircleRoots<f64>, Unsettled>, ConicQuadricRefusal>,
     truth: &exact::Truth,
     c: &geom::Curve3<f64>,
     r: f64,
