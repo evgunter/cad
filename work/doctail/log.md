@@ -291,3 +291,14 @@ body has the reasons):
     session_013QoYWVmwm4WtoHdkSGBfrD, on branch
     `doctail/the-collinear-walls-probe-refuses-at-evaluation`, and closes
     the row with a crossing note on GREEN's log.
+- 2026-11-20 02:50 — **7082 merged** (`959ecfe`), ratified by Ev in
+  full. Dispatched the runwall P0
+  (`a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing`) to
+  local lane `doctail-runwall`, on branch
+  `doctail/the-strand-report-compares-the-generic-partition`.
+  - It builds DM7's generic partition from the program's shape.
+  - It must stop on any verb whose continuation the shape cannot read
+    numberlessly (the arc-on-incoming-circle case).
+  - The lane unparks and closes the row in its PR, so this branch does
+    not touch the row. Review tier: FULL, because it is a P0 on the
+    names contract.
