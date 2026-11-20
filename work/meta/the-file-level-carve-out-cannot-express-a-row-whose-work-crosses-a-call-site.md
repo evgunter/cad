@@ -5,7 +5,6 @@ title: The CHROME/VIEW carve-out divides by file, and body-seat's work crosses i
 status: closed
 opened: 2026-09-15
 closed: 2026-10-26
-refs: [body-seat-reads-through-the-placer-chain]
 priority: P3
 cost: D
 ---

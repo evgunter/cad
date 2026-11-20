@@ -33,7 +33,7 @@ which had to count who inherits VIEW's rule register and how.
     # 48:## Review posture
 
 Its three sibling successors all have both — `work/vnews/plan.md`,
-`work/vseam/plan.md` and `work/vdoc/plan.md` each carry a §Charter and
+`work/vseam/plan.md` and `work/chrome/plan.md` each carry a §Charter and
 a §The register, and the three §The register sections are byte-identical
 to each other.
 
