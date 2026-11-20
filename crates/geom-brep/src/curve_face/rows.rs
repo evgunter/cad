@@ -489,8 +489,8 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("CONE_DEFLATED_DEPTH"),
         NameCarrier::Const("CONE_DEFLATED_SIDE"),
         NameCarrier::Const("CONE_ROOT_SLACK"),
-        NameCarrier::Call("spread_signs"),
         NameCarrier::Call("spread_readings"),
+        NameCarrier::Call("harmonic_roots_as"),
         NameCarrier::Call("gap_as"),
         NameCarrier::Call("apart_as"),
     ];
@@ -529,7 +529,7 @@ fn every_door_name_carries_a_listed_prefix() {
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: harmonic_roots: root_slack",
+            "circle_roots.rs: harmonic_roots_as: root_slack",
             "composite.rs: settle: row",
             "conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
             "spline_face.rs: settle: row",

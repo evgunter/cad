@@ -190,7 +190,7 @@ pub fn door_refusal<V, X>(
     }
 }
 
-/// What [`harmonic_roots`] answers: [`CircleRoots`]' shape with room for
+/// What [`harmonic_roots_as`] answers: [`CircleRoots`]' shape with room for
 /// two roots, the most a first harmonic has.
 pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 
@@ -238,7 +238,7 @@ pub struct FirstHarmonic<T> {
 ///
 /// [`Unsettled::Meter`] where the root slack is not definitely inside
 /// the band, or not readable.
-pub fn harmonic_roots<T: Decide>(
+pub fn harmonic_roots_as<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
     (t0, t1): (T, T),

@@ -9514,7 +9514,7 @@ mod conic_root_lane_tests {
     //! Each surface arm of the conic × quadric door escalates as its own
     //! decision ([`BooleanError::of_conic_quadric_refusal`]): a circle
     //! coaxial with the surface, whose residual is a constant the band
-    //! reads in its gap at its extremes (`conic_quadric_first_extreme`).
+    //! reads in its gap at its extremes (`curve_face_pose_extreme`).
 
     use super::{BooleanDecision, BooleanError};
     use geom_brep::curve_face::conic_quadric::conic_quadric_roots;
@@ -9564,7 +9564,7 @@ mod conic_root_lane_tests {
             escalated_as(rho, 0.0, &sphere),
             (
                 BooleanDecision::ArcSphereRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }
@@ -9583,7 +9583,7 @@ mod conic_root_lane_tests {
             escalated_as(rho, 0.0, &wall),
             (
                 BooleanDecision::ArcCylinderRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }
@@ -9604,7 +9604,7 @@ mod conic_root_lane_tests {
             escalated_as(rho, 0.0, &cone),
             (
                 BooleanDecision::ArcConeRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }

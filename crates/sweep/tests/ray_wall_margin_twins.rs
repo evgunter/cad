@@ -6,9 +6,9 @@
 //! (`MarginSample::reads_sign_only`, a decision at `Band::least()`) has
 //! no scale to keep, so only its verdicts are compared. The wall arm's two rungs are what this
 //! suite exists for — the axis-parallel rung,
-//! `line_quadric_cylinder_axis_parallel` (`|d⊥|` levered by the
+//! `curve_face_pose_axis_parallel` (`|d⊥|` levered by the
 //! selection's reach), and
-//! `line_quadric_cylinder_disc` (the half-chord's depth) — and both are
+//! `curve_face_pose_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
 //! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
 //! germ plane normal a plane × cylinder join reads

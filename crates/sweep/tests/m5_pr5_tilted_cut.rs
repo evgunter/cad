@@ -833,7 +833,7 @@ fn definite_roots_mint_four_crossings() {
     }
 }
 
-/// `plane_crossing_belly_graze` in-band, end to end: a plane 3ε shy of
+/// `curve_face_pose_belly_graze` in-band, end to end: a plane 3ε shy of
 /// the rim apex is an ill-conditioned graze — CrossingEscalated, with
 /// the predicate named and the shared recourse riding the payload.
 #[test]

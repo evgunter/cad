@@ -25,7 +25,7 @@
 //!
 //! # Two arms, by the second harmonic
 //!
-//! `conic_quadric_second_harmonic` decides `A₂ = |(c₂, s₂)|`, the
+//! `curve_face_pose_second_harmonic` decides `A₂ = |(c₂, s₂)|`, the
 //! second harmonic's amplitude in `F`'s units: metres on a sphere or a
 //! wall, where `F` is the residual, and `Q/R` on a cone.
 //!
@@ -107,7 +107,7 @@
 //!   a lower bound on the carrier's distance from the apex. An
 //!   `Roots::On` from the first-harmonic arm certifies only that `F` is
 //!   in the band; it stands once its whole reach read through the floor
-//!   is too (`conic_quadric_cone_on_surface`), and refuses `Unsettled::Meter`
+//!   is too (`curve_face_pose_cone_on_surface`), and refuses `Unsettled::Meter`
 //!   otherwise.
 //! - **Every root the arms certify, its distance from the apex** is
 //!   decided (`conic_quadric_cone_apex`): not definitely positive, and the
@@ -138,7 +138,7 @@
 //!   goes to the arms, whose apex rung refuses a root beside it, and the
 //!   `δ` the spread is bounded by is that reading's, never smaller than
 //!   the true distance. Not decided on it: the arms read the carrier;
-//! - **the apex's spread** (`conic_quadric_cone_apex_spread`), a bound:
+//! - **the apex's spread** (`curve_face_pose_conic_apex_spread`), a bound:
 //!   on a window `|φ| ≤ Φ` about the apex, `|G| ≥ |G(0)| − RΦ` and
 //!   `2 sin²(φ/2) ≥ (1 − Φ²/12)φ²/2`, so with `λ` their product the roots
 //!   there lie within `(|ε₁| + √(ε₁² + 2λ|ε₀|))/λ` of `θ_a`. `Φ` is twice
@@ -194,9 +194,6 @@ mod shallow_sweep;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ladder_lane_fuzz;
-
-/// The first-harmonic lane's root-slack row.
-const FIRST_ROOT_SLACK: &str = "conic_quadric_first_root_slack";
 
 /// The ladder's rows.
 const LADDER_ROWS: HalfAngleRows = crate::rows::CONIC_QUADRIC_LADDER;
@@ -314,7 +311,7 @@ pub fn conic_quadric_roots<T: Decide>(
 
 /// **The conic × quadric door's method**: the roots of an isolated
 /// conic from what its pose computed. On the first-harmonic lane the
-/// core's root slack and placement ([`super::circle_roots::harmonic_roots`]);
+/// core's root slack and placement ([`super::circle_roots::harmonic_roots_as`]);
 /// on the ladder lane the subdivision ([`door_half_angle_roots`]). On a
 /// cone every root's distance from the apex is decided after
 /// ([`off_the_apex`]).
@@ -334,11 +331,11 @@ pub(super) fn conic_quadric_method<T: Decide>(
     let (t0, t1) = span.params();
     let conic = carrier.conic().ok_or(DoorRefusal::Invariant(DESYNC))?;
     let found = match form {
-        Formed::FirstHarmonic(h) => door_refusal(super::circle_roots::harmonic_roots(
+        Formed::FirstHarmonic(h) => door_refusal(super::circle_roots::harmonic_roots_as(
             &h,
             conic.speed_hi(),
             (t0, t1),
-            FIRST_ROOT_SLACK,
+            "conic_quadric_first_root_slack",
             band,
         ))?
         .map(Roots::widen),

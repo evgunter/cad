@@ -415,7 +415,7 @@ pub fn span_place<T: Decide>(span: &Span<'_, T>, t: T, band: Band) -> Option<Roo
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! DIRECT trilean rows for the conic crossing lane (M5 PR 5 fix
-    //! pass, review M3): `plane_crossing_belly_graze` and
+    //! pass, review M3): `curve_face_pose_belly_graze` and
     //! the span's end reading (`curve_pair_span_end_*`, through
     //! [`span_place`]) each get their definite /
     //! exactly-degenerate / in-band arms against a pure band (the
@@ -567,7 +567,7 @@ mod tests {
         (Point3::new(0.0, c, 0.0), Vec3::unit_y())
     }
 
-    /// `plane_crossing_belly_graze`, all three arms: definitely-secant
+    /// `curve_face_pose_belly_graze`, all three arms: definitely-secant
     /// (two roots), definitely-missing (no roots), tangent within ε
     /// (one graze root), and in-band (typed escalation).
     #[test]

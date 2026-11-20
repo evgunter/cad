@@ -260,7 +260,7 @@ fn a_concave_graze_of_a_round_hole_refuses() {
 /// its extremum rather than at one of the residue's two roots (4.5e-5
 /// apart along the rim at δ = −ε/2, ε = 1e-9). In the band the seam
 /// vertex's side (`split_vertex_side`) or the rim's reach
-/// (`plane_crossing_belly_graze`) escalates. Beyond it the split answers,
+/// (`curve_face_pose_belly_graze`) escalates. Beyond it the split answers,
 /// each side at its closed form ([`plate_side`]).
 #[test]
 fn a_plane_off_a_hole_wall_reads_each_decision_across_the_band() {

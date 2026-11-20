@@ -679,7 +679,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
 }
 
 /// **A crossing beside the apex is never read as the apex's double
-/// root** (the spread rung, `conic_quadric_cone_apex_spread`). Three
+/// root** (the spread rung, `curve_face_pose_conic_apex_spread`). Three
 /// carriers a few zero bands from a cone's apex, found by a reviewer's
 /// counterexample search (PR 6424), at the ε each was found at: each
 /// genuinely crosses the cone within some tens of zero bands of the

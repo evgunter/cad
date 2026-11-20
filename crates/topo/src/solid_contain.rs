@@ -88,7 +88,7 @@
 //!   (metres).
 //! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
 //!   `d·n` per planar face, and a wall's `|d⊥|` (the line × quadric
-//!   door's `line_quadric_cylinder_axis_parallel`), each levered by how
+//!   door's `curve_face_pose_axis_parallel`), each levered by how
 //!   far from `q` the selection reaches (`selection_reach`), so the
 //!   margin is how far the ray rises off the plane, or drifts off its
 //!   distance from the axis, over every length at which it could meet
@@ -123,7 +123,7 @@
 //!   the closest ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
 //!   decision on the same margin.
-//! - **`line_quadric_sphere_disc`**: the ray/sphere discriminant, metered
+//! - **`curve_face_pose_disc`**: the ray/sphere discriminant, metered
 //!   as a length (`disc / 2r`; `√disc` is the half-chord in metres).
 //!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
 //!   The outward sign at each root is read off the SAME decided

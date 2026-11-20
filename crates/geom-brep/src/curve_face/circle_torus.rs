@@ -20,10 +20,10 @@
 //! on a circle its third and fourth harmonics are rounding, charged to
 //! the noise.
 //!
-//! The door's rows are the special poses' (`circle_torus_coaxial_*`,
-//! the parallel arm's `circle_torus_contour_residual`,
+//! The door's rows are the special poses' (`curve_face_pose_torus_*`,
+//! the parallel arm's `curve_face_pose_contour_residual`,
 //! `_contour_side`, `_plane_height` and `_root_slack`, and
-//! `circle_torus_meridian`, below), then the ladder's:
+//! `curve_face_pose_meridian`, below), then the ladder's:
 //! `circle_torus_pole`, `_pole_conditioning`, `_noise` and the
 //! quartic's `circle_torus_*`. An in-band classifying sign
 //! is [`DoorRefusal::Escalated`]; an in-band coaxial
@@ -106,9 +106,9 @@
 //!   the torus axis): `S` and `h` are constant, so `F` is constant and
 //!   the quartic is `F·(1 + t²)²` — a repeated complex pair the ladder
 //!   cannot answer. It is decided FIRST, geometrically
-//!   (`circle_torus_coaxial_tilt`, `_offset`, both metres), and the
+//!   (`curve_face_pose_torus_tilt`, `_offset`, both metres), and the
 //!   constant residual then decides it, its spread from the in-band
-//!   offset and tilt charged (`circle_torus_coaxial_residual`,
+//!   offset and tilt charged (`curve_face_pose_torus_constant`,
 //!   [`super::circle_roots`], "A constant residual"): zero is
 //!   [`Roots::On`] (a rim circle of the torus), and
 //!   definite a [`CircleRoots::Miss`].
@@ -128,7 +128,7 @@
 //!   0`, so the pole is on the torus at every anchor and the ladder
 //!   cannot answer. It is decided before the ladder, on one margin
 //!   bounding every carrier point's distance from the torus
-//!   (`circle_torus_meridian`, [`meridian_deviation`]): Zero is
+//!   (`curve_face_pose_meridian`, [`meridian_deviation`]): Zero is
 //!   [`Roots::On`], in band an escalation, and a definite
 //!   deviation takes the ladder. The reduction records an
 //!   `On` arc only under `reduce::lying_on`'s certificates.

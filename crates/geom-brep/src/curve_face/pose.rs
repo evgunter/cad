@@ -769,12 +769,8 @@ pub(super) fn line_cone_read<T: Decide>(
                 return Ok(ConeRead::Lies);
             }
             let spread = apex_root_spread(at(at_apex), dir, (axis, half_angle));
-            return match decide(
-                "curve_face_pose_cone_apex_spread",
-                Margin::of(spread),
-                band,
-            )
-            .map_err(PoseRefusal::in_band(PoseRung::Apex))?
+            return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band)
+                .map_err(PoseRefusal::in_band(PoseRung::Apex))?
             {
                 Sign::Zero => Ok(ConeRead::Through {
                     at: at_apex,

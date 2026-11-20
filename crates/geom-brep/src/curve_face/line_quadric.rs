@@ -291,13 +291,13 @@ pub enum About {
 ///
 /// **Both trileans are lengths.**
 ///
-/// - **`line_quadric_cylinder_axis_parallel`**, the axis-parallel rung: `|d⊥|`,
+/// - **`curve_face_pose_axis_parallel`**, the axis-parallel rung: `|d⊥|`,
 ///   the line's speed off the axis, levered by `span`, the run of the
 ///   line's own parameter over which the caller reads roots. Their
 ///   product is how far the line drifts off its distance from the axis
 ///   over that run. Zero ⇒ it drifts less than the band, so the residual
 ///   is constant there and no root lands in the run.
-/// - **`line_quadric_cylinder_disc`**: the discriminant over `|d⊥|²` is
+/// - **`curve_face_pose_disc`**: the discriminant over `|d⊥|²` is
 ///   the squared half-chord in the plane across the axis, `r² − p²` for
 ///   a line passing `p` from it, and over `2r` it is the depth the line
 ///   reaches inside the circle, the sphere arm's form
@@ -498,12 +498,12 @@ pub fn over_root_slope<T: Decide>(error: T, disc: T) -> T {
 #[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum WallRung {
     /// Whether the line runs parallel to the wall's axis
-    /// (`line_quadric_cylinder_axis_parallel`, `|d⊥|` levered by the run the
+    /// (`curve_face_pose_axis_parallel`, `|d⊥|` levered by the run the
     /// caller reads): a positive margin has roots to find, a zero one a
     /// residual constant over that run.
     AxisParallel,
     /// Whether the line crosses the wall, grazes it or misses it
-    /// (`line_quadric_cylinder_disc`, `disc/|d⊥|²` over `2r`).
+    /// (`curve_face_pose_disc`, `disc/|d⊥|²` over `2r`).
     Discriminant,
 }
 
@@ -682,7 +682,7 @@ pub fn line_torus_roots<T: Decide>(
 }
 
 /// **How far along a line its roots against a cone lie from its point
-/// `e` off the apex** (`line_quadric_cone_apex_spread`, a length): the
+/// `e` off the apex** (`curve_face_pose_cone_apex_spread`, a length): the
 /// cone's quadric form along `e + τ·dir`, read about `e` itself,
 /// `Q(e,e) + 2τ·Q(e,dir) + τ²·Q(dir,dir)` with
 /// `Q(x,y) = cos²α(x·y − (x·â)(y·â)) − sin²α(x·â)(y·â)`. Every term is
@@ -727,6 +727,19 @@ pub enum ConeRoots<T> {
     Miss,
 }
 
+#[cfg(test)]
+impl<T: geom_core::Real> ConeRoots<T> {
+    /// The answer as an edge reads it: the apex's double root an
+    /// incidence, placed twice.
+    fn edge(self) -> CircleRoots<T> {
+        match self {
+            Self::Two(ts) => Roots::<T, 2>::all(ts.map(|(t, _)| t)).widen(),
+            Self::Apex(t) => Roots::<T, 2>::all([t, t]).widen(),
+            Self::Miss => CircleRoots::Miss,
+        }
+    }
+}
+
 /// **The certified roots of the LINE `origin + dir·t` against a CONE**,
 /// over the run `(t0, t1)` of the line's parameter: the one reading of a
 /// line against a cone, which an edge reads over its span and a ray over
@@ -737,25 +750,25 @@ pub enum ConeRoots<T> {
 /// ([`About::Nearest`]), whose zero set is the double cone. Its
 /// rungs, each a length:
 ///
-/// - **`line_quadric_cone_apex`** — the run's distance from the apex.
+/// - **`curve_face_pose_cone_apex`** — the run's distance from the apex.
 ///   Not definitely positive: the run reaches the apex, where the cone's
 ///   gradient vanishes. A run that ends there (an end's distance Zero)
 ///   and is no ruling meets the cone at that end alone, its residual
 ///   `A·(t − t_end)²`: one double root at the end. A run through the
 ///   apex inside it is the same double root at its foot there
 ///   ([`ConeRoots::Apex`]).
-/// - **`line_quadric_cone_apex_spread`** — within the band of the apex is
+/// - **`curve_face_pose_cone_apex_spread`** — within the band of the apex is
 ///   not at it: how far along the line its roots lie from the point the
 ///   double root is placed at, the end or the foot ([`apex_root_spread`],
 ///   read about that point, so exact to rounding). Not definitely in the
 ///   band (a needle cone and a line near its axis), or in the band's
 ///   gap: the lane refuses [`Unsettled::AtApex`] rather than place the
 ///   roots there.
-/// - **`line_quadric_cone_lead`** — `A/|dir|²` levered by the run's
+/// - **`curve_face_pose_cone_lead`** — `A/|dir|²` levered by the run's
 ///   length: how far the line turns off a generator over the run. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
 ///   the lane does not answer ([`Unsettled::Degenerate`]).
-/// - **`line_quadric_cone_depth`** — the depth the line's vertex `t*`
+/// - **`curve_face_pose_cone_depth`** — the depth the line's vertex `t*`
 ///   reaches: `G(t*) = −disc/A`, and on the near nappe
 ///   `Q = res·(ρ cos α + |h| sin α)` with that factor at most `|q|`, so
 ///   `disc/(|A|·R)`, `R ≥ |q(t*)|`, is a lower bound on the residual's
@@ -789,12 +802,10 @@ pub fn line_cone_roots<T: Decide>(
         Ok(ConeRead::Through { at, .. }) => Ok(Ok(ConeRoots::Apex(at))),
         Ok(ConeRead::Apart) => Ok(Ok(ConeRoots::Miss)),
         Ok(ConeRead::Graze { .. }) => Ok(Err(Unsettled::Tangency)),
-        Ok(ConeRead::Two) => Ok(
-            match cone_roots(line, (cone, half_angle), (t0, t1), band) {
-                Ok(placed) => Ok(ConeRoots::Two(placed)),
-                Err(why) => Err(why),
-            },
-        ),
+        Ok(ConeRead::Two) => Ok(match cone_roots(line, (cone, half_angle), (t0, t1), band) {
+            Ok(placed) => Ok(ConeRoots::Two(placed)),
+            Err(why) => Err(why),
+        }),
         Err(PoseRefusal::Meter {
             rung: PoseRung::Apex,
             ..
