@@ -169,37 +169,43 @@ decide anything at all is not this clause's question; that is the
 `Bounds` scope rule's ("brackets never decide", `real.rs`), at every
 scalar.
 
-**DL5.2 — re-entry.** A number that stands for something in the model
-(a root, a foot, a crossing, a net) does not leave `T` in code a dual
-reaches. Structure is still found at `f64` (a search, a subdivision, a
-comparison), and what that hands back is sorted by what the `f64` is,
-which names the door it takes:
+**DL5.2 — re-entry.** Generic code a dual can reach has no door that
+turns a runtime `f64` into a free `T`. Structure is still found at
+`f64` (a search, a subdivision, a comparison), and what that hands
+back is sorted by what the `f64` is:
 
-| The `f64` is | It becomes |
+| The `f64` is | What the code does with it |
 |---|---|
-| a constant of the model | `Real::from_f64`: tangent zero, an exact literal at `Sym` |
-| a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | no `T`. The decision is taken at `f64`, or the bound is an allowance term of the margin, which is decided and never built on |
-| a place the code chose to evaluate at: a sample, a station, a cell corner | `Real::from_computed`: a value with no claim about how it moves. At a dual its tangent is unknown, the degraded tangent a kink gives (NaN over `f64`, the whole line over an enclosure); at `Sym` it is an opaque unknown |
-| a solved value the result is built on: a root, a foot, a crossing | the solve door: the `f64` answer and the residual at `T` in, the same value bit for bit out, carrying the implicit-function tangent at a dual |
-| a free choice the result is flat in: a box centre, a patch split | the zero door: tangent zero, every use on a gated list with its kind and pinned against finite differences |
-| data built whole at `f64` | built at `T`, or lifted only behind `CertifiedEnclosure` |
+| a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
+| a place the code chose to evaluate at: a sample, a station, a cell corner, a split | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
+| a solved value the result is built on: a root, a foot, a crossing | keeps the `T` value where the solve has a closed form; otherwise returns through the solve door: the `f64` answer and the residual at `T` in, the same value bit for bit out, carrying the implicit-function tangent at a dual |
+| data built whole at `f64` | builds it at `T`, or lifts it only behind `CertifiedEnclosure` |
+| a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
 
-An unknown tangent is always a true claim, so `from_computed` needs no
-argument at its call site and no gate: a value evaluated there that is
-only compared never reads the tangent, and one that is differentiated
-forfeits it (ERROR-DESIGN E9), so the sensitivity reads unavailable
-and never a number. A place that turns out to be built on is therefore
-loud, and its repair is the solve door. The solve door changes no
-value at any scalar: at `f64` and `Interval` it is the point
-`from_computed` gives, and where a slope at a point is no derivative
-enclosure (`Dual<Interval>`) it returns the unknown tangent.
+`from_computed` is therefore not on the surface dual-reachable code
+can call: it serves the evaluator and solve doors and code behind
+`CertifiedEnclosure`, and a call from anywhere else does not compile.
+The solve door changes no value at any scalar: at `f64` and
+`Interval` it is the point the solver found, and where a slope at a
+point is no derivative enclosure (`Dual<Interval>`) the tangent it
+returns is the degraded one (ERROR-DESIGN E9).
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
 and its measurements run, and passes through decisions on its value
-alone (DL1, DL3). Code that certifies carries a certifying bound
-(`CertifiedBounds`, `CertifiedEnclosure`) on its interior as well as
-at its doors, so a dual cannot instantiate it: no function is kept
-clear of duals by a runtime answer or by who happens to call it.
+alone (DL1, DL3). Code that certifies is closed to it by type, on its
+interior as well as at its doors:
+
+- `Certifies` is the bound that says a scalar certifies and nothing
+  else. It grants no bracket read, so it is no compound under the
+  `Bounds` scope rule and is free to write; a dual does not implement
+  it.
+- Every lane type is declared over `T: Certifies`, so every function
+  that names a lane carries the bound.
+- A scalar's lanes are an associated type with no values at a dual,
+  never an `Option` a dual answers `None` to.
+- In a file listed as certification code, a generic item without
+  `Certifies` fails the gate. There the weakest bound that works is
+  the certifying one.
 
 ## Choosing among spellings of one quantity (W1)
 

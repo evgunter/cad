@@ -1,7 +1,7 @@
 ---
 id: from-computed-claims-a-zero-tangent-at-a-dual
 kind: issue
-title: Real::from_computed returns tangent zero at a dual, so a re-entered value that moves with the inputs yields a plausible wrong sensitivity
+title: Real::from_computed returns tangent zero at a dual, so a re-entered value that moves with the inputs yields a plausible wrong sensitivity; and certification interiors admit a dual by type
 status: parked
 opened: 2026-11-19
 priority: P1
@@ -33,53 +33,64 @@ undetermined. The wrong one on the path production runs is ATREST's
 
 ## What closing it takes
 
-A second count (two designers, round 7 and 8 of the fork; read, mostly
-not traced to consumers) puts 114 lines, 128 calls, in a dual's reach
-by the enclosing function's own bound. By what the `f64` feeds: about
-42 bounds decided against, 55 places evaluated at, 9 solved values the
-result is built on, 10 free choices, 13 lifts of `f64`-built data, 3
-constants. Every unit re-sorts the sites it touches.
+Two designers' count (rounds 6 to 10 of the fork; read, 22 place sites
+traced to consumers): 114 lines, 128 calls, are in a dual's reach by
+the enclosing function's own bound. About 42 lift a bound to decide
+against, about 55 a place to evaluate at (with what were once called
+free choices), 9 a solved value the result is built on, 13 data built
+at `f64`, 3 a constant. Every unit re-sorts the sites it touches.
+The rule is DL5.2 and DL5.3 of `crates/geom-core/README.md`.
 
-- **The backstop**: `from_computed` at a dual returns an unknown
-  tangent: the degraded tangent `copysign` gives at a kink
-  (`KinkJacobian`), NaN over `f64` and the whole line over an
-  enclosure. First or last; first makes the rest loud.
 - **Bounds stop being `T`**: a pure `f64` bound is decided at `f64`
   (`pcurve_cache/projected.rs` `hull_sector` lifts `x_lo` only to call
-  `holds`); a bound subtracted from a `T` quantity is an allowance
-  term of the margin. `Margin::<f64>::lift` is itself a re-entry and
-  `Margin::value` hands the `T` back, so it is not the door.
-- **The solve door**, on `Real`, declared and never defaulted: the
-  `f64` answer and the residual at `T` in, the same value out with the
-  implicit-function tangent at a dual; identity at `f64` and
-  `Interval`, opaque at `Sym`, the unknown tangent at
+  `holds`); a bound subtracted from a `T` quantity is an `f64`
+  allowance term of the margin. `Margin::<f64>::lift` is itself a
+  re-entry and `Margin::value` is a public `T` exit.
+- **Places**: `Real` gains an associated `Value` (the scalar with its
+  tangent removed) and a read down to it; evaluators take an `f64`
+  place and answer on the value channel. `SplineWall` already keeps an
+  `f64` copy of its chart; `spline_trim`'s `Patch<T>` ends only in
+  `Side`/`Reading` and runs whole at `T::Value`.
+- **The solve door**: the `f64` answer and the residual at `T` in, the
+  same value out with the implicit-function tangent at a dual;
+  identity at `f64` and `Interval`, the degraded tangent at
   `Dual<Interval>` and at a singular slope. About 9 sites
   (`curve_face/composite.rs` and `spline_face.rs` `settle`,
-  `replace_face.rs` `corner_of_root`, both polishes).
-  `topo::Link::lowest_on` needs none: it keeps the `T` roots it
-  already computes.
-- **The zero door**: zero at a dual, opaque at `Sym`, every use on a
-  gated list with its kind and pinned against finite differences
-  (box centres, patch splits; 10 to 14 sites).
+  `replace_face.rs` `corner_of_root`, both polishes, the projection
+  callers that go round `project`'s fence). `topo::Link::lowest_on`
+  needs none: it keeps the `T` roots it already computes.
 - **`f64`-built data** is built at `T` or lifted behind
   `CertifiedEnclosure` (the loft's enclosure arm, already owed as
   `launders` in `from-f64-sites.tsv`; `on_carrier_domain`; `skin.rs`).
-- **Certification interiors take the certifying bound** (DL5.3):
-  `pcurve_cache.rs`, `pcurve_cache/projected.rs`,
-  `spline_incidence.rs`, most of `geom-brep/src/certify.rs`;
-  `carrier_span`, fenced today only by its seven callers. Each item
-  needs checking that no construction caller instantiates it.
+- **`from_computed` leaves the surface dual-reachable code calls**,
+  last: a remaining call fails to compile at a dual, which is the
+  signal.
+- **`from_f64` is split by source**: a compile-time-constant door for
+  literals, an integer door for counts, the tolerance type for bands,
+  the document's parameter door for authored values. The list
+  (`from-f64-sites.tsv`, 202 rows, 257 sites) holds a computed lever
+  scale as a `constant` (`coincide/replay.rs`).
+- **DL5.3**: the `Certifies` marker bound; lane structs declared over
+  it (`NurbsLane`, `FittedLane`, `SplineFoot`, `SectionLane`,
+  `OffsetFitLane` are `T: Real` today, `QuadLane` `T: Decide`);
+  `AtRestPolicy`'s lanes an associated type with no values at a dual
+  in place of `Option`; a gate over listed certification files; one
+  clause in the `Bounds` scope rule.
+- A finite-difference row on the stackup's measurements, which would
+  have caught `lowest_on`.
 
 ## Check before building (nobody has)
 
-- DL2 memo keys hash tangent bits, so the unknown tangent's NaN must
-  be canonical (`ContentBits for f64`).
-- No dual-path code may branch on a tangent's finiteness (E9).
-- Whether the whole line or NaI is what E7's consumer reads as "do not
-  prune" at `Dual<Interval>`.
-- How many stackup sensitivities turn unavailable when it lands: the
-  "decided only" bulk was classified by reading. The dual corpus and
-  `blend_dual_sensitivity` show it.
+- Whether the roughly 9 untraced place sites fit the value channel,
+  and whether reading a chart down to it allocates at a certifying
+  scalar.
+- Whether every certification-interior item can take `Certifies`
+  without a construction caller being split off it, and whether any
+  reads a bracket through a bound it inherits.
+- Whether a compile-time-constant door covers every `constant` row;
+  it has not been compiled.
+- Whether `Sym` needs a computed place to be opaque inside the
+  evaluator.
 - Whether a pure-`f64` bound decided at `f64` gives the verdict it
   gave decided at `T` at every scalar.
 - `props.rs` `volume_lo`/`volume_hi`/`surface_area` hold bracket ends

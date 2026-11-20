@@ -342,9 +342,9 @@ pub trait Real:
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// What the value carries at a dual, and which computed values take
-    /// another door instead, is DL5.2 (the crate README, "Reading a
-    /// bracket where nothing certifies").
+    /// Which code may call it, and the door every other computed value
+    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
+    /// where nothing certifies").
     fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
