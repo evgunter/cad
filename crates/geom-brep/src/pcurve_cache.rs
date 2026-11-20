@@ -1244,6 +1244,25 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
+    /// **Whether only the fitted door derives this image's certificate**:
+    /// a fitted or general image, and a projected image of a spline
+    /// carrier's net, whose check 4 reads the net's hull terms through
+    /// the fitted door ([`PcurveCache::certify_projected`]). A pass that
+    /// holds no fitted door certifies none of these, rather than run
+    /// checks 1–3 to a refusal check 4 would end it in anyway.
+    #[must_use]
+    pub fn needs_fitted_door(&self) -> bool {
+        match self {
+            Pcurve::Fitted(_) | Pcurve::General(_) => true,
+            Pcurve::Projected(image) => matches!(image.carrier, projected::FramedCarrier::Net(_)),
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::IsoLine { .. }
+            | Pcurve::IsoArc { .. } => false,
+        }
+    }
+
     /// **Whether a derivation places this kind of image** over its edge's
     /// span (C4): a closed-form or projected image is derived again over
     /// any sub-span and named in its chart's window there, while a fitted,
@@ -4967,6 +4986,105 @@ pub struct PcurveCache<T: Real> {
     param_start: T,
     param_end: T,
     certificate: PcurveCertificate<T>,
+    /// What the row's checks read besides the row itself, where they
+    /// ran ([`RowSupport`]): a door that asks the same checks of the same
+    /// support reads [`Self::certificate`] rather than derive it again.
+    support: Option<RowSupport<T>>,
+}
+
+/// **What a row's checks read besides the row**: the edge's carrier,
+/// the chart's surface, the band, and whether the fitted door was held,
+/// which decides how check 4 reads a net (recorded only for an image
+/// whose check 4 reads it, [`Pcurve::needs_fitted_door`]). With the row's image and span
+/// this is the whole input of the checks ([`PcurveCache::certify`]'s
+/// four), so a certificate whose support compares the same
+/// ([`crate::LocusCertificate`]'s comparison) is the one deriving it
+/// again would return. A harmonic row records none: its check 4 reads the
+/// incidence read's witness, taken over the span its door was asked
+/// about.
+#[derive(Clone, Debug)]
+struct RowSupport<T: Real> {
+    carrier: Curve3<T>,
+    surface: Surface<T>,
+    band: Band,
+    fitted: bool,
+}
+
+impl<T: Decide> RowSupport<T> {
+    /// The support of checks that read `carrier` on `surface` at `band`,
+    /// `fitted` whether they held the fitted door; `None` for a harmonic
+    /// row (the type's docs).
+    fn of(
+        pcurve: &Pcurve<T>,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        fitted: bool,
+    ) -> Option<Self> {
+        (!matches!(pcurve, Pcurve::Harmonic { .. })).then(|| Self {
+            carrier: carrier.clone(),
+            surface: surface.clone(),
+            band,
+            fitted: fitted && pcurve.needs_fitted_door(),
+        })
+    }
+}
+
+impl<T: Decide> PcurveCache<T> {
+    /// This row's certificate, where its checks read `carrier` on
+    /// `surface` at `band` with the fitted door held as `fitted` says:
+    /// the support they ran on, compared, never taken on a door's word.
+    fn held_for(
+        &self,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        fitted: bool,
+    ) -> Option<PcurveCertificate<T>> {
+        let support = self.support.as_ref()?;
+        (support.band == band
+            && support.fitted == (fitted && self.pcurve.needs_fitted_door())
+            && crate::locus_certificate::same_curve(&support.carrier, carrier)
+            && crate::locus_certificate::same_surface(&support.surface, surface))
+        .then_some(self.certificate)
+    }
+
+    /// **This row, certified again by a door that keeps it**: its own
+    /// certificate where its support is `carrier` on `surface` at `band`
+    /// with `fitted` held as it was, and otherwise the image certified
+    /// anew through the door its kind names
+    /// ([`PcurveCache::certify_stated_image`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`PcurveCache::certify_stated_image`].
+    pub fn restated(
+        &self,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        fitted: Option<crate::FittedLane<T>>,
+    ) -> Result<Self, PcurveCertifyError> {
+        let derive = || {
+            Self::certify_stated_image(&self.pcurve, self.params(), carrier, surface, band, fitted)
+        };
+        match self.held_for(carrier, surface, band, fitted.is_some()) {
+            Some(held) => {
+                debug_assert!(
+                    derive().is_ok_and(|again| same_certificate(&again.certificate, &held)),
+                    "a row's certificate read by its support differs from the one derived again"
+                );
+                Ok(self.clone())
+            }
+            None => derive(),
+        }
+    }
+}
+
+/// Whether two row certificates are the same bits: every field, read
+/// whole through its `Debug` form.
+fn same_certificate<T: Real>(a: &PcurveCertificate<T>, b: &PcurveCertificate<T>) -> bool {
+    format!("{a:?}") == format!("{b:?}")
 }
 
 /// **The door that certifies a kind of image** ([`Pcurve::certifying_door`]).
@@ -5092,6 +5210,7 @@ impl<T: Real> PcurveCache<T> {
             param_start: self.param_start,
             param_end: self.param_end,
             certificate: self.certificate,
+            support: None,
         })
     }
 }
@@ -5250,6 +5369,7 @@ impl<T: Decide> PcurveCache<T> {
             },
         )?;
         Ok(Self {
+            support: RowSupport::of(&pcurve, carrier, surface, band, false),
             pcurve,
             param_start: t0,
             param_end: t1,
@@ -5309,8 +5429,10 @@ impl<T: Decide> PcurveCache<T> {
             |e| e,
             |_| run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane)),
         )?;
+        let pcurve = Pcurve::Fitted(image);
         Ok(Self {
-            pcurve: Pcurve::Fitted(image),
+            support: RowSupport::of(&pcurve, carrier, surface, band, true),
+            pcurve,
             param_start: t0,
             param_end: t1,
             certificate,
@@ -5378,8 +5500,10 @@ impl<T: Decide> PcurveCache<T> {
             |e| e,
             |_| run_fitted_checks(&image, t0, t1, carrier, surface, band, lane),
         )?;
+        let pcurve = Pcurve::General(image);
         Ok(Self {
-            pcurve: Pcurve::General(image),
+            support: RowSupport::of(&pcurve, carrier, surface, band, lane.is_some()),
+            pcurve,
             param_start: t0,
             param_end: t1,
             certificate,
@@ -5411,6 +5535,7 @@ impl<T: Decide> PcurveCache<T> {
         let certificate =
             projected::run_projected_checks(&pcurve, t0, t1, carrier, surface, band, lane)?;
         Ok(Self {
+            support: RowSupport::of(&pcurve, carrier, surface, band, lane.is_some()),
             pcurve,
             param_start: t0,
             param_end: t1,
@@ -5418,11 +5543,12 @@ impl<T: Decide> PcurveCache<T> {
         })
     }
 
-    /// Re-runs the full certification at rest — the tier-3 validator's
-    /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
-    /// same errors; the stored certificate is not consulted
-    /// (re-certification re-derives, it does not trust — for a fitted
-    /// cache, its hull bound).
+    /// The certification at rest — the tier-3 validator's per-half-edge
+    /// pass, for EITHER lane. Same checks, same schedule, same errors;
+    /// the row's own certificate is read where the checks' support is
+    /// the one it was derived on (the carrier, the surface, the band and
+    /// whether the fitted door is held, compared), and derived again
+    /// everywhere else.
     ///
     /// The carrier's incidence on the chart is read over `edge_span`, the
     /// edge's own interval (`incidence_ended`): first on an analytic chart;
@@ -5464,79 +5590,92 @@ impl<T: Decide> PcurveCache<T> {
             surface,
             band,
             |e| e,
-            |shown| match &self.pcurve {
-                Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
-                    image,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                    lane,
-                ),
-                iso @ Pcurve::IsoLine { .. } => run_iso_checks(
-                    iso,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                ),
-                Pcurve::IsoArc {
-                    p0,
-                    pd,
-                    t0,
-                    angle,
-                    breaks,
-                    ends,
-                } => run_iso_arc_checks(
-                    *p0,
-                    *pd,
-                    *t0,
-                    *angle,
-                    breaks,
-                    ends,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                ),
-                spiric @ Pcurve::Spiric { .. } => run_spiric_checks_as(
-                    spiric,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                ),
-                section @ Pcurve::FocalSection(_) => run_focal_section_checks(
-                    section,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                ),
-                projected @ Pcurve::Projected(_) => projected::run_projected_checks(
-                    projected,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                    lane,
-                ),
-                // Exhaustive by variant (see `certify`).
-                Pcurve::Harmonic { u, v } => run_harmonic_checks(
-                    (*u, *v),
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                    shown,
-                ),
+            |shown| {
+                let derive = move || match &self.pcurve {
+                    Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
+                        image,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                        lane,
+                    ),
+                    iso @ Pcurve::IsoLine { .. } => run_iso_checks(
+                        iso,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                    ),
+                    Pcurve::IsoArc {
+                        p0,
+                        pd,
+                        t0,
+                        angle,
+                        breaks,
+                        ends,
+                    } => run_iso_arc_checks(
+                        *p0,
+                        *pd,
+                        *t0,
+                        *angle,
+                        breaks,
+                        ends,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                    ),
+                    spiric @ Pcurve::Spiric { .. } => run_spiric_checks_as(
+                        spiric,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                    ),
+                    section @ Pcurve::FocalSection(_) => run_focal_section_checks(
+                        section,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                    ),
+                    projected @ Pcurve::Projected(_) => projected::run_projected_checks(
+                        projected,
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                        lane,
+                    ),
+                    // Exhaustive by variant (see `certify`).
+                    Pcurve::Harmonic { u, v } => run_harmonic_checks(
+                        (*u, *v),
+                        self.param_start,
+                        self.param_end,
+                        carrier,
+                        surface,
+                        band,
+                        shown,
+                    ),
+                };
+                match self.held_for(carrier, surface, band, lane.is_some()) {
+                    Some(held) => {
+                        debug_assert!(
+                            derive().is_ok_and(|again| same_certificate(&again, &held)),
+                            "a row's certificate read by its support differs from the one \
+                             derived again"
+                        );
+                        Ok(held)
+                    }
+                    None => derive(),
+                }
             },
         )
     }

@@ -5259,6 +5259,12 @@ impl<T: Real> Neg for Sym<T> {
 }
 
 impl<T: Real> Real for Sym<T> {
+    /// One expression: the same node, whatever the numeric channel's
+    /// bits share.
+    fn same_value(self, other: Self) -> bool {
+        self.node == other.node && self.value.same_value(other.value)
+    }
+
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
@@ -5421,12 +5427,6 @@ impl<T: Bounds> Bounds for Sym<T> {
 impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
-    }
-
-    /// One expression: the same node, whatever the numeric channel's
-    /// bits share.
-    fn same_value(self, other: Self) -> bool {
-        self.node == other.node && self.value.same_value(other.value)
     }
 
     fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(

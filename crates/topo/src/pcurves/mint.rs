@@ -1994,19 +1994,12 @@ fn carry_rows<T: AtRestPolicy>(
         // A producer that moved the edge's interval under the row
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
-        let (t0, t1) = row.params();
-        let restated = PcurveCache::certify_stated_image(
-            row.pcurve(),
-            (t0, t1),
-            &carrier,
-            surface,
-            band,
-            T::fitted_lane(),
-        )
-        .map_err(|error| PcurveMintError::Certify {
-            half_edge: he,
-            error,
-        })?;
+        let restated = row
+            .restated(&carrier, surface, band, T::fitted_lane())
+            .map_err(|error| PcurveMintError::Certify {
+                half_edge: he,
+                error,
+            })?;
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)

@@ -310,6 +310,19 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
+    /// **Whether `other` is this value**, as a certificate's support is
+    /// compared (`geom_brep::LocusCertificate`): the same bits at a
+    /// value scalar, the same enclosure and decoration at an interval,
+    /// and the same expression node at the symbolic tier, where equal
+    /// bits in the numeric channel do not make two expressions one.
+    /// `false` is always sound, since the reader then derives the
+    /// certificate again, and is the default: a scalar that holds no
+    /// certificate (a dual) never reads one.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **What a certifying door's record is held as at this scalar**:
     /// the record itself where the scalar certifies, and
     /// [`Uncertified`] where it never does (a dual, DL1). An edge a
@@ -1906,14 +1919,6 @@ pub trait CertifiedEnclosure: Copy {
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
 
-    /// **Whether `other` is this value**, as a certificate's support is
-    /// compared (`geom_brep::LocusCertificate`): the same bits at a
-    /// value scalar, the same enclosure and decoration at an interval,
-    /// and the same expression node at the symbolic tier, where equal
-    /// bits in the numeric channel do not make two expressions one.
-    /// `false` is always sound: the reader re-derives.
-    fn same_value(self, other: Self) -> bool;
-
     /// `record`, held as this scalar holds a certifying door's record
     /// ([`Real::Carries`]): the one constructor of a held record, on the
     /// trait a dual does not implement.
@@ -1950,10 +1955,6 @@ pub trait TangentTransport: Real {
 impl CertifiedEnclosure for f64 {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         (!self.is_nan()).then_some((self, self))
-    }
-
-    fn same_value(self, other: Self) -> bool {
-        self.to_bits() == other.to_bits()
     }
 
     fn carried<C: Copy + Debug + Send + Sync + 'static>(record: C) -> C {
@@ -2041,6 +2042,10 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    fn same_value(self, other: Self) -> bool {
+        self.to_bits() == other.to_bits()
+    }
+
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same

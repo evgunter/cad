@@ -22,7 +22,7 @@
 //! control points, weights; a periodic loop's data and sense) and none
 //! of the memos derived from them. A closed-form carrier and an
 //! analytic surface compare kind and scalar by scalar through
-//! [`CertifiedEnclosure::same_value`]. Either way a scalar is the same
+//! [`Real::same_value`]. Either way a scalar is the same
 //! when it has the same bits at a value scalar, the same enclosure and
 //! decoration at `Interval`, and the same expression node at `Sym`
 //! (whose `Debug` prints the node). The interval and the band compare
@@ -39,8 +39,8 @@
 use std::sync::Arc;
 
 use geom::{Curve3, Surface};
+use geom_core::Real;
 use geom_core::predicate::Band;
-use geom_core::{CertifiedEnclosure, Real};
 
 /// C2's limbs 2–3 over one support (module docs). Cheap to clone: the
 /// support is shared.
@@ -58,7 +58,7 @@ struct Support<T: Real> {
     band: Band,
 }
 
-impl<T: Real + CertifiedEnclosure> LocusCertificate<T> {
+impl<T: Real> LocusCertificate<T> {
     /// The certificate of the limbs that just returned on this support.
     pub(crate) fn derived(
         carrier: &Curve3<T>,
@@ -119,7 +119,7 @@ fn surface_scalars<T: Real>(s: &Surface<T>) -> Vec<T> {
     out.into_inner()
 }
 
-fn same_scalars<T: CertifiedEnclosure>(a: &[T], b: &[T]) -> bool {
+fn same_scalars<T: Real>(a: &[T], b: &[T]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same_value(*y))
 }
 
@@ -130,7 +130,7 @@ fn same_spline<S: core::fmt::Debug>(x: &Arc<S>, y: &Arc<S>) -> bool {
 
 /// One carrier: a spline by [`same_spline`], a closed form by kind and
 /// scalars.
-fn same_curve<T: Real + CertifiedEnclosure>(a: &Curve3<T>, b: &Curve3<T>) -> bool {
+pub(crate) fn same_curve<T: Real>(a: &Curve3<T>, b: &Curve3<T>) -> bool {
     match (a, b) {
         (Curve3::Nurbs(x), Curve3::Nurbs(y)) => same_spline(x, y),
         (Curve3::Periodic(x), Curve3::Periodic(y)) => same_spline(x, y),
@@ -146,7 +146,7 @@ fn same_curve<T: Real + CertifiedEnclosure>(a: &Curve3<T>, b: &Curve3<T>) -> boo
 /// One surface: an analytic one by kind and scalars; a spline or
 /// approximating one, which the limbs never read (they take two
 /// analytic operands), by its allocation alone.
-fn same_surface<T: Real + CertifiedEnclosure>(a: &Surface<T>, b: &Surface<T>) -> bool {
+pub(crate) fn same_surface<T: Real>(a: &Surface<T>, b: &Surface<T>) -> bool {
     match (a, b) {
         (Surface::Nurbs(x), Surface::Nurbs(y)) => Arc::ptr_eq(x, y),
         (Surface::Approx(x), Surface::Approx(y)) => Arc::ptr_eq(x, y),

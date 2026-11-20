@@ -496,6 +496,10 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
+    fn same_value(self, other: Self) -> bool {
+        self.same_enclosure(other)
+    }
+
     /// **EXACT**: the value channel is a CERTIFIED enclosure of the
     /// real, so a comparison here is a proof — two enclosures that do
     /// not meet prove the reals differ
@@ -880,10 +884,6 @@ impl Bounds for Interval {
 impl crate::real::CertifiedEnclosure for Interval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
-    }
-
-    fn same_value(self, other: Self) -> bool {
-        self.same_enclosure(other)
     }
 
     fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {

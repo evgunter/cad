@@ -1987,6 +1987,10 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    fn same_value(self, other: Self) -> bool {
+        self.0.same_value(other.0)
+    }
+
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
     /// channel IS an `f64` and every comparison it makes is that
     /// `f64`'s.
@@ -2121,10 +2125,6 @@ impl Bounds for Probe {
 impl crate::real::CertifiedEnclosure for Probe {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         crate::real::CertifiedEnclosure::certified_bracket(self.0)
-    }
-
-    fn same_value(self, other: Self) -> bool {
-        crate::real::CertifiedEnclosure::same_value(self.0, other.0)
     }
 
     fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(record: C) -> C {
