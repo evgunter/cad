@@ -155,10 +155,8 @@ mod tests {
     /// box by a point (its end), by 1 m; one to 999 m is in it. A short
     /// segment whose carrier's origin is stored 1e5 m out but whose span
     /// stands at the origin is in it: the box reads the region, never a
-    /// carrier's stored terms. *Breaks if* the ends are left out of the
-    /// inside read (the far segment then refuses only by its samples,
-    /// which on a line are its ends, so the row pins the ends separately
-    /// below), if the stored origin is read, or if the box's edge moves.
+    /// carrier's stored terms. *Breaks if* the stored origin is read, or
+    /// if the box's edge moves (the ends are pinned by the next row).
     #[test]
     fn an_edge_is_read_over_its_span_with_its_ends() {
         let o = Point3::origin();
@@ -248,5 +246,84 @@ mod tests {
             panic!("the arc's middle is 100 m past the box");
         };
         assert!(margin.readable_below_zero().to_string().starts_with("100"));
+    }
+
+    /// The four certification doors on one spec and its ends: `certify`,
+    /// `certify_stated`, and `recertify`, `recertify_stated` of `held`.
+    fn every_door(
+        spec: &crate::EdgeCurveSpec<f64>,
+        held: &crate::EdgeCurve<f64>,
+        (a, b): (Point3<f64>, Point3<f64>),
+    ) -> [Result<(), crate::CertifyError>; 4] {
+        use crate::{EdgeCurve, NurbsLane};
+        let lever = || geom_core::test_support::fixture_lever(1.0);
+        let lane = NurbsLane::certified;
+        [
+            EdgeCurve::certify(spec.clone(), a, b, |_| None, lever(), band(), lane()).map(drop),
+            EdgeCurve::certify_stated(spec.clone(), a, b, |_| None, lever(), band(), lane(), None)
+                .map(drop),
+            held.recertify(a, b, |_| None, lever(), band(), lane())
+                .map(drop),
+            held.recertify_stated(a, b, |_| None, lever(), band(), lane(), None)
+                .map(drop),
+        ]
+    }
+
+    /// **Every certification door asks the box first, of the edge with its
+    /// ends.** A line edge 2 km out whose stated end misses its carrier by
+    /// a metre: each of the four doors refuses it as
+    /// [`crate::CertifyError::OutsideSessionBox`], not as the endpoint
+    /// residual a check after the box would read. The same edge moved home
+    /// (by `EdgeCurve::carried`, the image a move holds) certifies at each
+    /// door with its true ends, and with an end 2 km out refuses as past
+    /// the box: the ends are read, not only the carrier. *Breaks if* the
+    /// ask is dropped at one door, moved after the residuals, or reads the
+    /// carrier without its ends.
+    #[test]
+    fn every_certification_door_asks_the_box_before_any_residual() {
+        use crate::{CertifyError, EdgeCurve, EdgeCurveSpec};
+        let (p, q) = (Point3::new(2e3, 0.0, 0.0), Point3::new(2e3 + 1.0, 0.0, 0.0));
+        let home = EdgeCurve::certify(
+            EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0)),
+            Point3::origin(),
+            Point3::new(1.0, 0.0, 0.0),
+            |_| None,
+            geom_core::test_support::fixture_lever(1.0),
+            band(),
+            crate::NurbsLane::certified(),
+        )
+        .unwrap();
+        let far = home.carried(
+            Curve3::line(Point3::new(2e3, 0.0, 0.0), Vec3::unit_x()),
+            home.description().clone(),
+            home.authority(),
+        );
+        let missed = Point3::new(2e3 + 1.0, 1.0, 0.0);
+        for (door, got) in every_door(&EdgeCurveSpec::line_between(p, q), &far, (p, missed))
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
+                "door {door}: the box's refusal before the endpoint residual: {got:?}"
+            );
+        }
+        let (o, x) = (Point3::origin(), Point3::new(1.0, 0.0, 0.0));
+        let spec = EdgeCurveSpec::line_between(o, x);
+        for (door, got) in every_door(&spec, &home, (o, x)).into_iter().enumerate() {
+            assert!(
+                got.is_ok(),
+                "door {door}: an edge at home certifies: {got:?}"
+            );
+        }
+        for (door, got) in every_door(&spec, &home, (o, Point3::new(2e3, 0.0, 0.0)))
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
+                "door {door}: an end 2 km out is past the box: {got:?}"
+            );
+        }
     }
 }
