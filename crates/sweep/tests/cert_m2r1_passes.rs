@@ -105,7 +105,8 @@ fn dump<T: geom_core::Decide + core::fmt::Debug>(
 }
 
 fn dump_composed<
-    T: geom_core::CertifiedBounds + topo::CertifiedPolicy
+    T: geom_core::CertifiedBounds
+        + topo::CertifiedPolicy
         + topo::CertifiedPolicy
         + core::fmt::Debug
         + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
