@@ -43,12 +43,12 @@
 //! result is kept added to either resolver mints `-0.0` from an exact
 //! zero and owes the flush.
 //!
-//! The recognition half is pinned by the promoted one-cycle fixed point
-//! (`tests/corpus_fold.rs`,
-//! `the_folds_divergence_is_exactly_the_reported_promotion`): without
-//! the flush, `nonuniform_loft`'s two promoted planes state `u_ref` as
-//! `(1.0, 0.0, -0.0)` and `(1.0, -0.0, -0.0)`, and the second re-export
-//! differs from the first on exactly those tokens.
+//! The recognition half has no fixture that fails without it: a
+//! promoted plane's frame (the net's normal and its own `∂u` made
+//! perpendicular to it) mints no `-0.0` on the corpus, nor on a flat
+//! patch in any axis-aligned orientation. It is flushed for the reason
+//! above — the frame's orientation negates and its residual subtracts —
+//! not for a measured token.
 
 use geom_core::{Point3, Vec3};
 

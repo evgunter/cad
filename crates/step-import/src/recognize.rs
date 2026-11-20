@@ -42,10 +42,9 @@
 //! - **Plane**: translate-to-origin Newell over the control net's
 //!   boundary ring in index order (the `newell_plane` method, run on
 //!   the net rather than a loop so the fit is certification-free
-//!   here — certification is the residual bound above), its length
-//!   decided as the ring's width (the sum over the ring's perimeter),
-//!   oriented to the NURBS chart normal at the domain midpoint, `u_ref`
-//!   the chart's `∂u` there made perpendicular to the normal. Every
+//!   here — certification is the residual bound above), oriented to
+//!   the NURBS chart normal at the domain midpoint, `u_ref` the chart's
+//!   `∂u` there made perpendicular to the normal. Every
 //!   step is a fixed-order sum or a closed-form map of one — no
 //!   iteration, no data-dependent branching beyond the orientation
 //!   sign.
@@ -81,7 +80,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, UnitVec3, Vec3};
+use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3};
 
 use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -213,50 +212,35 @@ fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>,
         ring.push(at(0, iv));
     }
     let mut normal_sum = Vec3::zero();
-    let mut perimeter = 0.0f64;
     for (i, p) in ring.iter().enumerate() {
         let next = ring[(i + 1) % ring.len()];
         normal_sum = normal_sum + (*p - origin).cross(next - origin);
-        perimeter += (next - *p).norm();
     }
-    // The Newell sum is twice the ring's area vector, so over the
-    // perimeter it is a length — the ring's inradius for a tangential
-    // ring, its width for a thin one. Read at the file's band it decides
-    // whether the net spans a plane at all; a net collinear within the
-    // band (or a perimeter that is no length) determines none and stays
-    // NURBS.
-    let mut normal = UnitVec3::new_scaled(
-        normal_sum,
-        perimeter.recip(),
-        STEP_RECOGNIZED_CONDITIONING,
-        file.band(),
-    )
-    .ok()?;
-    // Orient to the chart normal (module docs); a net normal orthogonal
-    // to the chart's determines no oriented plane.
+    // Orient to the chart normal (module docs). A net normal orthogonal
+    // to the chart's, or no number, determines no oriented plane:
+    // refuted here, stays NURBS.
     let chart = patch_jet_mid(patch);
-    let align = normal.get().dot(chart.du.cross(chart.dv));
+    let align = normal_sum.dot(chart.du.cross(chart.dv));
     if !(align.is_finite() && align != 0.0) {
         return None;
     }
-    if align < 0.0 {
-        normal = -normal;
-    }
-    // A promoted plane's `u_ref` is a kept frame, so the input states
-    // its roll: the patch's own u direction at the domain midpoint,
-    // the tangent the chart normal above was crossed from (nonzero
-    // wherever that normal is). The plane's chart then runs the
-    // patch's way round. A tangent is no distance for the file's band
-    // to read, so only one along the normal is degenerate.
-    let frame = RigidMotion::from_aim_and_reference(
+    let normal_sum = if align < 0.0 { -normal_sum } else { normal_sum };
+    // The plane's frame, its normal the oriented sum and its roll the
+    // input's: a promoted plane's `u_ref` is kept, so it is the patch's
+    // own `∂u` at the domain midpoint, the tangent the chart normal was
+    // crossed from, and the plane's chart runs the patch's way round.
+    // Both are an estimator's choices, which the certificate below
+    // decides, so their lengths are read at the least band: only a
+    // vanishing one determines no frame.
+    let frame = RigidMotion::from_axis_and_reference(
         origin,
-        normal,
+        normal_sum,
         chart.du,
         crate::STEP_PLACEMENT_AXES,
         Band::least(),
     )
     .ok()?;
-    let normal = normal.get();
+    let normal = frame.w().get();
     let plane = Surface::Plane {
         origin: plus_zero_point(origin),
         normal: plus_zero(normal),
@@ -954,5 +938,50 @@ mod review_probes {
             }
             other => panic!("a double-certifying patch promotes: {other:?}"),
         }
+    }
+}
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod plane_frame {
+    use geom_core::spline::KnotVector;
+
+    use super::*;
+
+    /// A flat bilinear patch on `z = 0` through `corners` (in `u`-major
+    /// order: `(u0,v0), (u0,v1), (u1,v0), (u1,v1)`), each corner mapped
+    /// through `place`.
+    fn flat(
+        corners: [(f64, f64); 4],
+        place: impl Fn(Point3<f64>) -> Point3<f64>,
+    ) -> NurbsSurface<f64> {
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = corners
+            .iter()
+            .map(|&(x, y)| place(Point3::new(x, y, 0.0)))
+            .collect();
+        NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap()
+    }
+
+    fn promoted_plane(patch: &NurbsSurface<f64>) -> (Vec3<f64>, Vec3<f64>) {
+        match try_plane(patch, crate::interpret::FileBand::test(1e-9)) {
+            Some((Surface::Plane { normal, u_ref, .. }, _)) => (normal, u_ref),
+            other => panic!("a flat patch promotes to a plane: {other:?}"),
+        }
+    }
+
+    /// The kept `u_ref` is the input's (D10 `[placement.frame]`): the
+    /// patch turned about its normal turns its plane's roll with it.
+    #[test]
+    fn a_promoted_planes_roll_turns_with_its_patch() {
+        let square = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)];
+        let (s, c) = 0.5f64.sin_cos();
+        let turn = |p: Point3<f64>| Point3::new(c * p.x - s * p.y, s * p.x + c * p.y, p.z);
+        let (_, u_ref) = promoted_plane(&flat(square, |p| p));
+        let (_, turned) = promoted_plane(&flat(square, turn));
+        let carried = turn(Point3::origin() + u_ref) - Point3::origin();
+        assert!(
+            (turned - carried).norm() < 1e-15,
+            "the roll is carried by the turn: {turned:?} vs {carried:?}"
+        );
     }
 }

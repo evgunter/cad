@@ -622,7 +622,7 @@ impl SnapRelation {
 /// The K row a placement frame's two directions are decided under where
 /// the importer mints one from directions that are no distances:
 /// `build_axes` ([`NormalizationKind::PlacementReMinted`]), a promoted
-/// plane's roll, and a line rim's frame.
+/// plane's normal and roll, and a line rim's frame.
 pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 
 /// The decision whether an assembly placement pair places anything: the
