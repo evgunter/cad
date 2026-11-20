@@ -728,7 +728,7 @@ fn near_gap_family(ratio: Option<f64>) -> Vec<geom::Curve3<f64>> {
             out.push(match (ratio, c) {
                 (None, c) => c,
                 (Some(k), geom::Curve3::Circle(c)) => {
-                    geom::Curve3::Ellipse(geom::Ellipse::new(c.frame, c.radius, c.radius * k))
+                    geom::Curve3::Ellipse(geom::Ellipse::new(c.frame, c.radius(), c.radius() * k))
                 }
                 _ => unreachable!(),
             });

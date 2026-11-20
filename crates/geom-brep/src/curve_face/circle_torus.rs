@@ -193,7 +193,7 @@ pub fn circle_torus_roots<T: Decide>(
                         axis,
                         u_ref,
                     },
-                radius,
+                ..
             },
         ),
         &geom::Surface::Torus {
@@ -210,6 +210,7 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
+    let radius = circle.radius();
     // The door reads only a ring, asked of the convention before any pose:
     // its harmonics take the witness, whose floor on `|F|` per metre and
     // whose meridian bound lean on `R − r > 0`.
@@ -541,14 +542,14 @@ fn parallel_axes_roots<T: Decide>(
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
         circle:
-            geom::Circle {
+            circle @ geom::Circle {
                 frame:
                     geom::Frame {
                         origin: center,
                         u_ref,
                         ..
                     },
-                radius,
+                ..
             },
         w_perp,
         offset,
@@ -557,6 +558,7 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let radius = circle.radius();
     let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
@@ -727,14 +729,14 @@ mod tests {
         torus: &geom::Surface<T>,
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         circle_torus_roots(&carrier, t0, t1, torus, band)
     }
 

@@ -51,7 +51,7 @@ fn a_box_across_a_near_full_arcs_gap_is_not_read_outside() {
         for (past_stop, reach) in [(0.01, 0.1), (0.3 * gap, 0.02), (0.45 * gap, 0.5)] {
             let x = hull(span.1 + past_stop, TAU + reach);
             let t = a.param(x);
-            let readings = span_readings(&a.carrier(), t, a.span, a.circle.radius, iv(0.0), band);
+            let readings = span_readings(&a.carrier(), t, a.span, a.circle.radius(), iv(0.0), band);
             assert!(
                 !readings.contains(&Ok(Sign::Negative)),
                 "gap {gap}, from {past_stop} past the stop to {reach} past the start: \

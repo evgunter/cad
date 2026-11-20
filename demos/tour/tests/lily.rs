@@ -410,8 +410,8 @@ mod review_probes {
                         .is_some_and(|c| {
                             matches!(
                                 c.carrier(),
-                                pncad::geom::Curve3::Circle(pncad::geom::Circle { radius, .. })
-                                    if (radius - ARCH_R).abs() < 1e-12
+                                pncad::geom::Curve3::Circle(circle)
+                                    if (circle.radius() - ARCH_R).abs() < 1e-12
                             )
                         })
             })
@@ -1352,13 +1352,16 @@ mod review_probes {
         b.edges()
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
-                let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::Frame { origin: center, .. },
-                    radius,
-                }) = *geom.carrier()
+                let pncad::geom::Curve3::Circle(
+                    conic_k @ pncad::geom::Circle {
+                        frame: pncad::geom::Frame { origin: center, .. },
+                        ..
+                    },
+                ) = *geom.carrier()
                 else {
                     return None;
                 };
+                let radius = conic_k.radius();
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {
                     let out = mid - center;
                     center + out * (radius / out.norm())

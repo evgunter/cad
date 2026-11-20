@@ -303,19 +303,21 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 #[test]
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = ellipse
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = ellipse
     else {
         unreachable!("built as an ellipse")
     };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let moved = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, axis, u_ref),
         semi_u + 1e-4,
@@ -568,10 +570,10 @@ fn lemon_and_its_meridian_plane() -> (Surface<f64>, Surface<f64>) {
 
 /// The unit circle about `(c, 0, 0)` in `y = 0`, from `+x` toward `+z`.
 fn meridian(c: f64) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
-        radius: 1.0,
-    })
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
+        1.0,
+    ))
 }
 
 /// **Limb 2 against a sheet reads that sheet up to its apexes.** The

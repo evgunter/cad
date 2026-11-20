@@ -77,13 +77,16 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert_eq!(curves.len(), 1);
-    let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { axis, .. },
-        radius,
-    }) = curves[0].carrier
+    let geom::Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: geom::Frame { axis, .. },
+            ..
+        },
+    ) = curves[0].carrier
     else {
         panic!("the carrier must ship as a Circle, got {:?}", curves[0]);
     };
+    let radius = conic_k.radius();
     assert!((radius - 0.005).abs() < 1e-15, "r = 5 mm: {radius:e}");
     assert!((axis.z.abs() - 1.0).abs() < 1e-12, "axis {axis:?}");
     // The report and the shipped carrier agree about the kind — the
