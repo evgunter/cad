@@ -791,17 +791,20 @@ fn a_product_in_one_shared_frame_localizes_in_it_moving_no_copy() {
     );
 }
 
-/// **Localizing interference reads each copy into the product's frame
-/// once**, however many interfering pairs it is in: a block placed in
-/// the world under a turned frame and a row of three copies of it 0.4
-/// apart, every pair of the four overlapping, so each copy is in several
-/// interfering pairs. The product computes in the first copy's frame,
-/// and localization moves each other copy into it, a moved leaf, which
-/// runs one finish ([`a_moved_leaf_runs_one_finish`]). The checks run 31
-/// finishes, measured. *Breaks if* a copy is read per pair.
+/// **Localizing interference finishes each copy once**, however many
+/// interfering pairs it is in: a block placed in the world under a
+/// turned frame and a row of three copies of it 0.4 apart, every pair of
+/// the four overlapping, so each copy is in several interfering pairs.
+/// The product computes in the first copy's frame. Localization takes
+/// each copy finished in its own frame, once, and each pair hands its two
+/// to the placed door (`topo::boolean_placed`), which moves each one not
+/// in the product's frame, carrying its verdict, and finishes nothing.
+/// The checks run 26 finishes, measured. *Breaks if* a copy is taken per
+/// pair. That the move itself is made per pair is
+/// `work/onehome/the-at-rest-localization-moves-each-copy-once-per-pair.md`.
 #[cfg(debug_assertions)]
 #[test]
-fn localizing_reads_each_copy_into_the_products_frame_once() {
+fn localizing_finishes_each_copy_once() {
     let tol = Tol::witness();
     let (doc, _) = row_in_world("localize-once", &turned([3.0, 1.0, 2.0]), 0.4, 3);
     let ev: Evaluation<f64> = evaluate(
@@ -838,7 +841,7 @@ fn localizing_reads_each_copy_into_the_products_frame_once() {
         "and each overlap is bounded: {found:?}"
     );
     assert_eq!(
-        finishes, 31,
-        "the checks' finishes, each copy read into the product's frame once"
+        finishes, 26,
+        "the checks' finishes, each copy finished once"
     );
 }
