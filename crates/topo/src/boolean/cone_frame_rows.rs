@@ -943,3 +943,23 @@ fn the_mint_takes_the_pairs_held_reading() {
         "a pierce germ along a ruling the held reading reads as a loop is a desync"
     );
 }
+
+/// **A plane×cone surface pair's reach is read from inside its faces.**
+/// The glue door's reach ([`super::join::surface_pair_reach`]) of
+/// [`far_generator_wall`], its face its own window, is measured from a
+/// point of the face's region: its farthest distance from there is no
+/// more than the generator it holds, about 1 m, and no less than half
+/// it, where the apex a hundred metres off, or a carrier's stored
+/// origin, would read about a hundred.
+#[test]
+fn a_cone_surface_pairs_reach_is_read_from_inside_its_faces() {
+    let (body, face) = far_generator_wall();
+    let reach =
+        super::join::surface_pair_reach((&body, &body), &[(face, face)], &far_cone(), band())
+            .unwrap();
+    let across = reach.lever_from(Point3::new(1.0, 0.0, 0.0)).length();
+    assert!(
+        (0.5..=1.01).contains(&across),
+        "the surface pair's reach reads its faces from inside them, got {across}"
+    );
+}
