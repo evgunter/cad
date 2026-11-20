@@ -211,6 +211,22 @@ constructed only through doors that state its dimension
 (SPLINE-DESIGN S1); surface and curve kinds are closed enums
 ([surfaces]).
 
+A signature is a claim too. A generic bound says which types the code
+has a meaning for, not which it compiles at: where code generic over a
+scalar has no meaning at one of them (a certification at a `Dual`, a
+search at a `Sym`), its bound excludes that scalar, at compile time
+and never by a check at run time. A conversion between representations
+(an `f64` into a `T`, a `T` read as an `f64` and returned) says what
+makes its result true at every type it can produce; where nothing
+does, the value is not converted, and stays in the type it was
+computed in. The test of any generic signature is one sentence per
+type it admits, saying what the result means there: a type with no
+such sentence is excluded. That an operation has callers is no
+evidence it is needed. No gate or scope rule makes the narrower bound
+cost more to write than the broader one
+(`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
+scalars).
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
