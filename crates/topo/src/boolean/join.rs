@@ -7200,7 +7200,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None::<geom_core::NoLane>, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();

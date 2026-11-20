@@ -20,12 +20,14 @@
 # this gate is what keeps a listed file's next helper from leaving the
 # bound off.
 #
-# WHAT IS READ is `lib.sh`'s shared CODE-ONLY view of each listed file's
-# PRODUCTION code (`--skip-cfg-test`; the test-only mounts are dropped by
-# `gate_production_sources`), in its STATEMENT record shape, so a
-# declaration arrives with its generic list and its `where` clause as
-# one record whatever the line breaks. Test code is not held: a test
-# instantiates at whatever scalar it is about.
+# WHAT IS READ is `lib.sh`'s shared CODE-ONLY view of each listed file,
+# less its `#[cfg(test)]` items (`--skip-cfg-test`), in its STATEMENT
+# record shape, so a declaration arrives with its generic list and its
+# `where` clause as one record whatever the line breaks. Test code is
+# not held: a test instantiates at whatever scalar it is about. The
+# listed files are the whole subject, so the tree's test-only mounts are
+# not resolved; a listed file that is itself mounted under `cfg(test)`
+# would be read as production, which cries wolf and cannot go blind.
 #
 # WHAT FIRES. A record that declares a generic ITEM — `fn`, `impl`,
 # `struct`, `enum`, `union`, `trait` or `type` followed (after the name,
@@ -81,7 +83,9 @@ CERT_FILES_SUBJECT='a file listed as certification code, whose generic items thi
 # A file that holds both a body's data and its certification is not
 # listed until the two are apart, since a dual body holds the data.
 CERT_FILES=(
-  crates/geom-brep/src/pcurve_cache/spline_incidence.rs
+  # The spline x analytic-face crossings `NurbsLane::surface_crossings`
+  # runs: an isolation in certification arithmetic and its settle.
+  crates/geom-brep/src/curve_face/composite.rs
 )
 
 # The names that say a scalar certifies: the marker, and each trait
@@ -161,7 +165,6 @@ gate_interior_reader() {
 
 gate() {
   gate_require_crate_sources
-  gate_production_sources
   gate_require_homes "$CERT_FILES_SUBJECT" "${CERT_FILES[@]}"
   local view
   if ! view=$(gate_rust_code --skip-cfg-test --statements "${CERT_FILES[@]}"); then
@@ -262,7 +265,7 @@ plant_ok_unlisted_file() {
 gate_selftest() {
   local want="a generic item without Certifies in a file listed as certification code"
   gate_selftest_clean
-  gate_selftest_without_tool grep "it is grep saying it could not search"
+  gate_selftest_without_tool awk "could not build the statement view"
   gate_selftest_case "$want" plant_fn_decide
   gate_selftest_case "$want" plant_fn_unbounded
   gate_selftest_case "$want" plant_impl_real
@@ -280,7 +283,7 @@ gate_selftest() {
   gate_selftest_passes "a method with no list of its own in a bounded impl" plant_ok_method_in_bounded_impl
   gate_selftest_passes "a generic item under cfg(test)" plant_ok_test_code
   gate_selftest_passes "an unbounded generic item in a file that is not listed" plant_ok_unlisted_file
-  gate_selftest_homes --narrowed --subject "$CERT_FILES_SUBJECT" "${CERT_FILES[@]}"
+  gate_selftest_homes --subject "$CERT_FILES_SUBJECT" "${CERT_FILES[@]}"
   printf '%s selftest OK: passes a clean fixture carrying every listed file; fires on a fn, an impl, a struct, an enum, a trait and a type alias whose generic list holds a type parameter and whose record names no certifying bound, whether the bound is absent, weaker (Decide, Real), spread over a rustfmt where block, present only in prose, or a longer name; fires on a method that declares its own type parameter inside a bounded impl (KNOWN GAP 2); passes the bound in a where clause, through a registered name, lifetime-only and const-only lists, test code and unlisted files\n' "$(gate_name)"
 }
 

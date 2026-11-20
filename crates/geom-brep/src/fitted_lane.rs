@@ -16,23 +16,20 @@
 //! [`geom_core::CertifiedEnclosure`] impl).
 //!
 //! [`FittedLane`] is that door: the operations in one value,
-//! with one constructor ([`FittedLane::certified`]) whose `impl` block
-//! is bounded on the right, so holding one IS the statement that the
-//! scalar it is parameterised by may certify. A scalar that may not
-//! cannot write the value at all:
+//! with one constructor ([`FittedLane::certified`]), declared over
+//! [`geom_core::Certifies`], so holding one IS the statement that the
+//! scalar it is parameterised by certifies. A scalar that does not has
+//! no such type, and a pass that runs at every scalar holds a
+//! [`FittedLaneOf`], which at a dual is [`geom_core::NoLane`]:
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail,E0277
 //! use geom_brep::FittedLane;
 //! use geom_core::Dual64;
 //! let _ = FittedLane::<Dual64>::certified();
 //! ```
 //!
-//! The code is `E0599` because `certified` EXISTS on
-//! `FittedLane<Dual64>` and its `impl` block's bounds are not met,
-//! which `rustc` reports as "the associated function exists … but its
-//! trait bounds were not satisfied". Stable rustdoc verifies only that
-//! the block fails to build, so the code beside the fence is a
-//! statement and not a check.
+//! Stable rustdoc verifies only that the block fails to build, so the
+//! code beside the fence is a statement and not a check.
 //!
 //! **Where the `Some` comes from.** One seam answers it —
 //! `topo::AtRestPolicy::fitted_lane`, DL3's per-scalar policy home

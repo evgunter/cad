@@ -699,7 +699,17 @@ BOUNDS_ALLOWLIST=(
   # body (`F: FinishedBody`), so their `Decide + CertifiedBounds` is now
   # `F::Scalar: CertifiedBounds` in a `where` clause: the same certified
   # seam, named on the finished body's scalar.
-  'crates/topo/src/props.rs 11 M5 PR 11, the certified-quadrature plumbing'
+  # props.rs 11 -> 14 (the lanes over `Certifies`): the three
+  # finished-body doors above name `CertifiedPolicy` beside their
+  # `F::Scalar: CertifiedBounds`, so a sole bracket door became the
+  # compound of the door each calls (`measure_body`, `classify_body`,
+  # `classify_body_of`). `CertifiedPolicy` is what says the lane a
+  # certified door names (`QuadLane::certified`) is the lane the walk's
+  # certificate holds (`AtRestPolicy::QuadLane`). None reads a bracket.
+  # The lane constructors and the doors that were `Decide +
+  # CertifiedBounds` now write `Certifies` or `CertifiedPolicy` in
+  # `Decide`'s place, at the same count.
+  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -1056,7 +1066,11 @@ BOUNDS_ALLOWLIST=(
   # geom-brep README's C2): the certification doors' impl block and the
   # engine they share (`run_checks`), at the lane's bound, so a scalar
   # that may not certify cannot name them.
-  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
+  # certify.rs 4 -> 5 (the lanes over `Certifies`): `SplineFoot`'s
+  # constructor block. The type is declared over `Certifies`, so the
+  # block that was a sole `CertifiedBounds` names it; its one read is
+  # the seed's bracket midpoint, as before, and it decides nothing.
+  'crates/geom-brep/src/certify.rs 5 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
   # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
   # scalars' edge door bodies their policies run, at the certifying
   # doors' own bound, and nothing else in the file.
@@ -1115,7 +1129,11 @@ BOUNDS_ALLOWLIST=(
   # moved clone and maps its answer to the shell's refusals. It reads no
   # bracket; the bound is the door's own, at the door that already
   # carries it (`shell_open_at`).
-  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
+  # shell.rs 2 -> 4 (the lanes over `Certifies`): `shell` and
+  # `shell_open` name `CertifiedPolicy` beside their `F::Scalar:
+  # CertifiedBounds`, the bound of the door both call (`shell_open_at`),
+  # for `props.rs`'s reason. Neither reads a bracket.
+  'crates/topo/src/shell.rs 4 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell

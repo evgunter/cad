@@ -1165,16 +1165,34 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// a number (see the [module docs](self)); this trait is the separate door
 /// those docs promised.
 ///
-/// # The scope rule (M0 L7, under the evaluation-code discipline)
+/// # The scope rule (M0 L7; the crate README, DL5.3)
 ///
+/// **A bound states which scalars the code means something at.** Write
+/// that bound, and never a wider one because it compiles. The standard
+/// this replaces asked for the weakest bound that works; Ev, on PR 7155:
+/// it "should be updated to have more of a focus on semantic
+/// correctness", and it was never "broaden it to anything that doesn't
+/// error". Code that certifies says so with [`Certifies`], and no work
+/// is done to support a scalar the code has no meaning for.
+///
+/// **Excluding a scalar is free.** [`Certifies`] grants no bracket read,
+/// so writing it needs no entry and no ratification, alone or beside a
+/// bound that reads no bracket. Ev: "the exclusion is free and only the
+/// bounds reading needs the extra check".
+///
+/// **What needs an entry is a bracket read in code that also decides.**
 /// A `Bounds` bound appears only in **certification and driver code** —
 /// residual certification, the subdivision driver, rendering/telemetry —
-/// never in an evaluation signature; and that code writes `T: Bounds` as
-/// the parameter's **sole** bound (it is a subtrait, so [`Real`]'s
-/// operations come with it). An *extra* bound tacked onto an evaluation
-/// type parameter is exactly the escape hatch
-/// `scripts/gates/bounds-allowlist.sh` exists to catch, and the compound
-/// form is what that gate greps for.
+/// never in an evaluation signature; and code that only reads brackets
+/// writes its bracket door as the parameter's **sole** bound (`T:
+/// Bounds`, or `T: CertifiedBounds` where the code has no meaning at a
+/// dual; each is a subtrait, so [`Real`]'s operations come with it). A
+/// bracket door BESIDE a deciding bound on one parameter (`T: Decide +
+/// Bounds`, `T: Certifies + CertifiedBounds`; [`Certifies`] has `Decide`
+/// as its supertrait) is the compound form
+/// `scripts/gates/bounds-allowlist.sh` reads for, and it is written only
+/// in a file with an entry in [`bounds_allowlist`]. The entry shows the
+/// read is necessary and that it decides nothing.
 ///
 /// **A NAMED compound bound is the same obligation as the literal
 /// spelling.** A trait that gathers a decision door and a bracket door
@@ -1198,7 +1216,8 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// redeems it: such a candidate is refused rather than weighed.
 ///
 /// **The ratified exceptions have their own home**, [`bounds_allowlist`]:
-/// one entry per seam, with the necessity argument that earned it. It
+/// one entry per seam, with the argument that earned it: the read is
+/// necessary, and it decides nothing. It
 /// lives beside this trait rather than inside this doc because it is the
 /// part that grows — see that module's own header.
 ///
@@ -1239,16 +1258,16 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// exposure; this one states it rather than leaving a reader to assume
 /// the gate is stronger than it is.
 ///
-/// **On the second — the WEAKEST bound that works, with the next
-/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
-/// the callees require it. The next tighter bound,
-/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
-/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
-/// blend lowering runs beneath `evaluate<T>`, a mixed pass
-/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
-/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
-/// entry's discriminator, not the M9-2 one: a generic mixed pass does
-/// call this door, so it keeps its lane rather than tightening.
+/// **On the second — the bracket bound is necessary, and the door
+/// admits a dual because it means something at one.** Dropping
+/// [`Bounds`] does not compile: the callees require it. The door does
+/// not write [`Certifies`], because the seat is construction code:
+/// `editor_core::eval::wire`'s blend lowering runs beneath
+/// `evaluate<T>`, a mixed pass the dual corpus instantiates at
+/// [`Dual`](crate::Dual), and a blend built at a dual carries its
+/// tangents. This is the `separation` entry's discriminator, not the
+/// M9-2 one: a generic mixed pass does call this door, so it keeps its
+/// lane.
 ///
 /// The seam did not widen here; it acquired a file. The refusing-lane
 /// question is answered where it was already answered: the PR 12 entry
@@ -1262,11 +1281,11 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
-/// records that tightening `Decide + Bounds + AtRestPolicy` to a
-/// certifying bound breaks `editor_core::eval::wire`'s
-/// `Dual`-instantiated blend lowering. That right is now a VALUE the
-/// caller passes — `topo::ShellDoor`, whose one constructor carries
-/// the certifying bound — so the seat's shell arm takes the door as a
+/// records that the first header's doors mean something at a dual,
+/// which a certifying bound would deny. That right is now a VALUE the
+/// caller passes — the scalar's `topo::AtRestPolicy::ShellDoor`, which
+/// is `topo::ShellDoor` where the scalar certifies and a type with no
+/// values at a dual — so the seat's shell arm takes the door as a
 /// parameter and rides the first header like every other verb, with
 /// the delegation rule covering it on the same terms: it passes its
 /// operand, its thickness and its designation through unchanged,
@@ -1410,10 +1429,17 @@ pub mod bounds_allowlist {
     //! the dangerous pattern when not necessary, so if it is necessary it's
     //! fine". The rule is not a budget on how many seams may exist, and an
     //! extension is not earned by RESEMBLING one already listed. What a
-    //! candidate owes is a demonstration of **necessity**, and the
-    //! demonstration is the ratifiable artifact: it must name the **weakest**
-    //! bound that works and show the next tighter one FAILING. An argument
-    //! that a bound *suffices* is not the argument this rule asks for.
+    //! candidate owes is a demonstration that the bracket READ is
+    //! **necessary** — what the code takes from the bracket and cannot
+    //! have without it — and that the read decides nothing. That
+    //! demonstration is the ratifiable artifact. An argument that the
+    //! bound *suffices*, or that a tighter one breaks a caller, is not
+    //! it: which scalars a function admits is the scope rule's question,
+    //! answered by what the function means and before any entry is
+    //! weighed. Entries written to the earlier standard argue the same
+    //! necessity in its words ("the weakest bound that works", with a
+    //! dropped term shown failing): a dropped bracket term that stops the
+    //! code compiling is the read shown necessary.
     //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
     //! for the reasons rather than restating them.
     //!
@@ -1460,16 +1486,13 @@ pub mod bounds_allowlist {
     //! edge's box misses the ball's, a terminal `Bounds` grant. It is the
     //! grant the box constructors' pruning makes, in the disjointness
     //! direction the #571 rule allows: a box miss can only clear an edge
-    //! of the ball, never place one in it. The weakest bound that works
-    //! is `Decide + Bounds`: sole `Decide` reads no box and drives no
-    //! bisection, and sole `Bounds` decides nothing. The next tighter,
-    //! `Decide + CertifiedBounds`, does not survive the public boolean.
-    //! Carried up through every caller (`curved_face_arm`,
-    //! `wall_crossing`, `settle_deferred`, `sweep_direction`, `ops`'
-    //! entries and `boolean_reduce`), each signature compiles. The first
-    //! failure is `Dual64: CertifiedEnclosure` where the public boolean is
-    //! instantiated at a dual (`crates/topo/tests/inside_out_operand.rs`),
-    //! and a dual has no certified enclosure to give. Three of `reduce`'s
+    //! of the ball, never place one in it. The read is necessary: sole
+    //! `Decide` reads no box and drives no bisection, and sole `Bounds`
+    //! decides nothing. The bound is not a certifying one, because the
+    //! reading is the public boolean's and the boolean builds at a dual
+    //! (`crates/topo/tests/inside_out_operand.rs`): there the box prune
+    //! and the bisection stop read the base scalar's brackets (the crate
+    //! README, DL5.1), and every verdict is a `Decide` call. Three of `reduce`'s
     //! crossing-layer functions (`curved_face_arm`, `wall_crossing`,
     //! `settle_deferred`) carry the bound as a reachability ride to it and
     //! read no bracket of their own.
@@ -1519,7 +1542,7 @@ pub mod bounds_allowlist {
     //! funnel margins) and reads brackets into certification arithmetic
     //! (`Interval::from_certified`). Its split from
     //! scalars that may not certify is STATIC and stands on two things:
-    //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
+    //! `topo::QuadLane::certified`, at `Certifies + CertifiedBounds`, is the only
     //! entry from the reporting walks, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
@@ -1639,7 +1662,7 @@ pub mod bounds_allowlist {
     //! is the free function `geom_brep::plane_nurbs_limbs`, at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! exactly as before, and the one DOOR that names it carries
-    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! `Certifies + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
     //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
     //! file joins this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
@@ -1719,11 +1742,12 @@ pub mod bounds_allowlist {
     //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
     //! satisfies, so the predicate is uninstantiable at one however it is
     //! reached — including from outside the crate, where no census is
-    //! running. The census's `Option<topo::RegionLane<T>>` parameter (one
-    //! constructor, at the door's bound; `None` from the `_structural` twin)
-    //! is not redundant with that: its `None` is what lets the census, a
-    //! MIXED pass, decline this one arm and keep going, which no bound on a
-    //! whole function can express.
+    //! running. The census's `Option<T::RegionLane>` parameter (the
+    //! scalar's `topo::AtRestPolicy::RegionLane`: the lane where the
+    //! scalar certifies, a type with no values at a dual; `None` from the
+    //! `_structural` twin) is not redundant with that: its `None` is what
+    //! lets the census, a MIXED pass, decline this one arm and keep going,
+    //! which no bound on a whole function can express.
     //! The tightening replaced an audit rather than a wrong answer, and
     //! **the discriminator is that nothing generic calls this door** — which
     //! is why `topo::separation`, whose caller is a mixed pass, was not

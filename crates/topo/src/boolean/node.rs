@@ -490,7 +490,13 @@ mod tests {
             for (label, x, y) in [("a, b", &wa, &wb), ("b, a", &wb, &wa)] {
                 let label = format!("{angle} rad, {label}");
                 let region = geom_brep::ExtentBall::fixture(o, 3.0);
-                let section = match geom_brep::pair_section(x, y, Some(region), None, band()) {
+                let section = match geom_brep::pair_section(
+                    x,
+                    y,
+                    Some(region),
+                    None::<geom_core::NoLane>,
+                    band(),
+                ) {
                     Ok(geom_brep::SectionRead::Built(section)) => section,
                     other => panic!("{label}: {other:?}"),
                 };

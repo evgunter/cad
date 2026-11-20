@@ -2697,12 +2697,21 @@ pub struct StatedImage<T: Real> {
 /// [`crate::curved_nurbs_limbs`], [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
 /// (an `OnPair`'s incidence alone), with [`crate::analytic_edge_limbs`]'s
 /// verdict. Its fields are private and no other constructor exists. A
-/// scalar that may not certify cannot write the value:
+/// scalar that does not certify has no such type: the lane is declared
+/// over [`geom_core::Certifies`], so a function that names it carries
+/// the bound, and a pass that runs at every scalar holds a
+/// [`NurbsLaneOf`], which at a dual is [`geom_core::NoLane`].
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_brep::NurbsLane;
 /// use geom_core::Dual64;
 /// let _ = NurbsLane::<Dual64>::certified();
+/// ```
+///
+/// ```compile_fail,E0277
+/// use geom_brep::NurbsLane;
+/// use geom_core::Dual64;
+/// fn names_it(_lane: Option<NurbsLane<Dual64>>) {}
 /// ```
 ///
 /// and a caller at any scalar cannot hand a door limbs it made up — a

@@ -4553,16 +4553,14 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 /// (this module's header). The doors it holds take that crossing
 /// themselves, and a verifier reads a candidate's carriers already
 /// crossed ([`Candidate::enclosure`]), so no caller spells a lift. A
-/// scalar without that right cannot write the value:
+/// scalar that does not certify has no such type ([`crate::QuadLane`]'s
+/// paragraph):
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::ClearanceLane;
 /// let _ = ClearanceLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct ClearanceLane<T: geom_core::Certifies> {

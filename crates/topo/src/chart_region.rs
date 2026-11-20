@@ -676,18 +676,15 @@ impl std::error::Error for ChartRegionError {}
 /// CertifiedBounds` whenever `T` is, so the constructor is there for
 /// it.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to the census:
+/// A scalar that does not certify has no such type
+/// ([`crate::QuadLane`]'s paragraph), and the census holds
+/// [`crate::AtRestPolicy::RegionLane`] with no values there:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::RegionLane;
 /// let _ = RegionLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct RegionLane<T: geom_core::Certifies> {

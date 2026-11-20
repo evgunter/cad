@@ -53,7 +53,7 @@ fn region() -> ExtentBall<f64> {
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>, region: ExtentBall<f64>) -> PairSection<f64> {
-    match geom_brep::pair_section(a, b, Some(region), None, band()) {
+    match geom_brep::pair_section(a, b, Some(region), None::<geom_core::NoLane>, band()) {
         Ok(SectionRead::Built(section)) => section,
         other => panic!("expected the section, got {other:?}"),
     }
@@ -133,7 +133,7 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
             );
         }
         let carried = section
-            .carry(None, band())
+            .carry(None::<geom_core::NoLane>, band())
             .expect("closed forms carry with no lane");
         assert!(
             carried.components().iter().all(|c| !c.closed()),
@@ -318,7 +318,9 @@ fn the_bisector_pose_lists_two_nodes_and_four_arcs() {
             }
             on_both(curve.eval(0.5 * (span.0 + span.1)), x, y, label);
         }
-        let carried = section.carry(None, band()).expect("closed forms carry");
+        let carried = section
+            .carry(None::<geom_core::NoLane>, band())
+            .expect("closed forms carry");
         assert_eq!(carried.components().len(), 4, "{label}");
     }
 }
@@ -410,7 +412,7 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     // levered by its inverse, outgrows the band about the region's sphere:
     // the sweep cannot place a cut end and escalates on the cut's row.
     if band().zero() < 1e-10 {
-        match geom_brep::pair_section(&a, &b, Some(far_region), None, band()) {
+        match geom_brep::pair_section(&a, &b, Some(far_region), None::<geom_core::NoLane>, band()) {
             Err(SectionError::Escalated(diag)) => assert!(
                 diag.predicate.is_some_and(|p| p.starts_with("ruling_cut")),
                 "on the cut: {diag:?}"
@@ -533,7 +535,7 @@ fn coaxial_walls_of_one_radius_are_one_surface() {
         wall(Point3::new(0.0, 0.0, 0.4), Vec3::unit_z(), 0.5),
     );
     for (order, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
-        let got = geom_brep::pair_section(x, y, Some(region()), None, band());
+        let got = geom_brep::pair_section(x, y, Some(region()), None::<geom_core::NoLane>, band());
         assert!(
             matches!(got, Err(SectionError::CoincidentSurfaces)),
             "{order}: {got:?}"
@@ -1057,7 +1059,8 @@ fn a_node_the_region_does_not_hold_is_not_listed() {
     }
     assert_eq!(one.node_sets().len(), 1, "one set");
     assert_eq!(one.node_sets()[0].arcs, [0, 1, 2, 3], "joined at the node");
-    one.carry(None, band()).expect("closed forms carry");
+    one.carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
 
     let meet = node0 + (whole.nodes()[1].point - node0) * 0.5;
     let none = built(&a, &b, ExtentBall::fixture(meet, 0.45));
@@ -1090,7 +1093,9 @@ fn a_site_reads_as_a_node_or_as_one_arc() {
     use geom_brep::{SiteReading, SiteRefusal};
     let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
     let section = built(&a, &b, region());
-    let carried = section.carry(None, band()).expect("closed forms carry");
+    let carried = section
+        .carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
     for (k, c) in carried.components().iter().enumerate() {
         let (lo, hi) = c.span;
         for f in [0.1, 0.5, 0.9] {
@@ -1116,7 +1121,9 @@ fn a_site_reads_as_a_node_or_as_one_arc() {
     }
     let tight = Band::new(1e-4, 1.1e-4).unwrap();
     let node = section.nodes()[0];
-    let tight_carried = section.carry(None, tight).expect("closed forms carry");
+    let tight_carried = section
+        .carry(None::<geom_core::NoLane>, tight)
+        .expect("closed forms carry");
     let escalates_on = |p: Point3<f64>| match tight_carried.site(p, tight) {
         Err(SiteRefusal::Escalated(d)) => d.predicate,
         _ => None,

@@ -411,9 +411,14 @@ fn bystander(
 /// frame.
 fn carried_loop(centre: Point3<f64>, big: f64) -> (geom_brep::CarriedComponent<f64>, CylFrame) {
     let frame = CylFrame::canonical(0.5);
-    let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&frame.surface(), &ball(centre, big), None, None, band()).unwrap()
-    else {
+    let geom_brep::SectionRead::Built(section) = geom_brep::pair_section(
+        &frame.surface(),
+        &ball(centre, big),
+        None,
+        None::<geom_core::NoLane>,
+        band(),
+    )
+    .unwrap() else {
         panic!("the value builds cylinder × sphere");
     };
     let carried = section

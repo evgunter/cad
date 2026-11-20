@@ -92,7 +92,8 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
             u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&cylinder, &sphere, None, None, band()).unwrap()
+            geom_brep::pair_section(&cylinder, &sphere, None, None::<geom_core::NoLane>, band())
+                .unwrap()
         else {
             panic!("the value builds cylinder × sphere");
         };
@@ -196,7 +197,8 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
             u_ref: Vec3::unit_x(),
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&torus, &sphere, None, None, band()).unwrap()
+            geom_brep::pair_section(&torus, &sphere, None, None::<geom_core::NoLane>, band())
+                .unwrap()
         else {
             panic!("the value builds sphere × torus");
         };
@@ -398,7 +400,7 @@ fn random_torus_sections() {
         };
         let other = partner.surface();
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&torus, &other, None, None, band())
+            geom_brep::pair_section(&torus, &other, None, None::<geom_core::NoLane>, band())
         else {
             continue;
         };
@@ -741,7 +743,7 @@ fn a_ball_path_reads_a_crossing_near_its_end() {
     ));
     let other = partner.surface();
     let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&torus, &other, None, None, band()).unwrap()
+        geom_brep::pair_section(&torus, &other, None, None::<geom_core::NoLane>, band()).unwrap()
     else {
         panic!("the value builds sphere × torus");
     };

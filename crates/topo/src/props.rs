@@ -6345,26 +6345,33 @@ fn shell_role_refusal(
 /// `Sym<T>: CertifiedBounds` whenever `T` is, so the constructor is
 /// there for it.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to a walk:
+/// A scalar that does not certify has no such type: the lane is
+/// declared over [`geom_core::Certifies`], so a function that names it
+/// carries the bound, and a pass that runs at every scalar holds
+/// [`AtRestPolicy::QuadLane`] instead, which has no values at a dual.
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::QuadLane;
 /// let _ = QuadLane::<Dual64>::certified();
 /// ```
 ///
-/// The code is `E0599` and not [`mass_properties`]'s `E0277`, because
-/// the two are refused at different places: a free function's bound is
-/// an unsatisfied trait obligation on the call (`E0277`), while
-/// `certified` is an associated function that EXISTS on
-/// `QuadLane<Dual64>` and whose `impl` block's bounds are not met, which
-/// `rustc` reports as "the associated function exists … but its trait
-/// bounds were not satisfied" (`E0599`, read off `rustc` on the
-/// snippet). Stable rustdoc verifies only that the block fails to build
-/// (`geom_core::spline::hull`'s rule), so the code beside the fence is a
-/// statement and not a check.
+/// ```compile_fail,E0277
+/// use geom_core::Dual64;
+/// use topo::QuadLane;
+/// fn names_it(_lane: Option<QuadLane<Dual64>>) {}
+/// ```
+///
+/// ```
+/// use geom_core::{Dual64, NoLane};
+/// use topo::AtRestPolicy;
+/// let held: Option<NoLane> = <Dual64 as AtRestPolicy>::quad_lane();
+/// let _ = held;
+/// ```
+///
+/// Stable rustdoc verifies only that a `compile_fail` block fails to
+/// build (`geom_core::spline::hull`'s rule), so the code beside each
+/// fence is a statement and not a check.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct QuadLane<T: geom_core::Certifies> {
@@ -6535,18 +6542,14 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
 /// typed where the seam answers [`None`]. The seam that answers it is
 /// [`AtRestPolicy::shell_door`], the per-scalar policy home.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to a verb:
+/// A scalar that does not certify has no such type ([`QuadLane`]'s
+/// paragraph), and holds [`AtRestPolicy::ShellDoor`] with no values:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::ShellDoor;
 /// let _ = ShellDoor::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: geom_core::Certifies + AtRestPolicy> {
