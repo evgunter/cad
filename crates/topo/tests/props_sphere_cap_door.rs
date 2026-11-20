@@ -462,9 +462,9 @@ where
 /// alone, where it refuses (the rim's two vertices, construction state,
 /// are refused too and set aside here, as [`tier_checked_volume`] names
 /// them).
-fn pole_findings<T: topo::CertifiedPolicy>(body: &Body<T>) -> Vec<topo::ValidationError>
+fn pole_findings<T>(body: &Body<T>) -> Vec<topo::ValidationError>
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy,
 {
     let errors = topo::validate_geometric(body, Tol::witness()).unwrap_err();
     assert!(
