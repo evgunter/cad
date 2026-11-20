@@ -153,7 +153,7 @@ fn outer_top_rim(body: &Body<f64>) -> EdgeKey {
     body.edges()
         .map(|(e, _)| e)
         .find(|&e| match certified(body, e).carrier() {
-            geom::Curve3::Circle(c) => c.radius == 1.0 && c.frame.origin().y == 1.0,
+            geom::Curve3::Circle(c) => c.radius() == 1.0 && c.frame.origin().y == 1.0,
             _ => false,
         })
         .expect("the tube's outer top rim")
@@ -247,7 +247,7 @@ fn as_one_span_spline(body: &mut Body<f64>, rim: EdgeKey) {
     let centre = circle.frame.origin();
     let u = c.carrier().ders1(t0).0 - centre;
     let v = c.carrier().ders1(t0).1;
-    let v = v / v.norm() * circle.radius;
+    let v = v / v.norm() * circle.radius();
     let at = |x: f64, y: f64| centre + u * (-x) + v * (-y);
     let kv = geom_core::spline::KnotVector::clamped(
         vec![

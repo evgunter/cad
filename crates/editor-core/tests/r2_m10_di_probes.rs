@@ -90,25 +90,41 @@ impl Fnv {
                 self.p3(origin);
                 self.v3(dir);
             }
-            Curve3::Circle(geom::Circle { frame, radius }) => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: carrier_frame_2,
+                    ..
+                },
+            ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_2.origin(),
+                    carrier_frame_2.axis(),
+                    carrier_frame_2.u_ref(),
+                );
+                let radius = circle.radius();
                 self.u64(41);
                 self.p3(&center);
                 self.v3(&axis);
-                self.s(*radius);
+                self.s(radius);
                 self.v3(&u_ref);
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-            }) => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Curve3::Ellipse(
+                ellipse @ geom::Ellipse {
+                    frame: carrier_frame_1,
+                    ..
+                },
+            ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_1.origin(),
+                    carrier_frame_1.axis(),
+                    carrier_frame_1.u_ref(),
+                );
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 self.u64(42);
                 self.p3(&center);
                 self.v3(&axis);
-                self.s(*semi_u);
-                self.s(*semi_v);
+                self.s(semi_u);
+                self.s(semi_v);
                 self.v3(&u_ref);
             }
             Curve3::Spiric {

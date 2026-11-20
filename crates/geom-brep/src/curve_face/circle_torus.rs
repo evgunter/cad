@@ -187,12 +187,12 @@ pub fn circle_torus_roots<T: Decide>(
     let (
         &geom::Curve3::Circle(
             circle @ geom::Circle {
-                frame: carrier_frame,
-                radius,
+                frame: carrier_frame_9,
+                ..
             },
         ),
         &geom::Surface::Torus {
-            frame,
+            frame: torus_frame,
             major_radius,
             minor_radius,
             ..
@@ -205,11 +205,12 @@ pub fn circle_torus_roots<T: Decide>(
         ));
     };
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        carrier_frame_9.origin(),
+        carrier_frame_9.axis(),
+        carrier_frame_9.u_ref(),
     );
-    let (t_center, t_axis) = (frame.origin(), frame.axis());
+    let (t_center, t_axis) = (torus_frame.origin(), torus_frame.axis());
+    let radius = circle.radius();
     // The door reads only a ring, asked of the convention before any pose:
     // its harmonics take the witness, whose floor on `|F|` per metre and
     // whose meridian bound lean on `R − r > 0`.
@@ -230,7 +231,7 @@ pub fn circle_torus_roots<T: Decide>(
     let tilt = radius * axis.cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
-        dir: frame.axis(),
+        dir: t_axis,
     }
     .param_and_offset(center);
     let offset = w_perp.norm();
@@ -540,9 +541,9 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        circle: geom::Circle {
+        circle: circle @ geom::Circle {
             frame: carrier_frame,
-            radius,
+            ..
         },
         w_perp,
         offset,
@@ -552,6 +553,7 @@ fn parallel_axes_roots<T: Decide>(
         t1,
     } = pose;
     let (center, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
+    let radius = circle.radius();
     let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
@@ -722,10 +724,10 @@ mod tests {
         torus: &geom::Surface<T>,
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
-        let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        let carrier = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
         circle_torus_roots(&carrier, t0, t1, torus, band)
     }
 

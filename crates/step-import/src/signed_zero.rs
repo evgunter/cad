@@ -82,8 +82,18 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(geom::Circle { frame, radius }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_2,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_2.origin(),
+                carrier_frame_2.axis(),
+                carrier_frame_2.u_ref(),
+            );
+            let radius = conic_k.radius();
             Curve3::circle(
                 plus_zero_point(center),
                 plus_zero(axis),
@@ -91,19 +101,24 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
                 plus_zero(u_ref),
             )
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame::new(
-                plus_zero_point(frame.origin()),
-                plus_zero(frame.axis()),
-                plus_zero(frame.u_ref()),
-            ),
-            semi_u,
-            semi_v,
-        }),
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_1,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_1.origin(),
+                carrier_frame_1.axis(),
+                carrier_frame_1.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(plus_zero_point(center), plus_zero(axis), plus_zero(u_ref)),
+                semi_u,
+                semi_v,
+            ))
+        }
         other => other,
     }
 }

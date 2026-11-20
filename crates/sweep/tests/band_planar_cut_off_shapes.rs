@@ -35,15 +35,18 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
             .and_then(|g| g.certified())
             .expect("a certified end curve");
         match *c.carrier() {
-            Curve3::Circle(geom::Circle { radius, .. }) => {
+            Curve3::Circle(conic_k) => {
+                let radius = conic_k.radius();
                 assert_eq!(radius, D, "{what}: a circle end")
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame: carrier_frame,
-                semi_u,
-                semi_v,
-            }) => {
+            Curve3::Ellipse(
+                ellipse @ geom::Ellipse {
+                    frame: carrier_frame,
+                    ..
+                },
+            ) => {
                 let axis = carrier_frame.axis();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 ellipses += 1;
                 assert!(
                     (semi_v - D).abs() < 1e-15,

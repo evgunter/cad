@@ -3431,17 +3431,33 @@ pub(crate) mod tests {
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         match carrier {
-            Curve3::Circle(geom::Circle { frame, radius }) => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                (center, u_ref * *radius, axis.cross(u_ref) * *radius)
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: carrier_frame_6,
+                    ..
+                },
+            ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_6.origin(),
+                    carrier_frame_6.axis(),
+                    carrier_frame_6.u_ref(),
+                );
+                let radius = circle.radius();
+                (center, u_ref * radius, axis.cross(u_ref) * radius)
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-            }) => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                (center, u_ref * *semi_u, axis.cross(u_ref) * *semi_v)
+            Curve3::Ellipse(
+                ellipse @ geom::Ellipse {
+                    frame: carrier_frame_5,
+                    ..
+                },
+            ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_5.origin(),
+                    carrier_frame_5.axis(),
+                    carrier_frame_5.u_ref(),
+                );
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                (center, u_ref * semi_u, axis.cross(u_ref) * semi_v)
             }
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }

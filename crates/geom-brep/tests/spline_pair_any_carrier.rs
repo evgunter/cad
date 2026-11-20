@@ -78,16 +78,32 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle(geom::Circle { frame, radius }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame: carrier_frame_20,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_20.origin(),
+                carrier_frame_20.axis(),
+                carrier_frame_20.u_ref(),
+            );
+            let radius = circle.radius();
             arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1))
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-        }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_19,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_19.origin(),
+                carrier_frame_19.axis(),
+                carrier_frame_19.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
         }
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),

@@ -406,8 +406,8 @@ mod review_probes {
                         .is_some_and(|c| {
                             matches!(
                                 c.carrier(),
-                                pncad::geom::Curve3::Circle(pncad::geom::Circle { radius, .. })
-                                    if (radius - ARCH_R).abs() < 1e-12
+                                pncad::geom::Curve3::Circle(circle)
+                                    if (circle.radius() - ARCH_R).abs() < 1e-12
                             )
                         })
             })
@@ -556,14 +556,20 @@ mod review_probes {
             .expect_err("a tangent belly departure is refused");
         println!("the tangent-cone neck answers {refusal:?}");
         assert!(
-            matches!(
-                refusal,
-                pncad::profile::PathError::JunctionTangent { margin, arm }
-                    if margin.abs() < 1e-15 && arm > 0.1
-            ),
-            "the tangent neck must refuse as JunctionTangent with a vanishing \
-             turn margin on a real lever arm: {refusal:?}"
+            matches!(refusal, pncad::profile::PathError::JunctionTangent { .. }),
+            "the tangent neck must refuse as JunctionTangent: {refusal:?}"
         );
+        // A vanishing turn margin on a real lever arm, as the refusal
+        // tells them.
+        let said = refusal.to_string();
+        let told = |before: &str, after: &str| -> f64 {
+            said.split_once(before)
+                .and_then(|(_, tail)| tail.split_once(after))
+                .and_then(|(number, _)| number.parse().ok())
+                .unwrap_or_else(|| panic!("no number between {before:?} and {after:?}: {said}"))
+        };
+        let (margin, arm) = (told("turn margin ", " m on a "), told(" m on a ", " m arm"));
+        assert!(margin.abs() < 1e-15 && arm > 0.1, "{said}");
     }
 
     /// The re-authored lantern's CENSUS and its exact mass, against
@@ -1349,14 +1355,17 @@ mod review_probes {
         b.edges()
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
-                let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: carrier_frame,
-                    radius,
-                }) = *geom.carrier()
+                let pncad::geom::Curve3::Circle(
+                    conic_k @ pncad::geom::Circle {
+                        frame: carrier_frame,
+                        ..
+                    },
+                ) = *geom.carrier()
                 else {
                     return None;
                 };
                 let center = carrier_frame.origin();
+                let radius = conic_k.radius();
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {
                     let out = mid - center;
                     center + out * (radius / out.norm())

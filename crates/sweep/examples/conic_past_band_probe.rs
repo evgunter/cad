@@ -173,15 +173,21 @@ const U: f64 = f64::EPSILON / 2.0;
 /// is harmonic in `t`).
 fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -> Vec<(f64, f64)> {
     let tau = core::f64::consts::TAU;
-    let Curve3::Ellipse(geom::Ellipse {
-        frame,
-        semi_u,
-        semi_v,
-    }) = *e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: carrier_frame_1,
+            ..
+        },
+    ) = *e
     else {
         unreachable!()
     };
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (
+        carrier_frame_1.origin(),
+        carrier_frame_1.axis(),
+        carrier_frame_1.u_ref(),
+    );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let v = axis.cross(u_ref);
     let c = coord(center);
     let zero = coord(Point3::new(0.0, 0.0, 0.0));
@@ -287,11 +293,12 @@ fn read(
         &Surface::Cone {
             frame: cone_frame, ..
         },
-        &Curve3::Ellipse(geom::Ellipse { frame, semi_u, .. }),
+        &Curve3::Ellipse(ellipse @ geom::Ellipse { frame, .. }),
     ) = (&image, quadric, e)
     {
         let (e_u, center) = (frame.u_ref(), frame.origin());
         let (apex, axis, u_ref) = (cone_frame.origin(), cone_frame.axis(), cone_frame.u_ref());
+        let semi_u = ellipse.semi_u();
         let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
         let start = ra * (center - apex).dot(axis).signum();
         let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
@@ -409,9 +416,10 @@ fn cone_family(no_split: bool) {
                 let tag = format!("cone a{alpha:.4} S{scale:e} f{f}");
                 match plane_cone_section(&plane, &cone, &reach, band()) {
                     Ok(PlaneConeSection::TiltedEllipse(e)) => {
-                        let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
+                        let Curve3::Ellipse(conic_k) = e else {
                             unreachable!()
                         };
+                        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                         let arcs = arcs(&e, |p| (p - o_frame).dot(y_frame), 0.0, h);
                         let r = read(&e, &arcs, &cone, |p| {
                             cone_miss(p, apex, axis, alpha).max(plane_miss(p, q, n))
@@ -481,9 +489,10 @@ fn cyl_family(no_split: bool) {
             let k = phi.cos();
             match plane_cylinder_section(&plane, &cyl, &reach, band()) {
                 Ok(PlaneCylinderSection::TiltedEllipse(e)) => {
-                    let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
+                    let Curve3::Ellipse(ellipse) = e else {
                         unreachable!()
                     };
+                    let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let arcs = arcs(&e, |p| (p - o).dot(axis), 0.0, scale);
                     let r = read(&e, &arcs, &cyl, |p| {
                         cyl_miss(p, o, axis, scale).max(plane_miss(p, q, n))

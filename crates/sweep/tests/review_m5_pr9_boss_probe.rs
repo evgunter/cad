@@ -71,9 +71,9 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom::Curve3::Circle(geom::Circle { frame, radius }) = *c.carrier()
-            && (frame.origin().z - seam_z).abs() < 1e-9
-            && (radius - 0.35).abs() < 1e-9
+        if let geom::Curve3::Circle(k) = *c.carrier()
+            && (k.frame.origin().z - seam_z).abs() < 1e-9
+            && (k.radius() - 0.35).abs() < 1e-9
         {
             arcs += 1;
             assert!(

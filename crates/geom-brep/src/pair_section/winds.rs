@@ -225,7 +225,7 @@ impl Channel {
             Self::Core(circle) => {
                 let frame = circle.frame;
                 let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
-                geom::Azimuth::tube(frame.height(p), rho, circle.radius)
+                geom::Azimuth::tube(frame.height(p), rho, circle.radius())
             }
         }
     }
@@ -246,7 +246,7 @@ impl Channel {
                 clears(w.dot(lift3(frame.u_ref()))) || clears(w.dot(lift3(frame.v_ref())))
             }
             Self::Core(circle) => {
-                let (frame, big_r) = (circle.frame, circle.radius);
+                let (frame, big_r) = (circle.frame, circle.radius());
                 let w = w(frame.origin());
                 let a = lift3(frame.axis());
                 // The box's height over the core's plane: `w` is already

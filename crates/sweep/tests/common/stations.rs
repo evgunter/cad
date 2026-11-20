@@ -91,14 +91,18 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
             }),
         ) => d1.cross(*d2).norm() < 1e-9 && d1.cross(*o2 - *o1).norm() < 1e-9,
         (
-            Curve3::Circle(geom::Circle {
-                frame: carrier_frame,
-                radius: r1,
-            }),
-            Curve3::Circle(geom::Circle { frame, radius: r2 }),
+            Curve3::Circle(
+                k1 @ geom::Circle {
+                    frame: carrier_frame,
+                    ..
+                },
+            ),
+            Curve3::Circle(k2 @ geom::Circle { frame, .. }),
         ) => {
             let (c1, a1) = (carrier_frame.origin(), carrier_frame.axis());
             let (c2, a2) = (frame.origin(), frame.axis());
+            let r1 = k1.radius();
+            let r2 = k2.radius();
             close(c1, c2) && a1.cross(a2).norm() < 1e-9 && (r1 - r2).abs() < 1e-9
         }
         _ => false,

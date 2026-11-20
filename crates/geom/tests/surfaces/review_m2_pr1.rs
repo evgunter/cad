@@ -366,10 +366,10 @@ fn bulge_arc_carrier_composes() {
         let center = to3d(center2);
         let axis = if bulge >= 0.0 { ez } else { ez * -1.0 };
         let u_ref = (to3d(p0) - center) * (1.0 / radius);
-        let carrier = Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        let carrier = Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
 
         // Start vertex parameter: 0 by construction (u_ref at start).
         let t0 = 0.0;

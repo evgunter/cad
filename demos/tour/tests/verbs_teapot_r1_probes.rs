@@ -208,8 +208,9 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let carriers = loop_carriers(&cup, f.rings[0]);
     for c in &carriers {
         match c {
-            Curve3::Circle(pncad::geom::Circle { frame, radius }) => {
+            Curve3::Circle(conic_k @ pncad::geom::Circle { frame, .. }) => {
                 let center = frame.origin();
+                let radius = conic_k.radius();
                 assert!(
                     center.x.abs() < 1e-9
                         && center.z.abs() < 1e-9

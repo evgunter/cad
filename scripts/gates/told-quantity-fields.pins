@@ -1,0 +1,8 @@
+# path :: line — the lines of a covered crate's sentence-writing bodies
+# that still format with Debug, an exponent or a precision, each a NAME
+# and never a scalar. A line is pinned as it is written (whitespace
+# folded), beside its reason. A pin holds that line's text and nothing
+# more (the gate's header, "WHAT STAYS BLIND"), so prefer giving the
+# name a `Display` or an identifier and pinning nothing.
+#
+# None today.

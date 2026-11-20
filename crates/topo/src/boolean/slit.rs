@@ -1721,10 +1721,10 @@ mod torus_rows {
         radius: f64,
         u_ref: Vec3<f64>,
     ) -> geom::Curve3<f64> {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame::new(center, axis, u_ref),
+        geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        })
+        ))
     }
 
     #[test]

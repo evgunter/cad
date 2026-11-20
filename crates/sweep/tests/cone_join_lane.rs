@@ -236,8 +236,9 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
+        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
             let (center, axis) = (frame.origin(), frame.axis());
+            let radius = circle.radius();
             (center, axis, radius, radius)
         }
         ref e @ Curve3::Ellipse(geom::Ellipse {
@@ -378,36 +379,40 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// The point of an ellipse carrier at its angle parameter `t`, and the
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-    }) = e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: carrier_frame_2,
+            ..
+        },
+    ) = e
     else {
         panic!("an ellipse")
     };
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        carrier_frame_2.origin(),
+        carrier_frame_2.axis(),
+        carrier_frame_2.u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     center + u_ref * (semi_u * t.cos()) + axis.cross(u_ref) * (semi_v * t.sin())
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-    }) = e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: carrier_frame_1,
+            ..
+        },
+    ) = e
     else {
         panic!("an ellipse")
     };
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        carrier_frame_1.origin(),
+        carrier_frame_1.axis(),
+        carrier_frame_1.u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let w = p - center;
     (w.dot(axis.cross(u_ref)) / semi_v).atan2(w.dot(u_ref) / semi_u)
 }

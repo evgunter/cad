@@ -873,9 +873,10 @@ fn crossings<T: Decide>(
             }
             Ok(Some(kept))
         }
-        (geom::Curve3::Circle(arc @ geom::Circle { frame, radius }), _) => {
+        (geom::Curve3::Circle(arc @ geom::Circle { frame, .. }), _) => {
             let (center, axis) = (frame.origin(), frame.axis());
-            let (ce, ae, re) = (center, axis, *radius);
+            let radius = arc.radius();
+            let (ce, ae, re) = (center, axis, radius);
             let e1 = {
                 let d = p0 - ce;
                 d.normalize()
@@ -961,17 +962,33 @@ fn rides<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, radius })) => same_circle(
-            Rim {
-                center: frame.origin(),
-                axis: frame.axis(),
-                radius: *radius,
-                u_ref: frame.u_ref(),
-            },
-            rim,
-            band,
-        )
-        .map(|one| one.is_some()),
+        (
+            Locus::Rim(rim),
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: carrier_frame_27,
+                    ..
+                },
+            ),
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_27.origin(),
+                carrier_frame_27.axis(),
+                carrier_frame_27.u_ref(),
+            );
+            let radius = circle.radius();
+            same_circle(
+                Rim {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                rim,
+                band,
+            )
+            .map(|one| one.is_some())
+        }
         // Both ends on the line, an identity: either end decided off it
         // answers "not riding", whatever the other read
         // ([`read_identity`]).
@@ -1025,8 +1042,18 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(geom::Circle { frame, radius }) => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: carrier_frame_26,
+                    ..
+                },
+            ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_26.origin(),
+                    carrier_frame_26.axis(),
+                    carrier_frame_26.u_ref(),
+                );
+                let radius = circle.radius();
                 Some(Rim {
                     center,
                     axis,

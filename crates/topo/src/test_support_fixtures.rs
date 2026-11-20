@@ -2124,13 +2124,16 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     off: Vec3<T>,
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        radius,
-    }) = carrier
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = carrier
     else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
+    let radius = conic_k.radius();
     let mut body = Body::<T>::new();
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();

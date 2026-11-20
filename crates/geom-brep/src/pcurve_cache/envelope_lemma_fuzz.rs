@@ -72,10 +72,10 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(center, axis, u_ref),
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(center, axis, u_ref),
         radius,
-    })
+    ))
 }
 
 /// A size of move, from all three regimes the decisions read: inside
@@ -545,8 +545,18 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
         }
-        Curve3::Circle(geom::Circle { frame, radius }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_33,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_33.origin(),
+                carrier_frame_33.axis(),
+                carrier_frame_33.u_ref(),
+            );
+            let radius = conic_k.radius();
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
@@ -568,12 +578,18 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             }
             Curve3::circle(center, axis, scaled(s, radius), u_ref)
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-        }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_32,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_32.origin(),
+                carrier_frame_32.axis(),
+                carrier_frame_32.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             Curve3::Ellipse(geom::Ellipse::new(
@@ -2311,10 +2327,21 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
             unreachable!("villarceau draws a torus")
         };
         let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-        let Curve3::Circle(geom::Circle { frame, radius }) = carrier else {
+        let Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_31,
+                ..
+            },
+        ) = carrier
+        else {
             unreachable!("villarceau draws a circle")
         };
-        let (center, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        let (center, n, u_ref) = (
+            carrier_frame_31.origin(),
+            carrier_frame_31.axis(),
+            carrier_frame_31.u_ref(),
+        );
+        let radius = conic_k.radius();
         let delta = match s.below(3) {
             0 => b.zero() * s.range(0.1, 0.9),
             1 => b.escalate() * s.range(1.5, 30.0),

@@ -1630,24 +1630,13 @@ mod carry {
             ),
             (
                 "circle",
-                Curve3::Circle(geom::Circle { frame, radius: 1.5 }),
-                Curve3::Circle(geom::Circle {
-                    frame,
-                    radius: up(1.5),
-                }),
+                Curve3::Circle(geom::Circle::new(frame, 1.5)),
+                Curve3::Circle(geom::Circle::new(frame, up(1.5))),
             ),
             (
                 "ellipse",
-                Curve3::Ellipse(geom::Ellipse {
-                    frame,
-                    semi_u: 2.0,
-                    semi_v: 1.0,
-                }),
-                Curve3::Ellipse(geom::Ellipse {
-                    frame,
-                    semi_u: 2.0,
-                    semi_v: up(1.0),
-                }),
+                Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, 1.0)),
+                Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, up(1.0))),
             ),
             ("spiric", spiric(0.75), spiric(up(0.75))),
             ("nurbs", net(0.8), net(up(0.8))),
@@ -1754,12 +1743,8 @@ mod carry {
     fn a_piece_of_a_circle_turned_in_its_reference_direction_carries_nothing() {
         let o = Point3::new(0.0, 0.0, 0.0);
         let z = Vec3::new(0.0, 0.0, 1.0);
-        let circle = |u: Vec3<f64>| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(o, z, u),
-                radius: 1.0,
-            })
-        };
+        let circle =
+            |u: Vec3<f64>| Curve3::Circle(geom::Circle::new(geom::Frame::new(o, z, u), 1.0));
         let (kept, turned) = (
             circle(Vec3::new(1.0, 0.0, 0.0)),
             circle(Vec3::new(0.0, 1.0, 0.0)),

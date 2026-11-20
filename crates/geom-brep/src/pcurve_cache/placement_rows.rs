@@ -15,10 +15,10 @@ fn band() -> Band {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(center, axis, u_ref),
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(center, axis, u_ref),
         radius,
-    })
+    ))
 }
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
@@ -318,8 +318,18 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle(geom::Circle { frame, radius }) => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_41,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_41.origin(),
+                carrier_frame_41.axis(),
+                carrier_frame_41.u_ref(),
+            );
+            let radius = conic_k.radius();
             circle(
                 center,
                 axis,

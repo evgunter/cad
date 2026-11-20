@@ -804,8 +804,18 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
             let place = || placement(&recs, refs(&a[1])[0]);
             match *carrier {
                 Curve3::Line(_) => assert_eq!(kw, "LINE", "{name}"),
-                Curve3::Circle(geom::Circle { frame, radius }) => {
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Curve3::Circle(
+                    conic_k @ geom::Circle {
+                        frame: carrier_frame_2,
+                        ..
+                    },
+                ) => {
+                    let (center, axis, u_ref) = (
+                        carrier_frame_2.origin(),
+                        carrier_frame_2.axis(),
+                        carrier_frame_2.u_ref(),
+                    );
+                    let radius = conic_k.radius();
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
                     assert_eq!(l, center.to_array(), "{name} circle centre");
@@ -813,12 +823,18 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame,
-                    semi_u,
-                    semi_v,
-                }) => {
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Curve3::Ellipse(
+                    conic_k @ geom::Ellipse {
+                        frame: carrier_frame_1,
+                        ..
+                    },
+                ) => {
+                    let (center, axis, u_ref) = (
+                        carrier_frame_1.origin(),
+                        carrier_frame_1.axis(),
+                        carrier_frame_1.u_ref(),
+                    );
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();

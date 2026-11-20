@@ -54,17 +54,21 @@ fn minted_kind(
         Ok(S::Empty) => ("empty", vec![]),
         Err(_) => ("refused", vec![]),
     };
-    let geom::Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        radius: rho,
-    }) = edge.carrier
+    let geom::Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = edge.carrier
     else {
         unreachable!("a meridian or a parallel")
     };
     let k = carrier_frame.origin();
+    let rho = conic_k.radius();
     let off = |c: &geom::Curve3<f64>| match c {
-        geom::Curve3::Circle(geom::Circle { frame, radius }) => {
+        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
             let center = frame.origin();
+            let radius = circle.radius();
             (center - k).norm() + (radius - rho).abs()
         }
         _ => f64::INFINITY,

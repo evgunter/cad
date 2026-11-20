@@ -63,8 +63,8 @@ pub fn arcs_at(body: &Body<f64>, r: f64, y: f64, seeds: Seeds) -> Vec<EdgeKey> {
             let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(*c.carrier(), Curve3::Circle(pncad::geom::Circle { frame, radius })
-                if (frame.origin().y - y).abs() < 1e-9 && (radius - r).abs() < 1e-9)
+            matches!(*c.carrier(), Curve3::Circle(circle @ pncad::geom::Circle { frame, .. })
+                if (frame.origin().y - y).abs() < 1e-9 && (circle.radius() - r).abs() < 1e-9)
         })
         .collect()
 }

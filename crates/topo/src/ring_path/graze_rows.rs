@@ -376,23 +376,25 @@ fn split_ellipse(
     (dir, jitter): (Vec3<f64>, f64),
     size: f64,
 ) -> [LoopArc<f64>; 2] {
-    let geom::Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        semi_u,
-        semi_v,
-    }) = *c
+    let geom::Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: carrier_frame_7,
+            ..
+        },
+    ) = *c
     else {
         panic!("a tilted section is an ellipse")
     };
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        carrier_frame_7.origin(),
+        carrier_frame_7.axis(),
+        carrier_frame_7.u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
-            carrier_frame,
+            carrier_frame_7,
             (semi_u, semi_v),
             (v - pi, v),
             None,
@@ -427,9 +429,10 @@ fn segment_section(
         cell.unresolvable += 1;
         return;
     };
-    let geom::Curve3::Ellipse(geom::Ellipse { semi_u, .. }) = c else {
+    let geom::Curve3::Ellipse(ellipse) = c else {
         unreachable!()
     };
+    let (semi_u, _) = (ellipse.semi_u(), ellipse.semi_v());
     if !resolvable(
         band.zero(),
         off + (c.eval(0.0) - apex).norm() + 2.0 * semi_u,

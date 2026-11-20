@@ -421,14 +421,8 @@ pub(crate) fn map_carrier<T: Real>(
         // the ellipse's axis ordering transfers unchanged, so no
         // re-decision is needed (the constructor decided at mint; this is
         // evaluation-lane data motion).
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: frame(&c.frame),
-            ..c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: frame(&e.frame),
-            ..e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(frame(&c.frame))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(frame(&e.frame))),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no
