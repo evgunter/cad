@@ -41,7 +41,7 @@ pub enum LineQuadricRefusal {
     Sphere(DoorRefusal),
     /// The torus's quartic ladder ([`line_torus_roots`]).
     Torus(DoorRefusal),
-    /// The cone's rungs ([`line_cone_roots`]).
+    /// The cone's rungs (the edge × cone quadratic over the run).
     Cone(DoorRefusal),
 }
 
