@@ -84,3 +84,89 @@ it. Blocks draw from 6100 on.
 The DEV-1 set is revised or reaffirmed by ruling, the kiss/cusp arms
 land under it, the pierce ring joins, and the pinch design is ratified
 or parked by ruling; the walk convention applies.
+
+## From TANGTAIL (merged 2026-11-20)
+
+TANG's P3 tail: contact-line and ring corners, the banked torus rest lane, Approx and offset readings, fixtures.
+
+Opened 2026-10-17 by TANG's priority-seam cut (`work/README.md`, Track
+size), when TANG measured 142.5 budget points against 30. Every row
+moved from `work/tang/` by `git mv` with its id and body unchanged.
+Nothing dispatched.
+
+### The slate
+
+**22.5 budget points** of dispatchable work against a ceiling of 30, in 8 rows, plus one deferred row (2026-10-26).
+
+| pri | item | cost | status | title |
+|---|---|---|---|---|
+| P3 | `a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading` | M | open | A ring already chorded with every vertex on the run, or a chart ring every vertex of which has a degenerate ray, refuses RingHomingAmbiguous though a point of it decides |
+| P3 | `a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight` | M | open | A difference whose result has a zero-angle cusp along a cylinder wall's ruling refuses Escalated at sector_straight; does a cusp-edged result build or refuse typed? |
+| P3 | `a-glued-rod-answers-differently-by-order-off-the-pinned-angles` | M | open | A rod glued in its bore still answers differently by operand order one step off the pinned angles, and coaxial nested equal rods do too |
+| P3 | `an-approx-walls-edge-residual-is-recorded-against-its-fit` | M | open | An edge on an Approx wall records its residual against the fit, and nothing adds the fit's own distance from the description |
+| P3 | `an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt` | H | open | An edge crossing two wedges about a contact line is unbuilt: two sections along one edge at one vertex pair do not zip |
+| P3 | `an-offset-faces-dihedral-could-be-read-from-its-description` | — | open | Weigh reading an Approx (offset) face's dihedral from its intensional description, so tier 3 can judge its edges instead of leaving them unjudged |
+| P3 | `chord-join-serves-lines-where-the-whole-turn-reach-refuses` | — | open | the agreement-gate fuzz finds chord_join serving parallel lines where the whole-turn reach refuses (eps 1e-12, seed 0x80e3604cc0517565) |
+| P3 | `the-rim-routings-sense-guard-has-no-finished-fixture` | M | open | The rim routing's second-sense guard has no finished fixture: its row reversed a torus's walls, which the at-rest gate refuses |
+| P3 | `torus-declared-rest-lane-banked` | H | deferred | Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966 |
+
+### Order
+
+`torus-declared-rest-lane-banked` is `deferred` by Ev's ruling on #966.
+It opens with a design question when a consumer claims the torus kiss.
+Take the rest cheapest first.
+
+### Review posture
+
+TANG's, inherited: protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19),
+the dual on triaged-in units only, opus/opus outside it. Which units
+are candidates is OPEN for this program's first dispatch. A lane
+measures its row's repro on current main before it builds: the ground
+has moved since most of these rows were filed. Blocks draw from
+13700 on.
+
+### Exit
+
+Every row is closed or re-homed.
+
+## From TANGRIM (merged 2026-11-20)
+
+No orchestrator: handed back `ready` on 2026-11-03. Live state is the tail of `docs/doc-ledger/tangtail-and-tangrim-merge-into-tang.md` and the
+item files beside this plan.
+
+Branch prefix **`tangrim/`**; away-channel tag `(TANGRIM orchestrator)`.
+
+Opened 2026-11-01 by CLEAVE's split on its semantic seams (Ev, in chat). The first sitting
+(2026-11-01 to 2026-11-03) closed every P1 row:
+- the fillet junction (PR 6219);
+- the one bound-side reading, stages 1–2 (PRs 6217, 6253);
+- the ellipse rims (PRs 6246, 6257);
+- the tangent crescent (PR 6375);
+- the Leaves witness (PR 6385).
+
+Rows were also claimed in from ONEHOME, CONTACTHOLD, APEX and CPAIR, and CLEAVE's two cylinder-tangent rows from PR 6177.
+
+### Charter
+
+**Curved faces that meet tangent.** A union across a crescent tangent at a vertex refuses unbuilt; one-segment ellipse rims tangent at a point refuse where circles build; a box along a fillet's line–arc junction reaches ClassificationInvariant; a cone boss over a hole tangent at its rim refuses in every pose; a flush closed rim tangent at its vertex is joined reversed; a rod union refuses at Interval on a poison ruled-region margin. Behind them, the second-order gap between two sheets tangent along a line is spelled three times.
+
+### Posture for the next sitting
+
+- **The bound-side reading.** Every bound's side is read once, through `topo::bound_side`. Rows that build on it:
+  - `conic-ties-outside-…`, P2 H: the largest remaining reading site;
+  - `second-order-side-readings-…`;
+  - `the-split-reads-a-bisectors-side-…`;
+  - `the-shipped-parting-sites-…`;
+  - `a-bisectors-tie-is-read-on-its-leading-term-…`.
+  These rows each retire a second spelling of a side reading, and several touch `sectors.rs` / `recl.rs` / `splitting/rules.rs`. Weigh them together before dispatching, so that two lanes do not mint competing homes. That failure recurred five times in the first sitting (log, 2026-11-02 and 2026-11-03): each lane's brief must name the one home its fix uses.
+- **The witness.** `a-witness-contradiction-refuses-where-the-local-germ-side-was-right` (P2) likely wants a shorter arm, not a refusal. Read it with the bisector row, which extends the witness to bisectors, cones and tori.
+- **Body rows.** These are independent of the reading work: the cone boss, the flush rim, the rod union, the two cylinder rows, the slab on a bore's rulings, and the two crescent-as-touch rows.
+- **Load.** The track is at 36/30. A successor may cut the body rows or the reading rows into their own program (Track size).
+
+### The slate
+
+The slate is the item files in `work/tangrim/`; `python3 scripts/work.py status --program tangrim` renders it. At hand-back it is 14 P2 and 6 P3 rows, all open.
+
+### Exit criteria
+
+None set: the program closes when its slate is empty.

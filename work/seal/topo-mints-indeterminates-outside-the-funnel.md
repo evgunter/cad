@@ -126,7 +126,7 @@ indeterminate: margin is invalid (NaN or a poisoned enclosure) …"*
 about a margin that DECIDED exactly Zero. The same sentence appears on
 the undeclared flush case at x = 0.5 and 0.99. The refusal is correct;
 its diagnostic states a poison that did not occur.
-`work/stack/certified-lane-non-real-contract-audit.md` records the same
+`work/encl/certified-lane-non-real-contract-audit.md` records the same
 payload from the M10-DI review as a member of its class; this is its
 minting site.
 

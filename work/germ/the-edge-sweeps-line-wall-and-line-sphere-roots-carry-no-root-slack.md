@@ -4,6 +4,8 @@ kind: issue
 title: The edge sweep's line × wall and line × sphere roots carry no rounding slack, where its line × cone roots do
 status: open
 opened: 2026-10-31
+priority: P2
+cost: M
 ---
 
 

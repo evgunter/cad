@@ -3202,7 +3202,7 @@ fn rounded_mouth_volume() -> f64 {
 /// (`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
 /// holds each to it), so both meet the bar of the registry they stand
 /// beside, which requires every lane green (whether they join it:
-/// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
+/// `work/ciw/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
 /// coaxial rows change in number or kind, or if its `Interval` outcome
