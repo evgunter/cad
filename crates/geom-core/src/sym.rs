@@ -1233,6 +1233,9 @@ enum SymOp {
     Acos,
     Atan,
     Floor,
+    /// `x − sin x` ([`Real::less_sin`]): one function, so one atom,
+    /// re-valued through the door that valued it.
+    LessSin,
     Atan2,
     Min,
     Max,
@@ -1289,6 +1292,7 @@ impl SymOp {
             Self::Opaque => 24,
             Self::Select => 25,
             Self::Free => 26,
+            Self::LessSin => 27,
         }
     }
 
@@ -1307,7 +1311,8 @@ impl SymOp {
             | Self::Asin
             | Self::Acos
             | Self::Atan
-            | Self::Floor => 1,
+            | Self::Floor
+            | Self::LessSin => 1,
             Self::Add
             | Self::Sub
             | Self::Mul
@@ -3407,7 +3412,8 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
         | SymOp::Tan
         | SymOp::Asin
         | SymOp::Atan
-        | SymOp::Floor => Some(Form::zero()),
+        | SymOp::Floor
+        | SymOp::LessSin => Some(Form::zero()),
         SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
@@ -3666,7 +3672,8 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         | SymOp::Asin
         | SymOp::Acos
         | SymOp::Atan
-        | SymOp::Floor => atom1(node.op, sess),
+        | SymOp::Floor
+        | SymOp::LessSin => atom1(node.op, sess),
         SymOp::Atan2 | SymOp::Min | SymOp::Max | SymOp::Copysign => {
             if a.tainted(b) {
                 return Some(Form::poison());
@@ -5349,6 +5356,10 @@ impl<T: Real> Real for Sym<T> {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = self.value.sin_cos();
         (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
+    }
+
+    fn less_sin(self) -> Self {
+        self.unary(self.value.less_sin(), SymOp::LessSin, 0)
     }
 
     /// The `Sin` node over `τ/12`, valued `1/2`: the tier folds a

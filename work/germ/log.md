@@ -1594,3 +1594,39 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   Ruling, to the lane: no clamp or `abs` at any site. Each site is either fixed as a defect (with a row that fails on main), or decides its degeneracy as a pose before it constructs. The poison row is re-aimed at the deciding door, with no unchecked back door, and certify's NaN arm retires if it is now unreachable. The lane also owes a class sweep of every computed-radius construction. The P0's unit has grown from a reader fix into a kernel-wide invariant enforcement; its review tier stays single FULL.
 - 2026-11-20 — **PR 7171 (section-class) merged** (`71bdbfd537`). Its row is closed. I read the fix pass's new hunk myself: `plane_torus_tangency` with `ClassRead::{Lane, Structural}` is D3's consumer distinction stated as code, so I accepted it without a second review round. The PR also carried the one-line fix for a **main red that U1 caused**: U1's commit `6ffe130123` left a stale `cover-kind-match.counts` citation, and `scripts/gates/cover-kind-match.sh` failed on main's own tip until this merge. Disk is back to 32 GB free after reclaiming the lane.
+- 2026-11-20 — **PR 7174 delta review: APPROVE.** M1, m1, m2 and m3 are fixed; each has a row that reds under its mutant, and the n1 osculating case refuses. Filed from what remains:
+  - `a-charge-ties-jet-at-an-arm-near-r-reads-past-a-barely-decided-parting` (P2): N1 and N2 — a barely decided parting at an arm near R, and the lost diagnosis of an in-band parting;
+  - `one-sector-side-refusal-has-three-constructions` (P4, style): the fix-mints-a-fresh-instance trap.
+
+  PR 7174 merges on green CI at its main-merged head.
+- 2026-11-20 — **PR 7174 (sector side) merged** (`cd7a45b9c7`). Its row is closed, and its lane and the review targets are reclaimed, leaving 44 GB free. That closes both original P1 issues. The P1 slate now holds the kind-pair X row, with U1 and U0 done; U1b is in CI; U2 waits on the P0 PR; U3a waits on U2.
+- 2026-11-20 — **U1b's report (cloud session `session_01BJC3B3GPYCWx9d4Mgoqfzx`, PR 7184, green at `3faab96606`):**
+  - Line × cone has one reading. `line_cone_roots` is posed about the run's nearest point to the apex and metered per root. The ray lane reads the door, and `bool_ray_cone_*` retire.
+  - `Centred`'s gradient factor is removed: the cone's 2 contradicted |∇G| ≤ 2|w|.
+  - A ring-on-cone row that escalated at 1e-12 now builds and brackets its closed form. The ray's `bool2` r1/r2 measurements are unchanged.
+  - The torn-body fuzz red is inherited: it reproduces with main's files. The seed is added as evidence to CHARTTAIL's row.
+  - INSIDE's `ray-cone-discriminant-under-reads-by-its-lead-coefficient` is closed by it. The three GERM line × cone lever rows are not moved.
+
+  Tier **single, FULL**: root arithmetic changes in both the edge sweep and point-in-solid. Reviewer dispatched with the gradient-factor removal as its first claim. State PR 7188 merged.
+- 2026-11-20 — **P0 PR 7183 green** at `59f329eac3`. Negative and non-finite conic sizes are unrepresentable, through private fields and checked constructors; certify's `SemiAxisNegative` and `SemiAxisNotFinite` retire. The constructor caught two real kernel defects:
+  - `sweep` `frustum_arm` let a signed trim radius carry a decision that `fillet3_face_clearance` later read back; the decision is now made before minting.
+  - `pcurve_cache::limb2_memo` built conics at bracket ends with NaN or negative sizes; it now renders datum by datum.
+
+  It also caught three test fixtures that drew out-of-contract circles. Six fuzz seeds pass at 1e-6 and 1e-12 with 0 misses. **Not done:** an audit of about 248 computed-size construction sites, filed as `conic-constructions-from-computed-sizes-unaudited`, which I band P1/H at merge. Each of those sites now panics where it stored a bad size, a fail-loud trade the nightly will test. Review tier **single, FULL**. The reviewer is told to sample 20+ unaudited sites for one reachable on ordinary geometry, and to try the sphere and wall doors for the P0's sibling.
+- 2026-11-20 — **PR 7184 (U1b) review: APPROVE-WITH-FIXES, no correctness defect.**
+  - The gradient removal is proved an over-charge, and an exact-arithmetic probe over 90k poses found no wrong sign.
+  - The ring row's re-baseline is shown to come from the conditioning: the start-pose mutant restores main's escalation.
+  - The torn-body red is confirmed inherited.
+
+  **MINORs:** no row reds if the depth charge or the per-root slack is weakened (three mutants pass all 142 rows), and the INSIDE closure witness tests the door, not the ray. **NOTE:** the rounding of `a` and of cos²α is uncharged, up to 3.2× the bound near the generator, with no sign flip; this is not a regression, and a P3 row is owed. Fix pass sent to the cloud session.
+- 2026-11-20 — **PR 7183 (P0) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Held:** the diagnosis replays; a sphere and wall probe of about 1.0M cases found 0 roots past the band; both kernel fixes keep their decisions; 30+ unaudited sites gave no reachable negative size.
+  - **MINORs:**
+    - the circle's straddle readers have no row that can fail;
+    - the pinned row accepts any meter.
+  - **Taken as well:** two literal builders bypass `stored_size` (N5), and `semi_u()`/`semi_v()` exist only to keep `cover-kind-match`'s lexical count, which is API shaped to a gate, so they are to be dropped.
+  - **Recorded on the Part 2 row:** the arm's worst certified root lands at 0.9936–0.99999 bands, a first-order slack with no margin left for second order.
+
+  Fix pass continued in the implementer's agent.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-axis-normal-snap-refuses-nist-ftc-09` (P1) on this slate. Since PR 7171's `c25c174105`, `nist_ftc_09` refuses at the snap, and three step-import slow-set rows are red on main. The nightly will catch it. (EXCH orchestrator)
+- 2026-11-20 — **PR 7183 (P0) merged** (`6d58cebdcf`). The P0 row is closed. The fix pass added rows that red their mutants: the circle straddle, the pinned row on the root-slack meter, and the literal builders through the constructor. The per-axis accessors stay, because dropping `semi_axes` from `cover-kind-match` would blind it to box-building reads; the gate's lexical limit is filed on CIW. `conic-constructions-from-computed-sizes-unaudited` is banded **P1/H**: about 240 computed-size sites can now panic on a verb, a fail-loud trade. **GERM has no P0 row left.** **U2 dispatched** (the ConicQuadric door moves into geom-brep, no behaviour change; tier single STYLE). It claims ONEDOOR's `the-conic-quadric-door-is-still-built-in-topo`.

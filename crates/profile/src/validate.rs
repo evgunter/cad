@@ -2637,7 +2637,8 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
             SegKind::Arc(g) => {
                 let theta = g.arc.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A. `r²` is the tight
+                // doubled here since we accumulate 2A, the difference read
+                // conditioned (`Real::less_sin`). `r²` is the tight
                 // square, and here it is the tight square of something
                 // already known nonnegative: `Seg::radius` is
                 // `signed_radius.abs()`, so at `Interval` the enclosure
@@ -2646,7 +2647,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
                 // bound at any instantiation — it is here so the file
                 // spells a square the one way the rule names, not
                 // because this site was wide.
-                twice_area = twice_area + g.arc.radius.powi(2) * (theta - theta.sin());
+                twice_area = twice_area + g.arc.radius.powi(2) * theta.less_sin();
                 perimeter = perimeter + g.arc.radius * theta.abs();
             }
         }
