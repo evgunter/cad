@@ -71,7 +71,7 @@ pub use ::profile::{lift, path};
 pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcForm, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center,
     ChainShape, ClosedLoop, ContinueTarget, CornerReason, CornerRefusal, CornerWindow, FormLowered,
-    FormTarget, LegFit, LeverValue, LineTarget, OntoTarget, Open, OrderFault, PartialPath,
+    FormTarget, LegFit, LineTarget, OntoTarget, Open, OrderFault, PartialPath,
     PathError, PathErrorKind, PathNoCornerReason, PenAt, PointLeg, Radius, Recourse, Refused,
     ReplayError, ReplayErrorKind, ShapeFault, ShapeFaultKind, SpecForms, Start, Step, StepForm,
     Sweep, Takes, TangentArcTarget, Target, TargetKind, TipState, TurnLever, Verb, Via, Vocabulary,

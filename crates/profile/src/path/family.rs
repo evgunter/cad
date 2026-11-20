@@ -159,7 +159,9 @@ pub(super) fn open_ray<T: geom_core::Decide>(
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     verbs::gate_positive(Gate::PathFilletRadius, radius, band, |r| {
-        PathError::NonpositiveFilletRadius { radius: r }
+        PathError::NonpositiveFilletRadius {
+            radius: super::authored_length(r),
+        }
     })?;
     let meta = PendingMeta {
         bound_at: core.current_step()?,
@@ -185,7 +187,9 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     verbs::gate_positive(Gate::PathFilletRadius, arc.radius, band, |r| {
-        PathError::NonpositiveFilletRadius { radius: r }
+        PathError::NonpositiveFilletRadius {
+            radius: super::authored_length(r),
+        }
     })?;
     let meta = PendingMeta {
         bound_at: core.current_step()?,
@@ -1110,7 +1114,11 @@ fn bulge_carrier<T: geom_core::Decide>(
     let winding = match crate::gate::decide(Gate::PathArcBulge, geom_core::Margin::of(b), band) {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
-        Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
+        Ok(geom_core::Sign::Zero) => {
+            return Err(PathError::DegenerateArcSpec {
+                value: super::authored_ratio(b),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     };
     let arc = crate::lower_arc(at, p, b);
@@ -1123,7 +1131,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
         let band = linear_band(tol)?;
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
         let (c, w, start) = bulge_carrier(at, self.p, self.b, tol)?;
         Ok((c, w, start, self.p))
@@ -1142,7 +1152,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
@@ -1159,7 +1171,11 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             geom_core::Margin::of(offset),
             band,
         ) {
-            Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
+            Ok(geom_core::Sign::Zero) => {
+                return Err(PathError::ArcViaCollinear {
+                    offset: super::length(offset),
+                });
+            }
             Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Cw,
             Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Ccw,
             Err(source) => return Err(PathError::escalated(source)),
@@ -1185,7 +1201,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         let r_end = (self.p - self.c).norm_squared().sqrt();
         for radius in [r_tip, r_end] {
             verbs::gate_positive(Gate::PathArcCenterRadius, radius, band, |r| {
-                PathError::DegenerateArcCenter { radius: r }
+                PathError::DegenerateArcCenter {
+                    radius: super::length(r),
+                }
             })?;
         }
         match crate::gate::decide(
@@ -1196,15 +1214,17 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
             Ok(geom_core::Sign::Zero) => {}
             Ok(_) => {
                 return Err(PathError::ArcCenterNotEquidistant {
-                    tip_radius: r_tip,
-                    end_radius: r_end,
+                    tip_radius: super::length(r_tip),
+                    end_radius: super::length(r_end),
                 });
             }
             Err(source) => return Err(PathError::escalated(source)),
         }
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
         let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
         let (start, _) = super::chord_tangents(self.p - at, theta);

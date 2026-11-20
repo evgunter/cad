@@ -454,7 +454,9 @@ fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
                 },
             radius,
         } => {
-            assert_eq!(radius, 0.5);
+            let [sin_turn, align, lever] =
+                [sin_turn, align, lever].map(|x| crate::common::told(&x));
+            assert_eq!(radius.as_given(), Some(0.5));
             assert!(
                 corner.is_none(),
                 "the straight pair places no corner: {corner:?}"
@@ -503,6 +505,7 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         panic!("expected TurnWithinTolerance, got {err:?}")
     };
     assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
+    let [sin_turn, align, lever] = [sin_turn, align, lever].map(|x| crate::common::told(&x));
     // A counter-clockwise turn: the sine is positive, the turn side.
     assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
     assert!((align - phi.cos()).abs() < 1e-12, "cos φ {align}");
@@ -515,14 +518,15 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         shown.contains("if the angle is real, move both anchors away from the corner"),
         "the straight pair's recourse names the corner's distance from both anchors: {shown}"
     );
-    for (label, want) in [
-        ("sin φ = ", sin_turn),
-        ("(cos φ = ", align),
-        (" of ", lever),
+    // A ratio is told to four figures, a length to the tolerance's grid.
+    for (label, want, grid) in [
+        ("sin φ = ", sin_turn, 5e-4),
+        ("(cos φ = ", align, 5e-4),
+        (" of ", lever, 1e-8),
     ] {
         let got = rendered_after(&shown, label);
         assert!(
-            (got - want).abs() <= 1e-8 * want.abs(),
+            (got - want).abs() <= grid * want.abs(),
             "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
         );
     }

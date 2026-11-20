@@ -300,9 +300,16 @@ fn refusal_name(e: &PathError<f64>) -> String {
 
 /// The sentence one entry renders, as an author reads it.
 fn sentence(entry: &CornerRefusal<f64>, radius: f64) -> String {
+    let radius_or_less = match &entry.reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            radius_at_anchor, ..
+        } => *radius_at_anchor,
+        _ => None,
+    };
     PathError::NoCornerOfPair {
-        radius,
+        radius: geom_core::Told::given(&radius, geom_core::Dimension::Length),
         corners: vec![entry.clone()],
+        radius_or_less,
     }
     .to_string()
 }
@@ -438,16 +445,24 @@ fn analyse(
     let CornerReason::AnchorOutsideTrimmedExtent {
         legs,
         overrun,
-        fit_reach,
         radius_at_anchor,
     } = &entry.reason
     else {
         unreachable!("an anchor-fit entry")
     };
+    // The exact-fit reach: half the fit band's coincidence threshold.
+    let fit_reach = 0.5 * tol().eps();
+    let legs = &[
+        crate::common::LegNumbers::from(&legs[0]),
+        crate::common::LegNumbers::from(&legs[1]),
+    ];
     let esc = escalate();
     let x = p(entry.at);
     let sigma = cross(inc.dir_at(x), out.dir_at(x)).signum();
-    let Some(lever) = *radius_at_anchor else {
+    let Some(lever) = radius_at_anchor
+        .as_ref()
+        .map(crate::common::LeverNumbers::from)
+    else {
         return cen.fail(n, format!("no radius at the anchor: {legs:?}"));
     };
     let bound = lever.boundary;
@@ -463,7 +478,7 @@ fn analyse(
             .collect()
     };
     let cands = cands_at(r);
-    let matches = |got: &[(f64, f64); 2], want: &[LegFit<f64>; 2]| {
+    let matches = |got: &[(f64, f64); 2], want: &[crate::common::LegNumbers; 2]| {
         got.iter().zip(want).all(|(&(sb, len), leg)| {
             (sb - leg.setback).abs() < 1e-9 * (1.0 + sb.abs())
                 && (len - leg.available).abs() < 1e-9 * (1.0 + len.abs())
@@ -929,6 +944,7 @@ fn authoring_3608_names_the_radius_that_ends_at_its_anchor() {
     else {
         panic!("{entry:?}")
     };
+    let lever = crate::common::LeverNumbers::from(&lever);
     assert!(
         (lever.boundary - 0.361_629_480_311_458).abs() < 1e-15,
         "boundary {}",

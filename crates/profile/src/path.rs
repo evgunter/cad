@@ -370,10 +370,9 @@
 
 use core::marker::PhantomData;
 
-use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{
-    Arc2, Band, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, Point2, Real, Sign, Tol, Vec2,
-    is_finite_length,
+    Arc2, Band, Decide, Dimension, Indeterminate, KERNEL_DEFECT_ENDING, Margin, Point2, Real, Sign,
+    Tol, Told, Vec2, is_finite_length,
 };
 
 use crate::fillet_recourse::{
@@ -596,11 +595,11 @@ pub enum PathNoCornerReason<T: Real> {
     /// here so the caller can.
     TurnWithinTolerance {
         /// `dir_in × dir_out` at the corner: the sine of the turn.
-        sin_turn: T,
+        sin_turn: Told,
         /// `dir_in · dir_out`: negative means the legs double back.
-        align: T,
-        /// The length the turn was levered by, meters.
-        lever: T,
+        align: Told,
+        /// The length the turn was levered by.
+        lever: Told,
         /// Which length that is.
         lever_of: TurnLever,
         /// The corner whose turn this is, where one was derived: the
@@ -648,7 +647,7 @@ pub enum CornerWindow {
 /// names — the deixis is "this corner", and it is true, because the
 /// point rides beside the reason.
 #[derive(Clone, Debug)]
-pub enum CornerReason<T: Real> {
+pub enum CornerReason {
     /// The corner's own gates: it falls outside one of the two anchor
     /// windows.
     OutsideAnchors(CornerWindow),
@@ -672,32 +671,27 @@ pub enum CornerReason<T: Real> {
     /// fitting (`fillet_select::nearest_candidate` over the candidates'
     /// setback pairs). Its numbers meter the two levers
     /// ([`Recourse::AnchorOrRadius`]): an overrun leg fits once its
-    /// anchor lies `setback` from the corner, and the corner's anchors
-    /// fit at `radius_at_anchor` or less. Each lever is named on its
-    /// fitting side within `fit_reach` of that boundary, where the fit
-    /// gate reads the margin as a Zero fit: the named fillet ends at the
-    /// anchor.
+    /// anchor lies its setback from the corner
+    /// ([`LegFit::anchor_at_least`]), and the corner's anchors fit at
+    /// `radius_at_anchor` or less. Each lever is offered on its fitting
+    /// side, no farther from its boundary than the fit gate still reads
+    /// the margin as a Zero fit: the named fillet ends at the anchor.
     AnchorOutsideTrimmedExtent {
         /// The reported candidate's `[incoming, outgoing]` legs.
-        legs: [LegFit<T>; 2],
+        legs: [LegFit; 2],
         /// Which of them the fit gate refused.
         overrun: OverrunLegs,
-        /// How far past its boundary, on the fitting side, a lever's
-        /// value still fits exactly, meters: half the fit band's
-        /// coincidence threshold.
-        fit_reach: T,
-        /// The radius lever, meters, on the reported candidate's branch:
-        /// its [`LeverValue::boundary`] is the radius of the fillet
-        /// tangent to an overrun leg's carrier exactly at its anchor and
-        /// to the other carrier, the smaller over its overrun legs; its
-        /// [`LeverValue::exact_fit_edge`] is the same form on that
-        /// binding leg with its anchor moved `fit_reach` toward the
-        /// corner, where its fit margin is `fit_reach`. The tangency is
+        /// The radius lever on the reported candidate's branch: the
+        /// radius of the fillet tangent to an overrun leg's carrier
+        /// exactly at its anchor and to the other carrier, the smaller
+        /// over its overrun legs, offered as the most that fits and no
+        /// farther below it than the same form with that leg's anchor
+        /// moved the exact-fit reach toward the corner. The tangency is
         /// linear in the radius on both leg kinds, so both are closed
         /// forms, not a search. `None` where a form degenerates — no
         /// positive radius on that branch, none below the authored one,
         /// or a leg no longer than the reach.
-        radius_at_anchor: Option<LeverValue<T>>,
+        radius_at_anchor: Option<Told>,
     },
     /// The requested radius demands the **enclosing** tangency at this
     /// corner: on the named side the signed offset radius ρ = R − σ·τ·r
@@ -719,14 +713,13 @@ pub enum CornerReason<T: Real> {
         /// carrier forces its partner to be swallowed too unless the
         /// corner is degenerate.
         side: Option<FilletLeg>,
-        /// The tightest CLASS bound, meters: the smallest swallowed
-        /// carrier radius. Necessary, never sufficient — see
+        /// The tightest CLASS bound: the smallest swallowed carrier
+        /// radius. Necessary, never sufficient — see
         /// `largest_tangent_radius`.
-        carrier_radius: T,
-        /// The matching signed offset radius ρ = R − σ·τ·r, meters
-        /// (negative).
-        offset_radius: T,
-        /// The EXISTENCE bound, meters, when the corner's two circular
+        carrier_radius: Told,
+        /// The matching signed offset radius ρ = R − σ·τ·r (negative).
+        offset_radius: Told,
+        /// The EXISTENCE bound, when the corner's two circular
         /// carriers define one: the largest radius that can be tangent
         /// to both of them here, (R₁ + R₂ − d)/2. This is the quantity
         /// the message endorses, because it is the one below which a
@@ -736,41 +729,32 @@ pub enum CornerReason<T: Real> {
         /// is not defined at the gate (a straight partner, or a partner
         /// whose own ρ is positive), and there the message endorses no
         /// number.
-        largest_tangent_radius: Option<T>,
+        largest_tangent_radius: Option<Told>,
     },
 }
 
 /// One leg of the candidate an anchor-fit refusal reports
 /// ([`CornerReason::AnchorOutsideTrimmedExtent`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LegFit<T: Real> {
+pub struct LegFit {
     /// **G2 §3c**: the leg's CARRIER KIND, carrying the angular margin
     /// `(extent − setback)/R` for a circular leg. A bare linear setback
     /// says nothing on a circle, so the payload is metered in the
     /// carrier's own currency (M5 S2's does-not-fit diagnostic shape,
     /// at the algebra door).
     pub carrier: FilletLegCarrier,
-    /// The tangent setback from the corner along the leg, meters (an
-    /// arc length `R·Δθ` on a circular leg): where the leg's anchor has
-    /// to lie for this candidate's trim to fit it.
-    pub setback: T,
+    /// The tangent setback from the corner along the leg (an arc length
+    /// `R·Δθ` on a circular leg): where the leg's anchor has to lie for
+    /// this candidate's trim to fit it.
+    pub setback: Told,
     /// The extent the leg's anchor pins, from the corner along the leg
     /// (same currency as `setback`).
-    pub available: T,
-}
-
-/// **A lever's exact-fit window**: the boundary where the fit margin is
-/// zero, and the far edge, on the fitting side, of the values whose
-/// margin the fit gate still reads as a Zero fit — the fillet ending at
-/// the anchor ([`CornerReason::AnchorOutsideTrimmedExtent`]). The
-/// sentence names a value between the two.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LeverValue<T: Real> {
-    /// Where the fit margin is zero, meters.
-    pub boundary: T,
-    /// Where the fit margin is the exact-fit reach, meters: the window's
-    /// far edge.
-    pub exact_fit_edge: T,
+    pub available: Told,
+    /// The anchor lever: the setback offered as the least distance from
+    /// the corner at which the leg's anchor fits, and no farther past
+    /// it than the fit gate still reads a Zero fit, where the fillet
+    /// ends at the anchor.
+    pub anchor_at_least: Told,
 }
 
 /// One derived corner of a carrier pair, and why no fillet of the
@@ -780,28 +764,30 @@ pub struct CornerRefusal<T: Real> {
     /// The derived corner itself, in the sketch plane's chart.
     pub at: Point2<T>,
     /// Why this corner refused.
-    pub reason: CornerReason<T>,
+    pub reason: CornerReason,
+}
+
+/// A point of the sketch plane as a sentence tells it: `(x m, y m)`.
+fn told_point<T: Real>(at: &Point2<T>, told: fn(&T, Dimension) -> Told) -> impl core::fmt::Display {
+    let (x, y) = (
+        told(&at.x, Dimension::Length),
+        told(&at.y, Dimension::Length),
+    );
+    core::fmt::from_fn(move |f| write!(f, "({x}, {y})"))
 }
 
 impl<T: Real> core::fmt::Display for CornerRefusal<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // A derived ordinate that lands on negative zero renders as
-        // "-0" here — "at corner (0, -0)" on a corner on the
-        // x axis. That is issue 1282's class (the Display float
-        // rendering, which `num` owns) and not this site's to repair:
-        // the sign is the arithmetic's, the payload keeps it exactly,
-        // and a repair belongs at `num` where every arm gets it.
         write!(
             f,
-            "at corner ({x}, {y}): {reason}",
-            x = num(&self.at.x),
-            y = num(&self.at.y),
+            "at corner {at}: {reason}",
+            at = told_point(&self.at, Told::computed),
             reason = self.reason
         )
     }
 }
 
-impl<T: Real> core::fmt::Display for CornerReason<T> {
+impl core::fmt::Display for CornerReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutsideAnchors(window) => match window {
@@ -830,24 +816,27 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
             // once after every corner.
             Self::AnchorOutsideTrimmedExtent { legs, overrun, .. } => match overrun {
                 OverrunLegs::One(side) => {
-                    let k = usize::from(*side == FilletLeg::Outgoing);
+                    let fit = legs[usize::from(*side == FilletLeg::Outgoing)].compared();
                     write!(
                         f,
-                        "the fillet trim would eat the {side}'s anchor (setback {setback} m, \
-                             {available} m available)",
-                        setback = num(&legs[k].setback),
-                        available = num(&legs[k].available)
+                        "the fillet trim would eat the {side}'s anchor (setback {setback}, \
+                             {available} available)",
+                        setback = fit.first(),
+                        available = fit.second()
                     )
                 }
-                OverrunLegs::Both => write!(
-                    f,
-                    "the fillet trim would eat both legs' anchors (incoming setback {s0} m, \
-                         {a0} m available; outgoing {s1} m, {a1} m)",
-                    s0 = num(&legs[0].setback),
-                    a0 = num(&legs[0].available),
-                    s1 = num(&legs[1].setback),
-                    a1 = num(&legs[1].available),
-                ),
+                OverrunLegs::Both => {
+                    let [incoming, outgoing] = legs.map(|leg| leg.compared());
+                    write!(
+                        f,
+                        "the fillet trim would eat both legs' anchors (incoming setback {s0}, \
+                         {a0} available; outgoing {s1}, {a1})",
+                        s0 = incoming.first(),
+                        a0 = incoming.second(),
+                        s1 = outgoing.first(),
+                        a1 = outgoing.second(),
+                    )
+                }
             },
             // The offset radius rho that decides the swallow rides the
             // payload; the sentence names the carrier's own radius.
@@ -861,32 +850,22 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     Some(side) => &format!("the {side}'s carrier"),
                     None => "both legs' carriers",
                 };
-                write!(
-                    f,
-                    "it would SWALLOW {whose} (radius {carrier_radius} m)",
-                    carrier_radius = num(carrier_radius),
-                )?;
+                write!(f, "it would SWALLOW {whose} (radius {carrier_radius})",)?;
                 match largest_tangent_radius {
                     // The endorsable number: a circle of this radius IS
                     // tangent to both carriers at the corner. Anchored
                     // extents can still require less, and refuse in their
                     // own words when they do.
-                    Some(bound) => write!(
-                        f,
-                        "; the largest circle tangent to both has radius {bound} m",
-                        bound = num(bound)
-                    ),
+                    Some(bound) => {
+                        write!(f, "; the largest circle tangent to both has radius {bound}")
+                    }
                     // Nothing endorsable at this site: the class bound is
                     // necessary and not sufficient, so the sentence states
                     // what it rules OUT — every radius from the carrier's
                     // own up swallows it — and names no radius below it,
                     // which would be a promise this gate cannot keep; the
                     // pair's sentence adds that none may fit at all.
-                    None => write!(
-                        f,
-                        "; no radius from {carrier_radius} m up fits",
-                        carrier_radius = num(carrier_radius)
-                    ),
+                    None => write!(f, "; no radius from {carrier_radius} up fits"),
                 }
             }
         }
@@ -897,30 +876,42 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
 /// pair is stored.
 const LEGS: [FilletLeg; 2] = [FilletLeg::Incoming, FilletLeg::Outgoing];
 
-impl<T: Real> CornerReason<T> {
+impl LegFit {
+    /// A leg's fit as its door holds it: the trim's `setback` and the
+    /// extent `available` along a leg on `carrier`, and `fit_reach`,
+    /// how far past the setback an anchor still fits exactly.
+    #[must_use]
+    pub fn new<T: Real>(carrier: FilletLegCarrier, setback: T, available: T, fit_reach: T) -> Self {
+        Self {
+            carrier,
+            setback: length(setback),
+            available: length(available),
+            anchor_at_least: Told::at_least(&setback, Dimension::Length)
+                .no_farther_than(&(setback + fit_reach)),
+        }
+    }
+
+    /// The setback beside the extent it overruns or fits within, told in
+    /// their true order.
+    fn compared(&self) -> geom_core::Compared {
+        self.setback.beside(&self.available)
+    }
+}
+
+impl CornerReason {
     /// **What this corner's author changes**, as the values to set, or
     /// `None` where the corner names no lever.
     #[must_use]
-    pub fn recourse(&self) -> Option<Recourse<T>> {
+    pub fn recourse(&self) -> Option<Recourse> {
         match self {
             Self::AnchorOutsideTrimmedExtent {
                 legs,
                 overrun,
-                fit_reach,
                 radius_at_anchor,
             } => Some(Recourse::AnchorOrRadius {
                 anchors: overrun
                     .indices()
-                    .map(|k| {
-                        let setback = legs[k].setback;
-                        (
-                            LEGS[k],
-                            LeverValue {
-                                boundary: setback,
-                                exact_fit_edge: setback + *fit_reach,
-                            },
-                        )
-                    })
+                    .map(|k| (LEGS[k], legs[k].anchor_at_least))
                     .collect(),
                 radius: *radius_at_anchor,
             }),
@@ -949,23 +940,24 @@ impl<T: Real> CornerReason<T> {
 /// the corners its anchor windows discarded or those its construction
 /// refused, never both. Two construction corners agree up to the
 /// anchor, so they merge into the wider menu, with the largest radius
-/// bound among them: below it the fillet clears that corner's anchors.
+/// bound among them ([`PathError::NoCornerOfPair`]'s `radius_or_less`):
+/// below it the fillet clears that corner's anchors.
 /// Two window corners can disagree (one behind the incoming side, the
 /// other past the arrival anchor), and there the author's lever is the
 /// one for the corner they meant, which only they know, so each corner
 /// keeps its own.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Recourse<T: Real> {
+pub enum Recourse {
     /// Anchor each overrun leg at least its setback from the corner,
-    /// or use a radius of at most `radius`, each named within its
-    /// exact-fit window, where the fit gate still reads a Zero fit.
+    /// or use a radius of at most `radius`, each offered where the fit
+    /// gate still reads a Zero fit.
     AnchorOrRadius {
-        /// Each overrun leg, with the distance from the corner along it
-        /// at which its anchor has to lie, meters.
-        anchors: Vec<(FilletLeg, LeverValue<T>)>,
-        /// This corner's bound for the radius, meters, where the closed
-        /// form gives one.
-        radius: Option<LeverValue<T>>,
+        /// Each overrun leg, with the least distance from the corner
+        /// along it at which its anchor fits.
+        anchors: Vec<(FilletLeg, Told)>,
+        /// This corner's bound for the radius, where the closed form
+        /// gives one.
+        radius: Option<Told>,
     },
     /// Use a smaller radius.
     Radius,
@@ -980,37 +972,32 @@ pub enum Recourse<T: Real> {
 const CORNER_IS_NEVER_AUTHORED: &str =
     "a fillet's corner is where its carriers cross, never an authored point";
 
-/// "or use a radius of X m or less", X rendered on the fitting side
-/// within its exact-fit window, or the lever named without a value
+/// "use a radius of X m or less", or the lever named without a value
 /// where there is none.
-fn write_radius_lever<T: Real>(
+fn write_radius_lever(
     f: &mut core::fmt::Formatter<'_>,
-    radius: Option<&LeverValue<T>>,
+    radius: Option<&Told>,
 ) -> core::fmt::Result {
-    match radius.and_then(|bound| num_toward(bound, Toward::Below)) {
-        Some(bound) => write!(f, "use a radius of {bound} m or less"),
+    match radius {
+        Some(bound) => write!(f, "use a radius of {bound} or less"),
         None => f.write_str("reduce the radius"),
     }
 }
 
-/// "the incoming leg at least S m [and the outgoing leg at least S m]",
-/// each S rendered on the fitting side within its exact-fit window.
-fn write_anchor_targets<T: Real>(
+/// "the incoming leg at least S m [and the outgoing leg at least S m]".
+fn write_anchor_targets(
     f: &mut core::fmt::Formatter<'_>,
-    anchors: &[(FilletLeg, LeverValue<T>)],
+    anchors: &[(FilletLeg, Told)],
 ) -> core::fmt::Result {
     let mut sep = "";
     for (side, at_least) in anchors {
-        // A setback is positive, so its window always spells.
-        let at_least =
-            num_toward(at_least, Toward::Above).unwrap_or_else(|| num(&at_least.exact_fit_edge));
-        write!(f, "{sep}the {side} at least {at_least} m")?;
+        write!(f, "{sep}the {side} at least {at_least}")?;
         sep = " and ";
     }
     Ok(())
 }
 
-impl<T: Real> Recourse<T> {
+impl Recourse {
     /// The lever for one of two corners, which the clause names as
     /// "it".
     fn write_for_one(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -1033,19 +1020,15 @@ impl<T: Real> Recourse<T> {
 }
 
 /// One anchor-fit corner's anchor targets ([`Recourse::AnchorOrRadius`]).
-type AnchorTargets<'a, T> = &'a [(FilletLeg, LeverValue<T>)];
+type AnchorTargets<'a> = &'a [(FilletLeg, Told)];
 
 /// A pair's one recourse over its corners' ([`Recourse`]'s docs).
-enum PairRecourse<'a, T: Real> {
+enum PairRecourse<'a> {
     /// No corner names a lever.
     Unnamed,
     /// Every lever named is a radius lever, and at least one is an
-    /// anchor-fit corner's: its anchors, beside its ordinal, and the
-    /// largest radius bound among them.
-    AnchorOrRadius {
-        anchors: Vec<(usize, AnchorTargets<'a, T>)>,
-        radius: Option<LeverValue<T>>,
-    },
+    /// anchor-fit corner's: its anchors, beside its ordinal.
+    AnchorOrRadius(Vec<(usize, AnchorTargets<'a>)>),
     /// Every lever named is the bare radius one.
     Radius,
     /// Every lever named is this window's.
@@ -1054,9 +1037,9 @@ enum PairRecourse<'a, T: Real> {
     Each,
 }
 
-impl<'a, T: Real> PairRecourse<'a, T> {
+impl<'a> PairRecourse<'a> {
     /// The merge of the corners' recourses, in list order.
-    fn of(recourses: &'a [Option<Recourse<T>>]) -> Self {
+    fn of(recourses: &'a [Option<Recourse>]) -> Self {
         recourses
             .iter()
             .enumerate()
@@ -1064,39 +1047,17 @@ impl<'a, T: Real> PairRecourse<'a, T> {
             .fold(Self::Unnamed, |merged, (k, next)| merged.with(k, next))
     }
 
-    fn with(self, k: usize, next: &'a Recourse<T>) -> Self {
+    fn with(self, k: usize, next: &'a Recourse) -> Self {
         match (self, next) {
             (Self::Each, _) => Self::Each,
-            (Self::Unnamed | Self::Radius, Recourse::AnchorOrRadius { anchors, radius }) => {
-                Self::AnchorOrRadius {
-                    anchors: vec![(k, anchors.as_slice())],
-                    radius: *radius,
-                }
+            (Self::Unnamed | Self::Radius, Recourse::AnchorOrRadius { anchors, .. }) => {
+                Self::AnchorOrRadius(vec![(k, anchors.as_slice())])
             }
-            (
-                Self::AnchorOrRadius {
-                    anchors: mut merged,
-                    radius: bound,
-                },
-                Recourse::AnchorOrRadius { anchors, radius },
-            ) => {
+            (Self::AnchorOrRadius(mut merged), Recourse::AnchorOrRadius { anchors, .. }) => {
                 merged.push((k, anchors.as_slice()));
-                Self::AnchorOrRadius {
-                    anchors: merged,
-                    // The largest bound, read componentwise: the
-                    // largest window edge lies below every boundary
-                    // at least as large, so the pair stays a lever.
-                    radius: match (bound, *radius) {
-                        (Some(a), Some(b)) => Some(LeverValue {
-                            boundary: a.boundary.max(b.boundary),
-                            exact_fit_edge: a.exact_fit_edge.max(b.exact_fit_edge),
-                        }),
-                        (bound, None) => bound,
-                        (None, radius) => radius,
-                    },
-                }
+                Self::AnchorOrRadius(merged)
             }
-            (merged @ Self::AnchorOrRadius { .. }, Recourse::Radius) => merged,
+            (merged @ Self::AnchorOrRadius(_), Recourse::Radius) => merged,
             (Self::Unnamed | Self::Radius, Recourse::Radius) => Self::Radius,
             (Self::Unnamed, Recourse::IncomingShortOfCorner) => {
                 Self::Window(CornerWindow::BehindIncomingRay)
@@ -1120,17 +1081,19 @@ impl<'a, T: Real> PairRecourse<'a, T> {
                 | Recourse::ArrivalBeyondCorner,
             )
             | (
-                Self::Radius | Self::AnchorOrRadius { .. },
+                Self::Radius | Self::AnchorOrRadius(_),
                 Recourse::IncomingShortOfCorner | Recourse::ArrivalBeyondCorner,
             ) => Self::Each,
         }
     }
 }
 
-/// The pair's one recourse over its corners' recourses, in list order.
-fn write_pair_recourse<T: Real>(
+/// The pair's one recourse over its corners' recourses, in list order,
+/// with the pair's radius bound where its corners merge into one menu.
+fn write_pair_recourse(
     f: &mut core::fmt::Formatter<'_>,
-    recourses: &[Option<Recourse<T>>],
+    recourses: &[Option<Recourse>],
+    radius_or_less: Option<&Told>,
 ) -> core::fmt::Result {
     let merged = PairRecourse::of(recourses);
     if matches!(merged, PairRecourse::Unnamed) {
@@ -1139,7 +1102,7 @@ fn write_pair_recourse<T: Real>(
     f.write_str(". Recourse: ")?;
     match merged {
         PairRecourse::Unnamed => Ok(()),
-        PairRecourse::AnchorOrRadius { anchors, radius } => {
+        PairRecourse::AnchorOrRadius(anchors) => {
             let ordinals = recourses.len() > 1;
             let mut sep = "anchor ";
             for (k, targets) in anchors.iter().filter(|(_, a)| !a.is_empty()) {
@@ -1156,7 +1119,7 @@ fn write_pair_recourse<T: Real>(
             if sep != "anchor " {
                 f.write_str(", or ")?;
             }
-            write_radius_lever(f, radius.as_ref())
+            write_radius_lever(f, radius_or_less)
         }
         PairRecourse::Radius => f.write_str("reduce the radius"),
         PairRecourse::Window(CornerWindow::BehindIncomingRay) => write!(
@@ -1208,10 +1171,10 @@ pub enum PathError<T: Real> {
     JunctionTangent {
         /// The classified turn margin sin φ · arm, meters (scalar-typed
         /// payload — data, not a decision).
-        margin: T,
+        margin: Told,
         /// The lever arm (the incoming leg's extent, capped by its
         /// carrier radius), meters.
-        arm: T,
+        arm: Told,
     },
     /// §4 item 1, reverse class: the departure is within ε_input of
     /// the REVERSE of the incoming tangent — a cusp. One refusal, one
@@ -1224,9 +1187,9 @@ pub enum PathError<T: Real> {
     /// authored near-reverse still refuses here.
     JunctionCusp {
         /// The classified turn margin sin φ · arm, meters.
-        margin: T,
+        margin: Told,
         /// The lever arm, meters.
-        arm: T,
+        arm: Told,
     },
     /// **A declared cusp on a straight leg is left by a straight run**:
     /// `.cusp()` reverses the leg's own line exactly, so the run after
@@ -1273,7 +1236,7 @@ pub enum PathError<T: Real> {
     /// special, and the name says which.
     SeamTangent {
         /// The offending collinearity/turn margin, meters.
-        margin: T,
+        margin: Told,
     },
     /// **The declared seam arrival's consistency refusal**: the closing
     /// leg targeted [`Start::arrives_tangent`] — declaring that the
@@ -1311,10 +1274,10 @@ pub enum PathError<T: Real> {
     SeamArrivalOffDirection {
         /// The declared arrival's miss, LEVERED to meters: the turn's
         /// sine times the arriving leg's arm.
-        margin: T,
+        margin: Told,
         /// The lever: the arriving leg's arm (its own length for a
         /// straight closer, `radius.min(chord)` for an arc one).
-        arm: T,
+        arm: Told,
     },
     /// **A declared seam arrival with no lever to measure it against.**
     /// The arriving leg's arm — its own length, or `radius.min(chord)`
@@ -1333,7 +1296,7 @@ pub enum PathError<T: Real> {
     /// extent the author wrote.
     SeamArrivalLeverTooShort {
         /// The degenerate lever, meters.
-        arm: T,
+        arm: Told,
     },
     /// **The declared point-target continuation's consistency
     /// refusal**: [`continue_to(target)`](PartialPath::continue_to)
@@ -1361,10 +1324,10 @@ pub enum PathError<T: Real> {
     ContinuationTargetOffRay {
         /// The lateral miss (û ⟂ component of `target − at`), meters —
         /// the classified margin, signed to the ray's left.
-        across: T,
+        across: Told,
         /// How far along the ray the target's foot lies, meters — the
         /// leg length the declaration asks for. Data, not a decision.
-        along: T,
+        along: Told,
     },
     /// The fillet's virtual corner does not exist (see
     /// [`PathNoCornerReason`]).
@@ -1372,7 +1335,7 @@ pub enum PathError<T: Real> {
         /// Which structural condition failed.
         reason: PathNoCornerReason<T>,
         /// The requested radius, meters (diagnostic).
-        radius: T,
+        radius: Told,
     },
     /// **No corner of the carrier pair takes a fillet of the requested
     /// radius**: every corner that refused at the stage the answer
@@ -1414,11 +1377,16 @@ pub enum PathError<T: Real> {
     /// another.
     NoCornerOfPair {
         /// The requested radius, meters (diagnostic).
-        radius: T,
+        radius: Told,
         /// The corners that REFUSED at the answering stage, nearest the
         /// bracketing anchors first. Never empty, and not necessarily
         /// every corner the pair derives.
         corners: Vec<CornerRefusal<T>>,
+        /// The pair's radius lever: the largest of its anchor-fit
+        /// corners' [`radius_at_anchor`](CornerReason::AnchorOutsideTrimmedExtent)
+        /// bounds, the one its merged recourse names. `None` where no
+        /// corner has one.
+        radius_or_less: Option<Told>,
     },
     /// **M8**: the derived corner and a tangent circle of the requested
     /// radius both exist, but the tangent point on one side cannot be
@@ -1434,13 +1402,13 @@ pub enum PathError<T: Real> {
         /// The side whose offset lever is short.
         side: FilletLeg,
         /// That side's carrier radius R, meters (scalar-typed payload).
-        carrier_radius: T,
+        carrier_radius: Told,
         /// Its signed offset radius ρ = R − σ·τ·r, meters.
-        offset_radius: T,
+        offset_radius: Told,
         /// The least |ρ| the band supports here, meters.
-        least_lever: T,
+        least_lever: Told,
         /// The classified margin |ρ| − `least_lever`, meters.
-        margin: T,
+        margin: Told,
     },
     // Deliberately NOT merged with `FilletOffsetLeverTooShort`, whose
     // payload it nearly parrots (a side, a carrier radius, a signed ρ, a
@@ -1482,15 +1450,15 @@ pub enum PathError<T: Real> {
     /// would have to parse.
     FilletArcFlattenedInStorage {
         /// The fillet arc's stored sweep, radians (diagnostic).
-        turn: T,
+        turn: Told,
         /// The requested fillet radius, meters (diagnostic).
-        radius: T,
+        radius: Told,
         /// The arc's length, `radius · |turn|` meters (diagnostic).
-        arc_length: T,
+        arc_length: Told,
         /// The predicate whose classification refused the stored form.
         predicate: &'static str,
         /// The margin it classified, meters.
-        margin: T,
+        margin: Told,
     },
     /// **The fillet's stored arc IS an arc, and the scene cannot
     /// resolve its carrier.** The sagitta is metres; what fails is the
@@ -1510,21 +1478,21 @@ pub enum PathError<T: Real> {
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
         /// The fillet arc's stored sweep, radians (diagnostic).
-        turn: T,
+        turn: Told,
         /// The requested fillet radius, meters (diagnostic).
-        radius: T,
+        radius: Told,
         /// The magnitude the refusing reading was a difference at,
         /// meters — the joint's two legs' vertices, carrier radii and
         /// centres, or the arc's own vertices where its carrier
         /// disagrees with them.
-        scale: T,
+        scale: Told,
         /// About the finest that difference could have been read:
         /// `scale · 2^-52`, meters.
-        resolution: T,
+        resolution: Told,
         /// The predicate whose classification refused the stored form.
         predicate: &'static str,
         /// The margin it classified, meters.
-        margin: T,
+        margin: Told,
     },
     /// A sharp arc LEG was reached while a fillet is still open (its
     /// arrival direction unbound). §2c binds an arc arrival by its own
@@ -1552,7 +1520,7 @@ pub enum PathError<T: Real> {
     /// the funnel (`path_leg_length`).
     NonpositiveLeg {
         /// The refused length, meters (scalar-typed payload).
-        length: T,
+        length: Told,
     },
     /// A fillet radius that is not definitely positive: r = 0
     /// degenerates the arc and a negative r mirrors the tangent points
@@ -1562,14 +1530,14 @@ pub enum PathError<T: Real> {
     /// arrival can be authored against it.
     NonpositiveFilletRadius {
         /// The refused radius, meters (scalar-typed payload).
-        radius: T,
+        radius: Told,
     },
     /// A [`circle`] radius that is not definitely positive: r = 0 is a
     /// point and r < 0 names no circle. Classified through the funnel
     /// (`path_circle_radius`), consistent with the other sign gates.
     NonpositiveCircleRadius {
         /// The refused radius, meters (scalar-typed payload).
-        radius: T,
+        radius: Told,
     },
     /// **§2c**: a fused/endpoint-free arc spec whose authored datum
     /// names no arc — a zero bulge (the arc degenerates to its chord),
@@ -1578,7 +1546,7 @@ pub enum PathError<T: Real> {
     /// `path_arc_sweep`).
     DegenerateArcSpec {
         /// The refused authored datum (bulge, angle, or length).
-        value: T,
+        value: Told,
     },
     /// **An endpoint-free arc leg not definitely short of a full
     /// turn**: a `Sweep` angle or an `ArcLen` length whose arc length
@@ -1590,7 +1558,7 @@ pub enum PathError<T: Real> {
     /// carrier is `circle` / `circle_split`'s, never a chained leg's.
     ArcSweepNotShortOfFullTurn {
         /// The refused swept angle, radians.
-        angle: T,
+        angle: Told,
     },
     /// A [`rectangle`] width or height that is not definitely positive:
     /// a zero side is a segment and a negative one names no rectangle.
@@ -1600,7 +1568,7 @@ pub enum PathError<T: Real> {
         /// Which side was refused: `"width"` or `"height"`.
         side: &'static str,
         /// The refused extent, meters (scalar-typed payload).
-        length: T,
+        length: Told,
     },
     /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
     /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
@@ -1635,9 +1603,9 @@ pub enum PathError<T: Real> {
     /// so the recourse is free — scale them up.
     ZeroDirection {
         /// The refused x component.
-        dx: T,
+        dx: Told,
         /// The refused y component.
-        dy: T,
+        dy: Told,
     },
     /// A vector a direction is derived from has **no finite length**:
     /// its components overflow the norm (past ~1e154), or one of them
@@ -1663,9 +1631,9 @@ pub enum PathError<T: Real> {
     /// `memories/refusal-text-is-not-cause.md`.
     NonFiniteDirection {
         /// The refused x component.
-        dx: T,
+        dx: Told,
         /// The refused y component.
-        dy: T,
+        dy: Told,
     },
     /// A vector a direction is derived from has a length that
     /// **underflowed out of the format**: its components are small
@@ -1693,9 +1661,9 @@ pub enum PathError<T: Real> {
     /// are derived rather than spelled.
     UnderflowedDirection {
         /// The refused x component.
-        dx: T,
+        dx: Told,
         /// The refused y component.
-        dy: T,
+        dy: Told,
     },
     /// A `Via` mode's through-point is within ε_input of the CHORD LINE:
     /// the three points name no arc. On the chord the construction
@@ -1707,7 +1675,7 @@ pub enum PathError<T: Real> {
     ArcViaCollinear {
         /// The through-point's signed perpendicular offset from the
         /// chord line, meters.
-        offset: T,
+        offset: Told,
     },
     /// An arc leg's endpoints are within ε_input of each other: the
     /// chord is degenerate, so neither the via nor the centre form
@@ -1719,7 +1687,7 @@ pub enum PathError<T: Real> {
     /// whatever the ends span.
     DegenerateArcChord {
         /// The chord length, meters.
-        chord: T,
+        chord: Told,
     },
     /// A `Center` mode's centre is not equidistant from the two
     /// endpoints: the authored data contradicts itself. Refused, never
@@ -1729,15 +1697,15 @@ pub enum PathError<T: Real> {
     /// authored points is wrong.
     ArcCenterNotEquidistant {
         /// |tip − centre|, meters.
-        tip_radius: T,
+        tip_radius: Told,
         /// |end − centre|, meters.
-        end_radius: T,
+        end_radius: Told,
     },
     /// A `Center` mode's centre is within ε_input of an endpoint: the
     /// carrier has no radius, so the winding selects nothing.
     DegenerateArcCenter {
         /// The classified radius, meters.
-        radius: T,
+        radius: Told,
     },
     /// **An arc the path built is off what was authored**, read back
     /// at a point scalar (`seg::read_back_arc`): its start off its
@@ -1760,13 +1728,13 @@ pub enum PathError<T: Real> {
         point: Point2<T>,
         /// How far the stored arc is off what was authored, meters (for
         /// the branch, the length of the arc it built instead).
-        miss: T,
+        miss: Told,
         /// The magnitude the read was taken at, meters.
-        scale: T,
+        scale: Told,
         /// The rounding the read carries at that magnitude, meters.
-        resolution: T,
+        resolution: Told,
         /// The stored arc's turn, radians.
-        turn: T,
+        turn: Told,
         /// The turn sense the construction authored, where it authors
         /// one apart from its sweep.
         authored: Option<ArcSweep>,
@@ -1792,13 +1760,13 @@ pub enum PathError<T: Real> {
         point: Point2<T>,
         /// How far the stored arc is off what was authored, meters (for
         /// the branch, the length of the arc it built instead).
-        miss: T,
+        miss: Told,
         /// The magnitude the read was taken at, meters.
-        scale: T,
+        scale: Told,
         /// The rounding the read carries at that magnitude, meters.
-        resolution: T,
+        resolution: Told,
         /// The stored arc's turn, radians.
-        turn: T,
+        turn: Told,
         /// The turn sense the construction authored, where it authors
         /// one apart from its sweep.
         authored: Option<ArcSweep>,
@@ -2041,190 +2009,42 @@ impl<T: Real> PathError<T> {
     }
 }
 
-/// Render a scalar payload inside a refusal sentence.
-///
-/// [`Real`] carries `Debug` and no `Display`, so an arm below can only
-/// reach its scalars through `{:?}` — the shortest round-tripping form
-/// of an `f64`, which puts an 8 mm radius that arithmetic produced into
-/// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
-/// parses back as an `f64` this renders the shortest spelling that still
-/// names the same number **to the finer of a relative 1e-9 and an
-/// absolute ε/10**; anything else (an interval, a dual) passes through
-/// untouched. A DISPLAY choice only — the payload keeps the exact
-/// scalar, and every claim a caller branches on reads the field, never
-/// this string.
-///
-/// **The two arms are load-bearing at opposite ends of the range, and
-/// the tolerance is their `min` because each is the coarser one
-/// somewhere.** ε is a LENGTH ([`DEFAULT_EPS`], D4 ¶1), so a purely
-/// relative 1e-9 crosses it at one metre and is coarser above: at a
-/// kilometre it is a micron, and two lengths the kernel certifies as
-/// different then render as one number — a refusal reading *"margin
-/// 1234.5 m exceeds the 1234.5 m the anchor pins"*. The absolute arm
-/// caps the grid one decade below ε, so a difference the kernel can
-/// decide is always a difference the sentence spells. Below a decimetre
-/// the relative arm is the finer of the two and governs alone, and the
-/// shortening is there the same proposition at every magnitude: a
-/// picometre margin is rounded to nine significant figures of a
-/// picometre, never to the nearest nanometre and never to `0`. A FLOOR
-/// under the tolerance is the mirror defect and is precisely what a
-/// `min` cannot become — it would round every margin below the floor to
-/// the floor's own zero, erasing the sub-nanometre values these messages
-/// exist to report.
-///
-/// The cap is the compile-time [`DEFAULT_EPS`] and never the run's live
-/// `Tolerance::eps()`. A live ε would make every rendered refusal a
-/// function of process configuration, spelling one payload three ways
-/// across the ε rows CI gates; the grid is a display choice stated once
-/// against the ratified default.
-///
-/// `0.0` has no significant figures to round to and only its exact
-/// spelling round-trips, which is `0`; `-0.0`'s is `-0`, a sign this
-/// helper reports because the payload carries it, not because a
-/// magnitude was erased.
-///
-/// Notation follows the `Debug` form's own choice — fixed where `{:?}`
-/// is fixed, exponential where `{:?}` is exponential — so this helper
-/// only ever shortens the mantissa of the spelling Rust already picked,
-/// and never turns one into the other. A metre-scale number keeps its
-/// decimal point and a far-from-unity one keeps its exponent, which is
-/// what makes both of them readable: `1e-12` rather than eleven zeros,
-/// `1e300` rather than 301 digits.
-///
-/// A plain `f64` field reaches the same defect by the other door: its
-/// own `Display` is that shortest round-tripping spelling too, so a
-/// scalar payload typed concretely is no more shortened than one behind
-/// [`Real`], and both belong here.
-///
-/// Every scalar-bearing refusal rendering in this crate goes through
-/// here — the arms below, and [`crate::FilletLegCarrier`]'s `Display`
-/// in `validate`, whose sentence is interpolated into
-/// [`CornerReason::AnchorOutsideTrimmedExtent`]'s. One grid for the
-/// crate's refusals, not one per module. Non-scalar payloads — a side,
-/// a carrier, an index, a `&'static str` site — are not this helper's
-/// business and reach the sentence through their own `Display`, which
-/// renders any scalars of its own through here in turn.
-pub(crate) fn num<T: core::fmt::Debug>(v: &T) -> String {
-    let raw = format!("{v:?}");
-    let Ok(x) = raw.parse::<f64>() else {
-        return raw;
-    };
-    let tol = grid_tol(x);
-    shortest(&raw, x, |back, _| Some(back), |y| (y - x).abs() <= tol).unwrap_or(raw)
+/// A length the kernel derived, as a refusal tells it.
+pub(crate) fn length<T: Real>(x: T) -> Told {
+    Told::computed(&x, Dimension::Length)
 }
 
-/// The tolerance of [`num`]'s grid at `x`: a tenth of the default ε,
-/// or nine figures of `x`, whichever is finer.
-fn grid_tol(x: f64) -> f64 {
-    (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9)
+/// An angle the kernel derived, as a refusal tells it.
+pub(crate) fn angle<T: Real>(x: T) -> Told {
+    Told::computed(&x, Dimension::Angle)
 }
 
-/// **The one precision loop** behind [`num`] and [`num_toward`]: the
-/// first precision, in `raw`'s own notation, at which `pick` turns the
-/// nearest spelling of `x` (its value `back`, and one unit of its last
-/// place) into a spelling whose value `admit` accepts — trailing zeros
-/// trimmed in fixed notation. `None` where no precision up to 17 does:
-/// a non-finite value, whose comparisons are all false.
-fn shortest(
-    raw: &str,
-    x: f64,
-    pick: impl Fn(f64, f64) -> Option<f64>,
-    admit: impl Fn(f64) -> bool,
-) -> Option<String> {
-    let exponential = raw.contains('e');
-    let spell = |y: f64, prec: usize| {
-        if exponential {
-            format!("{y:.prec$e}")
-        } else {
-            format!("{y:.prec$}")
-        }
-    };
-    for prec in 0..=17 {
-        let nearest = spell(x, prec);
-        let Ok(back) = nearest.parse::<f64>() else {
-            continue;
-        };
-        // One unit of the last place spelled.
-        let unit = if exponential {
-            let exp: i32 = nearest
-                .rsplit_once('e')
-                .and_then(|(_, e)| e.parse().ok())
-                .unwrap_or(0);
-            10f64.powi(exp - i32::try_from(prec).unwrap_or(0))
-        } else {
-            10f64.powi(-i32::try_from(prec).unwrap_or(0))
-        };
-        let Some(y) = pick(back, unit) else {
-            continue;
-        };
-        let short = if y.to_bits() == back.to_bits() {
-            nearest
-        } else {
-            spell(y, prec)
-        };
-        if short.parse::<f64>().is_ok_and(&admit) {
-            // The first precision that is admitted cannot carry a
-            // trailing zero in an exponential mantissa: dropping one
-            // would name the same `f64`, so the shorter precision would
-            // have been admitted first.
-            if exponential || !short.contains('.') {
-                return Some(short);
-            }
-            return Some(
-                short
-                    .trim_end_matches('0')
-                    .trim_end_matches('.')
-                    .to_string(),
-            );
-        }
-    }
-    None
+/// A ratio the kernel derived, as a refusal tells it.
+pub(crate) fn ratio<T: Real>(x: T) -> Told {
+    Told::computed(&x, Dimension::Dimensionless)
 }
 
-/// Which side of its exact value a recourse's number is spelled on
-/// ([`num_toward`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Toward {
-    /// Above: a least distance to set.
-    Above,
-    /// Below: a greatest radius to use.
-    Below,
+/// **A radius lever**: the largest radius whose fillet fits, offered no
+/// farther below it than `exact_fit_edge`, the radius whose fit margin
+/// is the exact-fit reach.
+pub(crate) fn radius_lever<T: Real>(boundary: T, exact_fit_edge: T) -> Told {
+    Told::at_most(&boundary, Dimension::Length).no_farther_than(&exact_fit_edge)
 }
 
-/// **A lever's number, spelled strictly on its fitting side within the
-/// exact-fit window**: the shortest decimal on [`num`]'s precision loop
-/// that lies between [`LeverValue::boundary`] and
-/// [`LeverValue::exact_fit_edge`] — at each precision, the boundary
-/// rounded `toward` its fitting side. Typed back, it is a Zero fit at
-/// this corner: the fillet ends at the anchor. Rounding to nearest
-/// would land on the overrun side about half the time, and the float of
-/// the exact boundary can too.
-///
-/// `None` where the boundary is not a positive finite number, or no
-/// spelling lies in the window.
-pub(crate) fn num_toward<T: Real>(lever: &LeverValue<T>, toward: Toward) -> Option<String> {
-    let raw = format!("{:?}", lever.boundary);
-    let x = raw.parse::<f64>().ok()?;
-    let edge = format!("{:?}", lever.exact_fit_edge).parse::<f64>().ok()?;
-    if !(x.is_finite() && x > 0.0 && edge.is_finite()) {
-        return None;
-    }
-    let (lo, hi) = match toward {
-        Toward::Above => (x, edge),
-        Toward::Below => (edge, x),
-    };
-    shortest(
-        &raw,
-        x,
-        |back, unit| {
-            Some(match toward {
-                Toward::Above if back < x => back + unit,
-                Toward::Below if back > x => back - unit,
-                _ => back,
-            })
-        },
-        |y| lo <= y && y <= hi && y > 0.0,
-    )
+/// A length the caller authored, as a refusal tells it back.
+pub(crate) fn authored_length<T: Real>(x: T) -> Told {
+    Told::given(&x, Dimension::Length)
+}
+
+/// An angle the caller authored, as a refusal tells it back.
+pub(crate) fn authored_angle<T: Real>(x: T) -> Told {
+    Told::given(&x, Dimension::Angle)
+}
+
+/// A dimensionless number the caller authored, as a refusal tells it
+/// back.
+pub(crate) fn authored_ratio<T: Real>(x: T) -> Told {
+    Told::given(&x, Dimension::Dimensionless)
 }
 
 impl<T: Real> core::fmt::Display for PathError<T> {
@@ -2233,67 +2053,56 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} m on a {arm} m arm). Recourse: \
+                 (turn margin {margin} on a {arm} arm). Recourse: \
                  {JUNCTION_TANGENT_LEVER}",
-                margin = num(margin),
-                arm = num(arm)
             ),
             Self::CuspDoublesBackOverLeg { at } => write!(
                 f,
-                "the cusp at ({x}, {y}) reverses a straight leg, and the straight run after it \
+                "the cusp at {at} reverses a straight leg, and the straight run after it \
                  lies back over that leg. Recourse: leave the cusp on an arc (a tangent arc, or a \
                  fillet whose tangent point is the leg's end), or turn instead of reversing",
-                x = num(&at.x),
-                y = num(&at.y)
+                at = told_point(at, Told::computed)
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
                 "this junction reverses onto the incoming direction at any precision you \
-                 could care about (turn margin {margin} m on a {arm} m arm): an undeclared \
+                 could care about (turn margin {margin} on a {arm} arm): an undeclared \
                  cusp. Recourse: if intended, author .cusp() at an interior junction; \
                  otherwise move the geometry. At the seam the closing leg arrives REVERSED: \
                  rotate the loop\'s authoring origin, or cut the seam at a corner",
-                margin = num(margin),
-                arm = num(arm)
             ),
             Self::SeamTangent { margin } => write!(
                 f,
-                "the SEAM arrives tangent to the entry\'s first side (margin {margin} m) and \
+                "the SEAM arrives tangent to the entry\'s first side (margin {margin}) and \
                  nothing declared it. Recourse: DECLARE the joint on the target with \
                  Start.arrives_tangent(), which every closing verb takes, or cut the loop at \
                  a CORNER instead (author the seam where the outline actually turns)",
-                margin = num(margin)
             ),
             Self::SeamArrivalOffDirection { margin, arm } => write!(
                 f,
                 "the declared seam arrival (Start.arrives_tangent()) does not continue the \
-                 entry\'s outgoing direction: it misses by {margin} m over the arriving \
-                 leg\'s {arm} m arm. {recourse}",
+                 entry\'s outgoing direction: it misses by {margin} over the arriving \
+                 leg\'s {arm} arm. {recourse}",
                 recourse = geom_core::move_recourse!(
                     "so the leg arrives along that side, or drop the declaration and author the \
                      seam at a CORNER; for a closing ARC tangent at BOTH ends, use the seam \
                      FILLET (.angle(theta).fillet(r).to(Start))"
                 ),
-                margin = num(margin),
-                arm = num(arm)
             ),
             Self::SeamArrivalLeverTooShort { arm } => write!(
                 f,
-                "the declared seam arrival has no lever: the closing leg\'s arm is {arm} m, \
+                "the declared seam arrival has no lever: the closing leg\'s arm is {arm}, \
                  not definitely positive, so its direction cannot be checked. Recourse: \
                  lengthen the closing leg or move the entry off it, or drop the vertex if it \
                  was not wanted",
-                arm = num(arm)
             ),
             Self::ContinuationTargetOffRay { across, along } => write!(
                 f,
                 "the declared straight continuation\'s target is not on its run\'s line (the \
-                 line bound where the run\'s direction was bound): it misses by {across} m \
-                 across the line, {along} m along it from the departing point. Recourse: move \
+                 line bound where the run\'s direction was bound): it misses by {across} \
+                 across the line, {along} along it from the departing point. Recourse: move \
                  the target onto the run\'s line; if a TURN was \
                  meant, author the direction (.turn(delta)/.angle(theta)) and use line_to",
-                across = num(across),
-                along = num(along)
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
@@ -2324,24 +2133,21 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                             ),
                         };
                         let at = corner.map_or_else(String::new, |at| {
-                            format!(" at corner ({x}, {y})", x = num(&at.x), y = num(&at.y))
+                            format!(" at corner {}", told_point(&at, Told::computed))
                         });
                         format!(
-                            "its turn{at}, sin φ = {sin} (cos φ = {cos}) over {lever_name} of \
-                             {lever} m, is zero at tolerance. Recourse: {recourse}",
-                            sin = num(sin_turn),
-                            cos = num(align),
-                            lever = num(lever),
+                            "its turn{at}, sin φ = {sin_turn} (cos φ = {align}) over \
+                             {lever_name} of {lever}, is zero at tolerance. Recourse: {recourse}",
                         )
                     }
                 };
-                write!(
-                    f,
-                    "no corner for a radius-{radius} m fillet: {what}",
-                    radius = num(radius)
-                )
+                write!(f, "no corner for a radius-{radius} fillet: {what}",)
             }
-            Self::NoCornerOfPair { radius, corners } => {
+            Self::NoCornerOfPair {
+                radius,
+                corners,
+                radius_or_less,
+            } => {
                 // The count is of ENTRIES — the corners that refused at
                 // the answering stage — and the sentence says so. A
                 // carrier pair derives up to two corners and most
@@ -2351,8 +2157,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 // is worse than no fact.
                 write!(
                     f,
-                    "no corner of these carriers takes a radius-{radius} m fillet",
-                    radius = num(radius),
+                    "no corner of these carriers takes a radius-{radius} fillet",
                 )?;
                 for corner in corners {
                     write!(f, "; {corner}")?;
@@ -2371,9 +2176,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 }) {
                     write!(f, "; these carriers may admit no fillet at all")?;
                 }
-                let recourses: Vec<Option<Recourse<T>>> =
+                let recourses: Vec<Option<Recourse>> =
                     corners.iter().map(|c| c.reason.recourse()).collect();
-                write_pair_recourse(f, &recourses)
+                write_pair_recourse(f, &recourses, radius_or_less.as_ref())
             }
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -2383,15 +2188,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "the {side} side's offset lever rho {offset_radius} m (carrier radius \
-                 {carrier_radius} m) is shorter than the {least_lever} m this corner needs \
-                 at the run's tolerance (margin {margin} m), so the fillet's tangent point \
+                "the {side} side's offset lever rho {rho} (carrier radius \
+                 {carrier_radius}) is shorter than the {least} this corner needs \
+                 at the run's tolerance (margin {margin}), so the fillet's tangent point \
                  cannot be placed. Recourse: move the fillet radius away from that side's \
                  carrier radius, or bring the corner's carriers closer together",
-                offset_radius = num(offset_radius),
-                carrier_radius = num(carrier_radius),
-                least_lever = num(least_lever),
-                margin = num(margin)
+                rho = offset_radius.beside(least_lever).first(),
+                least = offset_radius.beside(least_lever).second(),
             ),
             Self::FilletArcFlattenedInStorage {
                 turn,
@@ -2401,13 +2204,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "a radius-{radius} m fillet through a turn of {turn} rad is a {arc_length} m \
+                "a radius-{radius} fillet through a turn of {turn} is a {arc_length} \
                  arc, too shallow to store as a chord and a carrier ('{predicate}' classifies \
-                 it at {margin} m). Recourse: {FILLET_FLATTENED_RECOURSE}",
-                radius = num(radius),
-                turn = num(turn),
-                arc_length = num(arc_length),
-                margin = num(margin)
+                 it at {margin}). Recourse: {FILLET_FLATTENED_RECOURSE}",
             ),
             Self::FilletCarrierBelowSceneResolution {
                 turn,
@@ -2418,15 +2217,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "a radius-{radius} m fillet through a turn of {turn} rad needs a tangency \
-                 the scene cannot resolve: lengths of about {scale} m resolve only to about \
-                 {resolution} m ('{predicate}' classifies it at {margin} m). Recourse: \
+                "a radius-{radius} fillet through a turn of {turn} needs a tangency \
+                 the scene cannot resolve: lengths of about {scale} resolve only to about \
+                 {resolution} ('{predicate}' classifies it at {margin}). Recourse: \
                  {FILLET_SCENE_RESOLUTION_RECOURSE}",
-                radius = num(radius),
-                turn = num(turn),
-                scale = num(scale),
-                resolution = num(resolution),
-                margin = num(margin)
             ),
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
@@ -2434,14 +2228,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "this arc spec's authored datum ({value}) names no arc: a zero bulge \
                  degenerates to the chord (author a line), and a sweep angle or arc length \
                  must be definitely positive",
-                value = num(value)
             ),
             Self::ArcSweepNotShortOfFullTurn { angle } => write!(
                 f,
-                "this arc leg turns {angle} rad, which is not short of a full turn: a leg \
+                "this arc leg turns {angle}, which is not short of a full turn: a leg \
                  sweeps less than 2π; a whole circle is circle(c, r), or circle_split(c, r, \
                  n, phase) to place its seams",
-                angle = num(angle)
             ),
             Self::SeamRetrimsArcFirstSide => write!(
                 f,
@@ -2451,31 +2243,27 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NonpositiveLeg { length } => write!(
                 f,
-                "a leg must advance the tip by a definitely positive length (got {length} m): \
+                "a leg must advance the tip by a definitely positive length (got {length}): \
                  a negative length runs the side backward and detaches anchored points from \
                  the final path (every authored point lies on the final path, authored once); \
                  a sub-tolerance length is a degenerate segment",
-                length = num(length)
             ),
             Self::NonpositiveFilletRadius { radius } => write!(
                 f,
-                "a fillet needs a definitely positive radius (got {radius} m): r = 0 \
+                "a fillet needs a definitely positive radius (got {radius}): r = 0 \
                  degenerates the arc and a negative r mirrors the tangent points past the \
                  corner — no tangent construction exists to declare",
-                radius = num(radius)
             ),
             Self::NonpositiveCircleRadius { radius } => write!(
                 f,
-                "a circle needs a definitely positive radius (got {radius} m): r = 0 is a \
+                "a circle needs a definitely positive radius (got {radius}): r = 0 is a \
                  point and r < 0 names no circle",
-                radius = num(radius)
             ),
             Self::NonpositiveRectangleSide { side, length } => write!(
                 f,
-                "a rectangle needs a definitely positive {side} (got {length} m): a zero side \
+                "a rectangle needs a definitely positive {side} (got {length}): a zero side \
                  is a segment and a negative one names no rectangle. Recourse: author a \
                  positive {side}",
-                length = num(length)
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
@@ -2495,8 +2283,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a director spelled as components must name a direction (got \
                  ({dx}, {dy}), whose norm is within tolerance of zero): only the ratio \
                  of the components is read, so scaling them up costs nothing",
-                dx = num(dx),
-                dy = num(dy)
             ),
             Self::NonFiniteDirection { dx, dy } => write!(
                 f,
@@ -2504,8 +2290,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  overflows the norm or is not a number). Recourse: only the ratio of the \
                  components is read, so divide them through by a common factor; if they \
                  come from authored geometry, {RANGE_RECOURSE}",
-                dx = num(dx),
-                dy = num(dy),
                 RANGE_RECOURSE = geom_core::RANGE_RECOURSE
             ),
             Self::UnderflowedDirection { dx, dy } => write!(
@@ -2514,24 +2298,20 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  the format, though the direction is good. Recourse: only the ratio of the \
                  components is read, so multiply them through by a common factor; if they \
                  come from authored geometry, {RANGE_RECOURSE}",
-                dx = num(dx),
-                dy = num(dy),
                 RANGE_RECOURSE = geom_core::RANGE_RECOURSE
             ),
             Self::ArcViaCollinear { offset } => write!(
                 f,
-                "the through-point lies on the chord line (offset {offset} m, within \
+                "the through-point lies on the chord line (offset {offset}, within \
                  tolerance of zero): three collinear points name no arc — move the \
                  through-point off the chord, or author the straight segment as a line",
-                offset = num(offset)
             ),
             Self::DegenerateArcChord { chord } => write!(
                 f,
-                "an arc leg spans no arc short of a full turn (chord {chord} m): its ends \
+                "an arc leg spans no arc short of a full turn (chord {chord}): its ends \
                  coincide within tolerance, or a tangent arc's far end lies on its tangent \
                  line where only a full turn reaches it. Recourse: move the ends apart, or that \
                  end off the tangent line; a closed carrier is a circle",
-                chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {
                 tip_radius,
@@ -2539,18 +2319,17 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the authored centre is not equidistant from the arc's endpoints \
-                 (|tip - centre| = {tip_radius} m, |end - centre| = {end_radius} m): the \
+                 (|tip - centre| = {tip}, |end - centre| = {end}): the \
                  three authored points contradict each other. Nothing is re-projected — an \
                  authored point is never moved to make a construction work; fix whichever \
                  of the three is wrong",
-                tip_radius = num(tip_radius),
-                end_radius = num(end_radius)
+                tip = tip_radius.beside(end_radius).first(),
+                end = tip_radius.beside(end_radius).second(),
             ),
             Self::DegenerateArcCenter { radius } => write!(
                 f,
-                "the authored centre is within tolerance of an endpoint (radius {radius} \
-                 m): the carrier has no radius, so the winding selects nothing",
-                radius = num(radius)
+                "the authored centre is within tolerance of an endpoint (radius {radius}): \
+                 the carrier has no radius, so the winding selects nothing",
             ),
             Self::ArcMissesAuthoredPoint {
                 piece,
@@ -2563,14 +2342,14 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 turn,
                 authored,
             } => {
-                read_back_sentence(f, piece, verb, *read, point, miss, turn, *authored)?;
+                let read_at = miss.beside(resolution);
+                let (miss, resolution) = (read_at.first(), read_at.second());
+                read_back_sentence(f, piece, verb, *read, point, &miss, turn, *authored)?;
                 write!(
                     f,
-                    ", clear of the {resolution} m its read rounds to at {scale} m \
+                    ", clear of the {resolution} its read rounds to at {scale} \
                      ('{predicate}'). {KERNEL_DEFECT_ENDING}",
                     predicate = read.gate().predicate(),
-                    resolution = num(resolution),
-                    scale = num(scale)
                 )
             }
             Self::ArcMissBelowSceneResolution {
@@ -2584,14 +2363,14 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 turn,
                 authored,
             } => {
-                read_back_sentence(f, piece, verb, *read, point, miss, turn, *authored)?;
+                let read_at = miss.beside(resolution);
+                let (miss, resolution) = (read_at.first(), read_at.second());
+                read_back_sentence(f, piece, verb, *read, point, &miss, turn, *authored)?;
                 write!(
                     f,
-                    "; at {scale} m its read rounds to {resolution} m, too coarse to call \
+                    "; at {scale} its read rounds to {resolution}, too coarse to call \
                      this a defect ('{predicate}'). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}",
                     predicate = read.gate().predicate(),
-                    resolution = num(resolution),
-                    scale = num(scale)
                 )
             }
             Self::FarEndAnchorWithoutFillet => write!(
@@ -2782,7 +2561,7 @@ use directed::{Bound, Incoming, Run};
 /// verb can branch on, refuse on, or depend on which representation a
 /// point holds, and the module's privacy is what says so.
 mod directed {
-    use super::{Dir, PathError, Point2, Real, Tol, linear_band};
+    use super::{Dir, PathError, Point2, Real, Tol, length, linear_band};
     use crate::gate::{Gate, decide};
     use geom_core::{Decide, Margin, Sign};
 
@@ -2986,12 +2765,19 @@ mod directed {
             let band = linear_band(tol)?;
             match decide(Gate::PathContinuationTargetOffset, Margin::of(across), band) {
                 Ok(Sign::Zero) => {}
-                Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
+                Ok(_) => {
+                    return Err(PathError::ContinuationTargetOffRay {
+                        across: length(across),
+                        along: length(along),
+                    });
+                }
                 Err(source) => return Err(PathError::escalated(source)),
             }
             match decide(Gate::PathLegLength, Margin::of(along), band) {
                 Ok(Sign::Positive) => Ok(along),
-                Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
+                Ok(_) => Err(PathError::NonpositiveLeg {
+                    length: length(along),
+                }),
                 Err(source) => Err(PathError::escalated(source)),
             }
         }
@@ -3971,7 +3757,7 @@ fn tangent_arc_geom<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(PathError::DegenerateArcChord {
-                    chord: d.norm_squared().sqrt(),
+                    chord: length(d.norm_squared().sqrt()),
                 });
             }
             Err(source) => return Err(PathError::escalated(source)),
@@ -4101,12 +3887,20 @@ fn junction_check<T: Decide>(
             // (validation asks it of every tangent joint between two
             // carriers too).
             match seg::junction_reverses(u_in, u_dep, arm, band) {
-                Ok(true) => Err(PathError::JunctionCusp { margin, arm }),
+                Ok(true) => Err(PathError::JunctionCusp {
+                    margin: length(margin),
+                    arm: length(arm),
+                }),
                 Ok(false) => {
                     if seam {
-                        Err(PathError::SeamTangent { margin })
+                        Err(PathError::SeamTangent {
+                            margin: length(margin),
+                        })
                     } else {
-                        Err(PathError::JunctionTangent { margin, arm })
+                        Err(PathError::JunctionTangent {
+                            margin: length(margin),
+                            arm: length(arm),
+                        })
                     }
                 }
                 Err(source) => Err(PathError::escalated(source)),
@@ -4216,7 +4010,11 @@ fn seam_arrival_check<T: Decide>(
     // (i) The lever.
     match decide(Gate::PathSeamArrivalLever, Margin::of(arriving_arm), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::SeamArrivalLeverTooShort { arm: arriving_arm }),
+        Ok(_) => {
+            return Err(PathError::SeamArrivalLeverTooShort {
+                arm: length(arriving_arm),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     }
     // (ii) The direction the declaration asserts, read as every
@@ -4244,12 +4042,18 @@ fn seam_arrival_check<T: Decide>(
                 band,
             );
             match side {
-                Ok(Sign::Negative) => Err(PathError::JunctionCusp { margin, arm }),
+                Ok(Sign::Negative) => Err(PathError::JunctionCusp {
+                    margin: length(margin),
+                    arm: length(arm),
+                }),
                 Ok(_) => Ok(()),
                 Err(source) => Err(PathError::escalated(source)),
             }
         }
-        Ok((_, margin)) => Err(PathError::SeamArrivalOffDirection { margin, arm }),
+        Ok((_, margin)) => Err(PathError::SeamArrivalOffDirection {
+            margin: length(margin),
+            arm: length(arm),
+        }),
         Err(source) => Err(PathError::escalated(source)),
     }
 }
@@ -4340,10 +4144,10 @@ fn emit_straight_leg_at<T: Decide>(
 /// ends exactly at a leg's anchor has radius `r·available/setback`: the
 /// closed form of `radius_at_anchor` on this pair, one branch and no
 /// search; ended `fit_reach` short of the anchor, it is
-/// `r·(available − fit_reach)/setback`, the exact-fit window's far
-/// edge. A leg no longer than the reach leaves that edge non-positive,
-/// and the window then holds every positive radius below the boundary
-/// (`num_toward`): no comparison enters `path.rs`.
+/// `r·(available − fit_reach)/setback`, the far edge of the radii that
+/// still end at the anchor. A leg no longer than the reach leaves that
+/// edge non-positive, and every positive radius below the boundary is
+/// then inside it ([`radius_lever`]): no comparison enters `path.rs`.
 fn map_fillet_err<T: Real>(
     refusal: TrimRefusal<T>,
     corner: Point2<T>,
@@ -4360,11 +4164,8 @@ fn map_fillet_err<T: Real>(
             // The line×line seam has only straight sides by
             // construction, so its carrier kind is structural, not
             // measured — no bracket read enters `path.rs`.
-            let leg = |k: usize| LegFit {
-                carrier: FilletLegCarrier::Line,
-                setback,
-                available: lengths[k],
-            };
+            let leg =
+                |k: usize| LegFit::new(FilletLegCarrier::Line, setback, lengths[k], fit_reach);
             let reach = match overrun {
                 OverrunLegs::Both => lengths[0].min(lengths[1]),
                 OverrunLegs::One(FilletLeg::Incoming) => lengths[0],
@@ -4376,11 +4177,10 @@ fn map_fillet_err<T: Real>(
                 CornerReason::AnchorOutsideTrimmedExtent {
                     legs: [leg(0), leg(1)],
                     overrun,
-                    fit_reach,
-                    radius_at_anchor: Some(LeverValue {
-                        boundary: radius * reach / setback,
-                        exact_fit_edge: radius * (reach - fit_reach) / setback,
-                    }),
+                    radius_at_anchor: Some(radius_lever(
+                        radius * reach / setback,
+                        radius * (reach - fit_reach) / setback,
+                    )),
                 },
             )
         }
@@ -4390,10 +4190,17 @@ fn map_fillet_err<T: Real>(
 
 /// The one-entry envelope: a carrier pair with a single derived corner,
 /// refusing about that corner.
-fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> PathError<T> {
+fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason) -> PathError<T> {
+    let radius_or_less = match &reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            radius_at_anchor, ..
+        } => *radius_at_anchor,
+        _ => None,
+    };
     PathError::NoCornerOfPair {
-        radius,
+        radius: authored_length(radius),
         corners: vec![CornerRefusal { at, reason }],
+        radius_or_less,
     }
 }
 
@@ -4587,11 +4394,11 @@ impl<T: Decide> Core<T> {
             };
             let flattened =
                 |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
-                    turn,
-                    radius,
-                    arc_length: radius * turn.abs(),
+                    turn: angle(turn),
+                    radius: authored_length(radius),
+                    arc_length: length(radius * turn.abs()),
                     predicate,
-                    margin,
+                    margin: length(margin),
                 };
             let arc = match stored(leaving) {
                 Ok(arc) => arc,
@@ -4638,17 +4445,12 @@ impl<T: Decide> Core<T> {
                     seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
                     seg::JointClass::Transversal if stores_an_arc => {
                         return Err(PathError::FilletCarrierBelowSceneResolution {
-                            turn,
-                            radius,
-                            scale: reading.scale,
-                            // `f64::EPSILON` by design, not by omission: every scalar this
-                            // kernel ships carries an f64 VALUE channel (a dual's value, an
-                            // interval's midpoint), so this is the resolution floor at any
-                            // `T`; an interval's own enclosure width is `margin`, printed
-                            // beside it, not folded into this number.
-                            resolution: reading.resolution,
+                            turn: angle(turn),
+                            radius: authored_length(radius),
+                            scale: length(reading.scale),
+                            resolution: length(reading.resolution),
                             predicate: reading.predicate,
-                            margin: reading.margin,
+                            margin: length(reading.margin),
                         });
                     }
                     seg::JointClass::Transversal => {
@@ -4867,13 +4669,13 @@ impl<T: Decide> Core<T> {
         else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: cross,
-                    align: u1.dot(u2),
-                    lever: wn,
+                    sin_turn: ratio(cross),
+                    align: ratio(u1.dot(u2)),
+                    lever: length(wn),
                     lever_of: TurnLever::AnchorSeparation,
                     corner: None,
                 },
-                radius: pending.radius,
+                radius: authored_length(pending.radius),
             });
         };
         // The corner is derived before the windows are read, because a
@@ -5241,11 +5043,19 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     // allowlist".
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
     if !is_finite_length(norm) {
-        return Err(PathError::NonFiniteDirection { dx, dy });
+        return Err(PathError::NonFiniteDirection {
+            dx: authored_ratio(dx),
+            dy: authored_ratio(dy),
+        });
     }
     match decide(Gate::PathDirectorNorm, Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
+        Ok(_) => {
+            return Err(PathError::ZeroDirection {
+                dx: authored_ratio(dx),
+                dy: authored_ratio(dy),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     }
     Ok(Dir::from_unit(Vec2::new(dx / norm, dy / norm)))
@@ -5315,7 +5125,11 @@ fn circle_kernel<T: Decide>(
     let band = linear_band(tol)?;
     match decide(Gate::PathCircleRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
+        Ok(_) => {
+            return Err(PathError::NonpositiveCircleRadius {
+                radius: authored_length(radius),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     }
     // One vertex per piece the role list admits a `circle`: the table
@@ -5357,7 +5171,11 @@ fn circle_split_kernel<T: Decide>(
     let band = linear_band(tol)?;
     match decide(Gate::PathCircleRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
+        Ok(_) => {
+            return Err(PathError::NonpositiveCircleRadius {
+                radius: authored_length(radius),
+            });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     }
     order::circle_split_count(n)?;
@@ -5405,7 +5223,12 @@ fn rectangle_kernel<T: Decide>(
     for (side, length) in [("width", width), ("height", height)] {
         match decide(Gate::PathRectangleSide, Margin::of(length), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::NonpositiveRectangleSide { side, length }),
+            Ok(_) => {
+                return Err(PathError::NonpositiveRectangleSide {
+                    side,
+                    length: authored_length(length),
+                });
+            }
             Err(source) => return Err(PathError::escalated(source)),
         }
     }
@@ -5500,11 +5323,11 @@ fn read_back_sentence<T: Real>(
     verb: &program::Verb,
     read: ArcRead,
     point: &Point2<T>,
-    miss: &T,
-    turn: &T,
+    miss: &dyn core::fmt::Display,
+    turn: &Told,
     authored: Option<ArcSweep>,
 ) -> core::fmt::Result {
-    let (x, y) = (num(&point.x), num(&point.y));
+    let at = told_point(point, Told::given);
     let what = match read {
         ArcRead::Branch => {
             let sense = match authored {
@@ -5514,20 +5337,15 @@ fn read_back_sentence<T: Real>(
             };
             return write!(
                 f,
-                "{piece} ({verb}) was authored as {sense} to ({x}, {y}) and built a turn of \
-                 {turn} rad, the other arc between its ends",
-                turn = num(turn)
+                "{piece} ({verb}) was authored as {sense} to {at} and built a turn of \
+                 {turn}, the other arc between its ends",
             );
         }
         ArcRead::Start => "its start vertex",
         ArcRead::ThroughPoint => "the through-point it was authored by",
         ArcRead::Landing => "its end vertex",
     };
-    write!(
-        f,
-        "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y})",
-        miss = num(miss)
-    )
+    write!(f, "{piece} ({verb}) built an arc {miss} off {what} {at}",)
 }
 
 /// **A constructed arc, read back against what was authored**, before
@@ -5557,10 +5375,10 @@ fn arc_reads_back<T: Decide>(
             verb,
             read: m.read,
             point: point(m.read),
-            miss: m.miss,
-            scale: m.scale,
-            resolution: m.resolution,
-            turn: built.arc.sweep,
+            miss: length(m.miss),
+            scale: length(m.scale),
+            resolution: length(m.resolution),
+            turn: angle(built.arc.sweep),
             authored: built.sense,
         },
         seg::ReadBackIssue::BelowSceneResolution(m) => PathError::ArcMissBelowSceneResolution {
@@ -5568,10 +5386,10 @@ fn arc_reads_back<T: Decide>(
             verb,
             read: m.read,
             point: point(m.read),
-            miss: m.miss,
-            scale: m.scale,
-            resolution: m.resolution,
-            turn: built.arc.sweep,
+            miss: length(m.miss),
+            scale: length(m.scale),
+            resolution: length(m.resolution),
+            turn: angle(built.arc.sweep),
             authored: built.sense,
         },
         seg::ReadBackIssue::Escalated(source) => PathError::escalated(source),
@@ -5718,7 +5536,11 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let band = linear_band(tol)?;
         match decide(Gate::PathLegLength, Margin::of(len), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
+            Ok(_) => {
+                return Err(PathError::NonpositiveLeg {
+                    length: authored_length(len),
+                });
+            }
             Err(source) => return Err(PathError::escalated(source)),
         }
         // The departure IS the incoming ray, moved wholesale: the same
@@ -5919,7 +5741,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let band = linear_band(tol)?;
         match decide(Gate::PathLegLength, Margin::of(len), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
+            Ok(_) => {
+                return Err(PathError::NonpositiveLeg {
+                    length: authored_length(len),
+                });
+            }
             Err(source) => return Err(PathError::escalated(source)),
         }
         // The leg rides the run its direction inherited (`.tangent()`,
@@ -5940,7 +5766,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let band = linear_band(tol)?;
         match decide(Gate::PathFilletRadius, Margin::of(radius), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
+            Ok(_) => {
+                return Err(PathError::NonpositiveFilletRadius {
+                    radius: authored_length(radius),
+                });
+            }
             Err(source) => return Err(PathError::escalated(source)),
         }
         let meta = PendingMeta {
@@ -6093,7 +5923,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let chord = (end - at).norm_squared().sqrt();
         match decide(Gate::PathArcChord, Margin::of(chord), band) {
             Ok(Sign::Positive) => Ok(chord),
-            Ok(_) => Err(PathError::DegenerateArcChord { chord }),
+            Ok(_) => Err(PathError::DegenerateArcChord {
+                chord: length(chord),
+            }),
             Err(source) => Err(PathError::escalated(source)),
         }
     }
@@ -6120,7 +5952,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         // `via` left of the chord puts the arc on the chord's left, which
         // a clockwise turn from `at` traverses.
         let sense = match decide(Gate::PathArcViaOffset, Margin::of(offset), band) {
-            Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
+            Ok(Sign::Zero) => {
+                return Err(PathError::ArcViaCollinear {
+                    offset: length(offset),
+                });
+            }
             Ok(Sign::Positive) => ArcSweep::Cw,
             Ok(Sign::Negative) => ArcSweep::Ccw,
             Err(source) => return Err(PathError::escalated(source)),
@@ -6147,7 +5983,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         for radius in [r_tip, r_end] {
             match decide(Gate::PathArcCenterRadius, Margin::of(radius), band) {
                 Ok(Sign::Positive) => {}
-                Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
+                Ok(_) => {
+                    return Err(PathError::DegenerateArcCenter {
+                        radius: length(radius),
+                    });
+                }
                 Err(source) => return Err(PathError::escalated(source)),
             }
         }
@@ -6159,8 +5999,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             Ok(Sign::Zero) => {}
             Ok(_) => {
                 return Err(PathError::ArcCenterNotEquidistant {
-                    tip_radius: r_tip,
-                    end_radius: r_end,
+                    tip_radius: length(r_tip),
+                    end_radius: length(r_end),
                 });
             }
             Err(source) => return Err(PathError::escalated(source)),
@@ -6776,9 +6616,9 @@ mod tests {
         );
         // The sentence names the cause and a recourse that can work
         // AT BOTH DOORS, and is not the zero-direction sentence.
-        let s = PathError::NonFiniteDirection {
-            dx: 1e200_f64,
-            dy: 0.0,
+        let s = PathError::<f64>::NonFiniteDirection {
+            dx: ratio(1e200),
+            dy: ratio(0.0),
         }
         .to_string();
         assert!(s.contains("no finite length"), "{s}");
@@ -6796,9 +6636,9 @@ mod tests {
         assert!(s.contains(geom_core::RANGE_RECOURSE), "{s}");
         assert!(!s.contains("scaling them up costs nothing"), "{s}");
         assert_eq!(
-            PathError::NonFiniteDirection {
-                dx: 1e200_f64,
-                dy: 0.0
+            PathError::<f64>::NonFiniteDirection {
+                dx: ratio(1e200),
+                dy: ratio(0.0)
             }
             .kind(),
             PathErrorKind::NonFiniteDirection
@@ -6868,9 +6708,9 @@ mod tests {
         );
         // The sentence names the end of the format it is, and a
         // recourse that can work — not a coincidence at this tolerance.
-        let s = PathError::UnderflowedDirection {
-            dx: 0.0_f64,
-            dy: 1e-200,
+        let s = PathError::<f64>::UnderflowedDirection {
+            dx: ratio(0.0),
+            dy: ratio(1e-200),
         }
         .to_string();
         assert!(s.contains("underflowed out of the format"), "{s}");
@@ -6885,136 +6725,37 @@ mod tests {
         // measured to.
         assert!(s.contains("1e-200"), "{s}");
         assert_eq!(
-            PathError::UnderflowedDirection {
-                dx: 0.0_f64,
-                dy: 1e-200
+            PathError::<f64>::UnderflowedDirection {
+                dx: ratio(0.0),
+                dy: ratio(1e-200)
             }
             .kind(),
             PathErrorKind::UnderflowedDirection
         );
     }
 
-    /// **A refusal never renders a number it did not measure.**
-    ///
-    /// [`num`] shortens a scalar payload to the shortest spelling that
-    /// still names it to a relative 1e-9. The tolerance being RELATIVE
-    /// is the whole of that promise: with an absolute floor under it,
-    /// every payload below the floor rounds to the floor's own zero —
-    /// and the kernel's unit is the metre, so the picometre and
-    /// nanometre margins a junction refusal exists to report are
-    /// exactly the values erased.
-    ///
-    /// Each row names a magnitude a refusal can carry. A floor at `f`
-    /// makes every row with `|x| < f` read `0` (and every negative one
-    /// `-0`, which reports the sign of a magnitude it just erased), so
-    /// a 1e-9 floor breaks rows 3 onward and a 1e-30 floor still
-    /// breaks the last four.
-    #[test]
-    fn num_renders_a_sub_nanometre_payload_at_its_own_magnitude() {
-        let rows: [(f64, &str); 11] = [
-            (1e-8, "1e-8"),
-            (2e-9, "2e-9"),
-            (1e-9, "1e-9"),
-            (1e-10, "1e-10"),
-            (1e-12, "1e-12"),
-            (3.7e-12, "3.7e-12"),
-            (1e-30, "1e-30"),
-            (-1e-30, "-1e-30"),
-            (1e-180, "1e-180"),
-            (5e-324, "5e-324"),
-            (-5e-324, "-5e-324"),
-        ];
-        for (x, want) in rows {
-            let got = num(&x);
-            assert_eq!(got, want, "num({x:?})");
-            // The two spellings this row exists to forbid, stated
-            // apart from the equality above so that re-baselining a
-            // spelling cannot quietly re-admit them.
-            assert_ne!(got, "0", "num({x:?}) erased the magnitude");
-            assert_ne!(got, "-0", "num({x:?}) kept the sign of an erased magnitude");
-        }
-    }
-
-    /// **A difference the kernel can certify is a difference the
-    /// sentence spells.** ε is a LENGTH, so a purely relative 1e-9
-    /// crosses it at one metre and is coarser above — at a kilometre it
-    /// is a micron, a thousand ε. Two lengths the kernel decided were
-    /// different then reach the reader as one number, which is how a
-    /// refusal comes to read *"margin 1234.5 m exceeds the 1234.5 m the
-    /// anchor pins"*.
-    ///
-    /// Each row is a pair at a magnitude at or above the crossover,
-    /// separated by the multiple of ε named beside it, and the guard
-    /// above each comparison is what makes the row mean anything: a
-    /// pair closer than ε is one the kernel could not certify apart
-    /// either, so `num` would owe nothing. The first row is the
-    /// control — one metre is where a relative 1e-9 still equals ε, and
-    /// it is distinct under either grid. The three above it collide
-    /// under a purely relative tolerance.
-    #[test]
-    fn num_separates_two_lengths_the_kernel_can_certify_apart() {
-        let rows: [(f64, f64, &str); 4] = [
-            (1.0, 1.000_000_01, "1 m, 10 ε"),
-            (100.0, 100.000_000_01, "100 m, 10 ε"),
-            (1_234.5, 1_234.500_000_1, "1234.5 m, 100 ε"),
-            (10_000.0, 10_000.000_001, "10 km, 1000 ε"),
-        ];
-        for (base, other, label) in rows {
-            assert!(
-                (other - base).abs() >= DEFAULT_EPS,
-                "{label}: the pair is closer than ε, so the row proves nothing"
-            );
-            assert_ne!(num(&base), num(&other), "{label}: num rendered both alike");
-        }
-        assert_eq!(num(&100.000_000_01_f64), "100.00000001");
-    }
-
-    /// **The floor's absence is visible at the door, not only in the
-    /// helper.** [`PathError::JunctionTangent`]'s sentence is *"turn
-    /// margin {margin} m on a {arm} m arm"*, and a picometre margin
-    /// rendered `0 m` reads as a claim that the margin IS zero — the
-    /// one thing it is not, since a decided-zero margin takes a
-    /// different arm entirely.
-    ///
-    /// Breaks if `num` regains any absolute floor above 3.7e-12, or if
-    /// an arm stops routing its scalars through it.
+    /// **The grid has no floor, at the door.** A picometre turn margin
+    /// reaches the sentence as a picometre, never as the zero a floor
+    /// would round it to.
     #[test]
     fn a_picometre_turn_margin_reaches_the_sentence_as_a_picometre() {
-        let s = PathError::JunctionTangent {
-            margin: 3.7e-12_f64,
-            arm: 2.5e-6_f64,
+        let s = PathError::<f64>::JunctionTangent {
+            margin: length(3.7e-12),
+            arm: length(2.5e-6),
         }
         .to_string();
         assert!(s.contains("turn margin 3.7e-12 m on a 2.5e-6 m arm"), "{s}");
-        assert!(!s.contains("margin 0 m"), "{s}");
-        let cusp = PathError::JunctionCusp {
-            margin: -4e-11_f64,
-            arm: 1.0_f64,
+        let cusp = PathError::<f64>::JunctionCusp {
+            margin: length(-4e-11),
+            arm: length(1.0),
         }
         .to_string();
         assert!(cusp.contains("turn margin -4e-11 m on a 1 m arm"), "{cusp}");
-        assert!(!cusp.contains("margin -0 m"), "{cusp}");
     }
 
-    /// **A carrier clause carries no noise its sentence does not.**
-    /// [`CornerReason::AnchorOutsideTrimmedExtent`] interpolates
-    /// [`FilletLegCarrier`]'s `Display` as `{carrier}`, beside a
-    /// `{setback}` and an `{available}` that `num` already shortened —
-    /// so an unshortened carrier puts the arithmetic's noise inside a
-    /// sentence otherwise free of it.
-    ///
-    /// The two scalars here are SUBTRACTED, not typed: an 8 mm carrier
-    /// and a 3.5 mrad margin are each exactly representable as a
-    /// literal, and a literal would therefore render `0.008` and
-    /// `0.0035` with no helper at all. `0.017 - 0.009` and
-    /// `0.0135 - 0.01` are the values arithmetic actually lands on, and
-    /// they are what makes this row state the defect rather than
-    /// illustrate it: without `num` it reads *"carrier radius
-    /// 0.008000000000000002 m, angular margin 0.0034999999999999996
-    /// rad"*.
-    ///
-    /// The payload is untouched — the shortening is a DISPLAY choice,
-    /// and the field still holds the bits the subtraction produced.
+    /// **A carrier clause carries no arithmetic noise, and neither does
+    /// the corner sentence it is interpolated into**, whose setback and
+    /// extent are told in their true order.
     #[test]
     fn a_subtracted_carrier_radius_reaches_the_sentence_shortened() {
         let radius = 0.017_f64 - 0.009_f64;
@@ -7024,255 +6765,88 @@ mod tests {
         assert_ne!(angular_margin, 0.0035_f64);
 
         let carrier = FilletLegCarrier::Arc {
-            radius,
-            angular_margin,
+            radius: length(radius),
+            angular_margin: angle(angular_margin),
         };
         assert_eq!(
             carrier.to_string(),
             "circular (carrier radius 0.008 m, angular margin 0.0035 rad)"
         );
-
-        // And through the corner sentence, whose setback and available
-        // length are subtractions too and render shortened the same way.
-        let s = CornerRefusal {
-            at: Point2::new(0.25_f64, 0.5_f64),
-            reason: CornerReason::AnchorOutsideTrimmedExtent {
-                legs: [
-                    LegFit {
-                        carrier,
-                        setback: 0.017_f64 - 0.009_f64,
-                        available: 0.0135_f64 - 0.01_f64,
-                    },
-                    LegFit {
-                        carrier: FilletLegCarrier::Line,
-                        setback: 0.017_f64 - 0.009_f64,
-                        available: 1.0,
-                    },
-                ],
-                overrun: OverrunLegs::One(FilletLeg::Incoming),
-                fit_reach: 5e-10,
-                radius_at_anchor: None,
-            },
-        }
-        .to_string();
-        assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
-        assert!(!s.contains("0.008000000000000002"), "{s}");
-        assert!(!s.contains("0.0034999999999999996"), "{s}");
-
-        // Display only: the payload keeps what the subtraction gave it.
-        let FilletLegCarrier::Arc {
-            radius: kept_radius,
-            angular_margin: kept_margin,
-        } = carrier
-        else {
-            panic!("an arc carrier");
+        let leg =
+            |carrier, setback: f64, available: f64| LegFit::new(carrier, setback, available, 5e-10);
+        let said = |legs| {
+            CornerRefusal {
+                at: Point2::new(0.25_f64, 0.1 + 0.2),
+                reason: CornerReason::AnchorOutsideTrimmedExtent {
+                    legs,
+                    overrun: OverrunLegs::One(FilletLeg::Incoming),
+                    radius_at_anchor: None,
+                },
+            }
+            .to_string()
         };
-        assert_eq!(kept_radius.to_bits(), (0.017_f64 - 0.009_f64).to_bits());
-        assert_eq!(kept_margin.to_bits(), (0.0135_f64 - 0.01_f64).to_bits());
+        let s = said([
+            leg(carrier, radius, angular_margin),
+            leg(FilletLegCarrier::Line, radius, 1.0),
+        ]);
+        assert!(s.starts_with("at corner (0.25 m, 0.3 m): "), "{s}");
+        assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
+        // A setback that overruns by less than the grid still reads
+        // larger than the extent it overruns.
+        let s = said([
+            leg(FilletLegCarrier::Line, 0.4 + 2e-12, 0.4),
+            leg(FilletLegCarrier::Line, radius, 1.0),
+        ]);
+        assert!(
+            s.contains("(setback 0.400000000002 m, 0.4 m available)"),
+            "{s}"
+        );
     }
 
-    /// **A lever's number lies in its exact-fit window, and is short.**
-    /// An anchor whose boundary is 0.40000000012 m, with a window of
-    /// 5·10⁻¹⁰ m above it, is named "0.4000000002": the boundary rounded
-    /// up, inside the window, where "0.4000000001" would overrun. A
-    /// radius whose boundary is 0.15 m is named "0.15", the window
-    /// holding the boundary itself. A boundary that is not positive
-    /// spells nothing, and the sentence then names the lever without a
-    /// number.
+    /// **A lever's number lies on its fitting side, inside the window
+    /// its door stated, and is short.**
     #[test]
     fn a_levers_number_lies_in_its_exact_fit_window() {
-        let at_least = LeverValue {
-            boundary: 0.400_000_000_12_f64,
-            exact_fit_edge: 0.400_000_000_12 + 5e-10,
+        let anchor_lever = |setback: f64, fit_reach: f64| {
+            LegFit::new(FilletLegCarrier::Line, setback, 1.0, fit_reach)
+                .anchor_at_least
+                .to_string()
         };
+        assert_eq!(anchor_lever(0.400_000_000_12, 5e-10), "0.4000000002 m");
+        // A reach finer than the grid holds the spelling inside it.
+        assert_eq!(anchor_lever(0.400_000_000_12, 5e-12), "0.400000000121 m");
         assert_eq!(
-            num_toward(&at_least, Toward::Above).as_deref(),
-            Some("0.4000000002")
+            radius_lever(0.15_f64, 0.15 - 3.75e-10).to_string(),
+            "0.15 m"
         );
-        let radius = LeverValue {
-            boundary: 0.15_f64,
-            exact_fit_edge: 0.15 - 3.75e-10,
-        };
-        assert_eq!(num_toward(&radius, Toward::Below).as_deref(), Some("0.15"));
-        let gone = LeverValue {
-            boundary: -1e-9_f64,
-            exact_fit_edge: -2e-9,
-        };
-        assert_eq!(num_toward(&gone, Toward::Below), None);
+        assert_eq!(
+            radius_lever(0.361_629_480_311_458_f64, 0.361_629_480_0).to_string(),
+            "0.3616294803 m"
+        );
     }
 
-    /// **The cap is visible at the door too.**
-    /// [`PathError::ArcCenterNotEquidistant`] fires precisely BECAUSE
-    /// the kernel decided two radii differ, and its sentence prints
-    /// both of them. Under a purely relative 1e-9 a 100 m arc whose
-    /// radii differ by 10 ε renders *"|tip - centre| = 100 m, |end -
-    /// centre| = 100 m"* — a refusal that contradicts itself in its own
-    /// sentence, telling the reader the centre is not equidistant while
-    /// printing one number twice.
+    /// **Two radii the kernel tells apart are not printed alike.**
     #[test]
     fn a_hundred_metre_refusal_does_not_print_its_two_radii_alike() {
-        let s = PathError::ArcCenterNotEquidistant {
-            tip_radius: 100.0_f64,
-            end_radius: 100.000_000_01_f64,
+        let s = PathError::<f64>::ArcCenterNotEquidistant {
+            tip_radius: length(100.0),
+            end_radius: length(100.000_000_01),
         }
         .to_string();
         assert!(
             s.contains("|tip - centre| = 100 m, |end - centre| = 100.00000001 m"),
             "{s}"
         );
-    }
-
-    /// **Zero renders as zero.** A relative tolerance at `0.0` is
-    /// `0.0`, so only a spelling that parses back to the payload is
-    /// accepted — which `0` is, at the first precision tried. The row
-    /// exists because the obvious failure of a relative tolerance is
-    /// the one value it cannot scale: were the loop to reject every
-    /// precision here it would fall through to the `{:?}` form and a
-    /// refusal would read `margin 0.0 m`.
-    ///
-    /// `-0.0` keeps its sign, and that is not the defect above: no
-    /// magnitude was erased, the payload IS negative zero, and `-0` is
-    /// the only spelling that names it.
-    #[test]
-    fn num_renders_zero_as_zero_and_negative_zero_as_negative_zero() {
-        assert_eq!(num(&0.0_f64), "0");
-        assert_eq!(num(&-0.0_f64), "-0");
-    }
-
-    /// **The `{:?}` fallback is reached by the non-finite payloads and
-    /// by nothing finite.** The loop tries 18 significant figures in
-    /// the notation `{:?}` itself chose, which names every finite
-    /// `f64` exactly; only `NaN` and the infinities fail every
-    /// comparison — each is false against a `NaN` or infinite
-    /// tolerance — and fall through.
-    ///
-    /// The finite rows below are asserted SHORTENED, which the fallback
-    /// cannot produce: a fall-through returns the full
-    /// 17-significant-figure `Debug` spelling.
-    ///
-    /// **The largest magnitude is not one of them, and cannot be.** The
-    /// display grid is absolute above a decimetre, and `f64`'s own
-    /// spacing near [`f64::MAX`] is some 10³⁰⁰ metres — coarser than the
-    /// grid by every order there is. The shortest spelling inside the
-    /// grid is therefore the exact one, which is what `{:?}` already
-    /// prints, so `num` and `{:?}` necessarily agree and no shortening
-    /// is available to observe. That equality is itself the assertion: a
-    /// tolerance that went relative again shortens the extreme to
-    /// `1.79769313486e308` and reds the row.
-    #[test]
-    fn num_falls_through_to_debug_for_the_non_finite_payloads_only() {
-        assert_eq!(num(&f64::NAN), "NaN");
-        assert_eq!(num(&f64::INFINITY), "inf");
-        assert_eq!(num(&f64::NEG_INFINITY), "-inf");
-        for x in [f64::MAX, -f64::MAX] {
-            assert_eq!(num(&x), format!("{x:?}"), "num({x:?}) dropped a digit");
+        // Below the grid they still read apart, and in their order.
+        let s = PathError::<f64>::ArcCenterNotEquidistant {
+            tip_radius: length(100.0),
+            end_radius: length(100.0_f64.next_up()),
         }
-        for x in [
-            f64::MIN_POSITIVE,
-            -f64::MIN_POSITIVE,
-            1_234.567_890_123_456_7,
-            -1_234.567_890_123_456_7,
-        ] {
-            let got = num(&x);
-            assert_ne!(got, format!("{x:?}"), "num({x:?}) fell through");
-            assert!(
-                (got.parse::<f64>().unwrap() - x).abs() <= 1e-9 * x.abs(),
-                "num({x:?}) = {got} does not name the payload"
-            );
-        }
-        // A payload that is not a scalar at all — an enclosure, a dual
-        // — has no `f64` spelling to shorten and passes through whole.
-        assert_eq!(num(&(1.0_f64, 2.0_f64)), "(1.0, 2.0)");
-    }
-
-    /// **The reason [`num`] exists survives the fix.** `{:?}` on an
-    /// `f64` is the shortest round-tripping spelling, which at
-    /// ordinary scales is the arithmetic's own noise: an 8 mm setback
-    /// that a subtraction produced is `0.008000000000000002`. Every
-    /// row here is a value whose `Debug` form carries that noise, and
-    /// each regresses to it if the shortening search is dropped.
-    ///
-    /// The last two rows straddle the decimetre where the grid stops
-    /// being relative and becomes an absolute ε/10: `1/3` keeps ten
-    /// decimal places because a tenth of a nanometre is what the grid
-    /// is worth there, while `0.0035` keeps two significant figures
-    /// because below the crossover the relative arm is the finer one.
-    #[test]
-    fn num_still_shortens_arithmetic_noise_at_metre_scale() {
-        let rows: [(f64, &str); 6] = [
-            (0.1 + 0.2, "0.3"),
-            (0.008_000_000_000_000_002, "0.008"),
-            (0.003_499_999_999_999_999_6, "0.0035"),
-            (-0.008_000_000_000_000_002, "-0.008"),
-            (1.0 / 3.0, "0.3333333333"),
-            (2.5, "2.5"),
-        ];
-        for (x, want) in rows {
-            assert_eq!(num(&x), want, "num({x:?})");
-        }
-    }
-
-    /// **Notation is the `Debug` form's, never re-chosen.** A
-    /// metre-scale number keeps its decimal point and a far-from-unity
-    /// one keeps its exponent, so the shortening never turns a
-    /// readable `0.0035` into `3.5e-3`, nor a `1e300` into the 301
-    /// digits its fixed-point spelling needs.
-    ///
-    /// The length assertion is the one a re-chosen notation breaks:
-    /// with fixed-point forced, `num(&1e300)` is 301 characters of
-    /// refusal sentence.
-    #[test]
-    fn num_keeps_the_notation_the_debug_form_chose() {
-        assert_eq!(num(&1e300_f64), "1e300");
-        assert_eq!(num(&1e17_f64), "1e17");
-        for x in [0.0035_f64, 0.001, 0.0001, 123_456.789, 1.0, -1.0, 8e-3] {
-            let got = num(&x);
-            assert!(!got.contains('e'), "num({x:?}) = {got} left metre scale");
-        }
-    }
-
-    /// **The spelling names the payload to the finer of a relative 1e-9
-    /// and an absolute ε/10, at every magnitude.** This is the property
-    /// the per-value rows above sample; here it is asserted as the
-    /// invariant, over a ladder that spans the exponent range in both
-    /// signs.
-    ///
-    /// Each arm catches a different mistake. A returning absolute FLOOR
-    /// breaks the relative arm at the bottom of the ladder — the
-    /// rendered `0` has relative error 1, not 1e-9. A tolerance that
-    /// drops the CAP and goes purely relative breaks the absolute arm
-    /// at every rung above a decimetre, where a relative 1e-9 exceeds
-    /// ε and the search stops a digit early on a difference the kernel
-    /// can certify.
-    #[test]
-    fn num_names_its_payload_to_the_finer_of_a_relative_1e_9_and_an_absolute_grid() {
-        let mut x = 1.234_567_890_123_456_7e-300_f64;
-        let mut rungs = 0;
-        while x.is_finite() && x != 0.0 {
-            for signed in [x, -x] {
-                let got = num(&signed);
-                let back: f64 = got
-                    .parse()
-                    .unwrap_or_else(|e| panic!("num({signed:?}) = {got} does not parse: {e}"));
-                assert!(
-                    (back - signed).abs() <= 1e-9 * signed.abs(),
-                    "num({signed:?}) = {got} is not within a relative 1e-9"
-                );
-                assert!(
-                    (back - signed).abs() <= DEFAULT_EPS * 0.1,
-                    "num({signed:?}) = {got} is coarser than a tenth of ε"
-                );
-                assert!(
-                    got != "0" && got != "-0",
-                    "num({signed:?}) = {got} renders a non-zero payload as zero"
-                );
-            }
-            rungs += 1;
-            x *= 1e17;
-        }
-        // The ladder ran: a `while` whose first test failed would pass
-        // every assertion above vacuously.
-        assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
+        .to_string();
+        assert!(
+            s.contains("|tip - centre| = 100 m, |end - centre| = 100.00000000000001 m"),
+            "{s}"
+        );
     }
 
     /// **A pending run out claims only an emission on its ray.** Step 0
@@ -8029,7 +7603,7 @@ mod stored_arc_landing {
                     (PIECE, verb, predicate),
                     "{what}: the refusal names its step, verb and read"
                 );
-                miss
+                geom_core::test_support::told(&miss)
             }
             other => panic!("{what}: the read-back answered {other:?}"),
         }
@@ -8253,8 +7827,12 @@ mod stored_arc_landing {
                     (PIECE, ArcRead::Landing),
                     "the sibling names its step and read"
                 );
+                let (scale, resolution) = (
+                    geom_core::test_support::told(scale),
+                    geom_core::test_support::told(resolution),
+                );
                 assert!(
-                    *scale >= r && *resolution > band().escalate(),
+                    scale >= r && resolution > band().escalate(),
                     "the sibling reports a magnitude ({scale:e}) whose rounding ({resolution:e}) \
                      reaches the band"
                 );

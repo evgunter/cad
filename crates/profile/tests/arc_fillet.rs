@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::test_support::told;
 
 use common::{profile, segment_bits, tol};
 use geom_core::Tol;
@@ -406,7 +407,8 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
     else {
         panic!("the arrival is the arc side: {legs:?}")
     };
-    let (setback, available) = (legs[1].setback, legs[1].available);
+    let (setback, available) = (told(&legs[1].setback), told(&legs[1].available));
+    let (radius, angular_margin) = (told(&radius), told(&angular_margin));
     assert!((radius - 2.0).abs() < 1e-15, "carrier radius {radius}");
     assert!(angular_margin < 0.0, "angular margin {angular_margin}");
     assert!(setback > available, "{setback} vs {available}");
@@ -465,7 +467,7 @@ fn radius_too_large_for_the_corner_has_no_tangent_circle() {
     let PathError::NoCornerOfPair { radius, .. } = &err else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
-    assert_eq!(*radius, 1.5);
+    assert_eq!(radius.as_given(), Some(1.5));
     crate::common::assert_corners(&err, &[(2.0, 0.0)], "the reachable crossing");
     assert!(
         matches!(
@@ -484,7 +486,9 @@ fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
     // through the funnel at the fillet verb itself, before an arrival
     // can be authored against it.
     match line_arc_external(-0.5).expect_err("a negative radius must refuse") {
-        PathError::NonpositiveFilletRadius { radius } => assert_eq!(radius, -0.5),
+        PathError::NonpositiveFilletRadius { radius } => {
+            assert_eq!(radius.as_given(), Some(-0.5));
+        }
         other => panic!("expected NonpositiveFilletRadius, got {other:?}"),
     }
 }
@@ -554,9 +558,9 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
                 largest_tangent_radius,
             } => Some((
                 *side,
-                *carrier_radius,
-                *offset_radius,
-                *largest_tangent_radius,
+                told(carrier_radius),
+                told(offset_radius),
+                largest_tangent_radius.as_ref().map(told),
             )),
             _ => None,
         });
@@ -575,7 +579,7 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
                 (offset_radius + 1.5).abs() < 1e-15,
                 "rho = R - sigma*tau*r = 1/2 - 2 = -3/2, got {offset_radius}"
             );
-            assert_eq!(radius, 2.0);
+            assert_eq!(radius.as_given(), Some(2.0));
             // The endorsed radius is the largest circle tangent to both
             // carriers here — (R1 + R2 - d)/2 with the centres
             // d = |(1/2, 1)| apart — and it BUILDS, which is what makes
@@ -821,7 +825,7 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
                 matches!(reason, PathNoCornerReason::CarriersTangent),
                 "{reason:?}"
             );
-            assert_eq!(radius, 0.5);
+            assert_eq!(radius.as_given(), Some(0.5));
         }
         other => panic!("expected NoCornerForFillet, got {other:?}"),
     }
@@ -851,7 +855,7 @@ fn a_side_with_no_extent_is_refused_before_any_angle_is_classified() {
     let PathError::NoCornerOfPair { radius, .. } = &err else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
-    assert_eq!(*radius, 0.5);
+    assert_eq!(radius.as_given(), Some(0.5));
     // WHICH corners: the ray starts ON the R = 2 carrier at (2, 0) and
     // heads out of it, so BOTH crossings are behind its origin and both
     // are listed — the window channel answers, and it answers in full.
@@ -901,7 +905,7 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
     let PathError::NoCornerOfPair { radius, .. } = &empty_sweep else {
         panic!("expected a NoCornerOfPair envelope, got {empty_sweep:?}")
     };
-    assert_eq!(*radius, 0.5);
+    assert_eq!(radius.as_given(), Some(0.5));
     // WHICH corners: the ray leaves the arrival carrier's own centre,
     // so the crossings are (±2, 0) and the windows discard both.
     crate::common::assert_corners(
@@ -989,7 +993,7 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
         )
         .expect_err("a zero-radius arrival carrier must refuse");
     match zero_radius {
-        PathError::DegenerateArcCenter { radius } => assert_eq!(radius, 0.0),
+        PathError::DegenerateArcCenter { radius } => assert_eq!(told(&radius), 0.0),
         other => panic!("expected DegenerateArcCenter, got {other:?}"),
     }
 }
@@ -1033,7 +1037,9 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
     match underflowed {
         // The payload is the direction the format lost, not the zero it
         // measured to: that is what makes the two rows distinguishable.
-        PathError::UnderflowedDirection { dx, dy } => assert_eq!((dx, dy), (0.0, 1e-200)),
+        PathError::UnderflowedDirection { dx, dy } => {
+            assert_eq!((told(&dx), told(&dy)), (0.0, 1e-200));
+        }
         other => panic!("expected UnderflowedDirection, got {other:?}"),
     }
     let msg = underflowed.to_string();
@@ -1245,7 +1251,9 @@ fn a_zero_radius_fillet_is_refused_at_the_verb() {
     // is ever derived. A degenerate arc is refused where it is
     // authored, not downstream at validation.
     match line_arc_internal(0.0).expect_err("r = 0 must refuse at the verb") {
-        PathError::NonpositiveFilletRadius { radius } => assert_eq!(radius, 0.0),
+        PathError::NonpositiveFilletRadius { radius } => {
+            assert_eq!(radius.as_given(), Some(0.0));
+        }
         other => panic!("expected NonpositiveFilletRadius, got {other:?}"),
     }
 }

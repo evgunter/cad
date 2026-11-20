@@ -530,8 +530,9 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
     let profile::PathError::JunctionTangent { margin, .. } = err else {
         panic!("expected the tangent refusal, got {err:?}");
     };
+    let (lo, hi) = margin.pinned_ends();
     assert!(
-        margin.lo() <= 0.0 && 0.0 <= margin.hi() && margin.hi() - margin.lo() < 1e-12,
+        lo <= 0.0 && 0.0 <= hi && hi - lo < 1e-12,
         "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
     );
 }

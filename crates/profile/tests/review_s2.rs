@@ -1798,7 +1798,11 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                          envelope carries none: {err:?}"
                     )
                 };
-                assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
+                assert_eq!(
+                    radius.as_given(),
+                    Some(case.r),
+                    "{name}: the refusal renamed the radius"
+                );
                 // Every table row swallows BOTH carriers, so the refusal
                 // says so rather than picking a side.
                 assert_eq!(
@@ -2221,6 +2225,8 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
             margin,
             ..
         }) => {
+            let [offset_radius, least_lever, margin] =
+                [offset_radius, least_lever, margin].map(|x| crate::common::told(&x));
             assert_eq!(side, profile::FilletLeg::Outgoing);
             assert!(
                 (offset_radius - rho).abs() < 1e-15,
@@ -2305,7 +2311,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
                      (crates/profile/README.md); the envelope carries none: {err:?}"
                 )
             };
-            assert_eq!(radius, r, "the refusal renamed the radius");
+            assert_eq!(radius.as_given(), Some(r), "the refusal renamed the radius");
             assert_eq!(side, None, "this corner swallows BOTH carriers");
             assert!(
                 (carrier_radius - r1.min(r2)).abs() < 1e-15,
@@ -2500,6 +2506,9 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
             least_lever,
             margin,
         }) => {
+            let [carrier_radius, offset_radius, least_lever, margin] =
+                [carrier_radius, offset_radius, least_lever, margin]
+                    .map(|x| crate::common::told(&x));
             // The lever gate's own definite arm (ε = 1e-12 and
             // tighter): naming the exposed leg and carrying the lever,
             // the threshold and the shortfall.
