@@ -278,12 +278,14 @@ pub enum TessellateError {
         /// The face whose boundary meets the point.
         face: FaceKey,
     },
-    /// A planar face's loops, realised as its triangulation's boundary
-    /// sides, traverse every side an even number of times: they
-    /// retrace themselves and bound no region of the chart, as a face
-    /// bounded by two coincident edges does (a lamina, which tier 3
-    /// refuses). The even-odd reading would mark no triangle inside,
-    /// so the refusal is decided on the parities that reading takes.
+    /// A planar or trimmed face's loops bound no region of its chart: a
+    /// loop has fewer than three points, or the loops, realised as the
+    /// triangulation's boundary sides, traverse every side an even
+    /// number of times, so they retrace themselves, as a face bounded by
+    /// two coincident edges does (a lamina, which tier 3 refuses;
+    /// `tessellate` does not re-validate). The even-odd reading would
+    /// mark no triangle inside, so the refusal is decided on the
+    /// parities that reading takes (`planar::require_a_region`).
     BoundaryBoundsNoRegion {
         /// The face whose loops bound nothing.
         face: FaceKey,
@@ -580,8 +582,10 @@ pub enum TessellateError {
     /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
     /// complement; or, on any chart, a ring is wound with its outer
     /// loop, against the rule that a ring bounds its face from inside and
-    /// winds the other way, so the face's loops contradict each other.
-    /// Meshing it
+    /// winds the other way, so the face's loops contradict each other;
+    /// or, on any chart, a loop whose signed area reads neither way
+    /// (exactly zero, or poisoned) while the loops bound a region, so it
+    /// has no orientation to wind the face by. Meshing it
     /// would ship the complement, or the face wound inward, as a closed
     /// manifold mesh, so it refuses. A valid body does not reach it; a
     /// face whose `sense` disagrees with its loops does.
@@ -888,7 +892,7 @@ impl TessellateError {
                  grid retry repairs",
             ),
             Self::BoundaryBoundsNoRegion { .. } => f.write_str(
-                "tessellate: a planar face's boundary retraces itself — every side \
+                "tessellate: a face's boundary retraces itself in its chart — every side \
                  of it is traversed an even number of times, so its loops bound no \
                  region to mesh, as two coincident edges bounding one face do; the \
                  body is a lamina there, not a solid",
@@ -991,8 +995,9 @@ impl TessellateError {
                  face — its outer loop winds against the face's orientation, so it \
                  would bound the face's complement, or a ring winds the same way as \
                  its outer loop, where a ring bounds the face from inside and winds \
-                 the other way; a body whose loops agree with their faces does not \
-                 reach this, so it is a defect of the body's loops",
+                 the other way, or a loop's signed area reads neither way, so it has \
+                 no orientation at all; a body whose loops agree with their faces \
+                 does not reach this, so it is a defect of the body's loops",
             ),
             Self::FoldedTriangle { .. } => f.write_str(
                 "tessellate: a trimmed face's triangle folds over the chord beside \

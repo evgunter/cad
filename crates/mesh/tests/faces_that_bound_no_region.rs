@@ -13,7 +13,7 @@
 //!   by its rim alone. Its chart image is a segment, which the lane never
 //!   triangulates: the rim winds the chart's period, and the face's
 //!   domain door refuses the loop first. The lamina on a flat NURBS
-//!   patch refuses at the trimmed lane's own zero-area gate.
+//!   patch refuses as the planar one does, on the same parities.
 //!
 //! Every body comes through the Euler doors, and tier 3 refuses each
 //! (asserted): `tessellate` does not re-validate, so the lanes answer
@@ -49,9 +49,24 @@ fn lamina(
     (t0, t1): (f64, f64),
     at_rest: bool,
 ) -> (Body<f64>, FaceKey) {
+    lamina_of(
+        surface,
+        arc(circle, t0, t1),
+        (circle.eval(t0), circle.eval(t1)),
+        at_rest,
+    )
+}
+
+/// [`lamina`] on any edge spec from `p0` to `p1`.
+fn lamina_of(
+    surface: Surface<f64>,
+    spec: EdgeCurveSpec<f64>,
+    (p0, p1): (Point3<f64>, Point3<f64>),
+    at_rest: bool,
+) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(circle.eval(t0), true).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New {
@@ -65,8 +80,8 @@ fn lamina(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            circle.eval(t1),
-            arc(circle, t0, t1),
+            p1,
+            spec.clone(),
             tol,
         )
         .unwrap();
@@ -76,7 +91,7 @@ fn lamina(
                 he1: first.he_plus,
                 he2: first.he_minus,
             },
-            arc(circle, t0, t1),
+            spec,
             FaceSurface::Inherit,
             tol,
         )
@@ -232,11 +247,13 @@ fn a_spline_rim_only_cap_refuses_at_the_domain_door() {
     }
 }
 
-/// **The lamina on a flat NURBS patch refuses at the trimmed lane's
-/// zero-area gate**: the two traversals' chart points coincide, so the
-/// polygon's shoelace sum is exactly zero.
+/// **The lamina on a flat NURBS patch refuses `BoundaryBoundsNoRegion`**
+/// as the planar one does: on an arc pair, by the constraint pass's
+/// parities, though its polygon's shoelace sum is exactly zero and so
+/// gives it no orientation; on a line pair, whose loop is two points,
+/// before any triangulation.
 #[test]
-fn a_spline_lamina_refuses_at_the_zero_area_gate() {
+fn a_spline_lamina_bounds_no_region_and_refuses() {
     let tol = Tol::witness();
     let unit = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let flat = Surface::Nurbs(Arc::new(
@@ -259,15 +276,24 @@ fn a_spline_lamina_refuses_at_the_zero_area_gate() {
         0.3,
         Vec3::new(0.6, 0.8, 0.0),
     );
-    let (body, _) = lamina(flat, &circle, (0.3, 2.0), false);
-    assert!(topo::validate_geometric(&body, tol).is_err(), "tier 3");
-    for delta in [1e-1, 1e-2] {
-        assert_eq!(
-            mesh::tessellate(&body, delta, tol).map(|_| ()),
-            Err(TessellateError::MissingEntity {
-                what: "degenerate trimmed boundary"
-            }),
-            "δ = {delta:e}"
+    let (a, b) = (Point3::new(0.1, 0.3, 0.0), Point3::new(0.77, 0.51, 0.0));
+    for (name, (body, seed)) in [
+        ("arc pair", lamina(flat.clone(), &circle, (0.3, 2.0), false)),
+        (
+            "line pair",
+            lamina_of(flat, EdgeCurveSpec::line_between(a, b), (a, b), false),
+        ),
+    ] {
+        assert!(
+            topo::validate_geometric(&body, tol).is_err(),
+            "{name}: tier 3"
         );
+        for delta in [1e-1, 1e-2] {
+            assert_eq!(
+                mesh::tessellate(&body, delta, tol).map(|_| ()),
+                Err(TessellateError::BoundaryBoundsNoRegion { face: seed }),
+                "{name}, δ = {delta:e}"
+            );
+        }
     }
 }

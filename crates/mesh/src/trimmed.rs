@@ -497,9 +497,7 @@ pub(crate) fn tessellate_trimmed(
     // last point; ids stay the shared 3-D chord ids), every loop.
     let polygon = trim_polygon(body, fk, lift, chords, spline, creases.as_ref(), &singular)?;
     if polygon.loops().any(|l| l.len() < 3) {
-        return Err(TessellateError::MissingEntity {
-            what: "degenerate trimmed boundary",
-        });
+        return Err(TessellateError::BoundaryBoundsNoRegion { face: fk });
     }
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
@@ -817,8 +815,10 @@ struct TrimmedFace<'a> {
     /// The trim polygon's orientation in the chart
     /// ([`trim_orientation`]), which the emitted triangles take. It is
     /// the polygon's and not `sense` restated: on the spline arm
-    /// nothing compares the two.
-    orientation: PolygonOrientation,
+    /// nothing compares the two. `None` where a loop's signed area reads
+    /// neither way, which refuses once the loops are known to bound a
+    /// region (`attempt`).
+    orientation: Option<PolygonOrientation>,
     /// The lattice metric `k`: in the chart, points enter the CDT at
     /// `(u/k, v)` times a uniform power of two, scaling the axis that
     /// grows ([`Self::plane`]).
@@ -977,6 +977,10 @@ impl TrimmedFace<'_> {
         let fk = self.fk;
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
+        crate::planar::require_a_region(fk, &crossings)?;
+        let Some(orientation) = self.orientation else {
+            return Err(TessellateError::TrimLoopOrientation { face: fk });
+        };
         self.chain_crease_lines(&mut at)?;
         let Emitted {
             interior,
@@ -984,7 +988,14 @@ impl TrimmedFace<'_> {
             refine,
             folded,
             ears,
-        } = self.emit(&at, &crossings, candidates, measure, falsification)?;
+        } = self.emit(
+            &at,
+            &crossings,
+            orientation,
+            candidates,
+            measure,
+            falsification,
+        )?;
         // THE SHARED-SIDE CURE (the cone arm; the other analytic arms
         // read its nearest case, the ear). A triangle side
         // joining two points of the trim polygon is the same two mesh
@@ -1300,6 +1311,7 @@ impl TrimmedFace<'_> {
         &self,
         at: &Cdt,
         crossings: &Crossings,
+        orientation: PolygonOrientation,
         candidates: &[(f64, f64)],
         measure: &mut AttemptMeasure,
         falsification: &mut Falsification,
@@ -1313,7 +1325,7 @@ impl TrimmedFace<'_> {
         let inside = classify_faces(cdt, crossings);
         // The CDT's triangles are counter-clockwise in the chart; the
         // patch's take the polygon's orientation.
-        let flip = self.orientation == PolygonOrientation::Clockwise;
+        let flip = orientation == PolygonOrientation::Clockwise;
         // Pass 1: which grid candidates the kept triangles use; number
         // them in (v, u) row-major order over the FINAL kept set —
         // sorted by coordinates, not by candidate index, so refinement
@@ -2813,12 +2825,15 @@ fn sort_nodes(nodes: &mut [Node]) {
 /// meshes the same, and the check refuses a face whose loops contradict
 /// each other rather than mesh it as though they did not.
 ///
+/// `None` where a loop's signed area reads neither way (exactly zero,
+/// or poisoned): it has no orientation. Whether such loops bound a
+/// region at all is not this area's to say; the constraint pass decides
+/// it on the boundary's parities (`planar::require_a_region`), and a face
+/// whose loops do bound one refuses for the orientation it lacks
+/// (`TrimmedFace::attempt`).
+///
 /// # Errors
 ///
-/// [`TessellateError::MissingEntity`] for a loop of no signed area,
-/// or of a poisoned one: it bounds no region, and an orientation
-/// assumed for it would hand the CDT a boundary that crosses itself or
-/// lies on one line as though it were a face.
 /// [`TessellateError::TrimLoopOrientation`] on an analytic arm whose
 /// outer loop is oriented against its face, and on any arm for a ring
 /// oriented with its outer loop.
@@ -2827,25 +2842,27 @@ fn trim_orientation(
     sense: bool,
     spline: bool,
     trim: &TrimPolygon,
-) -> Result<PolygonOrientation, TessellateError> {
+) -> Result<Option<PolygonOrientation>, TessellateError> {
     let of = |points: &[(f64, f64, u32)]| {
         let poly2: Vec<[f64; 2]> = points.iter().map(|&(u, v, _)| [u, v]).collect();
-        PolygonOrientation::of_signed_area(shoelace2(&poly2)).ok_or(
-            TessellateError::MissingEntity {
-                what: "degenerate trimmed boundary",
-            },
-        )
+        PolygonOrientation::of_signed_area(shoelace2(&poly2))
     };
-    let orientation = of(trim.outer())?;
+    let Some(orientation) = of(trim.outer()) else {
+        return Ok(None);
+    };
     if !spline && orientation != PolygonOrientation::of_face(sense) {
         return Err(TessellateError::TrimLoopOrientation { face: fk });
     }
     for ring in trim.rings() {
-        if of(ring)? == orientation {
-            return Err(TessellateError::TrimLoopOrientation { face: fk });
+        match of(ring) {
+            None => return Ok(None),
+            Some(r) if r == orientation => {
+                return Err(TessellateError::TrimLoopOrientation { face: fk });
+            }
+            Some(_) => {}
         }
     }
-    Ok(orientation)
+    Ok(Some(orientation))
 }
 
 /// **The one way a face's domain is walked**: the outer loop's lift, and
@@ -4629,11 +4646,11 @@ pub(super) mod tests {
     /// out: the polygon's own orientation where it is the face's; a
     /// typed refusal where an analytic arm's contradicts its face, and
     /// the polygon's own on the spline arm, which does not compare; and
-    /// a refusal on every arm for a polygon of no signed area (a
-    /// figure-eight of equal lobes, three points on one line), which has
-    /// no orientation to assume.
+    /// no orientation on every arm for a polygon of no signed area (a
+    /// figure-eight of equal lobes, three points on one line), which the
+    /// lane then refuses by what its constraint pass reads.
     #[test]
-    fn a_trim_polygon_is_oriented_as_read_and_one_of_no_area_refuses() {
+    fn a_trim_polygon_is_oriented_as_read_and_one_of_no_area_has_none() {
         use PolygonOrientation::{Clockwise, CounterClockwise};
         let fk = FaceKey::default();
         let points = |uv: &[(f64, f64)]| -> Vec<(f64, f64, u32)> {
@@ -4648,7 +4665,7 @@ pub(super) mod tests {
             for nurbs_chart in [false, true] {
                 assert_eq!(
                     super::trim_orientation(fk, promised, nurbs_chart, polygon).ok(),
-                    Some(has),
+                    Some(Some(has)),
                     "{has:?}, spline arm {nurbs_chart}: oriented as its face is"
                 );
             }
@@ -4661,7 +4678,7 @@ pub(super) mod tests {
             );
             assert_eq!(
                 super::trim_orientation(fk, !promised, true, polygon).ok(),
-                Some(has),
+                Some(Some(has)),
                 "{has:?}: the spline arm takes the polygon's, whatever the bit"
             );
         }
@@ -4682,7 +4699,7 @@ pub(super) mod tests {
                     &super::TrimPolygon::of_loops(&outer, &[&hole])
                 )
                 .ok(),
-                Some(CounterClockwise),
+                Some(Some(CounterClockwise)),
                 "spline arm {nurbs_chart}: a ring wound against its outer loop is the face's"
             );
             assert!(
@@ -4697,31 +4714,23 @@ pub(super) mod tests {
                 ),
                 "spline arm {nurbs_chart}: a ring wound with its outer loop refuses"
             );
-            assert!(
-                matches!(
-                    super::trim_orientation(
-                        fk,
-                        true,
-                        nurbs_chart,
-                        &super::TrimPolygon::of_loops(&outer, &[&flat])
-                    ),
-                    Err(TessellateError::MissingEntity {
-                        what: "degenerate trimmed boundary"
-                    })
+            assert_eq!(
+                super::trim_orientation(
+                    fk,
+                    true,
+                    nurbs_chart,
+                    &super::TrimPolygon::of_loops(&outer, &[&flat])
                 ),
-                "spline arm {nurbs_chart}: a ring of no area refuses"
+                Ok(None),
+                "spline arm {nurbs_chart}: a ring of no area has no orientation"
             );
         }
         for (name, polygon) in [("figure-eight", &eight), ("collinear", &line)] {
             for (sense, nurbs_chart) in [(true, false), (false, false), (true, true), (false, true)]
             {
-                assert!(
-                    matches!(
-                        super::trim_orientation(fk, sense, nurbs_chart, polygon),
-                        Err(TessellateError::MissingEntity {
-                            what: "degenerate trimmed boundary"
-                        })
-                    ),
+                assert_eq!(
+                    super::trim_orientation(fk, sense, nurbs_chart, polygon),
+                    Ok(None),
                     "{name}, sense {sense}, spline arm {nurbs_chart}: no area, no orientation"
                 );
             }
@@ -5503,7 +5512,7 @@ pub(super) mod tests {
             let face = super::TrimmedFace {
                 fk: FaceKey::default(),
                 sense: true,
-                orientation: PolygonOrientation::of_face(true),
+                orientation: Some(PolygonOrientation::of_face(true)),
                 metric: k,
                 surface: &sphere,
                 row: &row,
@@ -5625,7 +5634,7 @@ pub(super) mod tests {
             let face = |polygon| TrimmedFace {
                 fk: FaceKey::default(),
                 sense: true,
-                orientation: PolygonOrientation::of_face(true),
+                orientation: Some(PolygonOrientation::of_face(true)),
                 metric: 1.0,
                 surface: &surface,
                 row: &row,

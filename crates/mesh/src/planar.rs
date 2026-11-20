@@ -414,12 +414,7 @@ fn triangulate_chart(
         }
         base += hs.len();
     }
-    // The even-odd reading toggles only across an odd side, so with none
-    // it marks no face inside: the loops retrace themselves (two
-    // coincident edges) and bound no region.
-    if crossings.values().all(|n| n % 2 == 0) {
-        return Err(TessellateError::BoundaryBoundsNoRegion { face: fk });
-    }
+    require_a_region(fk, &crossings)?;
 
     // Outer-loop orientation in the chart frame decides the flip.
     //
@@ -731,6 +726,26 @@ pub(crate) fn edge_key(
 /// Each realised boundary edge's crossing count, keyed by
 /// [`edge_key`]: the even-odd input to [`classify_faces`] (#116).
 pub(crate) type Crossings = HashMap<(usize, usize), u32>;
+
+/// **Whether a face's loops bound a region of its chart**, read off the
+/// parities [`classify_faces`] takes: that reading toggles only across a
+/// side traversed an odd number of times, so with none it marks no face
+/// inside. Loops with no odd side retrace themselves (two coincident
+/// edges) and bound nothing. The one home of that fact, for every lane
+/// that classifies by [`Crossings`].
+///
+/// # Errors
+///
+/// [`TessellateError::BoundaryBoundsNoRegion`] when no side is odd.
+pub(crate) fn require_a_region(
+    face: FaceKey,
+    crossings: &Crossings,
+) -> Result<(), TessellateError> {
+    if crossings.values().all(|n| n % 2 == 0) {
+        return Err(TessellateError::BoundaryBoundsNoRegion { face });
+    }
+    Ok(())
+}
 
 /// Even-odd interior flag per CDT face, indexed by face index (0 is
 /// spade's outer face, which is outside every loop).
