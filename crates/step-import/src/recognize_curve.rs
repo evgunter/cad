@@ -207,6 +207,11 @@ use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedCurveKind;
 
+/// B2 review-2 mutant switch (probe only).
+pub(crate) fn b2m(name: &str) -> bool {
+    std::env::var("B2M").is_ok_and(|v| v == name)
+}
+
 /// The outcome of testing one NURBS curve carrier for promotion —
 /// the tri-state of [`crate::recognize::Recognition`], for curves.
 #[derive(Debug)]
@@ -364,7 +369,11 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
         if !past.is_finite() {
             return None;
         }
-        overshoot = overshoot.max(past);
+        overshoot = if b2m("overshoot") {
+            0.0
+        } else {
+            overshoot.max(past)
+        };
     }
     let residual = (Interval::point(delta_line).sqr() + Interval::point(overshoot).sqr())
         .sqrt()
@@ -413,7 +422,7 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
         if !dev.is_finite() {
             return None;
         }
-        hull = hull.max(dev);
+        hull = if b2m("hull") { 0.0 } else { hull.max(dev) };
     }
     if file.read(STEP_RECOGNIZED_RESIDUAL, hull) != Read::Zero {
         return None;
@@ -535,7 +544,7 @@ pub(crate) fn try_circle(
     if !residual.is_finite() {
         return Ok(None);
     }
-    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
+    if !b2m("locus") && file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
         return Ok(None);
     }
     // **The COVERAGE certificate** (module docs). The locus half is
@@ -546,14 +555,15 @@ pub(crate) fn try_circle(
     };
     let pi = core::f64::consts::PI;
     let covered = if closed {
-        total > pi && total < 3.0 * pi
+        (b2m("oneturn") && total > 0.0) || (total > pi && total < 3.0 * pi)
     } else {
         total > 0.0
-            && total < 2.0 * pi
-            && file.read(
-                STEP_RECOGNIZED_COVERAGE,
-                radius * (-low).max(high - total).max(0.0),
-            ) == Read::Zero
+            && (b2m("turn2pi") || total < 2.0 * pi)
+            && (b2m("band")
+                || file.read(
+                    STEP_RECOGNIZED_COVERAGE,
+                    radius * (-low).max(high - total).max(0.0),
+                ) == Read::Zero)
     };
     if !covered {
         return Ok(None);
@@ -759,7 +769,7 @@ fn turning(
             }
             // `cos((π − δ)/2) = sin(δ/2)`: the cone, in the form that
             // needs no inverse trigonometry.
-            if !(x * dx + y * dy >= radial * clearance) {
+            if !b2m("contain") && !(x * dx + y * dy >= radial * clearance) {
                 return None;
             }
         }
@@ -2501,6 +2511,416 @@ mod r2_delta {
                 ),
                 "{spans}-span circle must promote"
             );
+        }
+    }
+}
+
+/// B2 review-2 probes (not a gate).
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
+)]
+mod b2rev2_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.next()
+        }
+    }
+
+    fn chain(radius: f64, angles: &[f64]) -> (Vec<Point3<f64>>, Vec<f64>) {
+        let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
+        let mut control = vec![on(angles[0])];
+        let mut weights = vec![1.0];
+        for k in 0..angles.len() - 1 {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let c = ((b - a) / 2.0).cos();
+            let mid = (a + b) / 2.0;
+            control.push(Point3::new(
+                radius / c * mid.cos(),
+                radius / c * mid.sin(),
+                0.0,
+            ));
+            weights.push(c);
+            control.push(on(b));
+            weights.push(1.0);
+        }
+        (control, weights)
+    }
+
+    fn quad_knots(spans: usize, rng: Option<&mut Lcg>) -> Vec<f64> {
+        let mut breaks: Vec<f64> = (0..=spans).map(|k| k as f64).collect();
+        if let Some(rng) = rng {
+            let mut acc = 0.0;
+            for b in breaks.iter_mut() {
+                *b = acc;
+                acc += rng.range(0.1, 3.0);
+            }
+        }
+        let mut kn = vec![breaks[0]; 3];
+        for b in &breaks[1..spans] {
+            kn.push(*b);
+            kn.push(*b);
+        }
+        kn.extend([breaks[spans]; 3]);
+        kn
+    }
+
+    fn quad(radius: f64, angles: &[f64], rng: Option<&mut Lcg>) -> NurbsCurve3<f64> {
+        let (c, w) = chain(radius, angles);
+        let kn = quad_knots(angles.len() - 1, rng);
+        NurbsCurve3::new(KnotVector::clamped(kn, 2).unwrap(), c, w).unwrap()
+    }
+
+    fn elevate(radius: f64, angles: &[f64]) -> NurbsCurve3<f64> {
+        let (q, w) = chain(radius, angles);
+        let spans = angles.len() - 1;
+        let mut control = vec![q[0]];
+        let mut weights = vec![w[0]];
+        for j in 0..spans {
+            let h = |i: usize| ((q[i] - Point3::origin()) * w[i], w[i]);
+            let ((p0, w0), (p1, w1), (p2, w2)) = (h(2 * j), h(2 * j + 1), h(2 * j + 2));
+            for (p, wt) in [
+                ((p0 + p1 * 2.0) / 3.0, (w0 + 2.0 * w1) / 3.0),
+                ((p1 * 2.0 + p2) / 3.0, (2.0 * w1 + w2) / 3.0),
+                (p2, w2),
+            ] {
+                control.push(Point3::origin() + p / wt);
+                weights.push(wt);
+            }
+        }
+        let mut kn = vec![0.0; 4];
+        for k in 1..spans {
+            kn.extend([k as f64; 3]);
+        }
+        kn.extend([spans as f64; 4]);
+        NurbsCurve3::new(KnotVector::clamped(kn, 3).unwrap(), control, weights).unwrap()
+    }
+
+    /// Verify a promotion against dense samples. Returns (max excess, monotone?).
+    fn check_circle(
+        curve: &NurbsCurve3<f64>,
+        circle: &geom::Circle<f64>,
+        residual: f64,
+        covers: Option<(f64, f64)>,
+        band: f64,
+    ) -> (f64, f64, bool) {
+        let (a, b) = curve.domain();
+        let n = 20000;
+        let c = circle.frame.origin;
+        let ax = circle.frame.axis;
+        let u = circle.frame.u_ref;
+        let v = ax.cross(u);
+        let mut worst = 0.0f64;
+        let mut lift = 0.0f64;
+        let mut prev: Option<f64> = None;
+        let (mut lo, mut hi) = (0.0f64, 0.0f64);
+        let mut mono = true;
+        for k in 0..=n {
+            let p = curve.eval(a + (b - a) * (k as f64) / (n as f64));
+            let w = p - c;
+            let h = w.dot(ax);
+            let (x, y) = (w.dot(u), w.dot(v));
+            let d = (x.hypot(y) - circle.radius).hypot(h);
+            worst = worst.max(d - residual);
+            let az = y.atan2(x);
+            if let Some(pa) = prev {
+                let mut step = az - pa;
+                while step > core::f64::consts::PI {
+                    step -= core::f64::consts::TAU;
+                }
+                while step < -core::f64::consts::PI {
+                    step += core::f64::consts::TAU;
+                }
+                if step < -1e-12 {
+                    mono = false;
+                }
+                lift += step;
+            } else {
+                lift = az;
+            }
+            prev = Some(az);
+            lo = lo.min(lift);
+            hi = hi.max(lift);
+        }
+        // Angular excess outside the covered range, metres.
+        let excess = match covers {
+            Some((t0, t1)) => {
+                let over = (t0 - lo).max(hi - t1).max(0.0) * circle.radius;
+                let end_miss = (lift - t1).abs() * circle.radius;
+                over.max(end_miss) - band
+            }
+            None => ((lift - core::f64::consts::TAU).abs() * circle.radius) - band,
+        };
+        (worst, excess, mono)
+    }
+
+    #[test]
+    #[ignore = "probe"]
+    fn p1_in_band_backtrack() {
+        let d = f64::to_radians;
+        let band = crate::interpret::FileBand::test(1e-9);
+        for angles in [
+            vec![0.0, 120.0, 80.0, 200.0],
+            vec![0.0, 140.0, 10.0, 150.0],
+            vec![0.0, 120.0, 240.0, 200.0, 320.0, 360.0],
+            vec![0.0, 90.0, 45.0],
+        ] {
+            let a: Vec<f64> = angles.iter().map(|x| d(*x)).collect();
+            let c = quad(0.005, &a, None);
+            let r = recognize(&c, band);
+            match &r {
+                CurveRecognition::Promoted {
+                    curve: Curve3::Circle(circle),
+                    residual,
+                    covers,
+                    ..
+                } => {
+                    let (w, e, mono) = check_circle(&c, circle, *residual, *covers, 1e-9);
+                    println!(
+                        "P1 {angles:?}: PROMOTED covers={covers:?} res={residual:e} worst={w:e} excess={e:e} monotone={mono}"
+                    );
+                }
+                other => println!("P1 {angles:?}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "probe"]
+    fn p2_random_circle_sweep() {
+        let mut rng = Lcg(0x5eed_b2b2);
+        let band_eps = 1e-9;
+        let band = crate::interpret::FileBand::test(band_eps);
+        let (mut promoted, mut bad, mut nonmono, mut total) = (0, 0, 0, 0);
+        for case in 0..6000 {
+            let spans = 1 + (rng.next() * 6.0) as usize;
+            let radius = 10f64.powf(rng.range(-4.0, 1.0));
+            let mut angles = vec![rng.range(-3.0, 3.0)];
+            for _ in 0..spans {
+                let step = if rng.next() < 0.25 {
+                    rng.range(-1.2, 0.0)
+                } else {
+                    rng.range(0.05, 2.5)
+                };
+                let last = *angles.last().unwrap();
+                angles.push(last + step);
+            }
+            if rng.next() < 0.3 {
+                // closed: snap end to start + 2π·k
+                let first = angles[0];
+                let last = angles.last_mut().unwrap();
+                *last = first
+                    + core::f64::consts::TAU * (((*last - first) / core::f64::consts::TAU).round());
+            }
+            if angles.windows(2).any(|w| (w[1] - w[0]).abs() > 2.9) {
+                continue;
+            }
+            let mode = rng.next();
+            let mut curve = if mode < 0.4 {
+                quad(radius, &angles, None)
+            } else if mode < 0.7 {
+                quad(radius, &angles, Some(&mut rng))
+            } else {
+                elevate(radius, &angles)
+            };
+            if rng.next() < 0.4 {
+                let mut c = curve.control().to_vec();
+                let mut w = curve.weights().to_vec();
+                let i = (rng.next() * c.len() as f64) as usize % c.len();
+                let mag = radius * 10f64.powf(rng.range(-14.0, -5.0));
+                c[i] = c[i]
+                    + Vec3::new(
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    ) * mag;
+                if rng.next() < 0.5 {
+                    let j = (rng.next() * w.len() as f64) as usize % w.len();
+                    w[j] *= 1.0 + rng.range(-1e-6, 1e-6);
+                }
+                curve = NurbsCurve3::new(curve.knots_f64_interim().clone(), c, w).unwrap();
+            }
+            total += 1;
+            if let CurveRecognition::Promoted {
+                curve: Curve3::Circle(circle),
+                residual,
+                covers,
+                ..
+            } = recognize(&curve, band)
+            {
+                promoted += 1;
+                let (w, e, mono) = check_circle(&curve, &circle, residual, covers, band_eps);
+                if !mono {
+                    nonmono += 1;
+                }
+                if w > 1e-17 + 1e-9 * residual || e > 1e-12 * radius.max(1.0) {
+                    bad += 1;
+                    if bad < 10 {
+                        println!(
+                            "P2 BAD case {case}: r={radius:e} angles={angles:?} covers={covers:?} res={residual:e} worst={w:e} excess={e:e}"
+                        );
+                    }
+                }
+            }
+        }
+        println!("P2 total={total} promoted={promoted} nonmonotone_promoted={nonmono} bad={bad}");
+    }
+
+    #[test]
+    #[ignore = "probe"]
+    fn p3_random_line_sweep() {
+        let mut rng = Lcg(0x11e5);
+        let eps = 1e-6;
+        let band = crate::interpret::FileBand::test(eps);
+        let (mut promoted, mut bad, mut total, mut maps, mut mapbad) = (0, 0, 0, 0, 0);
+        for case in 0..6000 {
+            let degree = 1 + (rng.next() * 4.0) as usize;
+            let count = degree + 1 + (rng.next() * 4.0) as usize;
+            let len = 10f64.powf(rng.range(-3.0, 1.0));
+            let dir = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let dir = dir / dir.norm();
+            let o = Point3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let mut control = Vec::new();
+            for i in 0..count {
+                let s = if i == 0 {
+                    0.0
+                } else if i == count - 1 {
+                    1.0
+                } else if rng.next() < 0.3 {
+                    rng.range(-0.0000005 / len, 1.0 + 0.0000005 / len)
+                } else {
+                    rng.range(0.0, 1.0)
+                };
+                let noise = if i == 0 || i == count - 1 || rng.next() < 0.5 {
+                    Vec3::new(0.0, 0.0, 0.0)
+                } else {
+                    Vec3::new(
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    ) * (eps * rng.range(0.0, 1.5))
+                };
+                control.push(o + dir * (s * len) + noise);
+            }
+            let weights: Vec<f64> = if rng.next() < 0.5 {
+                vec![1.0; count]
+            } else {
+                (0..count)
+                    .map(|_| 10f64.powf(rng.range(-1.5, 1.5)))
+                    .collect()
+            };
+            let mut kn = vec![0.0; degree + 1];
+            let mut acc = 0.0;
+            for _ in 0..count - degree - 1 {
+                acc += rng.range(0.1, 2.0);
+                kn.push(acc);
+            }
+            acc += rng.range(0.1, 2.0);
+            kn.extend(vec![acc; degree + 1]);
+            let Ok(curve) = NurbsCurve3::new(
+                KnotVector::clamped(kn, degree).unwrap(),
+                control.clone(),
+                weights,
+            ) else {
+                continue;
+            };
+            total += 1;
+            let (a, b) = curve.domain();
+            if let CurveRecognition::Promoted {
+                curve: Curve3::Line(line),
+                residual,
+                covers: Some((t0, t1)),
+                ..
+            } = recognize(&curve, band)
+            {
+                promoted += 1;
+                let mut worst = 0.0f64;
+                for k in 0..=4000 {
+                    let p = curve.eval(a + (b - a) * (k as f64) / 4000.0);
+                    let w = p - line.origin;
+                    let t = w.dot(line.dir);
+                    let perp = (w - line.dir * t).norm();
+                    let along = (t0 - t).max(t - t1).max(0.0);
+                    worst = worst.max(perp.hypot(along) - residual);
+                }
+                if worst > 1e-15 {
+                    bad += 1;
+                    if bad < 10 {
+                        println!("P3 BAD case {case}: res={residual:e} worst={worst:e}");
+                    }
+                }
+            }
+            if let Some((line, hull)) = straight_map(&curve, band) {
+                maps += 1;
+                let Curve3::Line(line) = line else { panic!() };
+                let first = control[0];
+                let last = *control.last().unwrap();
+                let mut worst = 0.0f64;
+                for k in 0..=4000 {
+                    let t = a + (b - a) * (k as f64) / 4000.0;
+                    let p = curve.eval(t);
+                    let l = first + (last - first) * ((t - a) / (b - a));
+                    worst = worst.max(p.distance(l) - hull);
+                }
+                let _ = line;
+                if worst > 1e-15 {
+                    mapbad += 1;
+                    if mapbad < 10 {
+                        println!("P3 MAPBAD case {case}: hull={hull:e} worst={worst:e}");
+                    }
+                }
+            }
+        }
+        println!("P3 total={total} line_promoted={promoted} bad={bad} maps={maps} mapbad={mapbad}");
+    }
+
+    /// A rational straight carrier whose huge middle weight pulls it to an
+    /// overshooting control: the residual must cover the excursion.
+    #[test]
+    #[ignore = "probe"]
+    fn p4_rational_overshoot() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        for w in [1.0, 10.0, 1e3, 1e6] {
+            let c = NurbsCurve3::new(
+                knots.clone(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(0.05, 0.0, 0.0),
+                    Point3::new(0.04, 0.0, 0.0),
+                ],
+                vec![1.0, w, 1.0],
+            )
+            .unwrap();
+            let mut maxx = 0.0f64;
+            for k in 0..=100000 {
+                maxx = maxx.max(c.eval(k as f64 / 100000.0).x);
+            }
+            let r = recognize(&c, crate::interpret::FileBand::test(0.0105));
+            println!("P4 w={w}: max x={maxx} over={:e} -> {r:?}", maxx - 0.04);
         }
     }
 }

@@ -293,7 +293,9 @@ pub(crate) fn build<'a>(
             &carrier,
             matches!(spec.carrier, Curve3::Nurbs(_)),
         ) {
-            held_splines.insert(curve);
+            if !crate::recognize_curve::b2m("held") {
+                held_splines.insert(curve);
+            }
         }
         // Reported where the built carrier is not the printed one, by
         // value; the move is measured only then.
@@ -1499,7 +1501,8 @@ fn cap_row(
                 // the straight MAP (INV-C5); a re-timed straight row is
                 // carried on itself, below.
                 if let Some((origin, chord, forward)) = line_iso_match(&iso, p_start, p_end, file)
-                    && crate::recognize_curve::straight_map(&iso, file).is_some()
+                    && (crate::recognize_curve::b2m("capmap")
+                        || crate::recognize_curve::straight_map(&iso, file).is_some())
                 {
                     let (dir, len) = chord.direction_and_length();
                     let line = Curve3::line(origin, dir);
@@ -1677,12 +1680,14 @@ fn column_match(
 ) -> Option<ColumnMatch> {
     match printed {
         Curve3::Nurbs(n) => bitwise_iso_match(n, iso).then_some(ColumnMatch::Column),
-        Curve3::Circle(circle) => {
-            circle_iso_match(iso, circle, p_start, p_end, file).then_some(ColumnMatch::Column)
-        }
+        Curve3::Circle(circle) => (!crate::recognize_curve::b2m("circiso")
+            && circle_iso_match(iso, circle, p_start, p_end, file))
+        .then_some(ColumnMatch::Column),
         Curve3::Line(_) => {
             let (origin, chord, forward) = line_iso_match(iso, p_start, p_end, file)?;
-            if crate::recognize_curve::straight_map(iso, file).is_some() {
+            if crate::recognize_curve::b2m("isomap")
+                || crate::recognize_curve::straight_map(iso, file).is_some()
+            {
                 Some(ColumnMatch::Line {
                     origin,
                     chord,

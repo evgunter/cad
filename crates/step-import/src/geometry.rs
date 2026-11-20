@@ -50,7 +50,9 @@ pub(crate) fn trim_within(
             f64::INFINITY,
             |m, p| if p < m || p.is_nan() { p } else { m },
         );
-    if file.read(crate::interpret::STEP_TRIM_COVERED, past) != crate::interpret::Read::Zero {
+    if !crate::recognize_curve::b2m("cover")
+        && file.read(crate::interpret::STEP_TRIM_COVERED, past) != crate::interpret::Read::Zero
+    {
         return Err(StepImportError::Topology {
             id,
             what: "an edge whose vertices trim its carrier outside the piece the file's \

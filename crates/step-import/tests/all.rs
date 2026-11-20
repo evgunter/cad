@@ -125,6 +125,8 @@ mod placed_m7_8_instance;
 mod poleguard;
 #[path = "poles_inside_a_seam_region.rs"]
 mod poles_inside_a_seam_region;
+#[path = "probe_b2rev2_ledger.rs"]
+mod probe_b2rev2_ledger;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
