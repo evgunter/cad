@@ -1606,11 +1606,7 @@ mod rev1_probes {
         for (name, patch) in &patches {
             for trial in 0..400 {
                 let scale = [1e-9, 1e-6, 1e-3, 1e-1, 1.0][trial % 5];
-                let centre = Point3::new(
-                    rng.sym() * scale,
-                    rng.sym() * scale,
-                    rng.sym() * scale,
-                );
+                let centre = Point3::new(rng.sym() * scale, rng.sym() * scale, rng.sym() * scale);
                 let axis = unit(Vec3::new(rng.sym() * scale, 1.0, rng.sym() * scale));
                 let u_ref = unit(Vec3::new(1.0, 0.0, 0.0) - axis * axis.x);
                 let kind = trial / 5 % 4;
@@ -1744,7 +1740,10 @@ mod rev1_probes {
                         report.push(format!(
                             "eps {eps:e} lift {lift:e} {name}: {kind:?} residual {residual:e} sampled {truth:e}"
                         ));
-                        assert!(truth <= residual + 1e-14, "{name}: {truth:e} > {residual:e}");
+                        assert!(
+                            truth <= residual + 1e-14,
+                            "{name}: {truth:e} > {residual:e}"
+                        );
                         if let Surface::Cone { apex, axis, .. } = surface {
                             let (u0, u1) = patch.knot_values_u().domain();
                             let mid = patch.eval(0.5 * (u0 + u1), 0.5);
@@ -1794,15 +1793,39 @@ mod rev1_probes {
                 panic!("moved {name} promotes")
             };
             let (pa, aa, ra) = match a {
-                Surface::Torus { center, axis, u_ref, .. }
-                | Surface::Sphere { center, axis, u_ref, .. } => (center, axis, u_ref),
-                Surface::Cone { apex, axis, u_ref, .. } => (apex, axis, u_ref),
+                Surface::Torus {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                }
+                | Surface::Sphere {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } => (center, axis, u_ref),
+                Surface::Cone {
+                    apex, axis, u_ref, ..
+                } => (apex, axis, u_ref),
                 _ => panic!(),
             };
             let (pb, ab, rb) = match b {
-                Surface::Torus { center, axis, u_ref, .. }
-                | Surface::Sphere { center, axis, u_ref, .. } => (center, axis, u_ref),
-                Surface::Cone { apex, axis, u_ref, .. } => (apex, axis, u_ref),
+                Surface::Torus {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                }
+                | Surface::Sphere {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } => (center, axis, u_ref),
+                Surface::Cone {
+                    apex, axis, u_ref, ..
+                } => (apex, axis, u_ref),
                 _ => panic!(),
             };
             let dp = (mp(pa) - pb).norm();
@@ -1841,9 +1864,15 @@ mod rev1_apex {
             half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        println!("R5 exact bound {:e}", geom_brep::patch_distance_sup(&patch, &exact));
+        println!(
+            "R5 exact bound {:e}",
+            geom_brep::patch_distance_sup(&patch, &exact)
+        );
         if let Some(c) = est {
-            println!("R5 est bound {:e}", geom_brep::patch_distance_sup(&patch, &c));
+            println!(
+                "R5 est bound {:e}",
+                geom_brep::patch_distance_sup(&patch, &c)
+            );
             println!(
                 "R5 refuted@1e-6 {}",
                 refuted_at_samples(&patch, &c, crate::interpret::FileBand::test(1e-6))

@@ -465,8 +465,14 @@ fn the_conic_quarter_torus_imports_as_two_torus_walls_holding_pappus() {
     let normalizations = imported.normalizations();
     eprintln!(
         "REV1 joins {} records {:?}",
-        normalizations.iter().filter(|n| n.kind == step_import::NormalizationKind::JoinedEdges).count(),
-        normalizations.iter().map(|n| (n.face, format!("{:?}", n.kind))).collect::<Vec<_>>()
+        normalizations
+            .iter()
+            .filter(|n| n.kind == step_import::NormalizationKind::JoinedEdges)
+            .count(),
+        normalizations
+            .iter()
+            .map(|n| (n.face, format!("{:?}", n.kind)))
+            .collect::<Vec<_>>()
     );
     assert_eq!(
         faces_where(&body, |s| matches!(s, geom::Surface::Torus { .. })),

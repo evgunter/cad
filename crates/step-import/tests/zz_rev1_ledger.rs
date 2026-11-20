@@ -1,5 +1,10 @@
 //! Review probe (rev1): every fixture's import outcome and promotion ledger.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 use geom_core::Tol;
 use step_import::{ImportOptions, NormalizationKind, StepImport, import_step};
 
@@ -26,20 +31,31 @@ fn rev1_ledger() {
     files.sort();
     for p in files {
         let name = p.strip_prefix(&root).unwrap().display().to_string();
-        let Ok(text) = std::fs::read_to_string(&p) else { continue };
-        let r = std::panic::catch_unwind(|| import_step(&text, &ImportOptions::default(), Tol::witness()));
+        let Ok(text) = std::fs::read_to_string(&p) else {
+            continue;
+        };
+        let r = std::panic::catch_unwind(|| {
+            import_step(&text, &ImportOptions::default(), Tol::witness())
+        });
         let line = match r {
             Err(_) => "PANIC".to_owned(),
-            Ok(Ok(StepImport::Solid { ref normalizations, .. })) => {
+            Ok(Ok(StepImport::Solid {
+                ref normalizations, ..
+            })) => {
                 let mut kinds: Vec<String> = normalizations
                     .iter()
                     .filter_map(|n| match n.kind {
-                        NormalizationKind::SurfacePromotion { to, .. } => Some(format!("{}:{to:?}", n.face)),
+                        NormalizationKind::SurfacePromotion { to, .. } => {
+                            Some(format!("{}:{to:?}", n.face))
+                        }
                         _ => None,
                     })
                     .collect();
                 kinds.sort();
-                let joins = normalizations.iter().filter(|n| n.kind == NormalizationKind::JoinedEdges).count();
+                let joins = normalizations
+                    .iter()
+                    .filter(|n| n.kind == NormalizationKind::JoinedEdges)
+                    .count();
                 format!("OK solid joins={joins} promo={kinds:?}")
             }
             Ok(Ok(_)) => "OK wireframe".to_owned(),
