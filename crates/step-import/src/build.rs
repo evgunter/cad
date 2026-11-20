@@ -1649,7 +1649,7 @@ fn circle_iso_match(
     p_end: Point3<f64>,
     file: FileBand,
 ) -> bool {
-    let Ok(Some((Curve3::Circle(read), _))) = crate::recognize_curve::try_circle(iso, file) else {
+    let Some(read) = promoted_circle(iso, file) else {
         return false;
     };
     let (Some(first), Some(last)) = (iso.control().first(), iso.control().last()) else {
@@ -1663,6 +1663,14 @@ fn circle_iso_match(
         && zero(a.cross(b).norm() * circle.radius)
         && zero(first.distance(p_start))
         && zero(last.distance(p_end))
+}
+
+/// The circle recognition promotes `iso` to, if any.
+fn promoted_circle(iso: &geom::NurbsCurve3<f64>, file: FileBand) -> Option<geom::Circle<f64>> {
+    match crate::recognize_curve::try_circle(iso, file) {
+        Ok(Some((Curve3::Circle(circle), _))) => Some(circle),
+        _ => None,
+    }
 }
 
 /// The bitwise iso match: the carrier's knots, controls and weights are
