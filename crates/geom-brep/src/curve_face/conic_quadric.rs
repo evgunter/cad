@@ -194,6 +194,34 @@ mod in_band_sweep;
 #[allow(clippy::unwrap_used)]
 mod shallow_sweep;
 
+/// The lane choice's test-only switch (`[verdicts.consumers]`): forced,
+/// a second harmonic in the zero band takes the ladder, so a row can
+/// judge the ladder's certificate where the choice would not send it.
+#[cfg(test)]
+mod ladder_lane {
+    use core::cell::Cell;
+
+    std::thread_local! {
+        static FORCED: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// Whether the ladder is forced on this thread.
+    pub(super) fn forced() -> bool {
+        FORCED.with(Cell::get)
+    }
+
+    /// `body` with the ladder forced.
+    pub(super) fn forcing<R>(body: impl FnOnce() -> R) -> R {
+        FORCED.with(|f| f.set(true));
+        let out = body();
+        FORCED.with(|f| f.set(false));
+        out
+    }
+}
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ladder_lane_fuzz;
+
 /// The arm switch's row (module docs, "Two arms").
 const SECOND_HARMONIC: &str = "conic_quadric_second_harmonic";
 
@@ -405,6 +433,10 @@ fn first_harmonic_arm<T: Decide>(
     let Ok(Sign::Zero) = decide(SECOND_HARMONIC, Margin::of(second), band) else {
         return None;
     };
+    #[cfg(test)]
+    if ladder_lane::forced() {
+        return None;
+    }
     let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
     Some(FirstHarmonic {
         lo: h.c0 - a1,
