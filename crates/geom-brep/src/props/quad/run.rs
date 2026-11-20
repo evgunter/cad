@@ -191,15 +191,16 @@ pub struct FaceCutBounds {
 }
 
 /// Funnel wrapper (the `props_*` idiom of [`crate::props::curved`]): margins
-/// are certification-substrate `f64` lengths lifted to the caller's
-/// scalar so every lane (f64 / Probe / Interval) records identically.
+/// are certification-substrate `f64` lengths decided at the caller's
+/// scalar ([`Margin::at_scalar`]) so every lane (f64 / Probe / Interval)
+/// records identically.
 pub(super) fn classify_len_as<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
     check: PropsCheck,
 ) -> Result<Sign, PropsError> {
-    geom_core::k_stats::decide(name, margin.lift::<T>(), band)
+    geom_core::k_stats::decide(name, margin.at_scalar::<T>(), band)
         .map_err(|cause| PropsError::Escalated { cause, check })
 }
 

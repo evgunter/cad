@@ -886,9 +886,154 @@ impl<T: crate::real::Real> Lever<T> {
 /// expression through its door is bit-identical to the bare
 /// expression — the K-telemetry margin stream is unchanged by
 /// construction (the rollout's acceptance).
-#[repr(transparent)]
+///
+/// **A bound decided against is never a `T`** (the crate README, DL5.2).
+/// A margin built from an `f64` bound (a floor, a supremum, a rounding
+/// pad, an arm read off a bracket) takes it as its [`Allowance`]: the
+/// second parameter, absent (`()`) on every margin built from `T` alone.
+/// The bound stays `f64` until the decision, where the run's scalar
+/// applies it in its own arithmetic ([`Decide::sign_within_allowing`]),
+/// so it reaches no `T` a caller holds. A margin carrying one has no
+/// [`Margin::value`] exit.
 #[derive(Debug, Clone, Copy)]
-pub struct Margin<T>(T);
+pub struct Margin<T, A = ()> {
+    reading: T,
+    allowance: A,
+}
+
+/// **The `f64` terms of a margin built from a bound**: the margin reads
+/// `reading · scale − less`, `reading` its `T` part. `scale` is an arm
+/// or a span read off a bracket, `less` a bound subtracted (negative
+/// where one is added). Built only by [`Margin`]'s doors that take an
+/// `f64`; nothing outside this crate can mint one, so
+/// [`Decide::allowing`] re-enters no number a caller chose.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Allowance {
+    scale: f64,
+    less: f64,
+}
+
+impl Allowance {
+    /// No terms: the margin is its reading.
+    pub(crate) const NONE: Self = Self {
+        scale: 1.0,
+        less: 0.0,
+    };
+
+    /// A scale alone, nothing subtracted: the allowance a tangent takes.
+    pub(crate) const fn scaling(scale: f64) -> Self {
+        Self { scale, less: 0.0 }
+    }
+
+    /// The factor the reading is multiplied by.
+    #[must_use]
+    pub fn scale(self) -> f64 {
+        self.scale
+    }
+
+    /// The bound subtracted after the product.
+    #[must_use]
+    pub fn less(self) -> f64 {
+        self.less
+    }
+
+    /// Whether the margin is its reading, bit for bit.
+    #[must_use]
+    pub fn is_none(self) -> bool {
+        self == Self::NONE
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for () {}
+    impl Sealed for super::Allowance {}
+}
+
+/// What a [`Margin`]'s second parameter may be: `()`, a margin read in
+/// `T` alone, or an [`Allowance`]. Sealed.
+pub trait MarginTerms: sealed::Sealed + Copy {
+    /// The terms as an [`Allowance`]; `()` has none.
+    fn allowance(self) -> Allowance;
+}
+
+impl MarginTerms for () {
+    fn allowance(self) -> Allowance {
+        Allowance::NONE
+    }
+}
+
+impl MarginTerms for Allowance {
+    fn allowance(self) -> Allowance {
+        self
+    }
+}
+
+impl<T, A: MarginTerms> Margin<T, A> {
+    /// The reading and its terms, for the classify seam.
+    pub(crate) fn parts(self) -> (T, Allowance) {
+        (self.reading, self.allowance.allowance())
+    }
+}
+
+/// A margin read in `T` alone, as one that carries an allowance of none:
+/// for a site that decides both kinds through one path.
+impl<T> From<Margin<T>> for Margin<T, Allowance> {
+    fn from(margin: Margin<T>) -> Self {
+        Margin::allowing(margin.reading, 1.0, 0.0)
+    }
+}
+
+impl<T> Margin<T, Allowance> {
+    /// **This margin less an `f64` bound**, as [`Margin::less`], on a
+    /// margin whose allowance subtracts nothing yet (a levered or metered
+    /// bound).
+    ///
+    /// # Panics
+    ///
+    /// Where the margin already subtracts a bound: one per margin, so no
+    /// sum of two bounds is rounded on the way in.
+    #[must_use]
+    pub fn less(self, less: f64) -> Self {
+        #[allow(clippy::float_cmp)] // an exact zero: nothing subtracted yet
+        let none_yet = self.allowance.less == 0.0;
+        assert!(none_yet, "a margin subtracts one bound");
+        Margin {
+            reading: self.reading,
+            allowance: Allowance {
+                scale: self.allowance.scale,
+                less,
+            },
+        }
+    }
+}
+
+impl<A: MarginTerms> Margin<f64, A> {
+    /// **The margin at `f64`, its allowance applied**: the number the
+    /// `f64` lane decides. A read of the concrete scalar, so nothing
+    /// re-enters a `T`.
+    #[must_use]
+    pub fn at_f64(self) -> f64 {
+        let (reading, allowance) = self.parts();
+        reading.allowing(allowance)
+    }
+}
+
+impl<T> Margin<T> {
+    const fn plain(reading: T) -> Self {
+        Self {
+            reading,
+            allowance: (),
+        }
+    }
+
+    const fn allowing(reading: T, scale: f64, less: f64) -> Margin<T, Allowance> {
+        Margin {
+            reading,
+            allowance: Allowance { scale, less },
+        }
+    }
+}
 
 impl<T: crate::real::Real> Margin<T> {
     /// Door: a value that **is** a length already. The dimensional
@@ -905,7 +1050,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// whose metres-ness needs a lever, a root, or a quotient — those
     /// have their own doors, and the operation belongs inside the door.
     pub fn of(margin: T) -> Self {
-        Self(margin)
+        Self::plain(margin)
     }
 
     /// Door: a **dimensionless** quantity levered by an **arm** —
@@ -921,7 +1066,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// `x`, radians included: it crosses through the rate pair
     /// ([`Margin::metered`], [`Margin::metered_sup`]; `[tolerance.margins]` clause (iii)).
     pub fn levered(x: T, arm: Lever<T>) -> Self {
-        Self(x * arm.0)
+        Self::plain(x * arm.0)
     }
 
     /// Levered door, second-order (sagitta) form: a **relative
@@ -934,7 +1079,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// interval-square rule requires `powi(2)` — so wrapping the
     /// shipped sites is bit-identical.
     pub fn sagitta(curvature_rel: T, arm: T) -> Self {
-        Self(curvature_rel * arm.powi(2) * T::from_f64(0.5))
+        Self::plain(curvature_rel * arm.powi(2) * T::from_f64(0.5))
     }
 
     /// Levered door, reciprocal form: a quantity levered by the
@@ -948,7 +1093,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// direction. Both leave metres. One operation, bit-identical to
     /// the bare `x / per_length`.
     pub fn levered_inv(x: T, per_length: T) -> Self {
-        Self(x / per_length)
+        Self::plain(x / per_length)
     }
 
     /// Metric door (clause (iii) at the seam): a **parameter-space
@@ -971,7 +1116,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// [`Margin::metered_sup`]. One operation, bit-identical to the
     /// bare `span * rate`.
     pub fn metered(span: T, rate: InfSpeed<T>) -> Self {
-        Self(rate.to_meters(span))
+        Self::plain(rate.to_meters(span))
     }
 
     /// Metric door, sup side: a **parameter-space overshoot** crossed
@@ -986,7 +1131,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// same product as a positive-extent claim would be unsound, which
     /// is why that direction has its own door and its own type.
     pub fn metered_sup(span: T, rate: SupSpeed<T>) -> Self {
-        Self(rate.to_meters(span))
+        Self::plain(rate.to_meters(span))
     }
 
     /// Norm door (3-vector form): the Euclidean norm of a
@@ -995,13 +1140,13 @@ impl<T: crate::real::Real> Margin<T> {
     /// a metre-scaled residual vector), and the Euclidean norm of
     /// lengths is a length.
     pub fn norm3(v: crate::linalg::Vec3<T>) -> Self {
-        Self(v.norm())
+        Self::plain(v.norm())
     }
 
     /// Norm door (2-vector form): see [`Margin::norm3`]; the same
     /// argument for planar (sketch-plane) geometry.
     pub fn norm2(v: crate::linalg::Vec2<T>) -> Self {
-        Self(v.norm())
+        Self::plain(v.norm())
     }
 
     /// Door: an oriented/certified **measure over the lever that
@@ -1016,7 +1161,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// when the measure is exactly zero, so non-strict pass directions
     /// are unmoved.
     pub fn over_lever(measure: T, lever: T) -> Self {
-        Self(measure / lever)
+        Self::plain(measure / lever)
     }
 
     /// Door: a quantity **read for its sign alone**, against
@@ -1027,7 +1172,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// may be: a margin from this door is decided under
     /// [`Band::enclosure_sign`] only. One operation, the identity.
     pub fn sign_of(measure: T) -> Self {
-        Self(measure)
+        Self::plain(measure)
     }
 
     /// The wrapped margin, for the classify seam and for diagnostics
@@ -1035,21 +1180,61 @@ impl<T: crate::real::Real> Margin<T> {
     /// an exit, not an entrance: reading the value back does not
     /// construct a `Margin`, so it cannot launder a dimension.
     pub fn value(self) -> T {
-        self.0
+        self.reading
+    }
+
+    /// **This margin less an `f64` bound**: `self − less`, the bound
+    /// carried as the margin's [`Allowance`] and applied at the
+    /// decision in the run's scalar (a rounding pad a floor is charged,
+    /// a supremum subtracted). One allowance per margin: the door is on
+    /// a margin that has none.
+    pub fn less(self, less: f64) -> Margin<T, Allowance> {
+        Self::allowing(self.reading, 1.0, less)
+    }
+
+    /// Door: **a bound with no `T` operand**, an `f64` length (a floor, a
+    /// supremum, a bracket end) decided at the run's scalar on its value
+    /// alone. At every scalar the decision is the `f64`'s: at
+    /// `Interval` the point `[x, x]`, at `Sym` with no identity over it,
+    /// at a dual its value; and a recording lane records it as it
+    /// records every margin. The dimensional argument is
+    /// [`Margin::of`]'s.
+    pub fn bound(x: f64) -> Margin<T, Allowance> {
+        Self::allowing(T::zero(), 1.0, -x)
+    }
+
+    /// Door: [`Margin::levered`] at an **arm read as an `f64` bound**
+    /// (an arm summed from distances, an arm read off a bracket):
+    /// `x · arm`, the arm the margin's scale.
+    pub fn levered_at(x: T, arm: Lever<f64>) -> Margin<T, Allowance> {
+        Self::allowing(x, arm.0, 0.0)
+    }
+
+    /// Door: [`Margin::levered`] of a **dimensionless `f64` bound** (an
+    /// enclosure's zero-free lower bound) at the arm `arm`: `x · arm`,
+    /// `x` the margin's scale.
+    pub fn bound_levered(x: f64, arm: Lever<T>) -> Margin<T, Allowance> {
+        Self::allowing(arm.0, x, 0.0)
+    }
+
+    /// Door: [`Margin::metered`] of a **parameter span read as an `f64`
+    /// bound** (a window's room, a box's gap): `span · rate`, the span
+    /// the margin's scale.
+    pub fn metered_bound(span: f64, rate: InfSpeed<T>) -> Margin<T, Allowance> {
+        Self::allowing(rate.get(), span, 0.0)
     }
 }
 
 impl Margin<f64> {
-    /// Lifts an `f64`-substrate length to the deciding scalar (the
-    /// certification-substrate idiom: quadrature margins are computed
-    /// in certified `f64` enclosure arithmetic and lifted so every lane
-    /// records identically). Dimension-preserving, **not** a
-    /// construction door — the door was chosen when the `Margin<f64>`
-    /// was built. The value is a computed one, so it enters through
-    /// [`crate::Real::from_computed`]: at `Sym` it is an unknown, never
-    /// a constant a symbolic `Zero` could be proved over.
-    pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
-        Margin(T::from_computed(self.0))
+    /// **An `f64`-substrate margin decided at the run's scalar**, as
+    /// [`Margin::bound`] decides a bound: the certification-substrate
+    /// idiom (quadrature margins computed in certified `f64` enclosure
+    /// arithmetic, decided so every lane records identically).
+    /// Dimension-preserving, **not** a construction door: the door was
+    /// chosen when the `Margin<f64>` was built. The value never becomes
+    /// a `T`.
+    pub fn at_scalar<T: crate::real::Real>(self) -> Margin<T, Allowance> {
+        Margin::bound(self.reading)
     }
 
     /// Door: [`Margin::over_lever`]'s dimensional argument, for a
@@ -1059,7 +1244,7 @@ impl Margin<f64> {
     /// nearest can land above the real one, the side that certifies a
     /// margin the geometry does not have.
     pub fn over_lever_down(measure: f64, lever: f64) -> Self {
-        Self(crate::interval::div_down(measure, lever))
+        Self::plain(crate::interval::div_down(measure, lever))
     }
 }
 
@@ -3356,6 +3541,35 @@ pub trait Decide: SpanLocate {
     /// [`Indeterminate::with_predicate`].
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate>;
 
+    /// **This margin with its [`Allowance`] applied**, `self · scale −
+    /// less`, in this scalar's own arithmetic: rounded outward at
+    /// `Interval`, the tangent scaled at a dual. Called only by the
+    /// decision ([`Decide::sign_within_allowing`]); an `Allowance` is
+    /// minted only by [`Margin`]'s doors, so no caller re-enters a
+    /// number through it.
+    #[doc(hidden)]
+    #[must_use]
+    fn allowing(self, allowance: Allowance) -> Self;
+
+    /// [`Decide::sign_within`] of a [`Margin`] that carries `allowance`:
+    /// the margin with it applied ([`Decide::allowing`]), decided as
+    /// every margin is. An allowance of none is `sign_within` itself.
+    ///
+    /// # Errors
+    ///
+    /// As [`Decide::sign_within`].
+    fn sign_within_allowing(
+        self,
+        allowance: Allowance,
+        band: Band,
+    ) -> Result<Decided, Indeterminate> {
+        if allowance.is_none() {
+            self.sign_within(band)
+        } else {
+            self.allowing(allowance).sign_within(band)
+        }
+    }
+
     /// **The certified enclosure this value would be classified on**,
     /// for the shape report's use only ([`crate::sym::report`]'s
     /// `DecisionShape::enclosure`). `None` at every scalar that has no
@@ -3424,6 +3638,10 @@ pub trait Decide: SpanLocate {
 /// code that must not branch on values (Q1); this impl is precisely the
 /// place where comparisons are turned into certified decisions.
 impl Decide for f64 {
+    fn allowing(self, allowance: Allowance) -> Self {
+        self * allowance.scale - allowance.less
+    }
+
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         if self.is_nan() {
             return Err(Indeterminate {
@@ -3459,6 +3677,9 @@ impl Decide for f64 {
         Ok(Decided { sign, margin })
     }
 }
+
+#[cfg(test)]
+mod allowance_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

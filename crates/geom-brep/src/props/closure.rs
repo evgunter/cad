@@ -63,9 +63,9 @@ pub(super) fn excess<T: Decide>(gap: T, slack: T) -> T {
 /// slack (metres; `0` within it): read high, for the closed decision,
 /// and low, for the open one. A lane whose gap is one value hands the
 /// same margin twice.
-pub(super) struct JunctionExcess<T> {
-    pub(super) hi: Margin<T>,
-    pub(super) lo: Margin<T>,
+pub(super) struct JunctionExcess<T, A = ()> {
+    pub(super) hi: Margin<T, A>,
+    pub(super) lo: Margin<T, A>,
 }
 
 fn escalated(cause: geom_core::Indeterminate) -> PropsError {
@@ -85,8 +85,8 @@ fn escalated(cause: geom_core::Indeterminate) -> PropsError {
 ///   gate — no gap the reading admits is within the slack and `Kε`;
 /// - **escalated** otherwise. A junction the reading cannot decide is
 ///   never measured.
-pub(super) fn require_junction_closed<T: Decide>(
-    gap: JunctionExcess<T>,
+pub(super) fn require_junction_closed<T: Decide, A: geom_core::MarginTerms>(
+    gap: JunctionExcess<T, A>,
     band: Band,
 ) -> Result<(), PropsError> {
     if decide("props_chart_junction_closed", gap.hi, band).map_err(escalated)? == Sign::Zero {
@@ -178,8 +178,8 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         let slack = j.slack + VERTEX_SLACK * band.zero();
         require_junction_closed(
             JunctionExcess {
-                hi: Margin::of(excess(certified_hi(gap), slack)).lift::<T>(),
-                lo: Margin::of(excess(lo_or_refuse(gap), slack)).lift::<T>(),
+                hi: Margin::of(excess(certified_hi(gap), slack)).at_scalar::<T>(),
+                lo: Margin::of(excess(lo_or_refuse(gap), slack)).at_scalar::<T>(),
             },
             band,
         )?;

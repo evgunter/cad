@@ -229,7 +229,10 @@ use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 
-use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
+use crate::predicate::{
+    Allowance, Band, Decide, Decided, Indeterminate, Margin, MarginDiag, MarginTerms, Sign,
+    SizedPass,
+};
 use crate::real::Real;
 // Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
@@ -460,7 +463,7 @@ struct Frame {
 /// indeterminate one an [`Escalation`], in one decision order.
 fn classify<T: Decide>(
     name: &'static str,
-    margin: T,
+    (margin, allowance): (T, Allowance),
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
@@ -471,7 +474,9 @@ fn classify<T: Decide>(
     // replay's first decisions to the previous replay's last predicate
     // until this was scoped (`assert_bound` read 9 decisions for 1).
     let prev = CURRENT.with(|c| c.replace(name));
-    let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    let outcome = margin
+        .sign_within_allowing(allowance, band)
+        .map_err(|e| e.with_predicate(name));
     CURRENT.with(|c| c.set(prev));
     // THE STAGED-CEILING DIAL, and it exists only under the test-only
     // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
@@ -608,7 +613,7 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// comparable across this seam.
 fn classify_gated<T: Decide, R>(
     name: &'static str,
-    margin: T,
+    margin: (T, Allowance),
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -620,7 +625,7 @@ fn classify_gated<T: Decide, R>(
 /// was decided on.
 fn classify_gated_reported<T: Decide, R>(
     name: &'static str,
-    margin: T,
+    margin: (T, Allowance),
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -776,7 +781,10 @@ pub fn check_unlogged<T: Decide>(
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
-    unlogged(ledger_row, || classify(name, margin, band)).map(|d| d.sign)
+    unlogged(ledger_row, || {
+        classify(name, (margin, Allowance::NONE), band)
+    })
+    .map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -806,12 +814,12 @@ pub fn check_unlogged<T: Decide>(
 ///
 /// The [`Indeterminate`] from [`Decide::sign_within`], with `name`
 /// attached.
-pub fn decide<T: Decide>(
+pub fn decide<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    classify(name, margin.value(), band).map(|d| d.sign)
+    classify(name, margin.parts(), band).map(|d| d.sign)
 }
 
 /// **[`decide`] for a decision on a size the user may intend that
@@ -824,9 +832,9 @@ pub fn decide<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, its reading tagged with `passes`.
-pub fn decide_passing<T: Decide>(
+pub fn decide_passing<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
 ) -> Result<Sign, Indeterminate> {
@@ -851,7 +859,10 @@ pub fn decide_passing<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
-pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
+pub fn prove<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
 }
 
@@ -902,8 +913,12 @@ pub enum Pick {
 /// band it is passed (F31's `Period::near` mark walk and
 /// `Azimuth::near`'s cut side) is the compound form: that reader runs
 /// inside [`unlogged`] under its row, at [`Band::least`].
-pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'static str) -> Pick {
-    match check_unlogged(name, margin.value(), Band::least(), ledger_row) {
+pub fn choose<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    ledger_row: &'static str,
+) -> Pick {
+    match unlogged(ledger_row, || classify(name, margin.parts(), Band::least())).map(|d| d.sign) {
         Ok(Sign::Positive) => Pick::Positive,
         Ok(Sign::Negative) => Pick::Negative,
         Ok(Sign::Zero) | Err(_) => Pick::Tie,
@@ -921,12 +936,12 @@ pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'st
 /// # Errors
 ///
 /// As [`decide`].
-pub fn decide_reported<T: Decide>(
+pub fn decide_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classify(name, margin.value(), band)
+    classify(name, margin.parts(), band)
 }
 
 /// The classify seam's **finding lane** — [`decide`] for a shipped
@@ -969,7 +984,7 @@ pub fn decide_flagged<T: Decide>(
     // from the source text by `geom-core/tests/flagged_census.rs`, which
     // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
-    classify(name, margin, band).map(|d| d.sign)
+    classify(name, (margin, Allowance::NONE), band).map(|d| d.sign)
 }
 
 /// [`decide_flagged`], keeping the reporting margin the classifier
@@ -988,7 +1003,7 @@ pub fn decide_flagged_reported<T: Decide>(
     ledger_row: &'static str,
 ) -> Result<Decided, Indeterminate> {
     let _ = ledger_row;
-    classify(name, margin, band)
+    classify(name, (margin, Allowance::NONE), band)
 }
 
 /// **The collapsed-arm gate**: [`decide`] for a predicate whose
@@ -1026,14 +1041,14 @@ pub fn decide_flagged_reported<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-positive sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_positive<T: Decide>(
+pub fn decide_positive<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     classify_gated(
         name,
-        margin.value(),
+        margin.parts(),
         band,
         SizedPass::Positive,
         |sign| match sign {
@@ -1056,14 +1071,14 @@ pub fn decide_positive<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-negative sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_negative<T: Decide>(
+pub fn decide_negative<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     classify_gated(
         name,
-        margin.value(),
+        margin.parts(),
         band,
         SizedPass::Negative,
         |sign| match sign {
@@ -1087,14 +1102,14 @@ use crate::predicate::NonzeroSign;
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying the
 /// decided margin under `name`.
-pub fn decide_nonzero<T: Decide>(
+pub fn decide_nonzero<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     classify_gated(
         name,
-        margin.value(),
+        margin.parts(),
         band,
         SizedPass::NonZero,
         |sign| match sign {
@@ -1112,14 +1127,14 @@ pub fn decide_nonzero<T: Decide>(
 /// # Errors
 ///
 /// As [`decide_nonzero`].
-pub fn decide_nonzero_reported<T: Decide>(
+pub fn decide_nonzero_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
     classify_gated_reported(
         name,
-        margin.value(),
+        margin.parts(),
         band,
         SizedPass::NonZero,
         |sign| match sign {
@@ -1170,9 +1185,9 @@ pub enum Magnitude {
 /// # Panics
 ///
 /// On a definite `Negative`, which the precondition rules out.
-pub fn decide_magnitude<T: Decide>(
+pub fn decide_magnitude<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     decide_magnitude_reported(name, margin, band).map(|(magnitude, _)| magnitude)
@@ -1189,12 +1204,12 @@ pub fn decide_magnitude<T: Decide>(
 /// # Panics
 ///
 /// As [`decide_magnitude`].
-pub fn decide_magnitude_reported<T: Decide>(
+pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
-    let Decided { sign, margin } = classify(name, margin.value(), band)?;
+    let Decided { sign, margin } = classify(name, margin.parts(), band)?;
     match sign {
         Sign::Zero => Ok((Magnitude::Zero, margin)),
         Sign::Positive => Ok((Magnitude::Positive, margin)),
@@ -2169,6 +2184,10 @@ impl crate::spline::SpanLocate for Probe {
 
 #[cfg(feature = "probe")]
 impl Decide for Probe {
+    fn allowing(self, allowance: crate::predicate::Allowance) -> Self {
+        Self(self.0.allowing(allowance))
+    }
+
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         let outcome = self.0.sign_within(band);
         let sample = match &outcome {

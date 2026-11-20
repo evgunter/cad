@@ -1066,6 +1066,13 @@ impl Decide for Interval {
         self.certified_bracket()
     }
 
+    /// The point enclosures of the allowance's two `f64`s, multiplied
+    /// and subtracted outward: the enclosure the margin's bare
+    /// expression with both lifted would give.
+    fn allowing(self, allowance: crate::predicate::Allowance) -> Self {
+        self * Self(DInterval::point(allowance.scale())) - Self(DInterval::point(allowance.less()))
+    }
+
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         if !self.is_certified() {
             return Err(Indeterminate {

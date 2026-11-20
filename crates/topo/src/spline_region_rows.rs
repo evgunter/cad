@@ -1827,7 +1827,7 @@ fn a_cell_with_a_nan_bound_has_no_floor() {
         net,
         centre: Vec3::new(0.0, 0.0, 0.0),
     };
-    let floor = cell.floor(Point3::new(0.5, 0.5, 1.0));
+    let floor = cell.floor(Point3::new(0.5, 0.5, 1.0)).at_f64();
     assert!(floor.is_nan(), "a NaN bound leaves the floor {floor}");
 }
 
@@ -1862,14 +1862,14 @@ fn square_cell(centre: Vec3<f64>, e: f64) -> super::Patch<f64> {
 fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
     let below = 2e-6;
     let cut = square_cell(Vec3::new(0.0, 0.0, 0.0), 1e-6);
-    let floor = cut.floor(Point3::new(0.5, 0.5, -below));
+    let floor = cut.floor(Point3::new(0.5, 0.5, -below)).at_f64();
     assert!(
         floor <= below - 1e-6 + 1e-12,
         "the cut's bound is charged: floor {floor:e}"
     );
     let far = 1e8;
     let read = square_cell(Vec3::new(far, 0.0, 0.0), 0.0);
-    let floor = read.floor(Point3::new(far + 0.5, 0.5, -below));
+    let floor = read.floor(Point3::new(far + 0.5, 0.5, -below)).at_f64();
     let charge = geom_core::rounding_charge(2.0 * (2f64.sqrt() + 0.5f64.hypot(0.5) + far));
     assert!(
         floor <= below - 0.9 * charge && charge > 0.0,

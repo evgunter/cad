@@ -481,24 +481,30 @@ impl<T: Decide> UnitVec3<T> {
         decide_unit_direction(v, site, band).map(Self)
     }
 
-    /// **`v` normalized, its length decided at `scale`**: the decision
-    /// [`UnitVec3::new`] takes of `v · scale` (the same gates, the same
-    /// margin, one sample under `site`), and the direction of `v` itself.
-    /// A caller levering a pure number into a length over an arm it has
-    /// already decided keeps the arm out of the direction it mints, so
-    /// the direction is a function of `v` alone at every scalar (at
-    /// `Sym`, no factor of the arm to cancel under a square root).
+    /// **`v` normalized, its length decided levered at an `f64` arm**:
+    /// [`UnitVec3::new`]'s gates on `v`, and its margin `|v| · arm`
+    /// ([`Margin::levered_at`], one sample under `site`), and the
+    /// direction of `v` itself. A caller levering a pure number into a
+    /// length over an arm it read as a bound keeps the arm out of the
+    /// scalar: it is the margin's allowance, never a `T`, so the
+    /// direction is a function of `v` alone at every scalar.
     ///
     /// # Errors
     ///
-    /// [`UnitVec3::new`]'s, of `v · scale`.
+    /// [`UnitVec3::new`]'s gates on `v`; [`UnitVec3Error::Degenerate`] or
+    /// [`UnitVec3Error::Escalated`] on the levered length.
     pub fn new_scaled(
         v: Vec3<T>,
-        scale: T,
+        arm: Lever<f64>,
         site: &'static str,
         band: Band,
     ) -> Result<Self, UnitVec3Error> {
-        decide_unit_direction(v * scale, site, band).map(|_| Self(v.normalize()))
+        v.checked_direction_and_length()?;
+        match decide(site, Margin::levered_at(v.norm(), arm), band) {
+            Ok(Sign::Positive) => Ok(Self(v.normalize())),
+            Ok(_) => Err(UnitVec3Error::Degenerate),
+            Err(source) => Err(UnitVec3Error::Escalated(source)),
+        }
     }
 
     /// **The normalizing constructor for a dimensionless vector**: a

@@ -1627,23 +1627,23 @@ fn require_positive_as<T: Decide>(
     }
 }
 
-/// A piece's sector condition on `channel`: `value` (the hull's lower
-/// bound of `x′`, or of the tube's `X′`) decides positive.
-fn holds<T: Decide>(
-    value: T,
+/// A piece's sector condition on `channel`: `margin` (the lower bound
+/// of `x′`, or of the tube's `X′`) decides positive.
+fn holds<T: Decide, A: geom_core::MarginTerms>(
+    margin: Margin<T, A>,
     band: Band,
     piece: usize,
     channel: SectorChannel,
 ) -> Result<(), PcurveCertifyError> {
-    require_positive_as(
-        "pcurve_projected_sector",
-        value,
-        band,
-        PcurveCheck::Sector,
-        piece,
-        sector_refused(piece, channel),
-    )
-    .map(drop)
+    match decide("pcurve_projected_sector", margin, band) {
+        Ok(Sign::Positive) => Ok(()),
+        Ok(_) => Err(sector_refused(piece, channel)),
+        Err(cause) => Err(PcurveCertifyError::Escalated {
+            check: super::general(PcurveCheck::Sector),
+            sample: u32::try_from(piece).unwrap_or(u32::MAX),
+            cause,
+        }),
+    }
 }
 
 /// Piece `k`'s sector condition off the hull: its azimuth channel, and
@@ -1655,11 +1655,19 @@ pub(super) fn hull_sector<T: Decide>(
     chart: &ProjectedChart<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    let x_lo = T::from_computed(piece.x_lo);
-    holds(x_lo, band, k, SectorChannel::Azimuth)?;
+    holds(
+        Margin::<T>::bound(piece.x_lo),
+        band,
+        k,
+        SectorChannel::Azimuth,
+    )?;
     if matches!(chart, ProjectedChart::Torus { .. }) {
-        let tube_lo = T::from_computed(piece.tube_lo);
-        holds(tube_lo, band, k, SectorChannel::Tube)?;
+        holds(
+            Margin::<T>::bound(piece.tube_lo),
+            band,
+            k,
+            SectorChannel::Tube,
+        )?;
     }
     Ok(())
 }
@@ -2503,10 +2511,10 @@ fn met_floors<T: Decide>(
     let mut floors: Option<(T, (T, T), usize)> = None;
     for &k in met {
         let b = image.frame_box(k, t0, t1);
-        holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+        holds(Margin::of(b.x.0), band, k, SectorChannel::Azimuth)?;
         if let ProjectedChart::Torus { major } = image.chart {
             holds(
-                image.tube_box(k, &b, major).0.0,
+                Margin::of(image.tube_box(k, &b, major).0.0),
                 band,
                 k,
                 SectorChannel::Tube,

@@ -64,14 +64,14 @@ use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::Knots;
 use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
+    Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
     rounding_charge,
 };
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::body::Body;
-use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, gap, ray_parity_as};
+use crate::chain_parity::{ChainPiece, Gap, PieceBox, RayQuery, gap, ray_parity_as};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::Deck;
 use crate::joint::Winding;
@@ -155,10 +155,11 @@ impl<T: Decide> Patch<T> {
 
     /// **A lower bound on the distance from `q` to the cell**: its
     /// distance to the control net's box, which holds the cell (the
-    /// convex-hull property, every weight positive), less at `f64` the
-    /// cut's rounding and the read's (*Rounding*, module docs).
-    pub(crate) fn floor(&self, q: Point3<T>) -> T {
-        let poison = T::from_f64(f64::NAN);
+    /// convex-hull property, every weight positive), less the read's
+    /// rounding and, as the margin's `f64` allowance, the cut's
+    /// (*Rounding*, module docs).
+    pub(crate) fn floor(&self, q: Point3<T>) -> Margin<T, Allowance> {
+        let poison = Margin::of(T::from_f64(f64::NAN)).less(0.0);
         // A weight not shown positive leaves the hull unproven.
         if !self.net.iter().all(|(h, _)| h[3].structure_positive()) {
             return poison;
@@ -183,7 +184,7 @@ impl<T: Decide> Patch<T> {
         );
         let gap = (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt();
         if !tracks::<T>() || mutant("spline-trim-charge-dropped") {
-            return gap;
+            return Margin::of(gap).less(0.0);
         }
         // The worst per channel, folded so a NaN bound stays NaN.
         let mut worst = [0.0f64; 3];
@@ -218,7 +219,7 @@ impl<T: Decide> Patch<T> {
                 T::from_f64(2.0) * (reach + (moved - Point3::origin()).norm() + self.centre.norm()),
             )
         };
-        (gap - T::from_computed(cut) - read).max(T::zero())
+        Margin::of((gap - read).max(T::zero())).less(cut)
     }
 
     /// The diagonal of the control net's box, read on its value channel:
@@ -1104,7 +1105,7 @@ impl Trim {
             }
             match decide(
                 SPLINE_TRIM_CLEAR,
-                Margin::metered(T::from_computed(room.max(0.0)), arm),
+                Margin::metered_bound(room.max(0.0), arm),
                 band,
             ) {
                 Ok(Sign::Positive) => {}
@@ -1184,10 +1185,7 @@ impl<T: Decide> ChainPiece<T> for Piece {
     fn boxed(&self, q: Rect) -> Option<PieceBox<T>> {
         let b = self.bbox()?;
         Some(PieceBox {
-            gap: [
-                T::from_computed(gap(q.u, b.u)),
-                T::from_computed(gap(q.v, b.v)),
-            ],
+            gap: [Gap::Bound(gap(q.u, b.u)), Gap::Bound(gap(q.v, b.v))],
             extent: [b.u, b.v],
         })
     }
