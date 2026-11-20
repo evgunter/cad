@@ -1,11 +1,13 @@
 ---
 id: the-conic-quadric-door-certifies-first-harmonic-roots-past-the-zero-band
 kind: issue
-title: The conic × quadric door certifies roots past the zero band - a small ellipse against a cone, two certified roots 0.78 and 1.39 bands along the arc from the true crossings (the first-harmonic arm drops a second harmonic that sits inside the band)
-status: open
+title: The conic × quadric fuzz row drew ellipses with a negative semi-axis, outside the Ellipse contract, and the door read their speed signed - the minor axis as speed_hi - so the first-harmonic arm's slack fell inside the band and certified roots up to 1.39 bands from the crossings
+status: review
 opened: 2026-11-15
 priority: P0
 cost: M
+pr: 7183
+branch: germ/ellipse-speed-magnitudes
 ---
 
 Filed by GREEN's `green/nightly-1115` lane (PR 6985), from nightly
@@ -51,7 +53,34 @@ Seeds that reach it through
 (case 41, PR 6598's delta-review runs; an ellipse root 2.7e-6 along the
 arc, failing on that PR's base `fbc704f1` too).
 
-## Mechanism (likely; the reviewer's check of the harmonics, not a trace of the door)
+## Mechanism
+
+**2026-11-20 — the mechanism below is not what happened** (two
+designers, independently, then this lane's replay). All three recorded
+draws (cases 281, 41, 193) are ellipses the fuzz row built with a
+NEGATIVE major semi-axis (`let major = if i % 4 == 1 { -big } else { big };`
+through the unchecked `Ellipse::new`), outside the `Ellipse` contract.
+`Ellipse::semi_axes_by_size` took a signed max/min, so on the pinned
+case `speed_hi()` read the minor axis, 0.000468, instead of 0.00264,
+and `speed_lo` read −0.00264. The first-harmonic arm's slack,
+`speed·(noise + A₂)/√(−lo·hi)`, then came to 8.4e-7, inside the 1e-6
+band; at the true speed it is 4.7e-6 and the door refuses
+(`Unsettled::Meter`). The in-contract twin of the same ellipse (positive
+semi-axes, the frame turned over, the same point at every θ) is refused
+on its first-harmonic root slack, and the pinned row now says so
+(`the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack`).
+
+The fix makes a negative semi-axis or radius unrepresentable (private
+fields, constructors that panic on a non-finite or definitely negative
+size), floors `speed_lo` at zero and holds `speed_hi` above the smaller
+semi-axis's negation, and has the fuzz row draw positive semi-axes with
+the other sense through the frame. Replayed at `CAD_FUZZ_EFFORT=1`, ε
+1e-6 and 1e-12, the three recorded seeds and three fresh ones pass. The
+first-harmonic arm's handling of the dropped harmonic is a separate
+question, weighed on
+`conic-quadric-first-harmonic-arm-refuses-crossings-the-ladder-places`.
+
+### As first stated (2026-11-15; likely; the reviewer's check of the harmonics, not a trace of the door)
 
 The residual round the turn carries a first and a second harmonic. Here
 the second's amplitude, `A2 = 4.37e-7`, sits inside the 1e-6 zero band,

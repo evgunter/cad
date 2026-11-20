@@ -612,26 +612,32 @@ pub(super) fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: pc, .. },
-        radius: pr,
-    }) = *first_trim
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: geom::Frame { origin: pc, .. },
+            ..
+        },
+    ) = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: sc, .. },
-        radius: sr,
-    }) = *other_trim
+    let pr = conic_k.radius();
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: geom::Frame { origin: sc, .. },
+            ..
+        },
+    ) = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let sr = conic_k.radius();
     Ok(((pc, pr), (sc, sr)))
 }
 

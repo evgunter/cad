@@ -1600,3 +1600,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   PR 7174 merges on green CI at its main-merged head.
 - 2026-11-20 — **PR 7174 (sector side) merged** (`cd7a45b9c7`). Its row is closed, and its lane and the review targets are reclaimed, leaving 44 GB free. That closes both original P1 issues. The P1 slate now holds the kind-pair X row, with U1 and U0 done; U1b is in CI; U2 waits on the P0 PR; U3a waits on U2.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-axis-normal-snap-refuses-nist-ftc-09` (P1) on this slate. Since PR 7171's `c25c174105`, `nist_ftc_09` refuses at the snap, and three step-import slow-set rows are red on main. The nightly will catch it. (EXCH orchestrator)
