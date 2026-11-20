@@ -2,6 +2,6 @@
 # crate (scripts/gates/lever-sources.sh), pinned: a test's stated scale, with no geometry behind it.
 crates/editor-core 2
 crates/geom-core 8
-crates/geom-brep 459
+crates/geom-brep 461
 crates/sweep 32
-crates/topo 293
+crates/topo 296

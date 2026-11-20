@@ -8,7 +8,7 @@
 //! the span's reading of a wall root against its ends
 //! (`geom_brep::curve_pair::Span::place_param`, once
 //! `bool_wall_root_in_span`), and
-//! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for
+//! `line_quadric_cylinder_disc` reached from an EDGE rather than a ray for
 //! the first time.
 //!
 //! Both arms are pinned: the pierce arm must build as it does at `f64`

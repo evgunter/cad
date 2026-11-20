@@ -506,7 +506,7 @@ fn roots_off_the_faces_window_and_nappe_are_not_its_crossings() {
 /// **An edge ending at the apex** meets the cone at that end alone: the
 /// brick's corner sits at the full cone's apex, so three of its edges
 /// leave the apex, each a double root at its end
-/// (`boolean::reduce::line_cone_roots`). The corner is the vertex
+/// (`geom_brep::curve_face::line_quadric::line_cone_roots`). The corner is the vertex
 /// pair's to read, and the sweep splits neither body there: the brick
 /// gains no vertex, in either order.
 #[test]

@@ -49,7 +49,9 @@ use crate::pose::PoseValue;
 /// evaluation asks, a dual for a seed run, an interval for a box run.
 /// Every branch inside the solve is a named predicate decided at this
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
-/// never decides one; an interval definitely or by escalating).
+/// never decides one; an interval definitely or by escalating), but one:
+/// the spin's cut side (`box_atan2`), a renaming between names of one
+/// angle, taken at the least band outside the log (F31).
 ///
 /// What a scalar answers here beyond deciding is per scalar. No pose
 /// value is derived from [`Self::quoted`] or [`Self::upper`]. `quoted`
@@ -78,26 +80,15 @@ pub trait SolveScalar: Decide {
     /// refusals.
     fn upper(self) -> f64;
 
-    /// **The solve's two-argument arctangent** — the angle the coset
-    /// fold solves for where two rotation constraints meet, read only
-    /// through its sine and cosine, and asked only of two radii decided
-    /// nonzero, never at the origin. At `f64` the platform's `atan2`,
-    /// the one the nominal solve has always read; a dual's value
-    /// channel reads that same one, so its value is the `f64` lane's
-    /// bits and its tangent is the dual's own; an interval's is an
-    /// enclosure on a branch its arguments do not cross.
+    /// **The solve's two-argument arctangent**: the angle a spin chart
+    /// reads off the copy's turn about the target's direction. A box
+    /// scalar and a scalar recording its expression read the angle
+    /// window's read (`box_atan2`), whose one jump is that window's cut
+    /// at a generic angle. `f64` and `Probe` read the platform's `atan2`,
+    /// the one the nominal solve has always read. A dual reads its value
+    /// channel's lane, so its value is that lane's and its tangent is the
+    /// dual's own.
     fn solve_atan2(y: Self, x: Self) -> Self;
-
-    /// **Which branch [`Self::solve_atan2`] reads `y` over `x` on** — the
-    /// principal branch, but for a box scalar: an exact zero `y` over a
-    /// positive `x` is the angle zero, and across the negative `x` axis
-    /// the branch about `π`, where the principal cut would widen the
-    /// enclosure to the whole circle. A scalar recording its expression
-    /// over a lane scalar reads the lane's branch, so its angle is the
-    /// lane's on the same branch.
-    fn atan2_branch(_y: Self, _x: Self) -> Atan2Branch {
-        Atan2Branch::Principal
-    }
 
     /// Whether a value's spin sets the map's turn from the two charts'
     /// frames ([`super::value`]) rather than turning the folded map by
@@ -117,15 +108,45 @@ pub trait SolveScalar: Decide {
     }
 }
 
-/// **The branch an angle is read on** ([`SolveScalar::atan2_branch`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Atan2Branch {
-    /// The angle zero exactly: a zero `y` over a positive `x`.
-    Zero,
-    /// The branch about `π`: `y` spanning zero over a negative `x`.
-    AboutPi,
-    /// The principal branch.
-    Principal,
+/// **The spin angle of `(x, y)` at a box scalar, or one recording its
+/// expression**: the angle window's read ([`geom::Azimuth::principal_as`]),
+/// whose one jump is the window's cut at a generic angle, so a direction
+/// near the negative `x` axis reads one formula on both sides of it and
+/// its enclosure stays narrow.
+///
+/// **The spin is read only through its sine and cosine** (`turn_to`, the
+/// one reader at these scalars), which the two formulas enclose alike, so
+/// the cut side is a renaming between names of one angle: decided at
+/// `Band::least` outside the log, as `Azimuth::near`'s is (F31). This is
+/// the invariant's one home; the predicate audit's F31 entry and the
+/// trait's header point here.
+///
+/// A point direction reads its angle however small its length, as
+/// `Azimuth::near` reads one: an exact zero one names every angle alike and
+/// reads `0`, the chart's `u_ref`, as `atan2(0, 0)` does at `f64`, and one
+/// whose squares underflow reads near the window's centre
+/// ([`geom::Azimuth::near`]), the window's read. An enclosure that
+/// may reach zero length may hold any angle, so it reads the whole window,
+/// `[−1, τ − 1]`, which holds a copy of every angle, never the zero a
+/// chart reads at its pole; no decision is asked of it. An exact zero `y`
+/// over a positive `x` reads the exact zero, where the backend's `atan2`
+/// gives subnormal dust, so `turn_to` undoes it as nothing.
+pub(crate) fn box_atan2<T: SolveScalar>(y: T, x: T) -> T {
+    if y.exactly_zero() && x.structure_positive() {
+        return T::zero();
+    }
+    let azimuth = geom::Azimuth::of(y, x);
+    if !geom_core::structure_nonzero(azimuth.length()) {
+        let window = geom::Window::Angle;
+        return match (y.point_value(), x.point_value()) {
+            (Some(a), Some(b)) if a == 0.0 && b == 0.0 => T::zero(),
+            (Some(_), Some(_)) => azimuth.near(window.centre()),
+            _ => window.start::<T>().enclosure_hull(window.end()),
+        };
+    }
+    geom_core::k_stats::unlogged("F31", || {
+        azimuth.principal_as("mate_spin_cut_side", geom_core::predicate::Band::least())
+    })
 }
 
 impl SolveScalar for f64 {
@@ -137,6 +158,8 @@ impl SolveScalar for f64 {
         self
     }
 
+    /// The platform's `atan2`, not `Real`'s (MSOLVE's
+    /// `the-mate-solve-reads-the-platform-atan2`).
     fn solve_atan2(y: f64, x: f64) -> f64 {
         f64::atan2(y, x)
     }
@@ -1643,33 +1666,130 @@ mod tests {
         );
     }
 
-    /// **The symbolic tier reads an angle on its lane's branch**: `y`
-    /// spanning zero over a negative `x`, at `Sym<Interval>`, is the
-    /// angle about `π` the `Interval` lane reads, an enclosure a few
-    /// ulps wide, not the whole circle the principal branch's cut gives;
-    /// and an exact zero over a positive `x` is the angle zero on both.
+    /// **A box lane's spin reads one formula across the negative `x`
+    /// axis, and every read holds its true angle**: a direction over
+    /// `x < 0` moved across `y = 0` (a point above, on and below it, and
+    /// an enclosure spanning it) reads `π + atan2(−y, −x)` at every step,
+    /// bit for bit, at `Interval` and at `Sym<Interval>` alike, a few ulps
+    /// about `π`, never a turn away. The one jump is the angle window's
+    /// cut, at the generic angle `−1`, where a direction spanning it still
+    /// reads narrow. A direction whose enclosure reaches zero length reads
+    /// the whole window, which holds every angle (a pole's `0` would read
+    /// as an exactly zero spin, which `turn_to` undoes as nothing); an
+    /// exact zero over a positive `x` alone reads the exact zero.
     ///
-    /// *Breaks if* `Sym`'s `solve_atan2` reads the plain `atan2`.
+    /// *Breaks if* the read picks its formula by the sign of `y` there (a
+    /// point below the axis reads `−π`), if `Sym`'s spin reads the plain
+    /// `atan2` (the spanning enclosure reads the whole circle), or if a
+    /// zero-reaching direction reads a narrow angle.
     #[test]
-    fn the_symbolic_tier_reads_an_angle_on_its_lanes_branch() {
+    fn a_box_spin_reads_one_formula_across_the_negative_x_axis() {
+        use crate::mate::SolveScalar;
+        use geom_core::{Bounds, Interval, Real, Sym};
+        use std::f64::consts::{PI, TAU};
+        let at = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let bounds = |v: Interval| (v.lo(), v.hi());
+        let reads = |y: Interval, x: Interval| {
+            let lane = <Interval as SolveScalar>::solve_atan2(y, x);
+            let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
+            [lane, sym.value]
+        };
+        // `angle` or a copy of it a whole turn away lies in `read`.
+        let holds = |read: Interval, angle: f64| {
+            [-TAU, 0.0, TAU]
+                .iter()
+                .any(|k| read.lo() <= angle + k && angle + k <= read.hi())
+        };
+        let x = at(-1.0, -0.9);
+        let d = 1e-3;
+        for (what, y, inside) in [
+            ("above", at(d, d), d),
+            ("on", at(0.0, 0.0), 0.0),
+            ("below", at(-d, -d), -d),
+            ("spanning", at(-d, d), 0.0),
+        ] {
+            let turned = Interval::pi() + (-y).atan2(-x);
+            for read in reads(y, x) {
+                assert_eq!(bounds(read), bounds(turned), "{what}: one formula");
+                assert!(
+                    (read.lo() - PI).abs() < 0.2 && (read.hi() - PI).abs() < 0.2,
+                    "{what}: about π, {read:?}"
+                );
+                assert!(holds(read, inside.atan2(-0.95)), "{what}: holds, {read:?}");
+            }
+        }
+        let (s, c) = (-1.0f64).sin_cos();
+        for read in reads(at(s - d, s + d), at(c - d, c + d)) {
+            assert!(
+                read.hi() - read.lo() < 0.01,
+                "on the window's cut: {read:?}"
+            );
+            assert!(holds(read, -1.0), "on the window's cut holds −1: {read:?}");
+        }
+        for read in reads(at(0.0, 0.0), at(1.0, 2.0)) {
+            assert_eq!(bounds(read), (0.0, 0.0), "zero over a positive x");
+        }
+        for (what, y, x, angles) in [
+            (
+                "reaching zero",
+                at(-0.1, 1.0),
+                at(-0.13, 1.0),
+                vec![1.0f64.atan2(-0.13)],
+            ),
+            (
+                "on the x axis through zero",
+                at(0.0, 0.0),
+                at(-1.0, 1.0),
+                vec![0.0, PI],
+            ),
+            (
+                "about zero",
+                at(-0.5, 0.5),
+                at(-0.5, 0.5),
+                vec![0.0, 1.7, PI, -2.0],
+            ),
+        ] {
+            for read in reads(y, x) {
+                assert!(
+                    read.hi() - read.lo() >= TAU,
+                    "{what}: the whole window, {read:?}"
+                );
+                for angle in &angles {
+                    assert!(holds(read, *angle), "{what}: holds {angle}, {read:?}");
+                }
+            }
+        }
+    }
+
+    /// **A point direction reads its angle however small its length**,
+    /// at `Sym<f64>` as the `f64` lane reads it: one whose squares
+    /// underflow reads its angle (`π/2` for `(1e-300, 0)`), never NaN or the
+    /// pole's `0`, and an exact zero, which names every angle, reads `0` as
+    /// `atan2(0, 0)` does. At `Interval` a point whose squares underflow
+    /// reads a narrow angle.
+    ///
+    /// *Breaks if* a point of no structural length reads the window's hull,
+    /// which is poison at a point scalar, or a pole's `0`.
+    #[test]
+    fn a_point_direction_reads_its_angle_however_small_its_length() {
         use crate::mate::SolveScalar;
         use geom_core::{Bounds, Interval, Sym};
-        let (y, x) = (
-            Interval::from_bounds(-1e-3, 1e-3),
-            Interval::from_bounds(-1.0, -0.9),
+        let zero = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(0.0), Sym::opaque(-0.0));
+        assert_eq!(zero.value, 0.0, "an exact zero reads u_ref");
+        for (y, x) in [(0.0, 0.0), (1e-300, 0.0), (0.0, -1e-300)] {
+            let sym = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value;
+            let lane = <f64 as SolveScalar>::solve_atan2(y, x);
+            assert!(sym.is_finite(), "({y}, {x}): {sym}");
+            assert_eq!(sym.to_bits(), lane.to_bits(), "({y}, {x}): the f64 lane's");
+        }
+        let read = <Interval as SolveScalar>::solve_atan2(
+            Interval::from_bounds(1e-300, 1e-300),
+            Interval::from_bounds(0.0, 0.0),
         );
-        let lane = <Interval as SolveScalar>::solve_atan2(y, x);
-        let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
-        assert_eq!(
-            (sym.value.lo(), sym.value.hi()),
-            (lane.lo(), lane.hi()),
-            "the lane's branch"
+        let half = std::f64::consts::FRAC_PI_2;
+        assert!(
+            read.lo() <= half && half <= read.hi() && read.hi() - read.lo() < 1e-9,
+            "an underflowing point at Interval: {read:?}"
         );
-        assert!(sym.value.hi() - sym.value.lo() < 0.01, "{:?}", sym.value);
-        let zero = <Sym<Interval> as SolveScalar>::solve_atan2(
-            Sym::opaque(Interval::from_bounds(0.0, 0.0)),
-            Sym::opaque(Interval::from_bounds(1.0, 2.0)),
-        );
-        assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
     }
 }

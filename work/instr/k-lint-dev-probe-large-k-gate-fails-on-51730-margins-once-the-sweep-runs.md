@@ -40,7 +40,7 @@ advisory flags.
 | 1e-6 | `demo/lily_walls:curve_pair_walk_foot_piece` | 3312 |
 | 1e-6 | `demo/lily_walls:curve_pair_walk_clear` | 347 |
 | 1e-6 | `demo/lily_walls:curve_pair_walk_piece` | 15 |
-| 1e-6 | `demo/lily_walls:bool_ray_torus_disc` / `demo/lily:bool_ray_torus_disc` | 14 / 4 |
+| 1e-6 | `demo/lily_walls:line_quadric_torus_disc` / `demo/lily:line_quadric_torus_disc` | 14 / 4 |
 | 1e-6 | `demo/lily_walls:nurbs_pair_transversality` | 1 |
 | 1e-9 | `demo/lily_walls:curve_pair_walk_foot_clear` | 9349 |
 | 1e-9 | `demo/lily_walls:curve_pair_walk_foot_piece` | 5181 |
@@ -165,7 +165,7 @@ was re-implemented. They fall into three populations:
 |---|---|--:|--:|--:|
 | A: ε-coupled pads, \|m\| = Kε, 2Kε or 24·ε | `bool_pair_gap`, `curve_pair_pose_{clear,parallel,tilt}` | 279 / 1164 | 318 / 1125 | 703 |
 | B: refinement walks, \|m\| from ε to 3.9e-5 | `curve_pair_walk_foot_{clear,piece}`, `bool_spline_region_carrier` | 1862 / 754 | 1512 / 2118 | — |
-| C: lily fine features, 3 µm to 38 µm, ε-independent except `bool_ray_torus_disc` | `plane_crossing_belly_graze`, `link_wedge`, `tangent_sector_order2`, `bool_conic_quadric_sub_clear`, `bool_ray_torus_disc` | 26 / 74 | 0 / 98 | — |
+| C: lily fine features, 3 µm to 38 µm, ε-independent except `line_quadric_torus_disc` | `plane_crossing_belly_graze`, `link_wedge`, `tangent_sector_order2`, `bool_conic_quadric_sub_clear`, `line_quadric_torus_disc` | 26 / 74 | 0 / 98 | — |
 
 The r2·3 columns count flags. At 1e-9 rule 2 is 2565 and rule 3 is
 3341; elsewhere the two are equal. The lily is not recorded at 1e-12.
