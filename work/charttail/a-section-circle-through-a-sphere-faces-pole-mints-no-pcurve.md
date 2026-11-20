@@ -2,11 +2,12 @@
 id: a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve
 kind: issue
 title: A Boolean section circle through a sphere face's pole mints no pcurve (NoGeneralLane, an azimuth gap), with or without a wrap tip at the pole
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P1
 cost: H
 branch: charttail/pole-section
+pr: 7180
 ---
 
 Found by `splitdoor/wrap-tip-boolean` while pinning the wrap tip in the

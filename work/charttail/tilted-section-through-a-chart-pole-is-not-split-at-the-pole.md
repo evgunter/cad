@@ -8,6 +8,7 @@ priority: P2
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity, tilted-section-near-a-chart-pole-refuses-arc-near-pole]
 rides_with: a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve
+pr: 7180
 ---
 
 
