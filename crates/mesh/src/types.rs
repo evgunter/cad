@@ -644,6 +644,20 @@ pub enum TessellateError {
         /// What the arm cannot mesh.
         cause: SphereTrimCause,
     },
+    /// A loop shaped as the wrap strip, one edge's two halves pole to
+    /// pole and back (an empty chart image whose two tips lie on two
+    /// distinct singular points), whose stored lift does not move its far
+    /// half exactly one whole turn of the azimuth from its near half
+    /// (`walk::wrap_strip`). The turn round a singular point is the
+    /// joint's stored element there, so a lift that disagrees with the
+    /// loop's shape is a defect of the body's rows. No door mints one.
+    WrapStripTurn {
+        /// The refused face.
+        face: FaceKey,
+        /// The far half's lift relative to the near half's, or `None`
+        /// where the face's lift holds no row for one of the two.
+        turn: Option<topo::Deck>,
+    },
 }
 
 /// Why the trimmed lane refuses a face's shape about a singular row of
@@ -1051,6 +1065,34 @@ impl TessellateError {
                     f,
                     "tessellate: a trimmed face is outside the shapes the trimmed lane \
                      meshes about its chart's poles and apexes — {what}",
+                )
+            }
+            Self::WrapStripTurn { turn, .. } => {
+                write!(
+                    f,
+                    "tessellate: a face's loop walks one edge from pole to pole and \
+                     back, but its stored lift does not turn the face one whole turn \
+                     round the far pole: "
+                )?;
+                match turn {
+                    Some(deck) => write!(
+                        f,
+                        "it moves the far half {} whole turns of the azimuth and {} of \
+                         the second channel{}",
+                        deck.u,
+                        deck.v,
+                        if deck.twin {
+                            ", onto the chart's twin"
+                        } else {
+                            ""
+                        }
+                    )?,
+                    None => write!(f, "it holds no row for one of the edge's two halves")?,
+                }
+                write!(
+                    f,
+                    ". The body's chart rows contradict its loop; re-mint them \
+                     (`topo::mint_pcurves`)"
                 )
             }
         }

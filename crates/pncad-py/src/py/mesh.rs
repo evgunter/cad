@@ -195,7 +195,8 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::PinchWedge { .. }
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
-        | T::BoundaryEar { .. } => Ok(()),
+        | T::BoundaryEar { .. }
+        | T::WrapStripTurn { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

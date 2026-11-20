@@ -1014,7 +1014,7 @@ fn tessellate_impl(
 /// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
 /// `a_slit_between_the_tips_is_not_the_strip`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip
-/// (`a_split_wrap_edge_is_one_strip`). A walk that put the strip's two
+/// (`a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on`). A walk that put the strip's two
 /// sides on one column again is what this census would catch.
 ///
 /// **The route is documented, not demonstrated, and the difference is

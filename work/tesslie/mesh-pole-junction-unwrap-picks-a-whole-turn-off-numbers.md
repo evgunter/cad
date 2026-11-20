@@ -4,7 +4,7 @@ kind: issue
 title: the mesh walk's pole-junction unwrap picks a branch off numbers, unswept against the same-edge rule
 status: open
 opened: 2026-10-14
-priority: P3
+priority: P1
 cost: M
 refs: [the-period-jump-has-no-ruling]
 ---
@@ -59,3 +59,7 @@ curved lane's own walk, beside the stored element. Reading the
 junction off `Body::loop_lift` there would retire it.
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+## Re-banded P1 (2026-11-20, PR 7202 review)
+
+A second derivation of a whole-turn branch the stored lift already holds, the reason `singular-turn-spells-the-chart-winding-rule-by-hand` stayed P1, and against the ruling on `the-period-jump-has-no-ruling` (PR 4975) that a whole turn is never read off numbers.

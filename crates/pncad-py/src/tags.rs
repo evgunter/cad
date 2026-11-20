@@ -2525,6 +2525,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
         TessellateError::BoundaryEar { .. } => "boundary_ear",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
+        TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
 }
 

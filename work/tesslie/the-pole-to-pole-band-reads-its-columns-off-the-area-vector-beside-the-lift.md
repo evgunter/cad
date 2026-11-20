@@ -4,7 +4,7 @@ kind: issue
 title: the walk's pole-to-pole band places its columns off the loop's area vector beside the stored lift
 status: open
 opened: 2026-11-20
-priority: P3
+priority: P1
 cost: M
 refs: [singular-turn-spells-the-chart-winding-rule-by-hand, mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers]
 ---
@@ -39,3 +39,7 @@ with no lift then refuses `DomainUnread` as the strip and the trimmed
 lane do.
 
 
+
+## Re-banded P1 (2026-11-20, PR 7202 review)
+
+A second derivation of a whole-turn branch the stored lift already holds, the reason `singular-turn-spells-the-chart-winding-rule-by-hand` stayed P1, and against the ruling on `the-period-jump-has-no-ruling` (PR 4975) that a whole turn is never read off numbers.

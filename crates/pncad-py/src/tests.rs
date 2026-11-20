@@ -6122,6 +6122,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+            "wrap_strip_turn",
         ],
         delegates: &[],
     },

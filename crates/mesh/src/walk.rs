@@ -973,21 +973,23 @@ struct WrapStrip {
 /// stored element there (`topo::pcurves`' singular turn: the walk leaves
 /// along the edge it arrived on, a whole turn on the face's side). The
 /// period is that move less the near half's. No height, side or area is
-/// read here. A lift that does not move the far half one whole turn of
-/// the azimuth, and by nothing else, is not the strip's.
+/// read here. The loop's shape is the strip's, so a lift that does not
+/// move the far half one whole turn of the azimuth, and by nothing else,
+/// contradicts it.
 ///
 /// # Errors
 ///
 /// [`TessellateError::MissingEntity`] where a key on the loop's walk does
-/// not resolve, and [`TessellateError::DomainUnread`] where the loop stores
-/// no lift.
+/// not resolve; the face's domain read's refusal
+/// ([`crate::trimmed::face_domain`]: [`TessellateError::DomainUnread`]
+/// where the loop stores no lift); and [`TessellateError::WrapStripTurn`]
+/// where the strip's lift is not one whole turn.
 fn wrap_strip(
     body: &Body<f64>,
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
     face: FaceKey,
-    lk: LoopKey,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -1017,15 +1019,12 @@ fn wrap_strip(
         t if t == b => a,
         _ => return Ok(None),
     };
-    let lift = body
-        .loop_lift(lk)
-        .map_err(|gap| TessellateError::DomainUnread {
-            face,
-            cause: Box::new(topo::pcurves::RingPlacementError::Gap(gap)),
-        })?;
-    let moved = |half_edge: HalfEdgeKey| {
-        lift.rows()
-            .iter()
+    // The face's domain as the trimmed lane reads it, so a loop with no
+    // lift refuses here as it does there.
+    let domain = crate::trimmed::face_domain(body, face, band)?;
+    let row = |half_edge: HalfEdgeKey| {
+        crate::trimmed::every_loop(&domain)
+            .flat_map(|lift| lift.rows())
             .find(|row| row.half_edge == half_edge)
             .map(|row| row.lift)
     };
@@ -1033,12 +1032,13 @@ fn wrap_strip(
         .iter()
         .find(|t| t.start == far_tip)
         .map(|t| t.half_edge);
-    let (Some(near), Some(far)) = (moved(travs[0].half_edge), far_half.and_then(moved)) else {
-        return Ok(None);
+    let refused = |turn| TessellateError::WrapStripTurn { face, turn };
+    let (Some(near), Some(far)) = (row(travs[0].half_edge), far_half.and_then(row)) else {
+        return Err(refused(None));
     };
     let turn = far.compose(near.inverse());
     if turn.twin || turn.v != 0 || turn.u.abs() != 1 {
-        return Ok(None);
+        return Err(refused(Some(turn)));
     }
     Ok(Some(WrapStrip {
         period: f64::from(turn.u) * Period::<f64>::angle().length(),
@@ -1165,7 +1165,7 @@ pub(crate) fn loop_polygon(
     let sense = face_record.sense;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(body, &travs, &poles, band, face, lk)?
+        wrap_strip(body, &travs, &poles, band, face)?
     } else {
         None
     };
