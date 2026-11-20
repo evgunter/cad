@@ -4810,6 +4810,33 @@ impl BooleanError {
         }
     }
 
+    /// The line × quadric door's refusal
+    /// ([`geom_brep::curve_face::line_quadric::LineQuadricRefusal`]), its
+    /// in-band sign an escalation as the refusing arm's decision: the
+    /// wall's rung, the sphere's, the torus's or the cone's roots.
+    pub(in crate::boolean) fn of_line_quadric_refusal(
+        refusal: geom_brep::curve_face::line_quadric::LineQuadricRefusal,
+    ) -> Self {
+        use geom_brep::curve_face::line_quadric::LineQuadricRefusal;
+        match refusal {
+            LineQuadricRefusal::Wall(fault) => Self::Escalated {
+                decision: BooleanDecision::WallRoots(fault.rung),
+                diag: fault.diag,
+            },
+            LineQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::SphereRoots,
+                diag,
+            },
+            LineQuadricRefusal::Torus(refusal) => {
+                Self::of_door_refusal(BooleanDecision::TorusRoots)(refusal)
+            }
+            LineQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ConeRoots,
+                diag,
+            },
+        }
+    }
+
     /// A conic × torus root door's refusal at the torus face `at`: the
     /// torus outside the ring convention at its face
     /// ([`Self::of_torus_refusal`]), every other refusal as
