@@ -2504,3 +2504,249 @@ mod r2_delta {
         }
     }
 }
+
+/// Review probes (exch-b2-rev1), not for merge.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+mod rev1_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS_IN: f64 = 1e-9;
+
+    fn arc_chain(radius: f64, angles: &[f64]) -> NurbsCurve3<f64> {
+        let spans = angles.len() - 1;
+        let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
+        let mut control = vec![on(angles[0])];
+        let mut weights = vec![1.0];
+        for k in 0..spans {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let c = ((b - a) / 2.0).cos();
+            let mid = (a + b) / 2.0;
+            control.push(Point3::new(
+                radius / c * mid.cos(),
+                radius / c * mid.sin(),
+                0.0,
+            ));
+            weights.push(c);
+            control.push(on(b));
+            weights.push(1.0);
+        }
+        let mut flat = vec![0.0; 3];
+        for k in 1..spans {
+            #[allow(clippy::cast_precision_loss)]
+            let v = k as f64;
+            flat.push(v);
+            flat.push(v);
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let end = spans as f64;
+        flat.extend([end; 3]);
+        NurbsCurve3::new(KnotVector::clamped(flat, 2).unwrap(), control, weights).unwrap()
+    }
+
+    /// P1: an open carrier that doubles back INSIDE its arc promotes —
+    /// "covers ... once" is not what is certified.
+    #[test]
+    fn p1_doubling_back_inside_the_arc_promotes() {
+        let d = f64::to_radians;
+        let c = arc_chain(
+            0.005,
+            &[d(0.0), d(100.0), d(200.0), d(150.0), d(270.0), d(300.0)],
+        );
+        let r = recognize(&c, crate::interpret::FileBand::test(EPS_IN));
+        println!("P1 {r:?}");
+        let CurveRecognition::Promoted {
+            covers: Some((a, b)),
+            ..
+        } = r
+        else {
+            panic!("P1: expected promotion, got {r:?}");
+        };
+        println!("P1 covers {a} .. {} deg", b.to_degrees());
+    }
+
+    /// P2: an open arc whose carrier runs past its end by ~0.9 ε_in
+    /// promotes with a residual (to the CIRCLE) near zero: the overrun past
+    /// the arc is not in the reported residual (the line limb folds it in).
+    #[test]
+    fn p2_arc_overrun_is_not_in_the_residual() {
+        let d = f64::to_radians;
+        let r0 = 0.005;
+        let x = 0.9 * EPS_IN / r0;
+        let c = arc_chain(r0, &[d(0.0), d(100.0), d(200.0) + x, d(200.0)]);
+        let r = recognize(&c, crate::interpret::FileBand::test(EPS_IN));
+        let CurveRecognition::Promoted {
+            residual,
+            covers: Some((_, b)),
+            ..
+        } = r
+        else {
+            panic!("P2: expected promotion, got {r:?}");
+        };
+        // The carrier reaches azimuth 200° + x; the arc ends at b.
+        let reach = (d(200.0) + x - b) * r0;
+        println!("P2 residual {residual:e}, overrun past the arc {reach:e}");
+        assert!(reach > 100.0 * residual);
+    }
+
+    /// P3: a rational straight carrier with an interior control that
+    /// overshoots the end by 0.5 ε promotes, residual folds overshoot.
+    #[test]
+    fn p3_rational_line_overshoot() {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let c = NurbsCurve3::new(
+            k,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.01 + 0.5e-9, 0.0, 0.0),
+                Point3::new(0.01, 0.0, 0.0),
+            ],
+            vec![1.0, 3.0, 1.0],
+        )
+        .unwrap();
+        let r = recognize(&c, crate::interpret::FileBand::test(EPS_IN));
+        println!("P3 {r:?}");
+        let ov = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.01 + 5e-9, 0.0, 0.0),
+                Point3::new(0.01, 0.0, 0.0),
+            ],
+            vec![1.0, 3.0, 1.0],
+        )
+        .unwrap();
+        for (mid, w) in [
+            (0.005, 1.0),
+            (0.005, 3.0),
+            (0.01 + 0.5e-9, 1.0),
+            (0.004, 1.0),
+        ] {
+            let c = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(mid, 0.0, 0.0),
+                    Point3::new(0.01, 0.0, 0.0),
+                ],
+                vec![1.0, w, 1.0],
+            )
+            .unwrap();
+            println!(
+                "P3v mid {mid} w {w}: {:?} line {:?}",
+                recognize(&c, crate::interpret::FileBand::test(EPS_IN)),
+                try_line(&c, crate::interpret::FileBand::test(EPS_IN))
+            );
+        }
+        let r2 = recognize(&ov, crate::interpret::FileBand::test(EPS_IN));
+        println!("P3b {r2:?}");
+        assert!(!matches!(r2, CurveRecognition::Promoted { .. }));
+    }
+
+    /// P4: a closed carrier that doubles back inside its turn (0→200→100→360)
+    /// promotes as the full circle.
+    #[test]
+    fn p4_closed_with_backtrack() {
+        let d = f64::to_radians;
+        let c = arc_chain(
+            0.005,
+            &[d(0.0), d(120.0), d(200.0), d(100.0), d(230.0), d(360.0)],
+        );
+        let r = recognize(&c, crate::interpret::FileBand::test(EPS_IN));
+        println!("P4 {r:?}");
+    }
+
+    /// P5: a near-full open arc and trims across its gap.
+    #[test]
+    fn p5_trim_branches() {
+        let d = f64::to_radians;
+        let c = arc_chain(0.005, &[d(0.0), d(120.0), d(240.0), d(350.0)]);
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        let CurveRecognition::Promoted {
+            curve,
+            covers: Some(cov),
+            ..
+        } = recognize(&c, band)
+        else {
+            panic!("P5 promote");
+        };
+        let on = |t: f64| Point3::new(0.005 * t.cos(), 0.005 * t.sin(), 0.0);
+        let trim = |p, q| {
+            let i = crate::geometry::endpoint_params(1, &curve, p, q, false).unwrap();
+            (
+                i,
+                crate::geometry::trim_within(1, &curve, i, cov, band).is_ok(),
+            )
+        };
+        for (a, b) in [
+            (0.0, 350.0),
+            (1e-12, 350.0),
+            (-1e-12, 350.0),
+            (340.0, 10.0),
+            (355.0, 5.0),
+            (10.0, 355.0),
+            (200.0, 100.0),
+        ] {
+            println!("P5 {a}->{b}: {:?}", trim(on(d(a)), on(d(b))));
+        }
+        // self loop on an open arc
+        let i = crate::geometry::endpoint_params(1, &curve, on(0.0), on(0.0), true).unwrap();
+        println!(
+            "P5 self-loop: {:?}",
+            crate::geometry::trim_within(1, &curve, i, cov, band).is_ok()
+        );
+        assert!(crate::geometry::trim_within(1, &curve, i, cov, band).is_err());
+        assert!(!trim(on(d(355.0)), on(d(5.0))).1);
+        assert!(!trim(on(d(200.0)), on(d(100.0))).1);
+    }
+
+    /// P6: straight_map on a degree-elevated straight carrier with a weight
+    /// that is constant but not 1 — and a line with Greville-reordered
+    /// controls of non-uniform knots.
+    #[test]
+    fn p6_straight_map_uneven_knots() {
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        // Non-uniform knots, controls at their Greville positions: affine.
+        let flat = vec![0.0, 0.0, 0.0, 0.1, 0.7, 1.0, 1.0, 1.0];
+        let k = KnotVector::clamped(flat.clone(), 2).unwrap();
+        let gre: Vec<f64> = (0..5).map(|i| (flat[i + 1] + flat[i + 2]) / 2.0).collect();
+        let ctl: Vec<_> = gre
+            .iter()
+            .map(|g| Point3::new(0.02 * g, 0.0, 0.0))
+            .collect();
+        let c = NurbsCurve3::new(k.clone(), ctl, vec![2.0; 5]).unwrap();
+        let m = straight_map(&c, band);
+        println!("P6 greville {m:?}");
+        assert!(m.is_some());
+        // Same locus, uniform-spaced controls: re-timed.
+        let ctl2: Vec<_> = (0..5)
+            .map(|i| Point3::new(0.02 * f64::from(i) / 4.0, 0.0, 0.0))
+            .collect();
+        let c2 = NurbsCurve3::new(k, ctl2, vec![1.0; 5]).unwrap();
+        let m2 = straight_map(&c2, band);
+        println!("P6 retimed {m2:?}");
+        assert!(m2.is_none());
+        // Max true deviation by dense sampling vs the hull on a mildly retimed one.
+        let flat3 = vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0];
+        let k3 = KnotVector::clamped(flat3, 2).unwrap();
+        let ctl3 = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0025 + 3e-10, 0.0, 0.0),
+            Point3::new(0.0075 - 4e-10, 0.0, 0.0),
+            Point3::new(0.01, 0.0, 0.0),
+        ];
+        let c3 = NurbsCurve3::new(k3, ctl3, vec![1.0; 4]).unwrap();
+        let Some((_, hull)) = straight_map(&c3, band) else {
+            panic!("P6c")
+        };
+        let mut worst = 0.0f64;
+        for i in 0..=10000 {
+            let t = f64::from(i) / 10000.0;
+            let p = c3.eval(t);
+            worst = worst.max((p.x - 0.01 * t).abs());
+        }
+        println!("P6c hull {hull:e} sampled {worst:e}");
+        assert!(worst <= hull);
+    }
+}
