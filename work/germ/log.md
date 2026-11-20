@@ -1608,3 +1608,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - INSIDE's `ray-cone-discriminant-under-reads-by-its-lead-coefficient` is closed by it. The three GERM line × cone lever rows are not moved.
 
   Tier **single, FULL**: root arithmetic changes in both the edge sweep and point-in-solid. Reviewer dispatched with the gradient-factor removal as its first claim. State PR 7188 merged.
+- 2026-11-20 — **P0 PR 7183 green** at `59f329eac3`. Negative and non-finite conic sizes are unrepresentable, through private fields and checked constructors; certify's `SemiAxisNegative` and `SemiAxisNotFinite` retire. The constructor caught two real kernel defects:
+  - `sweep` `frustum_arm` let a signed trim radius carry a decision that `fillet3_face_clearance` later read back; the decision is now made before minting.
+  - `pcurve_cache::limb2_memo` built conics at bracket ends with NaN or negative sizes; it now renders datum by datum.
+
+  It also caught three test fixtures that drew out-of-contract circles. Six fuzz seeds pass at 1e-6 and 1e-12 with 0 misses. **Not done:** an audit of about 248 computed-size construction sites, filed as `conic-constructions-from-computed-sizes-unaudited`, which I band P1/H at merge. Each of those sites now panics where it stored a bad size, a fail-loud trade the nightly will test. Review tier **single, FULL**. The reviewer is told to sample 20+ unaudited sites for one reachable on ordinary geometry, and to try the sphere and wall doors for the P0's sibling.
