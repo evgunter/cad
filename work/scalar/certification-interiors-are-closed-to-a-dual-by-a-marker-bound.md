@@ -2,7 +2,7 @@
 id: certification-interiors-are-closed-to-a-dual-by-a-marker-bound
 kind: unit
 title: Certification interiors are closed to a dual by type: the Certifies marker bound, lanes declared over it, and the scope rule reworded
-status: spec
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: H
@@ -30,3 +30,7 @@ Which construction callers instantiate a certification-interior item at a dual t
 ## Decides
 
 Whether an interior that reads a bracket through a bound it inherits keeps its allowlisted compound beside `Certifies`. The name `Certifies` must not match the bracket gate's `…Bounds`/`…Enclosure` pattern.
+
+## Review
+
+Letter H, tier dual: a trait every certifying function will name, a change to what a gate checks, and a reworded rule; broad and hard to change later.

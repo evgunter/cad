@@ -29,3 +29,7 @@ A foot or root the body is built on: that is the solved-value question, open wit
 ## Decides
 
 The view's shape (borrowed where `Value = Self`). Whether `Sym` needs a computed place opaque inside the evaluator.
+
+## Review
+
+Letter H, tier dual: a new associated type on `Real` and a new evaluator surface, which every later place site will build on.

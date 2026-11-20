@@ -2,7 +2,7 @@
 id: a-bound-to-decide-against-never-becomes-a-t
 kind: unit
 title: A bound to decide against is decided at f64 or is an f64 allowance of the margin; it never becomes a T
-status: spec
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: H
@@ -31,3 +31,7 @@ Places, solved values, `f64`-built nets. `Certifies`.
 ## Decides
 
 The shape of the allowance term on `Margin` and `Lever`.
+
+## Review
+
+Letter H, tier single, FULL: about 42 decision sites move from `T` to `f64` arithmetic, and a verdict that changes at `Interval` or `Sym` cannot be believed by reading.
