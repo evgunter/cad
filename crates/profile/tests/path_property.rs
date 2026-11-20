@@ -1200,7 +1200,6 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let PathError::NoCornerOfPair { radius, .. } = &err else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
-    let radius = *radius;
     let Some((_, carrier_radius, offset_radius, largest_tangent_radius)) =
         crate::common::enclosing(&err)
     else {

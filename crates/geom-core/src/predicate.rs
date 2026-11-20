@@ -535,17 +535,19 @@ impl Band {
     /// floor rule for a point margin a decision passes on; readers that
     /// predict an ending ask this rather than restating the comparison.
     #[must_use]
+    ///
+    /// The value is the one the sentence names: the deciding tolerance
+    /// as an offered bound is told ([`Told::at_most`]), on the grid and
+    /// not above it, so every tolerance below the spelling decides the
+    /// margin, and above the least ε a run at this band's K admits, so
+    /// one below the spelling exists.
+    #[must_use]
     pub fn offer_deciding(self, margin: f64) -> Option<f64> {
-        above_floor(self.tolerance_deciding(margin), self.escalate / self.zero)
-    }
-
-    /// **A tolerance a recourse offers to tighten below**, as it is told:
-    /// spelled not above `bound`, so every tolerance below the spelling
-    /// is below the bound, and above the least ε a run at this band's K
-    /// admits, so one below the spelling exists.
-    fn offered_below(self, bound: f64) -> Told {
+        let k = self.escalate / self.zero;
+        let bound = above_floor(self.tolerance_deciding(margin), k)?;
         Told::at_most_reading(told::Reading::value(bound), Dimension::Length)
-            .no_farther_than(&eps_min(self.escalate / self.zero).next_up())
+            .no_farther_than(&eps_min(k).next_up())
+            .spelled()
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
@@ -1556,8 +1558,8 @@ impl SizedPass {
 enum Shows {
     /// A size on a side the decision passes, decided passing by every
     /// tolerance a run admits below this one: the tolerance to tighten
-    /// below, as the recourse offers it ([`Band::offered_below`]).
-    Offer(Told),
+    /// below, as the offer rule spelled it ([`Band::offer_deciding`]).
+    Offer(f64),
     /// No size: an exact zero, a reading in band reaching no side the
     /// decision passes, or a zero the symbolic tier proved. What a
     /// decision's note on a zero verdict asserts is established here and
@@ -1758,7 +1760,8 @@ impl Shows {
         match self {
             Self::Offer(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
-                 {v}"
+                 {}",
+                offered(v)
             ),
             Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
@@ -2199,9 +2202,7 @@ impl MarginDiag {
             (true, true) => Shows::Unresolved,
             (true, false) => band
                 .offer_deciding(lo.abs().min(hi.abs()))
-                .map_or(Shows::Floor, |below| {
-                    Shows::Offer(band.offered_below(below))
-                }),
+                .map_or(Shows::Floor, Shows::Offer),
         }
     }
 
@@ -2345,7 +2346,7 @@ impl MarginDiag {
                  with its uncertainty declared below {} and tighten the tolerance below \
                  {}",
                 Told::at_most_reading(told::Reading::value(near), Dimension::Length),
-                below
+                offered(below)
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
             // Decided at this tolerance already, yet a size the file cannot
@@ -2443,6 +2444,12 @@ impl MarginDiag {
             Reading::Invalid => f.write_str(INVALID_READING),
         }
     }
+}
+
+/// A tolerance the offer rule spelled ([`Band::offer_deciding`]), in
+/// metres: the float it chose, written as it is.
+fn offered(spelled: f64) -> Told {
+    Told::given_reading(told::Reading::value(spelled), Dimension::Length)
 }
 
 /// A poisoned reading, as every rendering of one says it.
@@ -3687,32 +3694,20 @@ mod tests {
             (Zero, v(5e-9), Shows::NoSize),
             (Zero, e(-2e-9, 3e-9), Shows::Unresolved),
             (Zero, v(5e-8), Shows::Refused),
-            (
-                NonZero,
-                e(2e-9, 5e-9),
-                Shows::Offer(band.offered_below(2e-10)),
-            ),
-            (
-                NonZero,
-                e(-5e-9, -2e-9),
-                Shows::Offer(band.offered_below(2e-10)),
-            ),
+            (NonZero, e(2e-9, 5e-9), Shows::Offer(2e-10)),
+            (NonZero, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (NonZero, e(-2e-9, 3e-9), Shows::Unresolved),
             (NonZero, e(0.0, 3e-9), Shows::Unresolved),
             (NonZero, e(0.0, 0.0), Shows::NoSize),
             (NonZero, v(-0.0), Shows::NoSize),
-            (
-                Positive,
-                e(2e-9, 5e-9),
-                Shows::Offer(band.offered_below(2e-10)),
-            ),
+            (Positive, e(2e-9, 5e-9), Shows::Offer(2e-10)),
             (Positive, e(-5e-9, -2e-9), Shows::NoSize),
             (Positive, e(-2e-9, 3e-9), Shows::Unresolved),
             (Positive, e(-1.5e-12, 6e-12), Shows::Unresolved),
             (Positive, e(-5e-10, 0.0), Shows::NoSize),
             (Positive, v(0.0), Shows::NoSize),
             (Positive, v(-5e-10), Shows::NoSize),
-            (Positive, v(5e-10), Shows::Offer(band.offered_below(5e-11))),
+            (Positive, v(5e-10), Shows::Offer(5e-11)),
             (Positive, v(1.5e-12), Shows::Floor),
             (Positive, e(1.5e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
@@ -3724,11 +3719,7 @@ mod tests {
             (NonZero, v(-5e-8), Shows::Past),
             (Positive, v(5e-10).as_proven(), Shows::NoSize),
             (NonNegative, v(-5e-10), Shows::NoSize),
-            (
-                Negative,
-                e(-5e-9, -2e-9),
-                Shows::Offer(band.offered_below(2e-10)),
-            ),
+            (Negative, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (Negative, e(2e-9, 5e-9), Shows::NoSize),
             (Negative, e(-2e-9, 0.0), Shows::Unresolved),
             (AnySign, v(-1.5e-12), Shows::Floor),
@@ -3827,7 +3818,7 @@ mod tests {
             assert_eq!(words(refused).sign_certain_recourse(), ending);
         }
         for class in [
-            Shows::Offer(band_1e9().offered_below(0.0)),
+            Shows::Offer(0.0),
             Shows::NoSize,
             Shows::Floor,
             Shows::Unresolved,
@@ -4040,8 +4031,8 @@ mod tests {
         assert!(offered > EPS_MIN);
         // The offer is told below the bound and still above the floor,
         // so a tolerance a run admits lies below what the sentence says.
-        let told = band.offered_below(offered).to_string();
-        let typed: f64 = told.trim_end_matches(" m").parse().unwrap();
+        let typed = band.offer_deciding(above).unwrap();
+        let told = format!("{} m", Readable(typed));
         assert!(EPS_MIN < typed && typed <= offered, "{told}");
         let unfloored = Told::at_most(&offered, Dimension::Length).to_string();
         let on_the_grid: f64 = unfloored.trim_end_matches(" m").parse().unwrap();
@@ -4264,7 +4255,7 @@ mod tests {
                  declared below {} m and tighten the tolerance below {}",
                 head(eps_in, partly),
                 Readable(near),
-                band.offered_below(band.tolerance_deciding(near))
+                super::offered(band.offer_deciding(near).unwrap())
             )
         };
         let both = |eps_in: f64, near: f64| offer(eps_in, near, false);

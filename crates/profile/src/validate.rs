@@ -458,7 +458,7 @@ impl OverrunLegs {
 /// leg's setback and length are linear distances; a circular leg's are
 /// **arc lengths** `R·Δθ`, and the same fit margin is also reported in
 /// radians so the author can read the angular room directly.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FilletLegCarrier {
     /// A straight leg: setback and length are linear distances (m).
     Line,

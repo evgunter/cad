@@ -90,7 +90,7 @@ pub use geom_core::test_support::told;
 
 /// One leg of an anchor-fit entry as the numbers its payload was built
 /// from ([`told`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LegNumbers {
     pub carrier: FilletLegCarrier,
     pub setback: f64,
@@ -100,7 +100,7 @@ pub struct LegNumbers {
 impl From<&LegFit> for LegNumbers {
     fn from(leg: &LegFit) -> Self {
         Self {
-            carrier: leg.carrier,
+            carrier: leg.carrier.clone(),
             setback: told(&leg.setback),
             available: told(&leg.available),
         }
@@ -153,9 +153,13 @@ pub fn worse_leg(legs: &[LegFit; 2], overrun: OverrunLegs) -> (FilletLeg, LegNum
     let legs = [LegNumbers::from(&legs[0]), LegNumbers::from(&legs[1])];
     let margin = |l: &LegNumbers| l.available - l.setback;
     match overrun {
-        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1]),
-        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => (FilletLeg::Outgoing, legs[1]),
-        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => (FilletLeg::Incoming, legs[0]),
+        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1].clone()),
+        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => {
+            (FilletLeg::Outgoing, legs[1].clone())
+        }
+        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => {
+            (FilletLeg::Incoming, legs[0].clone())
+        }
     }
 }
 

@@ -298,20 +298,20 @@ fn circle_circle<T: Decide>(
     let carriers = Circles::new(d_len, r1_sq.sqrt(), r2_sq.sqrt());
     // Concentric carriers name no corner (identical ones name every
     // point of the circle, which is worse, not better).
-    let gone = PathNoCornerReason::CarriersDoNotMeet;
-    let tangent = PathNoCornerReason::CarriersTangent;
+    let gone = || PathNoCornerReason::CarriersDoNotMeet;
+    let tangent = || PathNoCornerReason::CarriersTangent;
     for (margin, on_zero) in [
         // concentric: no transversal crossing at any radius pair
-        (carriers.d(), gone),
+        (carriers.d(), gone()),
         // externally tangent / disjoint
-        (carriers.reach(), tangent),
+        (carriers.reach(), tangent()),
         // internally tangent / one inside the other
-        (carriers.internal(), tangent),
+        (carriers.internal(), tangent()),
     ] {
         match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => return Err(no_corner(on_zero, radius)),
-            Ok(Sign::Negative) => return Err(no_corner(gone, radius)),
+            Ok(Sign::Negative) => return Err(no_corner(gone(), radius)),
             Err(source) => return Err(PathError::escalated(source)),
         }
     }

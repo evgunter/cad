@@ -500,12 +500,12 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
                 ..
             },
         ..
-    } = err
+    } = &err
     else {
         panic!("expected TurnWithinTolerance, got {err:?}")
     };
-    assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
-    let [sin_turn, align, lever] = [sin_turn, align, lever].map(|x| crate::common::told(&x));
+    assert_eq!(*lever_of, profile::path::TurnLever::AnchorSeparation);
+    let [sin_turn, align, lever] = [sin_turn, align, lever].map(crate::common::told);
     // A counter-clockwise turn: the sine is positive, the turn side.
     assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
     assert!((align - phi.cos()).abs() < 1e-12, "cos φ {align}");

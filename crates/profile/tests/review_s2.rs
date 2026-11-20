@@ -1781,7 +1781,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             // side's R and its offset radius is the row's own negative
             // ρ, re-derived here from the drawn geometry rather than
             // read back from the construction.
-            Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+            Err(ref err @ PathError::NoCornerOfPair { ref radius, .. }) => {
                 // WHICH corner: the drawn one, alone — the envelope
                 // names the corner the table authored and nothing else.
                 crate::common::assert_corners(
@@ -2301,7 +2301,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // enclosing-class variant on every shipped band (measured at
         // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
         // radius bounds the fillet and whose rho is negative.
-        Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+        Err(ref err @ PathError::NoCornerOfPair { ref radius, .. }) => {
             crate::common::assert_corners(err, &[(corner.x, corner.y)], "the mined corner");
             let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
                 crate::common::enclosing(err)

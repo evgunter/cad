@@ -836,12 +836,12 @@ fn the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_sc
     // the row well inside it at whatever ε the run committed.
     let shift = 1e3 * tol().eps() / f64::EPSILON;
     let err = far_bend(shift, 0.5, 0.2).expect_err("a far scene refuses at the door");
-    let (scale, radius) = match err {
+    let (scale, radius) = match &err {
         PathError::FilletCarrierBelowSceneResolution { scale, radius, .. } => (
-            crate::common::told(&scale),
+            crate::common::told(scale),
             radius.as_given().expect("the authored radius"),
         ),
-        ref other => panic!("the far scene's loss is the reconstruction one, got {other:?}"),
+        other => panic!("the far scene's loss is the reconstruction one, got {other:?}"),
     };
     carries(
         &err,

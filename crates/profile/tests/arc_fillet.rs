@@ -388,7 +388,7 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
         .iter()
         .find_map(|c| match &c.reason {
             CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
-                Some((*legs, *overrun))
+                Some((legs.clone(), *overrun))
             }
             _ => None,
         });
@@ -403,12 +403,12 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
     let FilletLegCarrier::Arc {
         radius,
         angular_margin,
-    } = legs[1].carrier
+    } = &legs[1].carrier
     else {
         panic!("the arrival is the arc side: {legs:?}")
     };
     let (setback, available) = (told(&legs[1].setback), told(&legs[1].available));
-    let (radius, angular_margin) = (told(&radius), told(&angular_margin));
+    let (radius, angular_margin) = (told(radius), told(angular_margin));
     assert!((radius - 2.0).abs() < 1e-15, "carrier radius {radius}");
     assert!(angular_margin < 0.0, "angular margin {angular_margin}");
     assert!(setback > available, "{setback} vs {available}");
@@ -442,7 +442,7 @@ fn oversized_radius_on_a_straight_side_still_names_the_straight_carrier() {
         .iter()
         .find_map(|c| match &c.reason {
             CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
-                Some((*legs, *overrun))
+                Some((legs.clone(), *overrun))
             }
             _ => None,
         });
@@ -544,7 +544,6 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
     let PathError::NoCornerOfPair { radius, .. } = &err else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
-    let radius = *radius;
     // WHICH corner: the two unit-scale carriers cross twice, and the
     // enclosing entry is the crossing the anchors bracket.
     crate::common::assert_corners(&err, &[(0.0, 0.0)], "the bracketed crossing");
@@ -819,7 +818,7 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
             Tol::witness(),
         )
         .expect_err("a tangent corner must refuse");
-    match err {
+    match &err {
         PathError::NoCornerForFillet { reason, radius } => {
             assert!(
                 matches!(reason, PathNoCornerReason::CarriersTangent),
@@ -1034,11 +1033,11 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
             Tol::witness(),
         )
         .expect_err("an underflowed arrival carrier refuses");
-    match underflowed {
+    match &underflowed {
         // The payload is the direction the format lost, not the zero it
         // measured to: that is what makes the two rows distinguishable.
         PathError::UnderflowedDirection { dx, dy } => {
-            assert_eq!((told(&dx), told(&dy)), (0.0, 1e-200));
+            assert_eq!((told(dx), told(dy)), (0.0, 1e-200));
         }
         other => panic!("expected UnderflowedDirection, got {other:?}"),
     }

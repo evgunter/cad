@@ -160,7 +160,7 @@ fn a_single_candidate_carries_both_legs_on_the_line_arc_channel() {
         "{legs:?}"
     );
     assert!(
-        matches!(legs[1].carrier, FilletLegCarrier::Arc { radius, .. } if close(crate::common::told(&radius), 2.0)),
+        matches!(&legs[1].carrier, FilletLegCarrier::Arc { radius, .. } if close(crate::common::told(radius), 2.0)),
         "{legs:?}"
     );
     assert!(

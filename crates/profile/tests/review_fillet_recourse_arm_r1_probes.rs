@@ -281,12 +281,13 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
                 corner,
             },
         ..
-    } = zero
+    } = &zero
     else {
         panic!("expected the turn-within-tolerance reason, got {zero:?}")
     };
+    let lever_of = *lever_of;
     assert_eq!(lever_of, TurnLever::ShorterLeg, "the arc door's lever");
-    let [sin_turn, align, lever] = [sin_turn, align, lever].map(|x| crate::common::told(&x));
+    let [sin_turn, align, lever] = [sin_turn, align, lever].map(crate::common::told);
     // The arc door derives the corner before its turn gate, and names
     // it: the ray's crossing with the circle, ahead of its start.
     let y = 2.0_f64 - 1e-4;

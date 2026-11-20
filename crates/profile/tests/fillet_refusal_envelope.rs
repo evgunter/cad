@@ -469,7 +469,7 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         reason: CornerReason::AnchorOutsideTrimmedExtent {
             legs: [leg(0.4, 1.0), leg(0.4, 0.3)],
             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-            radius_at_anchor: Some(radius_lever),
+            radius_at_anchor: Some(radius_lever.clone()),
         },
     };
     let radius = CornerRefusal {
@@ -483,7 +483,7 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         let said = PathError::NoCornerOfPair {
             radius: length(0.3),
             corners,
-            radius_or_less: Some(radius_lever),
+            radius_or_less: Some(radius_lever.clone()),
         }
         .to_string();
         assert!(

@@ -169,24 +169,24 @@ enum Role {
 }
 
 /// **A number as a sentence tells it** (the module docs).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Told {
-    reading: Read,
-    dimension: Dimension,
-    role: Role,
-}
+///
+/// One pointer wide, so a payload that holds it is no larger than one
+/// that held the scalar: a refusal's size is what every `Result` that
+/// carries it pays.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Told(Box<Quantity>);
 
 impl Told {
     /// The caller's or the file's own number, told exactly as received.
     #[must_use]
     pub fn given<T: Real>(x: &T, dimension: Dimension) -> Self {
-        Self::of(x.told_reading(), dimension, Role::Given)
+        Self::given_reading(x.told_reading(), dimension)
     }
 
     /// A number the kernel derived, told on the grid.
     #[must_use]
     pub fn computed<T: Real>(x: &T, dimension: Dimension) -> Self {
-        Self::of(x.told_reading(), dimension, Role::Computed)
+        Self::computed_reading(x.told_reading(), dimension)
     }
 
     /// A bound the person is asked to type back, where every value not
@@ -206,11 +206,7 @@ impl Told {
     /// enclosure offers its lower end.
     #[must_use]
     pub fn at_most<T: Real>(bound: &T, dimension: Dimension) -> Self {
-        Self::of(
-            bound.told_reading(),
-            dimension,
-            Role::Offered(Side::AtMost, None),
-        )
+        Self::at_most_reading(bound.told_reading(), dimension)
     }
 
     /// This offered bound, spelled no farther from it than `edge`: the
@@ -219,7 +215,107 @@ impl Told {
     /// that does not read, states no window. A number that is not
     /// offered is returned unchanged.
     #[must_use]
-    pub fn no_farther_than<T: Real>(self, edge: &T) -> Self {
+    pub fn no_farther_than<T: Real>(mut self, edge: &T) -> Self {
+        *self.0 = self.0.no_farther_than(edge);
+        self
+    }
+
+    /// The number a **given** one was received as: the caller's own
+    /// number back. `None` for a computed or offered number, and for a
+    /// given one that is not a single value.
+    #[must_use]
+    pub fn as_given(&self) -> Option<f64> {
+        match (self.0.role, self.0.reading) {
+            (Role::Given, Read::Value(x)) => Some(x),
+            _ => None,
+        }
+    }
+
+    /// The pair `(self, other)` as a sentence that states their order
+    /// tells them.
+    #[must_use]
+    pub fn beside(&self, other: &Self) -> Compared {
+        Compared::new(*self.0, *other.0)
+    }
+
+    fn of(reading: Reading, dimension: Dimension, role: Role) -> Self {
+        Self(Box::new(Quantity {
+            reading: reading.0,
+            dimension,
+            role,
+        }))
+    }
+
+    /// A given number from a reading already taken.
+    pub(crate) fn given_reading(reading: Reading, dimension: Dimension) -> Self {
+        Self::of(reading, dimension, Role::Given)
+    }
+
+    /// A computed number from a reading already taken.
+    pub(crate) fn computed_reading(reading: Reading, dimension: Dimension) -> Self {
+        Self::of(reading, dimension, Role::Computed)
+    }
+
+    /// An offered upper bound from a reading already taken.
+    pub(crate) fn at_most_reading(reading: Reading, dimension: Dimension) -> Self {
+        Self::of(reading, dimension, Role::Offered(Side::AtMost, None))
+    }
+
+    /// The float this number is spelled as, where it is one number.
+    pub(crate) fn spelled(&self) -> Option<f64> {
+        self.0.spelled(0)
+    }
+
+    /// The number without its unit word.
+    pub(crate) fn number(&self) -> impl fmt::Display {
+        let quantity = *self.0;
+        fmt::from_fn(move |f| quantity.write_number(f, 0))
+    }
+}
+
+/// The numbers behind a told quantity, for a suite that pins a payload
+/// against the scalar its door computed. No production build has it.
+#[cfg(any(test, feature = "test-support"))]
+impl Told {
+    /// The reading's ends: a value twice, an enclosure's two, NaN twice
+    /// where it does not read.
+    #[must_use]
+    pub fn pinned_ends(&self) -> (f64, f64) {
+        match self.0.reading {
+            Read::Value(x) => (x, x),
+            Read::Enclosure { lo, hi } => (lo, hi),
+            Read::Unreadable => (f64::NAN, f64::NAN),
+        }
+    }
+
+    /// The far edge an offered bound was built with
+    /// ([`Told::no_farther_than`]).
+    #[must_use]
+    pub fn pinned_edge(&self) -> Option<f64> {
+        match self.0.role {
+            Role::Offered(_, edge) => edge,
+            Role::Given | Role::Computed => None,
+        }
+    }
+}
+
+/// The number and its unit word.
+impl fmt::Display for Told {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.write(f, 0)
+    }
+}
+
+/// What a [`Told`] holds.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Quantity {
+    reading: Read,
+    dimension: Dimension,
+    role: Role,
+}
+
+impl Quantity {
+    fn no_farther_than<T: Real>(self, edge: &T) -> Self {
         let Role::Offered(side, _) = self.role else {
             return self;
         };
@@ -233,52 +329,6 @@ impl Told {
             role: Role::Offered(side, Some(edge)),
             ..self
         }
-    }
-
-    /// The number a **given** one was received as: the caller's own
-    /// number back. `None` for a computed or offered number, and for a
-    /// given one that is not a single value.
-    #[must_use]
-    pub fn as_given(&self) -> Option<f64> {
-        match (self.role, self.reading) {
-            (Role::Given, Read::Value(x)) => Some(x),
-            _ => None,
-        }
-    }
-
-    /// The pair `(self, other)` as a sentence that states their order
-    /// tells them.
-    #[must_use]
-    pub fn beside(&self, other: &Self) -> Compared {
-        Compared::new(*self, *other)
-    }
-
-    const fn of(reading: Reading, dimension: Dimension, role: Role) -> Self {
-        Self {
-            reading: reading.0,
-            dimension,
-            role,
-        }
-    }
-
-    /// A given number from a reading already taken.
-    pub(crate) const fn given_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Given)
-    }
-
-    /// A computed number from a reading already taken.
-    pub(crate) const fn computed_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Computed)
-    }
-
-    /// An offered upper bound from a reading already taken.
-    pub(crate) const fn at_most_reading(reading: Reading, dimension: Dimension) -> Self {
-        Self::of(reading, dimension, Role::Offered(Side::AtMost, None))
-    }
-
-    /// The number without its unit word.
-    pub(crate) fn number(self) -> impl fmt::Display {
-        fmt::from_fn(move |f| self.write_number(f, 0))
     }
 
     /// The end of `edge`'s reading nearer the bound on `side`.
@@ -346,39 +396,6 @@ impl Told {
     }
 }
 
-/// The numbers behind a told quantity, for a suite that pins a payload
-/// against the scalar its door computed. No production build has it.
-#[cfg(any(test, feature = "test-support"))]
-impl Told {
-    /// The reading's ends: a value twice, an enclosure's two, NaN twice
-    /// where it does not read.
-    #[must_use]
-    pub fn pinned_ends(&self) -> (f64, f64) {
-        match self.reading {
-            Read::Value(x) => (x, x),
-            Read::Enclosure { lo, hi } => (lo, hi),
-            Read::Unreadable => (f64::NAN, f64::NAN),
-        }
-    }
-
-    /// The far edge an offered bound was built with
-    /// ([`Told::no_farther_than`]).
-    #[must_use]
-    pub fn pinned_edge(&self) -> Option<f64> {
-        match self.role {
-            Role::Offered(_, edge) => edge,
-            Role::Given | Role::Computed => None,
-        }
-    }
-}
-
-/// The number and its unit word.
-impl fmt::Display for Told {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.write(f, 0)
-    }
-}
-
 /// **Two numbers whose order the sentence states**, or a reading beside
 /// its own threshold ([`Told::beside`]): each is told at the first
 /// precision, from its own grid up, at which the two read in their true
@@ -386,14 +403,14 @@ impl fmt::Display for Told {
 /// that is not one number reads as each member does alone.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Compared {
-    first: Told,
-    second: Told,
+    first: Quantity,
+    second: Quantity,
     /// Digits past each member's grid.
     extra: usize,
 }
 
 impl Compared {
-    fn new(first: Told, second: Told) -> Self {
+    fn new(first: Quantity, second: Quantity) -> Self {
         let order = |a: Option<f64>, b: Option<f64>| -> Option<Ordering> { a?.partial_cmp(&b?) };
         let held = order(first.offered_bound(), second.offered_bound());
         let extra = held
@@ -789,9 +806,12 @@ mod tests {
         }
         // An edge on the wrong side states no window.
         let told = Told::at_least(&1.000_04, Dimension::Angle);
-        assert_eq!(told.no_farther_than(&0.5), told);
+        assert_eq!(told.clone().no_farther_than(&0.5), told);
         assert_eq!(told.to_string(), "1.001 rad");
-        assert_eq!(told.no_farther_than(&1.000_05).to_string(), "1.00004 rad");
+        assert_eq!(
+            told.clone().no_farther_than(&1.000_05).to_string(),
+            "1.00004 rad"
+        );
         assert_eq!(told.no_farther_than(&1.0005).to_string(), "1.0001 rad");
     }
 

@@ -572,7 +572,7 @@ impl sealed::Sealed for ArrivesTangent {}
 /// typed). Named `Path…` to keep it distinct from the crate-root
 /// [`crate::NoCornerReason`] (the verify layer's fillet-constructor
 /// vocabulary) — different doors, different conditions.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum PathNoCornerReason<T: Real> {
     /// The two carriers touch tangentially at tolerance — a ray tangent
     /// to its circle, or two circles tangent to each other — read on an
@@ -735,7 +735,7 @@ pub enum CornerReason {
 
 /// One leg of the candidate an anchor-fit refusal reports
 /// ([`CornerReason::AnchorOutsideTrimmedExtent`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LegFit {
     /// **G2 §3c**: the leg's CARRIER KIND, carrying the angular margin
     /// `(extent − setback)/R` for a circular leg. A bare linear setback
@@ -826,7 +826,7 @@ impl core::fmt::Display for CornerReason {
                     )
                 }
                 OverrunLegs::Both => {
-                    let [incoming, outgoing] = legs.map(|leg| leg.compared());
+                    let [incoming, outgoing] = legs.each_ref().map(LegFit::compared);
                     write!(
                         f,
                         "the fillet trim would eat both legs' anchors (incoming setback {s0}, \
@@ -911,9 +911,9 @@ impl CornerReason {
             } => Some(Recourse::AnchorOrRadius {
                 anchors: overrun
                     .indices()
-                    .map(|k| (LEGS[k], legs[k].anchor_at_least))
+                    .map(|k| (LEGS[k], legs[k].anchor_at_least.clone()))
                     .collect(),
-                radius: *radius_at_anchor,
+                radius: radius_at_anchor.clone(),
             }),
             Self::EnclosesLegCarrier { .. }
             | Self::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint) => {
@@ -4194,7 +4194,7 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason) -> PathEr
     let radius_or_less = match &reason {
         CornerReason::AnchorOutsideTrimmedExtent {
             radius_at_anchor, ..
-        } => *radius_at_anchor,
+        } => radius_at_anchor.clone(),
         _ => None,
     };
     PathError::NoCornerOfPair {

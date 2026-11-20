@@ -303,7 +303,7 @@ fn sentence(entry: &CornerRefusal<f64>, radius: f64) -> String {
     let radius_or_less = match &entry.reason {
         CornerReason::AnchorOutsideTrimmedExtent {
             radius_at_anchor, ..
-        } => *radius_at_anchor,
+        } => radius_at_anchor.clone(),
         _ => None,
     };
     PathError::NoCornerOfPair {
