@@ -1,8 +1,10 @@
 # path count — the `{:?}` / `{:e}` formats a covered crate's sentences
 # still write, each a Debug NAME and never a scalar.
 #
-# crates/profile/src/path/program.rs: `Refused`'s sentence names the verb
-# and the tip state by their Debug identifiers. It is the refusal of a
-# step program no authoring surface produces (a corrupt or hand-edited
-# file), and neither enum has a prose table for that reader.
-crates/profile/src/path/program.rs 2
+# crates/profile/src/path/program.rs: `Refused`'s sentence and `Takes`'s
+# list name verbs, tip states, arc-spec modes and their targets by their
+# Debug identifiers, "in the transition table's identifiers". They are
+# the refusal of a step program no authoring surface produces (a corrupt
+# or hand-edited file); see
+# work/profile/a-lattice-refusal-names-its-verb-and-tip-state-by-debug-identifier.md.
+crates/profile/src/path/program.rs 8
