@@ -126,14 +126,14 @@
 //!   other way round, so `A` flips, and against the frame unturned its
 //!   azimuth would be π off, selecting the complementary branch and
 //!   meshing the wrong half of the sphere. This is the direct analogue
-//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. The walk's
-//!   other read of the sense is the wrap strip's orientation
-//!   ([`wrap_strip`]), through `geom_brep::PolygonOrientation`.
+//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. It is the
+//!   walk's one read of the sense: the wrap strip's side is the loop's
+//!   stored lift ([`wrap_strip`]).
 
 use std::collections::HashMap;
 
 use geom::SurfaceKind;
-use geom_brep::{OutwardNormal, PolygonOrientation};
+use geom_brep::OutwardNormal;
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -966,24 +966,28 @@ struct WrapStrip {
 /// 3. the near tip, `travs[0]`'s start, where the walk opens; the other
 ///    tip is the far one.
 ///
-/// The far side stands one period from the near side, across the
-/// polygon's region from it, and `orientation` is the one the face's
-/// polygon has (`PolygonOrientation::of_face`), which is how `curved`
-/// reads the face's side off it. The region is on the left of a counter-clockwise
-/// polygon's sides, so a near side rising to the far point (the far `v`
-/// above the near) has the far side at the smaller `u` there, and at the
-/// larger in a clockwise one. No turn at a tip and no area is read.
+/// The far side stands one period from the near side, and the loop's lift
+/// (`topo::Body::loop_lift`) says which: the strip's two traversals are
+/// one edge's two halves, so they share a chart image, and the lift moves
+/// the far half's by the turn the face takes round the far tip, the joint's
+/// stored element there (`topo::pcurves`' singular turn: the walk leaves
+/// along the edge it arrived on, a whole turn on the face's side). The
+/// period is that move less the near half's. No height, side or area is
+/// read here. A lift that does not move the far half one whole turn of
+/// the azimuth, and by nothing else, is not the strip's.
 ///
 /// # Errors
 ///
 /// [`TessellateError::MissingEntity`] where a key on the loop's walk does
-/// not resolve.
+/// not resolve, and [`TessellateError::DomainUnread`] where the loop stores
+/// no lift.
 fn wrap_strip(
     body: &Body<f64>,
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
-    orientation: PolygonOrientation,
+    face: FaceKey,
+    lk: LoopKey,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -1007,21 +1011,37 @@ fn wrap_strip(
     // the band of each other, D2 addendum row 5's state, which the
     // declared-vertex guard in `loop_polygon` re-derives; no strip is
     // read off it.
-    let (near, far, far_tip) = match travs[0].start {
+    let far_tip = match travs[0].start {
         _ if on_a == on_b => return Ok(None),
-        t if t == a => (on_a, on_b, b),
-        t if t == b => (on_b, on_a, a),
+        t if t == a => b,
+        t if t == b => a,
         _ => return Ok(None),
     };
-    let rising = poles[far].1 > poles[near].1;
-    // The azimuth's whole turn, an angle by construction.
-    let turn = Period::<f64>::angle().length();
+    let lift = body
+        .loop_lift(lk)
+        .map_err(|gap| TessellateError::DomainUnread {
+            face,
+            cause: Box::new(topo::pcurves::RingPlacementError::Gap(gap)),
+        })?;
+    let moved = |half_edge: HalfEdgeKey| {
+        lift.rows()
+            .iter()
+            .find(|row| row.half_edge == half_edge)
+            .map(|row| row.lift)
+    };
+    let far_half = travs
+        .iter()
+        .find(|t| t.start == far_tip)
+        .map(|t| t.half_edge);
+    let (Some(near), Some(far)) = (moved(travs[0].half_edge), far_half.and_then(moved)) else {
+        return Ok(None);
+    };
+    let turn = far.compose(near.inverse());
+    if turn.twin || turn.v != 0 || turn.u.abs() != 1 {
+        return Ok(None);
+    }
     Ok(Some(WrapStrip {
-        period: if rising == orientation.interior_is_left() {
-            -turn
-        } else {
-            turn
-        },
+        period: f64::from(turn.u) * Period::<f64>::angle().length(),
         far: far_tip,
     }))
 }
@@ -1140,19 +1160,12 @@ pub(crate) fn loop_polygon(
         *first = true;
     }
     let no_rim = !kinds.rim;
-    // The face's orientation sense (module docs, the pole-to-pole
-    // band): the side of the band's area vector, and through
-    // `PolygonOrientation::of_face` the orientation of the wrap strip.
+    // The face's orientation sense: the side of the pole-to-pole band's
+    // area vector (module docs).
     let sense = face_record.sense;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(
-            body,
-            &travs,
-            &poles,
-            band,
-            PolygonOrientation::of_face(sense),
-        )?
+        wrap_strip(body, &travs, &poles, band, face, lk)?
     } else {
         None
     };

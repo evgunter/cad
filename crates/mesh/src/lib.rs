@@ -137,9 +137,10 @@
 //!   `PolygonOrientation::of_face` and refuses one wound against its face,
 //!   and reads each triangle against the face's outward normal
 //!   (`geom_brep::implicit_outward_normal`);
-//! - `walk::wrap_strip` places a wrap strip's far side by
-//!   `PolygonOrientation::of_face`, its loop walking one edge both ways and
-//!   so having no order to read;
+//! - `walk::wrap_strip` places a wrap strip's far side by the loop's
+//!   stored lift (`topo::Body::loop_lift`), whose joint at the far tip is
+//!   the turn topo read off the bit there, its loop walking one edge both
+//!   ways and so having no order to read;
 //! - the pole-to-pole band's azimuth below reads the loop's area
 //!   vector, which is on the outward side, against the chart's frame
 //!   turned to that side (`geom_brep::OutwardNormal::from_chart`).
