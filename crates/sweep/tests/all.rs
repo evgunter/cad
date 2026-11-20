@@ -1386,8 +1386,6 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
-#[path = "a_near_right_angle_drum_pair.rs"]
-mod a_near_right_angle_drum_pair;
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
 #[path = "a_boxed_motion_moves_a_finished_body.rs"]
@@ -1404,6 +1402,8 @@ mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 mod a_mirrored_body_is_its_image;
 #[path = "a_moved_body_keeps_its_verdict.rs"]
 mod a_moved_body_keeps_its_verdict;
+#[path = "a_near_right_angle_drum_pair.rs"]
+mod a_near_right_angle_drum_pair;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
