@@ -171,3 +171,17 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   mistake, believed to have hit only its own shell. The places unit
   stays held: it shares files with 7185, whose shape the review can
   still change.
+
+- 2026-11-20 — **PR 7189 merged** (Ev: "this looks good!").
+- 2026-11-20 — **PR 7159's fix pass is in**, head e7bd8eb468, hosted
+  CI green. All twelve items done; it found a second site of the
+  MAJOR's kind itself (a `Via` leg's derived bulge told as authored).
+  The pass rewrote more than it patched (about 1,200 lines across
+  `told.rs`, `profile` and the gate; the grid now respects float
+  spacing for a large length; equality is of what is told; a pair's
+  radius lever is an index to its largest corner), so it does not
+  merge on the orchestrator's read: a delta re-review went to one of
+  the two reviewers, continued in its own lane, with eight claims.
+  Only one, because the other's clone is in use by PR 7185's review;
+  the pair's comparison was taken on the frozen head and is not
+  affected. The row will say so.
