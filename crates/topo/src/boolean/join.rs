@@ -6763,9 +6763,10 @@ mod frame_dispatch_tests {
     /// The frame of the plane through `base` of normal `(cos β, 0, sin β)`,
     /// `sin β = k·ε/lever`, and the unit wall about `z` that `face` of
     /// `body` lies on, in both face orders, read and levered as
-    /// [`super::germ_section_frame`] reads them: at the centre of the
-    /// wall's cover's ball ([`super::frame_reading`]), levered at the
-    /// wall's axial extent from there ([`super::frame_extent`]).
+    /// [`super::germ_section_frame`] reads them ([`super::frame_lever`]):
+    /// at the centre of the wall's cover's ball ([`super::frame_reading`]),
+    /// levered at the wall's axial extent from there
+    /// ([`super::frame_extent`]).
     fn wall_frames(
         body: &crate::Body<f64>,
         face: crate::entity::FaceKey,
@@ -6793,15 +6794,14 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
         };
         let wall = crate::boolean::join::keyed_surface(body, face).1.clone();
-        let cover = || crate::cover::face_cover(body, face, band());
         [
             ("plane, wall", &plane, &wall),
             ("wall, plane", &wall, &plane),
         ]
         .into_iter()
         .map(|(label, a, b)| {
-            let at = super::frame_reading(a, cover, cover).expect("a reading");
-            let extent = super::frame_extent((a, body, face), (b, body, face), at, band()).unwrap();
+            let (at, extent) =
+                super::frame_lever((a, body, face), (b, body, face), band()).unwrap();
             let got = super::one_loop(super::pair_section_frame_at(a, b, at, extent, band()));
             (label, got)
         })
@@ -6894,7 +6894,8 @@ mod frame_dispatch_tests {
     /// and escalates at every `k` in the band. Read at the middle of the
     /// face's window, that offset is the gap moved by the tilt over the
     /// window's half, plus the tilt over its half again: low in the band
-    /// the sum escalates as the gap, higher up the tilt alone does. The
+    /// the sum escalates as the gap, higher up the tilt alone does (read
+    /// at the vertex, the gap is exact and the tilt escalates at once). The
     /// vertex alone levers nothing, and the radius reads `k·ε/2`: both
     /// read Zero at `k = 1.2` and name the tangent ruling's frame.
     #[test]
@@ -6904,11 +6905,16 @@ mod frame_dispatch_tests {
         let base = super::super::carrier_pair::face_witnesses(&body, face).unwrap()[0];
         for frac in [0.12, 0.5, 0.99] {
             let k = frac * Tol::witness().k();
+            let escalates = if frac < 0.2 {
+                "pc_parallel_gap"
+            } else {
+                "pc_axis_plane_parallel"
+            };
             for (label, got) in wall_frames(&body, face, base, k, 2.0) {
-                assert!(
-                    ["pc_axis_plane_parallel", "pc_parallel_gap"].contains(&verdict(&got)),
-                    "k = {k} ({label}): an in-band tilt over the rim must escalate, got {}",
-                    verdict(&got)
+                assert_eq!(
+                    verdict(&got),
+                    escalates,
+                    "k = {k} ({label}): an in-band tilt over the rim must escalate"
                 );
             }
         }
