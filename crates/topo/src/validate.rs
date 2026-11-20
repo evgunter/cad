@@ -9841,7 +9841,7 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            circles_of(o.frame.origin, o.radius(), r.frame.origin, r.radius()),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -9981,15 +9981,18 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
                 center,
@@ -10321,14 +10324,14 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            let carrier = geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            });
+            ));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
             match span.place(p, geom::mid_param(t0, t1), band) {
                 Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
@@ -10541,21 +10544,24 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) => {
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: *center,
                 dir: *axis,
             }
             .height_and_distance(p);
-            let radial = rho - *radius;
+            let radial = rho - radius;
             Some((radial.powi(2) + along.powi(2)).sqrt())
         }
         _ => None,

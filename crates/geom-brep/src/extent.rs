@@ -1226,7 +1226,7 @@ mod tests {
                     let w = pivot - c.frame.origin;
                     let h = w.dot(c.frame.axis);
                     let rho = (w - c.frame.axis * h).norm();
-                    let exact = (h * h + (rho + c.radius).powi(2)).sqrt();
+                    let exact = (h * h + (rho + c.radius()).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
                         "{carrier:?}: {lever} is not the circle's farthest point {exact}"
@@ -1280,8 +1280,14 @@ mod tests {
             ];
             for carrier in carriers {
                 let (a, b) = match carrier {
-                    Curve3::Circle(geom::Circle { radius, .. }) => (radius, radius),
-                    Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u, semi_v),
+                    Curve3::Circle(circle) => {
+                        let radius = circle.radius();
+                        (radius, radius)
+                    }
+                    Curve3::Ellipse(ellipse) => {
+                        let (semi_u, semi_v) = ellipse.semi_axes();
+                        (semi_u, semi_v)
+                    }
                     _ => unreachable!(),
                 };
                 let big = a.max(b);

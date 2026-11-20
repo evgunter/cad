@@ -551,7 +551,7 @@ impl<T: Real> CircleArc<T> {
 
     /// The unit direction of travel at `t`.
     fn tangent(&self, t: T) -> Vec3<T> {
-        self.circle.derivative_at(t) / self.circle.radius
+        self.circle.derivative_at(t) / self.circle.radius()
     }
 }
 
@@ -1115,12 +1115,12 @@ impl<T: Decide> Quadric<T> {
                 major,
                 ..
             },
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: k, axis: n, ..
                 },
                 radius,
-            }),
+            )),
         ) = (*self, carrier)
         else {
             return Ok(None);
@@ -1374,7 +1374,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     };
                     for (t, slope) in roots {
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                         let [a0, a1] = in_span(
                             &carrier(arc),
                             param(arc, p.at(t)),
@@ -1397,7 +1397,7 @@ pub(crate) fn path_parity<T: Decide>(
                 ) => {
                     if decide_m(
                         "split_ring_path_crest_graze",
-                        Margin::of(charge(p.circle.radius - major, slack)),
+                        Margin::of(charge(p.circle.radius() - major, slack)),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1426,12 +1426,12 @@ pub(crate) fn path_parity<T: Decide>(
                     };
                     for (t, slope) in roots {
                         let s = circle.param_in(p.at(t), span);
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                         let [a0, a1] = in_span(
                             &geom::Curve3::Circle(circle),
                             s,
                             span,
-                            circle.radius * slope,
+                            circle.radius() * slope,
                         );
                         readings.push([p0, p1, a0, a1, own.read(p.at(t), slack, band)]);
                     }
@@ -1480,7 +1480,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let across = p.circle.frame.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
-                        Margin::levered(across, Lever::curvature_radius(p.circle.radius)),
+                        Margin::levered(across, Lever::curvature_radius(p.circle.radius())),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1493,7 +1493,7 @@ pub(crate) fn path_parity<T: Decide>(
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
-                    let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                    let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                     let ruling = geom::Curve3::Line(geom::Line { origin, dir });
                     let [a0, a1] = in_span(&ruling, s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
@@ -1697,7 +1697,7 @@ fn spline_crossings<T: Decide>(
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
             // Unsourced lever: the arc's length, its angular span times its radius, longer
             // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            let length = Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0));
+            let length = Lever::unsourced(p.circle.radius() * (p.span.1 - p.span.0));
             (
                 geom::Curve3::Circle(p.circle),
                 p.span,
@@ -1797,10 +1797,7 @@ impl<T: Decide> ConicArc<T> {
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: *f,
-            radius: b,
-        });
+        let circle = geom::Curve3::Circle(geom::Circle::new(*f, b));
         let Some(arc) = circle.distance_within(x, self.span) else {
             unreachable!("a circle's arc distance is closed-form")
         };
@@ -1985,8 +1982,8 @@ fn misses_in_plane<T: Decide>(
     let (a, b) = conic.semi_axes();
     let apart = (p.circle.frame.origin - conic.frame().origin).norm();
     let differ = apart
-        .max((p.circle.radius - a).abs())
-        .max((p.circle.radius - b).abs());
+        .max((p.circle.radius() - a).abs())
+        .max((p.circle.radius() - b).abs());
     if decide("split_ring_path_same_circle", Margin::of(differ), band)? != Sign::Zero {
         return Ok(false);
     }
@@ -2017,7 +2014,7 @@ fn misses_in_plane<T: Decide>(
             &p.carrier(),
             p.param(conic.point_at(s)),
             p.span,
-            p.circle.radius,
+            p.circle.radius(),
         )? {
             return Ok(false);
         }
@@ -2042,9 +2039,9 @@ fn coplanar_apart<T: Decide>(
     let conic = arc.conic();
     let apart = (p.circle.frame.origin - conic.frame().origin).norm();
     let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
-    let gap = (apart - p.circle.radius - outer)
-        .max(inner - p.circle.radius - apart)
-        .max(p.circle.radius - outer - apart);
+    let gap = (apart - p.circle.radius() - outer)
+        .max(inner - p.circle.radius() - apart)
+        .max(p.circle.radius() - outer - apart);
     Ok(decide(
         "split_ring_path_coplanar_apart",
         Margin::of(charge(gap, slack)),
@@ -2077,7 +2074,7 @@ fn plane_roots<T: Decide>(
     // it is the deviation the sign rests on.
     match decide(
         "split_ring_path_meets_plane",
-        Margin::of(charge(p.circle.radius * rho - d.abs(), slack)),
+        Margin::of(charge(p.circle.radius() * rho - d.abs(), slack)),
         band,
     )? {
         Sign::Negative => return Ok(Some(Vec::new())),
@@ -2087,7 +2084,7 @@ fn plane_roots<T: Decide>(
     // Each root's direction is the phase direction `(ca, cb)` turned by
     // `±offset`, read once within half a turn of the span's middle.
     let middle = geom::mid_param(p.span.0, p.span.1);
-    let offset = (-d / (p.circle.radius * rho))
+    let offset = (-d / (p.circle.radius() * rho))
         .max(-T::one())
         .min(T::one())
         .acos();

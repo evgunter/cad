@@ -1176,15 +1176,18 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: n,
-                        u_ref: x,
-                    },
-                radius,
-            }) => {
+            Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis: n,
+                            u_ref: x,
+                        },
+                    ..
+                },
+            ) => {
+                let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
                 let t1 = t0
                     + if s.below(4) == 0 {
@@ -1473,15 +1476,20 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: centre,
-                    axis: n,
-                    u_ref: x,
-                },
-            radius,
-        }) => Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x)),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: centre,
+                        axis: n,
+                        u_ref: x,
+                    },
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
+        }
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }

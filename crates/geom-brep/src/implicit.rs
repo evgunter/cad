@@ -3592,13 +3592,10 @@ mod conic_tests {
             .into_iter()
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.3, 0.1),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.3, 0.1),
+            ..first.frame
+        })));
         for (c, n, r) in [
             ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
             ([1.0, -2.0, 0.5], [2.0, 2.0, 1.0], 1.3),
@@ -3723,13 +3720,10 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..first.frame
+        })));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
@@ -3821,13 +3815,10 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..first.frame
+        })));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);

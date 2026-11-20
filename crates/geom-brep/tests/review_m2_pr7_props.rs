@@ -242,14 +242,14 @@ fn rim_edge(
         )
     } else {
         LoopEdge::hand_built(
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            }),
+            )),
             u0,
             u1,
             up,
@@ -608,7 +608,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let _ = origin;
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Circle(geom::Circle { radius, .. }) = &mut lp.edges[0].carrier {
+    if let Curve3::Circle(conic_k) = &mut lp.edges[0].carrier {
         *radius += 0.05;
     }
     assert!(
@@ -618,6 +618,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
         ),
         "a wrong-radius circle is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
+    let radius = conic_k.radius();
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
     if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {

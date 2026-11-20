@@ -1043,16 +1043,15 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse(geom::Ellipse {
-                            frame:
-                                geom::Frame {
-                                    origin: center,
-                                    axis,
-                                    u_ref,
-                                },
+                        geom::Curve3::Ellipse(geom::Ellipse::new(
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                u_ref,
+                            },
                             semi_u,
                             semi_v,
-                        }),
+                        )),
                         geom::Surface::Torus {
                             center: hub,
                             axis: t_axis,

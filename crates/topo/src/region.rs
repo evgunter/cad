@@ -1018,7 +1018,7 @@ impl<T: Decide> Round<T> {
         let s = self.swept(y);
         let ahead = (y - self.circle.frame.origin).dot(self.circle.frame.v_ref());
         let turn = geom::conic_period::<T>().length();
-        self.circle.radius * (T::zero() - ahead).select_le_zero(s, turn - s)
+        self.circle.radius() * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
 }
 
@@ -1029,7 +1029,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);
-        ray_walk::apart_as(at, Margin::of((self.circle.radius * s).abs()), band)
+        ray_walk::apart_as(at, Margin::of((self.circle.radius() * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
     }
@@ -1055,7 +1055,7 @@ impl<T: Decide> Course<T> for Round<T> {
     fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
         match end {
             None => ((T::zero(), geom::conic_period::<T>().length()), true),
-            Some(place) => ((T::zero(), place / self.circle.radius), false),
+            Some(place) => ((T::zero(), place / self.circle.radius()), false),
         }
     }
 }

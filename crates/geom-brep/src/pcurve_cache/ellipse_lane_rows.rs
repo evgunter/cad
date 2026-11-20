@@ -655,8 +655,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
             let (n, u) = (e.frame.axis, e.frame.u_ref);
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(e.frame.origin, n, n.cross(u)),
-                e.semi_v,
-                e.semi_u,
+                e.semi_axes().1,
+                e.semi_axes().0,
             ))
         }
         other => other,
@@ -667,8 +667,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
     };
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(e.frame.origin + offset, e.frame.axis, e.frame.u_ref),
-        e.semi_u,
-        e.semi_v,
+        e.semi_axes().0,
+        e.semi_axes().1,
     ));
     let t0 = s.range(-4.0, 4.0);
     let t1 = t0
@@ -876,8 +876,8 @@ fn oracle_row(
         p(e.frame.origin),
         v(e.frame.axis),
         v(e.frame.u_ref),
-        e.semi_u,
-        e.semi_v
+        e.semi_axes().0,
+        e.semi_axes().1
     )
 }
 
