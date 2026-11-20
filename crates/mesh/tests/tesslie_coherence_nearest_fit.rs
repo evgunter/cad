@@ -110,14 +110,14 @@ fn cylinder() -> Body<f64> {
 /// |cos| of its axis against the chart axis (the 0.5 split).
 fn carriers(body: &Body<f64>) -> Vec<String> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
-        let surface = body.get_surface(face.surface).unwrap();
+    for (fk, _) in body.faces() {
+        let surface = body.face_surface(fk).unwrap();
         let Some(chart) = Chart::of(surface) else {
             continue;
         };
         let mut kinds = Vec::new();
-        for lk in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+        for (_, lp, _) in body.face(fk).unwrap().loops() {
+            let LoopBoundary::Cycle { first } = lp.boundary else {
                 continue;
             };
             for hek in body.loop_cycle(first).unwrap() {
