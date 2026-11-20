@@ -4,6 +4,8 @@ kind: issue
 title: About 240 kernel sites build a circle or ellipse from a computed size; each should decide its sign before construction or be provably positive, and most are unaudited
 status: open
 opened: 2026-11-20
+priority: P1
+cost: H
 ---
 
 
