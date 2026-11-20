@@ -2,12 +2,13 @@
 id: chart-region-mints-indeterminates-after-a-definite-sign
 kind: issue
 title: chart_region mints Indeterminates by hand after a definite sign, at three sites
-status: review
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: E
 branch: charttail/decided-gates
 pr: 7168
+closed: 2026-11-20
 ---
 
 
@@ -58,3 +59,7 @@ saw, and the refusal says so.
 
 `definite_diag`'s three callers, the riding row's sites, go through
 `decide_positive` in the same change.
+
+## Closed (2026-11-20)
+
+By PR 7168: every definite-sign escalation in `chart_region.rs` goes through the funnel's gates (`decide_positive` at the area, band-area and cross-order rows, `decide_nonzero` at the axis sense), `definite_diag` is deleted, and each refusal names the sign it could not use. Each of the four sites is pinned by `tests::gate_rejected`.

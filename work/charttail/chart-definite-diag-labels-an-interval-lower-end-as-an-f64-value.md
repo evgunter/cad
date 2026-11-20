@@ -2,13 +2,14 @@
 id: chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value
 kind: issue
 title: topo: chart_region's definite_diag reports an interval margin's lower end as a point Value, the wrong lane's reading
-status: review
+status: closed
 priority: P1
 cost: E
 opened: 2026-09-29
 branch: charttail/decided-gates
 rides_with: chart-region-mints-indeterminates-after-a-definite-sign
 pr: 7168
+closed: 2026-11-20
 ---
 
 
@@ -52,3 +53,7 @@ use", and a decided Zero reads "lies within the zero band". The
 Pinned by `chart_region::tests::a_swallowed_overlap_refuses_its_decided_negative_area_at_both_lanes`.
 It goes red on the old echo, because that echo's reading carries no
 rejected sign (checked by reverting the area site).
+
+## Closed (2026-11-20)
+
+By PR 7168: every definite-sign escalation in `chart_region.rs` goes through the funnel's gates (`decide_positive` at the area, band-area and cross-order rows, `decide_nonzero` at the axis sense), `definite_diag` is deleted, and each refusal names the sign it could not use. Each of the four sites is pinned by `tests::gate_rejected`.
