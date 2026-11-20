@@ -1349,14 +1349,10 @@ mod review_probes {
         b.edges()
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
-                let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: carrier_frame,
-                    radius,
-                }) = *geom.carrier()
-                else {
+                let pncad::geom::Curve3::Circle(circle) = *geom.carrier() else {
                     return None;
                 };
-                let center = carrier_frame.origin();
+                let (center, radius) = (circle.frame().origin(), circle.radius);
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {
                     let out = mid - center;
                     center + out * (radius / out.norm())
