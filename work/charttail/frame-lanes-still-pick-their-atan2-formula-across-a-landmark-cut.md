@@ -2,10 +2,13 @@
 id: frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut
 kind: issue
 title: Four frame lanes still pick their atan2 formula across a cut on a landmark axis (plane_crossing_phase_frame, props_torus_lift_branch, curve_pair_pose_branch, editor-core's solve_atan2), with two reference-relative cousins
-status: open
+status: closed
 opened: 2026-10-18
 priority: P1
 cost: E
+branch: charttail/solve-atan2
+pr: 7165
+closed: 2026-11-20
 ---
 
 Found by the round-4 delta review of PCERT B1 (PR 5225). It is outside that PR, which leaves these sites unchanged.
@@ -61,3 +64,20 @@ ONECOPY's `harmonic-phases-pick-their-cut-side-by-hand` read `plane_crossing_pha
 ## Narrowed (2026-11-20, CHARTTAIL triage)
 
 On main `131457c3` the two reference-relative cousins are gone as well. ONECOPY PR 6482 deleted `on_carrier.rs`'s `angle_near`; its job is now `Curve3::branch_near` / `param_near` and `Conic::param_in`. Pose's `separation` is now `geom::separation`, `atan2(|sin(θ−at)|, cos(θ−at))`, with no branch. **All that remains is editor-core's `solve_atan2` / `atan2_branch`**: the `Interval` impl in `eval/mod.rs`, with `Sym` and `Dual` following it, and `Atan2Branch` in `mate/solve.rs`. When `x.hi() < 0` and `y` straddles zero it still picks `π + atan2(−y, −x)` on raw bounds, so its one jump sits on the landmark `±π` and is chosen per call. Its gate row is `scripts/gates/atan2-sites.tsv`'s `eval/mod.rs solve_atan2`. The open check is whether `geom::Azimuth`, which keeps `Sym` folding, serves `Atan2Branch`'s contract, so that the enum can retire. The paths are also TALLY's, WIREREST's and MSOLVE's. MSOLVE's `the-mate-solve-reads-the-platform-atan2` is adjacent but a different defect: libm against the platform `atan2` at f64.
+
+## editor-core's box read goes through Azimuth (2026-11-20, `charttail/solve-atan2`)
+
+The `Interval` and `Sym` impls of `SolveScalar::solve_atan2` (still a required method) are each one call to `mate::solve::box_atan2`, and a dual over `Interval` reads it through its value channel. It reads `geom::Azimuth::of(y, x).principal_as("mate_spin_cut_side", Band::least())` inside `k_stats::unlogged("F31", ..)`. It is a renaming by F31's argument: the invariant that the spin is read only through its sine and cosine has its home in `box_atan2`'s doc. The read's one jump is the angle window's cut at `−1`. Across the negative `x` axis it is `π + atan2(−y, −x)` on both sides of `y = 0`.
+
+Three cases are not decided:
+- A point direction of no structural length reads its angle as `Azimuth::near` does (an exact zero one as `atan2`, as the `f64` lane does).
+- An enclosure that may reach zero length reads the whole window `[−1, τ − 1]` (`Window::end`).
+- An exact zero `y` over a structure-positive `x` reads `0`.
+
+`Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `Sym` keeps folding, since it records the formula the decision picks. The pinned row is `mate::solve`'s `a_box_spin_reads_one_formula_across_the_negative_x_axis`.
+
+`f64`, `Probe` and a dual over `f64` still read the platform `atan2`, whose one jump is at `±π`. That is MSOLVE's `the-mate-solve-reads-the-platform-atan2`, and the reason is written there. The missing guard on the sine-and-cosine invariant is MSOLVE's `no-row-guards-that-an-f31-renamings-readers-take-only-its-sine-and-cosine`.
+
+## Closed (2026-11-20)
+
+By PR 7165: the last site, editor-core's spin read, goes through `geom::Azimuth`. At `Interval` and `Sym<T>`, `solve_atan2` is `box_atan2`: one jump, at the angle window's generic cut. A direction that may reach zero length reads the whole window, and a point direction reads its angle however small its length. `Atan2Branch` and `SolveScalar::atan2_branch` are deleted. `f64` and `Probe` keep the platform `atan2`, on MSOLVE's `the-mate-solve-reads-the-platform-atan2` (with the read-back design point recorded there).
