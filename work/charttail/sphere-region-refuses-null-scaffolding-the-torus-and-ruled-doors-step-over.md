@@ -2,10 +2,11 @@
 id: sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over
 kind: issue
 title: The sphere region's gather refuses a face holding null scaffolding, which the torus and ruled gathers step over
-status: open
+status: dispatched
 priority: P1
 cost: E
 opened: 2026-10-24
+branch: charttail/sphere-scaffolding
 ---
 
 ## What
