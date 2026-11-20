@@ -14718,6 +14718,17 @@ mod tests {
     /// band's own parting or, where the point's chord to the end falls in
     /// the band's hair-wide gap, as the end reading's escalation, and the
     /// census reports no defect.
+    ///
+    /// At ε 1e-12 the point is read on the end's vertex, and at ε 1e-6 on
+    /// the arc, at both `K`: decided readings, each sound (the point is
+    /// `0.996·zero` from the end and `0.3·zero` off the arc), and the
+    /// census still reports no defect. Cause: a frame squared from
+    /// stated directions, a rigid-motion claim (fork 274). The carrier
+    /// `Curve3::circle` squares its frame where main stored the stated
+    /// `axis` and `u_ref` raw, which moves the end the frame computes by
+    /// a rounding; with the squaring storing the stated vectors raw
+    /// (mutation F1 on the bracket path) the reading is main's and this
+    /// pin goes red. At ε 1e-9 the read is as stated above.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -14758,11 +14769,24 @@ mod tests {
             // band, which a band this narrow reads either way as the
             // rounding falls: the finding with every end at a corner, or
             // the end reading's escalation. Never an end off its corner.
-            assert!(
+            // At ε 1e-12 and 1e-6 the carrier's frame, squared from the
+            // stated directions (a rigid-motion claim, fork 274), puts
+            // the point decided on the arc's end vertex (1e-12) or on the
+            // arc (1e-6): a decided reading, sound, with no defect.
+            let eps = tol.eps();
+            let pinned = if eps <= 1e-12 {
+                matches!(&read, Ok(crate::contain::FaceContainment::OnVertex(_)))
+            } else if eps >= 1e-6 {
+                matches!(&read, Ok(crate::contain::FaceContainment::OnEdge(_)))
+            } else {
                 matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
-                    || matches!(&read, Err(ContainError::Escalated { .. })),
-                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
-                 and eval part by {parting:e}): {read:?}"
+                    || matches!(&read, Err(ContainError::Escalated { .. }))
+            };
+            assert!(
+                pinned,
+                "K {k} at ε {eps:e}: the end lies at its corner, and only the band parts the \
+                 passes (frame and eval part by {parting:e}); on the vertex at 1e-12, on the \
+                 arc at 1e-6: {read:?}"
             );
             let mut errors = Vec::new();
             read_containment(cap, read, &mut errors);
