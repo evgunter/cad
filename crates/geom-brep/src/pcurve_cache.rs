@@ -3525,6 +3525,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         u_off: cross(image.u_off),
         v_off: cross(image.v_off),
         v_sign: cross(image.v_sign),
+        pole: None,
     };
     let (lower, uncertified) = (certified_lower, uncertified_over);
     let knots = image.breaks.knots();
@@ -7137,7 +7138,8 @@ pub use geom_core::period::{BranchMiss, WalkStop};
 /// image (a lifted copy, no row: C4) meets the carrier exactly and those
 /// envelopes cannot see it. So the stored row is compared in the chart
 /// with the image the mint places over the same span
-/// ([`chart_pcurve_over`], `Placement::over`): the two chart points at
+/// ([`chart_pcurve_over_ends`], off the stored row's own pole end where it
+/// reads one; `Placement::over`): the two chart points at
 /// `t₀`, each **angle** channel's offset read past half its own period
 /// ([`Surface::angle_periods`]), `(|Δ| − p/2)⁺`, metered at the chart's sup
 /// stretch, as `(FidelityU, FidelityV)` in metres. Below half a period a
@@ -7176,7 +7178,13 @@ fn placement_terms<T: Decide>(
         return Ok((T::zero(), T::zero()));
     }
     let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
-    let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
+    // A row read off a pole end is placed against the image derived off
+    // that same end, at the parameter the row stores.
+    let pole = match stored {
+        Pcurve::Projected(image) => image.pole(),
+        _ => None,
+    };
+    let derived = chart_image(carrier, Some((t0, t1)), pole, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
         Some(p) => (d.abs() - p.half()).max(T::zero()),
@@ -10161,7 +10169,7 @@ pub fn chart_pcurve<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
-    chart_image(carrier, None, surface, band)
+    chart_image(carrier, None, None, surface, band)
 }
 
 /// [`chart_pcurve`] for an edge over `[t0, t1]`: the same image for
@@ -10180,12 +10188,40 @@ pub fn chart_pcurve_over<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
-    chart_image(carrier, Some((t0, t1)), surface, band)
+    chart_image(carrier, Some((t0, t1)), None, surface, band)
+}
+
+/// [`chart_pcurve_over`] for an edge whose producer states which of its
+/// ends lie on the chart's singular set (`ends`, decided where the loop
+/// walk decides those ends' joints): a conic's projected image on a sphere
+/// reads its azimuth at a pole end off the reduced radial
+/// ([`projected::PoleEnd`], [`PoleEnd::stated`]). Every other image is
+/// [`chart_pcurve_over`]'s.
+///
+/// # Errors
+///
+/// As [`chart_pcurve`].
+pub fn chart_pcurve_over_ends<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    ends: SingularEnds,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveCertifyError> {
+    chart_image(
+        carrier,
+        Some((t0, t1)),
+        PoleEnd::stated(ends, (t0, t1)),
+        surface,
+        band,
+    )
 }
 
 fn chart_image<T: Decide>(
     carrier: &Curve3<T>,
     span: Option<(T, T)>,
+    pole: Option<PoleEnd<T>>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
@@ -10236,7 +10272,7 @@ fn chart_image<T: Decide>(
         // with the class reading's cause where it was in band.
         Err(Underived::General { shown, undecided }) => match undecided {
             _ if projected::has_lane(carrier, surface) => {
-                projected::project(carrier, span, surface, band)
+                projected::project_ending(carrier, span, pole, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
                     .map_err(|refused| {
                         general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
@@ -13726,7 +13762,10 @@ mod speed;
 mod spline_incidence;
 mod stated;
 mod trig;
-pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub use projected::{
+    FramedCarrier, PoleEnd, ProjectedChart, ProjectedImage, SectorChannel, SingularEnds,
+    reads_singular_ends,
+};
 pub use speed::{NoSpeedBound, harmonic_range};
 pub(crate) use stated::{EdgeSpan, StatedDoor};
 
