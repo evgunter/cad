@@ -6,6 +6,8 @@ status: review
 pr: 7171
 branch: germ/section-class-lane-choices
 opened: 2026-10-20
+priority: P1
+cost: M
 ---
 
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane

@@ -347,7 +347,7 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
 /// the corner's lever is each bound's extent from above
 /// (`geom_brep::edge_extent_sup`), the closed ring's diameter, where its
 /// collapsed chord read every side Zero and the vertex in no corner
-/// (`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`,
+/// (`work/honejoin/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`,
 /// its ring pose). With a lid standing on the boss as well, the lid's
 /// bottom is cut along the boss's top rim and held there too: each face
 /// is cut on its own. The body is the boss throughout. Red before the
@@ -1061,7 +1061,7 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 ///   facing one way and keeps `A`'s, the join does not take a rim lying
 ///   flush in a face at its one vertex (`boolean::join`'s `stands_on`),
 ///   and `A ∪ B` and `B ∩ A` refuse `SingleSiteSectionLoop`
-///   (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+///   (`work/tang/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 /// - Where a seam ruling lies on the tangent line, `A`'s with its
 ///   vertex at the touch (any other op) or `B`'s with its vertex there
 ///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather

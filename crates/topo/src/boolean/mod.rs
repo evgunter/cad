@@ -3181,7 +3181,7 @@ pub enum BooleanError {
     /// well formed, but the mass-properties closed form refuses a cone
     /// loop that meets itself at a vertex, so the finished-body gate
     /// cannot certify its volume
-    /// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+    /// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
     /// Refused here, before that gate, so the refusal names the shape
     /// rather than reading as the kernel's own defect.
     ///
@@ -4807,6 +4807,33 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+        }
+    }
+
+    /// The line × quadric door's refusal
+    /// ([`geom_brep::curve_face::line_quadric::LineQuadricRefusal`]), its
+    /// in-band sign an escalation as the refusing arm's decision: the
+    /// wall's rung, the sphere's, the torus's or the cone's roots.
+    pub(in crate::boolean) fn of_line_quadric_refusal(
+        refusal: geom_brep::curve_face::line_quadric::LineQuadricRefusal,
+    ) -> Self {
+        use geom_brep::curve_face::line_quadric::LineQuadricRefusal;
+        match refusal {
+            LineQuadricRefusal::Wall(fault) => Self::Escalated {
+                decision: BooleanDecision::WallRoots(fault.rung),
+                diag: fault.diag,
+            },
+            LineQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::SphereRoots,
+                diag,
+            },
+            LineQuadricRefusal::Torus(refusal) => {
+                Self::of_door_refusal(BooleanDecision::TorusRoots)(refusal)
+            }
+            LineQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ConeRoots,
+                diag,
+            },
         }
     }
 
@@ -9510,7 +9537,7 @@ mod tests {
     /// `ALL`. The row forces the visit, not the edit. That is the
     /// idiom's hole and not this row's alone — it is inherited from the
     /// two censuses cited above — so it is filed as
-    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
+    /// `work/bind/all-census-idiom-forces-the-visit-not-the-update`
     /// rather than patched here in one of three places.
     #[test]
     fn all_is_every_operation() {

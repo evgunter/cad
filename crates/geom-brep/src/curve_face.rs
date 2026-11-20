@@ -40,7 +40,8 @@ pub enum Door {
     /// ([`plane_crossing`]).
     PlaneCrossing,
     /// A line against a cylinder, a cone, a sphere or a torus: the
-    /// certified roots of the surface's residual along the line.
+    /// certified roots of the surface's residual along the line
+    /// ([`line_quadric`]).
     LineRoots,
     /// A circle or an ellipse against a cylinder, a cone or a sphere: the
     /// residual's trigonometric polynomial in the conic's angle.
@@ -156,6 +157,7 @@ const PERIODIC_READS_ITS_VIEW: &str = "a periodic cubic's span is read on its cl
 /// machinery asks [`decided_by_curve_face`], not a copy of this list.
 pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
     (Door::PlaneCrossing, "plane_crossing_"),
+    (Door::LineRoots, "line_quadric_"),
     (Door::ConicTorus, "circle_torus_"),
     (Door::ConicTorus, "ellipse_torus_"),
     (Door::SplineComposite, "spline_composite_"),
@@ -555,6 +557,7 @@ pub mod composite;
 #[doc(hidden)]
 pub mod conic_oracle;
 pub mod ellipse_torus;
+pub mod line_quadric;
 pub mod plane_crossing;
 #[cfg(test)]
 mod review_rows;

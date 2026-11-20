@@ -76,7 +76,7 @@ chord lever is
 `boolean::carrier_pair::extent_rows::a_steep_spline_rests_on_the_pair_its_ends_separate`.
 
 Residue, filed: `work/band/blend-battery-levers-a-chains-g1-from-below`,
-`work/twice/wedge-reach-calls-a-reach-short-of-its-faces-the-safe-direction`,
+`work/honeone/wedge-reach-calls-a-reach-short-of-its-faces-the-safe-direction`,
 and evidence on CONTACTHOLD's
 `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`
 (the sector walk's non-plane `On` tie at the bound from below).
