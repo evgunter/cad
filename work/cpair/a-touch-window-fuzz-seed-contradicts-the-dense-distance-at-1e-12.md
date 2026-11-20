@@ -122,3 +122,9 @@ contradicts the dense distance. Replayed on `origin/main` at `b80352cd`
 with the same seed it fails the same way, so the lane's diff
 (`half_angle`, `chart_singularity`) is not its cause. Two of five runs
 of the row here drew a failing seed (only this one was captured).
+
+## 2026-11-20 — a fourth seed (ONEROUND, the review of PR 7145)
+
+The same row drew `CAD_FUZZ_SEED=0xd5b1cddf2406ff5f` (`CAD_FUZZ_EFFORT=1`)
+in the reviewer's run and failed its 1e-12 pass, `1 readings
+contradicted`. Replayed alone it fails and reaches no `half_angle` walk.

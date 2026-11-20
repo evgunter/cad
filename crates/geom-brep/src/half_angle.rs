@@ -935,7 +935,8 @@ fn subdivision<T: Decide>(
                 let [_, g1, g2, g3] = taylor(root);
                 let lever = g1.divisor(ROOT_SLOPE_ROOM).map_or(least_slope, |_| {
                     // Any width will do: `reach ≤ window · w` below is
-                    // what admits the window's slope.
+                    // what admits the window's slope. `g1.room()` is the
+                    // room the divisor just read positive.
                     let w = (two * reach / g1.room()).min(half);
                     let window = g1.room()
                         - g2.magnitude() * w
@@ -966,6 +967,8 @@ fn subdivision<T: Decide>(
             // A lower bound on `G″` over the piece where it is positive,
             // the one place it is read.
             let curve = toward * f2.toward_zero() - d3_hi * half - fourth_hi * half.powi(2) / two;
+            // Locates `θ*` and bounds nothing: the spread charges `F′`'s
+            // bound, and the end signs are proved past it below.
             let slope = |t: T| toward * taylor(t)[1].value;
             let slope_past_its_bound = |t: T| exactly(toward * taylor(t)[1].toward_zero());
             if exactly(curve) == Some(Sign::Positive)
