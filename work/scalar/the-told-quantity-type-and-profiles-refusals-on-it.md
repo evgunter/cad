@@ -2,12 +2,14 @@
 id: the-told-quantity-type-and-profiles-refusals-on-it
 kind: unit
 title: The told quantity in geom-core, profile's refusals moved onto it, and the gate over refusal fields
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: patherror-display-renders-float-noise
+pr: 7159
 branch: scalar/told-quantity-type
+closed: 2026-11-20
 ---
 
 

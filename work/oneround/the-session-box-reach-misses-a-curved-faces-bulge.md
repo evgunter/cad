@@ -2,11 +2,12 @@
 id: the-session-box-reach-misses-a-curved-faces-bulge
 kind: issue
 title: The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
-cost: M
+cost: H
 pr: 7140
+branch: oneround/box-region
 ---
 
 
@@ -49,3 +50,19 @@ Since PR 7088, a placed copy's box is asked once, at the door that places it (`F
 
 The design question is closed. What is left on this row is the build, cut into units at spec time: the two-sided read per kind of face (ruled and sphere faces from the existing cover; a torus's far points; a spline's net clipped to its face), the certification ask, the gate's face ask, and the placing door's read. `a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling` closes with the certification ask.
 
+
+## Cut into units (2026-11-20, ONEROUND orchestrator)
+
+Read against main first (a map of `topo::session_box`, the gate, certification, the placing doors and the covers; nothing on this ground is touched by `oneround/lever-doors` but `certify.rs`, by 30 lines):
+
+- Every ask but certification's goes through one fold, `session_box::reach_of`: the gate (`validate::structural_via`), tier 3′ (`pseudomanifold_certificate_via`), the move (`finish::moved_and_asked`) and the placing door (`finish::session_box_at`, `Framed::asked_where_it_stands`). So the gate's face ask and the placing door's read are one change, not two.
+- The outside read of a face exists for every kind: `topo::cover::face_cover`. It is loose for a spline (the whole control net) and a spindle (the tube), and a ring torus's window is orientation-blind (BOXES holds rows on each).
+- The inside read of a curved face does not exist: no function produces points known to lie on a sphere's or torus's face. Candidates (a sphere's poles and coordinate extremes, a torus's far points) can be placed by `contain::curved_face_placement`.
+- Certification never asks the box.
+
+So, two units:
+
+1. **`oneround/box-region`** (this row; H): the predicate over a region, its cover from outside and points on it from inside, with both refusals (past the box; a limit), and the one fold asking it of every face. The two examples above become rows. It reports back to Ev, on its PR and before it merges: whether every finished face has a cover, what the face read costs at every finish on the box-scalar lanes, and every verdict that moves.
+2. **`oneround/box-certify-ask`** (`a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling`; M): certification asks the predicate of an edge with its ends before its residual. Stacked on the first once its predicate is pushed. It reports whether any construction certifies helper or cutter edges past 1 km on purpose.
+
+Tighter covers (a spline's net clipped to its face, the spindle, the clockwise torus) are precision, not soundness: a loose cover refuses as a limit where a tight one would admit. The first unit measures how often; a row follows if it is ever.

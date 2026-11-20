@@ -755,7 +755,8 @@ mod tests {
     }
 
     /// **A desynced caller is a kernel defect, loudly.** The door is
-    /// dispatched on a circle or an ellipse against a sphere or a wall;
+    /// dispatched on a circle or an ellipse against a sphere, a wall or a
+    /// cone;
     /// anything else reaching it is the caller's broken invariant, never
     /// an answer.
     #[test]

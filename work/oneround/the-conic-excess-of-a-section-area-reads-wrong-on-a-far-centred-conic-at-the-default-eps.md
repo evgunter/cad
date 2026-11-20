@@ -2,12 +2,14 @@
 id: the-conic-excess-of-a-section-area-reads-wrong-on-a-far-centred-conic-at-the-default-eps
 kind: issue
 title: split_section_area's conic excess is a sector about the far centre less a triangle: on a sliver loop of a far-centred conic it reads definitely positive where the true margin is inside the zero band, from far 1e4 at the default eps
-status: dispatched
+status: closed
 opened: 2026-11-19
 priority: P2
 cost: M
 refs: [a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex]
 branch: oneround/section-area
+closed: 2026-11-20
+pr: 7146
 ---
 
 
@@ -113,3 +115,11 @@ refuses none of the loops whose true margin is at least 10ε.
   `r` at angle `θ` off its axis mints `a = r/sin θ`, with the centre
   where the plane meets the axis: `far` 1e4 is `r = 1`, `θ = 1e-4`,
   or `r = 100`, `θ = 0.01`. The sliver also needs the cut to graze.
+
+## Closed (2026-11-20, PR 7146)
+
+The split's section area reads a conic edge's segment as `s_a·s_b·(axis·n̂)·(Δt − sin Δt)`, off the semi-axes and the span alone, through `geom_brep::props::arc_segment_term`; no centre and no vertex enters. `Δt − sin Δt` is a door of the scalar, `Real::less_sin`, conditioned at every span (a nested series for `|x| ≤ 2` at `f64`, an enclosure at `Interval`, one `SymOp::LessSin` node at `Sym`). `profile`'s `loop_orientation` reads the same door.
+
+The defect was worse than this row's title: measured on main through the site's own call, a sliver inside the zero band read definitely `Positive` from far = 1e3 at ε = 1e-9, a decade nearer than the probe found, and a corner cut 12 ε deep returned `Ok`. At the head the lens counts are zero in every cell at both ε. What moved (8 split verdicts toward `Join(Escalated split_section_area)`, 4 volume brackets in their last digits, `profile` verdicts at ε = 1e-12, the bits of `chord_bulge`) is in the PR body.
+
+Left, each with its own row: the predicate's perimeter counts a conic edge at its carrier's greatest speed, so one section geometrically past 10 ε now refuses (`work/hone/the-section-areas-perimeter-counts-a-conic-edge-at-its-carriers-greatest-speed.md`); corner cuts 20 to 50 ε deep finish with a volume of the wrong sign (`work/boxfinish/a-corner-cut-tens-of-eps-deep-finishes-with-a-definite-volume-of-the-wrong-sign.md`); a cylinder face's flux sums two terms of its far axis origin's size (`work/boxfinish/a-cylinder-faces-flux-sums-two-terms-of-its-far-axis-origins-size.md`); the extent fold's `r·(1 − cos h)` (`the-extent-folds-sagitta-is-read-as-r-times-one-less-cos`).

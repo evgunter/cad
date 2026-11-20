@@ -3,9 +3,8 @@
 //! torus's residual along a line ([`line_quadric_roots`]), and the root
 //! finders under it, which the point-in-solid ray reads too: the wall
 //! ([`line_wall_roots`]), the sphere ([`line_sphere_roots`]) and the
-//! torus ([`line_torus_roots`]) each answer on their own, and the cone's
-//! quadratic ([`line_cone_quadratic`]) is read by the edge's cone arm
-//! here and by the ray's own rungs.
+//! torus ([`line_torus_roots`]) and the cone ([`line_cone_roots`]) each
+//! answer on their own.
 //!
 //! The door answers in the root doors' shape
 //! ([`super::circle_roots::CircleRoots`]), with the one answer that
@@ -190,7 +189,7 @@ pub(super) fn line_method<T: Decide>(
                 half_angle,
                 ..
             },
-        ) => line_cone_roots(
+        ) => cone_roots(
             line,
             (
                 geom::Line {
@@ -201,7 +200,9 @@ pub(super) fn line_method<T: Decide>(
             ),
             (t0, t1),
             band,
-        ),
+        )
+        .map(|placed| Roots::<T, 2>::all(placed.map(|(t, _)| t)).widen())
+        .map_err(LineMethodRefusal::Unsettled),
         (
             Formed::LineTorus,
             geom::Surface::Torus {
@@ -265,11 +266,15 @@ pub enum About {
     /// scale, and the move buys nothing. It costs: at `Interval` the
     /// shift is itself an enclosure, and the moved offset `w₀ + d·shift`
     /// and the root `s + shift` each carry its width, so a root read
-    /// about the shift is wider than one read where the line starts. It
-    /// is also the reading every edge-sweep margin was measured on.
+    /// about the shift is wider than one read where the line starts. The
+    /// edge door reads a wall and a sphere from here.
     Start,
-    /// The line's closest approach to the quadric's axis or centre, for
-    /// a ray whose line's origin may lie far from the quadric.
+    /// The line's closest approach to the quadric's axis, apex or
+    /// centre, held to the run its caller reads where it names one (a
+    /// wall's run either side of the start, a cone's span): where the
+    /// residual over the run is read at the run's own scale, for a ray
+    /// whose line's origin may lie far from the quadric and for every
+    /// reading of a cone ([`line_cone_roots`]).
     Nearest,
 }
 
@@ -357,7 +362,6 @@ pub(super) fn wall_quadratic<T: Decide>(
         (w0, d, shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
-        T::one(),
     )
 }
 
@@ -381,7 +385,6 @@ pub(super) fn sphere_quadratic<T: Decide>(
         (w0, d, shift, w),
         [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
         radius,
-        T::one(),
     )
 }
 
@@ -407,11 +410,10 @@ pub struct Centred<T> {
     /// `|w₀| + |d|·|shift|`, `w₀` the start's offset from the quadric.
     far: T,
     /// The moved offset's length, with the quadric's radius where it
-    /// has one.
+    /// has one: the residual's gradient against the offset is at most
+    /// `2·near`, for a wall, a sphere and a cone alike (the cone's,
+    /// `2((w·â)â − cos²α·w)`, is at most `2|w|·max(sin²α, cos²α)`).
     near: T,
-    /// The residual's gradient against the offset, over `2|w|`: `1` for
-    /// a wall or a sphere, `2` for a cone.
-    gradient: T,
     /// `|d|`.
     speed: T,
 }
@@ -419,20 +421,13 @@ pub struct Centred<T> {
 impl<T: Decide> Centred<T> {
     /// The quadratic `coeffs`, read `shift` along `d` from a start
     /// offset `w0` from the quadric, at the moved offset `w` (across the
-    /// axis, for a wall), of a quadric of `radius` (`0` for a cone) whose
-    /// residual's gradient is `gradient·2|w|`.
-    fn new(
-        (w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>),
-        coeffs: [T; 3],
-        radius: T,
-        gradient: T,
-    ) -> Self {
+    /// axis, for a wall), of a quadric of `radius` (`0` for a cone).
+    fn new((w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>), coeffs: [T; 3], radius: T) -> Self {
         Self {
             shift,
             coeffs,
             far: w0.norm() + d.norm() * shift.abs(),
             near: w.norm() + radius,
-            gradient,
             speed: d.norm(),
         }
     }
@@ -447,16 +442,16 @@ impl<T: Decide> Centred<T> {
     /// on it: moved toward zero by that rounding, and zero within it,
     /// where the line passes too near tangency for its sign to be read.
     /// The residual `c` read about the shift is off by
-    /// [`geom_core::rounding_charge`] of `far·gradient·near` (as at a
+    /// [`geom_core::rounding_charge`] of `far·near` (as at a
     /// root, [`Self::roots`]), and `b` by that of `far·|d|`, so `disc` by
     /// `|a|` and `2|b|` times them. Read about the start
-    /// ([`About::Start`]) it is the plain `disc`, as it always was.
+    /// ([`About::Start`]) it is the plain `disc`.
     pub fn charged(&self, disc: T, about: About) -> T {
         if about == About::Start {
             return disc;
         }
         let [a, b, _] = self.coeffs;
-        let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
+        let e = a.abs() * geom_core::rounding_charge(self.far * self.near)
             + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
         geom_core::Rounded {
             value: disc,
@@ -469,27 +464,29 @@ impl<T: Decide> Centred<T> {
     /// rounding there**, for a definitely positive `disc`. The residual
     /// at a root `s` is read off offsets of length at most `far + |d|·|s|`
     /// (each rounded by `u` of that), against a gradient of at most
-    /// `2·gradient·(near + |d|·|s|)`: so it is off by at most
+    /// `2·(near + |d|·|s|)`: so it is off by at most
     /// [`geom_core::rounding_charge`] of their product, and the root by
     /// that over the residual's slope there ([`over_root_slope`]).
     /// Moving the root back by `shift` rounds it once more.
     pub fn roots(&self, disc: T) -> ([T; 2], T) {
         let [a, b, c] = self.coeffs;
         let roots = quadratic_roots(a, b, c, disc);
-        let s = roots[0].abs().max(roots[1].abs());
-        let run = self.speed * s;
-        let residual =
-            geom_core::rounding_charge((self.far + run) * (self.gradient * (self.near + run)));
-        let slack =
-            over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s);
+        let slack = self.slack_at(roots[0].abs().max(roots[1].abs()), disc);
         (roots.map(|r| r + self.shift), slack)
+    }
+
+    /// **The rounding of a root `s` from the shift**, in the line's
+    /// parameter: [`Self::roots`]' bound read at that root alone.
+    fn slack_at(&self, s: T, disc: T) -> T {
+        let run = self.speed * s.abs();
+        let residual = geom_core::rounding_charge((self.far + run) * (self.near + run));
+        over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s.abs())
     }
 }
 
 /// **A quadratic's root moved by a residual's error**: `error` over the
 /// residual's slope at the root, `2√disc` for `a·s² + 2b·s + c`. The one
-/// home of a line × quadric root's sensitivity, the ray's
-/// ([`Centred::roots`]) and the edge sweep's cone arm's.
+/// home of a line × quadric root's sensitivity ([`Centred::roots`]).
 pub fn over_root_slope<T: Decide>(error: T, disc: T) -> T {
     error / (T::from_f64(2.0) * disc.sqrt())
 }
@@ -520,19 +517,21 @@ pub struct WallRootFault {
 }
 
 /// **The line × cone quadratic**: the cone's quadric form along the
-/// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
-/// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
-/// times them, `C` in m² — read `about` the line's start or its closest
-/// approach to the apex ([`Centred`]). Its zero set is the DOUBLE cone;
-/// which nappe a root lands on is the caller's question.
+/// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A s² + 2B s + C` with
+/// `w = q + d·t − apex`, `s = t − shift` — `A` in `d`'s units squared,
+/// `B` in metres times them, `C` in m² — read about the line's closest
+/// approach to the apex held to the run `(lo, hi)` ([`About::Nearest`],
+/// [`Centred`]), where it is well-conditioned over the run whatever the
+/// line's start. Its zero set is the DOUBLE cone; which nappe a root
+/// lands on is the caller's question.
 /// `A = (d·â)² − |d|²cos²α` vanishes exactly when the line runs parallel
 /// to a generator. Each square straddling zero is a `powi(2)`, the tight
 /// square.
-pub fn line_cone_quadratic<T: Decide>(
+pub(super) fn line_cone_quadratic<T: Decide>(
     line: geom::Line<T>,
     cone: geom::Line<T>,
     half_angle: T,
-    about: About,
+    run: (T, T),
 ) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let geom::Line {
@@ -540,10 +539,7 @@ pub fn line_cone_quadratic<T: Decide>(
         dir: axis,
     } = cone;
     let w0 = q - apex;
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => line.param(apex),
-    };
+    let shift = line.param_within(apex, run);
     let w = w0 + d * shift;
     let cos2 = half_angle.cos().powi(2);
     let (da, wa) = (d.dot(axis), w.dot(axis));
@@ -552,7 +548,7 @@ pub fn line_cone_quadratic<T: Decide>(
         da * wa - w.dot(d) * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero(), T::from_f64(2.0))
+    Centred::new((w0, d, shift, w), coeffs, T::zero())
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -714,100 +710,148 @@ pub(super) fn apex_root_spread<T: Decide>(
     t1.abs().max(t2.abs()) * speed
 }
 
-/// **The certified roots of the LINE `origin + dir·t` against a CONE**:
-/// the cone's quadric form along it, the quadratic
-/// [`line_cone_quadratic`] `G = A t² + 2B t + C`
-/// (`G = −Q`, `Q = cos²α·ρ² − sin²α·h²`), whose zero set is the double
-/// cone. Its rungs, each a length:
+/// What [`line_cone_roots`] reads a line's run against a cone.
+#[derive(Clone, Copy, Debug)]
+pub enum ConeRoots<T> {
+    /// Two definite roots of the line's own parameter, unordered (`A`
+    /// may be negative), each with a bound on its rounding in that
+    /// parameter ([`Centred::roots`]' bound, read at that root).
+    Two([(T, T); 2]),
+    /// The run reaches the apex, where the cone has no tangent plane: the
+    /// line's one root, a double one, at the end the apex is decided at,
+    /// else at the line's foot from it. An edge reads it as its incidence
+    /// with the apex vertex; a ray, which needs an outward side at every
+    /// crossing, as a graze.
+    Apex(T),
+    /// A definite miss.
+    Miss,
+}
+
+/// **The certified roots of the LINE `origin + dir·t` against a CONE**,
+/// over the run `(t0, t1)` of the line's parameter: the one reading of a
+/// line against a cone, which an edge reads over its span and a ray over
+/// the run of its line inside the ball holding the face. The cone's
+/// quadric form along it is the quadratic [`line_cone_quadratic`]
+/// `G = A s² + 2B s + C` (`G = −Q`, `Q = cos²α·ρ² − sin²α·h²`), read
+/// about the line's closest approach to the apex held to the run
+/// ([`About::Nearest`]), whose zero set is the double cone. Its
+/// rungs, each a length:
 ///
-/// - **`line_quadric_cone_apex`** — the segment `[t0, t1]`'s distance from
-///   the apex. Not definitely positive: the edge reaches the apex, where
-///   the cone's gradient vanishes. An edge that ends there (an end's
-///   distance Zero) and is no ruling meets the cone at that end alone,
-///   its residual `A·(t − t_end)²`: one double root at the end, which
-///   the caller reads as the end's incidence. An edge through the apex
-///   inside the span is the same double root at its foot there, which
-///   the caller places on the face's apex vertex: the edge's incidence
-///   with it, the vertex pair's to read (`boolean::fan`).
+/// - **`line_quadric_cone_apex`** — the run's distance from the apex.
+///   Not definitely positive: the run reaches the apex, where the cone's
+///   gradient vanishes. A run that ends there (an end's distance Zero)
+///   and is no ruling meets the cone at that end alone, its residual
+///   `A·(t − t_end)²`: one double root at the end. A run through the
+///   apex inside it is the same double root at its foot there
+///   ([`ConeRoots::Apex`]).
 /// - **`line_quadric_cone_apex_spread`** — within the band of the apex is
-///   not at it: how far along the edge the line's roots lie from the
-///   point the double root is placed at, the end or the foot
-///   ([`apex_root_spread`], read about that point, so exact to
-///   rounding). Not definitely in the band (a needle cone and a line
-///   near its axis), or in the band's gap: the lane refuses
-///   [`Unsettled::AtApex`] rather than place the roots there.
-/// - **`line_quadric_cone_lead`** — `A/|dir|²` levered by the segment's
-///   length: how far the line turns off a generator over the edge. Zero:
+///   not at it: how far along the line its roots lie from the point the
+///   double root is placed at, the end or the foot ([`apex_root_spread`],
+///   read about that point, so exact to rounding). Not definitely in the
+///   band (a needle cone and a line near its axis), or in the band's
+///   gap: the lane refuses [`Unsettled::AtApex`] rather than place the
+///   roots there.
+/// - **`line_quadric_cone_lead`** — `A/|dir|²` levered by the run's
+///   length: how far the line turns off a generator over the run. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
 ///   the lane does not answer ([`Unsettled::Degenerate`]).
 /// - **`line_quadric_cone_depth`** — the depth the line's vertex `t*`
 ///   reaches: `G(t*) = −disc/A`, and on the near nappe
 ///   `Q = res·(ρ cos α + |h| sin α)` with that factor at most `|q|`, so
 ///   `disc/(|A|·R)`, `R ≥ |q(t*)|`, is a lower bound on the residual's
-///   magnitude there, signed as the crossing count. Positive: two roots;
-///   Zero: a tangency, [`Unsettled::Tangency`]; Negative: a miss.
-/// - **`line_quadric_cone_root_slack`** — each root's arc-length slack: the
-///   rounding of `G`'s evaluation (charged against its term bound,
-///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed,
-///   less the root's distance outside the span. Not definitely inside
-///   the band: [`Unsettled::Meter`]. A root inside the span is
-///   placed within the band; one outside it is placed no nearer the span
-///   than the band, which is all the span decisions read of it.
-fn line_cone_roots<T: Decide>(
+///   magnitude there, signed as the crossing count; `disc` held to the
+///   rounding the shift brings into `B` and `C` ([`Centred::charged`]),
+///   while that of `A` itself and of `cos²α` is charged nowhere
+///   (`work/germ/the-line-cone-depth-charge-leaves-the-lead-and-cos2-rounding-uncharged.md`).
+///   Positive: two roots; Zero: a tangency, [`Unsettled::Tangency`];
+///   Negative: a miss.
+/// - **`line_quadric_cone_root_slack`** — each root's slack along the
+///   line ([`Centred::roots`]' bound read at that root, at the line's
+///   speed), less the root's
+///   distance outside the run. Not definitely inside the band:
+///   [`Unsettled::Meter`]. A root inside the run is placed within the
+///   band; one outside it is placed no nearer the run than the band,
+///   which is all a reader of the run reads of it.
+///
+/// # Errors
+///
+/// A rung other than the spread in band, with its diagnostics.
+pub fn line_cone_roots<T: Decide>(
     line: geom::Line<T>,
     (cone, half_angle): (geom::Line<T>, T),
     (t0, t1): (T, T),
     band: Band,
-) -> Result<CircleRoots<T>, LineMethodRefusal> {
-    let geom::Line { origin, dir } = line;
-    let w0 = origin - cone.origin;
-    let [a2, b2, c2] = line_cone_quadratic(line, cone, half_angle, About::Start).coeffs;
-    let disc = b2.powi(2) - a2 * c2;
-    let roots = quadratic_roots(a2, b2, c2, disc);
-    let speed = dir.norm();
+) -> Result<Result<ConeRoots<T>, Unsettled>, Indeterminate> {
+    use super::pose::{ConeRead, PoseRefusal, PoseRung};
+    match super::pose::line_cone_read(line, (cone, half_angle), (t0, t1), band) {
+        // A ruling, or a line parallel to one: the quadratic degenerates.
+        Ok(ConeRead::Lies | ConeRead::Parallel) => Ok(Err(Unsettled::Degenerate)),
+        Ok(ConeRead::Through { at, .. }) => Ok(Ok(ConeRoots::Apex(at))),
+        Ok(ConeRead::Apart) => Ok(Ok(ConeRoots::Miss)),
+        Ok(ConeRead::Graze { .. }) => Ok(Err(Unsettled::Tangency)),
+        Ok(ConeRead::Two) => Ok(
+            match cone_roots(line, (cone, half_angle), (t0, t1), band) {
+                Ok(placed) => Ok(ConeRoots::Two(placed)),
+                Err(why) => Err(why),
+            },
+        ),
+        Err(PoseRefusal::Meter {
+            rung: PoseRung::Apex,
+            ..
+        }) => Ok(Err(Unsettled::AtApex)),
+        // An in-band spread is the apex's, refused typed, never escalated.
+        Err(PoseRefusal::InBand {
+            rung: PoseRung::Apex,
+            diag,
+        }) if diag.predicate == Some("curve_face_pose_cone_apex_spread") => {
+            Ok(Err(Unsettled::AtApex))
+        }
+        Err(PoseRefusal::InBand { diag, .. }) => Err(diag),
+        Err(other) => unreachable!("the cone's rungs refuse in band only: {other:?}"),
+    }
+}
+
+/// **The line × cone method**: a crossing line's two roots, from the
+/// quadratic about its closest approach to the apex held to the run,
+/// each metered (`line_quadric_cone_root_slack`): its slack along the
+/// line ([`Centred::roots`]' bound read at that root, at the line's
+/// speed), less the root's distance outside the run, must be definitely
+/// inside the band. A root inside the run is placed within the band; one
+/// outside it is placed no nearer the run than the band, which is all a
+/// reader of the run reads of it.
+///
+/// # Errors
+///
+/// [`Unsettled::Meter`] for a slack not definitely inside the band.
+fn cone_roots<T: Decide>(
+    line: geom::Line<T>,
+    (cone, half_angle): (geom::Line<T>, T),
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<[(T, T); 2], Unsettled> {
     let (lo, hi) = (t0.min(t1), t0.max(t1));
-    for t in roots {
-        let terms = (w0.norm() + speed * t.abs()).powi(2);
-        let slack = over_root_slope(speed * geom_core::rounding_charge(terms), disc);
+    let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
+    let disc = centred.disc();
+    let (roots, _) = centred.roots(disc);
+    let speed = line.dir.norm();
+    let mut placed = [(T::zero(), T::zero()); 2];
+    for (t, at) in roots.into_iter().zip(&mut placed) {
+        let slack = centred.slack_at(t - centred.shift, disc);
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "line_quadric_cone_root_slack",
-            Margin::of(slack - outside),
+            Margin::of(speed * slack - outside),
             band,
         ) {
-            Ok(Sign::Zero | Sign::Negative) => {}
+            Ok(Sign::Zero | Sign::Negative) => *at = (t, slack),
             Ok(Sign::Positive) | Err(_) => {
-                return Err(LineMethodRefusal::Unsettled(Unsettled::Meter {
+                return Err(Unsettled::Meter {
                     row: "line_quadric_cone_root_slack",
-                }));
+                });
             }
         }
     }
-    Ok(Roots::<T, 2>::all(roots).widen())
-}
-
-/// The line × cone reading through the door's wrapper, as the rows read
-/// it: the cone `(apex, axis)` of `half_angle`, a cone rung's escalation
-/// its diagnostics.
-#[cfg(test)]
-#[allow(clippy::panic)]
-fn line_cone_door<T: Decide>(
-    line: geom::Line<T>,
-    (cone, half_angle): (geom::Line<T>, T),
-    span: (T, T),
-    band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, Indeterminate> {
-    let surface = geom::Surface::Cone {
-        apex: cone.origin,
-        axis: cone.dir,
-        half_angle,
-        u_ref: cone.dir.orthonormal_basis().0,
-    };
-    match line_quadric_roots(line, span, &surface, band) {
-        Ok(Some(found)) => Ok(found),
-        Err(LineQuadricRefusal::Cone(diag)) => Err(diag),
-        other => panic!("the cone door answered outside its arm: {other:?}"),
-    }
+    Ok(placed)
 }
 
 #[cfg(test)]
@@ -1009,7 +1053,7 @@ mod wall_root_rows {
                 dir: Vec3::new(0.0, 0.0, 1.0),
             },
             core::f64::consts::FRAC_PI_4,
-            About::Nearest,
+            (0.0, 2.0 * big),
         );
         let (ts, slack) = cone.roots(cone.disc());
         let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));
@@ -1068,7 +1112,7 @@ mod line_cone_rows {
         span: (f64, f64),
     ) -> Result<Result<CircleRoots<f64>, Unsettled>, Indeterminate> {
         let tip = Point3::new(APEX.0, APEX.1, APEX.2);
-        super::line_cone_door(
+        let found = line_cone_roots(
             geom::Line {
                 origin: Point3::from_array(origin),
                 dir: Vec3::from_array(dir),
@@ -1082,7 +1126,8 @@ mod line_cone_rows {
             ),
             span,
             band(),
-        )
+        )?;
+        Ok(found.map(ConeRoots::edge))
     }
 
     fn roots(
@@ -1175,6 +1220,175 @@ mod line_cone_rows {
         );
     }
 
+    /// **A line a micrometre off the cone, a centiradian off its
+    /// generator, is decided**: in the tangent plane at `(1, 0, 1)`,
+    /// turned `0.01` rad off the generator there and moved `10⁻⁶` m off
+    /// the cone along its normal, it misses outward and crosses twice
+    /// inward, read over two metres about its closest approach to the
+    /// apex. Its discriminant is about `|A|` times the depth it reaches,
+    /// `|A| ≈ 5·10⁻⁵` here, so a depth that did not divide by `|A|` would
+    /// read both in the zero band and decide neither.
+    #[test]
+    fn a_line_near_a_generator_and_just_off_the_cone_is_decided() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
+        let dir = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
+        let cone = (
+            geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            core::f64::consts::FRAC_PI_4,
+        );
+        for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
+            let line = geom::Line {
+                origin: Point3::new(1.0, 0.0, 1.0) + n * off,
+                dir,
+            };
+            let near = line.param(cone.0.origin);
+            let got = line_cone_roots(line, cone, (near - 1.0, near + 1.0), band);
+            assert!(
+                if two {
+                    matches!(got, Ok(Ok(ConeRoots::Two(..))))
+                } else {
+                    matches!(got, Ok(Ok(ConeRoots::Miss)))
+                },
+                "{label}: got {got:?}"
+            );
+        }
+    }
+
+    /// A line from its coordinates' bits, as the pinned poses below
+    /// were drawn.
+    fn bits_line(q: [u64; 3], d: [u64; 3]) -> geom::Line<f64> {
+        geom::Line {
+            origin: Point3::from_array(q.map(f64::from_bits)),
+            dir: Vec3::from_array(d.map(f64::from_bits)),
+        }
+    }
+
+    /// The cone about `+z` from the origin, half-angle `alpha`.
+    fn upright(alpha: f64) -> (geom::Line<f64>, f64) {
+        (
+            geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            alpha,
+        )
+    }
+
+    /// **A far line within rounding of a tangency is not read past it**
+    /// (the depth rung's charge). A line `10⁷` m out, in the tangent plane
+    /// of the right cone at a point of it moved off by a few of its
+    /// coordinates' ulps, read over six metres about the touch. Its exact
+    /// discriminant is negative (a miss, by exact rational arithmetic on
+    /// these bits and a 140-digit `cos²α`), while the one the door reads
+    /// about the run is positive and, uncharged, would put the depth 26
+    /// escalate thresholds past zero: two roots where there are none. The
+    /// shift's rounding is what moves it, and the charge holds it.
+    #[test]
+    fn a_far_line_within_rounding_of_a_tangency_is_not_read_as_crossing() {
+        let line = bits_line(
+            [
+                0x4140_93ea_aece_cc42,
+                0x4159_ab39_3153_23da,
+                0xc15a_f956_5e6a_2fc7,
+            ],
+            [
+                0xbfcb_d01c_f52f_5a8d,
+                0xbfe5_8857_f28d_681c,
+                0x3fe6_a09e_6653_8034,
+            ],
+        );
+        let run = (
+            f64::from_bits(0x4163_12cf_a000_0000),
+            f64::from_bits(0x4163_12d0_6000_0000),
+        );
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let got = line_cone_roots(line, upright(core::f64::consts::FRAC_PI_4), run, band);
+        assert!(
+            matches!(got, Ok(Ok(ConeRoots::Miss) | Err(Unsettled::Tangency))),
+            "a miss within rounding of a tangency reads a miss or a tangency, got {got:?}"
+        );
+    }
+
+    /// **Each root lies within its slack of the exact one** (the
+    /// root-slack rung's bound). A line beside a narrow cone, `α = 0.3`,
+    /// crossing it twice within a metre and a half, read over its two
+    /// metres: each root the door places lies within the slack it carries
+    /// of the exact root (by exact rational arithmetic on these bits and a
+    /// 140-digit `cos²α`), and one of them lies `4.9·10⁻¹¹` from it, so
+    /// a slack of nothing would not hold it.
+    #[test]
+    fn each_root_lies_within_its_slack_of_the_exact_one() {
+        let line = bits_line(
+            [
+                0x3fb6_3402_4573_0020,
+                0x3f96_1fbd_3d6f_348c,
+                0x3fd2_58a7_c1fd_c17c,
+            ],
+            [
+                0x3fd1_5f62_e73e_a71e,
+                0x3fbe_0897_9795_168f,
+                0x3fee_919f_b7dc_4306,
+            ],
+        );
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let got = line_cone_roots(line, upright(0.3), (0.0, 2.0), band);
+        let Ok(Ok(ConeRoots::Two(ts))) = got else {
+            panic!("two crossings, got {got:?}");
+        };
+        let exact = [0x3fef_8c31_efd1_e9e2_u64, 0x3ff0_3a89_fb06_8e3c].map(f64::from_bits);
+        let mut ts = ts;
+        ts.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for ((t, slack), x) in ts.into_iter().zip(exact) {
+            assert!(
+                (t - x).abs() <= slack,
+                "the root {t} lies {:e} from the exact {x}, past its slack {slack:e}",
+                (t - x).abs()
+            );
+        }
+    }
+
+    /// **A root the parameter cannot place within the band is not
+    /// placed** (the root-slack rung). A line from `10⁷` m crossing a
+    /// wide cone, `α = 1.2`, twice within its two-metre run: the exact
+    /// roots lie `1.8·10⁻¹⁰` and `5.1·10⁻¹⁰` from the nearest `f64`s to
+    /// them, past the `10⁻¹²` band, so no root in the line's own
+    /// parameter is within the band of them, and the meter refuses.
+    #[test]
+    fn a_root_the_parameter_cannot_place_within_the_band_is_refused() {
+        let line = bits_line(
+            [
+                0xc14e_9bbc_854f_ac84,
+                0x4160_a9df_7b9d_e124,
+                0xc145_009e_0823_8925,
+            ],
+            [
+                0x3fd9_ad17_2f34_9ce7,
+                0xbfeb_f4f3_1b8b_f71d,
+                0x3fd1_9e3c_4702_d96e,
+            ],
+        );
+        let run = (
+            f64::from_bits(0x4163_12cf_e000_0000),
+            f64::from_bits(0x4163_12d0_2000_0000),
+        );
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let got = line_cone_roots(line, upright(1.2), run, band);
+        assert!(
+            matches!(
+                got,
+                Ok(Err(Unsettled::Meter {
+                    row: "line_quadric_cone_root_slack"
+                }))
+            ),
+            "the meter refuses, got {got:?}"
+        );
+    }
+
     /// **An edge through the apex has its one double root there**, as one
     /// passing within the band of it: the cone's form is homogeneous about
     /// the apex, so the caller places the root on the face's apex vertex.
@@ -1263,8 +1477,8 @@ mod line_cone_rows {
         }
         let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
         assert!(
-            matches!(ruling, Ok(CircleRoots::On(_))),
-            "a ruling ending at the apex lies on the cone, got {ruling:?}"
+            matches!(ruling, Err(Unsettled::Degenerate)),
+            "a ruling ending at the apex, got {ruling:?}"
         );
         let steep = roots(
             [-1.0, 0.5 * b.zero(), -1.001],
@@ -1341,7 +1555,7 @@ mod line_cone_rows {
                             .into_iter()
                             .filter(inside)
                             .collect();
-                        match super::line_cone_door(
+                        match line_cone_roots(
                             geom::Line { origin, dir: axis },
                             (
                                 geom::Line {
@@ -1352,7 +1566,9 @@ mod line_cone_rows {
                             ),
                             span,
                             band,
-                        ) {
+                        )
+                        .map(|found| found.map(ConeRoots::edge))
+                        {
                             Ok(Ok(CircleRoots::Certified(found))) => {
                                 let (count, thetas) = (found.count(), found.roots());
                                 certified += 1;

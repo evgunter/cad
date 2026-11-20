@@ -86,7 +86,9 @@ impl<T: Real> From<OrderFault> for PathError<T> {
             OrderFault::NoFirstLeg => PathError::UnderdeterminedLeg {
                 site: "a seam junction on a chain with no first leg",
             },
-            OrderFault::ClosesOnItsEntry => PathError::DegenerateArcChord { chord: T::zero() },
+            OrderFault::ClosesOnItsEntry => PathError::DegenerateArcChord {
+                chord: super::length(T::zero()),
+            },
         }
     }
 }

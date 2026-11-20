@@ -10,7 +10,7 @@ cost: E
 
 Found by the review of PR 5993 (`splitdoor/roots-unsettled-split`).
 
-`crates/topo/src/boolean/conic_quadric/mod.rs:430`: a conic whose
+`crates/geom-brep/src/curve_face/conic_quadric.rs`: a conic whose
 cone-residual quadratic reads `Roots::On` stands on the cone only once
 its reach through the floor decides zero (`CONE_ON_SURFACE`). A definite
 nonzero reach is the meter's limit (`Unsettled::Meter`), but the arm is

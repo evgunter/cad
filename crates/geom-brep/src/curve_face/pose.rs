@@ -659,32 +659,87 @@ fn discriminant<T: Decide>(
     }
 }
 
-/// **A line against a cone**: the apex rung (the span's distance from
-/// the apex), the lead rung on a line through it (`A/|d|²` levered by
-/// the span's length: Zero is a generator), the spread of its roots
-/// about the apex, then, off the apex, the depth (`disc/(|A|·R)`) and
-/// the lead. A generator through the apex lies on the cone; a line
-/// through the apex otherwise passes through it ([`Pose::Through`]).
-fn line_cone<T: Decide>(
-    span: &Span<'_, T>,
+/// **What the cone's rungs read of a line's run** ([`line_cone_read`]),
+/// before a graze's curvature: the span-free half the ray lane's
+/// wrapper reads too.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum ConeRead<T: Real> {
+    /// A generator through the apex: it lies on the cone.
+    Lies,
+    /// Off the apex, parallel to a generator: the method's own
+    /// degenerate form.
+    Parallel,
+    /// Through the apex at `at`, the line's roots within `reach` of it
+    /// along the line's parameter.
+    Through {
+        /// The apex's parameter: the end it is decided at, else the
+        /// line's foot from it.
+        at: T,
+        /// The roots' spread about it, in the line's parameter.
+        reach: T,
+    },
+    /// A definitely negative depth.
+    Apart,
+    /// A definitely positive depth: two roots, the method's.
+    Two,
+    /// A depth in the zero band: the vertex, a lower bound on the
+    /// residual's magnitude there, and on its second derivative.
+    Graze {
+        /// The vertex's parameter.
+        at: T,
+        /// The residual there.
+        value: T,
+        /// `|F″|` in the line's parameter.
+        bend: T,
+    },
+}
+
+/// **A line against a cone**: its quadratic read about its closest
+/// approach to the apex held to the run (`super::line_quadric`'s
+/// `line_cone_quadratic`), on its rungs, each a length:
+///
+/// - **the apex** (`curve_face_pose_cone_apex`), the run's distance from
+///   it: not definitely positive, the run reaches the apex, at the end
+///   the apex is decided at, else at its foot; a generator there
+///   (`curve_face_pose_cone_lead` Zero) lies on the cone, and otherwise
+///   the line passes through the apex, its roots within the spread
+///   (`curve_face_pose_cone_apex_spread`, which must be in the zero band:
+///   past it, a meter that refused);
+/// - **the lead** off the apex, `A/|d|²` levered by the run: Zero, the
+///   line runs parallel to a generator, the method's degenerate form;
+/// - **the depth** (`curve_face_pose_cone_depth`), `disc/(|A|·R)`, `R`
+///   at least the residual's factor over the run, `disc` held to the
+///   shift's rounding: positive, two roots; negative, apart; Zero, a
+///   graze at the vertex.
+///
+/// # Errors
+///
+/// [`PoseRung::Apex`], [`PoseRung::ConeLead`] or
+/// [`PoseRung::Discriminant`] in band; [`PoseRefusal::Meter`] for a
+/// spread definitely past the band.
+pub(super) fn line_cone_read<T: Decide>(
     line: geom::Line<T>,
     (cone, half_angle): (geom::Line<T>, T),
+    (t0, t1): (T, T),
     band: Band,
-) -> Result<Pose<T>, PoseRefusal> {
+) -> Result<ConeRead<T>, PoseRefusal> {
     use super::line_quadric::{About, apex_root_spread, line_cone_quadratic};
     let geom::Line { origin, dir } = line;
     let geom::Line {
         origin: apex,
         dir: axis,
     } = cone;
-    let (t0, t1) = span.params();
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = line.param_within(apex, (t0.min(t1), t0.max(t1)));
-    let [a2, b2, c2] = line_cone_quadratic(line, cone, half_angle, About::Start).coeffs;
-    let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
-    let lead = |band| {
+    let (lo, hi) = (t0.min(t1), t0.max(t1));
+    let foot = line.param_within(apex, (lo, hi));
+    let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
+    let [a2, b2, c2] = centred.coeffs;
+    // Unsourced lever: a length read off the parameter run, not the
+    // run's end points; the end points' distance rounds differently.
+    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let lead = || {
         decide(
             "curve_face_pose_cone_lead",
             Margin::levered(a2 / dd, length),
@@ -697,8 +752,9 @@ fn line_cone<T: Decide>(
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            // The end the apex is decided at, else the foot: the first a
-            // search reaches, an end in band ahead of it refusing.
+            // The end the apex is decided at, else the foot: WHICH, not a
+            // search a later end may answer past, an end in band ahead
+            // refusing.
             let mut at_apex = foot;
             for end in [t0, t1] {
                 if decide("curve_face_pose_cone_apex", Margin::norm3(at(end)), band)
@@ -709,22 +765,21 @@ fn line_cone<T: Decide>(
                     break;
                 }
             }
-            // A generator through the apex lies on the cone.
-            if lead(band)? == Sign::Zero {
-                return Ok(Pose::Lies);
+            if lead()? == Sign::Zero {
+                return Ok(ConeRead::Lies);
             }
             let spread = apex_root_spread(at(at_apex), dir, (axis, half_angle));
-            return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band)
-                .map_err(PoseRefusal::in_band(PoseRung::Apex))?
+            return match decide(
+                "curve_face_pose_cone_apex_spread",
+                Margin::of(spread),
+                band,
+            )
+            .map_err(PoseRefusal::in_band(PoseRung::Apex))?
             {
-                Sign::Zero => {
-                    let reach = spread / dir.norm();
-                    Ok(Pose::Through(Singular {
-                        at: at_apex,
-                        point: apex,
-                        spread: (at_apex - reach, at_apex + reach),
-                    }))
-                }
+                Sign::Zero => Ok(ConeRead::Through {
+                    at: at_apex,
+                    reach: spread / dir.norm(),
+                }),
                 Sign::Positive | Sign::Negative => Err(PoseRefusal::Meter {
                     rung: PoseRung::Apex,
                     row: "curve_face_pose_cone_apex_spread",
@@ -732,37 +787,53 @@ fn line_cone<T: Decide>(
             };
         }
     }
-    // Off the apex: the lead Zero is a line parallel to a generator, the
-    // method's own degenerate form.
-    if lead(band)? == Sign::Zero {
-        return Ok(Pose::Isolated(Form(Formed::LineCone { parallel: true })));
+    if lead()? == Sign::Zero {
+        return Ok(ConeRead::Parallel);
     }
-    let disc = b2.powi(2) - a2 * c2;
-    let vertex = (T::zero() - b2) / a2;
-    let reach = at(t0).norm().max(at(t1).norm()).max(at(vertex).norm());
+    let disc = centred.disc();
+    let vertex = centred.shift - b2 / a2;
+    let reach = at(lo).norm().max(at(hi).norm()).max(at(vertex).norm());
     match decide(
         "curve_face_pose_cone_depth",
-        Margin::of(disc / (a2.abs() * reach)),
+        Margin::of(centred.charged(disc, About::Nearest) / (a2.abs() * reach)),
         band,
     )
     .map_err(PoseRefusal::in_band(PoseRung::Discriminant))?
     {
-        Sign::Positive => Ok(Pose::Isolated(Form(Formed::LineCone { parallel: false }))),
-        Sign::Negative => Ok(Pose::Apart),
-        Sign::Zero => {
-            // `|res| ≥ |G|/R` on the near nappe, `G` the quadratic: its
-            // curvature over `R`, a lower bound on the residual's.
-            let value = (c2 - b2.powi(2) / a2) / reach;
-            kappa(
-                span,
-                vertex,
-                (value, T::zero()),
-                a2.abs() / reach,
-                dir.norm(),
-                band,
-            )
-        }
+        Sign::Positive => Ok(ConeRead::Two),
+        Sign::Negative => Ok(ConeRead::Apart),
+        // `|res| ≥ |G|/R` on the near nappe, `G` the quadratic: its value
+        // and curvature over `R`.
+        Sign::Zero => Ok(ConeRead::Graze {
+            at: vertex,
+            value: (c2 - b2.powi(2) / a2) / reach,
+            bend: a2.abs() / reach,
+        }),
     }
+}
+
+/// **A line against a cone** ([`line_cone_read`]), a graze's curvature
+/// read on `span`.
+fn line_cone<T: Decide>(
+    span: &Span<'_, T>,
+    line: geom::Line<T>,
+    cone: (geom::Line<T>, T),
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    Ok(match line_cone_read(line, cone, span.params(), band)? {
+        ConeRead::Lies => Pose::Lies,
+        ConeRead::Parallel => Pose::Isolated(Form(Formed::LineCone { parallel: true })),
+        ConeRead::Through { at, reach } => Pose::Through(Singular {
+            at,
+            point: cone.0.origin,
+            spread: (at - reach, at + reach),
+        }),
+        ConeRead::Apart => Pose::Apart,
+        ConeRead::Two => Pose::Isolated(Form(Formed::LineCone { parallel: false })),
+        ConeRead::Graze { at, value, bend } => {
+            return kappa(span, at, (value, T::zero()), bend, line.dir.norm(), band);
+        }
+    })
 }
 
 // ------------------------------------------------- conic × quadric

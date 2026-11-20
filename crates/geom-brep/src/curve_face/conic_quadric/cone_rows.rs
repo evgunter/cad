@@ -362,17 +362,11 @@ fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
         // the apex (along the axis it would pass `9ε²` from it: through).
         let near = circle([0.5 + 3.0 * eps, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
         let got = conic_quadric_roots(&near, 0.0, TAU, &s, band);
-        // A side beside the apex the subdivision reads in the band's
-        // gap is a touch, escalated on the door's decision.
+        // The apex `3ε` off the carrier reads in the band's gap, so the
+        // carrier is neither read whole through it nor handed to the arms.
         assert!(
-            match &got {
-                Ok(Err(_)) => true,
-                Err(ConicQuadricRefusal::Cone(diag)) => {
-                    diag.predicate == Some("conic_quadric_sub_side")
-                }
-                Ok(Ok(_)) | Err(_) => false,
-            },
-            "ε {eps}, beside the apex: refused, got {got:?}"
+            matches!(got, Ok(Err(Unsettled::AtApex))),
+            "ε {eps}, beside the apex: refused at the apex, got {got:?}"
         );
     }
 }

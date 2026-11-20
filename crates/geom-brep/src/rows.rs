@@ -488,6 +488,8 @@ geom_core::row_registry! {
         split_lead: "line_quadric_torus_split_lead",
     };
 
+    // ------------------------------------------------- topo's readers
+
     /// The subdivision rows every `topo` section ruling chart walks under
     /// (`topo::boolean::section_cert`).
     pub const SECTION_RULING_WALK: SubdivisionRows = SubdivisionRows {

@@ -13,7 +13,7 @@ refs: [3847]
 ## What
 
 The conic × quadric door's first-harmonic arm on a circle against a
-wall (`crates/topo/src/boolean/conic_quadric/mod.rs`,
+wall (`crates/geom-brep/src/curve_face/conic_quadric.rs`,
 `conic_quadric_roots`; the circle × cylinder door's square arm before
 the two doors were one)
 hands the shared first-harmonic door

@@ -20,7 +20,7 @@ Measured with `scripts/k_probe_sweep.sh`'s dump half on main `9fe94da35`
 
 `conic_quadric_sub_clear` is the clear row of the conic × quadric
 ladder's verifying subdivision (`geom_brep::rows::CONIC_QUADRIC_LADDER`,
-read by `crates/topo/src/boolean/conic_quadric/mod.rs` through
+read by `crates/geom-brep/src/curve_face/conic_quadric.rs` through
 `LADDER_ROWS`, ~206). On `demo/lily_walls` at 1e-6 it lands in the band
 4 times, at 3.0555e-6 and 3.0912e-6. At 1e-9 the 3.0555e-6 reading
 recurs twice, definite and under the 4e-5 floor. It is bit-identical
