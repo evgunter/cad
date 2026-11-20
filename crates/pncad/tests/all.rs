@@ -5009,7 +5009,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5192,6 +5192,7 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdicts",
     "ParamValue",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
     "RangeField",

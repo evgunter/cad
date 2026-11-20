@@ -465,10 +465,8 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
             hidden: reader(self.hidden, Dimension::Length),
         }
     }
-    fn drawable_pieces(
-        &self,
-    ) -> Result<BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal> {
-        Ok(BTreeSet::new())
+    fn partition(&self) -> Result<editor_core::ProfilePartition, editor_core::ProgramRefusal> {
+        Ok(editor_core::ProfilePartition::default())
     }
 }
 
