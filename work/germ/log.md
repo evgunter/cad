@@ -1571,3 +1571,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `LineQuadricRefusal` narrowed per producer, so the trace's twin mappers become one.
 
   **Recorded for U3a, not U1:** `pub fn line_quadric_roots` takes an untyped `&geom::Surface`, answers `Ok(None)` for whole kinds, and returns `LineRoots::Constant`, a pose answer. The cone apex rung, a `Through`, also stays inside the door. That is the old shape made public. U3a reshapes it, with typed operands, the pose moved out, and an unbuilt kind as a window. It also brings the topo census rows for the moved predicates (`torus_predicate_rows`, `torus_landing_rows`) next to their finder, and resolves the `LineRoots` door-name clash.
+- 2026-11-20 — **PR 7171 (section-class) review: APPROVE-WITH-FIXES, no MAJOR.** All six claims held. On the torus rows the reviewer found a stronger argument: every consumer of `RoutesToGeneralRung` refuses, so no loop count is served off that lane. Both mutant directions red 8 rows. Fix pass, continued in the implementer's own agent:
+  - **MINOR 1, demonstrated:** the re-posed torus lever rows lost their too-short-lever sensitivity. The reviewer's verified replacement rows are taken.
+  - **MINOR 2:** the snap refuses in band for every relation kind itself, rather than leaning on build rows that `coaxial-class-readings-escalate-in-band` would convert.
+  - **MINOR 3:** a now-dead `build.rs` ambiguity path is removed or made direct.
+  - `closed_form_shown` reads `geom_core::ladder::in_band`.
+
+  **Class:** inline re-spellings of `ladder::in_band` in `chord_join.rs` and `merge_faces.rs` are to be filed by the fix pass on the owner's slate.
