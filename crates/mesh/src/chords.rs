@@ -750,10 +750,7 @@ fn edge_target(
 /// The radius of a circle carrier (caller guarantees the variant).
 fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
-        Curve3::Circle(circle) => {
-            let radius = circle.radius();
-            radius
-        }
+        Curve3::Circle(circle) => circle.radius(),
         _ => f64::NAN,
     }
 }

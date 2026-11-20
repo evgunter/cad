@@ -251,10 +251,7 @@ fn p2_counterbore_mouth_two_half_annuli_split_into_two_rims() {
                             .expect("carrier")
                             .carrier()
                         {
-                            geom::Curve3::Circle(circle) => {
-                                let radius = circle.radius();
-                                radius
-                            }
+                            geom::Curve3::Circle(circle) => circle.radius(),
                             other => panic!("rim bounded by {other:?}"),
                         }
                     };

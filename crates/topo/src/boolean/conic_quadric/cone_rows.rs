@@ -941,7 +941,7 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_meter() {
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
     assert!(
-        matches!(found, Ok(Err(Unsettled::Meter))),
+        matches!(found, Ok(Err(Unsettled::Meter { .. }))),
         "the in-contract twin is refused on its meter: {found:?}"
     );
 }

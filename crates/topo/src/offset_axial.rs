@@ -3079,7 +3079,7 @@ fn reauthor<T: Decide>(
                             b,
                             arc: Arc2 {
                                 centre,
-                                radius: radius,
+                                radius,
                                 sweep: keep_turn(
                                     covered,
                                     u.perp_dot(v).atan2(u.dot(v)),

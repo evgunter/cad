@@ -273,10 +273,7 @@ fn a_full_period_rim_is_admitted_at_every_consumer_of_every_kind() {
         // band at each rim's own lever.
         let lever = [lo, hi]
             .map(|lv| match rim_carrier::<f64>(kind, lv) {
-                Curve3::Circle(circle) => {
-                    let radius = circle.radius();
-                    radius
-                }
+                Curve3::Circle(circle) => circle.radius(),
                 _ => unreachable!("a rim is a circle"),
             })
             .into_iter()

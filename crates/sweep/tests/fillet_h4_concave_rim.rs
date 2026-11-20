@@ -254,8 +254,7 @@ fn ring_radius(body: &Body<f64>, face: FaceKey) -> f64 {
     else {
         panic!("a ring edge is a circle arc")
     };
-    let radius = conic_k.radius();
-    radius
+    conic_k.radius()
 }
 
 /// **The boss's material-adding fill, as a washer integral** — nothing

@@ -996,7 +996,7 @@ fn rides<T: Decide>(
                 Rim {
                     center: *center,
                     axis: *axis,
-                    radius: radius,
+                    radius,
                     u_ref: *u_ref,
                 },
                 rim,
