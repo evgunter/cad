@@ -447,9 +447,11 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
         "the crest circle's envelope is inside the band"
     );
 
-    let Curve3::Circle(geom::Circle { frame, radius, .. }) = villarceau(0.4, 1.0, 1.0, 0.0) else {
+    let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = villarceau(0.4, 1.0, 1.0, 0.0)
+    else {
         unreachable!()
     };
+    let frame = the_circle.frame();
     let (c, n, e) = (frame.origin(), frame.axis(), frame.u_ref());
     let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
     let rot = |v: Vec3<f64>, by: f64| {
@@ -579,14 +581,11 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        radius,
-        ..
-    }) = villarceau(0.4, 1.0, 1.0, 0.0)
+    let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
+    let carrier_frame = the_circle.frame();
     let (center, n, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),

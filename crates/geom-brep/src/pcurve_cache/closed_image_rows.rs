@@ -732,17 +732,17 @@ impl Mirror {
         match c {
             Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
             Curve3::Circle(k) => Curve3::circle(
-                self.point(k.frame.origin()),
-                -self.vector(k.frame.axis()),
+                self.point(k.frame().origin()),
+                -self.vector(k.frame().axis()),
                 k.radius,
-                self.vector(k.frame.u_ref()),
+                self.vector(k.frame().u_ref()),
             ),
             Curve3::Ellipse(e) => Curve3::ellipse(
-                self.point(e.frame.origin()),
-                -self.vector(e.frame.axis()),
+                self.point(e.frame().origin()),
+                -self.vector(e.frame().axis()),
                 e.semi_u,
                 e.semi_v,
-                self.vector(e.frame.u_ref()),
+                self.vector(e.frame().u_ref()),
                 band(),
             )
             .unwrap(),

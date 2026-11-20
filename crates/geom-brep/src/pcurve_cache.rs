@@ -8955,12 +8955,13 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
+    let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = carrier else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
         });
     };
+    let frame = the_circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
 
     // ---- Check 2: the parameter interval, metered into metres. ----
@@ -11413,7 +11414,8 @@ fn derive_class_zero<T: Decide>(
                         },
                     ))
                 }
-                Curve3::Circle(geom::Circle { frame, .. }) => {
+                Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                    let frame = the_circle.frame();
                     let center = frame.origin();
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
                     // zero — already metres) and centred on the axis.
@@ -11528,12 +11530,8 @@ fn derive_class_zero<T: Decide>(
                         Derivation::ConeRim { nappe, beta },
                     ))
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame: carrier_frame,
-                    semi_u,
-                    semi_v,
-                    ..
-                }) => {
+                Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+                    let carrier_frame = the_ellipse.frame();
                     let (center, e_axis, seam) = (
                         carrier_frame.origin(),
                         carrier_frame.axis(),
@@ -12686,11 +12684,7 @@ fn torus_oblique_circle<T: Decide>(
     shown: incidence::Incident,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
-        &Curve3::Circle(geom::Circle {
-            frame: carrier_frame,
-            radius,
-            ..
-        }),
+        &Curve3::Circle(the_circle @ geom::Circle { radius, .. }),
         &Surface::Torus {
             frame,
             major_radius: big,
@@ -12700,6 +12694,7 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
+    let carrier_frame = the_circle.frame();
     let (c, n) = (carrier_frame.origin(), carrier_frame.axis());
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let w = c - center;
@@ -13118,10 +13113,8 @@ mod incidence {
                 let m = Rounded::exact(mid);
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. })
-            | Curve3::Spiric { frame, .. } => {
-                exact_vec(frame.origin() - geom_core::Point3::origin())
+            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+                exact_vec(carrier.frame()?.origin() - geom_core::Point3::origin())
             }
             _ => return None,
         };
@@ -13181,9 +13174,20 @@ mod incidence {
                 let k = geom_core::Vec3::new(kx.value, ky.value, kz.value);
                 let mut moved = carrier.translated(-k)?;
                 match &mut moved {
-                    Curve3::Circle(geom::Circle { frame, .. })
-                    | Curve3::Ellipse(geom::Ellipse { frame, .. })
-                    | Curve3::Spiric { frame, .. } => {
+                    // A conic born with a centre stands at the origin
+                    // exactly; one born anchored keeps its translated
+                    // anchor, its centre derived from it.
+                    Curve3::Circle(c) => {
+                        if c.born() == geom::Born::Centred {
+                            *c = c.placed(|f| f.with_origin(geom_core::Point3::origin()));
+                        }
+                    }
+                    Curve3::Ellipse(e) => {
+                        if e.born() == geom::Born::Centred {
+                            *e = e.placed(|f| f.with_origin(geom_core::Point3::origin()));
+                        }
+                    }
+                    Curve3::Spiric { frame, .. } => {
                         *frame = frame.with_origin(geom_core::Point3::origin());
                     }
                     _ => unreachable!(
@@ -16878,7 +16882,8 @@ mod limb2_memo_rows {
         let iv = |radius: Interval| {
             let (c, s) = rim(1.25);
             let c = match c.map_scalar(lift) {
-                Curve3::Circle(geom::Circle { frame, .. }) => {
+                Curve3::Circle(circle @ geom::Circle { .. }) => {
+                    let frame = circle.frame();
                     Curve3::Circle(geom::Circle::new(frame, radius))
                 }
                 _ => unreachable!(),
@@ -17056,13 +17061,10 @@ mod limb2_quick_rows {
         let lift = Interval::from_f64;
         let iv = |radius: Interval| {
             let (c, s) = rim(1.25, 1.25);
-            let Curve3::Circle(geom::Circle {
-                frame: carrier_frame,
-                ..
-            }) = c.map_scalar(lift)
-            else {
+            let Curve3::Circle(circle @ geom::Circle { .. }) = c.map_scalar(lift) else {
                 unreachable!()
             };
+            let carrier_frame = circle.frame();
             let c = Curve3::Circle(geom::Circle::new(carrier_frame, radius));
             bits(&limb2_offset_sup(
                 &c,

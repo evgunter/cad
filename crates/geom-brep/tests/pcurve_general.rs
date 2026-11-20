@@ -374,15 +374,11 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
     for (name, carrier, off) in [
         ("circle", circle(0.5), circle(0.501)),
         ("ellipse", ellipse(), {
-            let Curve3::Ellipse(geom::Ellipse {
-                frame,
-                semi_u,
-                semi_v,
-                ..
-            }) = ellipse()
+            let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = ellipse()
             else {
                 unreachable!()
             };
+            let frame = the_ellipse.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),

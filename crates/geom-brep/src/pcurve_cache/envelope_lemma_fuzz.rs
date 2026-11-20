@@ -545,7 +545,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
         }
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
@@ -568,12 +569,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             }
             Curve3::circle(center, axis, scaled(s, radius), u_ref)
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-            ..
-        }) => {
+        Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+            let frame = the_ellipse.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
@@ -2312,9 +2309,10 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
             unreachable!("villarceau draws a torus")
         };
         let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-        let Curve3::Circle(geom::Circle { frame, radius, .. }) = carrier else {
+        let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = carrier else {
             unreachable!("villarceau draws a circle")
         };
+        let frame = the_circle.frame();
         let (center, n, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let delta = match s.below(3) {
             0 => b.zero() * s.range(0.1, 0.9),

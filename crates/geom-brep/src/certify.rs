@@ -2020,9 +2020,10 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle(geom::Circle { frame, .. }) = carrier else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
             return None;
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         let start = carrier.eval(t0);
         Some(Self {

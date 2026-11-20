@@ -598,13 +598,11 @@ fn projected_circle_a_moved_frame_reads_once() {
 #[test]
 fn projected_circle_an_off_sphere_pair_reads_once() {
     let sphere = unit_sphere();
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        ..
-    }) = general_sphere_circle(Vec3::zero())
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = general_sphere_circle(Vec3::zero())
     else {
         unreachable!()
     };
+    let carrier_frame = the_circle.frame();
     let (u_ref, axis) = (carrier_frame.u_ref(), carrier_frame.axis());
     let v_ref = axis.cross(u_ref);
     let s = 0.75 * zero() / 0.8;

@@ -1306,7 +1306,7 @@ pub fn arc_rim_measured<T: Decide>(
     let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
-    let frame = circle.frame;
+    let frame = circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);

@@ -1980,7 +1980,8 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let geom::Circle { frame, radius, .. } = *circle;
+    let the_circle @ geom::Circle { radius, .. } = *circle;
+    let frame = the_circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
@@ -3349,8 +3350,8 @@ mod conic_tests {
             .collect();
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
-                first.frame.origin(),
-                first.frame.axis(),
+                first.frame().origin(),
+                first.frame().axis(),
                 Vec3::new(1.0, 0.3, 0.1),
             ),
             first.semi_u,
@@ -3572,8 +3573,8 @@ mod conic_tests {
         let first = ellipses()[0];
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
-                first.frame.origin(),
-                first.frame.axis(),
+                first.frame().origin(),
+                first.frame().axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
             first.semi_u,
@@ -3670,8 +3671,8 @@ mod conic_tests {
         let first = ellipses()[0];
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
-                first.frame.origin(),
-                first.frame.axis(),
+                first.frame().origin(),
+                first.frame().axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
             first.semi_u,

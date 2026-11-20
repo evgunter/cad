@@ -1048,12 +1048,7 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse(geom::Ellipse {
-                            frame: carrier_frame,
-                            semi_u,
-                            semi_v,
-                            ..
-                        }),
+                        geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }),
                         geom::Surface::Torus {
                             frame,
                             major_radius,
@@ -1064,6 +1059,7 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
+                    let carrier_frame = the_ellipse.frame();
                     let (center, axis, u_ref) = (
                         carrier_frame.origin(),
                         carrier_frame.axis(),

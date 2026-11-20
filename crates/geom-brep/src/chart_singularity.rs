@@ -1186,7 +1186,8 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+            Curve3::Circle(circle @ geom::Circle { radius, .. }) => {
+                let frame = circle.frame();
                 let n = frame.axis();
                 Self {
                     speed,

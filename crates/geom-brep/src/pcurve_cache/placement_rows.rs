@@ -318,7 +318,8 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             circle(
                 center,

@@ -185,13 +185,7 @@ pub fn circle_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     let (
-        &geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame,
-                radius,
-                ..
-            },
-        ),
+        &geom::Curve3::Circle(circle @ geom::Circle { radius, .. }),
         &geom::Surface::Torus {
             frame,
             major_radius,
@@ -205,6 +199,7 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
+    let carrier_frame = circle.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),
@@ -541,12 +536,7 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        circle:
-            geom::Circle {
-                frame: carrier_frame,
-                radius,
-                ..
-            },
+        circle: the_circle @ geom::Circle { radius, .. },
         w_perp,
         offset,
         h0,
@@ -554,8 +544,9 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let carrier_frame = the_circle.frame();
     let (center, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
-    let v_ref = pose.circle.frame.v_ref();
+    let v_ref = pose.circle.frame().v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
@@ -565,7 +556,10 @@ fn parallel_axes_roots<T: Decide>(
     // ring. The graze's own refusal stands only where it does.
     let graze: Option<RootRefusal> =
         match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band) {
-            Ok((Sign::Positive, _)) => None,
+            Ok((Sign::Positive, _)) => {
+                let carrier_frame = the_circle.frame();
+                None
+            }
             // Definitely past the top or bottom of the tube, even charged.
             Ok((_, Sign::Negative)) => return Ok(CircleRoots::Miss),
             Ok(_) => Some(Unsettled::Tangency.into()),

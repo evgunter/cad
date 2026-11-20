@@ -183,8 +183,8 @@ pub use chart_point::{
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
-    CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
-    CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
+    Born, CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic,
+    Curve3, CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
     NurbsCurve3, OnCarrier, PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, ParamSide, PeriodicError,
     PeriodicNurbs3, PeriodicViewError, PieceRead, PieceStep, PieceWalkRefusal, Projection2,

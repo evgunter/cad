@@ -642,9 +642,9 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
     // Stored larger-first or larger-second, the same set of points.
     let carrier = match carrier {
         Curve3::Ellipse(e) if s.below(2) == 0 => {
-            let (n, u) = (e.frame.axis(), e.frame.u_ref());
+            let (n, u) = (e.frame().axis(), e.frame().u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(e.frame.origin(), n, n.cross(u)),
+                geom::Frame::new(e.frame().origin(), n, n.cross(u)),
                 e.semi_v,
                 e.semi_u,
             ))
@@ -656,7 +656,11 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         unreachable!("the draws are ellipses")
     };
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(e.frame.origin() + offset, e.frame.axis(), e.frame.u_ref()),
+        geom::Frame::new(
+            e.frame().origin() + offset,
+            e.frame().axis(),
+            e.frame().u_ref(),
+        ),
         e.semi_u,
         e.semi_v,
     ));
@@ -864,9 +868,9 @@ fn oracle_row(
     };
     format!(
         "ROW {chart} | {} {} {} {:e} {:e} | {t0:e} {t1:e} | {envelope:e} {hi:e}",
-        p(e.frame.origin()),
-        v(e.frame.axis()),
-        v(e.frame.u_ref()),
+        p(e.frame().origin()),
+        v(e.frame().axis()),
+        v(e.frame().u_ref()),
         e.semi_u,
         e.semi_v
     )

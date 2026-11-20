@@ -69,7 +69,8 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let w = q - center;
             let h = w.dot(axis);
@@ -2416,9 +2417,10 @@ fn circles_on_one_sphere_meet_at_the_certified_scalar() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let i = Interval::from_f64;
     let lift = |c: &Curve3<f64>| {
-        let Curve3::Circle(geom::Circle { frame, radius, .. }) = *c else {
+        let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = *c else {
             unreachable!("a circle")
         };
+        let frame = the_circle.frame();
         let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
         let o = frame.origin();
         Curve3::circle(

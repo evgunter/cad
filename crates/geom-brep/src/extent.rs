@@ -1222,9 +1222,9 @@ mod tests {
                 if let (Curve3::Circle(c), true) = (&carrier, t1 > 1.0) {
                     // The whole circle's farthest point from the pivot, exactly:
                     // `√(h² + (ρ + r)²)`, `h` off its plane, `ρ` across it.
-                    let w = pivot - c.frame.origin();
-                    let h = w.dot(c.frame.axis());
-                    let rho = (w - c.frame.axis() * h).norm();
+                    let w = pivot - c.frame().origin();
+                    let h = w.dot(c.frame().axis());
+                    let rho = (w - c.frame().axis() * h).norm();
                     let exact = (h * h + (rho + c.radius).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
@@ -1300,8 +1300,8 @@ mod tests {
                     // against it has its farthest point there.
                     let crest_normal = {
                         let (u, k) = match carrier {
-                            Curve3::Circle(geom::Circle { frame, .. })
-                            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                                let frame = carrier.frame().unwrap();
                                 (frame.u_ref(), frame.axis())
                             }
                             _ => unreachable!(),

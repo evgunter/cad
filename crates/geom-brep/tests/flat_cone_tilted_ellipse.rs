@@ -82,15 +82,13 @@ impl Pose {
     /// tilted ellipse.
     fn miss_in_ulps(&self) -> Option<f64> {
         let (cone, plane) = self.surfaces();
-        let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
-            frame: carrier_frame,
-            semi_u,
-            semi_v,
-            ..
-        }))) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
+        let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse(
+            the_ellipse @ geom::Ellipse { semi_u, semi_v, .. },
+        ))) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
         else {
             return None;
         };
+        let carrier_frame = the_ellipse.frame();
         let (center, axis, u_ref) = (
             carrier_frame.origin(),
             carrier_frame.axis(),

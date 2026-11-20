@@ -78,16 +78,13 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle(geom::Circle { frame, radius, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1))
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame,
-            semi_u,
-            semi_v,
-            ..
-        }) => {
+        Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
+            let frame = the_ellipse.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
         }
