@@ -1213,9 +1213,13 @@ reading reads no face. Its *pose* (`curve_face::pose`), one exhaustive
 match over the two kinds, says how the span's carrier stands to the
 surface: it lies in it (`Lies`), is apart from it (`Apart`), touches it
 (`Tangent`, a point of the in-band arc together with the arc, as a
-curve pair's touch is reported), passes through a cone's apex
-(`Through`), or meets it at isolated candidates (`Generic`); in band it
-escalates. `Lies` holds over the whole span: a line or conic that lies
+curve pair's touch is reported), passes through a point where the
+surface has no tangent plane (`Through`: a cone's apex, a spindle
+sheet's apexes or its horn's cusp), or is none of these and meets it at
+finitely many isolated candidates, which the arm's method places
+(`Generic`); in band it escalates. The analytic curves are smooth, and a
+chart pole is the parameterisation's singularity, not the surface's, so
+these classes are exhaustive for every kind pair with a closed pose. `Lies` holds over the whole span: a line or conic that lies
 in an analytic surface over an arc lies in it everywhere. `Lies` is a
 reading of values only: whether an edge is recorded on a face stays
 with the coincidence door and the face's declared cover, in `topo`. An
