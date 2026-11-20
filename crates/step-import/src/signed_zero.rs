@@ -43,12 +43,13 @@
 //! result is kept added to either resolver mints `-0.0` from an exact
 //! zero and owes the flush.
 //!
-//! The recognition half is pinned by the promoted one-cycle fixed point
-//! (`tests/corpus_fold.rs`,
-//! `the_folds_divergence_is_exactly_the_reported_promotion`): without
-//! the flush, `nonuniform_loft`'s two promoted planes state `u_ref` as
-//! `(1.0, 0.0, -0.0)` and `(1.0, -0.0, -0.0)`, and the second re-export
-//! differs from the first on exactly those tokens.
+//! **The recognition half is posture, and no row guards it.** A
+//! promoted plane's frame (the net's normal and its own `∂u` made
+//! perpendicular to it) could mint `-0.0` — its orientation negates and
+//! its residual subtracts — but no input found reaches one: not the
+//! corpus, not a flat patch in any axis-aligned orientation. A test
+//! needs an input that yields `-0.0` without the flush, and none is
+//! known, so none can go red; the flush is kept unguarded.
 
 use geom_core::{Point3, Vec3};
 
@@ -81,38 +82,47 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(
-            plus_zero_point(center),
-            plus_zero(axis),
-            radius,
-            plus_zero(u_ref),
-        ),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame {
-                origin: plus_zero_point(center),
-                axis: plus_zero(axis),
-                u_ref: plus_zero(u_ref),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
             },
-            semi_u,
-            semi_v,
-        }),
+        ) => {
+            let radius = conic_k.radius();
+            Curve3::circle(
+                plus_zero_point(center),
+                plus_zero(axis),
+                radius,
+                plus_zero(u_ref),
+            )
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame {
+                    origin: plus_zero_point(center),
+                    axis: plus_zero(axis),
+                    u_ref: plus_zero(u_ref),
+                },
+                semi_u,
+                semi_v,
+            ))
+        }
         other => other,
     }
 }

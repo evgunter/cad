@@ -265,13 +265,16 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) = carrier_of(&body, k)
+            let geom::Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame: geom::Frame { origin: center, .. },
+                    ..
+                },
+            ) = carrier_of(&body, k)
             else {
                 panic!("{label}: the rim is a circle");
             };
+            let radius = conic_k.radius();
             assert!(
                 (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
                 "{label}: on the rim at z = H: {center:?}, {radius}"
@@ -732,7 +735,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
-///   (`work/honeroot/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
+///   (`work/germ/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
 #[test]
@@ -743,10 +746,12 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) if (center.z - H).abs() < 1e-9 => Some(radius),
+                geom::Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame: geom::Frame { origin: center, .. },
+                        ..
+                    },
+                ) if (center.z - H).abs() < 1e-9 => Some(circle.radius()),
                 _ => None,
             })
             .collect()
@@ -971,7 +976,7 @@ fn the_stadium_answers_every_op() {
 /// lane), and the bore is turned 45° so its seams leave the slab's
 /// rulings.
 #[test]
-#[ignore = "disabled red: work/tangrim/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
+#[ignore = "disabled red: work/tang/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
 fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let tol = Tol::witness();
     let block: AtRestBody<f64> = finished(

@@ -13,7 +13,9 @@
 //! split of a real body succeeds with both halves passing tiers 1–3 at
 //! their closed-form volumes, and a Boolean of the tilted operand
 //! against a box builds at its closed-form volume. A tilt in the pose's
-//! band still refuses, naming the pose's own predicate.
+//! band reads the same ellipse (the plane × cylinder and plane × cone
+//! rows are lane choices, D3); the cylinder pair's band refuses, naming
+//! the pose's own predicate.
 //!
 //! Each section row stands its configuration in three frames (as built,
 //! turned about a generic axis, and turned then carried about 1 km off),
@@ -220,14 +222,16 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { origin: center, .. },
-        semi_u,
-        semi_v,
-    }) = *curve
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: geom::Frame { origin: center, .. },
+            ..
+        },
+    ) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert!(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
@@ -425,7 +429,7 @@ fn tilted_z(s: f64) -> Vec3<f64> {
 }
 
 /// The table serves the tilted ellipse, on both surfaces to rounding,
-/// in every frame.
+/// in every frame, and in the pose's band too.
 #[test]
 fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
     for (frame, map) in frames() {
@@ -456,11 +460,13 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
                 let n = map.transform_vec(tilted_z(s));
                 assert_on(&what, e, Some((q, n)), &[&cyl]);
             }
-            let got = section(banded_sine(r));
-            assert!(
-                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pc_rim_alignment")),
-                "{frame}, r {r:e} in the pose's band: got {got:?}"
-            );
+            let s = banded_sine(r);
+            let what = format!("{frame}, r {r:e} in the pose's band");
+            let got = section(s);
+            let Ok(PlaneCylinderSection::TiltedEllipse(e)) = &got else {
+                panic!("{what}: the tilted ellipse, got {got:?}");
+            };
+            assert_on(&what, e, Some((q, map.transform_vec(tilted_z(s)))), &[&cyl]);
         }
     }
 }
@@ -670,10 +676,17 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
                 let n = map.transform_vec(tilted_y(s));
                 assert_on(&what, e, Some((q, n)), &[&cone]);
             }
-            let got = section(banded_sine(lever));
-            assert!(
-                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pn_axis_normal")),
-                "{frame}, scale {scale:e} in the pose's band: got {got:?}"
+            let s = banded_sine(lever);
+            let what = format!("{frame}, scale {scale:e} in the pose's band");
+            let got = section(s);
+            let Ok(PlaneConeSection::TiltedEllipse(e)) = &got else {
+                panic!("{what}: the tilted ellipse, got {got:?}");
+            };
+            assert_on(
+                &what,
+                e,
+                Some((q, map.transform_vec(tilted_y(s)))),
+                &[&cone],
             );
         }
     }
@@ -788,7 +801,10 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
             panic!("{what}: the two bisector ellipses, got {got:?}");
         };
         let near = |e: &Curve3<f64>| match *e {
-            Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u - semi_v).abs() < r,
+            Curve3::Ellipse(ellipse) => {
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                (semi_u - semi_v).abs() < r
+            }
             _ => false,
         };
         let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
@@ -841,7 +857,10 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
             match &got {
                 Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
                     let semi = |e: &Curve3<f64>| match *e {
-                        Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => semi_u.max(semi_v),
+                        Curve3::Ellipse(ellipse) => {
+                            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                            semi_u.max(semi_v)
+                        }
                         _ => panic!("{what}: an ellipse, got {e:?}"),
                     };
                     let long = semi(e1).max(semi(e2));

@@ -104,8 +104,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     step: 2,
                     kind: profile::PathErrorKind::JunctionTangent,
                     rendered: profile::PathError::<f64>::JunctionTangent {
-                        margin: 1e-12,
-                        arm: 0.5,
+                        margin: geom_core::Told::computed(&1e-12, geom_core::Dimension::Length),
+                        arm: geom_core::Told::computed(&0.5, geom_core::Dimension::Length),
                     }
                     .to_string(),
                 }),
@@ -782,63 +782,63 @@ fn next_section_id_fault(fault: &SectionIdFault) -> Option<SectionIdFault> {
 /// The path refusals a program edit forwards whole, at their longest:
 /// each one the feature tree's census measures over 60 words.
 fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
+    fn l(x: f64) -> geom_core::Told {
+        geom_core::Told::computed(&x, geom_core::Dimension::Length)
+    }
+    fn gl(x: f64) -> geom_core::Told {
+        geom_core::Told::given(&x, geom_core::Dimension::Length)
+    }
+    fn a(x: f64) -> geom_core::Told {
+        geom_core::Told::computed(&x, geom_core::Dimension::Angle)
+    }
+    fn radius_lever(boundary: f64, exact_fit_edge: f64) -> geom_core::Told {
+        geom_core::Told::at_most_within(&boundary, &exact_fit_edge, geom_core::Dimension::Length)
+    }
     use profile::PathError as P;
     use profile::{
-        CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, LegFit, LeverValue,
-        NoCornerReason, OverrunLegs,
+        CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, LegFit, NoCornerReason,
+        OverrunLegs,
     };
     vec![
         (
             "SeamArrivalOffDirection",
             P::SeamArrivalOffDirection {
-                margin: 1e-3,
-                arm: 0.5,
+                margin: l(1e-3),
+                arm: l(0.5),
             },
         ),
         (
             "JunctionCusp",
             P::JunctionCusp {
-                margin: 1e-12,
-                arm: 0.5,
+                margin: l(1e-12),
+                arm: l(0.5),
             },
         ),
         (
             "FilletCarrierBelowSceneResolution",
             P::FilletCarrierBelowSceneResolution {
-                turn: 0.5,
-                radius: 1e-9,
-                scale: 10.0,
-                resolution: 1e-8,
+                turn: a(0.5),
+                radius: gl(1e-9),
+                scale: l(10.0),
+                resolution: l(1e-8),
                 predicate: "fillet_scene_resolution",
-                margin: 1e-12,
+                margin: l(1e-12),
             },
         ),
         (
             "NoCornerOfPair(two)",
             P::NoCornerOfPair {
-                radius: 0.3,
+                radius: gl(0.3),
                 corners: vec![
                     CornerRefusal {
                         at: geom_core::Point2::new(0.25, -0.5),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
                             legs: [
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.4,
-                                    available: 1.0,
-                                },
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.4,
-                                    available: 0.3,
-                                },
+                                LegFit::new(FilletLegCarrier::Line, 0.4, 1.0, 5e-10),
+                                LegFit::new(FilletLegCarrier::Line, 0.4, 0.3, 5e-10),
                             ],
                             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-                            fit_reach: 5e-10,
-                            radius_at_anchor: Some(LeverValue {
-                                boundary: 0.225,
-                                exact_fit_edge: 0.225 - 3.75e-10,
-                            }),
+                            radius_at_anchor: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
                         },
                     },
                     CornerRefusal {
@@ -848,6 +848,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
                         ),
                     },
                 ],
+                radius_lever_of: Some(0),
             },
         ),
     ]
@@ -992,7 +993,7 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
+    // work/profile/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Validate)",
 ];
@@ -1001,7 +1002,7 @@ const FILED_NO_RECOURSE: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/round/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
+    // work/profile/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))",
         84,

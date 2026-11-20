@@ -280,17 +280,26 @@ fn split_collar() -> Body<f64> {
     let rim = c
         .edges()
         .find_map(|(_, e)| match carrier(&c, e) {
-            Some(geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            })) if (radius - BORE).abs() < 1e-12 && (center.y - COLLAR.0).abs() < 1e-12 => Some(
-                geom::Curve3::circle(Point3::new(center.x, 1.5, center.z), axis, radius, u_ref),
-            ),
+            Some(geom::Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            )) if (conic_k.radius() - BORE).abs() < 1e-12
+                && (center.y - COLLAR.0).abs() < 1e-12 =>
+            {
+                Some(geom::Curve3::circle(
+                    Point3::new(center.x, 1.5, center.z),
+                    axis,
+                    conic_k.radius(),
+                    u_ref,
+                ))
+            }
             _ => None,
         })
         .expect("the bore's lower rim");

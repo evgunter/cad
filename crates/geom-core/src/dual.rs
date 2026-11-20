@@ -487,6 +487,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::from_computed(x))
     }
 
+    /// The value channel's: a sentence tells no tangent.
+    fn told_reading(&self) -> crate::told::Reading {
+        self.value.told_reading()
+    }
+
     /// `(0, 0)`.
     fn zero() -> Self {
         Self::constant(T::zero())
@@ -671,6 +676,17 @@ impl<T: KinkJacobian> Real for Dual<T> {
                 deriv: -(s * self.deriv),
             },
         )
+    }
+
+    /// `(a − sin a, 2·sin²(a/2)·a')`: the value is `T`'s door verbatim,
+    /// and the derivative `1 − cos a` is read as the half-angle square,
+    /// which cancels nowhere.
+    fn less_sin(self) -> Self {
+        let half = self.value.scale_pow2(0.5).sin();
+        Self {
+            value: self.value.less_sin(),
+            deriv: half.powi(2).scale_pow2(2.0) * self.deriv,
+        }
     }
 
     /// `(tan a, (1 + t.powi(2))·a')` where `t` is the value-channel
@@ -935,10 +951,11 @@ where
 /// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
-/// and **selections**, which are the ones with a condition on them: a
-/// frozen `f64` choice is free of the tangent only while the quantity
-/// chosen is locally constant in the input. `geom::projection_policy::mid` is
-/// where that condition currently fails, and is issue **#874**.
+/// and picks among constructions (DL5.1, the crate README's "Reading a
+/// bracket where nothing certifies"). A bracket's `f64` that comes back
+/// as a `T` is the case with a condition on it (DL5.2):
+/// `geom::projection_policy::mid` is where that condition currently
+/// fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
 /// `real.rs` is the home for that, and its DL5 delegation rule is the

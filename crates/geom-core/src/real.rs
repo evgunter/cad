@@ -341,7 +341,19 @@ pub trait Real:
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
+    ///
+    /// Which code may call it, and the door every other computed value
+    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
+    /// where nothing certifies").
     fn from_computed(x: f64) -> Self;
+
+    /// **What this scalar reads as in a sentence**: its value, its
+    /// enclosure, or nothing ([`crate::told::Reading`]). The one
+    /// projection a refusal payload takes of a scalar
+    /// ([`crate::Told`]); the reading has no accessor, so nothing
+    /// decides on it. Declared, never defaulted: a new scalar says what
+    /// a person reads of it.
+    fn told_reading(&self) -> crate::told::Reading;
 
     /// The additive identity.
     fn zero() -> Self;
@@ -583,6 +595,19 @@ pub trait Real:
     fn cos(self) -> Self {
         self.sin_cos().1
     }
+
+    /// **`self − sin(self)`, conditioned at every `self`**: twice the area
+    /// a unit circle's arc of that signed span cuts off its chord. The
+    /// difference as written cancels to `self³/6` for a small `self` and
+    /// keeps `self`'s rounding, so a scalar reads it there off the
+    /// alternating series `x³/3! − x⁵/5! + …`, whose terms only shrink
+    /// below [`LESS_SIN_SERIES_BELOW`], and past that as the difference,
+    /// which loses nothing there.
+    ///
+    /// Declared, never defaulted: each scalar keeps its own contract
+    /// (an enclosure bounds the series' dropped tail; a recording scalar
+    /// records the one function, re-valued through this door).
+    fn less_sin(self) -> Self;
 
     /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
     /// the literal. A scalar that records structure keeps the sine of
@@ -1322,9 +1347,9 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 ///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
 ///    precisely what was asked for and refused. A derived quantity leaves
 ///    as text and only as text (the crate README, "A number told
-///    to a person"): the one projection
-///    is into a told quantity, which renders and offers nothing a
-///    comparison could read. The classify seam's own diagnostic has that
+///    to a person"): the one projection is [`Real::told_reading`], into
+///    a told quantity ([`crate::Told`]), which renders and offers
+///    nothing a comparison could read. The classify seam's own diagnostic has that
 ///    shape for a decided margin: `MarginDiag`, minted inside each
 ///    scalar's `Decide` impl on every outcome of a verdict the funnel
 ///    records under its name (definite and indeterminate alike), is the
@@ -1584,16 +1609,13 @@ pub mod bounds_allowlist {
     //! empty is dead code, not a guard.
     //!
     //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
-    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
-    //! feeds an error payload or report, or (b) selects among constructions
-    //! whose classification is value-channel-decided AND whose selected
-    //! quantity is locally constant in the parameters — sound by value-part
-    //! delegation: a dual's bracket is its value channel's, so the read's
-    //! branch is the base scalar's branch. The locally-constant condition is
-    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
-    //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
-    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! lane-less `Bounds` seam.** Its text is the crate README's "Reading a
+    //! bracket where nothing certifies": a `Bounds` read is lane-exempt when
+    //! its `f64` (a) leaves, as an error payload or report, or (b) is only
+    //! compared, a pick among constructions (DL5.1). An `f64` that comes
+    //! back as a `T` is neither, and answers to DL5.2 at
+    //! [`Real::from_computed`](super::Real::from_computed):
+    //! `geom::projection_policy`'s `mid` (issue 874's class) is that shape. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own
@@ -2020,6 +2042,32 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
     if n < 0 { T::one() / result } else { result }
 }
 
+/// The `|x|` up to which [`Real::less_sin`] reads the series. Past it
+/// the difference is more than half of `x`, so it keeps `x`'s digits; up
+/// to it each term of the series is at most a fifth of the one before.
+pub const LESS_SIN_SERIES_BELOW: f64 = 2.0;
+
+/// The last `k` of the series' kept terms `x^(2k+3)/(2k+3)!`, so the
+/// last power kept is `x²³`.
+const LESS_SIN_LAST_TERM: u16 = 10;
+
+/// The series of `x − sin x` through `x²³`, for `|x| ≤`
+/// [`LESS_SIN_SERIES_BELOW`], nested as
+/// `x³/6 · (1 − x²/20 · (1 − x²/42 · (…)))`: each factor is one term's
+/// ratio to the one before, `x²/((2k + 2)(2k + 3))`. `tail` stands for
+/// the factor the dropped terms would contribute, which lies in
+/// `[1 − x²/600, 1]`. Read as `1` it leaves out under `2e-18` of the
+/// value at the cutoff, a hundredth of a unit in the last place, and an
+/// enclosure passes the whole range.
+pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
+    let q = x.powi(2);
+    let nested = (1..=LESS_SIN_LAST_TERM).rev().fold(tail, |inner, k| {
+        let ratio = f64::from((2 * k + 2) * (2 * k + 3));
+        T::one() - q / T::from_f64(ratio) * inner
+    });
+    x * q / T::from_f64(6.0) * nested
+}
+
 /// `f64` is the kernel's default scalar (D9 determinism notes per method).
 ///
 /// Transcendentals go through the pure-Rust [`libm`] crate: system libm
@@ -2046,6 +2094,10 @@ impl Real for f64 {
 
     fn from_computed(x: f64) -> Self {
         x
+    }
+
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(*self)
     }
 
     fn zero() -> Self {
@@ -2176,6 +2228,14 @@ impl Real for f64 {
         // fused `sincos`, but revisit only with evidence that a fused
         // override is both bit-identical and worth the audit burden.
         (libm::sin(self), libm::cos(self))
+    }
+
+    fn less_sin(self) -> Self {
+        if self.abs() <= LESS_SIN_SERIES_BELOW {
+            less_sin_series(self, 1.0)
+        } else {
+            self - libm::sin(self)
+        }
     }
 
     /// Overrides the [`Real::sin`] projection so scalar sine does not pay for

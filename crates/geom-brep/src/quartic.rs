@@ -197,7 +197,7 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// cubic then has a TRIPLE root, i.e. a zero discriminant, which this
 /// branch's caller has decided definitely negative. And if a rounding
 /// ever did produce it, the NaN is loud where it lands: the caller's
-/// `bool_ray_torus_split_lead` reads a NaN margin as `Invalid` and
+/// `line_quadric_torus_split_lead` reads a NaN margin as `Invalid` and
 /// escalates, rather than returning a plausible root.
 fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: bool) -> T {
     let three = T::from_f64(3.0);

@@ -54,3 +54,11 @@ and `clocking_about` are gone, and the fold is the structural meet
 (`crates/editor-core/src/mate/value.rs`, `Chart::spin`), which a spin
 value reads to turn the copy to its written angle. The work above stands
 for that one site.
+
+## The box lanes left the trait's branch rule (CHARTTAIL, 2026-11-20)
+
+CHARTTAIL's `charttail/solve-atan2` deleted `Atan2Branch` and `SolveScalar::atan2_branch`. `Interval` and `Sym` implement `solve_atan2` as one call to `mate::solve::box_atan2`, the angle window's `geom::Azimuth` read (cut at `−1`, F31), and a dual over `Interval` reads it through its value channel (`analysis.rs`, `clearance.rs`).
+
+Only `f64`, `Probe` and a dual over `f64` still read the platform `atan2`. If this row closes by moving `f64` onto `Real`, `f64` and `Probe` can read `box_atan2` too.
+
+Weigh one thing first: at `f64` the spin is not read only through its sine and cosine. The gesture read-back quotes it (`mate/value.rs`, `Coord::Spin(None) => chart.spin(..)` over `Chart::<f64>`). Through `box_atan2` a read-back spin would leave `(−π, π]` for `(−1, τ − 1]`.

@@ -156,7 +156,7 @@ use geom_core::Tol;
 /// `PathError`, `verbs`'s `VerbKind` beside `Verb` — onto a single
 /// declaration. For the error/kind pairs that was declined (Ev,
 /// 2026-09-12), and what survives the decline is carried by
-/// `work/census/a-new-kind-pair-arrives-unguarded-by-default.md`.
+/// `work/bind/a-new-kind-pair-arrives-unguarded-by-default.md`.
 /// This macro serves the macros that already declare a vocabulary
 /// from one list.
 ///
@@ -191,6 +191,15 @@ macro_rules! tag_projections {
             $(#[doc = $adoc])*
             #[doc(hidden)]
             pub const ALL: &'static [$tag] = &[$( $tag::$name ),*];
+
+            /// The tag's name as the declaration spells it: what a
+            /// sentence in the table's own identifiers writes.
+            #[must_use]
+            pub const fn identifier(self) -> &'static str {
+                match self {
+                    $( $tag::$name => stringify!($name) ),*
+                }
+            }
         }
 
         impl<T: Real> $payload<T> {
@@ -2287,6 +2296,30 @@ pub enum TipState {
     Closed,
 }
 
+impl TipState {
+    /// The state's name as the transition table spells it.
+    #[must_use]
+    pub const fn identifier(self) -> &'static str {
+        match self {
+            Self::Entry => "Entry",
+            Self::Open => "Open",
+            Self::Angle => "Angle",
+            Self::PlainPoint => "PlainPoint",
+            Self::DirectedPoint => "DirectedPoint",
+            Self::DirectedPlain => "DirectedPlain",
+            Self::DirectedIncoming => "DirectedIncoming",
+            Self::RadiusArrival => "RadiusArrival",
+            Self::RadiusArrivalAt => "RadiusArrivalAt",
+            Self::RadiusArrivalDir => "RadiusArrivalDir",
+            Self::ViaArrival => "ViaArrival",
+            Self::ViaArrivalStart => "ViaArrivalStart",
+            Self::ArcOnto => "ArcOnto",
+            Self::ArcOntoStart => "ArcOntoStart",
+            Self::Closed => "Closed",
+        }
+    }
+}
+
 /// **What a tip offers a step found from the pen** ([`TipState::pen`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PenAt {
@@ -2390,15 +2423,16 @@ impl Refused {
 
 impl core::fmt::Display for Refused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let state = self.state;
+        let state = self.state.identifier();
         match self.verb {
             Some(verb) => write!(
                 f,
-                "the {verb:?} verb is not a legal continuation of tip state {state:?}"
+                "the {} verb is not a legal continuation of tip state {state}",
+                verb.identifier()
             ),
             None => write!(
                 f,
-                "the program ends at tip state {state:?} without closing the loop"
+                "the program ends at tip state {state} without closing the loop"
             ),
         }
     }
@@ -2439,7 +2473,7 @@ impl core::fmt::Display for Takes {
         } = self.0;
         let specs = verb.map_or(&[][..], |verb| arc_specs_at(verb, state));
         if let (Some(verb), false) = (verb, specs.is_empty()) {
-            write!(f, "write the {verb:?} step's arc spec as ")?;
+            write!(f, "write the {} step's arc spec as ", verb.identifier())?;
             for (slot, forms) in specs.iter().enumerate() {
                 if slot > 0 {
                     f.write_str(", then ")?;
@@ -2453,14 +2487,12 @@ impl core::fmt::Display for Takes {
                 list(
                     f,
                     modes.into_iter().map(|mode| {
-                        let targets: Vec<String> = forms
-                            .targets(mode)
-                            .map(|target| format!("{target:?}"))
-                            .collect();
+                        let targets: Vec<&str> =
+                            forms.targets(mode).map(TargetKind::identifier).collect();
                         if targets.is_empty() {
-                            format!("{mode:?}")
+                            mode.identifier().to_owned()
                         } else {
-                            format!("{mode:?}({})", targets.join("/"))
+                            format!("{}({})", mode.identifier(), targets.join("/"))
                         }
                     }),
                 )?;
@@ -2475,7 +2507,7 @@ impl core::fmt::Display for Takes {
             return f.write_str("end the program at the step that closed the loop");
         }
         f.write_str("continue with ")?;
-        list(f, takes.map(|verb| format!("{verb:?}")))
+        list(f, takes.map(|verb| verb.identifier().to_owned()))
     }
 }
 

@@ -600,17 +600,18 @@ which is what actually moves the number.
 | boolean/conic_quadric (the cone arm, both arms through `circle_roots`) | bool_conic_quadric_* (as for a wall) | the cone's quadric form over the carrier's reach from the apex, `F = (cos²α·ρ² − sin²α·h²)/R` (`geom_brep::conic_cone_harmonics`), `\|F\| ≤ \|res\|`: every definite reading is a lower bound on the residual's (m); the ladder's noise meter reads `noise / floor`, `floor = min(sin α, cos α)·d/R` | m | OK |
 | boolean/conic_quadric (`geom_brep::half_angle::RootSlack`, the cone arm; `through_the_apex`) | bool_conic_cone_root_slack | Two meters of one quantity, the arc between a root and the true one, `speed_hi · reach / L` at the top speed (m/rad). The arms' (`RootSlack`): `reach` the cone's residual at the root and its running rounding bound (m, `geom_brep::conic_cone_residual`), the ceiling on `\|F\|` per metre of residual being `1`, `L` `F`'s least slope on a window about the root inside the subdivision (m/rad). `through_the_apex`'s: `reach = \|F(θ)\| + noise` (`F`'s own units, which bound the residual's), `L = \|F′(θ)\| − 2·noise − w(ρ₁ + 4ρ₂)` a lower bound on `\|F′\|` across its bracket `±w`, which holds the root; it has no subdivision to read a window in. | m | OK |
 | boolean/conic_quadric (`geom_brep::half_angle::RootSlack`, the ladder arm on a sphere or a wall) | bool_conic_quadric_sub_root_slack | `speed_hi · (\|res\| + δres) / L`: the `/2r` residual at the root and its running rounding bound (m, `geom_brep::conic_quadric_residual`), `F` being that residual (ceiling `1`), over `F`'s least slope near the root `L` (m/rad), at the top speed (m/rad) | m | OK |
+| geom-brep half_angle.rs (`subdivision`'s metered root, through `geom_core::running::Rounded::divisor`; every `RootSlack` door above) | root_slack_slope_room | `F′` at a located root moved toward zero by its own bound (`Rounded::room`: the jet's running bound, or the harmonics' `N·noise`), read at `Band::enclosure_sign()`: it picks which arm of `RootSlack`'s lever `L` is read | `F`'s units per radian (sign only) | OK (logged: an undecided room is recorded in the verdict log and picks the piece's slope; nothing refuses) |
 | boolean/conic_quadric (the cone arm, an on-surface answer) | bool_conic_cone_on_surface | `(max(\|lo\|, \|hi\|) + noise) / floor`: a constant `F`'s reach read through the floor on `\|F\|` per metre of residual, an upper bound on the residual's magnitude (m) | m | OK |
 | boolean/conic_quadric (the cone arm, each certified root) | bool_conic_cone_apex | `\|C(θ) − apex\|`, the root's distance from the apex (m, `Margin::norm3`) | m | OK |
 | boolean/conic_quadric (`through_the_apex`) | bool_conic_cone_apex_spread | `(\|ε₁\| + √(ε₁² + 2λ\|ε₀\|))/λ` (rad), `λ = (\|G(0)\| − RΦ)(1 − Φ²/12)` the least of `G` and of `2 sin²(φ/2)/(φ²/2)` on the window `\|φ\| ≤ Φ` (a ratio of `F`'s own units), times the carrier's top speed: a bound on how far along the carrier the apex's double root can split; past the window, or `λ` not positive, it holds nothing and refuses (m, `Margin::of`) | m | OK |
 | boolean/conic_quadric (`through_the_apex`) | bool_conic_cone_deflated_depth | `\|k\| − R − noise` of the deflated first harmonic `G`, in `F`'s units (m: `\|F\| ≤ \|res\|`, `Margin::of`) | m | OK |
 | boolean/conic_quadric (`through_the_apex`) | bool_conic_cone_deflated_side | the cone's residual `ρ cos α − \|h\| sin α` at a bracket end, and its magnitude less its running rounding bound (m, `Margin::of`) | m | OK |
 | boolean/conic_quadric (`through_the_apex`) | bool_conic_cone_deflated_clear | a parameter gap (from the apex's spread, or between the two roots, less the brackets) times the carrier's least speed (m, `Margin::of`) | m | OK |
-| boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_apex | the edge segment's distance from the apex: the line's foot on the apex clamped to the span (m, `Margin::norm3`) | m | OK |
-| boolean/reduce.rs (`line_cone_roots`, `apex_root_spread`) | bool_line_cone_apex_spread | `max \|τ±\|·\|dir\|`: how far along the edge the line's roots lie from the point the double root is placed at (an end, or the foot of an edge through the apex), read from the cone's form about that point itself (m, `Margin::of`) | m | OK |
-| boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_lead | `A/\|dir\|² = cos²(∠(dir, â)) − cos²α` levered by the segment's length (dimensionless × m) | m | OK |
-| boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_depth | `disc/(\|A\|·R)`: `−disc/A` is the negated quadric form `G` at the vertex (m²), over `R ≥ \|q(t*)\|`, a ceiling on the form's factor `ρ cos α + \|h\| sin α` there: a lower bound on the residual's magnitude at the vertex (m) | m | OK |
-| boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_root_slack | `\|dir\|·NOISE_ULPS·u/2·(\|w₀\| + \|dir\|\|t\|)²/(2√disc)` less the root's arc distance outside the span: `G`'s rounding (m²) over `\|G′\|` (m²/param) at the line's speed (m/param) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_cone_roots`) | line_quadric_cone_apex | the run's distance from the apex (an edge's span, or a ray's run inside the ball holding the face): the line's foot on the apex clamped to the run (m, `Margin::norm3`) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_cone_roots`, `apex_root_spread`) | line_quadric_cone_apex_spread | `max \|τ±\|·\|dir\|`: how far along the edge the line's roots lie from the point the double root is placed at (an end, or the foot of an edge through the apex), read from the cone's form about that point itself (m, `Margin::of`) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_cone_roots`) | line_quadric_cone_lead | `A/\|dir\|² = cos²(∠(dir, â)) − cos²α` levered by the run's length (dimensionless × m) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_cone_roots`) | line_quadric_cone_depth | `disc/(\|A\|·R)`: `−disc/A` is the negated quadric form `G` at the vertex (m²), over `R ≥ \|q(t*)\|`, a ceiling on the form's factor `ρ cos α + \|h\| sin α` there: a lower bound on the residual's magnitude at the vertex (m); `disc` held to the rounding the shift brings into `B` and `C` (`Centred::charged`), the rounding of `A` itself and of `cos²α` uncharged (`work/germ/the-line-cone-depth-charge-leaves-the-lead-and-cos2-rounding-uncharged.md`) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_cone_roots`) | line_quadric_cone_root_slack | `\|dir\|·slack`, `slack` `Centred::roots`' bound on the root's rounding read at that root (param), less the root's arc distance outside the run: `G`'s rounding (m²) over `\|G′\|` (m²/param) at the line's speed (m/param) | m | OK |
 | boolean/fan.rs (`face_side_code`, `nappe_classes`) | bool_fan_side | `nappe_offset`: `ρ cos α − z sin α` at the bound's reach point, its signed distance from the nappe (m, `Margin::of`) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_coaxial | `‖a₁ × a₂‖` of the two nappes' unit axes, levered by the sectors' arm (dimensionless × m) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`, `fan_within_signs`) | bool_fan_nappe | `a₁ · a₂` of the nappes' unit axes, or the direction's along the nappe's, levered by the arm (dimensionless × m) | m | OK |
@@ -643,8 +644,8 @@ which is what actually moves the number.
 | solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | solid_contain.rs:645/655 (both `RayRows`) | bool_point_in_solid_advance/order / side_at_infinity_advance / side_at_infinity_order | ray parameters (m, unit dir) | m | OK |
 | solid_contain.rs (`ray_crossings`, plane arm; both `RayRows`) | bool_point_in_solid_denom / side_at_infinity_denom (plane) | cos(unit,unit) levered by the selection's reach (`selection_reach`): the ray's rise off the plane over every length at which it could meet the face | m | FIXED (F2) |
-| solid_contain.rs (`line_wall_roots`) | bool_point_in_solid_denom (cylinder) | `|d⊥|` levered by the run the caller reads (the ray: the selection's reach + 2r; an edge: its own span): the line's drift off its distance from the axis | m | FIXED (F2; was sin²/2r, 1/m) |
-| solid_contain.rs (`line_wall_roots`) | bool_ray_cylinder_disc | disc/|d⊥|² over 2r (over_lever), the sphere arm's form | m | FIXED (F2; was disc/(2r)², dimensionless) |
+| geom-brep curve_face/line_quadric.rs (`line_wall_roots`) | line_quadric_cylinder_axis_parallel | `|d⊥|` levered by the run the caller reads (the ray: the selection's reach + 2r; an edge: its own span): the line's drift off its distance from the axis | m | FIXED (F2; was sin²/2r, 1/m) |
+| geom-brep curve_face/line_quadric.rs (`line_wall_roots`) | line_quadric_cylinder_disc | disc/|d⊥|² over 2r (over_lever), the sphere arm's form | m | FIXED (F2; was disc/(2r)², dimensionless) |
 | solid_contain.rs (`cast_ray`, wall arm) | (cylinder hit-outward) | read off the decided discriminant's root order, as the sphere lane reads it: no decision | — | FIXED (F2; was (unit·radial)/radius, dimensionless) |
 | solid_contain.rs (`sphere_chart_trim`, `trim_window_short`) | bool_sphere_trim_period | a face's azimuth hull against one turn through the turn rule (`Period::turn`'s row) at `Exact(R)`; only `Short` keeps a window. A meridian edge's own turn is its certificate's (`CertifiedTurn`, check 2's), read rather than re-decided | m | OK |
 | solid_contain.rs (`sphere_chart_trim`, through its `zero` closure) | bool_sphere_iso_meridian | `n_c·â`, a cosine levered by the circle's radius; then `‖c_c − c‖` and `r_c − R`, bare | m | OK (a meridian great circle: square to the polar axis, centred at the sphere's centre, at its radius) |
@@ -653,11 +654,9 @@ which is what actually moves the number.
 | solid_contain.rs (`latitude_after`, `latitude_extremes`) | bool_sphere_trim_latitude / bool_sphere_trim_antipode | `R·sin(v_b − v_a)` (`latitude_sine`, levered by `R`: the arc between the two latitudes to first order, which does not collapse at a pole); on its `Zero`, the axial difference `h_a − h_b`, bare | m | OK (the fold's in-band arm is a deterministic tie-break, D9; the axial tie-break is asked only where the sine is Zero, at two equal latitudes or the two poles, where it does not cancel) |
 | solid_contain.rs (`sphere_chart_trim`'s wrapping arm; `latitude_extremes`' `resolve`) | bool_sphere_trim_pole_end | a level's radial distance `ρ` from the axis, then its axial height `h`, bare | m | OK |
 | solid_contain.rs (`point_in_faces`, `FaceGeo::Sphere` and `FaceGeo::SpherePatch`) | bool_point_in_solid_sphere | `(‖q − c‖² − R²)/2R` | m | OK (the /2r linearization) |
-| solid_contain.rs (`carrier_roots`' cone arm; `ray_crossings`' `PartialCone` arm; both through `line_cone_quadratic`) | bool_ray_cone_lead | `a₂ = (d·â)² − cos²α` (`d` unit), levered by a bound on the face's reach from its apex (`region.reach()`; `PartialCone`'s `reach`) | m | OK (`cos²β − cos²α ≈ sin 2α·(α − β)`: the ray's angle off the generator cone, to first order, times `sin 2α` — an under-read on a needle or near-flat cone, whose only consequence is a graze) |
-| solid_contain.rs (as `bool_ray_cone_lead`) | bool_ray_cone_disc | `(b₂² − a₂c₂)/reach` (`over_lever`, m²/m) | m | FLAG F27 |
 | solid_contain.rs (`root_outward`, cone) | bool_ray_cone_nappe / bool_ray_cone_incidence | the root's axial height above the apex, bare; `d·n̂`, the ray's cosine against the unit chart normal `r̂·cos α ∓ â·sin α`, levered by the root's radius `ρ` off the axis | m | OK (D4's θ·r; the nappe has put `ρ` definitely clear of the apex) |
 | solid_contain.rs (`root_outward`, torus) | bool_ray_torus_incidence | `d·∇̂F`, the ray's cosine against the tube's unit implicit gradient, levered by the minor radius | m | OK |
-| solid_contain.rs (`line_torus_roots`, the `RAY_TORUS_ROWS` const, through `geom_brep::quartic::depressed_quartic_roots`) | bool_ray_torus_disc / bool_ray_torus_shape / bool_ray_torus_depth / bool_ray_torus_odd / bool_ray_torus_split / bool_ray_torus_split_lead | the ladder's coefficients in `y = t + b` (a length: `d` is unit), each over the power of `ext = R + r` that makes it a length (`Δ`/ext¹¹, `p`/ext, `D`/ext³, `q̂`/ext², the factors' discriminants over ext or ext³, the resolvent root `z`/ext) | m | OK (the conic-quadric ladder's comparand, at the ray's own lever). `z` is `α²`, a squared length over a length, so `bool_ray_torus_split_lead` under-reads where `α ≪ ext`: decidedness, not correctness, and `work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`'s |
+| geom-brep curve_face/line_quadric.rs (`line_torus_roots`, the `rows::LINE_TORUS` const, through `geom_brep::quartic::depressed_quartic_roots`) | line_quadric_torus_disc / line_quadric_torus_shape / line_quadric_torus_depth / line_quadric_torus_odd / line_quadric_torus_split / line_quadric_torus_split_lead | the ladder's coefficients in `y = t + b` (a length: `d` is unit), each over the power of `ext = R + r` that makes it a length (`Δ`/ext¹¹, `p`/ext, `D`/ext³, `q̂`/ext², the factors' discriminants over ext or ext³, the resolvent root `z`/ext) | m | OK (the conic-quadric ladder's comparand, at the ray's own lever). `z` is `α²`, a squared length over a length, so `line_quadric_torus_split_lead` under-reads where `α ≪ ext`: decidedness, not correctness, and `work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`'s |
 | solid_contain.rs (`clear_of_carrier`, under the `RayRows` consts `SCHEDULE_ROWS` and `side_reader::AIMED_ROWS`) | bool_point_in_solid_clearance / side_at_infinity_clearance | `\|elev\|`: `q`'s signed distance from a plane, or a cylinder wall's `(ρ² − r²)/2r` (`wall_elevation`) | m | OK |
 | solid_contain.rs (`ray_passes_beside`, both `RayRows`) | bool_point_in_solid_beside / side_at_infinity_beside | the larger of the two sides' least signed distances from the plane through the ray spanned by `d` and the face normal, over the loop hull's vertices and its curved edges' balls less their radii (`splitting::containment::loop_hull`) | m | OK |
 | solid_contain.rs (`edge_meets`, both `RayRows`) | bool_point_in_solid_edge / bool_point_in_solid_edge_span / side_at_infinity_edge / side_at_infinity_edge_span | the ray line's enclosed distance from a line edge's line where they come closest (`census::LinePass::gap`); that closest point's distance along the edge from each of its ends (`LinePass::reach`) | m | OK |
@@ -666,7 +665,7 @@ which is what actually moves the number.
 | solid_contain.rs (`reaches_root_in_band`, both `RayRows`) | bool_point_in_solid_met_edge_reaches / side_at_infinity_met_edge_reaches | the ray's rise off a curved carrier from a met edge's passage to a root `off` along it, `Margin::levered(\|d·n̂\| + tilt + rounding, off)` (`n̂` the chart normal, `tilt` the root point's residual over the least radius of curvature), less the passage's clearance (`implicit_residual`, metres), plus a short chain's rounding | m | OK |
 | solid_contain.rs (`crosses_by_turn`, both `RayRows`) | bool_point_in_solid_winding / side_at_infinity_winding | `(\|turn\| − π)·reach`, through `k_stats::check_unlogged(.., "F23")` | m | OK (F23) |
 | solid_contain.rs (`at_infinity_side` → `props::role_walk` → `props::read_sign`, through the `AT_INFINITY` / `AT_INFINITY_ENCLOSURE` consts) | bool_point_in_solid_infinity / bool_point_in_solid_infinity_enclosure | the selection's volume, its certified enclosure's sign alone: `Margin::sign_of` against `Band::enclosure_sign()` (D10's bandless sign read) | — | OK (no length is held against the band, so there is no dimension to convert; the V/A reading this row's predecessor named is gone from the path) |
-| solid_contain.rs (`line_sphere_roots`) | bool_ray_sphere_disc | disc/2r (over_lever) | m | OK |
+| geom-brep curve_face/line_quadric.rs (`line_sphere_roots`) | line_quadric_sphere_disc | disc/2r (over_lever) | m | OK |
 | boolean/vtxfac.rs:106/453 | side_code / bool_germ_line | side_code as in the sectors.rs row; `bool_germ_line` (a held pierce point's face line against the pierced plane, unsigned): sin × the pierce's arm; the pierce's run germs read `germ_line` (`star/cut.rs` row). (`bool_sector_coplanar`, the coplanar lump's tilt, retired with SEAL PR 6693: a flat sector of an unglued pair refuses on its steeper bound's tie.) | m | FIXED (CONTACT-9; the germ line was levered at the sector arm) |
 | boolean/vtxfac.rs (`faces_holding_pierce`) | bool_held_pierce_curved | the held run's curvature charge, `sectors::sagitta_charge` at the sine `|n × n_p|`, the curved face's bend `ρ` (one face of the two is a plane; both curved refuses) and the pierce's shortest arm: the half above the pierced face's least separation from it past the sagitta | m | OK |
 | boolean/vtxfac.rs (on-edge resolution) | bool_sector_bisector_side | refusal only: a bisector reading On between two readings definitely on one side, reachable only at K ≤ 2; the nonzero gate's rejection, as at `recl` | — | OK (CONTACT-9) |
@@ -1485,16 +1484,19 @@ Flagged, NOT fixed here (dispositions):
   the lead row only holds above `Kε/reach`. Measured: `α = π/4`,
   `ρ = reach = 1`, a ray 0.01 rad off the generator and 1e-6 m clear
   reads 5e-11. The cylinder's discriminant was corrected for the same
-  missing division (F2, `bool_ray_cylinder_disc`'s `disc/|d⊥|²`); the
+  missing division (F2, `line_quadric_cylinder_disc`'s `disc/|d⊥|²`); the
   cone's was not. The under-read only grazes a ray that is definitely
   clear or definitely crossing — decidedness, not correctness: a
   definite sign is the discriminant's own. Where the tangency lies past
   the reach the margin over-reads by `ρ/reach`, and every root there
   is outside the face. Filed as
   `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
+  Closed by the one line × cone rule set: the ray reads the door's
+  `line_quadric_cone_depth`, `disc/(|A|·R)`, and `bool_ray_cone_disc`
+  is retired; the witness above decides (`line_cone_rows::a_line_near_a_generator_and_just_off_the_cone_is_decided`).
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
   angle-reads unit, and by its half-open-angles unit) — **a renaming
-  between copies equal modulo a period.** Three sites, each choosing
+  between copies equal modulo a period.** Each site chooses
   between names of one value:
   - `geom_core::Period::near` (`period_near_mark`): the half-period
     marks about a reference that pick which copy `t + k·P` of a value
@@ -1532,22 +1534,28 @@ Flagged, NOT fixed here (dispositions):
     phase reads here too: `plane_crossing`'s `conic_plane_candidates`
     (near the span's middle), `circle_roots`'s `harmonic_roots` (near
     the span's middle) and `props::curved`'s `torus_angle` (near `0`).
+  - `editor_core::mate::solve`'s `box_atan2` (`mate_spin_cut_side`):
+    the same choice, through `Azimuth::principal_as`, for the spin a
+    mate's chart reads at a box scalar and at a symbolic one. No outcome
+    is a reading there because the spin is read only through its sine
+    and cosine, never renamed; that invariant's home is `box_atan2`'s doc.
 
   What keeps them off the logged doors is that no outcome is a reading:
   both copies name the same point, and an undecided decision picks a
   formula or copy that is continuous over the enclosure, so it reads as
   narrow either way. That holds for a direction of definitely positive
   length only. One whose enclosure reaches zero length decides no
-  angle at all, and `Azimuth::near` reads it as the whole window about
-  the reference, `[reference − π, reference + π]`, without asking
-  either decision (an exact zero point reads the reference, which every
-  angle names). Logged, an undecided mark at `Interval` would hand
+  angle at all, and neither door asks it either decision:
+  `Azimuth::near` reads it as the whole window about the reference,
+  `[reference − π, reference + π]` (an exact zero point reads the
+  reference, which every angle names), and `box_atan2` as the whole
+  angle window, `[−1, τ − 1]`, an exact zero point included. Logged, an undecided mark at `Interval` would hand
   the driver an escalation no box answers, on every angle read half a
   turn from its reference.
 
   **Carried as `k_stats::unlogged("F31", ..)`**, and the window end as
   `k_stats::choose(.., "F31")`, all at `Band::least()`. Their K samples
-  still reach the sink under the three names above. A
+  still reach the sink under the names above. A
   margin decided at `Band::least()` is not a length against ε, and its
   sample says so (`MarginSample::reads_sign_only`), so a reader that
   asks how margins scale with the model, such as the twin suites, reads
