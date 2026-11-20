@@ -444,7 +444,7 @@ fn cone_roots<T: Decide>(
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read
             // through the floor, is in the band too.
-            let reach = first.lo.magnitude().max(first.hi.magnitude()) / h.floor;
+            let reach = first.most() / h.floor;
             return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
                 Ok(Sign::Zero) => Ok(Roots::On(OnCarrier)),
                 Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter {
@@ -521,8 +521,6 @@ fn through_the_apex<T: Decide>(
     let two = T::from_f64(2.0);
     let mid = geom::mid_param(t0, t1);
     let near_mid = |theta: T| geom::conic_period().near(theta, mid);
-    // Past every bound: a reading no bound holds refuses.
-    let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
     let theta_a = conic.azimuth(apex).near(mid);
     let off_apex = conic.point_at(theta_a) - apex;
@@ -616,12 +614,6 @@ fn through_the_apex<T: Decide>(
     };
     let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()
         + T::from_f64(4.0) * (h.c2.powi(2) + h.s2.powi(2)).sqrt();
-    // The residual's side past its own rounding.
-    let side =
-        |res: Rounded<T>| match decide(CONE_DEFLATED_SIDE, Margin::of(res.toward_zero()), band) {
-            Ok(sign @ (Sign::Positive | Sign::Negative)) => Some(sign),
-            _ => None,
-        };
     let mut found = [theta_a; 4];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
@@ -634,13 +626,14 @@ fn through_the_apex<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::AtApex)),
         }
-        match (side(residual(theta - width)), side(residual(theta + width))) {
+        match (
+            side_past_rounding(residual(theta - width), band),
+            side_past_rounding(residual(theta + width), band),
+        ) {
             (Some(a), Some(b)) if a != b => {}
             _ => return Read(Err(Unsettled::Tangency)),
         }
-        let least = slope(theta).room() - width * bend;
-        let slack =
-            least.select_le_zero(unbounded, conic.speed_hi() * f(theta).magnitude() / least);
+        let slack = cone_root_slack(f(theta), slope(theta), width * bend, conic.speed_hi());
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[2 + slot] = theta,
             Ok(Sign::Positive | Sign::Negative) | Err(_) => {
@@ -660,6 +653,26 @@ fn through_the_apex<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Tangency)),
     }
     Read(Ok(Roots::<T, 4>::all(found).widen()))
+}
+
+/// The side a residual reads past its own rounding
+/// (`bool_conic_cone_deflated_side`), `None` where its rounding or the
+/// band holds it.
+fn side_past_rounding<T: Decide>(res: Rounded<T>, band: Band) -> Option<Sign> {
+    match decide(CONE_DEFLATED_SIDE, Margin::of(res.toward_zero()), band) {
+        Ok(sign @ (Sign::Positive | Sign::Negative)) => Some(sign),
+        _ => None,
+    }
+}
+
+/// **A deflated root's slack**, in metres at the carrier's top speed
+/// `speed`: how far from a root where `F` reads `f` the true root can
+/// lie, `|F|` at most `f`'s magnitude and `|F′|` at least the room of its
+/// reading `slope` less `drift`, its most change across the bracket.
+/// Past every bound where that least slope is not positive.
+fn cone_root_slack<T: Decide>(f: Rounded<T>, slope: Rounded<T>, drift: T, speed: T) -> T {
+    let least = slope.room() - drift;
+    least.select_le_zero(T::from_f64(f64::INFINITY), speed * f.magnitude() / least)
 }
 
 /// **The apex's spread** (module docs, "Through the apex"), in radians

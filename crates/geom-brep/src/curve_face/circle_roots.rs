@@ -246,6 +246,14 @@ pub struct FirstHarmonic<T> {
     pub phase_noise: T,
 }
 
+impl<T: Decide> FirstHarmonic<T> {
+    /// An upper bound on `|R|` over the turn: the larger extreme's
+    /// magnitude, its bound included.
+    pub fn most(&self) -> T {
+        self.lo.magnitude().max(self.hi.magnitude())
+    }
+}
+
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
 /// ellipse's larger semi-axis), reported within `π` of the midpoint of
@@ -418,6 +426,28 @@ pub fn door_answer<T: geom_core::Real, X: core::fmt::Debug>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The most residual charges the larger extreme's bound.** `−0.5`
+    /// within `0.25` and `0.6` within `0.1`: the most is `0.75`, the
+    /// lower extreme's magnitude, which its value alone would put below
+    /// the upper's.
+    #[test]
+    fn the_most_residual_charges_the_extremes_bound() {
+        let h = FirstHarmonic {
+            lo: Rounded {
+                value: -0.5,
+                error: 0.25,
+            },
+            hi: Rounded {
+                value: 0.6,
+                error: 0.1,
+            },
+            cos_part: 1.0,
+            sin_part: 0.0,
+            phase_noise: 0.0,
+        };
+        assert_eq!(h.most(), 0.75, "the larger magnitude, bound included");
+    }
 
     /// **An extreme is read with its bound.** A first harmonic from
     /// `−1.05·10⁻⁸` to `1`, each extreme within `10⁻⁹`, at `ε = 10⁻⁹`:

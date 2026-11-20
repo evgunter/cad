@@ -373,6 +373,28 @@ mod rows {
         );
     }
 
+    /// **The overlap's ends are its length past the charge, both ways.**
+    /// Two spans `[0, 3]` and `[2, 5]` along `x̂` overlap by one metre: the
+    /// overlap reads `1 ∓ noise`, its lower end below its upper, and a
+    /// charge that is not zero.
+    #[test]
+    fn the_overlaps_ends_are_its_length_past_the_charge() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let along = on_one_line(
+            x,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 0.0)),
+            (Point3::new(2.0, 0.0, 0.0), Point3::new(5.0, 0.0, 0.0)),
+            0.0,
+        );
+        let o = along.overlap();
+        assert!(along.noise > 0.0, "the spans carry a charge");
+        assert_eq!(
+            (o.lower_end(), o.upper_end()),
+            (1.0 - along.noise, 1.0 + along.noise),
+            "the overlap's ends"
+        );
+    }
+
     /// **The charge is at the spans' own scale, wherever they lie.** Two
     /// spans a metre long, a metre apart, `10³` … `10⁶` m from the origin:
     /// their `noise` is bounded by the charge of a few metres, the spans'

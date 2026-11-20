@@ -25,7 +25,7 @@ crates/geom-brep/src/carrier_resolution.rs	prod	1	far-centre
 crates/geom-brep/src/carrier_resolution.rs	test	1	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_roots.rs	prod	1	re-pose
-crates/geom-brep/src/curve_face/circle_roots.rs	test	1	oracle
+crates/geom-brep/src/curve_face/circle_roots.rs	test	3	oracle
 crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle
@@ -193,7 +193,7 @@ crates/sweep/tests/torax_axial.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/circle_wall_rows.rs	test	1	oracle
-crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	2	oracle
+crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	4	oracle
 crates/topo/src/boolean/conic_quadric/in_band_sweep.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/mod.rs	prod	6	re-pose
 crates/topo/src/contain.rs	test	1	oracle
