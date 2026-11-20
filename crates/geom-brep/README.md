@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
@@ -1316,7 +1316,27 @@ a conic's roots against the plane), the line × quadric door
 (`curve_face::conic_quadric`) and the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
 shared half-angle root cores `curve_face::circle_roots`) are built
-here. A meeting inside a spline
+here, each keeping its method; their classes are the pose's
+(`curve_face::pose`, the rows `curve_face_pose_*`, decided in that one
+module), and `curve_face::cross` reads the pose then the door's method,
+placing each root against the span's ends and ordering the meetings
+apart by their chord (`curve_face_cross_*`). Every arm answers
+`Isolated` only once a rung has excluded `Lies`, and an arm with none
+reads one span point past the band (`curve_face_pose_not_lies`). A
+`Tangent`'s arc is `(π/2)·√(2z/κ)` in the carrier's parameter about the
+double root, `κ` the residual's second derivative there and `z` the
+band's zero plus the extreme's own reading, which a residual falling
+from its extreme no faster than a first harmonic of that curvature
+never understates. `cross` answers a spline arm, and an unbuilt arm,
+with one window over the whole span; a closed form's unsettled count
+is one window over the whole span too, and a root in band of an end or
+two roots in band of each other a window about them. The doors' older
+entries (`plane_crossing_lane`, `line_quadric_roots`,
+`conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`, and
+the ray lane's `line_wall_roots`, `line_sphere_roots`,
+`line_cone_roots`) read the pose and then the method, and decide
+nothing of their own, for the readers that do not yet read `cross`. A
+meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);
 a point in space has its placement built

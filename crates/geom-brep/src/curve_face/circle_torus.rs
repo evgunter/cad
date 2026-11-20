@@ -117,7 +117,7 @@
 //!   tube in two contour circles, and the crossings are circle ×
 //!   contour intersections in closed form, decided on the surface's
 //!   RESIDUAL at the carrier's two extremes, with the band's residual
-//!   tilt charged ([`parallel_axes_roots`]). The quartic does not degenerate here,
+//!   tilt charged ([`parallel_roots`]). The quartic does not degenerate here,
 //!   but its discriminant is the wrong instrument: it also measures the
 //!   separation of the COMPLEX roots, so a carrier passing a few
 //!   millimetres clear of a contour reads as a tangency at a coarse

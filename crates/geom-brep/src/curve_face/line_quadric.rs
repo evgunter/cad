@@ -1,17 +1,18 @@
-//! **The line × quadric door** ([`super::Door::LineRoots`]): the
-//! certified roots of a cylinder wall's, a cone's, a sphere's or a
-//! torus's residual along a line ([`line_quadric_roots`]), and the root
-//! finders under it, which the point-in-solid ray reads too: the wall
-//! ([`line_wall_roots`]), the sphere ([`line_sphere_roots`]) and the
-//! torus ([`line_torus_roots`]) and the cone ([`line_cone_roots`]) each
-//! answer on their own.
+//! **The line × quadric door** ([`super::Door::LineRoots`]): the method
+//! of a line against a cylinder wall, a cone, a sphere or a torus — the
+//! roots of the surface's residual along the line, once the pose
+//! (`super::pose`) has decided the class: a wall's and a sphere's
+//! quadratic roots, the cone's quadratic read about the line's nearest
+//! point to its apex, each root metered, and the torus's quartic ladder
+//! ([`line_torus_roots`]).
 //!
-//! The door answers in the root doors' shape
-//! ([`super::circle_roots::CircleRoots`]), with the one answer that
-//! shape has no word for, a line parallel to a wall's axis
-//! ([`LineRoots::Constant`]), beside it. It refuses in its own words
-//! ([`LineQuadricRefusal`]): the arm that refused and what that arm's
-//! finder can refuse with, which the caller names a decision of its own.
+//! Its older entries read the pose and then the method, deciding
+//! nothing of their own: the sweep's [`line_quadric_roots`], in the root
+//! doors' shape ([`super::circle_roots::CircleRoots`]), refusing in its
+//! own words ([`LineQuadricRefusal`], the arm that refused, which the
+//! caller names a decision of its own), and the point-in-solid ray's
+//! wall ([`line_wall_roots`]), sphere ([`line_sphere_roots`]) and cone
+//! ([`line_cone_roots`]).
 
 use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::quartic::{QuarticRoots, depressed_quartic_roots, quadratic_roots};

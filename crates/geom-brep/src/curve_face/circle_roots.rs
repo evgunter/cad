@@ -12,47 +12,48 @@
 //! own [`super::conic_quadric::ConicQuadricRefusal`], naming the
 //! surface's arm. The caller names the decision an escalation is.
 //!
-//! # The first-harmonic door
+//! # The first-harmonic core
 //!
 //! A residual `R(θ) = c₀ + A₁ cos(θ − φ)` — a circle against a sphere,
 //! or against a cylinder wall it is square to — has the EXACT range
 //! `[lo, hi] = [c₀ − A₁, c₀ + A₁]`, and its roots are
-//! `θ = φ ± acos(−c₀/A₁)`. A door hands [`first_harmonic_roots`] the
-//! extremes themselves, each with a bound on its error, and the phase's
-//! components with theirs; `c₀` and `A₁` are read off the extremes. It
-//! decides on that range, all in residual metres, under the caller's
-//! rows:
+//! `θ = φ ± acos(−c₀/A₁)`. Its class is decided on that range by the
+//! pose (`super::pose`, the zero lane's rungs, all in residual metres):
 //!
-//! - **noise** — the larger of the extremes' error bounds definitely
-//!   past the escalation threshold, or not readable at all, refuses:
-//!   every decision below reads the extremes, and the representation
-//!   cannot resolve what the band asks of them. A rounding estimate on
-//!   `f64`, run on every scalar: the `Interval` lane carries its own
-//!   enclosure and needs no meter to be sound, but the meter still
-//!   reads there and can refuse a pose the enclosures alone would
-//!   answer.
-//! - **coaxial** — the swing `A₁` in the zero band: the residual is
-//!   constant to within `A₁` plus that error, and
-//!   [`constant_residual_roots`] decides it.
-//! - **extreme**, on `lo` and `hi`, each read as the interval its error
-//!   bound spans, both ends decided — definitely one-signed is a miss,
-//!   definitely straddling is two roots, an end in the escalation gap
-//!   escalates, and an extreme otherwise not definite is a tangency,
-//!   which is not a crossing at any order this lane sees and refuses
-//!   [`Unsettled::Tangency`]. The noise meter bounds the error by the
+//! - **noise** (`curve_face_pose_noise`) — the larger of the extremes'
+//!   error bounds definitely past the escalation threshold, or not
+//!   readable at all, refuses: every decision below reads the extremes,
+//!   and the representation cannot resolve what the band asks of them.
+//! - **coaxial** (`curve_face_pose_coaxial`) — the swing `A₁` in the zero
+//!   band: the residual is `c₀` to within `A₁` plus that error, a
+//!   constant whose ends (`curve_face_pose_constant`) definitely
+//!   one-signed are apart, both in the zero band lie on the surface, and
+//!   otherwise fall through to the extremes. Read at `c₀` alone, an
+//!   in-band spread can cross zero while `c₀` sits past the escalation
+//!   threshold whenever `K` is near 1.
+//! - **extreme** (`curve_face_pose_extreme`), on `lo` and `hi`, each read
+//!   as the interval its error bound spans — definitely one-signed is
+//!   apart, definitely straddling is two roots, an end in the gap
+//!   escalates, and an extreme in the zero band is a graze, whose
+//!   curvature the pose reads. The noise meter bounds the error by the
 //!   zero band, not by the gap's far edge, so an extreme read bare could
 //!   clear `Kε` while its true value sits in the gap.
+//!
+//! The roots of a crossing the pose read are this core's
+//! ([`harmonic_roots_as`]):
+//!
 //! - **root slack** — at either root the extremes' errors move the
 //!   residual by `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's
 //!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
 //!   the root moves by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots;
 //!   the phase's error moves it by itself, and the angle arithmetic
-//!   rounds by [`geom_core::SHORT_CHAIN_ULPS`] half-ulps of a turn. That arc length must
-//!   be definitely inside the band, or the span and trim decisions the
-//!   caller makes on the point are made on the wrong point. An
-//!   unreadable reading refuses here too. A door whose only account is
-//!   one uniform `noise` charges it to both extremes and nothing to the
-//!   phase, and the slack is then `noise / |R′|` plus the angle charge.
+//!   rounds by [`geom_core::SHORT_CHAIN_ULPS`] half-ulps of a turn. That
+//!   arc length must be definitely inside the band, or the span and trim
+//!   decisions the caller makes on the point are made on the wrong
+//!   point. An unreadable reading refuses here too. A door whose only
+//!   account is one uniform `noise` charges it to both extremes and
+//!   nothing to the phase, and the slack is then `noise / |R′|` plus the
+//!   angle charge.
 //!
 //! The half-chord is measured from the extreme nearer zero,
 //! `2·asin(√(|near|/(hi − lo)))` past it, which reads the near extreme
@@ -60,33 +61,14 @@
 //! read from the far extreme, near a tangency amplifies its argument's
 //! rounding by `1/√(1 − (c₀/A₁)²)`.
 //!
-//! Two DISTINCT certified roots therefore certify that the carrier does
-//! not lie on the surface — the fact the reduction's `(Zero, Zero)`
-//! chord arm leans on to separate a chord from an on-carrier edge.
-//!
 //! The half-angle ladder ([`crate::half_angle`]) is not used for a
-//! first harmonic, for two
-//! reasons that are properties of the ladder rather than of its cost.
-//! A CONSTANT residual (a coaxial carrier) makes the quartic
-//! `F·(1 + t²)²`, a repeated complex pair the ladder cannot answer, where
-//! the extremes say on-surface or miss. And a TANGENCY must escalate: the
-//! extremes put it in the zero band, where the ladder, deciding on a
-//! discriminant rather than on the range, can certify a miss
-//! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
-//!
-//! # A constant residual
-//!
-//! A coaxial carrier's residual is ONE value `c` only to within the
-//! carrier's in-band offset and tilt: in the band, not zero. Its spread
-//! `s` about `c` — a bound each door derives from that offset and tilt,
-//! never from the band — is charged into the one decision every
-//! constant-residual answer takes ([`constant_residual_roots`]): the
-//! carrier is a [`Roots::Miss`] when `c − s` is definitely
-//! positive or `c + s` definitely negative, [`Roots::On`]
-//! when both are in the zero band, and otherwise refused. Read at
-//! `c` alone, an in-band spread can cross zero while `c` sits past the
-//! escalation threshold whenever `K` is near 1.
-//!
+//! first harmonic, for two reasons that are properties of the ladder
+//! rather than of its cost. A CONSTANT residual (a coaxial carrier) makes
+//! the quartic `F·(1 + t²)²`, a repeated complex pair the ladder cannot
+//! answer, where the extremes say on-surface or miss. And a TANGENCY must
+//! escalate: the extremes put it in the zero band, where the ladder,
+//! deciding on a discriminant rather than on the range, can certify a
+//! miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
