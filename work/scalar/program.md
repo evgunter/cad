@@ -2,7 +2,7 @@
 id: scalar
 kind: program
 title: SCALAR — the scalar doors and the readers over them: the certified-door family, margins and their recourse, unit directions, and the box driver's readings
-status: ready
+status: active
 opened: 2026-10-10
 group: kernel/geom/numeric
 prefix: scalar/

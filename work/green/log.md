@@ -434,3 +434,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
 - Class, logged: a red that shows at one ε only is not a flake by that fact. Of the three such on 11-17, two were deterministic regressions (PR 6897; PR 6988) and one a fuzz seed.
 - Bisect lanes ran as cloud sessions (tag `green-lane-2026-11-17`); this container OOM-killed sweep's test binary at `-j 4`.
 - (DOCTAIL lane) 2026-11-20: closed `main-red-the-collinear-walls-probe-expects-the-edit-door-to-refuse-a-tangent-junction` in PR 7148. The R1 probe now pins the `JunctionTangent` refusal at evaluation, not at the door.
+- 2026-11-19 — (SCALAR orchestrator) Filed `the-nightlys-shared-build-job-dies-to-a-runner-shutdown-most-nights` (P1 M): the shared build job was killed by a runner shutdown on 11-16, 11-18 and 11-19, so the full-suite legs ran on one night of the last four.
