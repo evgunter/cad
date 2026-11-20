@@ -1594,3 +1594,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 
   Ruling, to the lane: no clamp or `abs` at any site. Each site is either fixed as a defect (with a row that fails on main), or decides its degeneracy as a pose before it constructs. The poison row is re-aimed at the deciding door, with no unchecked back door, and certify's NaN arm retires if it is now unreachable. The lane also owes a class sweep of every computed-radius construction. The P0's unit has grown from a reader fix into a kernel-wide invariant enforcement; its review tier stays single FULL.
 - 2026-11-20 — **PR 7171 (section-class) merged** (`71bdbfd537`). Its row is closed. I read the fix pass's new hunk myself: `plane_torus_tangency` with `ClassRead::{Lane, Structural}` is D3's consumer distinction stated as code, so I accepted it without a second review round. The PR also carried the one-line fix for a **main red that U1 caused**: U1's commit `6ffe130123` left a stale `cover-kind-match.counts` citation, and `scripts/gates/cover-kind-match.sh` failed on main's own tip until this merge. Disk is back to 32 GB free after reclaiming the lane.
+- 2026-11-20 — **PR 7174 delta review: APPROVE.** M1, m1, m2 and m3 are fixed; each has a row that reds under its mutant, and the n1 osculating case refuses. Filed from what remains:
+  - `a-charge-ties-jet-at-an-arm-near-r-reads-past-a-barely-decided-parting` (P2): N1 and N2 — a barely decided parting at an arm near R, and the lost diagnosis of an in-band parting;
+  - `one-sector-side-refusal-has-three-constructions` (P4, style): the fix-mints-a-fresh-instance trap.
+
+  PR 7174 merges on green CI at its main-merged head.
