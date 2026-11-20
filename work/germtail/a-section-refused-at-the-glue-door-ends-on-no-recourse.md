@@ -4,6 +4,8 @@ kind: issue
 title: A germ section refused at the glue door renders SectionError arms with no recourse
 status: open
 opened: 2026-11-09
+priority: P3
+cost: M
 ---
 
 

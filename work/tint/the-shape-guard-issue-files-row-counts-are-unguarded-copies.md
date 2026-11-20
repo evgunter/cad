@@ -4,6 +4,8 @@ kind: issue
 title: The shape-guard issue files carry hand-written row counts of FILED_NO_RECOURSE that nothing checks
 status: open
 opened: 2026-11-02
+priority: P4
+cost: C
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: nurbs_cert's cert() and the split selection's steps are evaluated to nearest end to end, so the certificate can sit ulps on the unsafe side
 status: open
 opened: 2026-10-01
+priority: P3
+cost: M
 ---
 
 

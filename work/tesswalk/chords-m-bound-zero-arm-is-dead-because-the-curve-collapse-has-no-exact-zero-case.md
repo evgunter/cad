@@ -4,6 +4,8 @@ kind: issue
 title: chords' m_bound == 0.0 fast path is dead: the curve sup collapse has no exact-zero case, so next_up turns the exact zero into 5e-324
 status: open
 opened: 2026-09-22
+priority: P4
+cost: E
 ---
 
 

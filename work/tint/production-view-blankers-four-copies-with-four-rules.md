@@ -4,6 +4,8 @@ kind: issue
 title: Four hand-rolled 'production view' blankers each decide what a test cfg gates by their own rules
 status: open
 opened: 2026-10-19
+priority: P3
+cost: M
 ---
 
 

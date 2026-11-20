@@ -5,6 +5,8 @@ title: mesh: the tessellation refusals are too long for the viewer (Ev's concisi
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+priority: P4
+cost: E
 ---
 
 

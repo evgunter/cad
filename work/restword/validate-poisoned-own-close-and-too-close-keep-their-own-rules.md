@@ -4,6 +4,8 @@ kind: issue
 title: topo::validate: own_close and too_close end a poisoned margin by rules of their own, beside MarginDiag::unreadable_note
 status: open
 opened: 2026-10-09
+priority: P4
+cost: E
 ---
 
 

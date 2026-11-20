@@ -4,6 +4,8 @@ kind: issue
 title: the census's edge-meeting read exhausts on an imported spiric rim at ε = 1e-6
 status: open
 opened: 2026-11-18
+priority: P2
+cost: H
 ---
 
 

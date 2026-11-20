@@ -4,6 +4,8 @@ kind: issue
 title: An edit whose inner evaluation was canceled or ran out of budget still commits, reading the prefix as an unread face
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 Found building `kernel-run-evaluations-mint-their-own-cancel-token` (PR 2 of WIRE's budget work). The edit doors now run their inner evaluations on the caller's token, but none of them refuses when that run stops short:

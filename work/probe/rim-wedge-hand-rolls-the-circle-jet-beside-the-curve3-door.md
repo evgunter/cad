@@ -2,8 +2,11 @@
 id: rim-wedge-hand-rolls-the-circle-jet-beside-the-curve3-door
 kind: issue
 title: rim_wedge's station closure hand-rolls the circle's point and tangent that Curve3::ders1 now answers
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-11-20
+priority: P4
+cost: C
 ---
 
 
@@ -39,3 +42,7 @@ the `Curve3::Circle` from the `Rim` fields once and ask `ders1(theta)`
 per station, which puts the rim's stations on the bits the curve arm
 produces. Whether a rim should carry a `Curve3` is PIN's call, not the
 door's.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): already done. `classify_shared_rim` builds a `Curve3::circle` and walks it with `geom_brep::WedgeWalk::around_circle` (`crates/topo/src/rim_wedge.rs`); the hand-rolled station closure is gone.

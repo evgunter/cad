@@ -4,6 +4,8 @@ kind: issue
 title: A boolean records a face-pair row only where its decision shaped the result, not wherever the two faces meet
 status: open
 opened: 2026-10-10
+priority: P3
+cost: M
 ---
 
 

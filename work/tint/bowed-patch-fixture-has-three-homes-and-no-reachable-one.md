@@ -4,6 +4,8 @@ kind: issue
 title: The bowed-patch fixture has three homes and no crate all three can reach
 status: open
 opened: 2026-09-21
+priority: P4
+cost: E
 ---
 
 

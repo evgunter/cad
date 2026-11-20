@@ -2,8 +2,11 @@
 id: shape-door-gained-the-rim-side-unanimity-premise
 kind: issue
 title: tess: require_iso_rectangle now refuses a face whose rims encode different material sides — the seam note for mesh's walk
-status: open
+status: closed
 opened: 2026-09-20
+closed: 2026-11-20
+priority: P4
+cost: C
 ---
 
 
@@ -106,3 +109,7 @@ which holds at each ε on the matrix because its offsets are the band's.
 ## Moved to TESSWALK (what the walk and the lanes decide: structural premises, and readings taken off undecided numbers) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): the row is a disclosure with nothing left to do, and its one consequence is filed as `apex-crossing-branch-premise-has-no-body-level-witness`.

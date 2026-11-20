@@ -4,6 +4,8 @@ kind: issue
 title: Volume rows hold a quadrature midpoint within a fixed band plus the reading's own pad, with the pad unbounded, so a bracket that balloons passes any body
 status: open
 opened: 2026-11-03
+priority: P3
+cost: H
 ---
 
 

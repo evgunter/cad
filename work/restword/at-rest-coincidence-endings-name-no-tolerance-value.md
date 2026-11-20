@@ -4,6 +4,8 @@ kind: issue
 title: validate's too_close ends in the levers alone where it holds the margin that would value the tolerance arm
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 

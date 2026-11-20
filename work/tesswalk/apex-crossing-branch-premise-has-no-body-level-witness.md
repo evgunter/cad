@@ -4,6 +4,8 @@ kind: issue
 title: tess: the branch premise's cone arm is no longer reached through tessellate — the bow tie refuses at the shape door first
 status: open
 opened: 2026-09-20
+priority: P3
+cost: M
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: geom-core's inverse round-trip row folds the deviation from I through f64::max, so a NaN entry of m·m⁻¹ reads as no deviation
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 

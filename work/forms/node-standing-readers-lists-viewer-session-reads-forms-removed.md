@@ -2,8 +2,11 @@
 id: node-standing-readers-lists-viewer-session-reads-forms-removed
 kind: issue
 title: node_standing gate red on main: READERS lists viewer session.rs at 3 reads that the forms change removed
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-20
+priority: P4
+cost: C
 ---
 
 
@@ -17,3 +20,7 @@ Found by WIRE's `wire-stop` lane, 2026-11-03.
 
 Fix: drop the `session.rs` line from `READERS` and lower the array's
 length by one.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): already done. `READERS` in `crates/editor-core/tests/node_standing.rs` no longer lists `crates/viewer/src/session.rs`.

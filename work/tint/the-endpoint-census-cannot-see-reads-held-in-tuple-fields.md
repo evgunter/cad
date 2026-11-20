@@ -4,6 +4,8 @@ kind: issue
 title: certified_endpoint_census counts .lo()/.hi() calls, so an endpoint read copied into a tuple field and compared there is invisible to it
 status: open
 opened: 2026-10-14
+priority: P3
+cost: M
 ---
 
 

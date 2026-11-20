@@ -4,6 +4,8 @@ kind: issue
 title: the planar chart frame's u_ref normalizes an undecided rejection
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
 ---
 
 

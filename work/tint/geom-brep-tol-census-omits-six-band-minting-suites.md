@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep's tol.rs census omits six suites that mint their own band
 status: open
 opened: 2026-10-08
+priority: P4
+cost: C
 ---
 
 

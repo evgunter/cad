@@ -4,6 +4,8 @@ kind: issue
 title: the pcurve re-mint no longer refuses a rim row stated a band apart, so RimContinuation's import-door reach is open again and unmeasured
 status: open
 opened: 2026-10-03
+priority: P2
+cost: M
 ---
 
 

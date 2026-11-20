@@ -4,6 +4,8 @@ kind: issue
 title: validate: RingContactEscalated carries no closed decision, and SliverDihedral's material-side split ends as a defect where the geometry may reach it
 status: open
 opened: 2026-09-29
+priority: P4
+cost: M
 ---
 
 

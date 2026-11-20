@@ -4,6 +4,8 @@ kind: issue
 title: crates/mesh/tests/nurbs_exact_referee.py is linted by CI and run by nobody, so nothing pins its literals against the rows that assert them
 status: open
 opened: 2026-09-22
+priority: P3
+cost: M
 ---
 
 

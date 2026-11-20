@@ -4,6 +4,8 @@ kind: issue
 title: Seven recipe verbs evaluate at Dual64 with no row reading their tangent
 status: open
 opened: 2026-10-02
+priority: P3
+cost: H
 ---
 
 

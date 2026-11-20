@@ -4,6 +4,8 @@ kind: issue
 title: Two production f64 to_bits() compares decide geometric identity, outside the Bounds-shaped sweep and the consumer gate
 status: open
 opened: 2026-10-02
+priority: P3
+cost: E
 ---
 
 ## What

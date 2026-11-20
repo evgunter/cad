@@ -4,6 +4,8 @@ kind: issue
 title: The domination-message sweep read only crates/mesh in full: 457 message-less and 2129 unspecced ordering asserts elsewhere are unread
 status: open
 opened: 2026-09-18
+priority: P4
+cost: M
 ---
 
 ## Finding

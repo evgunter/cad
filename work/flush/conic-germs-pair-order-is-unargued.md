@@ -4,6 +4,8 @@ kind: issue
 title: The free pair order (first_pair) is argued for straight germs only: two conic-germ poses still escalate on bool_join_nearest between mutual pairs
 status: open
 opened: 2026-10-12
+priority: P2
+cost: M
 ---
 
 

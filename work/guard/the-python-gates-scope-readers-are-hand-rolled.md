@@ -4,6 +4,8 @@ kind: issue
 title: The Python gates' three scope readers are hand-rolled; source-scope cannot reach them yet
 status: open
 opened: 2026-11-09
+priority: P3
+cost: H
 ---
 
 Three Python gates resolve Rust names with scope readers they each wrote

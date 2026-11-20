@@ -4,6 +4,8 @@ kind: issue
 title: join1_r1_hex_detail and its join3 copy panic on main: the flush hex-and-box union is refused UndeclaredCoincidence
 status: open
 opened: 2026-10-05
+priority: P4
+cost: E
 ---
 
 

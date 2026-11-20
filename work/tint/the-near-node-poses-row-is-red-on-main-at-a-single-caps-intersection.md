@@ -2,8 +2,11 @@
 id: the-near-node-poses-row-is-red-on-main-at-a-single-caps-intersection
 kind: issue
 title: bisector_nodes::the_near_node_poses_at_the_witness_band is red on main: A's cap at δ = 1e-8, (B, A), ∩ refuses at its result gate, whose volume quadrature cannot read a cut face's image
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-20
+priority: P1
+cost: M
 ---
 
 
@@ -34,3 +37,7 @@ it, is unread.
 Wanted: find the stage that mints that image on the ∩'s curved cut face
 and mint it in closed form, or refuse the cell typed at the decision
 that is in band. Then the row is green again.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): a duplicate. The same red was filed, fixed and closed twice: `work/pcert/main-red-a-near-node-cap-loses-its-volume-to-a-projected-ruling-image.md` (closed 2026-11-04) and `work/green/main-red-a-near-node-cap-at-1e-8-refuses-on-quadrature.md` (closed 2026-11-14).

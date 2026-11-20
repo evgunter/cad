@@ -4,6 +4,8 @@ kind: issue
 title: The crossing rung lets a confirmed pair answer for a crossing of a third solid's edges inside the pair's overlap
 status: open
 opened: 2026-10-23
+priority: P3
+cost: M
 ---
 
 

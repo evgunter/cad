@@ -4,6 +4,8 @@ kind: issue
 title: Two domination helpers, opposite operand orders: tightness::Sup::new(claim, bound, truth) vs mesh's Domination (lesser, greater) — and mesh/tests/*.rs cannot reach the second
 status: open
 opened: 2026-09-18
+priority: P3
+cost: M
 ---
 
 ## Finding

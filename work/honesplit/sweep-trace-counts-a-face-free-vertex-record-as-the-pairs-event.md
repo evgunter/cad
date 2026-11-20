@@ -4,6 +4,8 @@ kind: issue
 title: The sweep trace counts a face-free vertex record as the (edge, face) pair's event, so the pruning superset check flags pairs whose boxes never meet
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 Found by TANG's circle × cylinder crossing cell (branch

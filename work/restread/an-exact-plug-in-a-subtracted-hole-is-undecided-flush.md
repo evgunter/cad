@@ -4,6 +4,8 @@ kind: issue
 title: An exact plug in a subtracted ring's hole is CensusUndecidable for its top and bottom: Door 2 escalates and nothing reads the faces
 status: open
 opened: 2026-10-23
+priority: P2
+cost: M
 ---
 
 

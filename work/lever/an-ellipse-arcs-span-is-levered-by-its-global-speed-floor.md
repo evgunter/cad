@@ -4,6 +4,8 @@ kind: issue
 title: An ellipse arc's span check is levered by the ellipse's global speed floor (its minor semi-axis), so a 24-band arc on a steep flank reads 3.4 bands and escalates
 status: open
 opened: 2026-10-12
+priority: P2
+cost: E
 ---
 
 

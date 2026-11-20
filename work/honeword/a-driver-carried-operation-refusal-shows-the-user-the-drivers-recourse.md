@@ -4,6 +4,8 @@ kind: issue
 title: A driver-carried operation refusal shows the user the driver's recourse
 status: open
 opened: 2026-10-04
+priority: P3
+cost: M
 ---
 
 (Found by PR 4029's review, finding 2.)

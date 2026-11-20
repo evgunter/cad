@@ -4,6 +4,8 @@ kind: issue
 title: tint: stage_prefixes does not see 'coplanar-merge output stage refused:', the label BooleanError::Merge puts before every merge refusal
 status: open
 opened: 2026-09-30
+priority: P3
+cost: M
 ---
 
 

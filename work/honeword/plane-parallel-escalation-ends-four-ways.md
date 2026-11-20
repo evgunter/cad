@@ -4,6 +4,8 @@ kind: issue
 title: the planes-parallel decision's escalation ends four ways across topo's doors
 status: open
 opened: 2026-10-12
+priority: P4
+cost: C
 ---
 
 

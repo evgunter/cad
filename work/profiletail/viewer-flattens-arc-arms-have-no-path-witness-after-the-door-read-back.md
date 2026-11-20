@@ -4,6 +4,8 @@ kind: issue
 title: viewer: sketch::flatten's arc-frame refusals (a centre or far side that is not a point) are no longer reachable from a path, since the path door refuses those arcs first at f64; their rows now pin the door's refusal
 status: open
 opened: 2026-10-20
+priority: P3
+cost: C
 ---
 
 

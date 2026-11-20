@@ -4,6 +4,8 @@ kind: issue
 title: A covered arc lying on a partner's carrier places its ends with no margin, so a surviving record of one would refuse
 status: open
 opened: 2026-10-10
+priority: P3
+cost: M
 ---
 
 

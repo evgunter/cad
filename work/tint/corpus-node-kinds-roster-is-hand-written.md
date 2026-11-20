@@ -4,6 +4,8 @@ kind: issue
 title: corpus::NODE_KINDS is a hand-written roster not welded to Node, and omits InstantiatePart and Mate
 status: open
 opened: 2026-09-28
+priority: P3
+cost: E
 ---
 
 Filed by the GATHER lane on PR 3335 (`verbatim-edge-is-not-tied-to-the-evaluator`, fix pass).

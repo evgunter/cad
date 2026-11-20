@@ -4,6 +4,8 @@ kind: issue
 title: An index's count of 0 or a negative count passes the define door
 status: open
 opened: 2026-11-03
+priority: P3
+cost: E
 ---
 
 

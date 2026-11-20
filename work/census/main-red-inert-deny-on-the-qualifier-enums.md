@@ -4,6 +4,8 @@ kind: issue
 title: Main red: the deny_unknown_fields census finds the two Qualifier enums inert since 'nothing is ranked'
 status: open
 opened: 2026-10-26
+priority: P4
+cost: C
 ---
 
 

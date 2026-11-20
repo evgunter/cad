@@ -4,6 +4,8 @@ kind: issue
 title: topo: CensusUndecidable's what is a &'static str, so a witness decision's margin cannot value its tighten
 status: open
 opened: 2026-09-29
+priority: P4
+cost: M
 ---
 
 

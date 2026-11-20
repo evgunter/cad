@@ -4,6 +4,8 @@ kind: issue
 title: mesh: two coincident edges open two columns that are one, and the face meshes as a hole
 status: open
 opened: 2026-09-22
+priority: P3
+cost: M
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: split_cylindrical_feature_box.rs says it copies projectbox::build but still builds square bosses sunk 1/16 with pockets
 status: open
 opened: 2026-10-02
+priority: P4
+cost: E
 ---
 
 

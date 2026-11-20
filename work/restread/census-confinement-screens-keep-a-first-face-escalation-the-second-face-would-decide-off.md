@@ -4,6 +4,8 @@ kind: issue
 title: The census confinement screens stop at the first face's undecided residual and keep its escalation where the second face would decide the point off
 status: open
 opened: 2026-10-13
+priority: P2
+cost: E
 ---
 
 

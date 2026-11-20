@@ -4,6 +4,8 @@ kind: issue
 title: topo: check 9's two-circle arm discards loop_circle's escalation, so ContainDecision::OneCircle's ending has no reader
 status: open
 opened: 2026-10-08
+priority: P3
+cost: M
 ---
 
 

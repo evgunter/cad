@@ -4,6 +4,8 @@ kind: issue
 title: The plane-NURBS seam's refusal cell moved below every gated eps row, so six rows now pin only their first-class arm
 status: open
 opened: 2026-09-30
+priority: P3
+cost: E
 ---
 
 

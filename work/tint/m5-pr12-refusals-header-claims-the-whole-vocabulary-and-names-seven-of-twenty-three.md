@@ -4,6 +4,8 @@ kind: issue
 title: m5_pr12_refusals' header claims the OQ6 refusal vocabulary is 'pinned variant by variant'; sixteen of BlendError's twenty-three arms appear nowhere in the file
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

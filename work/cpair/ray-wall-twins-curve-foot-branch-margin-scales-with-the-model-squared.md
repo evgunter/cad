@@ -2,8 +2,11 @@
 id: ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared
 kind: issue
 title: ray_wall_margin_twins: curve_foot_branch's decisive margins read a million to one between the millimetre and metre twins (six pairs before PR 5664, 62 since); pinned 2026-10-28
-status: open
+status: closed
 opened: 2026-10-28
+closed: 2026-11-20
+priority: P2
+cost: C
 ---
 
 
@@ -47,3 +50,7 @@ re-measure of what ran past the old stop.
 Moved from `work/issues/` to `work/cpair/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 **Measured gone (2026-11-06, `onecopy/main-reds-k-and-m10`).** Bisected first-parent at 1e-9: PR 5781 (`4e0ef4858b`) took the 62 pairs to 32; PR 6349 (`096817df51`, `onehome/conic-frame`) made `curve_foot_branch`'s margins scale, and the pin passed; since PR 6482 the predicate is no longer recorded (retired into the F31 angle reads). The ray-wall row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): measured gone, per this row's own 2026-11-06 note: PR 6349 made `curve_foot_branch`'s margins scale, and since PR 6482 the predicate is no longer recorded on the row.

@@ -4,6 +4,8 @@ kind: issue
 title: A curved patch's quad diagonal flips on last-bit UV noise, so mesh goldens move with positions identical
 status: open
 opened: 2026-10-24
+priority: P4
+cost: M
 ---
 
 

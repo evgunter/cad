@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep enclosure and chord-ceiling asserts print fewer than 17 digits and do not name the failing end, so a last-bit red shows no usable margin
 status: open
 opened: 2026-09-18
+priority: P4
+cost: E
 ---
 
 

@@ -2,8 +2,11 @@
 id: poleguard-door-enumeration-overstates-the-boolean-refusals
 kind: issue
 title: step-import/tests/poleguard.rs: the door enumeration says every sphere-face cut refuses, and macroscopic ball cuts succeed
-status: open
+status: closed
 opened: 2026-09-18
+closed: 2026-11-20
+priority: P4
+cost: C
 ---
 
 
@@ -39,3 +42,7 @@ cut succeeding; only the prose over-reaches.
 Not verified by this lane: whether the three cited review rows still
 pass their "every probed height" sweeps as written — they were not run
 or read beyond their names.
+
+## Closed
+
+Closed 2026-11-20 (tracker sweep): already done. `crates/step-import/tests/poleguard.rs`'s header now says a sphere-face cut within a few ε of a pole refuses and a macroscopic cut builds, which is the re-wording this row asks for.

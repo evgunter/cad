@@ -4,6 +4,8 @@ kind: issue
 title: validate: an at-rest certification refusal routed as Escalated leads with 'undecided' (certify_undecided) on a gate's definite rejection, keyed on the variant rather than the reading's class
 status: open
 opened: 2026-10-14
+priority: P4
+cost: M
 ---
 
 

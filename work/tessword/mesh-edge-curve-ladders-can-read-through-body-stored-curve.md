@@ -4,6 +4,8 @@ kind: issue
 title: mesh's edge-to-certified-curve ladders could read through topo::Body::stored_curve
 status: open
 opened: 2026-10-20
+priority: P4
+cost: E
 ---
 
 
