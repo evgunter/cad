@@ -58,11 +58,11 @@
 //!
 //! **The stretch** is `Γ` inside the carrier's control hulls padded by
 //! `T`: each span the edge's interval meets has its Bernstein net read
-//! off its homogeneous coefficients by the blossom and is cut into pieces
-//! by de Casteljau splits, in certification arithmetic, and a piece lies in the box
-//! of its Cartesian control points, so a point of the carrier and its
-//! nearest point on `Γ_c` within `T` both lie in one of the padded
-//! boxes. Each floor is the least over the boxes. **The one point within `T`** is the
+//! off its homogeneous coefficients by the blossom and is cut into
+//! pieces by de Casteljau splits, in certification arithmetic, and a
+//! piece lies in the box of its Cartesian control points, so a point of
+//! the carrier and its nearest point on `Γ_c` within `T` both lie in one
+//! of the padded boxes. Each floor is the least over the boxes. **The one point within `T`** is the
 //! carrier's point at an interior parameter, enclosed by evaluating the
 //! carrier in certification arithmetic, beside which Poincaré–Miranda
 //! finds a common zero of `Q₁` and `Q₂` on a square whose sides are
@@ -595,8 +595,8 @@ const PIECES: u32 = 8;
 /// interval meets has its Bernstein net read off its homogeneous
 /// coefficients `(w·P, w)` by the blossom
 /// ([`geom_core::spline::pieces::span_row`]) over the held knots, and is
-/// cut by de Casteljau splits ([`split`]) into its share of [`PIECES`], all in
-/// certification arithmetic. A piece lies in the convex hull of its
+/// cut by de Casteljau splits ([`split`]) into its share of [`PIECES`],
+/// all in certification arithmetic. A piece lies in the convex hull of its
 /// Cartesian control points `w·P/w` where every weight is certified
 /// positive, so the box of those points holds it for every member of the
 /// box.
