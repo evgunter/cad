@@ -32,3 +32,13 @@ choice, and a row that types the rendered value back into the corner
 it came from.
 
 Moved from ROUND to PROFILE on 2026-11-20, by `git mv`, when ROUND merged into PROFILE: ROUND held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one PROFILE carries.
+
+**2026-11-20, from SCALAR's told-quantity build (PR 7159).** `path::num`
+and `num_toward` are gone: `largest_tangent_radius` is now a
+`geom_core::Told` offered as an at-most bound (`map_refusal`'s
+`EnclosesLegCarrier` arm, `crates/profile/src/path/arc_fillet.rs`), so
+its spelling never reads back above the bound. The half of this row
+that asked for the fitting side is done by that; the wording choice
+(the sentence still states a fact, "the largest circle tangent to both
+has radius X m", about a number now rounded down) and the row that
+types the value back are still owed.

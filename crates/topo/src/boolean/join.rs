@@ -7362,11 +7362,13 @@ mod frame_dispatch_tests {
         let k = b.escalate() / b.zero();
         assert!(
             text.starts_with("whether a cylinder's radius is positive is undecided: ")
-                && text.contains(&format!(
+                && text.contains(
                     "Recourse: make the cylinder's radius clearly larger than the tolerance, \
-                     or, if this radius is intended, tighten the tolerance below {:e} m",
-                    mid / k
-                ))
+                     or, if this radius is intended, tighten the tolerance below "
+                )
+                && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                    geom_core::test_support::is_told_offer_of(offered, mid / k)
+                })
                 && !text.contains("declare"),
             "{text}"
         );
