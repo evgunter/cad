@@ -1098,6 +1098,36 @@ mod tests {
         }
     }
 
+    /// **The anchored chain's bound charges the half-angle square's own
+    /// rounding.** The first offset is `−2·sin²(θ/2)`; its bound holds
+    /// the half-angle sine's ulp carried through the square, and the
+    /// rounding of the square itself. `mul_add` reads that rounding
+    /// exactly, and the bound less twice it (the doubling is exact) still
+    /// holds the sine's share at every `θ`. Red where the square is not
+    /// charged: the bound is then the sine's share alone, and falls short
+    /// by the rounding wherever the square is inexact, which is nearly
+    /// every `θ` here.
+    #[test]
+    fn the_anchored_offsets_bound_charges_the_squares_rounding() {
+        let u = geom_core::UNIT_ROUNDOFF;
+        let mut inexact = 0;
+        for i in 1..=600 {
+            let theta = -3.1 + 0.0103 * f64::from(i);
+            let (first, _) = super::running_offsets(theta);
+            let sh = (0.5 * theta).sin();
+            let rounding = sh.mul_add(sh, -(sh * sh)).abs();
+            let sines_share = 2.0 * (2.0 * sh.abs() * (2.0 * u * sh.abs()));
+            assert!(
+                first.error - 2.0 * rounding >= sines_share * (1.0 - 8.0 * u),
+                "θ {theta}: the bound {:e} less the square's rounding {rounding:e} holds the \
+                 sine's share {sines_share:e}",
+                first.error
+            );
+            inexact += usize::from(rounding > 0.0);
+        }
+        assert!(inexact > 500, "the square rounds at {inexact} of 600");
+    }
+
     /// **A conic born anchored reads from its anchor.** Its point at
     /// `θ = 0` is the anchor bit for bit, its centre is the anchor less
     /// the semi-axis along the seam, and round the turn it is the conic
