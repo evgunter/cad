@@ -945,8 +945,9 @@ fn germ_site<T: Decide>(
 ///   site is its vertex. The partner holds it inside a planar or a
 ///   spherical face, whose interior the site pierces; inside a planar
 ///   face whose boundary passes through the site, where the loop only
-///   touches that boundary (two rims tangent at their vertices); or
-///   along a closed edge of its own through the same site.
+///   touches that boundary (two rims tangent at their vertices); on a
+///   one-face closed wall's wrap edge; or along a closed edge of its own
+///   through the same site.
 ///
 /// Read from the records [`matched_records`]' quiescence left. Every
 /// other [`one_site`] record is left for the
@@ -1031,7 +1032,14 @@ fn one_site_segments<T: Decide>(
 /// planar face or a vertex of its boundary, or a closed circle or
 /// ellipse against a pierce of a face [`RimSide::of`] sides, against a
 /// vertex on the boundary of a planar face it stands on from the other
-/// side ([`stands_on`]), or against another closed circle or ellipse.
+/// side ([`stands_on`]), against a wrap edge, or against another closed
+/// circle or ellipse. Against a wrap edge the closed edge's side copies
+/// it whole and the wall's side runs from the site round the wall back
+/// to it, as a transverse section's does, whatever the wall's kind: that
+/// holds for a loop that winds round the wall, crossing its wrap edge at
+/// the site. A loop that only touches the wrap edge there, winding round
+/// nothing, never reaches this table: the crossing layer escalates the
+/// tangent touch first.
 /// At a boundary vertex the germ's cell is the face, so the loop leaves
 /// the vertex into the face and
 /// returns to it; the joiner mints it in that face as one chord from the
@@ -1063,6 +1071,8 @@ fn closes_at_its_site<T: Decide>(
             (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f).is_some(),
             (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f).is_some(),
             (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+            (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
+            (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
             (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
                 rim(&red.b, f) == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
             }

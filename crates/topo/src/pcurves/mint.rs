@@ -4,8 +4,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    CertifyingDoor, ChartImage, Pcurve, PcurveCache, PcurveCertifyError, Period, chart_pcurve_over,
-    probe_pick,
+    CertifyingDoor, ChartImage, Pcurve, PcurveCache, PcurveCertifyError, Period, probe_pick,
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -484,8 +483,9 @@ pub(crate) fn derived_pcurve_of<T: AtRestPolicy>(
     if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
+    let ends = super::decision::singular_ends(body, half_edge, &carrier, &surface, band);
     Ok(ChartImage::Image {
-        pcurve: analytic_derive(&carrier, t0, t1, &surface, band, half_edge)?,
+        pcurve: analytic_derive(&carrier, (t0, t1), ends, &surface, band, half_edge)?,
         t0,
         t1,
     })
@@ -618,24 +618,26 @@ pub(crate) fn seam_intersection<T: AtRestPolicy>(
 }
 
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
-/// principal branch: the closed form ([`chart_pcurve_over`]) wherever
+/// principal branch: the closed form ([`chart_pcurve_over`](geom_brep::chart_pcurve_over)) wherever
 /// one exists, and the projected image for a carrier with none (a spline
 /// carrier, a circle or a cylinder's or cone's line no class images), partitioned
 /// over the edge's own
-/// interval.
+/// interval. `ends` are the edge's ends on the chart's singular set
+/// ([`super::decision::singular_ends`]), where the projected image reads an end on a pole
+/// as the face's vertex there.
 ///
 /// # Errors
 ///
 /// [`PcurveMintError::Certify`] with the derivation's refusal.
 pub(super) fn analytic_derive<T: Decide>(
     carrier: &geom::Curve3<T>,
-    t0: T,
-    t1: T,
+    (t0, t1): (T, T),
+    ends: geom_brep::SingularEnds,
     surface: &Surface<T>,
     band: Band,
     half_edge: HalfEdgeKey,
 ) -> Result<Pcurve<T>, PcurveMintError> {
-    chart_pcurve_over(carrier, t0, t1, surface, band)
+    geom_brep::chart_pcurve_over_ends(carrier, t0, t1, ends, surface, band)
         .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
@@ -2152,7 +2154,7 @@ fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError
 /// with its carrier and interval — the derivation the walk pins
 /// ([`walk_loop`]). The one step that forks by chart: a SPLINE chart
 /// derives from the edge's description ([`nurbs_iso_derive`]), every
-/// analytic chart from the carrier's closed form ([`chart_pcurve_over`]).
+/// analytic chart from the carrier's closed form ([`chart_pcurve_over`](geom_brep::chart_pcurve_over)).
 ///
 /// # Errors
 ///
@@ -2171,8 +2173,9 @@ pub(super) fn derive_image<T: AtRestPolicy>(
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
+        let ends = super::decision::singular_ends(body, he, &carrier, surface, band);
         ChartImage::Image {
-            pcurve: analytic_derive(&carrier, t0, t1, surface, band, he)?,
+            pcurve: analytic_derive(&carrier, (t0, t1), ends, surface, band, he)?,
             t0,
             t1,
         }

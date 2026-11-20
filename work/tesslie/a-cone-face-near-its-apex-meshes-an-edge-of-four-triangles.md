@@ -2,10 +2,11 @@
 id: a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles
 kind: issue
 title: a ringless cone face near its apex meshes Ok with an edge four triangles use: tessellate returns a mesh check_mesh refuses
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: M
+branch: tesslie/four-use-edge
 ---
 
 

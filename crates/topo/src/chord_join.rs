@@ -115,8 +115,10 @@
 //! boolean a closed edge
 //! (one vertex, both its ends) lying in the other operand, which copies
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
-//! section conic in the partner's planar or spherical face. There the
-//! chord is the whole section conic, from the vertex round to itself.
+//! section conic in the partner's planar or spherical face, or on the
+//! wrap edge of the partner's one-face wall, which the conic winds round
+//! from that edge back to it. There the chord is the whole section
+//! conic, from the vertex round to itself.
 //! A chord between two copies of one site, which the null edges tie
 //! ([`same_site`]), runs round the same way: a section conic that meets
 //! a face's boundary at one site alone reaches it under whichever of
@@ -330,8 +332,8 @@ pub enum JoinError {
     /// a loop at: the one vertex on the loop holds both its ends, and
     /// the join closes a loop on itself only at a wrap edge crossing a
     /// planar face or meeting a vertex of its boundary, or along a closed
-    /// edge lying in a planar or a spherical face or along another closed
-    /// edge
+    /// edge lying in a planar or a spherical face, on a one-face wall's
+    /// wrap edge, or along another closed edge
     /// (`boolean::join::one_site_segments`). Any other is refused typed,
     /// before the loose ends are counted.
     SingleSiteSectionLoop {
@@ -824,10 +826,10 @@ impl JoinError {
             ),
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
-                "{count} section loop(s) close through a single vertex where neither a wrap \
-                 edge crosses a planar face or meets a vertex of its boundary nor a closed \
-                 edge lies in a planar or spherical face or along another closed edge, and \
-                 such a loop joined at one site is not built. {}",
+                "{count} section loop(s) close through a single vertex, which the join closes \
+                 only where a wrap edge or a closed edge pierces or touches a face it sides a \
+                 loop in, or a closed edge runs on a wrap edge or along another closed edge; \
+                 this one is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
@@ -5113,9 +5115,15 @@ fn lone_ring<T: Real>(
 /// conic its region lies on**, by the divided face's surface
 /// ([`Self::of`]): a lone ring's ([`ChordJoiner::join_lone_ring`]) on a
 /// plane or a sphere, a null strut's ([`ChordJoiner::place_strut`]) on a
-/// plane. A face it has no arm for (a cone, a cylinder, a torus, which a
-/// plane can cut in more than the conic) is not joined at one site:
-/// `boolean::join`'s `closes_at_its_site` reads this same table.
+/// plane. `boolean::join`'s `closes_at_its_site` reads this same table.
+/// It has no arm for a cone, a cylinder or a torus, and needs none: a
+/// closed conic on one winds round the surface (round its axis, or a
+/// torus's meridian round the tube), and an at-rest face of one is a
+/// chart disc cut by its seams, so the conic meets a seam, either at its
+/// one site (the face's wrap edge, which no siding reads) or inside its
+/// span (two sites, not one). The at-rest premise is tier 3's: a seamless
+/// band would break it
+/// (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RimSide {
     /// A plane: a conic loop winding with the old face's outer loop, on
