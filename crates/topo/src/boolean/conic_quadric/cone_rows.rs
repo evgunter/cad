@@ -896,10 +896,11 @@ fn the_apex_spread_bound_refuses_where_a_factor_is_not_positive() {
 /// draws it: positive semi-axes and the frame turned over (`−axis`,
 /// `−u_ref`), the same point at every θ as the printed record (checked
 /// against that record's formula written out), and the door refuses it
-/// on its meter. Red the day the door certifies it, or refuses it on
-/// another ground.
+/// on the first-harmonic arm's root slack (4.7e-6 at the true speed).
+/// Red the day the door certifies it, or refuses it on another ground
+/// or another meter.
 #[test]
-fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_meter() {
+fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
     let (center, axis, u_ref) = (
         Point3::from_array([
             0.5951044729266803,
@@ -940,8 +941,10 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_meter() {
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
+    let slack = geom_brep::rows::CONIC_QUADRIC_FIRST.root_slack();
     assert!(
-        matches!(found, Ok(Err(Unsettled::Meter { .. }))),
-        "the in-contract twin is refused on its meter: {found:?}"
+        matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
+        "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \
+         {found:?}"
     );
 }

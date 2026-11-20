@@ -69,8 +69,9 @@ use crate::frame::Frame;
 
 /// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
 ///
-/// Its invariants: the axis is unit, the radius positive, and the seam
-/// (`u_ref`) is carried whether or not a reader reads it.
+/// Its invariants: the axis is unit, the radius never definitely
+/// negative ([`Circle::new`]), and the seam (`u_ref`) is carried whether
+/// or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement: `origin` the centre, `axis` the unit plane normal
@@ -163,7 +164,8 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 
     /// The speed `|P′(θ)|` at `theta`, held to
     /// `[`[`Self::speed_lo`]`, `[`Self::speed_hi`]`]`: a circle's is its
-    /// radius exactly at every scalar.
+    /// radius's magnitude at every scalar, the radius itself wherever it
+    /// is a point.
     fn speed_at(&self, theta: T) -> T;
 
     /// The principal frame with the larger semi-axis first, whichever the
@@ -487,13 +489,13 @@ impl<T: Real> Ellipse<T> {
         (self.semi_u, self.semi_v)
     }
 
-    /// The semi-axis along `u_ref`.
+    /// The semi-axis along `u_ref`: one stored size, no region.
     #[must_use]
     pub fn semi_u(&self) -> T {
         self.semi_u
     }
 
-    /// The semi-axis along `axis × u_ref`.
+    /// The semi-axis along `axis × u_ref`: one stored size, no region.
     #[must_use]
     pub fn semi_v(&self) -> T {
         self.semi_v
@@ -545,18 +547,20 @@ impl<T: Real> Ellipse<T> {
     /// stored where `turn ≤ 0`, read without a branch. `θ = s + π/2` reads
     /// `center + v·(semi_v·cos s) − u_ref·(semi_u·sin s)` with
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
-    /// adds no length to the frame, and the semi-axes swap.
+    /// adds no length to the frame, and the semi-axes swap. Built through
+    /// [`Self::new`], so a poison `turn`, which hulls the two sizes to
+    /// poison, panics there rather than storing it.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
-        Self {
-            frame: Frame {
+        Self::new(
+            Frame {
                 u_ref: Vec3::select(turn, f.u_ref, f.v_ref().normalize()),
                 ..f
             },
-            semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
-            semi_v: turn.select_le_zero(self.semi_v, self.semi_u),
-        }
+            turn.select_le_zero(self.semi_u, self.semi_v),
+            turn.select_le_zero(self.semi_v, self.semi_u),
+        )
     }
 
     /// **The same ellipse seamed at the principal vertex nearest the
@@ -581,13 +585,10 @@ impl<T: Real> Ellipse<T> {
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
         let e = self.quarter_turned_where(turn);
-        Self {
-            frame: Frame {
-                u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
-                ..e.frame
-            },
-            ..e
-        }
+        e.with_frame(Frame {
+            u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
+            ..e.frame
+        })
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
@@ -830,5 +831,33 @@ mod tests {
             super::Circle::new(flat, -0.0).radius().to_bits(),
             (-0.0f64).to_bits()
         );
+    }
+
+    /// **A circle whose radius straddles zero has sound speeds**:
+    /// `radius ∈ [−2, 1]` constructs, its least speed is floored at zero
+    /// and its greatest, and its speed at any `θ`, reach `2`, the
+    /// magnitude the enclosure's negative end carries. Read as the signed
+    /// radius, the greatest would stop at `1`.
+    #[test]
+    fn a_circle_radius_across_zero_constructs_and_its_speeds_bound_it() {
+        use geom_core::{Bounds, Interval};
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let c = super::Circle::new(f, Interval::from_bounds(-2.0, 1.0));
+        let k: &dyn super::Conic<Interval> = &c;
+        let (lo, hi) = (k.speed_lo(), k.speed_hi());
+        assert!(lo.lo() >= 0.0 && lo.hi() >= 1.0, "speed_lo {lo:?}");
+        assert!(hi.hi() >= 2.0, "speed_hi {hi:?} under |radius| = 2");
+        let at = k.speed_at(Interval::from_f64(0.3));
+        assert!(at.lo() >= 0.0 && at.hi() >= 2.0, "speed_at {at:?}");
+    }
+
+    /// A poison turn reads poison sizes, which the checked constructor
+    /// refuses rather than store.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_u NaN")]
+    fn a_poison_seam_turn_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Ellipse::new(f, 0.9, 0.4).seamed_near(f64::NAN);
     }
 }

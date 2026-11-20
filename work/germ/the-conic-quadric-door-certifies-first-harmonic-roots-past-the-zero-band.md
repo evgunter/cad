@@ -67,8 +67,8 @@ and `speed_lo` read −0.00264. The first-harmonic arm's slack,
 band; at the true speed it is 4.7e-6 and the door refuses
 (`Unsettled::Meter`). The in-contract twin of the same ellipse (positive
 semi-axes, the frame turned over, the same point at every θ) is refused
-on its meter, and the pinned row now says so
-(`the_nightly_1115_ellipse_in_contract_is_refused_on_its_meter`).
+on its first-harmonic root slack, and the pinned row now says so
+(`the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack`).
 
 The fix makes a negative semi-axis or radius unrepresentable (private
 fields, constructors that panic on a non-finite or definitely negative

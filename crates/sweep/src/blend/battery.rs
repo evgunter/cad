@@ -2247,7 +2247,9 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // --- 2. face clearance (the conservative screen — see
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
-    // the chamfer's screen runs on the chamfer's own setbacks.
+    // the chamfer's screen runs on the chamfer's own setbacks. A
+    // frustum's plane trim is screened earlier, when its arm is
+    // classified (`frustum_arm`), before its band is minted.
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for
