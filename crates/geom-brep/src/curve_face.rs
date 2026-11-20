@@ -611,6 +611,8 @@ pub mod line_quadric;
 pub mod plane_crossing;
 pub mod pose;
 #[cfg(test)]
+mod pose_rows;
+#[cfg(test)]
 mod review_rows;
 #[cfg(test)]
 mod rows;
