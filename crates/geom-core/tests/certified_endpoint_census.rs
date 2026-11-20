@@ -625,16 +625,23 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 5, 5, ""),
     (
         "crates/geom-core/src/interval.rs",
-        34,
+        37,
         8,
         "the type's own body. The 8 that ask are the two refusal doors (`certified_bracket`, \
          `sign_within`, 2 each) and the directed helpers `certified_hi`, `div_down`, `div_up` \
-         and `add_up` (1 each). The other 26 are not certification reads at all — blind spot 1: \
+         and `add_up` (1 each). The other 29 are not certification reads at all — blind spot 1: \
          they are the evaluation scalar's own implementation reads of the `DInterval` it wraps \
          (the `Bounds` forwarders, `repr_bits`, `copysign`, the kink selectors, the two \
          `select_le_zero` arms, and `is_bounded`'s endpoint finiteness, which only refuses: a \
          mint that reads it refuses an unbounded enclosure and certifies nothing), which test \
-         NaI and empty themselves and carry the decoration forward rather than certifying",
+         NaI and empty themselves and carry the decoration forward rather than certifying. \
+         `less_sin`'s 1 is of that kind: the magnitude's upper end picks between two arms that \
+         each enclose `x − sin x` over the whole set and each carry the operand's decoration \
+         through their arithmetic, so no arm certifies what the operand did not, and a NaN end \
+         (NaI, empty) compares false and takes the difference, which propagates it \
+         (`less_sin_rows`). `told_reading`'s 2 hand both ends to `told::Reading::enclosure`, \
+         which has no accessor and only renders: a told reading of an enclosure's ends, not a \
+         certifying branch, and a NaN end reads as unreadable",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
