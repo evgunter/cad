@@ -26,13 +26,13 @@ outside the edge's span `z ∈ [−0.3, −0.1]`. Moving the brick to
 
 ## The cause, by reading
 
-`reduce::line_cone_roots` decides `bool_line_cone_depth` on the
+`line_quadric::line_cone_roots` decides `line_quadric_cone_depth` on the
 quadratic's vertex `t*` and returns `CircleRoots::Uncertain` on Zero
 whatever `t*`'s place relative to `[t0, t1]`. Where `t*` is definitely
 outside the span (by more than the band, at the line's speed), `G` is
 monotone over the span and the endpoint signs decide it: no root inside
 when they agree. The other rungs already read the span
-(`bool_line_cone_root_slack`'s `outside`).
+(`line_quadric_cone_root_slack`'s `outside`).
 
 A conservative refusal, never a wrong body: an axis-aligned brick
 whose corner line sits on a parallel's tangent line is a natural pose,
