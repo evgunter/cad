@@ -811,3 +811,86 @@ fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
          exemption at all: widest {widest:e} against eps {eps:e}, {reportable} junctions past it"
     );
 }
+
+/// A unit sphere (axis z) cut along ONE oblique circle: the plane with
+/// unit normal at `tilt` from z (toward x), `offset` from the centre.
+/// Two arcs of that circle bound two sphere faces. Every coordinate is
+/// stated once, exactly: the arcs' endpoints are where the circle puts
+/// them, and the circle lies on the sphere.
+fn oblique_cap(tilt: f64, offset: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+    let c = Point3::new(0.0, 0.0, 0.0) + n * offset;
+    let r = (1.0 - offset * offset).sqrt();
+    let circle = Curve3::circle(c, n, r, Vec3::new(0.0, 1.0, 0.0));
+    let (a, b) = (circle.eval(0.0), circle.eval(core::f64::consts::PI));
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            EdgeCurveSpec::arc_of_circle(circle.clone(), 0.0, core::f64::consts::PI).unwrap(),
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec::arc_of_circle(circle, core::f64::consts::PI, core::f64::consts::TAU)
+            .unwrap(),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    body
+}
+
+/// **KNOWN WRONG: an oblique circle on a sphere is misread as a
+/// meridian and reported.** `chart_iso::classify_kind` reads a circle
+/// whose axis is more than 60° off the chart's as a meridian, iso or
+/// not. A sphere cut 61° off its axis states every coordinate once,
+/// exactly, and the examination reports metre-scale closure gaps on
+/// it. This row pins that it does, so the fix
+/// (`work/tesslie/chart-coherence-reads-a-non-iso-circle-as-an-iso-side.md`)
+/// turns it red and rewrites it as the quiet row it should be; until
+/// then it is why `ChecksConfig::chart_coherence` defaults `Off`.
+/// At 59° the same circle reads as a rim, and both arcs share one
+/// carrier, so it is quiet.
+#[test]
+fn an_oblique_circle_on_a_sphere_is_misread_as_a_meridian() {
+    let tol = Tol::witness();
+    let quiet = topo::examine_chart_coherence(&oblique_cap(59f64.to_radians(), 0.3), tol);
+    assert_eq!(
+        (quiet.findings.len(), quiet.unexamined.len()),
+        (0, 0),
+        "{quiet:?}"
+    );
+    let wrong = topo::examine_chart_coherence(&oblique_cap(61f64.to_radians(), 0.3), tol);
+    assert!(wrong.unexamined.is_empty(), "{:?}", wrong.unexamined);
+    let closures = of_kind(&wrong.findings, is_closure);
+    assert_eq!(
+        (closures.len(), wrong.findings.len()),
+        (8, 10),
+        "two closures per arc per face, and one column per face: {:?}",
+        wrong.findings
+    );
+    for f in &wrong.findings {
+        assert!(
+            f.metres > 1.0,
+            "a spurious finding is metres, not a band-sized gap: {f:?}"
+        );
+    }
+}

@@ -665,7 +665,9 @@ fn iso_side_starts(
         .iter()
         .map(|t| eps.separates(chart.radial(positions[t.ids[0] as usize])))
         .collect();
-    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
+    // Every traversal here has a kind: the walk refuses a carrier
+    // `classify_kind` cannot place before any side is grouped.
+    let kinds: Vec<Option<TravKind>> = travs.iter().map(|t| Some(t.kind)).collect();
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 

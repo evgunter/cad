@@ -472,24 +472,12 @@ fn iso_side_starts(travs: &[Trav], chart: &Chart, eps: f64) -> Vec<bool> {
     // door's band read (`radial > eps`, strict, the band excluded —
     // the comparison `mesh` spells `Eps::separates`) and this door's
     // resolution of the case the rule deliberately leaves open.
-    // A non-iso traversal is no side, so it opens and so does whatever
-    // follows it. The kind handed to the rule in its place is never
-    // decisive: both positions it could decide are overridden below.
-    let kinds: Vec<TravKind> = travs
-        .iter()
-        .map(|t| t.kind.unwrap_or(TravKind::Meridian { u_raw: f64::NAN }))
-        .collect();
+    let kinds: Vec<Option<TravKind>> = travs.iter().map(|t| t.kind).collect();
     let separated: Vec<bool> = travs
         .iter()
         .map(|t| chart.radial(t.start_p) > eps)
         .collect();
     let mut starts = crate::chart_iso::iso_side_starts(&kinds, &separated);
-    let m = travs.len();
-    for k in 0..m {
-        if travs[k].kind.is_none() || travs[(k + m - 1) % m].kind.is_none() {
-            starts[k] = true;
-        }
-    }
     if !starts.is_empty() && !starts.iter().any(|&s| s) {
         starts[0] = true;
     }

@@ -107,9 +107,10 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         }
         // A spiric is neither a rim nor a meridian traversal of its
         // torus chart (its azimuth AND its minor angle both move), so it
-        // opens no iso side. The mesh's chord pass never asks this of a
-        // spiric (its chord arm sizes the carrier itself), so the
-        // `None` here is read by the coherence walk alone.
+        // is no iso side. The mesh's chord pass never asks this of a
+        // spiric (its chord arm sizes the carrier itself); the `None`
+        // reaches `iso_side_starts` from the coherence walk, as every
+        // conic's does.
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }
@@ -125,6 +126,12 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
 /// traversals continue ONE side when they are the same KIND and the
 /// junction between them lies OFF the chart axis; anything else opens
 /// a side.
+///
+/// A traversal with no kind (`None`, [`classify_kind`]'s answer for a
+/// conic or spline carrier) is no side at all: it opens, and so does
+/// the traversal after it, since there is no side for that one to
+/// continue. A caller whose every traversal has a kind passes each as
+/// `Some`.
 ///
 /// `separated[k]` is the second half of that conjunction: "the
 /// junction traversal `k` starts at is separated from the chart axis".
@@ -149,7 +156,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
 /// continue from. **Nothing here forces an opening to exist** — a loop
 /// whose every traversal reads as a continuation is a single cyclic
 /// run with none, and each caller resolves that for itself.
-pub fn iso_side_starts(kinds: &[TravKind], separated: &[bool]) -> Vec<bool> {
+pub fn iso_side_starts(kinds: &[Option<TravKind>], separated: &[bool]) -> Vec<bool> {
     let m = kinds.len();
     debug_assert_eq!(
         m,
@@ -164,6 +171,30 @@ pub fn iso_side_starts(kinds: &[TravKind], separated: &[bool]) -> Vec<bool> {
         return vec![true; m];
     }
     (0..m)
-        .map(|k| !(kinds[(k + m - 1) % m].same_kind(&kinds[k]) && separated[k]))
+        .map(|k| match (kinds[(k + m - 1) % m], kinds[k]) {
+            (Some(prev), Some(own)) => !(prev.same_kind(&own) && separated[k]),
+            _ => true,
+        })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A traversal with no kind opens, and so does the one after it,
+    /// even where the two iso traversals either side of it are the same
+    /// kind and every junction is off the axis: the run does not bridge
+    /// a conic.
+    #[test]
+    fn a_kindless_traversal_breaks_the_run_on_both_sides() {
+        let m = Some(TravKind::Meridian { u_raw: 0.0 });
+        assert_eq!(
+            iso_side_starts(&[m, None, m, m], &[true; 4]),
+            vec![false, true, true, false],
+            "the meridian after the conic opens; the one after it continues; the first \
+             continues the last across the wrap"
+        );
+        assert_eq!(iso_side_starts(&[None, None], &[true; 2]), vec![true, true]);
+    }
 }

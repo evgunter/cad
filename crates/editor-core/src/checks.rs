@@ -343,9 +343,13 @@ pub struct ChecksConfig {
     /// reports an ordinary cut sphere by default is not a report; the
     /// exact iso test that would retire this is
     /// `work/tesslie/chart-coherence-reads-a-non-iso-circle-as-an-iso-side.md`.
-    /// Its cost is not a reason: measured at the registry's pinned
-    /// point it is a fraction of a millisecond
-    /// (`editor-core/tests/tesslie_coherence_cost.rs`).
+    /// Its cost is not a reason: it was measured against the
+    /// registry's pinned point and found no obstacle, by a print-only
+    /// row that is re-run rather than gated (`cargo nextest run -p
+    /// editor-core --test all tesslie_coherence_cost --run-ignored only
+    /// --no-capture`). The known-wrong sphere witness is pinned as
+    /// `topo/tests/mesh8_coherence.rs`'s
+    /// `an_oblique_circle_on_a_sphere_is_misread_as_a_meridian`.
     ///
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).

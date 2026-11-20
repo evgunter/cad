@@ -333,6 +333,120 @@ fn an_ellipse_trimmed_faces_iso_edges_are_examined() {
     }
 }
 
+/// **The edge after a conic is examined, and opens its own side.** On
+/// a tilted half's cylinder face the ellipse is split near the end the
+/// loop leaves it by, and a straight CHORD closes the short piece off,
+/// so on the trimmed face the traversal immediately after the conic is
+/// that chord: a line, read as a meridian, whose mid-parameter azimuth
+/// sits halfway between its two endpoints'. Every finding is that
+/// half-arc: the chord's closure at both ends on the trimmed face and
+/// on the sliver, and the ruling after it on the trimmed face, which
+/// continues the side the CHORD opens and not the one before the
+/// conic.
+///
+/// Skipping the traversal after a conic drops the closures; letting
+/// the run bridge the conic re-opens the chord's side at the ruling
+/// before the ellipse and adds a continuation; and dropping the rule
+/// that a conic's successor opens hands the chord a kindless opening.
+/// Each changes the tally asserted here.
+#[test]
+fn the_edge_after_a_conic_is_examined_and_opens_its_own_side() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let (mut body, _) = tilted_halves();
+    let carrier_of = |body: &Body<f64>, edge: topo::EdgeKey| {
+        let e = body.get_edge(edge).unwrap();
+        body.get_curve_geom(e.curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+            .clone()
+    };
+    let outer = |body: &Body<f64>, fk: topo::FaceKey| {
+        let face = body.get_face(fk).unwrap();
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("a cycle")
+        };
+        body.loop_cycle(first).unwrap()
+    };
+    let (fk, h_ell) = body
+        .faces()
+        .filter(|(fk, _)| {
+            body.face_surface(*fk)
+                .is_some_and(|s| matches!(s, Surface::Cylinder { .. }))
+        })
+        .find_map(|(fk, _)| {
+            outer(&body, fk).into_iter().find_map(|h| {
+                let edge = body.get_half_edge(h).unwrap().edge;
+                matches!(carrier_of(&body, edge), Curve3::Ellipse(..)).then_some((fk, h))
+            })
+        })
+        .expect("a tilted half's cylinder face carries the ellipse");
+    let ellipse = body.get_half_edge(h_ell).unwrap().edge;
+    let forward = body.get_edge(ellipse).unwrap().he_plus == h_ell;
+    let curve = body.get_edge(ellipse).unwrap().curve;
+    let (t0, t1) = body
+        .get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .params();
+    let d = 4096.0 * eps;
+    let made = body
+        .split_edge(ellipse, if forward { t1 - d } else { t0 + d }, tol)
+        .unwrap();
+    let hes = outer(&body, fk);
+    let at = hes
+        .iter()
+        .position(|&h| body.get_half_edge(h).unwrap().start == made.vertex)
+        .expect("the split vertex is on the trimmed face's loop");
+    let (he1, he2) = (hes[at], hes[(at + 1) % hes.len()]);
+    let point = |body: &Body<f64>, h| {
+        *body
+            .get_point(
+                body.get_vertex(body.get_half_edge(h).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap()
+    };
+    let (p1, p2) = (point(&body, he1), point(&body, he2));
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        EdgeCurveSpec::line_between(p1, p2),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    // The cylinder's axis is z through the origin and its radius is 1,
+    // so the half-arc is the lever-one gap the chord opens.
+    let az = |p: Point3<f64>| p.y.atan2(p.x);
+    let want = 0.5 * geom::separation(az(p1), az(p2));
+    assert!(want > 4.0 * eps, "the chord opens a reportable arc: {want}");
+    let report = topo::examine_chart_coherence(&body, tol);
+    assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
+    let tally = |f: fn(&topo::CoherenceCondition) -> bool| {
+        report.findings.iter().filter(|x| f(&x.condition)).count()
+    };
+    let closures = tally(|c| matches!(c, topo::CoherenceCondition::MeridianClosure { .. }));
+    let columns = tally(|c| matches!(c, topo::CoherenceCondition::MeridianContinuation { .. }));
+    assert_eq!(
+        (closures, columns, report.findings.len()),
+        (4, 1, 5),
+        "the chord's closure at both ends on two faces, and the ruling after it \
+         continuing the chord's side: {:?}",
+        report.findings
+    );
+    for f in &report.findings {
+        assert!(
+            (f.metres - want).abs() < want * 1e-6,
+            "expected {want} m of arc, got {f:?}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------
 // The behaviour change: what was loud, what is now quiet (claim 8)
 // ---------------------------------------------------------------
