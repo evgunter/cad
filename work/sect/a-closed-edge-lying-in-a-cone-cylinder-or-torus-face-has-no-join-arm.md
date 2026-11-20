@@ -1,7 +1,7 @@
 ---
 id: a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm
 kind: issue
-title: A closed edge lying in a cone, cylinder or torus face refuses at the crossing layer, and the one-site join has no arm to side its conic there
+title: A closed edge whose one vertex lies on the partner's wrap edge fell outside the one-site join's table
 status: open
 opened: 2026-10-14
 priority: P1
@@ -42,15 +42,20 @@ at the crossing layer (`boolean/reduce.rs`, the curved sweep arm's
 
 ## What a fix has to supply
 
-Two layers, in order: the crossing layer has to take a closed edge
-lying in the curved face (an on-carrier conic), and then the join needs
-a `RimSide` arm for the face, deciding which of the conic's two regions
-holds the face's outer loop where the conic's plane can meet the face
-again. Once the crossing layer takes the pose, the join refuses it
-`SingleSiteSectionLoop` until the arm is built: `closes_at_its_site`
-leaves the record for that refusal, reading the same `RimSide::of` that
-`join_lone_ring` sides by, so the two cannot disagree. No pose reaches
-that refusal today.
+What the join actually lacked (measured 2026-11-20): `boolean/join.rs`
+`closes_at_its_site` had no arm for `(Wrap, Closed)` or `(Closed, Wrap)`.
+That is a closed edge of one operand whose one vertex lies on the wrap
+edge of a one-face closed wall of the other. The record fell to the
+catch-all `_ => false` and was refused `SingleSiteSectionLoop`.
+`RimSide::of` is never read for such a pose. A closed conic on a cone,
+a cylinder or a torus winds round the surface, and an at-rest face of
+one is a chart disc cut by its seams. So the conic meets a seam: at its
+one site, on the wrap edge, which is this arm; or inside its span,
+where the loop has two sites and already builds. A wall revolved from a
+profile touching the axis is two half-turn faces, so a straddle there
+crosses the π seam and has two sites (the cylinder and cone rows
+below). A torus's or a tube's wall wraps the axis once, so its
+straddle has one site, on the wrap edge.
 
 ## 2026-10-29: the cylinder's and the cone's straddles build (SPLITDOOR)
 

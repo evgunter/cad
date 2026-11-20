@@ -5082,9 +5082,12 @@ fn lone_ring<T: Real>(
 /// conic its region lies on**, by the divided face's surface
 /// ([`Self::of`]): a lone ring's ([`ChordJoiner::join_lone_ring`]) on a
 /// plane or a sphere, a null strut's ([`ChordJoiner::place_strut`]) on a
-/// plane. A face it has no arm for (a cone, a cylinder, a torus, which a
-/// plane can cut in more than the conic) is not joined at one site:
-/// `boolean::join`'s `closes_at_its_site` reads this same table.
+/// plane. `boolean::join`'s `closes_at_its_site` reads this same table.
+/// It has no arm for a cone, a cylinder or a torus, and needs none: a
+/// closed conic on one winds round it, and an at-rest face of one is a
+/// chart disc cut by its seams, so the conic meets a seam, either at its
+/// one site (the face's wrap edge, which no siding reads) or inside its
+/// span (two sites, not one).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RimSide {
     /// A plane: a conic loop winding with the old face's outer loop, on

@@ -29,8 +29,9 @@
 //! - a plug in the bore of an annulus standing on a plate;
 //! - rods tangent inside one another along a ruling, a rim lying flush
 //!   in the partner's top or floor, at rest and turned;
-//! - a triangle revolved straddling a cylinder's or a cone's wall, and
-//!   a torus's outer or inner equator, its vertex on the circle;
+//! - a triangle revolved straddling a cylinder's or a cone's wall, a
+//!   torus's tube at five parallels, or a tube's wall, its vertex on the
+//!   circle, on the wall's wrap edge and turned off it;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
 //! - a puck and the quarter-disc ring revolved round it.
@@ -1879,48 +1880,169 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
     }
 }
 
-/// **A closed edge on a torus's equator**: the torus `R = 2, r = 1`
-/// revolved about `y` from two semicircles, so its two faces meet along
-/// the outer and the inner equator, and a triangle revolved about the
-/// same axis straddling the tube, its vertex sweeping one equator. The
-/// straddle's circle is the torus's own edge there, and every op holds
-/// its closed form. By Pappus: the torus `4π²`; the straddle at the
-/// outer equator `3π/2`, holding `π²/3 + √3π/2 − 4π/3` of it; at the
-/// inner `π/2`, holding `π²/3 + √3π/2 − 5π/3`.
+/// One piece of a closed path in the `xy` half-plane: a segment to a
+/// point, or the shorter circular arc about a centre to a point.
+enum Piece {
+    Seg((f64, f64)),
+    Arc((f64, f64), (f64, f64)),
+}
+
+/// Pappus's volume of the region a closed path of [`Piece`]s from
+/// `start` bounds, revolved about `y`: `2π ∮ x²/2 dy`, each piece in
+/// closed form.
+fn pappus(start: (f64, f64), pieces: &[Piece]) -> f64 {
+    let mut at = start;
+    let mut sum = 0.0;
+    for piece in pieces {
+        match *piece {
+            Piece::Seg(to) => {
+                sum += (to.1 - at.1) / 6.0 * (at.0 * at.0 + at.0 * to.0 + to.0 * to.0);
+                at = to;
+            }
+            Piece::Arc(c, to) => {
+                let r = (at.0 - c.0).hypot(at.1 - c.1);
+                let t0 = (at.1 - c.1).atan2(at.0 - c.0);
+                let d = ((to.1 - c.1).atan2(to.0 - c.0) - t0 + PI).rem_euclid(TAU) - PI;
+                let f = |t: f64| {
+                    0.5 * r
+                        * (c.0 * c.0 * t.sin()
+                            + c.0 * r * (t + (2.0 * t).sin() / 2.0)
+                            + r * r * (t.sin() - t.sin().powi(3) / 3.0))
+                };
+                sum += f(t0 + d) - f(t0);
+                at = to;
+            }
+        }
+    }
+    TAU * sum.abs()
+}
+
+/// **A closed edge on a torus's parallel**: the torus `R = 2, r = 1`
+/// revolved about `y` from two semicircles, so its two faces each wrap
+/// the axis once and meet along the outer and the inner equator, and a
+/// triangle revolved about the same axis straddling the tube, its vertex
+/// `p` sweeping a parallel: one edge runs into the tube to `q_in`, one
+/// out to `q_out`, and the third, a plane, leaves the tube at `x`. At the
+/// equators the straddle's circle is the torus's own edge; at the other
+/// parallels it lies in a face, its vertex on that face's wrap edge at
+/// azimuth 0, or turned 1 rad off it. Every op holds its closed form by
+/// Pappus ([`pappus`]): the torus `4π²`, the straddle its triangle's, the
+/// overlap the region `p → q_in → x`, back round the tube to `p`.
 #[test]
-fn a_closed_edge_on_a_torus_equator_holds_every_op() {
-    let revolved = |what: &str, verts: &[(f64, f64, f64)]| {
-        fin(
-            what,
-            revolved_about_y(
-                verts
-                    .iter()
-                    .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
-                    .collect(),
-                Revolution::Full,
-                tol(),
-            ),
-        )
-    };
-    let torus = revolved("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
-    let lens = PI * PI / 3.0 + 3f64.sqrt() * PI / 2.0;
-    for (what, verts, v_straddle, v_in) in [
+fn a_closed_edge_on_a_torus_parallel_holds_every_op() {
+    let torus = revolved_bulged("the torus", &[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]);
+    let h = |y: f64| (1.0 - y * y).sqrt();
+    let (s3, y1) = (3f64.sqrt() / 2.0, 0.966);
+    let poses = [
         (
             "outer equator",
-            [(3.0, 0.0, 0.0), (3.5, 0.5, 0.0), (2.5, 0.5, 0.0)],
-            1.5 * PI,
-            lens - 4.0 * PI / 3.0,
+            (3.0, 0.0),
+            (2.5, 0.5),
+            (3.5, 0.5),
+            (2.0 + h(0.5), 0.5),
         ),
         (
             "inner equator",
-            [(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)],
-            PI / 2.0,
-            lens - 5.0 * PI / 3.0,
+            (1.0, 0.0),
+            (1.5, 0.5),
+            (0.5, 0.5),
+            (2.0 - h(0.5), 0.5),
         ),
-    ] {
-        let straddle = revolved("the straddle", &verts);
-        every_op(what, &torus, &straddle, (4.0 * PI * PI, v_straddle, v_in));
+        ("π/3", (2.5, s3), (2.2, y1), (2.8, y1), (2.0 + h(y1), y1)),
+        ("2π/3", (1.5, s3), (1.8, y1), (1.2, y1), (2.0 - h(y1), y1)),
+        (
+            "−π/3",
+            (2.5, -s3),
+            (2.2, -y1),
+            (2.8, -y1),
+            (2.0 + h(y1), -y1),
+        ),
+    ];
+    for turn in [0.0, 1.0] {
+        for (what, p, q_in, q_out, x) in poses {
+            let twice_area = (q_in.0 - p.0) * (q_out.1 - p.1) - (q_out.0 - p.0) * (q_in.1 - p.1);
+            let v_straddle = PI * twice_area.abs() * (p.0 + q_in.0 + q_out.0) / 3.0;
+            let v_in = pappus(
+                p,
+                &[Piece::Seg(q_in), Piece::Seg(x), Piece::Arc((2.0, 0.0), p)],
+            );
+            let straddle = turned_about_y(
+                revolved_bulged(
+                    "the straddle",
+                    &[
+                        (p.0, p.1, 0.0),
+                        (q_in.0, q_in.1, 0.0),
+                        (q_out.0, q_out.1, 0.0),
+                    ],
+                ),
+                turn,
+            );
+            every_op(
+                &format!("{what}, turned {turn}"),
+                &torus,
+                &straddle,
+                (4.0 * PI * PI, v_straddle, v_in),
+            );
+        }
     }
+}
+
+/// **A closed edge on a tube's wrap edge**: the tube `ρ ∈ [0.25, 1]`
+/// over `y ∈ [−1, 1]` revolved off the axis, so its outer wall is one
+/// face wrapping the axis once, and the cylinder row's straddle
+/// ([`a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op`]), its
+/// vertex on the wall's wrap edge at azimuth 0, or turned 1 rad off it.
+/// The tube is `15π/8` and holds `5π/24` of the straddle's `π/2`.
+#[test]
+fn a_closed_edge_on_a_tubes_wrap_edge_holds_every_op() {
+    let tube = revolved_bulged(
+        "the tube",
+        &[
+            (0.25, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (0.25, 1.0, 0.0),
+        ],
+    );
+    for turn in [0.0, 1.0] {
+        let straddle = turned_about_y(
+            revolved_bulged(
+                "the straddle",
+                &[(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)],
+            ),
+            turn,
+        );
+        every_op(
+            &format!("the tube, turned {turn}"),
+            &tube,
+            &straddle,
+            (15.0 * PI / 8.0, PI / 2.0, 5.0 * PI / 24.0),
+        );
+    }
+}
+
+/// The profile `(x, y, bulge)` revolved a full turn about `y`.
+fn revolved_bulged(what: &str, verts: &[(f64, f64, f64)]) -> AtRestBody<f64> {
+    fin(
+        what,
+        revolved_about_y(
+            verts
+                .iter()
+                .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
+                .collect(),
+            Revolution::Full,
+            tol(),
+        ),
+    )
+}
+
+/// `body` turned `angle` about `y`.
+fn turned_about_y(body: AtRestBody<f64>, angle: f64) -> AtRestBody<f64> {
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), angle);
+    fin(
+        "turned",
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol())).unwrap(),
+    )
 }
 
 /// **Equal coaxial cylinders stacked end to end**: `r = 1` over
