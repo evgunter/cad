@@ -39,3 +39,21 @@ the site, or a third gate if the site argues for one. Found by the
 `linalg/decided-not-minted` sweep of `MarginDiag::INVALID` literals
 across `crates/*/src`; the `linalg` branch fixed the same shape in
 `topo`'s `sector_shape`.
+
+## Re-measured and fixed (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+Against main `131457c3`, two of the three sites above were already
+gone: `carrier_agreement` and `cylinder_pair_overlap`'s `norm_gate` go
+through `k_stats::decide_magnitude` (CLEAVE step 1, PR 3979). The
+third, the axis-dot classification (`chart_region_cyl_axis_sense`),
+now goes through `k_stats::decide_nonzero`, so its Zero is the funnel's
+rejection, on the frame's log, carrying the margin decided zero.
+
+That Zero is no longer reported as poison. The tilt gate's Zero does
+not make it a contradiction: the dot is levered by `hyp`, which is at
+least the larger radius, so a cylinder whose size lies inside the zero
+band decides both rows Zero honestly. The margin is what the classifier
+saw, and the refusal says so.
+
+`definite_diag`'s three callers, the riding row's sites, go through
+`decide_positive` in the same change.

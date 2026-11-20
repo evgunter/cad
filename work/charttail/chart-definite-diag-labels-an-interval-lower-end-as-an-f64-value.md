@@ -32,3 +32,22 @@ that, where before it claimed the margin "lies inside the ambiguity band
 band": a margin below `−e`, which that band does not hold. Carrying the
 `Decided` (the fix shape above) lets the escalation say which verdict
 the conservative deduction could not certify.
+
+## Fixed through `decide_positive`, not `decide_reported` (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+`definite_diag` is deleted. Its three callers (`chart_region_area`,
+`chart_region_cyl_band_area`, `chart_region_cross_order`) pass only
+`Positive`, so they are `k_stats::decide_positive` sites, through
+`validate::decide_positive`. The fix shape above, `decide_reported`,
+would carry the lane's own reading, but the caller would still build
+the escalation itself, off the frame's log. That is the carrying row's
+defect. `decide_positive` mints the rejection inside the funnel and
+records it. The margin is the lane's own reading (an enclosure at
+`Interval`), tagged with the decided sign. A decided Negative now reads
+"lies past the ambiguity band — a decided sign this decision cannot
+use", and a decided Zero reads "lies within the zero band". The
+`reporting-margin-door.sh` mint list drops `chart_region.rs`.
+
+Pinned by `chart_region::tests::a_swallowed_overlap_refuses_its_decided_negative_area_at_both_lanes`.
+It goes red on the old echo, because that echo's reading carries no
+rejected sign (checked by reverting the area site).
