@@ -4429,7 +4429,7 @@ mod tests {
                 && text.ends_with(&format!(
                     "if this edge's length or rise is intended, tighten the \
                      tolerance below {:e} m",
-                    mid / (e / z)
+                    b.offer_deciding(mid).expect("an offer above the floor")
                 )),
             "{text}"
         );

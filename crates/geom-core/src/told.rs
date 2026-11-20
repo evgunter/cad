@@ -714,14 +714,14 @@ mod tests {
     #[test]
     fn the_tolerance_caps_a_lengths_grid_and_no_other() {
         let length = |x: f64| Told::computed(&x, Dimension::Length).to_string();
-        assert_eq!(length(1234.500_000_000_4), "1234.5000000004 m");
+        assert_eq!(length(1_234.500_000_000_4), "1234.5000000004 m");
         assert_eq!(length(0.008_000_000_000_000_002), "0.008 m");
         assert_eq!(length(0.361_629_480_311_458), "0.3616294803 m");
         assert_eq!(length(1.234_567_89e-7), "1.235e-7 m");
         assert_eq!(length(3.3e-13), "3.3e-13 m");
-        assert_eq!(length(4.940_656_458_412_465e-324), "5e-324 m");
+        assert_eq!(length(f64::from_bits(1)), "5e-324 m");
         let angle = |x: f64| Told::computed(&x, Dimension::Angle).to_string();
-        assert_eq!(angle(1234.500_000_000_4), "1235 rad");
+        assert_eq!(angle(1_234.500_000_000_4), "1235 rad");
         assert_eq!(angle(core::f64::consts::PI), "3.142 rad");
         let ratio = |x: f64| Told::computed(&x, Dimension::Dimensionless).to_string();
         assert_eq!(ratio(0.1 + 0.2), "0.3");
