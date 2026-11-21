@@ -313,3 +313,41 @@ fn interval_sines_at_landmarks() {
         );
     }
 }
+
+/// C6/C7: the cone image of a far-centred section against its carrier,
+/// over a short window at the near vertex and over the turn: the
+/// certificate's envelope by semi-axis decade, at three bands.
+#[test]
+fn image_envelope() {
+    use geom_brep::{PcurveCache, chart_pcurve_over};
+    let mut rows = std::collections::BTreeMap::<(i32, &str), (usize, [usize; 3], f64)>::new();
+    for seed in [0x9E37_79B9_7F4A_7C15_u64, 0x1234_5678_9ABC_DEF1] {
+        for s in sections(seed) {
+            let (a, _) = s.curve.conic().unwrap().semi_axes();
+            if (s.curve.frame().unwrap().origin() - Point3::origin()).norm() < 1e2 {
+                continue;
+            }
+            for (name, t0, t1) in [("near", -20.0 / a, 30.0 / a), ("turn", 0.0, core::f64::consts::TAU)] {
+                let e = rows
+                    .entry((a.log10().floor() as i32, name))
+                    .or_insert((0, [0; 3], 0.0));
+                e.0 += 1;
+                for (i, eps) in [1e-6, 1e-9, 1e-12].into_iter().enumerate() {
+                    let band = Band::new(eps, 10.0 * eps).unwrap();
+                    let got = chart_pcurve_over(&s.curve, t0, t1, &s.cone, band)
+                        .and_then(|im| PcurveCache::certify(im, t0, t1, &s.curve, &s.cone, band));
+                    if let Ok(c) = got {
+                        e.1[i] += 1;
+                        if i == 0 {
+                            e.2 = e.2.max(c.certificate().envelope);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("IMAGE decade window n certified@1e-6/1e-9/1e-12 worst_envelope@1e-6[m]");
+    for ((dec, name), (n, ok, env)) in rows {
+        println!("IMAGE 1e{dec} {name} {n} {}/{}/{} {env:.3e}", ok[0], ok[1], ok[2]);
+    }
+}
