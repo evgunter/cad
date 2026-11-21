@@ -1636,18 +1636,66 @@ fn vacuous(
     cell: ((f64, f64), (f64, f64)),
     outside: &[(Side, Interval, usize)],
 ) -> bool {
-    if std::env::var_os("CV_TRACE").is_some() { for &(side, line, ei) in outside { eprintln!("CVV cell={cell:?} side={side:?} line={line:?} ei={ei} ranges={:?}", edge_ranges(b, &[ei], side.axis())); } }
-    outside.iter().any(|&(side, line, ei)| {
+    if std::env::var_os("CV_TRACE").is_some() { for &(side, line, ei) in outside { eprintln!("CVV cell={cell:?} side={side:?} line={line:?} ei={ei} ranges={:?} ends={:?} bits={:?}", edge_ranges(b, &[ei], side.axis()), b.edges[ei].ends, b.edges[ei].uses.iter().map(|u| u.image.map(|im| im.map(|p| [p.x.lo().to_bits(), p.x.hi().to_bits(), p.y.lo().to_bits(), p.y.hi().to_bits()]))).collect::<Vec<_>>()); } }
+    let mode = std::env::var("CV_JOIN").unwrap_or_default();
+    outside.iter().enumerate().any(|(i, &(side, line, ei))| {
         let (lo, hi) = side.axis().of(cell);
         let touches = match side {
             Side::XLo | Side::YLo => line.lo() <= hi + few_ulps(hi),
             Side::XHi | Side::YHi => line.hi() >= lo - few_ulps(lo),
         };
         let axis = side.axis().other();
+        let per = periodic(surface, axis);
+        if mode.is_empty() {
+            return touches
+                && edge_ranges(b, &[ei], side.axis())
+                    .is_some_and(|r| covered(axis.of(cell), &r, per));
+        }
         touches
-            && edge_ranges(b, &[ei], side.axis())
-                .is_some_and(|r| covered(axis.of(cell), &r, periodic(surface, axis)))
+            && probe_run(b, outside, i, per, mode == "strict")
+                .is_some_and(|r| covered(axis.of(cell), &[r], per))
     })
+}
+
+/// PROBE: (lo vertex, lo end, hi vertex, hi end) of an outside entry's use.
+fn probe_ends(b: &Boundary, side: Side, ei: usize) -> Option<(VertexKey, Interval, VertexKey, Interval, bool)> {
+    let e = b.edges.get(ei)?;
+    let [u] = e.uses.as_slice() else { return None };
+    let iso = u.iso.filter(|iso| iso.held == side.axis())?;
+    let f = forward(u, iso)?;
+    let [p, q] = u.image?;
+    let (p, q) = (iso.moving(p), iso.moving(q));
+    Some(if f > 0.0 { (e.ends[0], p, e.ends[1], q, iso.full) } else { (e.ends[1], q, e.ends[0], p, iso.full) })
+}
+
+fn probe_run(b: &Boundary, outside: &[(Side, Interval, usize)], i: usize, per: bool, strict: bool) -> Option<Interval> {
+    let (side, line, ei) = outside[i];
+    let (mut v0, mut lo, mut v1, mut hi, full) = probe_ends(b, side, ei)?;
+    if full { return Some(whole_line()); }
+    let mut seen = vec![i];
+    let ulps = |a: f64, c: f64| (a.to_bits() as i128 - c.to_bits() as i128);
+    for up in [true, false] {
+        loop {
+            let at = if up { v1 } else { v0 };
+            let next: Vec<usize> = (0..outside.len()).filter(|j| !seen.contains(j)).filter(|&j| {
+                let (s, l, ej) = outside[j];
+                s == side && l.lo() <= line.hi() && line.lo() <= l.hi()
+                    && probe_ends(b, s, ej).is_some_and(|(w0, _, w1, _, f)| !f && (if up { w0 } else { w1 }) == at)
+            }).collect();
+            let [j] = next.as_slice() else { break };
+            let (_, a, _, c, _) = probe_ends(b, side, outside[*j].2)?;
+            let (mine, theirs, far) = if up { (hi, a, c) } else { (lo, c, a) };
+            let k = if per { turns_toward(theirs, mid(mine)) } else { 0.0 };
+            let mv = |x: Interval| if k == 0.0 { x } else { x + turns(k) };
+            let (theirs, far) = (mv(theirs), mv(far));
+            let meets = theirs.lo() <= mine.hi() && mine.lo() <= theirs.hi();
+            eprintln!("CVJ v={at:?} k={k} mine={:?} theirs={:?} meets={meets} gap_ulps={} diff={:e}", (mine.lo(), mine.hi()), (theirs.lo(), theirs.hi()), ulps(mid(theirs), mid(mine)), mid(theirs) - mid(mine));
+            if strict && !meets { break; }
+            seen.push(*j);
+            if up { hi = far; v1 = probe_ends(b, side, outside[*j].2)?.2; } else { lo = far; v0 = probe_ends(b, side, outside[*j].2)?.0; }
+        }
+    }
+    Some(Interval::from_bounds(lo.lo().min(hi.lo()), hi.hi().max(lo.hi())))
 }
 
 /// The ranges the uses of `edges` holding `held` run over on the other
@@ -1694,7 +1742,18 @@ fn sides_are_the_faces(
     let covers = |c: &Clip| {
         let axis = c.side.axis().other();
         let periodic = periodic(axis);
-        let r = run_on(b, c, merged, periodic);
+        let mut r = run_on(b, c, merged, periodic);
+        if std::env::var("CV_JOIN").is_ok_and(|m| m == "key") && let Some(r) = r.as_mut() {
+            for &i in &c.edges { for &j in &c.edges {
+                if i == j { continue; }
+                let (Some((_, _, v1, hi, f1)), Some((w0, lo, _, _, f2))) = (probe_ends(b, c.side, i), probe_ends(b, c.side, j)) else { continue };
+                if f1 || f2 || v1 != w0 { continue; }
+                let k = if periodic { turns_toward(lo, mid(hi)) } else { 0.0 };
+                let lo = if k == 0.0 { lo } else { lo + turns(k) };
+                eprintln!("CVJ2 v={v1:?} k={k} diff={:e}", mid(lo) - mid(hi));
+                r.push(Interval::from_bounds(hi.lo().min(lo.lo()), hi.hi().max(lo.hi())));
+            } }
+        }
         let ok = r.as_ref().is_some_and(|ranges| covered(axis.of(rect), ranges, periodic));
         if !ok && std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC side={:?} at={:?} want={:?} ranges={:?}", c.side, c.at, axis.of(rect), r); }
         ok
