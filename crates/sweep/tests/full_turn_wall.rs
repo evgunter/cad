@@ -90,14 +90,11 @@ const POLARS: [f64; 4] = [0.2, 0.6, 1.6, 2.9];
 /// **Both doors against the closed-form bead**, at two poses and two
 /// scales: every verdict the doors give is the one the geometry gives.
 ///
-/// At ε 1e-12 the tilted bead at scale 100 does not build: its volume
-/// escalates `props_cylinder_circle_off_axis`, margin in `(1.25e-12,
-/// 1.4e-12]` (measured 1.320e-12). Cause: both jointly: a stored frame
-/// read as its polar enclosure (decision 1, #7131) and frames built at
-/// Interval from bracket inputs, a rigid-motion claim (fork 274);
-/// either alone stays under the band, so mutant A alone and mutant F1X
-/// alone each build it and turn this pin red. It builds, and every door
-/// answers, at ε 1e-9 and 1e-6.
+/// It builds, and every door answers, at every ε. The tilted bead at
+/// scale 100 refused at ε 1e-12 while the mass properties' translation
+/// (`topo` `props::quad_lane::translated_surface`) re-squared each frame
+/// it moved (PR 7131); it goes red with it re-squared through
+/// `Frame::new`, and with that re-squaring at `Interval` alone.
 #[test]
 fn both_doors_answer_the_bead_by_its_height_window() {
     let b = band();
@@ -107,29 +104,6 @@ fn both_doors_answer_the_bead_by_its_height_window() {
             let (big_r, r) = (scale, 0.5 * scale);
             let hr = (big_r * big_r - r * r).sqrt();
             let body = crate::common::bead::try_bead(pose.plane(), big_r, r, Revolution::Full);
-            if tilted && scale > 1.0 && crate::common::frame_cost::at_the_least_band() {
-                // A stored frame read as its polar enclosure (decision 1,
-                // #7131): the tilted sketch frame is a rounding off rigid,
-                // so the bore's frame reads an ulp wide per entry at
-                // `Interval`, levered by the bead's distance from the
-                // origin (about 230 m).
-                let pinned = matches!(
-                    &body,
-                    Err(sweep::RevolveError::NotFinished { findings })
-                        if crate::common::frame_cost::volume_escalates(
-                            findings.as_slice(),
-                            "props_cylinder_circle_off_axis",
-                            (1.25e-12, 1.4e-12),
-                        )
-                );
-                assert!(
-                    pinned,
-                    "{tilted} {scale}: pinned to escalate props_cylinder_circle_off_axis \
-                     in (1.25e-12, 1.4e-12] at ε 1e-12: {:?}",
-                    body.as_ref().map(|_| ())
-                );
-                continue;
-            }
             let body = body.unwrap();
             assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
             let (wall, zone) = (the_face(&body, true), the_face(&body, false));
