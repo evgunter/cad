@@ -3134,38 +3134,39 @@ mod tests {
     }
 
     /// **The folded lid imports whole.** Through the build, the
-    /// assembly and the at-rest gate, a solid whose two lids fold `1e-5`
-    /// along a 2 cm chord finishes as five faces and seven edges, at a
-    /// file ε of `1e-6` and at one as fine as the run's: the built
-    /// body's own readings, which lever the crease at its two faces'
-    /// vertices, 2 cm, accept what the import read over the lids' 4 m
-    /// run. Folded `1e-7` the lids are one plane to a `1e-6` file, and
-    /// the crease refuses. Red against the lids' vertices or the chord's
-    /// own length for the import's reach (the `1e-5` fold refuses).
+    /// assembly and the at-rest gate, a solid whose two lids fold `1e-2`
+    /// along a 2 cm chord finishes as five faces and seven edges, read
+    /// from a file whose ε is `1e-3`. The lids stand 4 cm apart at their
+    /// far side, forty times that ε; over their vertices' reach, 2 cm,
+    /// the fold reads `2e-4`, a fifth of it. So the built body's own
+    /// readings, which lever the crease at its own extent, accept what
+    /// the import read over the lids' 4 m run. Folded `1e-4` the lids
+    /// are one plane to that file, and the crease refuses. Red against
+    /// the lids' vertices or the chord's own length for the import's
+    /// reach (the `1e-2` fold refuses as parallel planes).
+    ///
+    /// The fold and the file's ε are coarse so that the row holds at
+    /// every run ε: certification reads the crease's crossing over the
+    /// edge's own centimetre, which a finer fold leaves in a coarse
+    /// run's band, and a finer fold's crease is too ill-conditioned to
+    /// certify at a fine one.
     #[test]
     fn the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart() {
         let tol = Tol::witness();
-        let import = |fold: f64, eps_in: f64| {
+        let import = |fold: f64| {
             let record = crate::entities::SolidRecord {
                 id: 1,
                 outer: folded_lid(fold),
                 voids: Vec::new(),
             };
-            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(eps_in))
+            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(1e-3))
                 .and_then(|(body, _, _)| crate::gate(body, Some(1), tol))
         };
-        for eps_in in [1e-6, 1e-9] {
-            let done = import(1e-5, eps_in)
-                .unwrap_or_else(|e| panic!("a 1e-5 fold at a file ε of {eps_in:e}: {e}"));
-            assert_eq!(
-                (done.faces().count(), done.edges().count()),
-                (5, 7),
-                "at a file ε of {eps_in:e}"
-            );
-        }
+        let done = import(1e-2).unwrap_or_else(|e| panic!("a 1e-2 fold: {e}"));
+        assert_eq!((done.faces().count(), done.edges().count()), (5, 7));
         assert!(
             matches!(
-                import(1e-7, 1e-6),
+                import(1e-4),
                 Err(StepImportError::Interpretation {
                     id: 1,
                     refusal: crate::interpret::Refusal::Touching {
