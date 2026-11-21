@@ -29,6 +29,23 @@
 //! ([`in_session_box_at`]) all ask it. The gate and tier 3′ refuse a
 //! face with no cover after their checks, which name why it bounds
 //! nothing ([`asked_before_the_checks`]).
+//!
+//! **What is decided before the box admits.** Stage 1 decides nothing
+//! but its own margin. Stage 3 admits nothing: it chooses which refusal.
+//! Stage 2 admits on each face's own cover, whose proven constraints rest
+//! on band decisions taken on the face's own data: lengths read as their
+//! own margins (a vertex's distance from a cone's apex, a corner's
+//! station along a cone's axis, a torus's radii), the chart walk's rows
+//! levered at their carrier, and a sphere's seam levered at its ball.
+//! Stage 3's placements read lengths too (a candidate's distance off the
+//! carrier, off each edge). None of them is levered at the session box's
+//! extent, which only this module's own decisions read. Every datum they
+//! read lies in the face's stage-1 region, so a verdict among them is
+//! sound wherever that region's reach is within the run's rounding reach
+//! (`Tolerance::rounding_reach`, at least the box). A face whose carrier
+//! datum stands farther (a cone's apex past the rounding reach, which is
+//! 5 km at ε = 1e-12) is read past the premise; that residue is
+//! `work/oneround/the-session-boxs-undecided-margins-admit.md`'s.
 
 use geom::Surface;
 use geom::cover::{BoxAxes, Cover};

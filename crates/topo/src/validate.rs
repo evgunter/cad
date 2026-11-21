@@ -1128,8 +1128,9 @@ pub enum ValidationError {
     /// (`session_box_point`, D4 ¶4): a point known to lie on it has a
     /// coordinate larger in magnitude than
     /// `geom_core::tolerance::SESSION_BOX_EXTENT`, which no coordinate of
-    /// a model may exceed. Reported alone, before any check reads a
-    /// margin on the geometry.
+    /// a model may exceed. Reported alone, before any of tier 3's checks
+    /// runs; the box's own reads (each face's cover and its placed
+    /// extremes) decide on the geometry first (`crate::session_box`).
     OutsideSessionBox {
         /// The box's extent less the points' reach, metres (negative).
         margin: geom_core::MarginDiag,
