@@ -20,3 +20,8 @@ Under a boxed motion the image's data is wider than the source's. A decision the
 - The subtract already took its operands this way on main (`wire_subtract` finishes `from` in its own frame, then moves it), so its refusals behave the same.
 
 **Where it goes:** stage 2 (`work/onehome/a-body-records-its-parts-in-their-frames.md`). There the Boolean reads each member through the relative motion at the reading, not on a moved copy, so the widening that causes this refusal goes away. Until then, a refusal raised on a moved member's data could say which member it was carried through, and which turn.
+
+**What is named and what is not.** Where the placed door's move itself refuses (an image past the session box), the refusal names the operand.
+- `topo::PlacedBooleanError::Placed { operand }` and `verbs::VerbError::Placed { operand }` carry the side, and `topo::nary_placed`'s refusal carries the member's place.
+- The fold and the subtract raise it as `NodeErrorKind::UnfinishedLeaf { input, into }`: the operand moved, and the one whose frame it was moved into.
+- A refusal the Boolean raises afterwards, inside its own decisions on the moved copy's widened data, is the one this row is about. It names neither.

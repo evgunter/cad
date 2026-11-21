@@ -67,7 +67,7 @@ fn the_placed_door_with_no_motion_is_the_pair_door_bit_for_bit() {
         let inputs = BooleanInputs::default();
         let plain = topo::boolean_op_with(op, &a, &b, &inputs, SweepStrategy::Realized, tol)
             .expect("the pair door builds");
-        let placed = topo::boolean_placed(
+        let (placed, _) = topo::boolean_placed(
             op,
             (Placed::own(&a), Placed::own(&b)),
             &inputs,
@@ -88,7 +88,7 @@ fn a_placed_operand_builds_what_its_moved_body_builds_bit_for_bit() {
         let inputs = BooleanInputs::default();
         let by_hand = topo::boolean_op_with(op, &a, &moved, &inputs, SweepStrategy::Realized, tol)
             .expect("the pair door builds");
-        let placed = topo::boolean_placed(
+        let (placed, _) = topo::boolean_placed(
             op,
             (Placed::own(&a), Placed::at(&b, motion())),
             &inputs,
@@ -97,5 +97,101 @@ fn a_placed_operand_builds_what_its_moved_body_builds_bit_for_bit() {
         )
         .unwrap_or_else(|e| panic!("{op:?}: the placed door builds: {e:?}"));
         assert_eq!(bits(&by_hand), bits(&placed), "{op:?}");
+    }
+}
+
+/// **A placed operand whose image stands past the session box refuses
+/// at the door, naming it**: B placed 1800 m along `x` refuses as
+/// `PlacedBooleanError::Placed` for operand B, with the session box's
+/// finding alone, before any Boolean runs.
+#[test]
+fn a_placed_operand_past_the_box_refuses_naming_it() {
+    let tol = Tol::witness();
+    let (a, b) = blocks(tol);
+    let far = RigidMotion::translation(Vec3::new(1800.0, 0.0, 0.0)).expect("a shift");
+    let refused = topo::boolean_placed(
+        BooleanOp::Union,
+        (Placed::own(&a), Placed::at(&b, far)),
+        &BooleanInputs::default(),
+        SweepStrategy::Realized,
+        tol,
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(topo::PlacedBooleanError::Placed { operand: topo::Operand::B, findings })
+                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "B's image past the box refuses, naming B: {:?}",
+        refused.as_ref().map(|_| ())
+    );
+}
+
+/// **Under a boxed motion, the placed door builds what the pair door
+/// builds over the operand moved by hand, bit for bit**, at `Interval`:
+/// B turned `0.3 ± 1e-9` rad about `z` and shifted half a unit, the same
+/// enclosure either way.
+#[test]
+fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
+    use geom_core::{Interval, Real as _};
+    let tol = Tol::witness();
+    let fin = |what, x, y, z| finished(what, brick::<Interval>(x, y, z, tol), tol);
+    let a = fin("A", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = fin("B", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let z = UnitVec3::new(
+        Vec3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+        ),
+        "the turn's axis",
+        band,
+    )
+    .expect("a unit");
+    let turn =
+        RigidMotion::rotation(z, Interval::from_bounds(0.3 - 1e-9, 0.3 + 1e-9)).expect("a turn");
+    let motion = RigidMotion::translation(Vec3::new(
+        Interval::from_f64(0.5),
+        Interval::from_f64(0.5),
+        Interval::from_f64(0.0),
+    ))
+    .expect("a shift")
+    .compose(turn)
+    .expect("a motion");
+    let shown = |r: Result<BooleanResult<Interval>, String>| match r {
+        Ok(BooleanResult::Empty) => "empty".to_owned(),
+        Ok(BooleanResult::Body(b)) => format!(
+            "{} faces {:?}",
+            b.body.faces().count(),
+            b.body
+                .points()
+                .map(|(_, p)| format!("{p:?}"))
+                .collect::<Vec<_>>()
+        ),
+        Err(e) => format!("refused {e}"),
+    };
+    for op in OPS {
+        let inputs = BooleanInputs::default();
+        let by_hand = match b.moved(&motion, tol) {
+            Ok(moved) => {
+                topo::boolean_op_with(op, &a, &moved, &inputs, SweepStrategy::Realized, tol)
+                    .map_err(|e| format!("{e:?}"))
+            }
+            Err(e) => Err(format!("move {e:?}")),
+        };
+        let placed = topo::boolean_placed(
+            op,
+            (Placed::own(&a), Placed::at(&b, motion)),
+            &inputs,
+            SweepStrategy::Realized,
+            tol,
+        )
+        .map(|(result, _)| result)
+        .map_err(|e| match e {
+            topo::PlacedBooleanError::Placed { findings, .. } => format!("move {findings:?}"),
+            topo::PlacedBooleanError::Boolean(e) => format!("{e:?}"),
+        });
+        assert_eq!(shown(by_hand), shown(placed), "{op:?}");
     }
 }

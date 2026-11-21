@@ -244,7 +244,7 @@ pub use nary::{
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Placed,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
     PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
     subtract, union,
 };

@@ -1522,10 +1522,7 @@ impl<'p> Operands<'p> {
 
 /// `taken` placed in the product's frame.
 fn placed((body, motion): &Taken) -> topo::Placed<'_, topo::AtRestBody<f64>> {
-    match motion {
-        None => topo::Placed::own(&**body),
-        Some(motion) => topo::Placed::at(&**body, *motion),
-    }
+    topo::Placed::new(&**body, *motion)
 }
 
 /// **Two copies intersected**: the overlap of their material, `None`
@@ -1555,9 +1552,13 @@ fn intersection(
         topo::SweepStrategy::Realized,
         tol,
     ) {
-        Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
-        Ok(topo::BooleanResult::Empty) => Ok(None),
-        Err(topo::PlacedBooleanError::Placed(findings)) => Err(Unlocalized::Refused {
+        Ok((topo::BooleanResult::Body(result), _)) => Ok(Some(result)),
+        Ok((topo::BooleanResult::Empty, _)) => Ok(None),
+        // A copy is placed in the product's frame, where the gather
+        // already grafted it and asked the box of its image
+        // (`product::gather_sources`), so its move here asks the box of the
+        // same placement: a product that built holds no copy this refuses.
+        Err(topo::PlacedBooleanError::Placed { findings, .. }) => Err(Unlocalized::Refused {
             refusal: crate::eval::NodeErrorKind::NotFinished { findings }.to_string(),
         }),
         Err(topo::PlacedBooleanError::Boolean(refusal)) => Err(Unlocalized::Refused {

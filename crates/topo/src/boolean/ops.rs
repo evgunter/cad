@@ -770,14 +770,14 @@ pub fn boolean_op_with<F: crate::FinishedBody>(
 where
     F::Scalar: Decide + Bounds,
 {
-    boolean_placed(op, (Placed::own(a), Placed::own(b)), inputs, strategy, tol).map_err(|refusal| {
-        match refusal {
+    boolean_placed(op, (Placed::own(a), Placed::own(b)), inputs, strategy, tol)
+        .map(|(result, _)| result)
+        .map_err(|refusal| match refusal {
             PlacedBooleanError::Boolean(error) => error,
-            PlacedBooleanError::Placed(_) => {
+            PlacedBooleanError::Placed { .. } => {
                 unreachable!("an operand in the computing frame is taken unmoved")
             }
-        }
-    })
+        })
 }
 
 /// **A finished operand where it stands** (`[placement.frame]`): its
@@ -810,18 +810,25 @@ impl<'a, F: crate::FinishedBody> Placed<'a, F> {
     /// `held` in the computing frame already.
     #[must_use]
     pub fn own(held: &'a F) -> Self {
-        Self {
-            held,
-            seat: crate::Seat::own(held),
-        }
+        Self::new(held, None)
     }
 
     /// `held` under `motion` into the computing frame.
     #[must_use]
     pub fn at(held: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+        Self::new(held, Some(motion))
+    }
+
+    /// `held` under `motion` into the computing frame, `None` where it is
+    /// in that frame.
+    #[must_use]
+    pub fn new(held: &'a F, motion: Option<geom_core::RigidMotion<F::Scalar>>) -> Self {
         Self {
             held,
-            seat: crate::Seat::at(held, motion),
+            seat: match motion {
+                None => crate::Seat::own(held),
+                Some(motion) => crate::Seat::at(held, motion),
+            },
         }
     }
 
@@ -829,13 +836,6 @@ impl<'a, F: crate::FinishedBody> Placed<'a, F> {
     #[must_use]
     pub fn body(&self) -> &'a F {
         self.held
-    }
-
-    /// Its seat: the body as it stands and the motion into the computing
-    /// frame.
-    #[must_use]
-    pub fn seat(&self) -> crate::Seat<'a, F::Scalar> {
-        self.seat
     }
 
     /// **The operand in the computing frame**: its body as it is held
@@ -860,12 +860,24 @@ impl<'a, F: crate::FinishedBody> From<&'a F> for Placed<'a, F> {
     }
 }
 
+/// **The two operands a placed pair Boolean read**, `a`'s then `b`'s,
+/// each in the computing frame ([`boolean_placed`]): an operand in that
+/// frame as it is held, else its image there. A namer that compares the
+/// result's geometry with an operand's reads it here, where the run
+/// read it.
+pub type PairTaken<'p, F> = [std::borrow::Cow<'p, F>; 2];
+
 /// **Why a placed Boolean did not run** ([`boolean_placed`]).
 #[derive(Debug)]
 pub enum PlacedBooleanError {
     /// An operand's image in the computing frame reaches past the
     /// session box ([`Placed::taken`]).
-    Placed(crate::NotFinished),
+    Placed {
+        /// Which operand.
+        operand: super::Operand,
+        /// The move's findings.
+        findings: crate::NotFinished,
+    },
     /// The Boolean refused ([`boolean_op_with`]).
     Boolean(BooleanError),
 }
@@ -873,7 +885,8 @@ pub enum PlacedBooleanError {
 /// **The pair Boolean over two placed operands**: each taken into the
 /// computing frame by its placement ([`Placed::taken`], `a` first), then
 /// the shared pipeline over the two (module docs; a subtract whose tool
-/// is cut by material first, `nary::cut_by_material`). The moves are the
+/// is cut by material first, `nary::cut_by_material`), returned with the
+/// two it read ([`PairTaken`]). The moves are the
 /// door's, so an operand's data is read into another's frame here and
 /// nowhere in its caller; [`boolean_op_with`] is this door over two
 /// operands in the computing frame.
@@ -888,27 +901,34 @@ pub enum PlacedBooleanError {
 ///
 /// [`PlacedBooleanError::Placed`]: an operand's image past the box;
 /// [`PlacedBooleanError::Boolean`]: as [`boolean_op_with`].
-pub fn boolean_placed<F: crate::FinishedBody>(
+pub fn boolean_placed<'p, F: crate::FinishedBody>(
     op: BooleanOp,
-    (a, b): (Placed<'_, F>, Placed<'_, F>),
+    (a, b): (Placed<'p, F>, Placed<'p, F>),
     inputs: &BooleanInputs,
     strategy: SweepStrategy,
     tol: Tol,
-) -> Result<BooleanResult<F::Scalar>, PlacedBooleanError>
+) -> Result<(BooleanResult<F::Scalar>, PairTaken<'p, F>), PlacedBooleanError>
 where
     F::Scalar: Decide + Bounds,
 {
-    let a = a.taken(tol).map_err(PlacedBooleanError::Placed)?;
-    let b = b.taken(tol).map_err(PlacedBooleanError::Placed)?;
-    let (a, b) = (&*a, &*b);
-    if op == BooleanOp::Subtract
-        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)
-            .map_err(PlacedBooleanError::Boolean)?
-    {
-        return Ok(result);
-    }
-    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
-        .map_err(PlacedBooleanError::Boolean)
+    let taken = |placed: Placed<'p, F>, operand| {
+        placed
+            .taken(tol)
+            .map_err(|findings| PlacedBooleanError::Placed { operand, findings })
+    };
+    let read = [taken(a, super::Operand::A)?, taken(b, super::Operand::B)?];
+    let [a, b] = [&*read[0], &*read[1]];
+    let result = match op {
+        BooleanOp::Subtract => super::nary::cut_by_material(a, b, inputs, strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+        BooleanOp::Union | BooleanOp::Intersect => None,
+    };
+    let result = match result {
+        Some(result) => result,
+        None => boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+    };
+    Ok((result, read))
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold

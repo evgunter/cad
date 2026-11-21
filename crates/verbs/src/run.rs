@@ -193,7 +193,12 @@ pub enum VerbError<T: Real> {
     Boolean(BooleanError),
     /// A placed operand's image in the computing frame reaches past the
     /// session box (`topo::Placed::taken`).
-    Placed(topo::NotFinished),
+    Placed {
+        /// Which operand.
+        operand: topo::Operand,
+        /// The move's findings.
+        findings: topo::NotFinished,
+    },
     /// The extrude door refused.
     Extrude(ExtrudeError),
     /// The revolve door refused.
@@ -218,7 +223,7 @@ impl<T: Real> VerbError<T> {
         match self {
             Self::Blend(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Boolean(refusal) => write!(f, "{}", read_at(refusal, at)),
-            Self::Placed(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Placed { findings, .. } => write!(f, "{}", read_at(findings, at)),
             Self::Extrude(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Revolve(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Split(refusal) => write!(f, "{}", read_at(refusal, at)),
@@ -289,25 +294,31 @@ impl Boolean {
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
     /// verbatim (`topo::boolean_op_with` enumerates the cases);
     /// [`VerbError::Placed`] where an operand's image past the session
-    /// box refuses its move.
+    /// box refuses its move, naming which.
+    ///
+    /// The run comes back with the two operands it read, each in the
+    /// computing frame (`topo::PairTaken`), which a namer that compares
+    /// the result's geometry with an operand's reads.
     pub fn run_pair<'p, F: topo::FinishedBody>(
         &self,
         a: impl Into<topo::Placed<'p, F>>,
         b: impl Into<topo::Placed<'p, F>>,
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> Result<PairOut<F::Scalar>, VerbError<F::Scalar>>
+    ) -> Result<PlacedPairOut<'p, F>, VerbError<F::Scalar>>
     where
         F::Scalar: DoorScalar,
     {
         let Self { op, inputs } = self;
-        match topo::boolean_placed(*op, (a.into(), b.into()), inputs, sweep, tol).map_err(
-            |refusal| match refusal {
-                topo::PlacedBooleanError::Placed(findings) => VerbError::Placed(findings),
+        let (result, read) = topo::boolean_placed(*op, (a.into(), b.into()), inputs, sweep, tol)
+            .map_err(|refusal| match refusal {
+                topo::PlacedBooleanError::Placed { operand, findings } => {
+                    VerbError::Placed { operand, findings }
+                }
                 topo::PlacedBooleanError::Boolean(error) => VerbError::Boolean(error),
-            },
-        )? {
-            BooleanResult::Empty => Ok(PairOut::Empty),
+            })?;
+        let out = match result {
+            BooleanResult::Empty => PairOut::Empty,
             BooleanResult::Body(bb) => {
                 // Exhaustive destructure, deliberately: a field
                 // grown onto `BooleanBody` breaks this door at
@@ -322,7 +333,7 @@ impl Boolean {
                     verdicts,
                     holdings,
                 } = bb;
-                Ok(PairOut::Out(VerbOut {
+                PairOut::Out(VerbOut {
                     body,
                     record: VerbRecord::Boolean {
                         kind,
@@ -332,11 +343,19 @@ impl Boolean {
                         holdings: Box::new(holdings),
                     },
                     coincidences,
-                }))
+                })
             }
-        }
+        };
+        Ok((out, read))
     }
 }
+
+/// **What [`Boolean::run_pair`] returns**: the pair's outcome and the two
+/// operands it read, in the computing frame.
+pub type PlacedPairOut<'p, F> = (
+    PairOut<<F as topo::FinishedBody>::Scalar>,
+    topo::PairTaken<'p, F>,
+);
 
 impl Members {
     /// **Run this union or intersect over its member bodies**, in list

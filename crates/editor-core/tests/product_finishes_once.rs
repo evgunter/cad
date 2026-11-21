@@ -472,15 +472,18 @@ fn built(ev: &Evaluation<f64>, node: RecipeNodeId) -> &editor_core::Framed<f64> 
 /// over-refusal pinned** (`work/onehome/an-operation-over-far-apart-copies-has-no-conditioned-computing-frame.md`). Each copy stands inside the session box,
 /// but the operation computes in the first copy's frame
 /// (`Framed::computing_among`), where the second stands 1800 m off, past
-/// the box: the operation refuses at its read of the second, with the
-/// session box's finding alone. No frame `[placement.frame]` names
+/// the box: the operation refuses at its placement of the second, with
+/// the session box's finding alone. The `∪` and the `⊖` place it in the
+/// kernel's door, and say which copy was read into which's frame
+/// (`NodeErrorKind::UnfinishedLeaf`); the `⊔` grafts it, and refuses as
+/// its graft does. No frame `[placement.frame]` names
 /// conditions this: the space's is the world's, and a recentred one breaks
 /// the box's containment (the filed row).
 ///
 /// *Breaks if* the operation computes in the space's coordinates: the
 /// copies reach 901 m there, and it builds.
 fn copies_either_side_of_the_origin_refuse(op: OverCopies) {
-    let (doc, _, node) = copies_under(
+    let (doc, [near, far], node) = copies_under(
         &format!("copies-either-side-{op:?}"),
         op,
         [
@@ -490,13 +493,28 @@ fn copies_either_side_of_the_origin_refuse(op: OverCopies) {
     );
     let ev = evaluated(&doc);
     let refused = ev.node_error(node).expect("the operation refuses");
+    let the_box = |findings: &topo::NotFinished| {
+        matches!(
+            &findings[..],
+            [topo::ValidationError::OutsideSessionBox { .. }]
+        )
+    };
+    let said = match (&refused.kind, op) {
+        (editor_core::NodeErrorKind::NotFinished { findings }, OverCopies::Assemble) => {
+            the_box(findings)
+        }
+        (
+            editor_core::NodeErrorKind::UnfinishedLeaf {
+                input,
+                into,
+                findings,
+            },
+            OverCopies::Union | OverCopies::Subtract,
+        ) => *input == far && *into == Some(near) && the_box(findings),
+        _ => false,
+    };
     assert!(
-        refused.node == node
-            && matches!(
-                &refused.kind,
-                editor_core::NodeErrorKind::NotFinished { findings }
-                    if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
-            ),
+        refused.node == node && said,
         "{op:?} refuses at the operation, with the session box's finding alone: {refused:?}"
     );
 }
@@ -791,20 +809,22 @@ fn a_product_in_one_shared_frame_localizes_in_it_moving_no_copy() {
     );
 }
 
-/// **Localizing interference finishes each copy once**, however many
-/// interfering pairs it is in: a block placed in the world under a
-/// turned frame and a row of three copies of it 0.4 apart, every pair of
-/// the four overlapping, so each copy is in several interfering pairs.
-/// The product computes in the first copy's frame. Localization takes
-/// each copy finished in its own frame, once, and each pair hands its two
-/// to the placed door (`topo::boolean_placed`), which moves each one not
-/// in the product's frame, carrying its verdict, and finishes nothing.
-/// The checks run 26 finishes, measured. *Breaks if* a copy is taken per
-/// pair. That the move itself is made per pair is
+/// **Localizing interference takes each copy once**, however many
+/// interfering pairs it is in: a block placed in the world under a turned
+/// frame and a row of three copies of it 0.4 apart, every pair of the four
+/// overlapping, so each copy is in several interfering pairs. The product
+/// computes in the first copy's frame. Localization takes each copy
+/// finished in its own frame and placed in the product's frame, once
+/// (`checks::at_rest::Operands`), and each pair hands its two to the placed
+/// door (`topo::boolean_placed`), which moves each one not in that frame,
+/// carrying its verdict, and finishes nothing. The checks run 26 finishes
+/// and make 7 placements (`EvalCounters::rigid_maps`), measured. *Breaks
+/// if* a copy is taken per pair: 15 placements. That the move itself is
+/// made per pair is
 /// `work/onehome/the-at-rest-localization-moves-each-copy-once-per-pair.md`.
 #[cfg(debug_assertions)]
 #[test]
-fn localizing_finishes_each_copy_once() {
+fn localizing_takes_each_copy_once() {
     let tol = Tol::witness();
     let (doc, _) = row_in_world("localize-once", &turned([3.0, 1.0, 2.0]), 0.4, 3);
     let ev: Evaluation<f64> = evaluate(
@@ -820,6 +840,7 @@ fn localizing_finishes_each_copy_once() {
         "the premise: the product computes in the first copy's frame, not its space's"
     );
     let before = topo::finishes_on_this_thread();
+    let counted = editor_core::EvalCounters::on_this_thread();
     let report = editor_core::run_checks(
         &doc,
         &ev,
@@ -829,6 +850,9 @@ fn localizing_finishes_each_copy_once() {
     )
     .unwrap_or_else(|e| panic!("the checks run: {e}"));
     let finishes = topo::finishes_on_this_thread() - before;
+    let placed = editor_core::EvalCounters::on_this_thread()
+        .since(counted)
+        .rigid_maps;
     let found = fixture::interference(&report.findings);
     assert!(
         found.len() >= 3,
@@ -841,7 +865,8 @@ fn localizing_finishes_each_copy_once() {
         "and each overlap is bounded: {found:?}"
     );
     assert_eq!(
-        finishes, 26,
-        "the checks' finishes, each copy finished once"
+        (finishes, placed),
+        (26, 7),
+        "the checks' finishes, and the copies placed in the product's frame"
     );
 }

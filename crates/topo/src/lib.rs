@@ -1459,7 +1459,7 @@ pub use boolean::{
     JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
     NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
     NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
-    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
+    PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
     ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
     Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
     SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal, TorusConvention,

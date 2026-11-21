@@ -3351,9 +3351,11 @@ impl<T: Real> EdgeCurve<T> {
     /// the turn is the interval against one period. An isometry keeps
     /// both, and a map keeps the carrier's parameter, so both are the
     /// image's. That holds only where the three arguments are this
-    /// edge's data under one isometry, exact apart from rounding: the
-    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
-    /// one caller.
+    /// edge's data under one isometry, or under the family of isometries
+    /// a boxed motion encloses: then the data encloses the edge's image
+    /// under each member, every member keeps the distance and the turn,
+    /// and the carried certificate is each image's. Keeping that is the
+    /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
     #[must_use]
     pub fn carried(
         &self,

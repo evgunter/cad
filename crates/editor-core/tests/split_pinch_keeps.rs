@@ -1580,3 +1580,61 @@ fn every_moat_round_a_diamond_pocket_touching_the_block_walls_splits_along_its_f
     }
     assert_diamond_pocket_split(square(0.0, 4.0), 16.0, 16.0);
 }
+
+/// **The kite moat's subtract names its edges where its result stands**
+/// (`[placement.frame]`: names are the same in any frame). The moat is a
+/// tool placed against the block, so the subtract's door moves it into
+/// the block's frame (`topo::boolean_placed`), and the names are minted
+/// against the operands as the door read them (`topo::PairTaken`). The
+/// whole evaluation, every body and every name table, is pinned at its
+/// digest (`fixture::digest::digest`).
+///
+/// *Breaks if* the names are minted against the operands as held, in
+/// their own frames: the moat's edges then read as merged seams.
+#[test]
+fn the_kite_moats_subtract_names_its_edges_where_its_result_stands() {
+    let (ev, _, _) = moat_split(
+        square(1.5, 2.5),
+        vec![(2.0, 0.8), (3.2, 2.0), (2.0, 3.5), (0.8, 2.0)],
+    );
+    assert_eq!(
+        fixture::digest::digest(&ev),
+        0xa4d9_ab2a_eaf0_bd50,
+        "the kite moat's evaluation, bodies and name tables"
+    );
+}
+
+/// **Every subtract that moves an operand names alike placed and moved
+/// by hand**, over the corpus and the moat splits: each such subtract
+/// names its result against the operands the placed door read
+/// (`topo::PairTaken`) and, where the collector asks, against them
+/// moved by hand as a caller moved them before the door
+/// (`editor_core::test_support::subtract_names_of`). The two tables are
+/// one. *Breaks if* the names are minted against an operand as held, in
+/// its own frame.
+#[test]
+fn every_subtract_with_a_moved_operand_names_alike_placed_and_moved() {
+    let ((), rows) = editor_core::test_support::subtract_names_of(|| {
+        for d in crate::corpus::documents() {
+            let _ = crate::corpus::eval::<f64>(&d.doc);
+        }
+        for moat in [
+            vec![(2.0, 0.5), (3.5, 2.0), (2.0, 3.5), (0.5, 2.0)],
+            vec![(2.0, 0.8), (3.2, 2.0), (2.0, 3.5), (0.8, 2.0)],
+            vec![(2.0, 0.0), (4.0, 2.0), (2.0, 4.0), (0.0, 2.0)],
+        ] {
+            let _ = moat_split(square(1.5, 2.5), moat);
+        }
+    });
+    assert!(
+        !rows.is_empty(),
+        "the corpus and the moats hold subtracts that move an operand"
+    );
+    let unlike: Vec<_> = rows.iter().filter(|(_, alike)| !alike).collect();
+    assert!(
+        unlike.is_empty(),
+        "{} of {} subtracts name unlike placed and moved: {unlike:?}",
+        unlike.len(),
+        rows.len()
+    );
+}

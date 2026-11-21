@@ -95,12 +95,9 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         into: &crate::eval::Frame<T>,
         own: &'a Arc<T::Finished>,
     ) -> Result<topo::Placed<'a, T::Finished>, NodeErrorKind> {
-        Ok(
-            match self.body.moving_into(into).map_err(NodeErrorKind::Motion)? {
-                None => topo::Placed::own(&**own),
-                Some(map) => topo::Placed::at(&**own, map),
-            },
-        )
+        self.body
+            .placed_in(into, own)
+            .map_err(NodeErrorKind::Motion)
     }
 
     /// Its names as the seat's table spells them: each holder's

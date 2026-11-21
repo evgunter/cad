@@ -193,7 +193,8 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
-    .unwrap();
+    .unwrap()
+    .0;
 
     let BooleanResult::Body(door) = door else {
         panic!("the fixture's union is a body");
@@ -247,7 +248,8 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
         inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
-    .unwrap();
+    .unwrap()
+    .0;
     assert!(
         matches!(via, PairOut::Empty),
         "the dispatch turned the typed empty into {via:?}"
@@ -747,5 +749,34 @@ fn a_shell_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(
         door.render(geom_brep::recourse::Reading::Build),
         carried.render(geom_brep::recourse::Reading::Build)
+    );
+}
+
+/// **A placed operand past the session box refuses at the dispatch,
+/// naming it**: the shifted cube placed 1800 m along `x` refuses as
+/// `VerbError::Placed` for operand B, with the session box's finding.
+#[test]
+fn a_placed_operand_past_the_box_refuses_naming_it() {
+    let a = unit_cube();
+    let b = unit_cube();
+    let far = geom_core::RigidMotion::translation(Vec3::new(1800.0, 0.0, 0.0)).expect("a shift");
+    let refused = Boolean {
+        op: BooleanOp::Union,
+        inputs: Box::new(BooleanInputs::default()),
+    }
+    .run_pair(
+        &a,
+        topo::Placed::at(&b, far),
+        SweepStrategy::Realized,
+        tol(),
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(VerbError::Placed { operand: topo::Operand::B, findings })
+                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "B's image past the box refuses, naming B: {:?}",
+        refused.as_ref().map(|_| ())
     );
 }

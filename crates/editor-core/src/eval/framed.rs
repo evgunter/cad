@@ -510,9 +510,11 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// **The motion that moves this body into `frame`'s coordinates**,
     /// `None` where the two are one frame, counted as the one rigid map
     /// it costs where it is a motion (`counters::rigid_map`): the one
-    /// home of that count, for every door that moves a body between
-    /// frames ([`Self::graft_into`], and every placed operand a
-    /// Boolean door is handed).
+    /// home of that count. It counts each placement the evaluator makes
+    /// ([`Self::graft_into`], [`Self::placed_in`]), once per operand and
+    /// operation, not each move a kernel door makes of it: the at-rest
+    /// localization places a copy once and hands it to every pair it is
+    /// in, whose door moves it per pair.
     ///
     /// # Errors
     ///
@@ -526,6 +528,24 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             super::counters::rigid_map();
         }
         Ok(motion)
+    }
+}
+
+impl<T: topo::AtRestPolicy> Framed<T> {
+    /// **`held`, this value's body finished, placed in `frame`**
+    /// ([`topo::Placed`]): under the motion into `frame` ([`Self::moving_into`],
+    /// where that motion is counted), or alone where the two are one frame.
+    /// The door it is handed to moves it.
+    ///
+    /// # Errors
+    ///
+    /// The relative map's overflow.
+    pub(crate) fn placed_in<'a>(
+        &self,
+        frame: &Frame<T>,
+        held: &'a T::Finished,
+    ) -> Result<topo::Placed<'a, T::Finished>, RigidMotionError> {
+        Ok(topo::Placed::new(held, self.moving_into(frame)?))
     }
 }
 

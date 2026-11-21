@@ -83,5 +83,5 @@ mod run;
 mod verb;
 
 pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
-pub use run::{DoorScalar, PairOut, SplitOut, VerbError, VerbOut, VerbRecord};
+pub use run::{DoorScalar, PairOut, PlacedPairOut, SplitOut, VerbError, VerbOut, VerbRecord};
 pub use verb::{Blend, Boolean, Members, Shell, Split, Sweep, VerbKind};

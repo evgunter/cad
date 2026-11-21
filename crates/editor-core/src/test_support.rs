@@ -1360,6 +1360,50 @@ pub fn fold_rows_of<R>(f: impl FnOnce() -> R) -> (R, Vec<FoldRowNames>) {
     (out, rows)
 }
 
+/// Each subtract with a moved operand, by its node, and whether its names
+/// against the operands the placed door read are its names against them
+/// moved by hand ([`subtract_names_of`]).
+static SUBTRACT_NAMES: std::sync::Mutex<Option<Vec<(crate::RecipeNodeId, bool)>>> =
+    std::sync::Mutex::new(None);
+
+/// **`f`, with every subtract that moves an operand recording whether it
+/// names alike placed and moved by hand**, in evaluation order. One
+/// collector at a time: a nested call panics.
+///
+/// # Panics
+///
+/// Where another call is collecting, or the collector was poisoned.
+pub fn subtract_names_of<R>(f: impl FnOnce() -> R) -> (R, Vec<(crate::RecipeNodeId, bool)>) {
+    {
+        let mut slot = SUBTRACT_NAMES.lock().expect("the subtract-name collector");
+        assert!(slot.is_none(), "one subtract-name collector at a time");
+        *slot = Some(Vec::new());
+    }
+    let out = f();
+    let rows = SUBTRACT_NAMES
+        .lock()
+        .expect("the subtract-name collector")
+        .take()
+        .unwrap_or_default();
+    (out, rows)
+}
+
+/// Whether [`subtract_names_of`] is collecting.
+pub(crate) fn collecting_subtract_names() -> bool {
+    SUBTRACT_NAMES
+        .lock()
+        .expect("the subtract-name collector")
+        .is_some()
+}
+
+/// Records one subtract where [`subtract_names_of`] is collecting.
+pub(crate) fn record_subtract_names(node: crate::RecipeNodeId, alike: bool) {
+    let mut slot = SUBTRACT_NAMES.lock().expect("the subtract-name collector");
+    if let Some(rows) = slot.as_mut() {
+        rows.push((node, alike));
+    }
+}
+
 /// Records one fold-step row where [`fold_rows_of`] is collecting.
 pub(crate) fn record_fold_row(
     named: &crate::coincide::NamedCoincidence,

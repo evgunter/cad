@@ -1889,7 +1889,9 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
             }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
-        verbs::VerbError::Placed(findings) => NodeErrorKind::NotFinished { findings },
+        // A placed operand's refusal names it, which only its operation
+        // knows (`wire_subtract`); one reaching here names none.
+        verbs::VerbError::Placed { findings, .. } => NodeErrorKind::NotFinished { findings },
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
@@ -3534,13 +3536,15 @@ struct MemberRead<T: topo::AtRestPolicy + Decide> {
 
 /// **One member of a union or an intersect, as the fold reads it**:
 /// a [`MemberRead`] taken, its body finished in its own frame; the fold
-/// places it in its computing frame.
+/// places it in its computing frame. After the run it is the member as
+/// the run read it: a member the n-ary door moved is its image in the
+/// computing frame, `framed` and `body` alike.
 #[derive(Clone)]
 struct Member<T: topo::AtRestPolicy + Decide> {
     read: crate::VarId,
-    /// Where it stands: its body in its own frame.
+    /// Where it stands: its body and the frame it is in.
     framed: super::Framed<T>,
-    /// Its finished body, in its own frame.
+    /// Its finished body, in `framed`'s frame.
     body: Arc<T::Finished>,
     table: Arc<NameTable>,
     /// What its body carries ([`MemberRead::carry`]).
@@ -3642,16 +3646,36 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .unwrap_or(&from.body)
         .frame()
         .clone();
-    let body_a = from.placed_in(&computing, &body_a)?;
-    let body_b = b.placed_in(&computing, body_b)?;
+    let (held_a, held_b) = (body_a, body_b);
+    let body_a = from.placed_in(&computing, &held_a)?;
+    let body_b = b.placed_in(&computing, held_b)?;
     let inputs = BooleanInputs {
         records_a: from.carry.contacts.carried(),
         records_b: b.carry.contacts.carried(),
     };
-    match (verb.build)(BooleanOp::Subtract, inputs)
+    // The seat whose frame the subtract computes in, which a refused
+    // image of the other names.
+    let frame_of = |operand| match operand {
+        topo::Operand::A => (from.node, b.node),
+        topo::Operand::B => (b.node, from.node),
+    };
+    let (out, read) = (verb.build)(BooleanOp::Subtract, inputs)
         .run_pair(body_a, body_b, boolean_sweep, tol)
-        .map_err(verb_refused)?
-    {
+        .map_err(|refusal| match refusal {
+            verbs::VerbError::Placed { operand, findings } => {
+                let (input, into) = frame_of(operand);
+                NodeErrorKind::UnfinishedLeaf {
+                    input,
+                    into: Some(into),
+                    findings,
+                }
+            }
+            refusal => verb_refused(refusal),
+        })?;
+    // Each operand as the pair read it, in the computing frame: the names
+    // compare the result's geometry with them.
+    let [body_a, body_b] = &read;
+    match out {
         verbs::PairOut::Empty => Ok(OpOut::empty()),
         verbs::PairOut::Out(out) => {
             // Another record family from a boolean run is a kernel
@@ -3672,17 +3696,54 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     node: from.node,
                     read: from.read,
                     table: &from.table,
-                    body: body_a.body(),
+                    body: body_a,
                 },
                 &names::OperandCtx {
                     node: b.node,
                     read: b.read,
                     table: &b.table,
-                    body: body_b.body(),
+                    body: body_b,
                 },
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
+            // Where a collector asks, the names again against each moved
+            // operand moved by hand, as a caller moved it before the
+            // placed door: the two must name alike.
+            #[cfg(any(test, feature = "test-support"))]
+            if crate::test_support::collecting_subtract_names() {
+                let by_hand = |framed: &super::Framed<T>, held: &T::Finished| {
+                    let motion = computing.relative(framed.frame()).ok()??;
+                    topo::FinishedBody::moved(held, &motion, tol).ok()
+                };
+                let (moved_a, moved_b) = (by_hand(&from.body, &held_a), by_hand(&b.body, held_b));
+                if moved_a.is_some() || moved_b.is_some() {
+                    let again = (verb.emitter)(
+                        id,
+                        BooleanOp::Subtract,
+                        &out.body,
+                        &naming,
+                        &holdings,
+                        &names::OperandCtx {
+                            node: from.node,
+                            read: from.read,
+                            table: &from.table,
+                            body: moved_a.as_deref().unwrap_or(&**held_a),
+                        },
+                        &names::OperandCtx {
+                            node: b.node,
+                            read: b.read,
+                            table: &b.table,
+                            body: moved_b.as_deref().unwrap_or(&**held_b),
+                        },
+                        tol,
+                    );
+                    let alike = again.is_ok_and(|again| {
+                        format!("{:?}", again.table) == format!("{:?}", emitted.table)
+                    });
+                    crate::test_support::record_subtract_names(id, alike);
+                }
+            }
             OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: super::Framed::in_frame(Arc::new(out.body), computing.clone()),
@@ -4147,14 +4208,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // It computes in its first member's frame that is its space's, else
     // its first's ([`super::Framed::computing_among`]), each other member
     // placed in it through `relative` and moved there by the n-ary door.
-    let (members, apart, computing) = match members {
+    // Each member's node, which a refusal of its move names, beside the
+    // member whose frame it was placed into.
+    let nodes: Vec<RecipeNodeId> = members.iter().map(|m| m.node).collect();
+    let (members, apart, computing, frame_of) = match members {
         [] => return empty(),
         [one] => return lone_member(id, &one.taken(tol)?),
         [first, ..] => {
-            let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
-                .unwrap_or(&first.framed)
-                .frame()
-                .clone();
+            let chosen = super::Framed::computing_among(members.iter().map(|m| &m.framed))
+                .unwrap_or(&first.framed);
+            let frame_of = members
+                .iter()
+                .find(|m| core::ptr::eq(&m.framed, chosen))
+                .map_or(first.node, |m| m.node);
+            let computing = chosen.frame().clone();
             let apart = match op {
                 BooleanOp::Union => images_apart(members, &computing, tol)?,
                 BooleanOp::Intersect | BooleanOp::Subtract => topo::Apart::default(),
@@ -4163,7 +4230,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .iter()
                 .map(|m| m.taken(tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            (finished, apart, computing)
+            (finished, apart, computing, frame_of)
         }
     };
     let members = members.as_slice();
@@ -4201,16 +4268,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let bodies = members
         .iter()
         .map(|m| {
-            Ok(
-                match m
-                    .framed
-                    .moving_into(&computing)
-                    .map_err(NodeErrorKind::Motion)?
-                {
-                    None => topo::Placed::own(m.body.as_ref()),
-                    Some(map) => topo::Placed::at(m.body.as_ref(), map),
-                },
-            )
+            m.framed
+                .placed_in(&computing, &m.body)
+                .map_err(NodeErrorKind::Motion)
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     // The kernel runs every judgement and step first, and the run holds
@@ -4230,19 +4290,28 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let mut run = (verb.members)(nary, inputs);
         run.apart = apart;
         run.run_members(&bodies, boolean_sweep, tol)
-            .map_err(|(_, findings)| NodeErrorKind::NotFinished { findings })?
+            .map_err(|(i, findings)| NodeErrorKind::UnfinishedLeaf {
+                input: nodes[i],
+                into: Some(frame_of),
+                findings,
+            })?
     };
     // Each member as the run read it, in the computing frame, which the
-    // names below compare the result's points with.
+    // names below compare the result's points with: a member the door moved
+    // is its image there.
     let members: Vec<Member<T>> = members
         .iter()
         .zip(taken)
-        .map(|(m, read)| Member {
-            body: match read {
-                std::borrow::Cow::Borrowed(_) => Arc::clone(&m.body),
-                std::borrow::Cow::Owned(image) => Arc::new(image),
-            },
-            ..m.clone()
+        .map(|(m, read)| match read {
+            std::borrow::Cow::Borrowed(_) => m.clone(),
+            std::borrow::Cow::Owned(image) => {
+                let body = Arc::new(image);
+                Member {
+                    framed: super::Framed::in_frame(Arc::clone(&body), computing.clone()),
+                    body,
+                    ..m.clone()
+                }
+            }
         })
         .collect();
     let members = members.as_slice();
