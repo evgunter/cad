@@ -1689,6 +1689,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
         LoftError::NotFinished { .. } => "not_finished",
+        LoftError::SelfIntersecting { .. } => "self_intersecting",
         LoftError::PinnedCorner { .. } => "pinned_corner",
         LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
         LoftError::CornerEscalated { .. } => "corner_escalated",
@@ -3245,6 +3246,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::BoundaryCrossesItselfUndecided { .. } => {
             "boundary_crosses_itself_undecided"
         }
+        ValidationError::BoundaryMeetsItself { .. } => "boundary_meets_itself",
+        ValidationError::EmbeddingUncertified { .. } => "embedding_uncertified",
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::SameSideInterference { .. } => "same_side_interference",
