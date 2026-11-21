@@ -282,7 +282,7 @@
 //! As in the planar door, a dimensionless quantity's lever is the
 //! geometry being judged and never the request: the profile solve's
 //! `|det|` — a sine between two unit 2-D normals — is levered by the
-//! extents of the corner's own incident edges, and the azimuth
+//! arms of the corner's own incident edges ([`corner_arms`]), and the azimuth
 //! solve's two roots
 //! are separated by a LENGTH that is metered as one. A corner asked to
 //! move nothing is answered before any meter runs. This is also what
@@ -1221,18 +1221,15 @@ fn classify<T: Decide>(
     })
 }
 
-/// The extent of every edge ending at a vertex, read from below
-/// ([`geom_brep::edge_extent_inf`]) — the lengths this door's
-/// conditioning is levered by. Each reading levered at them is a
-/// transversality whose Zero refuses, so an arm past an edge's diameter
-/// would certify a corner too shallow to pin within that edge.
+/// The arm of every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by.
 ///
-/// On a line the extent is the chord, as in the planar door; on any
-/// other carrier, its chord or more. A rim arc
-/// that runs half a turn, or a chart with ONE seam that closes on
-/// itself (chord exactly zero), reads its fold `r·(1 − cos(Δt/2))`,
-/// which reaches the diameter `2r` at closure: a zero arm would make
-/// every meter read `Zero` and call a transversal corner degenerate.
+/// A line reads its chord ([`geom_brep::edge_extent_inf`], whose two
+/// bounds are equal on a line), as in the planar door; so does every
+/// carrier but a circle. A circle reads its arc length: a full revolve's
+/// rim arc runs half a turn and a chart with ONE seam closes on itself,
+/// whose chord is exactly zero, and a zero arm makes every meter read
+/// `Zero` and calls a transversal corner degenerate.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1254,7 +1251,15 @@ fn corner_arms<T: Decide>(
             });
         };
         let (t0, t1) = curve.params();
-        out.push(geom_brep::edge_extent_inf(curve.carrier(), t0, t1));
+        out.push(match curve.carrier() {
+            Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                // Unsourced lever: the arc's length, an angular span times its radius, is
+                // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
+                Lever::unsourced((t1 - t0).abs() * radius)
+            }
+            carrier => geom_brep::edge_extent_inf(carrier, t0, t1),
+        });
     }
     Ok(out)
 }
@@ -3308,37 +3313,6 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let arms = [geom_core::test_support::fixture_lever(arm)];
         solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
-    }
-
-    /// **A corner's arms are its edges' extents**: at the corner of a
-    /// half-disc cap (radius 1), the half-turn arc reads its diameter `2`
-    /// (red at its arc length `π`) and the diameter line its chord `2`.
-    /// A closed arc's chord is zero, so a read of the chord alone is red
-    /// on the arc too.
-    #[test]
-    fn a_half_turn_rims_corner_arms_are_its_diameter() {
-        let (body, _, end) = crate::test_support_fixtures::half_disc_cap(0.0, Tol::witness());
-        let vertex = body
-            .vertices
-            .keys()
-            .find(|&v| {
-                body.resolve_vertex_point(v, crate::live::Proven)
-                    .distance(end)
-                    < 1e-12
-            })
-            .expect("the cap's corner at the arc's end");
-        let arms: Vec<f64> = corner_arms(&body, vertex)
-            .unwrap()
-            .into_iter()
-            .map(Lever::length)
-            .collect();
-        assert_eq!(arms.len(), 2, "the corner's two edges: {arms:?}");
-        for arm in arms {
-            assert!(
-                (arm - 2.0).abs() < 1e-12,
-                "an arm off the diameter 2: {arm}"
-            );
-        }
     }
 
     const CIRCLE: Profile<f64> = Profile::Circle {

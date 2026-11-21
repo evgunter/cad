@@ -34,8 +34,9 @@ pub(crate) enum OrderFault {
 }
 
 /// **A reading of two directions' sides, foreshortened by their leans**:
-/// `x · min(lean₀, lean₁)` ([`Leaned`]), a pure number levered at the
-/// arm the reading is consumed at.
+/// `x · min(lean₀, lean₁)` ([`Leaned`]), a pure number. Its caller
+/// levers it at the sector's arm, which is the metering arm, not a read
+/// of anything this factor changes.
 ///
 /// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
 /// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,

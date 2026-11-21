@@ -3886,12 +3886,9 @@ mod tests {
                 "branch {i}: the recorded pad's chain is not one arc"
             );
             let (margin, boxes) = (probe.margin, probe.boxes);
-            // The production row's own arm, read as it reads it.
-            let levered = Margin::levered(
-                margin,
-                geom_core::test_support::fixture_lever(domain.extent),
-            )
-            .value();
+            // Unsourced lever: the production row's own arm, `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+            let levered =
+                Margin::levered(margin, geom_core::Lever::unsourced(domain.extent)).value();
             assert_eq!(
                 (levered.to_bits(), boxes),
                 (

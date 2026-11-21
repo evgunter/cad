@@ -4715,8 +4715,9 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            // At the line edge's own extent, which each sheet is scaled to.
-            Margin::levered(sheet.dot(floor), e.span().extent()),
+            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
+            // the line edge's chord); the chord's own extent read rounds differently.
+            Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
             Ok(Sign::Positive | Sign::Negative) => {}

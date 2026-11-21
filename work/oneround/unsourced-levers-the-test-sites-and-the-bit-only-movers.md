@@ -14,17 +14,24 @@ pr: 7227
 
 The first cut of `unsourced-levers-await-a-source` (Ev, PR 7141: no
 fourth source, each site re-posed by the role its length plays), the
-part both designers read as needing no ruling. Stacked on
-`oneround/lever-doors` (PR 7143).
+part both designers read as needing no ruling.
 
-- **The test sites** (about seven: `star::cut`, `star::order`'s probe,
-  `boolean::fan` (2), a `join` fixture, `link::chord_rows`,
-  `ssi::certify`'s test twin) go to the fixture doors.
+- **The test sites** (six: `star::cut`, `star::order`'s probe,
+  `boolean::fan` (2), a `join` fixture, `link::chord_rows`) go to the
+  fixture doors.
 - **The arms whose honest read moves only last bits** are re-read from
-  the extent itself: `leaned_lever` (`topo::star::order`), the line
-  parameter spans in `offset_axial`, `curve_face::line_quadric`'s
-  `line_cone_roots` and `census`, `census`'s wedge sides, and
-  `intersect`'s quotient forms (`levered_inv` differs in the last bit).
+  the extent itself: `leaned_lever` (`topo::star::order`, now
+  `star::leaned`: the lean moves into the reading; the arm is still the
+  sector's metering arm), and the line parameter spans in
+  `offset_axial::corner_arms`, `curve_face::line_quadric`'s
+  `line_cone_roots` and `census::parallel_reading`.
+- **Moved to other units at review** (ONEROUND orchestrator,
+  2026-11-21), each back on `Lever::unsourced` with its pin:
+  `corner_arms`' circle arm (an arc length; its verdict acts on every
+  sign, so it takes both bounds) to `oneround/unsourced-unions`;
+  `intersect`'s quotient forms (family 2) to `oneround/unsourced-stand-ins`;
+  `census`'s wedge sides (the metering arm) and `ssi::certify`'s test twin
+  (production's `SsiDomain::extent`) to the records unit.
 - **Not this unit after all: `geom_brep::sector_shape::metering_arm` and
   its nine callers** (`topo::boolean::sectors::metering_arm` and
   `departure_arm_lever` no longer exist). The arm reaches them as a bare

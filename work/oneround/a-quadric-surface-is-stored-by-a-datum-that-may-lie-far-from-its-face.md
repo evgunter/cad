@@ -60,3 +60,12 @@ area (fixed there), `geom_brep::extent`'s fold
 (`work/boxfinish/a-cylinder-faces-flux-sums-two-terms-of-its-far-axis-origins-size.md`).
 The reviewer names the cone, sphere and torus lanes of
 `props/curved.rs` and `props/quad/rotational` as the next to read.
+
+## A measured case (2026-11-21)
+
+From the conic fork's last probe (`analysis/oneround/conic-vertex-probes`, `analysis/oneround/conic-vertex/far-centre-through-real-doors/`, on `oneround/anchored-conic` `c3fb679d1`): a unit square revolved by 2/D rad about an axis D away, and a 2 × 1 rectangle whose top side is a bulge arc of radius about D, extruded 1 m.
+
+- At ε = 1e-9 both build for D up to 1e5 m and refuse at 1e6 with `AnalyticRung3(KernelLimit)` on the cylinder (bounds 3.4e-9 and 2.7e-9).
+- At ε = 1e-12 neither builds at any D from 3e3 m up: the revolve refuses `KernelLimit` 1.0e-11 at 3e3 and 3.7e-11 at 1e4; the extrude `KernelLimit` 2.8e-12 at 3e3.
+
+So a gently curved wall whose axis lies 3 km off is refused as a kernel limit at ε = 1e-12 today, with every point of the body inside the box. The conic's stored point does not reach this: the wall's own surface is stored by the far axis.

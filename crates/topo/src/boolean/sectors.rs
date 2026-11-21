@@ -1222,8 +1222,8 @@ fn within_signs<T: Decide>(
 /// `(+line, −line)`, each `true` where [`within`] holds it in all.
 ///
 /// The line is read scaled by its lean ([`Leaned::line`]): two faces'
-/// line is read un-normalized, `m = n_a × n_b`, the bounds' reaches its
-/// lever as [`leaned`] reads them. Read against a bound `e`
+/// line is read un-normalized, `m = n_a × n_b`, so its lean scales the
+/// reading as [`leaned`] scales one. Read against a bound `e`
 /// of `a`'s sector at `e`'s reach `L`, it measures
 /// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
 /// departure from `a`'s plane, foreshortened by `cos φ`, less its far
