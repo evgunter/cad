@@ -56,10 +56,18 @@ reflection `2θ_hi − θ₀ ≈ +0.0172`. On the thin ellipse that is the same
 onto it. The second root, `θ = 0.01749`, `1.4·10⁻⁹` m away, is never
 offered.
 
-**The fix** (`line_conic`, the Level arm). With a found meeting, both
-roots `θ_hi ± φ₀` are read (`Slant::roots`, which decides no gap
-between them), and ringing (`ringed_by`, in metres) drops any within the
-band of a found meeting's point. The circles' arm keeps its deflation.
+**The fix** (`line_conic`, the Level arm; `reflected`). One found
+meeting is still deflated, its reflection offered, except where the
+reflection is shown to be the other branch's: it rings onto the found
+meeting's point in metres (`curve_pair_meet_same`) while its angle from
+`θ₀`, the least way round, is not decided within the found meeting's
+ring in angle, `e/|C′|max` (`curve_pair_pose_reflection_far`). There
+both roots `θ_hi ± φ₀` are read (`Slant::roots`), and ringing drops any
+within the band of the found meeting's point. Reading both roots
+whenever a meeting is found breaks the deflation's own premise: where
+the found meeting is a root, its twin from the square root lands
+`~√ulp·r` off and past the span's end, and 12 sweep rows refuse on
+`curve_pair_span_past_reach_straddle`.
 
 **What it answers now.** Both draws are never fewer than two meetings.
 Each refuses: 4009 on `curve_carrier_gap`, 3534 on
