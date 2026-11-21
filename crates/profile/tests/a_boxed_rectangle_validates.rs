@@ -131,3 +131,31 @@ fn a_pen_rectangle_turned_by_a_rounded_quarter_cannot_order_its_start() {
         });
     }
 }
+
+/// **A square whose one corner a box widens validates at `Interval`**:
+/// the corner is the shared vertex of two adjacent pairs, and every
+/// other pair reads it far from its carrier.
+#[test]
+fn a_square_with_a_boxed_corner_validates_at_interval() {
+    for h in [1e-6, 0.01, 0.1] {
+        let (zero, one) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
+        let corner = Point2::new(
+            Interval::from_bounds(1.0 - h, 1.0 + h),
+            Interval::from_bounds(1.0 - h, 1.0 + h),
+        );
+        let lp = Open
+            .at(Point2::new(zero, zero))
+            .line_to(Point2::new(one, zero), tol())
+            .unwrap()
+            .line_to(corner, tol())
+            .unwrap()
+            .line_to(Point2::new(zero, one), tol())
+            .unwrap()
+            .line_to(Start, tol())
+            .unwrap()
+            .loop_;
+        if let Err(e) = validate(lp) {
+            panic!("the square over ±{h:e}: {e:?}");
+        }
+    }
+}

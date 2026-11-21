@@ -78,3 +78,13 @@ The early forms are in `crates/editor-core/tests/m10_bulge_renders.txt`
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## The line × line arm takes the shared ends (2026-11-20)
+
+`pair_contacts` now carries an adjacent pair's shared ends as
+`seg::SharedEnds` (which end of each is the stored vertex), and
+`line_line` reads neither side nor span there; its contact is
+`CKind::SharedVertex`, which `judge_pair` discounts unread. This row's
+fix extends the same value to `line_arc` and `arc_arc`. Their
+`end_touches` also reads the shared end against the other segment
+(`touches` → `line_span` / `arc_span`), the same re-reading.

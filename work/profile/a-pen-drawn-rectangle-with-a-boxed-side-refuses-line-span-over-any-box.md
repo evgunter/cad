@@ -38,3 +38,33 @@ segments' chords, never a recorded direction. Seen independently at
 `Sym<Interval>`: a boxed rectangle and a pen-drawn one refuse
 `LineSpan` at `SegmentPair(0, 1)` over a ±1e-6 box and pass at ±1e-11.
 So "over any box" above means any box wider than about 1e-11 here.
+
+## Traced (2026-11-20, PROFILE's pen-rectangle lane)
+
+Two causes, measured unguided at `Sym<Interval>` through
+`ConstructedProfile::validate`, `w = 1 ± h`.
+
+**1. The pair pass re-reads an adjacent pair's shared vertex.** Both
+spellings refuse `SegmentPair(0, 1)`, `LineSpan`, the margin about ±6h:
+`[-6.0e-9, 6.0e-9]` at 1e-9, `[-6.0e-6, 6.0e-6]` at 1e-6, `[-0.3327,
+0.2723]` at 0.05 (the corners pass only at 1e-11). `seg::line_line`
+read `chord_side` of the shared vertex on the other segment's carrier,
+then `touches_from` → `line_span` of it, `min(t, L − t)` with
+`t = (q − a)·û/|û|`, `û = chord/len`. At the shared vertex `q = b`, so
+`L − t` is zero by construction, but it is recomputed from the chord it
+ends, with the box on `len`, on `û` and on `|û|`, and through radicals
+the symbolic tier does not cancel. The `(0, 3)` refusal BOXFINISH
+measured through the driver is the same reading at the closing pair's
+shared vertex. Over plain `Interval`, with no symbolic tier behind it,
+the side readings straddle too, and so does `judge_pair`'s
+`contact_at_shared_vertex`, which measured `|v − v|`.
+
+**2. The pen's fourth vertex cannot be ordered against the start**,
+filed as `a-pen-loop-turned-by-a-rounded-quarter-cannot-order-its-start-over-an-interval`:
+with cause 1 repaired, the pen turned by `fl(π/2)` refuses
+`CanonicalOrderX` at `Loop`, over every box and a point box. Turned by
+`Real::pi() / 2` (a document's `turn/4`) it validates.
+
+Repaired (cause 1): `line_line` takes the pair's shared ends
+(`seg::SharedEnds`, by index from `judge_pair`): the shared vertex's two
+sides are Zero and its contact is `CKind::SharedVertex`, none read.
