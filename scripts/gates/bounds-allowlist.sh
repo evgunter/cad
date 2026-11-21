@@ -529,8 +529,14 @@ BOUNDS_ALLOWLIST=(
   # (the guard's and `section_report`'s), `fallback_section_pairs` (the
   # no-crossings pass's and its report's), and `no_crossings_pass`, the
   # extent scan then the section pass, as the path and its test door
-  # run them. None reads a bracket of its own. 23 + 3 = 26.
-  'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
+  # run them. None reads a bracket of its own. 23 + 3 = 26. One more is
+  # `boolean_placed`, the pair door over placed operands (fork 288 stage
+  # 1), which `boolean_op_with` now is with no motion: it takes each
+  # operand into the computing frame (`Placed::taken`) and runs the cut
+  # by material and the pipeline (`boolean_op_given`), and reads no
+  # bracket of its own (without `Bounds` neither call compiles).
+  # 26 + 1 = 27.
+  'crates/topo/src/boolean/ops.rs 27 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -556,8 +562,12 @@ BOUNDS_ALLOWLIST=(
   # rest on each other (`crates/topo/README.md`, `[topo.cut-material]`):
   # it runs the tool's fold through `run_members` and the cut through the
   # boolean door (`boolean_op_given`), and reads no bracket of its own
-  # (without `Bounds` neither call compiles). 3 + 1 = 4.
-  'crates/topo/src/boolean/nary.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # (without `Bounds` neither call compiles). 3 + 1 = 4. The fifth is
+  # `nary_placed`, the n-ary door over placed members (fork 288 stage 1),
+  # which `nary_boolean_apart` now is with no motion: it takes each
+  # member into the computing frame (`Placed::taken`) and runs
+  # `run_members` over them, and reads no bracket of its own. 4 + 1 = 5.
+  'crates/topo/src/boolean/nary.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FIVE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
   # certificate is `Separation::apart`, every pair of placed copies the
