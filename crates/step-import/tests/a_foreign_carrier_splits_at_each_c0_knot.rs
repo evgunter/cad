@@ -241,15 +241,21 @@ fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
     check_mesh(&m).unwrap_or_else(|e| panic!("the mesh is watertight: {e:?}"));
 }
 
-/// A rational wall smooth across its double knot, bounded by CIRCLE
+/// A rational wall smooth across its double knot, bounded by ELLIPSE
 /// rims that carry no knot: the split places its vertices on the rims
-/// at the knot's iso line, and the two quarter-circle sub-patches
-/// import, mesh and measure as the file's half frustum.
+/// at the knot's iso line, and the two quarter-ellipse sub-patches
+/// import, mesh and measure as the file's half frustum. The wall is an
+/// elliptic cone, which no analytic kind is, so it reaches the split as
+/// a spline; the circular twin promotes (the row below).
 #[test]
 fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     let tol = Tol::witness();
-    let imported = import_step(&fixture("half_cone.step"), &ImportOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the half cone imports: {e_at}", e_at = e.render()));
+    let imported = import_step(
+        &fixture("half_elliptic_cone.step"),
+        &ImportOptions::default(),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the half cone imports: {e_at}", e_at = e.render()));
     let StepImport::Solid {
         body,
         normalizations,
@@ -309,8 +315,9 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
     let m = tessellate(b, 1e-2, tol).unwrap_or_else(|e| panic!("the half cone meshes: {e:?}"));
     check_mesh(&m).unwrap_or_else(|e| panic!("the mesh is watertight: {e:?}"));
-    // Half a frustum of height 1 and radii 1 and 1/2: π/6 · (1 + 1/2 + 1/4).
-    let frustum = core::f64::consts::PI / 6.0 * 1.75;
+    // Half a frustum of height 1 and radii 1 and 1/2, its y extent
+    // scaled by 3/4: π/6 · (1 + 1/2 + 1/4) · 3/4.
+    let frustum = core::f64::consts::PI / 6.0 * 1.75 * 0.75;
     let v = body
         .measure(topo::Settle::Resolution(quantity::Length::from_meters(
             1e-6,
@@ -322,6 +329,61 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         "volume {} ± {:e}, the half frustum's {frustum}",
         v.volume,
         v.volume_pad
+    );
+}
+
+/// The circular half frustum's wall is exactly a cone: stage-1
+/// recognition promotes it on the whole patch, so it never reaches the
+/// C⁰-knot split, and the body keeps the file's 4 faces, 6 edges and 4
+/// vertices with its wall a [`geom::Surface::Cone`] of half-angle
+/// `atan(1/2)`.
+#[test]
+fn the_circular_half_frustum_promotes_whole_instead_of_splitting() {
+    let tol = Tol::witness();
+    let imported = import_step(&fixture("half_cone.step"), &ImportOptions::default(), tol)
+        .unwrap_or_else(|e| panic!("the half cone imports: {e_at}", e_at = e.render()));
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = imported
+    else {
+        panic!("the half cone is a solid");
+    };
+    let b = &*body;
+    assert_eq!(
+        (b.faces().count(), b.edges().count(), b.vertices().count()),
+        (4, 6, 4),
+        "the file's census, no split"
+    );
+    let cones: Vec<f64> = b
+        .faces()
+        .filter_map(|(fk, _)| match b.face_surface(fk) {
+            Some(geom::Surface::Cone { half_angle, .. }) => Some(*half_angle),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(cones.len(), 1, "one cone wall");
+    assert!(
+        (cones[0] - 0.5_f64.atan()).abs() < 1e-12,
+        "the frustum's half-angle: {}",
+        cones[0]
+    );
+    assert!(
+        normalizations.iter().any(|n| matches!(
+            n.kind,
+            NormalizationKind::SurfacePromotion {
+                to: step_import::PromotedKind::Cone,
+                ..
+            }
+        )),
+        "the promotion is reported: {normalizations:?}"
+    );
+    assert!(
+        !normalizations
+            .iter()
+            .any(|n| n.kind == NormalizationKind::FaceSplitAtC0Knot),
+        "no split: {normalizations:?}"
     );
 }
 

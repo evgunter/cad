@@ -5238,6 +5238,17 @@ pub(crate) fn reads_loop_side<T: Decide>(surface: &geom::Surface<T>) -> bool {
 /// lies on the loop's left, so it holds `outer` exactly when the island
 /// winds clockwise, `outer` on its left.
 ///
+/// No path here takes a detour, and a sphere needs none while its faces
+/// keep their reference sets. A path from a reference reads in band where
+/// it runs through the loop's vertex: on a sphere, where the reference
+/// lies on the great circle through the vertex and the loop's midpoint,
+/// that is, on the plane through the centre, the vertex and the midpoint.
+/// A ball face's references are its two poles and its two seam midpoints,
+/// and a one-face zone's lie in its seam meridian's plane: all in one
+/// plane through the centre, which the loop's plane meets in one line, so
+/// at most two references are on it and another decides. A face whose
+/// references all lie on one line through the centre would break this.
+///
 /// # Errors
 ///
 /// [`JoinError::RingIslandUnread`] on a face [`reads_loop_side`] does not

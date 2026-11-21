@@ -314,7 +314,7 @@ pub(crate) fn route_of(
             let face = body
                 .get_face(fk)
                 .ok_or(TessellateError::MissingEntity { what: "face" })?;
-            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer, fk)? {
+            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer)? {
                 return Ok((Route::Trimmed(Trim::Structural), None));
             }
             let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
