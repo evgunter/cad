@@ -132,3 +132,14 @@ PR 7143 mints curvature arms from carriers, and where the record or function it 
 - `topo::census::point` — the module's own `Surface::Sphere { center, radius, arm }` and the `(c, r, arm)` tuples of `on_sphere` and `sphere_sphere`.
 - `topo::solid_contain` — `(radius, arm)` in `latitude_after` and `latitude_extremes`; `sphere_chart_trim` is handed the sphere and its destructured centre, radius and axis together.
 - `topo::boolean::ops` — `SphereRecut` holds `arm` alone and reads no geometry from it.
+
+## Read against the tree (2026-11-21, `oneround/unsourced-bits`)
+
+Corrections to the site list above, each checked in the tree at that branch's base (main with PR 7143):
+
+- **`topo::boolean::sectors::metering_arm` and `departure_arm_lever` do not exist.** The one home is `geom_brep::sector_shape::metering_arm(arm: T)`, with nine callers: `geom_brep::sector_shape::sector_shape` (2, reflex and straight), `topo::star::walk` (3), `topo::sector_shape` (`ruling_chord`, `apex_extrema_inside`) and `topo::splitting::insert` (2). The arm reaches every caller as a bare `T` held in `SectorShape::arm`, `FullTurn::arm` and `topo::sector_shape::ApexShape::arm`, the shorter of two departure vectors' norms, so reading the edges' extents there changes what those records hold.
+- **`line_cone_roots` is in `geom_brep::curve_face::line_quadric`**, not `boolean::reduce`.
+- **`leaned_lever` was `topo::star::order`'s**, re-exported through `boolean::sectors`; it is now `star::leaned`, a reading foreshortened by the smaller lean and levered at the arm itself.
+- **`offset_axial::corner_arms`** reads every edge's extent through `edge_extent_inf`, its line, circle and fallback arms alike.
+- **`intersect`'s quotient forms** (`pn_apex_tangent_reach`, `pn_apex_point_reach`, `pair_bound`'s far, near and offset) read through `Margin::levered_inv`: they were family 2's, not family 1's.
+- **Converted by that unit**: the seven test sites, `leaned_lever`, the line spans (`corner_arms`, `line_cone_roots`, `census::parallel_reading`), `corner_arms`' circle arm, `census`'s wedge sheets (read at the line edge's own extent, not `SectorShape::arm`), and `intersect`'s five quotients. Left: the `metering_arm` family above.
