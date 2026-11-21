@@ -2618,6 +2618,9 @@ mod bisector_rows {
             "1e-7 short of a half-turn: no inside at the arm"
         );
         let dir = bisector(&sector(1e-5), band).expect("1e-5 short: an inside");
-        assert!(dir.y > 0.99, "the bisector points between the bounds: {dir:?}");
+        assert!(
+            dir.y > 0.99,
+            "the bisector points between the bounds: {dir:?}"
+        );
     }
 }

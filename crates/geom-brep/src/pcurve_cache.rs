@@ -12814,8 +12814,8 @@ fn torus_oblique_circle<T: Decide>(
         // A part whose magnitude decided positive decides a side, so the
         // gate's rejection of Zero is never reached.
         geom_core::k_stats::decide_nonzero(name, Margin::levered(part, arm), band)
-        .map(geom_core::NonzeroSign::unit)
-        .map_err(reread)
+            .map(geom_core::NonzeroSign::unit)
+            .map_err(reread)
     };
     let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
     let sense = decided_sense("pcurve_chart_orientation", axis.cross(d))?;
