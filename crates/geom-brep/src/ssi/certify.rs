@@ -3888,9 +3888,11 @@ mod tests {
             );
             let (margin, boxes) = (probe.margin, probe.boxes);
             // The production row's own arm, read as it reads it.
-            let levered =
-                Margin::levered(margin, geom_core::test_support::fixture_lever(domain.extent))
-                    .value();
+            let levered = Margin::levered(
+                margin,
+                geom_core::test_support::fixture_lever(domain.extent),
+            )
+            .value();
             assert_eq!(
                 (levered.to_bits(), boxes),
                 (

@@ -94,7 +94,10 @@ fn order_sine<T: Decide>(
     arm: Lever<T>,
     band: Band,
 ) -> Result<Result<NonzeroSign, Indeterminate>, OrderFault> {
-    let leaned = Margin::levered(leaned(g.dir.cross(h.dir).dot(normal), (g.lean, h.lean)), arm);
+    let leaned = Margin::levered(
+        leaned(g.dir.cross(h.dir).dot(normal), (g.lean, h.lean)),
+        arm,
+    );
     let decided = match reading {
         Reading::Side => crate::validate::decide_nonzero(GERM_SIDE, leaned, band),
         Reading::Order => crate::validate::decide_nonzero(GERM_ORDER, leaned, band),

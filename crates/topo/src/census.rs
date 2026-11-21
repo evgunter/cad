@@ -5396,10 +5396,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(
-            a.dir.cross(b.dir).norm(),
-            a.extent().min(b.extent()),
-        ),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
         band,
         errors,
     )
