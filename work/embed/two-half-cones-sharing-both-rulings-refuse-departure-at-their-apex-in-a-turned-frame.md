@@ -37,6 +37,13 @@ cap) in three frames. On PR 7115's final head:
 | turned 2, the same, cavity: 11,145 / 3,161 / 14,296 | not traced |
 | turned 2, `y0 = 0.3`, `(0.013, 0.9)`, apex down, cavity: `Budget(Pairs)`, 53,208 / 12,328 / 65,530 | D, then A, B and C |
 
+**The verdict moves with ε.** The unit cone tip on the first turned
+plane (`(0, 0) (1, 0) (0, 1)` revolved) holds at the default ε and at
+1e-12, after 10,592 discharged and 10,586 splits, and refuses at 1e-6:
+`Uncertified { 1v1, 2v1, Edge(4v1), Departure }`, 10,712 / 41 / 10,747.
+On the second and third planes it holds at 1,747 and 1,921 splits. The
+plain-frame unit cone holds in 151.
+
 Each refuser's apex is placed in every cell that holds it: the apex's
 collapsed side is among the clips, and the extents end at `0`.
 
