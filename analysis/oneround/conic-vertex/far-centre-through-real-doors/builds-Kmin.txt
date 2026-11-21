@@ -1,0 +1,23 @@
+BUILT sketch-arc D 3e3 eps 1e-9: tier3 ok
+BUILT plane-section D 3e3 eps 1e-9: tier3 ok
+BUILT revolve D 3e3 eps 1e-9: tier3 ok
+BUILT sketch-arc D 1e4 eps 1e-9: tier3 ok
+BUILT plane-section D 1e4 eps 1e-9: tier3 ok
+BUILT revolve D 1e4 eps 1e-9: tier3 ok
+BUILT sketch-arc D 1e5 eps 1e-9: tier3 ok
+BUILT plane-section D 1e5 eps 1e-9: tier3 ok
+BUILT revolve D 1e5 eps 1e-9: tier3 ok
+REFUSED sketch-arc D 1e6 eps 1e-9: extrude: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.3569335937491746e-9, margin: MarginDiag(Value(3.3569335937491746e-9, None, ZeroWord(0))), width: 5.238689482212067e-9, extent: 2.000000000000019 }) } }
+REFUSED revolve D 1e6 eps 1e-9: revolve: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 2.6855468750000094e-9, margin: MarginDiag(Value(2.6855468750000094e-9, None, ZeroWord(0))), width: 4.0745362639427185e-9, extent: 1.999999999999679 }) } }
+REFUSED sketch-arc D 1e7 eps 1e-9: validate: ArcBelowSceneResolution { at: SegmentRef { loop_index: 0, segment_index: 2 }, check: OnCarrier, margin: MarginDiag(Value(1.862645149230957e-9, None, ZeroWord(0))), headroom: MarginDiag(Value(-9435924.146671869, None, ZeroWord(0))) }
+REFUSED revolve D 1e7 eps 1e-9: revolve: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.6718750000000165e-8, margin: MarginDiag(Value(3.6718750000000165e-8, None, ZeroWord(0))), width: 5.960464477539063e-8, extent: 2.0000000000000107 }) } }
+REFUSED sketch-arc D 3e3 eps 1e-12: extrude: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 2.793967646236224e-12, margin: MarginDiag(Value(2.793967646236224e-12, None, ZeroWord(0))), width: 1.8189894035458565e-12, extent: 1.0 }) } }
+REFUSED revolve D 3e3 eps 1e-12: revolve: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.0244548320770307e-11, margin: MarginDiag(Value(1.0244548320770307e-11, None, ZeroWord(0))), width: 1.5006662579253316e-11, extent: 1.9999999629629759 }) } }
+REFUSED sketch-arc D 1e4 eps 1e-12: extrude: Op { source: Certification { error: Escalated { check: MappedSource, sample: 3, cause: Indeterminate { margin: MarginDiag(Value(1.409094372768792e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 2.81e-12 }, predicate: Some("carrier_matches_mapped_source") } } } }
+REFUSED revolve D 1e4 eps 1e-12: revolve: Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.6507844924926925e-11, margin: MarginDiag(Value(3.6507844924926925e-11, None, ZeroWord(0))), width: 6.002665031701326e-11, extent: 1.9999999966666808 }) } }
+REFUSED sketch-arc D 1e5 eps 1e-12: validate: ArcBelowSceneResolution { at: SegmentRef { loop_index: 0, segment_index: 2 }, check: OnCarrier, margin: MarginDiag(Value(1.4551915228366852e-11, None, ZeroWord(0))), headroom: MarginDiag(Value(-98418.11063338611, None, ZeroWord(0))) }
+REFUSED revolve D 1e5 eps 1e-12: revolve: Op { source: Certification { error: ResidualExceeded { check: MappedSource, sample: 0, margin: MarginDiag(Value(6.771381781569934e-12, None, ZeroWord(0))) } } }
+REFUSED sketch-arc D 1e6 eps 1e-12: extrude: Op { source: Certification { error: ResidualExceeded { check: MappedSource, sample: 1, margin: MarginDiag(Value(5.6102871803086e-12, None, ZeroWord(0))) } } }
+REFUSED revolve D 1e6 eps 1e-12: revolve: Op { source: Certification { error: ResidualExceeded { check: MappedSource, sample: 0, margin: MarginDiag(Value(1.0118633442011708e-10, None, ZeroWord(0))) } } }
+REFUSED sketch-arc D 1e7 eps 1e-12: validate: ArcBelowSceneResolution { at: SegmentRef { loop_index: 0, segment_index: 2 }, check: OnCarrier, margin: MarginDiag(Value(1.862645149230957e-9, None, ZeroWord(0))), headroom: MarginDiag(Value(-9998418.11063091, None, ZeroWord(0))) }
+REFUSED revolve D 1e7 eps 1e-12: revolve: Op { source: Certification { error: ResidualExceeded { check: MappedSource, sample: 0, margin: MarginDiag(Value(6.969690322869358e-10, None, ZeroWord(0))) } } }
