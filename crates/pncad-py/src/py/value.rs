@@ -2642,15 +2642,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        // This door asks for no chart-coherence examination, because
-        // `ImportReport` has no field to report one on: asking would
-        // measure the body and drop the measurement. Written as the
-        // literal rather than read off `defaults`, so this line
-        // ENFORCES the sentence above it — a kernel-side default that
-        // flipped one crate away would otherwise turn the examination
-        // on here silently, and the comment would go quietly false.
-        // The surface census carries the decision as a `NotBound` row.
-        examine_chart_coherence: false,
     };
     let imported = pncad::step_import::import_step(text, &options, tol);
     let curve_promotions = imported
@@ -2663,10 +2654,6 @@ pub(crate) fn import_step(
             eps_in,
             normalizations,
             instances,
-            // `None` by construction: the options above ask for no
-            // examination, and `None` means NOT ASKED — which is the
-            // one thing an empty report would not say.
-            coherence: _,
             contacts,
             // The rows `contacts` cite: the body carries its records,
             // and the rows are the import's own decisions, which no

@@ -95,6 +95,12 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::extent::turn_lever`: the axial offset's rounding.
 - `geom_brep::intersect` (`plane_cone_section`'s gap and axis charges,
   `pair_bound`'s seam).
+- `geom_brep::ssi::certify::frame_direction` (`FRAME_ROUNDING`, `pose`):
+  a frame direction lifted to an enclosure is read at its midpoint where
+  each component is at most 16 ulps wide, and refused as a family past
+  that; owed with the midpoint read itself, which goes when the ring
+  composite takes enclosure-valued coefficients
+  (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`).
 - `geom_brep::pair_section::spline_implicit::bracket`,
   `pair_section::torus` (`decide`, `sphere_gap`),
   `pair_section::torus_arms` (`square_pose`, `square_folds`).

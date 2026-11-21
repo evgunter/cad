@@ -122,24 +122,27 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
             let lifted = carrier.map_scalar(i);
             let (u, v) = lifted.conic()?.semi_axis_vectors();
             Some(Harmonic {
-                p0: pt(carrier.conic()?.frame().origin),
+                p0: pt(carrier.conic()?.frame().origin()),
                 u: vc(u),
                 v: vc(v),
                 alpha: Alpha::Cos,
             })
         }
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame,
             major_radius,
             minor_radius,
             offset,
         } => {
-            let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
+            // The axes at the enclosure scalar as the frame's lift there
+            // gives them (`Frame::map_scalar`): the rotation the stated
+            // frame names, enclosed, as the conic arm reads its axes.
+            let center = frame.origin();
+            let lifted = frame.map_scalar(i);
+            let (axis, u_ref) = (lifted.axis(), lifted.u_ref());
             let (minor, offset) = (i(*minor_radius), i(*offset));
             Some(Harmonic {
-                p0: pt(*center) + vc(u_ref * offset),
+                p0: pt(center) + vc(u_ref * offset),
                 u: vc(axis.cross(u_ref)),
                 v: vc(axis * minor),
                 alpha: Alpha::Spiric {
@@ -1097,9 +1100,11 @@ mod tests {
                 0.7,
             )),
             Curve3::Spiric {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: 1.2,
                 minor_radius: 0.225,
                 offset: 0.05,
@@ -1200,9 +1205,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame: geom::Frame::new(center, axis, u_ref),
                     major_radius: 2.0,
                     minor_radius: 0.5,
                     offset: 0.7,
@@ -1245,9 +1248,7 @@ mod tests {
                 0.4,
             )),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame: geom::Frame::new(center, axis, u_ref),
                 major_radius: 2.0,
                 minor_radius: 0.5,
                 offset: 0.7,
@@ -1344,9 +1345,11 @@ mod tests {
     #[test]
     fn the_door_names_the_kind_and_span_it_cannot_enclose() {
         let carrier = Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset: 1.5,

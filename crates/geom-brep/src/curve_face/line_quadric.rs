@@ -186,51 +186,57 @@ pub(super) fn line_method<T: Decide>(
         (
             Formed::LineCone { parallel: false },
             geom::Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
-        ) => cone_roots(
-            line,
-            (
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-            ),
-            (t0, t1),
-            band,
-        )
-        .map(|placed| Roots::<T, 2>::all(placed.map(|(t, _)| t)).widen())
-        .map_err(LineMethodRefusal::Unsettled),
+        ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            cone_roots(
+                line,
+                (
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                ),
+                (t0, t1),
+                band,
+            )
+            .map(|placed| Roots::<T, 2>::all(placed.map(|(t, _)| t)).widen())
+            .map_err(LineMethodRefusal::Unsettled)
+        }
         (
             Formed::LineTorus,
             geom::Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
                 ..
             },
-        ) => match line_torus_roots(
-            line,
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            major_radius,
-            minor_radius,
-            band,
-        ) {
-            Ok(found) => Ok(found.widen()),
-            Err(RootRefusal::Unsettled(why)) => Err(LineMethodRefusal::Unsettled(why)),
-            Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
-                Err(LineMethodRefusal::Escalated(diag))
+        ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            match line_torus_roots(
+                line,
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
+                major_radius,
+                minor_radius,
+                band,
+            ) {
+                Ok(found) => Ok(found.widen()),
+                Err(RootRefusal::Unsettled(why)) => Err(LineMethodRefusal::Unsettled(why)),
+                Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
+                    Err(LineMethodRefusal::Escalated(diag))
+                }
+                Err(RootRefusal::Fault(fault)) => {
+                    Err(LineMethodRefusal::Invariant(fault.readings()))
+                }
             }
-            Err(RootRefusal::Fault(fault)) => Err(LineMethodRefusal::Invariant(fault.readings())),
-        },
+        }
         _ => Err(LineMethodRefusal::Invariant(
             "the line arm's method was handed a form of another arm",
         )),
@@ -1653,11 +1659,13 @@ pub mod fixtures {
     #[must_use]
     pub fn torus_about_y(rr: f64, rm: f64) -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: rr,
             minor_radius: rm,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

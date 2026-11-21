@@ -258,17 +258,13 @@ pub fn circle_crossings<T: Decide>(
     (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let v_ref = axis.cross(u_ref);
+    // The circle on the frame its stated directions square to; the
+    // crossings' velocity reads that same frame, so it is the carrier's.
+    let frame = geom::Frame::new(center, axis, u_ref);
+    let (axis, u_ref, v_ref) = (frame.axis(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
-    let carrier = Curve3::Circle(geom::Circle::new(
-        geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
-        radius,
-    ));
+    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
     let reach = geom_brep::ExtentBall::of_covered(
         geom::cover::Cover::circle(geom::cover::Core {
             axis: geom::Line {
@@ -357,9 +353,8 @@ pub fn plane_misses<T: Decide>(
     // from `anchor` across it.
     let off = |anchor: Point3<T>, reach: T| beyond((anchor - point).dot(normal).abs() - reach);
     match *surface {
-        Surface::Plane {
-            origin, normal: n, ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, n) = (frame.origin(), frame.axis());
             // A tilted plane meets it; a parallel one misses it off it.
             let tilt = n.cross(normal).norm();
             match sign_as(
@@ -388,19 +383,17 @@ pub fn plane_misses<T: Decide>(
         }
         // A tilted cylinder runs across the plane; one parallel to it
         // misses it beyond its radius.
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match sign_as(
-            TRACE_PLANE_LEAD,
-            Margin::levered(axis.dot(normal), geom_brep::uniform_curvature_arm(surface)),
-            band,
-        )? {
-            Sign::Zero => off(origin, radius),
-            Sign::Positive | Sign::Negative => Ok(false),
-        },
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            match sign_as(
+                TRACE_PLANE_LEAD,
+                Margin::levered(axis.dot(normal), geom_brep::uniform_curvature_arm(surface)),
+                band,
+            )? {
+                Sign::Zero => off(origin, radius),
+                Sign::Positive | Sign::Negative => Ok(false),
+            }
+        }
         Surface::Cone { .. } => Ok(false),
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }
