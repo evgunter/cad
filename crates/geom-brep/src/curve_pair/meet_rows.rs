@@ -3404,3 +3404,117 @@ fn a_touch_parted_about_its_roots_in_the_band_escalates() {
         );
     }
 }
+
+/// A segment between a thin ellipse's branches, from 3d's full review: the
+/// ellipse in `z = 0` of semi-axes `a` and `b`, ended over `(−π, π)` or
+/// endless, and the segment `o + s·d̂`, its span `(s₀, s₁)`.
+fn between_branches(
+    (a, b, endless): (f64, f64, bool),
+    (o, d, span): ([f64; 3], [f64; 3], (f64, f64)),
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    let l = line(o, d);
+    let sk = Span::new(&k, (-PI, PI));
+    let sk = if endless { sk.endless() } else { sk };
+    let sl = Span::new(&l, span);
+    [meet(&sl, &sk, band), meet(&sk, &sl, band)]
+}
+
+/// A pose for [`between_branches`]: the ellipse's semi-axes and whether
+/// its span is endless, and the segment's origin, direction and span.
+type BetweenPose = ((f64, f64, bool), ([f64; 3], [f64; 3], (f64, f64)));
+
+/// The review's segment within the zero of a thin ellipse's branch
+/// (`a = 0.108`, `b = 2.9·10⁻⁵`), its least distance `8.35·10⁻¹⁰` m.
+const BETWEEN_NEAR: BetweenPose = (
+    (0.108_414_812_545_136_91, 2.923_990_457_646_519_8e-5, false),
+    (
+        [
+            -0.047_230_398_955_089_5,
+            5.922_683_356_092_924e-6,
+            3.160_679_294_130_166_7e-10,
+        ],
+        [
+            4.773_547_637_167_243e-4,
+            0.999_999_885_742_704_6,
+            2.543_633_518_027_999e-5,
+        ],
+        (-2.952_255_572_265_591e-5, 3.866_968_497_781_044e-5),
+    ),
+);
+
+/// The review's segments across both branches of a wider ellipse
+/// (`a = 1`), each meeting it twice, the two meetings apart past the band:
+/// (i) on an endless ellipse, (ii) on an ended one.
+const BETWEEN_TWICE: [BetweenPose; 2] = [
+    (
+        (1.0, 1.084_401_731_610_84e-2, true),
+        (
+            [0.009_225_004_908_217_026, 1.347_379_850_411_214e-4, 0.0],
+            [
+                -0.201_311_626_097_252_53,
+                0.979_527_247_807_879_4,
+                3.651_219_422_512_194e-8,
+            ],
+            (-0.017_734_429_318_869_867, 0.027_055_915_598_815_886),
+        ),
+    ),
+    (
+        (1.0, 1.847_622_951_437_222_6e-2, false),
+        (
+            [-0.103_162_797_900_067_53, 0.001_209_878_119_474_769_7, 0.0],
+            [
+                0.679_150_641_167_506_5,
+                0.733_998_914_578_055_7,
+                3.128_064_322_160_38e-8,
+            ],
+            (-0.031_246_318_019_771_79, 0.038_004_926_856_199_75),
+        ),
+    ),
+];
+
+/// **A segment between a thin ellipse's branches, within the zero of one,
+/// is never read as no meeting.** [`BETWEEN_NEAR`]'s pose: the ball about
+/// the crossing holds both branches, `2b` apart in metres and half the
+/// ellipse apart in arc. The span outside the angles about the polished
+/// pair is not clear of the ball, so the arc is read as the half turn, and
+/// the basin refuses, in either order. Red with the walk off (the angles
+/// about the pair taken to hold the window): the basin passes on the near
+/// branch's curvature, and the pair is read no meeting.
+#[test]
+fn a_segment_between_a_thin_ellipses_branches_is_never_read_as_no_meeting() {
+    let (k, l) = BETWEEN_NEAR;
+    for (order, got) in ["segment first", "ellipse first"]
+        .into_iter()
+        .zip(between_branches(k, l, band()))
+    {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "{order}: no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A segment across both branches of an ellipse is never read as one
+/// meeting.** [`BETWEEN_TWICE`]'s two poses at the bands `(10⁻⁹, 10⁻⁸)` and
+/// `(10⁻⁹, 1.05·10⁻⁹)`: two meetings, half the ellipse apart in arc, both in
+/// the ball about the crossing. The basin refuses, in either order. Red
+/// with the walk off: the basin passes, and one meeting is read for two.
+#[test]
+fn a_segment_across_both_branches_of_an_ellipse_is_never_read_as_one_meeting() {
+    for escalate in [1e-8, 1.05e-9] {
+        let band = Band::new(1e-9, escalate).unwrap();
+        for (n, (k, l)) in BETWEEN_TWICE.into_iter().enumerate() {
+            for (order, got) in ["segment first", "ellipse first"]
+                .into_iter()
+                .zip(between_branches(k, l, band))
+            {
+                assert!(
+                    !matches!(&got, Ok(m) if m.points.len() < 2),
+                    "pose {n}, escalate {escalate:e}, {order}: fewer than two meetings: {got:?}"
+                );
+            }
+        }
+    }
+}

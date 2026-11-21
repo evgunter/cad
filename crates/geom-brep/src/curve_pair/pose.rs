@@ -404,11 +404,13 @@
 //! carrier is within `e` of the other's plane, so it lies on the arc
 //! about a crossing or a touch where the height is within `e`: `ℓ`, read
 //! off the harmonic (or `e/σ` on a line). The *window* is the pairs of
-//! the two spans within `region = 2(ℓ + e)` of where the polish starts,
-//! on either carrier: the region about the crossing, intersected with the
-//! spans. Every pair of the spans within `e` of each other near the
-//! crossing is in it. Nothing reads whether the polish converged: the
-//! pair is a place, and what it says of the window is a bound.
+//! the two spans within `e` of each other whose first point lies within
+//! `ℓ` of the crossing along the first carrier: so both points lie in the
+//! ball of `ℓ + e` about the crossing, in metres. Every pair of the spans
+//! within `e` of each other near the crossing is in it, and the gap's
+//! lower bound reads it as arcs from the polished pair ((P1) below).
+//! Nothing reads whether the polish converged: the pair is a place, and
+//! what it says of the window is a bound.
 //!
 //! **Held to the spans.** The polish is held to the two spans
 //! ([`super::polish::pair_held`]; an endless span holds nothing), as the
@@ -473,9 +475,14 @@
 //!     sides of a gap within the ball) are clear of the ball of `ℓ + e`
 //!     about the crossing, by the span's own walk
 //!     ([`Span::clear_by`]; each piece's place against `J` proved,
-//!     `curve_pair_pose_window_piece`). Then `arc₂ = ρ·max |C′|` over
+//!     `curve_pair_pose_window_piece`). The pieces end at `J`'s own
+//!     bounds `t ∓ ρ` (and their copies), the same values, so at `f64` they
+//!     abut `J` exactly. At an interval scalar each walked piece's ball
+//!     reaches its ends' enclosures (its reach is the enclosed width at
+//!     the greatest speed), as `J`'s arc does, so no sliver between them
+//!     goes unwalked. Then `arc₂ = ρ·max |C′|` over
 //!     `J`, the arc from `q` within `J`. Otherwise, or where `ρ` reaches
-//!     half a turn, `arc₂` is half the turn at the conic's greatest
+//!     half a turn (`curve_pair_pose_window_half`), `arc₂` is half the turn at the conic's greatest
 //!     speed, a point's arc from `q` taken the shorter way round. The
 //!     choice of `ρ` is a heuristic; the walk is the proof, so a foot
 //!     landed on a thin ellipse's other branch, or a carrier coming round
@@ -817,6 +824,7 @@ mod row {
     pub(super) const SLANT_TIGHT: &str = "curve_pair_pose_slant_tight";
     pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
     pub(super) const WINDOW_PIECE: &str = "curve_pair_pose_window_piece";
+    pub(super) const WINDOW_HALF: &str = "curve_pair_pose_window_half";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -1106,8 +1114,8 @@ impl<T: Decide> Side<'_, T> {
     /// `J` is half a turn or more, the arc is at most half the carrier's
     /// turn at its greatest speed, taken the shorter way round.
     ///
-    /// Returns the arc and the metres at the least speed that cover `J`'s
-    /// angles, for [`Self::curvature_near`].
+    /// Returns the arc and the angle about `t` it covers, `ρ` or the half
+    /// turn, for [`Self::curvature_near`].
     fn arc_from(
         self,
         span: &Span<'_, T>,
@@ -1119,13 +1127,10 @@ impl<T: Decide> Side<'_, T> {
         let Self::Conic(k) = self else {
             return (radius, T::zero());
         };
-        let whole = (T::pi() * k.speed_hi(), T::pi() * k.speed_lo());
+        let whole = (T::pi() * k.speed_hi(), T::pi());
         let half = T::pi() / T::from_f64(2.0);
         let rho = half * radius / k.jet_at(t).1.norm();
-        let proved = |x: T, y: T| {
-            geom_core::k_stats::param_order(row::WINDOW_PIECE, x, y) == Ok(Sign::Positive)
-        };
-        if !proved(T::pi(), rho) {
+        if geom_core::k_stats::param_order(row::WINDOW_HALF, T::pi(), rho) != Ok(Sign::Positive) {
             return whole;
         }
         let (from, to) = (t - rho, t + rho);
@@ -1158,46 +1163,54 @@ impl<T: Decide> Side<'_, T> {
         if !clear {
             return whole;
         }
-        (rho * self.speed_near(t, rho), rho * k.speed_lo())
+        (rho * speeds_within(k, t, rho).1, rho)
     }
 
-    /// The greatest speed over the angles within `rho` of `t`: on a conic
-    /// `|C′|² = b² + (a² − b²)·sin²θ` at its greatest there, its greatest
-    /// overall where they reach the fastest angle.
-    fn speed_near(self, t: T, rho: T) -> T {
+    /// The angle at the least speed that `reach` metres of the carrier
+    /// cover, the most a run of that length turns through: on a line,
+    /// none.
+    fn angle_of(self, reach: T) -> T {
+        match self {
+            Self::Line(_) => T::zero(),
+            Self::Conic(k) => reach / k.speed_lo(),
+        }
+    }
+
+    /// A bound on the curvature over the angles within `rho` of `t`: zero
+    /// on a line; on a conic `ab/|C′|³` at its least speed there
+    /// ([`speeds_within`]).
+    fn curvature_near(self, t: T, rho: T) -> T {
         let Self::Conic(k) = self else {
             return T::zero();
         };
         let (a, b) = k.semi_axes();
-        let half = T::pi() / T::from_f64(2.0);
-        // How near the angles come to where `|C′|` is greatest:
-        // `θ ≡ π/2 (mod π)` where `a ≥ b`, `θ ≡ 0` otherwise.
-        let fast = (a - b).select_le_zero(t, t - half);
-        let off = (fast.reduce_periodic_centred(T::pi()).abs() - rho).max(T::zero());
-        let near = off.min(half).cos().powi(2);
-        let (long, short) = (k.speed_hi(), k.speed_lo());
-        (short.powi(2) + (long.powi(2) - short.powi(2)) * near).sqrt()
+        a * b / speeds_within(k, t, rho).0.powi(3)
     }
+}
 
-    /// A bound on the curvature within `reach` metres of `t`: zero on a
-    /// line; on a conic `ab/|C′|³` at its least speed over the angles
-    /// `reach` at the least speed covers, `|C′|² = b² + (a² − b²)·sin²θ`.
-    fn curvature_near(self, t: T, reach: T) -> T {
-        let Self::Conic(k) = self else {
-            return T::zero();
-        };
-        let (a, b) = k.semi_axes();
-        let run = reach / k.speed_lo();
-        let half = T::pi() / T::from_f64(2.0);
-        // How near the arc comes to where `|C′|` is least: `θ ≡ 0 (mod π)`
-        // where `a ≥ b`, `θ ≡ π/2` otherwise.
-        let slow = (a - b).select_le_zero(t - half, t);
-        let off = (slow.reduce_periodic_centred(T::pi()).abs() - run).max(T::zero());
-        let near = off.min(half).sin().powi(2);
-        let (long, short) = (k.speed_hi(), k.speed_lo());
-        let least = (short.powi(2) + (long.powi(2) - short.powi(2)) * near).sqrt();
-        a * b / least.powi(3)
-    }
+/// **A conic's least and greatest speed over the angles within `rho` of
+/// `t`**: `|C′|² = b² + (a² − b²)·sin²θ`, least where the angles come
+/// nearest `θ ≡ 0 (mod π)` and greatest nearest `θ ≡ π/2` (for `a ≥ b`;
+/// the other way round otherwise), each its extreme overall where the
+/// angles reach it.
+fn speeds_within<T: Decide>(k: &dyn Conic<T>, t: T, rho: T) -> (T, T) {
+    let (a, b) = k.semi_axes();
+    let half = T::pi() / T::from_f64(2.0);
+    let (slow, fast) = (
+        (a - b).select_le_zero(t - half, t),
+        (a - b).select_le_zero(t, t - half),
+    );
+    let off = |x: T| {
+        (x.reduce_periodic_centred(T::pi()).abs() - rho)
+            .max(T::zero())
+            .min(half)
+    };
+    let (long, short) = (k.speed_hi(), k.speed_lo());
+    let speed = |s2: T| (short.powi(2) + (long.powi(2) - short.powi(2)) * s2).sqrt();
+    (
+        speed(off(slow).sin().powi(2)),
+        speed(off(fast).cos().powi(2)),
+    )
 }
 
 /// A crossing or touch of the other's plane, polished to the carriers'
@@ -1271,7 +1284,7 @@ impl<T: Decide> Polish<'_, T> {
         // is within the ball about the crossing, so within the ball and
         // `q`'s own distance from the crossing of `q`, read as an arc
         // from `q` (module docs, (P1)).
-        let span_a = region + self.a.run(s0, s);
+        let along_a = region + self.a.run(s0, s);
         let (arc_b, near_b) = self.b.arc_from(
             self.span_b,
             t,
@@ -1279,8 +1292,9 @@ impl<T: Decide> Polish<'_, T> {
             (crossing, ball),
             band,
         );
-        let span = span_a.max(arc_b);
-        let curvature = self.a.curvature_near(s0, span_a) + self.b.curvature_near(t, near_b);
+        let span = along_a.max(arc_b);
+        let curvature =
+            self.a.curvature_near(s0, self.a.angle_of(along_a)) + self.b.curvature_near(t, near_b);
         // A side held at an end of its span reads its window's arcs
         // into the span alone, so the gap is read across the other
         // side's tangent with the held arc a half-line (module docs, "A
