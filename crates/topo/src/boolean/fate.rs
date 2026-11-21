@@ -584,7 +584,16 @@ pub(super) fn bisector<T: Decide>(
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
     let (dir, len) = mid.direction_and_length();
-    match sign(len, T::one(), band)? {
+    // The bounds' sum, levered at the nearer of the bounds' reaches: the
+    // gap between one bound's point there and the other's reflection.
+    let [(_, start), (_, end)] = s.reached_bounds();
+    match crate::validate::decide(
+        "bool_fate_corner",
+        Margin::levered(len, start.min(end)),
+        band,
+    )
+    .map_err(corner_refused)?
+    {
         Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
@@ -2561,6 +2570,62 @@ mod spline_departure_rows {
         assert!(
             (below.length() - 2.0).abs() < 1e-12 && (2.0..2.2).contains(&above.length()),
             "with its reach from the start between 2 and the bound's slack: {below:?}, {above:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod bisector_rows {
+    use geom_core::test_support::fixture_lever;
+    use geom_core::{Band, Vec3};
+
+    use super::bisector;
+    use crate::boolean::BooleanError;
+    use crate::boolean::sectors::{BoolSector, BoundSupport};
+    use crate::entity::{FaceKey, HalfEdgeKey};
+
+    /// A planar sector between `x̂` and a bound `δ` short of its
+    /// opposite, its bounds reaching `0.01` and `0.02`.
+    fn sector(delta: f64) -> BoolSector<f64> {
+        let (near, far) = (fixture_lever(0.01), fixture_lever(0.02));
+        BoolSector {
+            he: HalfEdgeKey::default(),
+            start: Vec3::new(1.0, 0.0, 0.0),
+            end: Vec3::new(-delta.cos(), delta.sin(), 0.0),
+            start_reach: BoundSupport::Extent(near),
+            end_reach: BoundSupport::Extent(far),
+            face: FaceKey::default(),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
+            bend: crate::bound_side::FaceBend::Plane,
+            // The departures' metering arm, which this reading does not use.
+            arm: fixture_lever(1.0),
+        }
+    }
+
+    /// **The bisector's length is read at its bounds' nearer reach.**
+    /// Bounds `1e-7` short of opposite are a sector a half-turn wide to
+    /// within `1e-9` at the nearer reach `0.01`, the band's zero: no
+    /// inside, an invariant refusal. A unit arm would read `1e-7`, past
+    /// the escalation, and the farther reach `2e-9`, in band. Bounds `1e-5`
+    /// short read `1e-7` there, an inside.
+    #[test]
+    fn a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        assert!(
+            matches!(
+                bisector(&sector(1e-7), band),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "1e-7 short of a half-turn: no inside at the nearer reach"
+        );
+        let dir = bisector(&sector(1e-5), band).expect("1e-5 short: an inside");
+        assert!(
+            dir.y > 0.99,
+            "the bisector points between the bounds: {dir:?}"
         );
     }
 }

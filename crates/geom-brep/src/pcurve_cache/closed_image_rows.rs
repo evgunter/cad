@@ -1521,6 +1521,49 @@ fn a_focal_section_whose_beta_is_not_below_one_ends_as_its_defect() {
     assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
 }
 
+/// **A focal section's `|β|` below one by any room is cut-free**: the
+/// true-anomaly map's `atan2` argument keeps `1 − |β|` from the origin,
+/// so the structure check reads that room's sign alone. A cone's section
+/// stated with `|β|` at `1 − 2⁻⁴⁰`, a room far under the band at any
+/// arm, passes it; at `1` it does not.
+#[test]
+fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
+    let mut g = fuzz::start("focal_beta_any_room");
+    let mut seen = 0;
+    for _ in 0..40 {
+        let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) else {
+            continue;
+        };
+        let span = (0.2, 2.0);
+        let Ok(Pcurve::FocalSection(f)) =
+            chart_pcurve_over(&ellipse, span.0, span.1, &cone, band())
+        else {
+            continue;
+        };
+        let beta_refused = |beta: f64| {
+            let image = Pcurve::FocalSection(FocalImage {
+                beta: beta * f.beta.signum(),
+                ..f
+            });
+            matches!(
+                super::focal_section_identity(&image, span, &cone, None, band()),
+                Err(super::PcurveCertifyError::ImageMismatch { why, .. }) if why.contains("|β|")
+            )
+        };
+        assert!(
+            !beta_refused(1.0 - 2f64.powi(-40)),
+            "a room of 2⁻⁴⁰ is cut-free ({})",
+            fuzz::replay()
+        );
+        assert!(beta_refused(1.0), "no room is refused ({})", fuzz::replay());
+        seen += 1;
+        if seen == 3 {
+            break;
+        }
+    }
+    assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
+}
+
 /// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the
 /// height `z`.
 fn rim_image(phase: f64, winding: i32, z: f64) -> Pcurve<f64> {

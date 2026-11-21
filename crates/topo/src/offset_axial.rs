@@ -282,7 +282,7 @@
 //! As in the planar door, a dimensionless quantity's lever is the
 //! geometry being judged and never the request: the profile solve's
 //! `|det|` — a sine between two unit 2-D normals — is levered by the
-//! ARC LENGTHS of the corner's own incident edges, and the azimuth
+//! arms of the corner's own incident edges ([`corner_arms`]), and the azimuth
 //! solve's two roots
 //! are separated by a LENGTH that is metered as one. A corner asked to
 //! move nothing is answered before any meter runs. This is also what
@@ -1221,16 +1221,15 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// The arm of every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// A line reads its chord ([`geom_brep::edge_extent_inf`], whose two
+/// bounds are equal on a line), as in the planar door; so does every
+/// carrier but a circle. A circle reads its arc length: a full revolve's
+/// rim arc runs half a turn and a chart with ONE seam closes on itself,
+/// whose chord is exactly zero, and a zero arm makes every meter read
+/// `Zero` and calls a transversal corner degenerate.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1253,22 +1252,13 @@ fn corner_arms<T: Decide>(
         };
         let (t0, t1) = curve.params();
         out.push(match curve.carrier() {
-            // A line's parameter IS arc length, so its span is its chord;
-            // a circle's is an angle levered by its own radius. Anything
-            // else falls back to the endpoints' chord, which is what the
-            // carrier can say.
-            Curve3::Line(_) => {
-                // Unsourced lever: a length read off the parameter span, not the edge's end
-                // points; the end points' distance rounds differently.
-                Lever::unsourced((t1 - t0).abs())
-            }
             Curve3::Circle(circle) => {
                 let radius = circle.radius();
                 // Unsourced lever: the arc's length, an angular span times its radius, is
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
                 Lever::unsourced((t1 - t0).abs() * radius)
             }
-            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
+            carrier => geom_brep::edge_extent_inf(carrier, t0, t1),
         });
     }
     Ok(out)
