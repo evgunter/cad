@@ -1315,16 +1315,13 @@ fn transport_curve<T: Decide>(
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
                 Curve3::Circle(geom::Circle { frame, .. }) => {
-                    let (center, ca, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                    let v = (center - apex).dot(axis) / cos_a;
+                    let v = (frame.origin() - apex).dot(axis) / cos_a;
                     let v_new = v + action.shift();
                     Some((
-                        Curve3::circle(
-                            action.apex() + axis * (v_new * cos_a),
-                            ca,
+                        Curve3::Circle(geom::Circle::new(
+                            frame.with_origin(action.apex() + axis * (v_new * cos_a)),
                             (v_new * sin_a).abs(),
-                            u_ref,
-                        ),
+                        )),
                         None,
                     ))
                 }

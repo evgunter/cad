@@ -58,6 +58,8 @@ use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalizat
 enum Chart {
     /// A sphere: two poles, `[north, south]`.
     Sphere {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
         axis: Vec3<f64>,
@@ -65,6 +67,8 @@ enum Chart {
     },
     /// A cone: the apex.
     Cone {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         apex: Point3<f64>,
         axis: Vec3<f64>,
         half_angle: f64,
@@ -78,6 +82,7 @@ impl Chart {
             Surface::Sphere { frame, radius } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Some(Self::Sphere {
+                    frame,
                     center,
                     radius,
                     axis,
@@ -87,6 +92,7 @@ impl Chart {
             Surface::Cone { frame, half_angle } => {
                 let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Some(Self::Cone {
+                    frame,
                     apex,
                     axis,
                     half_angle,
@@ -117,27 +123,14 @@ impl Chart {
         }
     }
 
-    /// The surface the chart reads.
+    /// The surface the chart reads: its stored frame carried, not
+    /// squared again.
     fn surface(self) -> Surface<f64> {
         match self {
-            Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                frame: geom::Frame::new(center, axis, u_ref),
-                radius,
-            },
+            Self::Sphere { frame, radius, .. } => Surface::Sphere { frame, radius },
             Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                frame: geom::Frame::new(apex, axis, u_ref),
-                half_angle,
-            },
+                frame, half_angle, ..
+            } => Surface::Cone { frame, half_angle },
         }
     }
 

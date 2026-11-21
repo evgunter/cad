@@ -46,27 +46,20 @@ their junctions now close, and they reach this read.
 
 At ε = 1e-9 and 1e-6 every one of them measures.
 
-**Through a door.** The tilted hollow tube
+**Through a door: resolved by PR 7131.** The tilted hollow tube
 (`sweep::tube_along_arc_hollow`, axis (1, 1, 1)/√3 through the origin,
 outer 2.5, wall 0.001, full period) is built at `f64` and measured at
-`Interval`. With its `f64` frames lifted as points, it built every
-major through 800 at ε = 1e-12 on main at `a0924e461`. Lifted as the
-enclosures of their rotations (PR 7131), it builds through major 450
-and refuses from 550 on: 550 `[0, 1.37e-12]`, 600 `1.60e-12`, 700
-`1.01e-12`, 750 `1.08e-12`, 800 `1.15e-12`. With the enclosure read as
-its midpoint every major from 300 to 1100 builds. When this row was
-filed it built through 750, and the margins from 800 on were:
-
-| major | margin |
-|---|---|
-| 800 | `[0, 1.08e-12]` |
-| 850 | `[0, 1.14e-12]` |
-| 900 | `[0, 1.22e-12]` |
-| 990 | `[0, 1.36e-12]` |
-| 1100 | `[0, 1.88e-12]` |
-
-The 990 and 1100 arms are pinned in
-`crates/sweep/tests/far_walls_read_their_whole_turns.rs`.
+`Interval`. When this row was filed it built through major 750 at ε =
+1e-12 and refused past it (800 `[0, 1.08e-12]` up to 1100
+`[0, 1.88e-12]`; main pinned 990 and 1100). What widened that miss
+was not the carried arc's own arithmetic but the mass properties'
+translation (`topo` `props::quad_lane::translated_surface`)
+re-squaring every frame it moved, at `Interval` a Gram–Schmidt over
+the frame's enclosure. PR 7131 carries the frame there, and the tube
+measures at every major from 300 to 1100 at every ε
+(`crates/sweep/tests/far_walls_read_their_whole_turns.rs`, red with
+the translation re-squared). The walls below are not through that
+door, and stay open.
 
 **What it is made of.** A carried arc's miss is the principal angle
 from its start, turned by its own turn, to its end, read about its

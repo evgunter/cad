@@ -1504,13 +1504,14 @@ impl<T: Real> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
+                // The axis and the seam both run back, `v` kept: a signed
+                // permutation of the stored frame, nothing squared.
+                let turned = carrier_frame
+                    .motion()
+                    .with_signed_axes((0, true), (1, false))
+                    .unwrap_or_else(|| unreachable!("u and v are two axes"));
                 Curve3::Spiric {
-                    frame: crate::Frame::new(center, -axis, -u_ref),
+                    frame: crate::Frame::of_motion(&turned),
                     major_radius,
                     minor_radius,
                     offset: T::zero() - offset,

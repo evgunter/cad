@@ -90,7 +90,8 @@ const POLARS: [f64; 4] = [0.2, 0.6, 1.6, 2.9];
 /// **Both doors against the closed-form bead**, at two poses and two
 /// scales: every verdict the doors give is the one the geometry gives.
 ///
-/// It builds, and every door answers, at every ε. The tilted bead at
+/// It builds, measures its napkin-ring volume `(4/3)π·(R² − r²)^{3/2}`,
+/// and every door answers, at every ε. The tilted bead at
 /// scale 100 refused at ε 1e-12 while the mass properties' translation
 /// (`topo` `props::quad_lane::translated_surface`) re-squared each frame
 /// it moved (PR 7131); it goes red with it re-squared through
@@ -106,6 +107,16 @@ fn both_doors_answer_the_bead_by_its_height_window() {
             let body = crate::common::bead::try_bead(pose.plane(), big_r, r, Revolution::Full);
             let body = body.unwrap();
             assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
+            // The bored sphere's volume: a napkin ring of half-height
+            // `√(R² − r²)`, `(4/3)π·h³` whatever the sphere's radius.
+            let at_rest = topo::finish(body.clone(), Tol::witness()).unwrap();
+            let got =
+                topo::test_support::pinned_volume("the bead", &at_rest, Tol::witness()).volume;
+            let want = 4.0 / 3.0 * core::f64::consts::PI * hr.powi(3);
+            assert!(
+                (got - want).abs() <= 1e-9 * want,
+                "tilted {tilted}, scale {scale}: the bead's volume {got} against {want}"
+            );
             let (wall, zone) = (the_face(&body, true), the_face(&body, false));
             let tag = format!("tilted {tilted}, scale {scale}");
             for a in AZIMUTHS {

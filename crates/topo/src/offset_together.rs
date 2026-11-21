@@ -515,11 +515,10 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
-        let (origin, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
         charts.push(crate::replace_face::offset_rechart(
             &work,
             Surface::Plane {
-                frame: geom::Frame::new(origin + p.delta, p.normal, u_ref),
+                frame: carrier_frame.with_origin(carrier_frame.origin() + p.delta),
             },
             &m.faces,
         )?);

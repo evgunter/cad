@@ -344,11 +344,8 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                 minor_radius: minor,
                 offset,
             } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let oval = Oval {
-                    center,
-                    axis,
-                    u_ref,
+                    frame,
                     major,
                     minor,
                     offset,

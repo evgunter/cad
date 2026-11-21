@@ -17,7 +17,7 @@ test_utils::gated_to![
 
 use super::*;
 use crate::splitting::pieced_arc::{ArcHit, ArcRows};
-use geom_core::{Interval, Tol};
+use geom_core::{Interval, Tol, Vec3};
 use test_utils::fuzz::Rng;
 
 const ROWS: ArcRows = crate::rows::FUZZ_SPIRIC_ARC;
@@ -103,9 +103,7 @@ fn oval<T: Decide>(t: Torus, c: Point3<f64>, (axis, u): (Vec3<f64>, Vec3<f64>)) 
     let f = T::from_f64;
     let v3 = |v: Vec3<f64>| Vec3::new(f(v.x), f(v.y), f(v.z));
     Oval {
-        center: Point3::new(f(c.x), f(c.y), f(c.z)),
-        axis: v3(axis),
-        u_ref: v3(u),
+        frame: geom::Frame::new(Point3::new(f(c.x), f(c.y), f(c.z)), v3(axis), v3(u)),
         major: f(t.big),
         minor: f(t.r),
         offset: f(t.o),
@@ -128,7 +126,7 @@ fn the_rate_bounds_hold_over_every_admitted_regime() {
             (0.0, 1.0),
         );
         let c = geom::Curve3::Spiric {
-            frame: geom::Frame::new(k.oval.center, k.oval.axis, k.oval.u_ref),
+            frame: k.oval.frame,
             major_radius: t.big,
             minor_radius: t.r,
             offset: t.o,

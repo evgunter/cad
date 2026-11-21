@@ -2019,18 +2019,24 @@ mod tests {
         band: Band,
         pair: fn(T) -> (f64, f64),
     ) -> Result<Vec<(f64, f64)>, String> {
+        // The frames the oracle's pins are taken on (`shallow_sweep`'s
+        // `Pose`): the stated bits admitted as they are, then carried to
+        // the lane, so the door reads the carrier the truth was found on.
         let at = T::from_f64;
-        let p = |i: usize| Point3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
-        let w = |i: usize| Vec3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
+        let p = |i: usize| Point3::new(v[i], v[i + 1], v[i + 2]);
+        let w = |i: usize| Vec3::new(v[i], v[i + 1], v[i + 2]);
+        let circle_frame = geom::Frame::admitted(p(2), w(5), w(9))
+            .unwrap_or_else(|| panic!("a pose's circle frame is rigid within rounding"));
+        let torus_frame = geom::Frame::admitted(p(12), w(15), w(15).orthonormal_basis().0)
+            .unwrap_or_else(|| panic!("a pose's torus frame is rigid within rounding"));
+        let carrier =
+            geom::Curve3::Circle(geom::Circle::new(circle_frame, v[8])).map_scalar(T::from_f64);
         let torus = geom::Surface::Torus {
-            frame: geom::Frame::new(p(12), w(15), {
-                let (e, _) = Vec3::new(v[15], v[16], v[17]).orthonormal_basis();
-                Vec3::new(at(e.x), at(e.y), at(e.z))
-            }),
+            frame: torus_frame.map_scalar(T::from_f64),
             major_radius: at(v[18]),
             minor_radius: at(v[19]),
         };
-        match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
+        match circle_torus_roots(&carrier, at(v[0]), at(v[1]), &torus, band) {
             Ok(Ok(CircleRoots::Certified(found))) => {
                 Ok(found.roots().iter().map(|&t| pair(t)).collect())
             }

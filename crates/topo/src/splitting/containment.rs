@@ -1391,20 +1391,15 @@ pub(crate) fn carrier_loop<T: Decide>(
                     major_radius,
                     minor_radius,
                     offset,
-                } => {
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                    LoopEdge::Spiric(SpiricArc::new(
-                        Oval {
-                            center,
-                            axis,
-                            u_ref,
-                            major: major_radius,
-                            minor: minor_radius,
-                            offset,
-                        },
-                        curve.params(),
-                    ))
-                }
+                } => LoopEdge::Spiric(SpiricArc::new(
+                    Oval {
+                        frame,
+                        major: major_radius,
+                        minor: minor_radius,
+                        offset,
+                    },
+                    curve.params(),
+                )),
                 // A certified edge's span is forward, between point
                 // parameters.
                 geom::Curve3::Nurbs(ref n) => {

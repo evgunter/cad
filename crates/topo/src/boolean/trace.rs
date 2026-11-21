@@ -258,13 +258,13 @@ pub fn circle_crossings<T: Decide>(
     (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let v_ref = axis.cross(u_ref);
+    // The circle on the frame its stated directions square to; the
+    // crossings' velocity reads that same frame, so it is the carrier's.
+    let frame = geom::Frame::new(center, axis, u_ref);
+    let (axis, u_ref, v_ref) = (frame.axis(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
-    let carrier = Curve3::Circle(geom::Circle::new(
-        geom::Frame::new(center, axis, u_ref),
-        radius,
-    ));
+    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
     let reach = geom_brep::ExtentBall::of_covered(
         geom::cover::Cover::circle(geom::cover::Core {
             axis: geom::Line {
