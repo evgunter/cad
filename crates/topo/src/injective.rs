@@ -5468,11 +5468,21 @@ impl Psi {
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let radial = geom::Line {
-                    origin: o,
-                    dir: axis,
-                }
-                .offset(p);
+                let radial = if std::env::var_os("ISO_PROBE_GRAD").is_some() {
+                    let d = axis * (at(1.0) / axis.norm());
+                    let w = p - o;
+                    let row = |e: Vec3<Interval>, k: Interval| e * at(1.0) - d * k;
+                    let mx = row(Vec3::new(at(1.0), at(0.0), at(0.0)), d.x);
+                    let my = row(Vec3::new(at(0.0), at(1.0), at(0.0)), d.y);
+                    let mz = row(Vec3::new(at(0.0), at(0.0), at(1.0)), d.z);
+                    Vec3::new(mx.dot(w), my.dot(w), mz.dot(w))
+                } else {
+                    geom::Line {
+                        origin: o,
+                        dir: axis,
+                    }
+                    .offset(p)
+                };
                 radial * (at(1.0) / radial.norm())
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
@@ -5515,6 +5525,7 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
     let whole = x == p.x && y == p.y;
     let (fx, fy, _) = if whole { p.jet() } else { p.jet_on(x, y) };
     let grad = psi.gradient(if whole { p.whole() } else { p.image(x, y) });
+    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC middle={middle:?} gfx={:?} gfy={:?} fx={fx:?} grad={grad:?}", grad.dot(fx), grad.dot(fy)); }
     Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
 }
 
@@ -5736,7 +5747,9 @@ fn sign_on(
             Axis::U => ((b, b), p.y),
             Axis::V => (p.x, (b, b)),
         };
-        on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band))
+        let r = on_side(psi, p, x, y);
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVZ read {s:?} x={x:?} y={y:?} value={r:?} image={:?}", p.image(x, y)); }
+        r.is_some_and(|v| is_zero(v, band))
     };
     let piece = match *psi {
         Psi::Graph { piece, .. } => Some(piece),
