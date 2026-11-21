@@ -927,8 +927,14 @@ tiers".
   constant ([tolerance.measure]) counts only what that finish asks: it
   is a backstop against an ask that would not end, not a bound on a
   body, so a carried fact costs it nothing and keeps no count.
+  Each pair it asks ends as one of three facts: apart, crossing (with
+  its witness) or unread (with the reading that refused). A pair is
+  settled by the first reading that decides it, and the other pairs
+  are still asked; where the constant stops the ask, the pairs still
+  open are named.
   Its refusal is the list of what it found, every finding
-  kept, none folded into another: each finding belongs to a family
+  kept, none folded into another, for the embedding certificate one
+  finding per pair that is not apart: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
   one text and one recourse, the decision's ([tolerance.recourse]). A
   door names only its subject (import names the file). A door that returns a body returns the

@@ -386,6 +386,12 @@ splits when indeterminate, reports on a definite violation.
 Probability never enters *inside* a leaf — no "probabilistically
 clear" verdict; mass accounting applies to leaves (E6), full stop.
 
+The clearance assertion's trichotomy is of the whole question: its
+selections are the unit, and a definite violation outranks a refusal.
+The at-rest gate's embedding question is the same sweep answered per
+pair of faces (`docs/DESIGN.md` `[topology.tiers]`): each pair is
+apart, crossing or unread, and none outranks another.
+
 **Self-intersection scope**: the check proves injectivity of the
 boundary, and so that it is embedded. Let M be the boundary as an abstract surface: the faces'
 parameter domains glued along their shared edges and vertices, with

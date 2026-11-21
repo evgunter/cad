@@ -61,3 +61,49 @@ How many of the 12,173 s are on bodies that are truly not embedded
 (about 12 tests in the census) against valid bodies the engine cannot
 yet read (1,056), and how many refusing asks end `Violated` after an
 earlier `Uncertified`, which is the case going on exists for.
+
+## Weighed (2026-11-21)
+
+Two designers weighed this (fork-log row 296). Their first reports agree,
+and both correct the finding above:
+
+- **The seconds are not spent looking for a crossing.** What runs after
+  a refusal is the whole proof, local certificates on touching cell pairs
+  included, and a touching pair is never offered to the verifier.
+  Crossings come from a probe at the top of each subtree and are cheap.
+- **A crossing ends the ask and a refusal does not** (`Sweep::run`: a
+  verified violation breaks the walk; a refusal is kept with
+  `get_or_insert` and the walk goes on). So whether a second finding is
+  seen depends on which kind came first, and a crossing found after a
+  refusal drops the refusal.
+- **A face the engine does not read refuses the whole ask before any
+  pair is read** (`Side::windows`), so "it goes on so that a crossing
+  elsewhere is found" is not a rule the code keeps.
+- **About 5,100 s of the first census's 12,173 s of refusals are asks
+  whose only refusal is the budget.** No stopping rule touches those:
+  they are the engine rows' or the constant's.
+- **Keeping the first refusal and counting the rest is a fold**, which
+  `[topology.tiers]` rules out ("every finding kept, none folded into
+  another").
+
+**The final state both recommend:** the face pair is the unit. Each pair
+the gate asks ends apart, crossing or unread; a pair is settled by the
+first reading that decides it and its remaining cells are dropped; the
+other pairs are still asked; the gate lists one finding per pair that is
+not apart; where the constant stops the ask, the pairs still open are
+named. The clearance assertion keeps its single verdict.
+
+**The alternative both call defensible:** the ask ends at its first
+crossing or refusal. It is the least work and the simplest code. A body
+that crosses itself can then be reported as "the kernel cannot read these
+two faces" whenever an unread pair comes first, and of several unread
+pairs one is reported, chosen by face order.
+
+**For the unit, under the pair:** `Bound.lower_refusal` becomes a state
+per candidate pair; the `get_or_insert` sites become one place a pair is
+closed; a closed pair's queued cells count as abandoned; `overflow`
+closes every pair still on the frontier; `Side::windows` answers per
+face; `EngineRefusal::Budget` and `Sliver` gain faces. Pair closing is
+the injectivity question's alone: for a metric lower bound one face pair
+can be the whole assertion.
+
