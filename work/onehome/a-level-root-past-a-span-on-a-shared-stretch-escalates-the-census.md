@@ -70,27 +70,31 @@ and a second component of the kind above would be a second meeting
 with no candidate. This is to be checked, with a row if it can be posed
 at the band's scale. The bound on `H`'s turn would close both.
 
-**Where the rootless second component is ruled out** (PR 7208's full
-review, at `ab853f5899`). Write `z` and `e` for the band's zero and
-escalation.
-- **Proved, on a side arc** (a stretch on one side of an extreme), for
-  `e/z ≳ 2.33`. Along the arc, the distance's square `g` has
-  `g″ = ab·|n·u|/|R′|³`. The second tilt branch reads `a·|d̂·n̂| ≤ e`.
-  Together these bound the dip a second component needs:
-  `A < z²e²/(e − z)³`, which no second component inside the zero meets
-  past that ratio.
-- **Refused, not read** (PR 7208, `curve_pair_pose_slant_tight`): a
-  slanted pair at `e/z` below `2.33`.
-- **Read, not proved: the remaining proof of this item.** At the wide
-  band, `e/z ≥ 2.33`:
-  - the first tilt branch, where `tilt·(len + 2e)` reads zero, up to
-    about `0.5` rad on short segments;
-  - one-arc stretches, those about an extreme, slanted.
+**Where the rootless second component is ruled out.** `pose`'s
+module docs prove it ("No second part on a side arc"): on a side arc,
+under (S), definite crossings, and (T), the tilt's second branch, no
+second part exists for `k = e/z ≥ 2.3247…`. At `k` below `2.33` a slanted
+pair refuses (`curve_pair_pose_slant_tight`).
 
-  In the plane every part holds a root or the extreme (`pose`'s module
-  docs, "One meeting to a part"), but only for `H` constant. The pose
-  reads "flat" where `H`'s swing is proved below the zero, and a swing
-  below the zero that turns over the arc is not argued either.
-- **Searched, not broken**: 400,000 draws in the plane and 30,000 in
-  space per branch. They found two parts only where the parts lie less
-  than `e` apart, which ring as one.
+**What the proof does not cover, the remaining proof of this item:**
+1. **The decisions taken exactly.** (S) reads "decided past the band"
+   as `> e`, and (T) reads "not definite" as `≤ e`. Real margins carry
+   rounding charges and levers (`Margin::levered`). The bound is
+   continuous in `e`, so that slack moves `k` a little, by an amount not
+   quantified.
+2. **The first tilt branch**, where `tilt·(len + 2e)` reads zero. `len`
+   is the projected overlap, possibly much shorter than `a`, so
+   `a·|den|` is not bounded by `e` and the chain's
+   `ab·|den| ≤ A·e` fails.
+3. **The tight band, `k` below `2.325`.** Not proved, and refused.
+   Searches (400,000 draws in the plane per band, 30,000 in space per
+   branch per band) found two parts only at `A ≈ 1`–`4e`, always less
+   than `e` apart, which ring as one.
+4. **One-arc stretches** (a touch whose extreme is in the zero band, or
+   `hi ≤ e` through `owed` with known meetings) lie outside (S), and the
+   monotone graph fails there. The full review's M1 was in this class.
+5. **Exact arithmetic only.** The floating-point floor and gap readings
+   are separate.
+
+A lean below the zero that turns over the arc, read as flat, is not
+argued either.

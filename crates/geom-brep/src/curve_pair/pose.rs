@@ -265,14 +265,67 @@
 //!   (`curve_pair_pose_level_flat`). What a lean below the zero leaves
 //!   of `H`'s turn over the arc is
 //!   `work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`'s.
-//! - **Slanted, where `e/z` is at least `2.33`**: on a stretch to one
-//!   side of an extreme, PR 7208's full review bounds the dip a second,
-//!   rootless part needs (`g″ = ab·|n·u|/|R′|³` under the tilt's
-//!   `a·|d̂·n̂| ≤ e`) below what the band leaves, and the pair is read.
-//!   The first tilt branch and the stretches about an extreme are read
-//!   without that argument; the same item holds them.
+//! - **Slanted, where `e/z` is at least `2.33`**: a stretch to one side
+//!   of an extreme holds at most one part (below, "No second part on a
+//!   side arc"), and the pair is read. The first tilt branch and the
+//!   stretches about an extreme are read without that argument, and
+//!   `work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`
+//!   holds them.
 //! - **Slanted, where `e/z` is below `2.33`**: no argument holds, and
 //!   the pair is not read (`curve_pair_pose_slant_tight`, refusing).
+//!
+//! ## No second part on a side arc
+//!
+//! In exact arithmetic, with `z` and `e` the band's zero and escalation
+//! and `k = e/z`. The conic is `C(θ) = c + a·cos θ·U + b·sin θ·V`,
+//! `a ≥ b > 0`, with `n = U × V`; the line has origin `o` and unit `û`,
+//! with `den = û·n`, `m` and `v` as above, and `{û, m, v}` orthonormal.
+//!
+//! **The projected conic.** `P(θ) = (R, H) = P₀ + M·(cos θ, sin θ)` with
+//! `M = [[a U·m, b V·m], [a U·v, b V·v]]`, so
+//! `det M = ab·(U × V)·(m × v) = ab·den`, since `m × v = û`. `R`'s swing
+//! is `A = √((a U·m)² + (b V·m)²)`; `m` lies in the plane, so
+//! `(U·m)² + (V·m)² = 1` and `b ≤ A ≤ a`.
+//!
+//! **Two premises.**
+//! - **(S) definite crossings**: `hi = c₀ + A > e` and `lo = c₀ − A < −e`,
+//!   as `harmonic_roots` reads `(lo, hi)` decided past the band. So
+//!   `A > e`.
+//! - **(T) the tilt's second branch**: the router reads level where
+//!   `|den|` levered by `max(reach, speed_hi)` is not definite, which is
+//!   `|den|·a ≤ e`, the ellipse's greatest speed being `a`.
+//!
+//! **The arc is a graph.** On a side arc `R` runs from `e` to `−e`, and
+//! `R′ = −A sin(θ − θ_hi) ≠ 0`, so `H = g(R)` over `R ∈ [−e, e]`. Since
+//! `P′ = M·(−sin θ, cos θ)` and `P″ = −M·(cos θ, sin θ)`,
+//! `R′H″ − H′R″ = det[P′ | P″] = det M`, so
+//! `g″ = ab·den / R′³`: one-signed, so `g` is convex or concave
+//! throughout. And `R′² = A² − (R − c₀)² = (hi − R)(R − lo)`.
+//!
+//! **Two parts need a sharp bend.** Let `g` be convex (for concave, take
+//! `−H`), `W(R) = √(z² − R²)` and `L = −W`. The zero set over `[−z, z]` is
+//! `{g ≤ W} ∩ {g ≥ L}`. `g − W` is convex, so the first is an interval.
+//! Two parts then need `R₁ < R_m < R₂` with `g(R_m) < L(R_m)` and
+//! `g ≥ L` at both ends, so `g − L` is not concave between them, and
+//! `g″(ξ) > L″(ξ) = z²/(z² − ξ²)^{3/2} ≥ 1/z` at some `|ξ| < z`.
+//!
+//! **`R′` is not small there.** At `ξ`, `R′² = pq` with `p = hi − ξ`,
+//! `q = ξ − lo` and `p + q = 2A`. By (S), `p` and `q` are each past
+//! `δ = e − z`, so `pq ≥ δ(2A − δ) > δ·A`, as `A > e > δ`.
+//!
+//! **The chain.** `ab·|den| ≤ b·e ≤ A·e` by (T) and `b ≤ A`. So
+//! `(δA)^{3/2} < |R′(ξ)|³ < z·ab·|den| ≤ zeA`, so `A < z²e²/(e − z)³`. With
+//! `A > e`, two parts need `(e − z)³ < z²e`, that is `(k − 1)³ < k`. That
+//! fails for `k` at or past the real root of `(k − 1)³ = k`, `2.3247…`:
+//! there a side arc holds at most one part. A part holding the root is
+//! read there; a part not holding it leaves the root's Off unread by the
+//! floor, and the pair escalates.
+//!
+//! The argument reads `d` from the carrier line. Where the segment's end
+//! cuts or moves a part, the span ends are read first
+//! ([`end_candidates`]). (S) and (T) are their decisions taken exactly,
+//! and the rounding a decision carries moves `k` a little, by an amount
+//! not measured here.
 //!
 //! # A touch in the subdivision
 //!
@@ -1552,9 +1605,11 @@ struct Slant<T> {
     zero: T,
 }
 
-/// The least ratio of the band's escalation to its zero at which a
-/// slanted pair's zero set is argued to part only about its roots
-/// (module docs, "One meeting to a part").
+/// The least ratio `k = e/z` of the band's escalation to its zero at
+/// which a slanted pair's side arc holds at most one part of its zero set:
+/// past the real root of `(k − 1)³ = k`, `2.3247…` (one plus the plastic
+/// number), with a margin for the rounding its premises' decisions carry
+/// (module docs, "No second part on a side arc").
 const SLANT_RATIO: f64 = 2.33;
 
 impl<T: Decide> Slant<T> {
