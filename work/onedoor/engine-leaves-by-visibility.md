@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-03
 priority: P2
 cost: M
-blocked_on: [section-cert-classification-takes-no-body, bound-side-reading-waits-on-link-metric, corner-and-apex-readings-take-no-body, the-conic-quadric-door-is-still-built-in-topo, the-trace-still-reads-the-root-doors-in-topo, splitting-arc-readers-take-no-body]
+blocked_on: [section-cert-classification-takes-no-body, bound-side-reading-waits-on-link-metric, corner-and-apex-readings-take-no-body, the-trace-still-reads-the-root-doors-in-topo, splitting-arc-readers-take-no-body]
 ---
 
 
