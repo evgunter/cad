@@ -321,8 +321,8 @@ fn an_edge_in_a_face_run_into_a_walls_foot_builds() {
 }
 
 #[test]
-#[ignore = "lane probe"]
 fn zz_lane_probe_ridge_grid() {
+    let mut grid = Vec::new();
     let (b, rd) = (block(), ridge());
     for (block_first, p, q) in [(true, &b, &rd), (false, &rd, &b)] {
         let line = match topo::union(p, q, t()).unwrap() {
@@ -354,9 +354,12 @@ fn zz_lane_probe_ridge_grid() {
                         Ok(BooleanResult::Empty) => "Empty".into(),
                         Err(e) => format!("{:?} {e:?}", e.kind()).chars().take(160).collect(),
                     };
-                    println!("GRID bf={block_first} c={c:?} above={above} {name} {slot}: {said}");
+                    grid.push(format!(
+                        "GRID bf={block_first} c={c:?} above={above} {name} {slot}: {said}"
+                    ));
                 }
             }
         }
     }
+    panic!("lane probe:\n{}", grid.join("\n"));
 }

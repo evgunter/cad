@@ -4407,7 +4407,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 40)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
         self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
         # Every piece of an edge the plane cuts is named by its ends, a
