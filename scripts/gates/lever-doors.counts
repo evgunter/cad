@@ -28,7 +28,6 @@ Reach::of_face 1 crates/topo/src/cover.rs
 of_cover_within 1 crates/topo/src/cover.rs
 ExtentBall::point 3 crates/topo/src/link.rs
 ExtentBall::point 1 crates/topo/src/link/second_order.rs
-ExtentBall::point 2 crates/topo/src/offset_axial.rs
 points_lever_from 1 crates/topo/src/pcurves/decision.rs
 ExtentBall::point 1 crates/topo/src/ring_path.rs
 ExtentBall::point 2 crates/topo/src/splitting/containment.rs
