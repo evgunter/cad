@@ -122,9 +122,11 @@ from a Point, an arc's end tangent), the point starts afresh.
   leg after it is SUPPLIED the inherited direction, and `line_to`
   after it is CHECKED against it — the departure-side counterpart
   of `Start.arrives_tangent()`, which supplies or checks the
-  arrival by the same DOF count (§2 Closure). No verb needs it:
-  every verb it precedes is equally legal after an authored
-  director. Ill-typed on plain points (no direction to inherit) —
+  arrival by the same DOF count (§2 Closure). Every heading-taking
+  verb and mode it precedes is equally legal after any director;
+  the one row that exists only after an inherited direction is
+  `line_to`'s checked reading, and `line_to` itself is an ordinary
+  verb at a Point. Ill-typed on plain points (no direction to inherit) —
   which is what makes "fillets sit between defined geometry"
   structural rather than a rule.
 - **`.at(p)`** — adds the position bit (`Open → Point`,
@@ -253,7 +255,12 @@ authoring act.
   `Center{c, winding, p}` from the ENTRY (the entry bound ON a
   carrier — the retired `at_on` entry, fused) and `Radius{r, side}`
   from any DIRECTED tip, heading-taking like the rest of that
-  set. Off a leg end under `.tangent()` it is **arc extension**,
+  set. `arc_fillet(End { p }, r)` is the fused form of the arc that
+  leaves along the bound angle toward `p`: `p` is the side's
+  on-path anchor, and the arc runs on past it, on the carrier `End`
+  derives, to the fillet that trims it — so an `End` arc, like
+  every `arc_to` mode, turns sharp→filleted by an edit at the same
+  call site. Off a leg end under `.tangent()` it is **arc extension**,
   the arc analog of ray extension (§2c dissolution amendment
   below): the centre is DERIVED from the tip's binding bits, so
   tangency holds by construction, and the incoming run extends
@@ -1105,7 +1112,7 @@ typestate, and it retires:
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-split closed carrier: `n` equal arcs from `phase`, its vertices declared tangent joints on one carrier (the carrier fact is emission-layer bookkeeping) — the same no-seam story as `circle`, with the count and phase authored |
 | `rectangle(c, w, h)` | — → complete loop | **G1** — the axis-aligned rectangle as written: four legs from the lower-left corner, its seam at that corner (a junction, so PQ4 holds); its sides are pieces `0..3` |
 | **TIER 1 — SUGAR** (one call each; stored as written, lowers to core at replay; adds no semantics) | | |
-| `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
+| `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` — the Point rows only; `line_to` after `.tangent()`/`.cusp()` is TIER 0 above, with a meaning of its own |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement; VQ7-banked with the legs |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
 
@@ -1215,11 +1222,14 @@ ends exactly at the anchor, so its recourse values both levers.
    TANGENT direction refuses — ONE refusal, one recourse, for any
    sub-ε_input margin (D4's two-tolerance principle): "this
    junction is tangent at any precision you could care about — if
-   intended, write `.tangent()` in place of the director, or before
-   the leg that computed it (`.tangent().line_to(p)` for a straight
-   leg to a point, `.tangent().arc_to(End { p })` for an arc; the
-   tangent-arc or seam-fillet close at the seam), which makes it
-   exact by construction; otherwise move the geometry (or lower the
+   intended, write `.tangent()` in place of the director; where a
+   self-aiming leg computed the direction, write `.tangent()`
+   followed by the leg that takes its departure from it instead —
+   `.tangent().line_to(p)` for a straight leg to a point, and
+   `.tangent().arc_to(End { p })` for an arc to a point, which
+   drops the arc's own datum (bulge, through-point, centre or end
+   tangent); the tangent-arc or seam-fillet close at the seam —
+   which makes it exact by construction; otherwise move the geometry (or lower the
    tolerance)". The margin rides the payload
    as data; the message never forks on exactly-on vs in-band.
    Within ε_input of the REVERSE direction refuses as a cusp (the
@@ -1253,9 +1263,8 @@ ends exactly at the anchor, so its recourse values both levers.
    declared tangent joint and is legal, whatever leg follows it —
    `.tangent().line(len)` and `.tangent().line_to(p)` continuing a
    straight run, `.tangent().arc_to(End { p })` continuing onto a
-   new arc — and the post-fillet extension DECLARES the zero-turn
-   joint it mints: declaration by construction, exactly as
-   `.tangent()` is, re-checked by the verify layer. A leg end
+   new arc: declaration by construction, re-checked by the verify
+   layer. A leg end
    departs smoothly only through `.tangent()`: no leg reads the
    incoming tangent unasked (§2 Legs).
 
@@ -1777,8 +1786,8 @@ arrival — both of which are now simply declared tangent joints and
 validate.
 
 A straight run continued through `.tangent()` (`.tangent().line(len)`,
-`.tangent().line_to(p)`) and the post-fillet extension declare the
-zero-turn joints they mint for the same reason: the departure IS the
+`.tangent().line_to(p)`) declares the zero-turn joints it mints
+for the same reason: the departure IS the
 incoming ray, so the joint is tangent by construction, and declaration
 by construction is what `.tangent()` is. §4 item 4 carries the rule and the history of
 the reading it replaced.
