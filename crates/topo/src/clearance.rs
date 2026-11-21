@@ -3903,6 +3903,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 arc: Some((carrier, span)),
                 ends,
                 uses,
+                reach: crate::edge_wedge_reach(body, ek).map(|l| lift.of(l.length())),
             });
         }
         Aabb::from_points(pts).map(|b| (b, out))

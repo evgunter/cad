@@ -269,6 +269,8 @@ pub(crate) struct Rim {
     pub(crate) ends: [VertexKey; 2],
     /// The face's half-edges on it: two on a seam.
     pub(crate) uses: Vec<Use>,
+    /// PROTO: the edge's wedge reach (`crate::edge_wedge_reach`), lifted.
+    pub(crate) reach: Option<Interval>,
 }
 
 /// **A face's boundary, lifted**: its sense, its edges with their chart
@@ -731,6 +733,17 @@ fn is_zero(x: Interval, band: Band) -> bool {
         decide(SELF_INTERSECTION_ON_SHARED, Margin::of(x), band),
         Ok(Sign::Zero)
     )
+}
+
+fn kind_of(s: &Surface<Interval>) -> &'static str {
+    match s {
+        Surface::Plane { .. } => "plane",
+        Surface::Cylinder { .. } => "cylinder",
+        Surface::Cone { .. } => "cone",
+        Surface::Sphere { .. } => "sphere",
+        Surface::Torus { .. } => "torus",
+        _ => "other",
+    }
 }
 
 fn flip(s: Sign) -> Sign {
@@ -2136,7 +2149,7 @@ fn present_chart<'a>(
             Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
         };
         let width = at(across) * lever.norm();
-        if matches!(
+        if std::env::var_os("REMETER_OLD").is_some() && matches!(
             decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
             Ok(Sign::Zero)
         ) {
@@ -4201,7 +4214,7 @@ fn present_line_corner<'a>(
     // drops lie within the band of it or, by the vertex concession, of
     // the other edge.
     let width = at(across.1 - across.0) * at(speed[held.index()]);
-    if matches!(
+    if std::env::var_os("REMETER_OLD").is_some() && matches!(
         decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
         Ok(Sign::Zero)
     ) {
@@ -4314,7 +4327,7 @@ fn present_plane_corner<'a>(
     // lie within the band of the line or, by the vertex concession, of
     // the other edge.
     let width = at(y.1) * at(speed(bv));
-    if matches!(
+    if std::env::var_os("REMETER_OLD").is_some() && matches!(
         decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
         Ok(Sign::Zero)
     ) {
@@ -5322,6 +5335,23 @@ enum Psi {
 }
 
 impl Psi {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Linear { .. } => "linear",
+            Self::Carrier(_) => "carrier",
+            Self::Graph { .. } => "graph",
+        }
+    }
+    /// PROTO: the separator's curvature arm at `p`.
+    fn radius(&self, p: Point3<Interval>) -> Option<Interval> {
+        match *self {
+            Self::Carrier(Implicit::Cylinder { r, .. } | Implicit::Sphere { r, .. }) => Some(r),
+            Self::Carrier(Implicit::Cone { apex, axis, .. }) => Some(
+                geom::Line { origin: apex, dir: axis }.distance(p),
+            ),
+            _ => None,
+        }
+    }
     /// `ψ` over a box, where it has a closed form.
     fn value(&self, p: Point3<Interval>) -> Option<Interval> {
         Some(match *self {
@@ -5619,6 +5649,7 @@ fn sign_on(
     on: Option<&On>,
     p: &Presented<'_>,
     against: Option<&Presented<'_>>,
+    b: &Boundary,
     band: Band,
 ) -> Option<Sign> {
     let read = |s: Side| {
@@ -5648,16 +5679,60 @@ fn sign_on(
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad = psi.gradient(image);
-    let across = |axis: Axis| match axis {
-        Axis::U => grad.dot(fx) * at(p.span(Axis::U)),
-        Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
+    // PROTO: the rate as a sine, levered at the faces' reach folded with
+    // the curvature arms.
+    let unsliver = std::env::var_os("REMETER_OLD").is_none();
+    let fold = |a: &Along| -> Option<Interval> {
+        let mut arm: Option<Interval> = None;
+        for e in &a.edges {
+            let r = b.edges.iter().find(|r| r.key == *e)?.reach?;
+            arm = Some(arm.map_or(r, |x| x.min(r)));
+        }
+        let arm = match arm {
+            Some(x) => x,
+            None => {
+                // a vertex alone: the face's own reach from it
+                let v = b.vertices.get(&a.vertex?)?;
+                b.vertices
+                    .values()
+                    .fold(at(0.0), |far, q| far.max((*q - *v).norm()))
+            }
+        };
+        if std::env::var_os("REMETER_NOFOLD").is_some() {
+            return Some(arm);
+        }
+        let own = geom_brep::curvature_lever_arm(p.surface, image).length();
+        let arm = if own.hi().is_finite() { arm.min(own) } else { arm };
+        let arm = match psi.radius(image) {
+            Some(r) => arm.min(r),
+            None => arm,
+        };
+        Some(arm)
     };
-    let departs = |s: Side| {
-        interval_sign_as(
-            across(s.axis()) * at(s.into()),
-            SELF_INTERSECTION_DEPARTURE,
-            band,
-        )
+    let across = |axis: Axis, a: &Along| -> Option<Interval> {
+        let f = match axis {
+            Axis::U => fx,
+            Axis::V => fy,
+        };
+        if unsliver {
+            Some(grad.dot(f) / (grad.norm() * f.norm()) * fold(a)?)
+        } else {
+            Some(grad.dot(f) * at(p.span(axis)))
+        }
+    };
+    let trace = std::env::var_os("REMETER_TRACE").is_some();
+    let departs = |s: Side, a: &Along| {
+        let m = across(s.axis(), a)? * at(s.into());
+        let r = interval_sign_as(m, SELF_INTERSECTION_DEPARTURE, band);
+        if trace {
+            let f = match s.axis() { Axis::U => fx, Axis::V => fy };
+            eprintln!(
+                "RM departs psi={} surf={} x=({:e},{:e}) y=({:e},{:e}) span={:e} rate=[{:e},{:e}] arm={:?} margin=[{:e},{:e}] -> {:?}",
+                psi.kind(), kind_of(p.surface), p.x.0, p.x.1, p.y.0, p.y.1, p.span(s.axis()),
+                (grad.dot(f)).lo(), (grad.dot(f)).hi(), fold(a).map(|x| (x.lo(), x.hi())), m.lo(), m.hi(), r
+            );
+        }
+        r
     };
     match &p.zero {
         Zero::None => interval_sign_as(
@@ -5669,21 +5744,34 @@ fn sign_on(
             if !zero_on(*s, a, false) {
                 return None;
             }
-            departs(*s)
+            departs(*s, a)
         }
         Zero::Past(s, a) => {
             if !(past_read(p, against) && zero_on(*s, a, true)) {
                 return None;
             }
-            departs(*s)
+            departs(*s, a)
         }
         Zero::Corner((s, a), (t, b)) => {
             let n = psi.linear()?;
             if !(zero_on(*s, a, true) && zero_on(*t, b, true)) {
                 return None;
             }
-            let g = n.dot(fxy)
-                * at(p.span(Axis::U) * p.span(Axis::V) * Side::into(*s) * Side::into(*t));
+            if trace { eprintln!("RM corner-zero"); }
+            let g = if unsliver {
+                let arm = fold(a)?.min(fold(b)?);
+                let g = n.dot(fxy) / (n.norm() * fxy.norm()) * arm
+                    * at(Side::into(*s) * Side::into(*t));
+                if trace {
+                    eprintln!("RM corner surf={} x=({:e},{:e}) y=({:e},{:e}) arm=({:e},{:e}) margin=[{:e},{:e}] old=[{:e},{:e}]",
+                        kind_of(p.surface), p.x.0, p.x.1, p.y.0, p.y.1, arm.lo(), arm.hi(), g.lo(), g.hi(),
+                        (n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V))).lo(), (n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V))).hi());
+                }
+                g
+            } else {
+                n.dot(fxy)
+                    * at(p.span(Axis::U) * p.span(Axis::V) * Side::into(*s) * Side::into(*t))
+            };
             interval_sign_as(g, SELF_INTERSECTION_DEPARTURE, band)
         }
         Zero::Curve(s, c) => {
@@ -5700,7 +5788,7 @@ fn sign_on(
             if !zero {
                 return None;
             }
-            departs(*s)
+            departs(*s, &c.along)
         }
         Zero::Point(s, t, v) => {
             let zero = match on {
@@ -5712,8 +5800,8 @@ fn sign_on(
             if !zero {
                 return None;
             }
-            let a = departs(*s)?;
-            let b = departs(*t)?;
+            let a = departs(*s, &Along::at(*v))?;
+            let b = departs(*t, &Along::at(*v))?;
             (a == b).then_some(a)
         }
     }
@@ -5844,7 +5932,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if two {
         for (sep, other) in [(x, &py), (y, &px)] {
             if let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other)
-                && sign_on(&Psi::Carrier(imp), None, p, None, band).is_some()
+                && sign_on(&Psi::Carrier(imp), None, p, None, if std::ptr::eq(sep, x) { y.boundary } else { x.boundary }, band).is_some()
             {
                 return Outcome::Certified { corner: p.corner };
             }
@@ -5862,8 +5950,8 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return split;
     };
     let opposite = |(psi, on): (Psi, On)| match (
-        sign_on(&psi, Some(&on), qx, Some(qy), band),
-        sign_on(&psi, Some(&on), qy, Some(qx), band),
+        sign_on(&psi, Some(&on), qx, Some(qy), x.boundary, band),
+        sign_on(&psi, Some(&on), qy, Some(qx), y.boundary, band),
     ) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
