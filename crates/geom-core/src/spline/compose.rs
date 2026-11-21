@@ -1218,10 +1218,11 @@ pub fn canonical_composite(
 }
 
 /// The exact-rational oracle the containment rows below compare against,
-/// shared with this crate's integration suites and `derivative`'s tests.
+/// shared with this crate's integration suites, `derivative`'s tests and
+/// the margin allowance's rows.
 #[cfg(test)]
 #[path = "../../tests/exact_q/mod.rs"]
-pub(super) mod exact_q;
+pub(crate) mod exact_q;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

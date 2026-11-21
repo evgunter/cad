@@ -2,12 +2,13 @@
 id: the-lever-sites-that-hold-their-geometry-read-it-outside-topo
 kind: unit
 title: The lever sites outside topo whose own function holds the geometry read it, not a number or point of their own (geom-brep, step-import, sweep)
-status: dispatched
+status: review
 opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/lever-sites-brep
 parent: lever-doors-pinned-sites-await-a-geometry-read
+pr: 7219
 ---
 
 
