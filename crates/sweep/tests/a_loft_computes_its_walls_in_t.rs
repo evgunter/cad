@@ -416,78 +416,121 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     }
 }
 
-/// **Point inputs keep the lifted `f64` skin.** Where every input to
-/// the skin is a point, the loft at `Interval` is the `f64` loft lifted,
-/// bit for bit: an arc section (lifted from `f64`, so its sweep is a
-/// point), and four sections at v-degree 2, whose walls' interior v knot
-/// is the mean of two computed parameters. That is the status quo, not
-/// an enclosure claim over a box: the family is one member. Widening an
-/// interior section's parameter refuses at the skin's carrier door
-/// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`). At v-degree
-/// 1 the body's walls are one slab each and carry no interior knot, so
-/// that case lofts at degree 2 and its walls are checked to carry one.
+/// **Point inputs are a family of one, built in `T`.** Sections and
+/// placements lifted from `f64` loft at `Interval` as any other family
+/// does: the walls are skinned at `Interval` and enclose the `f64`
+/// loft, wider than a point only by their own arithmetic's rounding.
+/// What a carrier cannot hold refuses for a family of one as for a box
+/// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`): an arc
+/// section, whose weight `cos(Δ/2)` is an enclosure from rounding
+/// alone, and four sections at v-degree 2, whose walls' interior v knot
+/// is the mean of two computed parameters. Red where the `f64` skin is
+/// lifted into the lane instead: the two refusals build.
 #[test]
-fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
-    use geom_core::Interval;
-    let lift = |s: Vec<ProfileLoop<f64>>| -> Vec<ProfileLoop<Interval>> {
+fn point_inputs_loft_in_t_at_interval() {
+    use geom_core::spline::SplineError;
+    use geom_core::{Bounds, Interval};
+    use sweep::{LoftError, SkinError};
+    let lift = |s: &[ProfileLoop<f64>]| -> Vec<ProfileLoop<Interval>> {
         s.iter()
             .map(|lp| lp.map_scalar(Interval::from_f64))
             .collect()
     };
-    let cases = [
-        (
-            "an arc section",
-            vec![section(0.2), section(0.2)],
-            vec![0.0, 1.0],
-            1,
-        ),
-        (
-            "four sections at v-degree 2",
-            vec![quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
-            vec![0.0, 1.0, 2.0, 3.0],
-            2,
-        ),
-    ];
-    for (what, sections, zs, degree) in cases {
-        let places: Vec<SketchPlane<f64>> = zs.iter().map(|z| at_height(*z)).collect();
-        let nominal = loft_body::<f64>(&sections, &places, degree, Tol::witness())
-            .expect("the f64 loft builds");
-        if zs.len() > degree + 1 {
-            // The case's hypothesis: the body's walls carry the computed
-            // interior knot.
-            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
-            else {
-                panic!("{what}: a lofted wall is a NURBS surface")
-            };
-            let knots = net.knot_values_v();
-            let (lo, hi) = knots.domain();
-            assert!(
-                knots.values().iter().any(|k| *k > lo && *k < hi),
-                "{what}: the wall carries an interior v knot"
-            );
-        }
-        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
-        let lifted_places: Vec<SketchPlane<Interval>> = zs
+    let at_interval = |sections: &[Vec<ProfileLoop<f64>>], zs: &[f64], degree| {
+        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.iter().map(|s| lift(s)).collect();
+        let places: Vec<SketchPlane<Interval>> = zs
             .iter()
             .map(|z| at_height(Interval::from_f64(*z)))
             .collect();
-        let enclosed = sweep::test_support::loft_body_construction::<Interval>(
+        sweep::test_support::loft_body_construction::<Interval>(
             &lifted,
-            &lifted_places,
+            &places,
             degree,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
-        assert_eq!(
-            points(&enclosed.section_params),
-            nominal
-                .section_params
-                .iter()
-                .map(|u| Some(*u))
-                .collect::<Vec<_>>(),
-            "{what}"
+    };
+
+    let lines = [quad(1.2), quad(1.3)];
+    let nominal = loft_body::<f64>(&lines, &[0.0, 1.0].map(at_height), 1, Tol::witness())
+        .expect("the f64 loft builds");
+    let enclosed = at_interval(&lines, &[0.0, 1.0], 1)
+        .unwrap_or_else(|e| panic!("two line sections loft at Interval: {e:?}"));
+    assert_encloses("two line sections", &enclosed, &nominal);
+    let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
+        .into_iter()
+        .fold(0.0, f64::max);
+    assert!(
+        widest <= 8.0 * f64::EPSILON,
+        "a family of one widens by rounding alone: the widest wall value is {widest:e}"
+    );
+
+    match at_interval(&[section(0.2), section(0.2)], &[0.0, 1.0], 1) {
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(e.refusal(), SplineError::CarrierWeightNotAPoint { .. }) => {}
+        other => panic!(
+            "an arc section: expected its weight's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    match at_interval(
+        &[quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
+        &[0.0, 1.0, 2.0, 3.0],
+        2,
+    ) {
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { .. }) => {}
+        other => panic!(
+            "four sections at v-degree 2: expected the interior knot's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **A dual over an enclosure gets the loft's tangent.** A two-section
+/// loft whose top [`quad`] has its moving corner at the variable
+/// `h = 1.2`, at `Dual<Interval>`: every wall value's derivative holds
+/// what the `f64` lofts a unit apart differ by (the poles are the
+/// sections' corners, so each is affine in `h`), and the corner's own
+/// poles move at rate one. Red where the walls are lifted from an `f64`
+/// skin: every derivative is then zero.
+#[test]
+fn a_loft_at_a_dual_over_an_interval_carries_the_sections_tangent() {
+    use geom_core::{Bounds, Dual, DualInterval, Interval};
+    let at = |h: f64| {
+        loft_body::<f64>(
+            &[quad(1.2), quad(h)],
+            &[0.0, 1.0].map(at_height),
+            1,
+            Tol::witness(),
+        )
+        .expect("the f64 loft builds")
+    };
+    let lit = |x: f64| DualInterval::from_f64(x);
+    let lofted = sweep::test_support::loft_body_construction::<DualInterval>(
+        &[
+            quad(lit(1.2)),
+            quad(Dual::variable(Interval::from_f64(1.2))),
+        ],
+        &[0.0, 1.0].map(|z| at_height(lit(z))),
+        1,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the loft builds at Dual<Interval>: {e:?}"));
+    let got = wall_values(&lofted, |x: DualInterval| (x.deriv.lo(), x.deriv.hi()));
+    let step: Vec<f64> = wall_values(&at(2.2), |x: f64| x)
+        .iter()
+        .zip(wall_values(&at(1.2), |x: f64| x))
+        .map(|(hi, lo)| hi - lo)
+        .collect();
+    assert_eq!(got.len(), step.len(), "the same walls at every corner");
+    let moving = step.iter().filter(|d| d.abs() > 0.5).count();
+    assert!(moving > 0, "the corner reaches the walls");
+    for (k, ((lo, hi), want)) in got.iter().zip(&step).enumerate() {
+        assert!(
+            lo - 1e-12 <= *want && *want <= hi + 1e-12 && hi - lo <= 1e-12,
+            "wall value {k} moves with the corner as the f64 lofts do: [{lo}, {hi}] \
+             against {want}"
         );
-        assert_eq!(wall_bits(&enclosed), wall_bits(&nominal), "{what}");
     }
 }
 

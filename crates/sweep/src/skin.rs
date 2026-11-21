@@ -1681,7 +1681,8 @@ fn skin_strips<T: SpanLocate>(
 
 /// [`loft_geometry`]'s second half: the walls skinned over sections
 /// [`validate_loft`] already accepted, at `params` where the caller
-/// states them (a path sweep's path parameters) and otherwise at
+/// states them (a path sweep's station shares `i / (stations − 1)`,
+/// structure, the same constants at every scalar) and otherwise at
 /// [`loft_parameters`]' answer — one pass over the compatible strips
 /// serves both the parameters and the walls.
 pub(crate) fn skin_validated<T: SpanLocate>(
@@ -1692,7 +1693,7 @@ pub(crate) fn skin_validated<T: SpanLocate>(
 ) -> Result<LoftGeometry<T>, SkinError> {
     let compat = compatible_strips(&validated, places)?;
     let params = match params {
-        Some(params) => params.iter().map(|v| T::from_computed(*v)).collect(),
+        Some(params) => params.iter().map(|share| T::from_f64(*share)).collect(),
         None => strip_parameters(&compat)?,
     };
     skin_strips(validated, compat, v_degree, &params)
@@ -2042,7 +2043,9 @@ impl PathCarry {
     /// coordinate origin, `None` for the identity.
     ///
     /// Station `i`'s frame is `Fᵢ`, aimed along the tangent `tᵢ` read at
-    /// `T` with its roll from the station's reference
+    /// `T` with its roll from the station's reference (selected from
+    /// the path alone, so a constant of the model as the path is, and
+    /// entered as one)
     /// ([`RigidMotion::from_aim_and_reference`], under
     /// `sweep_station_roll`), and its rotation is `Cᵢ = Fᵢ∘F₀⁻¹`. A
     /// station the `f64` carry selected on one straight span with its
@@ -2060,7 +2063,7 @@ impl PathCarry {
             RigidMotion::from_aim_and_reference(
                 o,
                 t,
-                r.map(T::from_computed),
+                r.map(T::from_f64),
                 SWEEP_STATION_ROLL,
                 band,
             )
