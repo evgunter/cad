@@ -3103,3 +3103,265 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
         }
     }
 }
+
+/// **A segment across a thin ellipse's vertex meets it at a root, not at
+/// the extreme between its two.** Two ellipses of semi-axes `~10⁻⁴` and
+/// `~10⁻⁸` m, and a segment nearly in the ellipse's plane, `h` over it,
+/// crossing it near its major vertex (the delta review's cases 1410 and
+/// 1021, true distances `6.57·10⁻¹¹` and `2.95·10⁻¹⁰` m). In the plane the
+/// segment crosses both branches, whose points the band cannot split
+/// (`curve_pair_pose_root_gap` reads zero). Between the two roots the
+/// vertex, its radius of curvature `b²/a ≈ 10⁻¹²` m, takes the ellipse
+/// `~10⁻⁸` m off the line, past the band, so the pair is read at its roots,
+/// on both carriers. At the band `(10⁻⁹, 10⁻⁸)` it meets once, in either
+/// order, within the band's zero of the segment (the point is the
+/// ellipse's own, at a root). At `(10⁻⁹, 1.05·10⁻⁹)` case 1021, whose
+/// slant's swing is proved below the zero, meets so, and case 1410, whose
+/// swing is not, refuses (`curve_pair_pose_slant_tight`, module docs, "One
+/// meeting to a part"). It never reads no meeting: red where the two roots
+/// are one touch at the extreme and that touch is read at its own point,
+/// main's reading, its point off the segment.
+#[test]
+fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
+    let (tight, wide) = (Band::new(1e-9, 1.05e-9).unwrap(), band());
+    for (slanted, (a, b, span_b, tp, h, psi, len, span_a)) in [
+        (
+            true,
+            (
+                1.237_105_813_627_213_6e-4_f64,
+                1.271_740_623_280_322_8e-8,
+                (-0.364_737_545_254_126_1, 0.113_832_612_465_155_19),
+                0.025_188_254_926_288_012_f64,
+                6.568_256_938_995_103e-11,
+                4.330_477_594_017_474_f64,
+                1.718_855_939_666_199_8e-6,
+                (-1.006_498_565_508_213_4e-6, 6.843_763_647_487_737e-7),
+            ),
+        ),
+        (
+            false,
+            (
+                3.253_973_551_187_656e-4,
+                3.445_361_057_969_92e-8,
+                (-0.735_646_227_281_412_5, 0.528_524_751_652_512_8),
+                0.009_417_137_441_319_778,
+                2.945_053_589_198_488_5e-10,
+                2.232_695_454_957_603,
+                2.768_962_141_790_441_3e-4,
+                (-0.000_115_225_579_162_314_02, 0.000_421_974_107_942_566_43),
+            ),
+        ),
+    ] {
+        let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let through = [a * tp.cos(), b * tp.sin(), h];
+        let dir = [psi.cos(), psi.sin(), h / len];
+        let seg = line(through, dir);
+        let (sa, sb) = (Span::new(&seg, span_a), Span::new(&thin, span_b));
+        for (order, got) in [
+            ("segment first", meet(&sa, &sb, tight)),
+            ("ellipse first", meet(&sb, &sa, tight)),
+        ] {
+            let slant = MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_pose_slant_tight",
+            });
+            if slanted {
+                assert!(
+                    matches!(&got, Err(r) if r.fault == slant),
+                    "a = {a:e}, {order}: the slant refused: {got:?}"
+                );
+            } else {
+                assert!(
+                    matches!(&got, Ok(m) if m.points.len() == 1
+                        && distance(&seg, m.points[0].point) <= tight.zero()),
+                    "a = {a:e}, {order}: one meeting within the zero: {got:?}"
+                );
+            }
+        }
+        for (order, got) in [
+            ("segment first", meet(&sa, &sb, wide)),
+            ("ellipse first", meet(&sb, &sa, wide)),
+        ] {
+            let Ok(m) = &got else {
+                panic!("a = {a:e}, {order}: refused: {got:?}");
+            };
+            assert_eq!(m.points.len(), 1, "a = {a:e}, {order}: {got:?}");
+            let p = m.points[0].point;
+            let off = distance(&seg, p);
+            assert!(
+                off <= wide.zero(),
+                "a = {a:e}, {order}: the meeting {off:e} off the segment"
+            );
+        }
+    }
+}
+
+/// **A segment slanted over a thin ellipse's vertex at a tight band
+/// refuses on its slant.** The probe's draw 7969 (seed 1): an ellipse of
+/// semi-axes `7.7·10⁻⁵` and `7·10⁻⁹` m, and a segment `5.4·10⁻¹⁰` m over a
+/// point of it near its vertex, nearly in its plane (the tilt reads level),
+/// at the band `(10⁻⁹, 1.038·10⁻⁹)`. In the plane the residual's extreme is
+/// `9.9·10⁻¹⁰`, in the zero band: a touch. The line lies over the plane by
+/// a slant, so at the extreme the distance is `√(R² + H²) ≈ 1.13·10⁻⁹`,
+/// past the escalation, and at each of the residual's two roots, `2.3·10⁻⁹`
+/// m apart, it is the slant alone, `5.4·10⁻¹⁰`: two meetings. The slant's
+/// swing is not proved below the zero and the band's `e/z` is below
+/// `2.33`, so the pair refuses before any candidate is read
+/// (`curve_pair_pose_slant_tight`, module docs, "One meeting to a part"),
+/// in either order. Red with that gate off: both roots are read, and the
+/// second's gap, in an enclosure the thin ellipse's carrier cannot narrow
+/// past the band, escalates (`curve_carrier_straddle`).
+#[test]
+fn a_segment_slanted_over_a_thin_ellipses_vertex_refuses_at_a_tight_band() {
+    let band = Band::new(1e-9, 1.037_893_055_681_901_7e-9).unwrap();
+    let (a, b, tp, h, psi, len) = (
+        7.746_858_770_958_64e-5_f64,
+        7.046_761_348_332_281e-9,
+        -0.016_917_715_640_598_61_f64,
+        5.416_570_518_273_72e-10,
+        3.241_691_953_463_229_f64,
+        2.045_945_765_717_882e-6,
+    );
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    let seg = line(
+        [a * tp.cos(), b * tp.sin(), h],
+        [psi.cos(), psi.sin(), h / len],
+    );
+    let (sa, sb) = (
+        Span::new(
+            &seg,
+            (-5.830_182_073_260_333e-7, 1.388_844_419_437_708_8e-6),
+        ),
+        Span::new(&thin, (tp - 0.5, tp + 0.5)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sa, &sb, band)),
+        ("ellipse first", meet(&sb, &sa, band)),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if r.fault == MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_pose_slant_tight",
+            })),
+            "{order}: the slant refused: {got:?}"
+        );
+    }
+}
+
+/// **A line touching a circle in its plane meets it once, at the
+/// extreme.** The unit circle and the line `y = 1 − 5·10⁻¹⁰` in its
+/// plane: the residual's extreme, `5·10⁻¹⁰`, is in the zero band, the
+/// line has no slant, and the touch is the extreme's own point, `(0, 1)`
+/// to within the zero, read once in either order, as before the slant was
+/// read. Unmoved by the stretch's reading.
+#[test]
+fn a_line_touching_a_circle_in_its_plane_meets_it_once_at_the_extreme() {
+    let unit = circle([0.0; 3], [0.0, 0.0, 1.0], 1.0);
+    let touching = line([-1.0, 1.0 - 5e-10, 0.0], [1.0, 0.0, 0.0]);
+    let (c, l) = (
+        Span::new(&unit, (0.5, 2.5)),
+        Span::new(&touching, (0.0, 2.0)),
+    );
+    for (order, got) in [
+        ("circle first", meet(&c, &l, band())),
+        ("line first", meet(&l, &c, band())),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 1, "{order}: {m:?}");
+        let p = m.points[0].point;
+        assert!(
+            (p - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-4,
+            "{order}: at {p:?}"
+        );
+    }
+}
+
+/// **Two crossings of a thin ellipse's branches the band can tell apart,
+/// with the line between them within the gap of it, escalate.** An
+/// ellipse of semi-axes `10⁻⁴` and `10⁻⁶` m, and a segment in its plane
+/// square to its major axis where its branches lie `1.5·10⁻⁸` m apart: it
+/// crosses each, two meetings past the escalation of each other, and
+/// halfway between them the segment is `7.5·10⁻⁹` m from either branch,
+/// in the band's gap: one stretch of the segment or two is not decided,
+/// and the pair escalates (`curve_pair_meet_stretch`), in either order.
+#[test]
+fn two_crossings_of_a_thin_ellipses_branches_the_band_tells_apart_escalate() {
+    let (a, b) = (1e-4_f64, 1e-6_f64);
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    // `2b sin t = 1.5·10⁻⁸` apart, at `x = a cos t`.
+    let t = (7.5e-9 / b).asin();
+    let square = line([a * t.cos(), 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let (e, s) = (
+        Span::new(&thin, (-0.5, 0.5)),
+        Span::new(&square, (-1e-6, 1e-6)),
+    );
+    for (order, got) in [
+        ("ellipse first", meet(&e, &s, band())),
+        ("segment first", meet(&s, &e, band())),
+    ] {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: not escalated: {got:?}"
+        );
+    }
+}
+
+/// The full review's touch whose zero set parts about its two roots: a
+/// circle of radius `10⁻³` m about the origin in `z = 0`, its span
+/// `π/2 ± 1`, and a segment along `x` through `(0, r − 0.9·10⁻⁹,
+/// 0.9·10⁻⁹)`, its span `±2·10⁻³`. The residual's near extreme,
+/// `−0.9·10⁻⁹`, is in the zero band, so the pose reads a touch; with the
+/// slant the extreme is `1.27·10⁻⁹` m off, and the two roots, at
+/// `x ≈ ±1.34·10⁻⁶`, each `0.9·10⁻⁹` m off.
+fn a_touch_parted_about_its_roots(
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let r = 1e-3;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let l = line([0.0, r - 0.9e-9, 0.9e-9], [1.0, 0.0, 0.0]);
+    let (sl, sc) = (
+        Span::new(&l, (-2e-3, 2e-3)),
+        Span::new(&c, (FRAC_PI_2 - 1.0, FRAC_PI_2 + 1.0)),
+    );
+    [meet(&sl, &sc, band), meet(&sc, &sl, band)]
+}
+
+/// **A touch whose zero set parts about its roots meets at both.**
+/// [`a_touch_parted_about_its_roots`] at the band `(10⁻⁹, 1.05·10⁻⁹)`:
+/// the extreme between the roots is past the escalation, so the two are
+/// two meetings, in either order. Red where a touch reads one root.
+#[test]
+fn a_touch_parted_about_its_roots_meets_at_both() {
+    let band = Band::new(1e-9, 1.05e-9).unwrap();
+    for (order, got) in ["segment first", "circle first"]
+        .into_iter()
+        .zip(a_touch_parted_about_its_roots(band))
+    {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 2, "{order}: two meetings: {m:?}");
+        for p in &m.points {
+            assert!(
+                (p.point.x.abs() - 1.34e-6).abs() < 2e-8,
+                "{order}: at a root: {p:?}"
+            );
+        }
+    }
+}
+
+/// **A touch whose zero set parts about its roots, the extreme between
+/// them in the escalation band, escalates.** [`a_touch_parted_about_its_roots`]
+/// at the band `(10⁻⁹, 10⁻⁸)`: the two roots' meetings lie on one stretch
+/// whose point between them is in the band (C5,
+/// `curve_pair_meet_stretch`), in either order. Red where a touch reads
+/// one root, which answers one meeting.
+#[test]
+fn a_touch_parted_about_its_roots_in_the_band_escalates() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    for (order, got) in ["segment first", "circle first"]
+        .into_iter()
+        .zip(a_touch_parted_about_its_roots(band))
+    {
+        assert!(
+            matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+            "{order}: escalates: {got:?}"
+        );
+    }
+}

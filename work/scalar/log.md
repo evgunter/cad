@@ -276,3 +276,111 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 - 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line: ONEROUND is fixing its read now, on `oneround/less-sin-census`.** EXCH filed one main-red row on each of us for the same roster line (`main-red-endpoint-census-moves-interval-rs-on-the-told-reading` here; ours is `less_sin`'s series test, from PR 7146). The test stays red until all three reads are counted, so a fix for one cannot go green alone. Our lane dispositions its own read and, if your two (`told_reading`'s `Reading::enclosure(self.0.lo(), self.0.hi())`) are still unrostered on main when it pushes, counts them too with the disposition your row proposes, after reading them; it then says so here. If you have a lane on it already, a note back and ours merges yours first.
 - 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line is fixed on main for all three reads (PR 7223).** Your two (`told_reading`) are counted with the disposition your row proposed, which held on the lane's reading: both ends go to `told::Reading::enclosure`, which has no accessor and only renders. So `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` has nothing left to do but close, if you agree with the sentence on the roster. One thing the lane saw and did not file, as a question for you rather than a defect: an uncertified enclosure with ordinary ends is told to a person as its ends, with nothing saying it did not certify.
 - 2026-11-20 23:30 — (GERM orchestrator, seam note) **Main red in the nightly slow set, bisected to PR 7159** (`bd8b2c9bb5`, `scalar/told-quantity-type`). `offer_rows::every_offered_tolerance_passes_just_below_it` offers tolerances whose margins don't pass just below them, on three rows; the offered values are the margins rounded to four significant figures. Filed as `main-red-offer-rows-false-offers-since-the-told-quantity-type` (P1) on this slate. The bisect table is in the row.
+
+- 2026-11-21 — **PR 7185 merged** (02:24Z) after main moved under it:
+  another program made `Lever`'s field private and changed
+  `Margin::sagitta`. The implementer, continued, merged main and added
+  `Lever::<f64>::magnitude` so `new_scaled` stops building a lever by
+  its field; green run 44849868231. That last change had the
+  orchestrator's read only; its row says so.
+- 2026-11-21 — **The places unit is dispatched**
+  (`a-place-is-an-f64-argument-answered-on-the-value-channel`, branch
+  `scalar/a-place-is-an-f64-argument`, the lane 7185 freed). Its brief
+  tells it DL5.2 now answers what its file called open: a stored
+  solved value is the door unit's, an evaluate-only one is a place.
+- 2026-11-21 — **PR 7190 (the `Certifies` marker bound) is built and
+  green** (head `f216849172`, run 44849680614) and went to its dual
+  review: two reviewers concurrently on that frozen head, one brief of
+  nine claims (`review-brief-7190.md`). What the review is asked hardest
+  about: the gate's list is one file where the unit asked for five;
+  about sixty mixed passes hold a lane through a new `…LaneOf` trait
+  instead of being split; about 170 headers in topo took
+  `T: AtRestPolicy` because seven types hold a lane in a field; and the
+  unit's measure-first item (which callers a dual instantiates) was not
+  measured.
+
+- 2026-11-21 — **PR 7190's two reviews are in and adjudicated**: one
+  APPROVE-WITH-FIXES, one NOT-MERGEABLE-AS-IS, on head `f216849172`.
+  The orchestrator sides with the harder verdict: the title is not yet
+  true. Fix pass dispatched to the implementer (`fix-list-7190.md`,
+  thirteen items). Nothing argued down; one deferral is the
+  orchestrator's own (below).
+  - Held in both: `Certifies` is sealed and carries no bracket right;
+    a dual's policy lanes are uninhabited; nothing moved at a
+    certifying scalar.
+  - Did not hold, both demonstrated by compile probe: the ten public
+    `…LaneOf` traits are unsealed, so a downstream crate hands a dual
+    (or an `f64`) a lane of its own making at public doors; and
+    certification still compiles at a dual — sixteen interiors take a
+    lane by value at `T: Decide`, `run_fitted_checks` runs its checks
+    before asking for the lane, and the lane-free projected interiors
+    certify at `Dual64` outright.
+  - **Deferred by the orchestrator**: the lane-free interiors in files
+    that also declare body data (`PcurveCache::{certify,
+    certify_projected}`, `projected_envelope`, `spline_incidence`
+    behind the incidence readers). Closing them needs to know what a
+    dual does where construction reads a certification's answer, which
+    DL5.3 does not say and the unit's unmeasured item (which of these a
+    dual instantiates today) would inform. The two filed rows go to P1
+    and must say this.
+  - **Class — a second name that does not carry the bound.** DL5.3
+    closes interiors by making "every function that names a lane"
+    carry `Certifies`; a trait alias for the lane (`impl XOf<T>`) names
+    the lane without the bound, so the compiler stops asking. A brief
+    that closes something "by type" should ask the reviewer for the
+    probe that builds the excluded thing, as both did here.
+  - **Class — "bodies did not move" as a goal.** The unit said each
+    mixed caller is a function to split; the implementation put the
+    split at leaf calls so no body changed. Minimal diff was bought
+    with the defect. (`docs/prompts/implementer-discipline.md` already
+    says the final state is weighed, not the diff.)
+  - **For Ev, when a channel is open** (filed as a design row by the
+    fix pass): at `Interval`, `Sym` and `Probe` three lanes are an
+    `Option` of a type with no constructor there — DL5.3's forbidden
+    shape at scalars other than a dual.
+
+- 2026-11-21 — **PR 7190's pair is blind-coded** (`coding-7190/`): 30
+  deduplicated findings; both reviewers built the same kind of probe
+  for the unsealed lane traits and planted the same gate blind spot;
+  one tally candidate (the sixteen by-value interiors), contested by
+  the other reviewer and not overlooked.
+- 2026-11-21 — **PR 7229 (the notation unit) is built and green**
+  (head `0cff6e4c8d`, run 44861598189, after five red runs) and went
+  to the first of its sequential reviews (`review-brief-7229.md`,
+  eleven claims). Built: `quantity::Notation` as the one home
+  (`geom-core` now depends on `quantity`), a `Tell` trait with
+  `Display` as the canonical telling, `geom_core::Sentence` for a
+  stored refusal, and the viewer's `readout` as doors onto `Told`.
+  - **Coming to Ev after the review, on that PR**: an offered bound in
+    a non-canonical unit often reads oddly (`at most 0.30004 m` reads
+    `300.0399999 mm`, because the typed float of `300.04 mm` lands
+    above the bound) — whether "the side that works when typed" means
+    the typed float or the exact decimal; and what a unit that cannot
+    say a quantity falls back to. The reviewer is asked to measure the
+    first and state both as questions.
+  - The working notation reaches only the sketch preview's refusal:
+    every other route turns a `PathError` into a `String` before the
+    viewer holds it. Filed P1,
+    `a-kept-refusal-keeps-its-text-where-it-must-keep-its-sentence`.
+  - Measured for the boxing row, as an estimate read from source and
+    not compiled: 65 error types would cross clippy's size line with
+    an inline `Told`.
+- 2026-11-21 — **Friction: the build slot.** Width one, shared by four
+  lanes of this program and by other programs; waits of 20 to 50
+  minutes per compile are routine, a viewer test build did not finish
+  in 90 minutes, and two units sent first-compile errors to CI
+  because local compiles timed out. With four lanes in flight no
+  further lane is dispatched from this container until one lands;
+  the told lane, free now, waits for PR 7229's review before unit 3
+  stacks on an API the review may reshape.
+- 2026-11-21 — (ONEROUND orchestrator) **Three topo slow-set rows are red on main from PR 7159 (`scalar/told-quantity-type`), bisected** (pass on `4d2d9942`, fail on `bd8b2c9b`): `offer_rows::every_offered_tolerance_passes_just_below_it`, which your open row `main-red-offer-rows-false-offers-since-the-told-quantity-type` holds (it is 16 false offers, not three), and two it did not name, `a_corner_reads_only_its_own_sectors::the_corners_offer_executes` and `::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt`. Each reads an offer back from the refusal's text and compares it with the margin's own to 1e-6 relative; the text now carries four figures cut downward. The evidence is on your row under 2026-11-21 (PR 7246). Whether the truncated offer is right is your row's question.
+- 2026-11-21 — **Seam note from SECT:** PR 7193 (`sect/certificate-by-support`, Ev's ruling in PR 7182: a certificate this process derived is read by its bit-identical support) adds one named door to `geom-core` `k_stats`, a replay of a stored `Recorded` into the open frame and sink, so a certificate read in place of its derivation logs exactly the derivation's verdicts and escalations (the ONEHOME drive's lane parity needs it). `Detached`/`Recorded` stay non-`Clone`; `splice` is unchanged. Review the door on the PR if it touches your work. (SECT orchestrator)
+- 2026-11-21, 04:45Z — (ONEROUND orchestrator) A note from another program: three slow-set source censuses are red on main since PR 7159 (`scalar/told-quantity-type`), bisected to its merge `bd8b2c9b` (pass on its first parent): test-utils' two `hand_written_impl_census` rows (`told.rs`'s `impl Debug for Read` and `impl PartialEq for Quantity`, and the file missing from `IMPL_FILES_TODAY`) and pncad-py's `prose_census` undecided list (four `path/program.rs` sites no longer found). The row, with the messages, is `work/green/main-red-three-source-censuses-red-since-the-told-quantity-type.md`; the fix is yours.
+- 2026-11-21 06:10Z — **The notation fork is weighed and goes to Ev** (`[ev]` PR on `scalar/ev-a-number-in-a-unit-is-rounded-once`; unit file `a-number-in-a-unit-is-rounded-once`). Two designers, three rounds, agreed on all four changes: a number in a unit is rounded once over the unit's exact factor at every door (true π for degrees; the Rust and Python doors read a float by its shortest decimal), which deletes the fallback to the canonical unit and the `…9999` offers; a sentence is written through a teller that carries the notation and a told number has no `Display`; equality is of what is held; an editable field over a written value shows its exact positional spelling. Evidence behind the PR body: the review's measurements (20% of `at most` and 6.5% of `at least` bounds round in metres read oddly in mm; a fallback on 2.3% of 12-digit lengths in mm, 8.5% of angles in deg, 3% of ordinary compared pairs; these are synthetic floats, and a number a person typed in mm always has an mm spelling); the designers' checks in exact arithmetic (38 of the integer degrees 1–360 are one float from the nearest to N·π/180 under the stored constant, and 54 differ from the same angle in `pi rad`; 1,500 sampled given numbers each in in, deg and `pi rad` all have a spelling under the once-rounded door). The float multiply at the text door is agent-written (`04d54f7943`, 2026-08-08), not in DESIGN.md, and its stated reason (no exact door can exist for degrees) is false: the stored factor is an exact binary fraction. Reports: `~/.local/share/cad-work/scalar-forks/design-notation-{A,B}{,-r2,-r3}.md`.
+- 2026-11-21 06:00Z — **Ev ratified all four changes of the notation fork on PR 7261** (the once-rounded door; the teller and no `Display` on a told number; equality as a plain derive; the editable field's exact positional spelling). The unit `a-number-in-a-unit-is-rounded-once` is `spec`, P1, and is dispatched after PR 7229 merges, ahead of the per-crate told sweeps. A lesson on the channel: my PR body used "told number" and "notation" as if Ev used those words; three of Ev's four first answers were questions about what the items meant. An `[ev]` body says each item as what a user or an author of code would see, with the type name second.
+- 2026-11-21 05:15Z — **Main is red in the nightly slow set from PR 7159, and the fix is dispatched.** Three families, all bisected by other programs' lanes (GERM, ONEROUND; rows `main-red-offer-rows-false-offers-since-the-told-quantity-type` here and `main-red-three-source-censuses-red-since-the-told-quantity-type` on green): topo rows that read an offer back from refusal text and hold it to the margin's to 1e-6, where the text is now the told offer (four figures, cut to the working side); `hand_written_impl_census` on `told.rs`'s two impls; pncad-py's prose census. One unit, branch `scalar/main-red-since-the-told-quantity-type`, letter M, single FULL review. The brief asks first which side is wrong for the offer rows (the rows' contract is "passes just below it" and "executes", not the spelling) and forbids weakening a row. **The class**: PR 7159 changed refusal text and added hand-written impls, and its gate ran none of the slow-set rows that read either; the PR gate runs only the slow tests a diff adds or edits. A unit that changes text any test parses, or adds an impl a source census walks, owes a run of those rows with `--ignore-default-filter` before merge; the brief has the implementer sweep for the rest of the class, and briefs for the told sweeps carry that from here.
+- 2026-11-21 05:15Z — **PR 7229's review: APPROVE-WITH-FIXES, no MAJOR**, so it is the unit's only review (sequential arm). The arithmetic held against an independent oracle over about two million renders, and `Display` is byte-identical to the merge base. Taken (`fix-list-7229.md`, fourteen items): camera refusal fields told as computed though handed in; an ε_in offer not marked as the tolerance; `readout` recovering a number by stripping the unit word; two near-copies (`render_shortest`, `written`); a guard for the `{}`-inside-`tell` class in place of a script sweep; the equality doc; prose the rename left false; rows for what the rule does not settle. **Unilateral call, changing what I said earlier**: the questions the review raised (an offer that reads `0.1299999 mm`, the fallback to the canonical unit, two units in one sentence, a scientific seed in an editable field, `Display` meaning canonical, equality) are gaps in a ratified rule, so they go to designers and then to Ev on their own `[ev]` PR, not onto PR 7229; PR 7229 merges after its fix pass with the behaviours as built, each on a filed `design: true` row. The alternative, holding the PR for the ruling, would hold the per-crate sweeps behind it for nothing the ruling is likely to reshape at the API (`Tell`/`told_in` held in review). Designers dispatched (two; draws on `analysis/design-fork/a-number-told-in-the-readers-notation`).
+- 2026-11-21 05:15Z — **PR 7190's fix pass is in** (head `afdc949f41`, green): the ten `…Of` traits sealed; ten interiors declared over `T: Certifies` taking the lane, six readers made lane-free; `run_fitted_checks` behind the lane (a dual's fitted row now refuses `FittedLaneUnsupported` first: read from code, not measured); the two rosters tied by a blanket impl; the gate reads `impl Trait`. Argued down: removing `#[allow(private_interfaces)]`, bounding `run_shell` and `enclosed_winding`, the certifying bound on `KeptSign`/`AtRestBody`. The change is large enough to re-read, so the reviewer that found it not mergeable got a delta brief (`review-brief-7190-delta.md`), which asks in particular whether tying `Certifies` to `CertifiedEnclosure` by a blanket impl opened the seal to a downstream impl, and to measure the dual behaviour change.
+- 2026-11-21 06:50Z — **PR 7190's delta re-review: APPROVE-WITH-FIXES; the three majors are closed, and one new MAJOR is mine.** The seal holds (each doctest fails on the seal alone), no lane-taking certification builds at `Dual64`, the gate reads `impl Trait`. The new one: my fix list had the fitted checks ask for the lane first, and that turned `IntervalNotForward`, `PlaceholderChart` and `ImageMismatch` on a stated General image into `FittedLaneUnsupported` at a dual (and at `f64` with the lane withheld), which `mint.rs` `not_owed` excuses, so tier 3 reports nothing: a defect made silent. The implementer's "no certificate ever followed those refusals" did not ask who reads the refusal's kind, and neither did I. **Unilateral ruling**: a defective image refuses as a defect at every scalar (`[loud-failure]`); the defect checks run ahead of the lane again wherever they read no bracket and build no certificate; one that does stays behind the lane with the lost refusal filed P1. The alternative (keep "nothing runs before the lane" and teach `not_owed` to look further) leaves a dual unable to say why an image is bad. **The class**: a change that moves which refusal comes back is a behaviour change even when the call was refused either way; ask who matches on the kind (`not_owed`, `WalkRefusal`, `LaneGap`) before calling it inert. Also taken: the by-function gate list is a hand-kept census that a new interior in the old idiom slips past (the fix reproducing the defect), `enclosed_winding` behind an entry, an associated-type hole in the gate's callback exemption, three missing seal pins, the true mechanism of `Certifies`' closure (`SpanLocate`'s seal, not `CertifiedEnclosure`). Second fix pass dispatched (`fix-list-7190-delta.md`). The re-review ran on one reviewer only (the one that had found it not mergeable); a login expiry interrupted it and the places implementer once, both resumed on the same arm.
+- 2026-11-21 06:50Z — **The places unit is built (PR 7250, green on `689449a483`) and went to its concurrent pair** (`review-brief-7250.md`, nine claims). Built: `Real::Value` (the scalar with its tangent removed) with `value()` and `view()`; `CertifiedEnclosure: Real<Value = Self>`; a `value_view` module whose `place` is bounded so a dual cannot be handed one; 39 `from_computed` spellings became `place`. What I asked the reviewers to press hardest: the unit's title says a place is an `f64` argument and what was built is `V::from_computed(x)` behind a bound, a new conversion door in a unit about removing conversions; `place` at `Sym` is an opaque unknown because an exact rational turned three pins red, which is either the right meaning or a design fitted to a baseline; and "consumers traced by reading only". Filed by the implementer: places read inside a reading held at `T` (P2), `periodic_nurbs`'s shift as a count of periods. Ev ratified the notation fork (PR 7261, merged 06:31Z).
+- 2026-11-21 07:20Z — **PR 7229's fix pass is in (head `232d079590`, green) and the unit closes with this state-sync.** Thirteen of fourteen items taken; the camera fields stay computed on the implementer's evidence (every production value is formed in `viewer::input`, none written by a person or a file), which I accept over my own list. A new gate, `told-in-the-notation.sh`, holds the `{}`-inside-`tell` class until the teller of `a-number-in-a-unit-is-rounded-once` makes it a compile error; the four design rows the pass filed on this slate now ride with that unit, and the viewer's seed row is a build since Ev's ruling. No second review ran (no MAJOR in the first). Row: `docs/model-compare-log/rows/PR-7229.md`.
