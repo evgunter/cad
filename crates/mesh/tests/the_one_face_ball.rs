@@ -121,20 +121,94 @@ fn the_one_face_ball_meshes_as_the_ball_or_its_void_from_either_pole() {
     }
 }
 
-/// **A wrap edge carried by two edges is one strip.** The one-face ball
-/// with its wrap edge split off the poles: its loop walks two edges down
-/// and back, its chart image is still empty and its tips are still the
-/// poles, so each side is one column across the split and the strip
-/// meshes as the ball. The split vertex is joinable at rest, which tier 3
-/// refuses and `tessellate` does not re-validate.
+/// **A wrap edge carried by two or three edges is one strip, whichever
+/// half the walk opens on.** The one-face ball with its wrap edge split
+/// off the poles, at points across the meridian, from either pole: its
+/// loop walks the edges down and back, its chart image is still empty and
+/// its tips are still the poles, so each side is one column across the
+/// splits and the strip meshes as the ball, and reverted as its void. The
+/// split moves the loop's first half-edge off the near tip, so the lift's
+/// near half is not the identity on every row: the strip reads the far
+/// half's lift relative to the near half's, not the far half's alone. The
+/// split vertices are joinable at rest, which tier 3 refuses and
+/// `tessellate` does not re-validate.
 #[test]
-fn a_split_wrap_edge_is_one_strip() {
-    let mut ball = one_wrap_edge(two_band_ball(), NORTH, false);
-    let wraps = ball.edges().map(|(e, _)| e).next().expect("the wrap edge");
-    ball.split_edge(wraps, 0.7, tol())
-        .expect("split the wrap edge off the poles");
-    assert_eq!(ball.edges().count(), 2, "two edges");
-    common::check_mesh_acceptance(&ball, DELTA, Some(BALL));
+fn a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on() {
+    let (volume, area) = BALL;
+    for (name, pole) in [("north", NORTH), ("south", SOUTH)] {
+        for t in [0.05, 0.7, 1.5, 2.5, 3.1] {
+            let mut ball = one_wrap_edge(two_band_ball(), pole, false);
+            let wraps = ball.edges().map(|(e, _)| e).next().expect("the wrap edge");
+            let split = ball
+                .split_edge(wraps, t, tol())
+                .unwrap_or_else(|e| panic!("{name} t {t}: split the wrap edge: {e:?}"));
+            assert_eq!(ball.edges().count(), 2, "{name} t {t}: two edges");
+            common::check_mesh_acceptance(&ball, DELTA, Some(BALL));
+            let void = ball.revert().expect("the split ball reverts");
+            let inside_out = mesh::tessellate(&void, DELTA, tol())
+                .unwrap_or_else(|e| panic!("{name} t {t}: the reverted ball meshes: {e:?}"));
+            assert_eq!(
+                check_volume(&inside_out, -volume, area, DELTA),
+                Ok(()),
+                "{name} t {t}: the reverted split ball encloses the void"
+            );
+
+            let mut thrice = ball.clone();
+            thrice
+                .split_edge(split.new_edge, 0.5 * (t + PI), tol())
+                .unwrap_or_else(|e| panic!("{name} t {t}: split the far piece: {e:?}"));
+            assert_eq!(thrice.edges().count(), 3, "{name} t {t}: three edges");
+            common::check_mesh_acceptance(&thrice, DELTA, Some(BALL));
+        }
+    }
+}
+
+/// **The one-face spindle meshes as its revolve.** A lemon, a spindle
+/// torus's outer sheet whose two apexes are the singular points, revolved
+/// in two bands and made one face with one wrap edge from either apex: the
+/// strip's turn round each apex is the lift's, on a chart whose singular
+/// points are sheet apexes, not a sphere's poles. It meshes watertight
+/// with its two-band revolve's volume, and reverted as its void, at three
+/// bulges.
+#[test]
+fn the_one_face_spindle_meshes_as_its_revolve() {
+    for bulge in [0.3, 0.6, 0.9] {
+        for (name, pole) in [("north", NORTH), ("south", SOUTH)] {
+            let lemon = || {
+                revolved_about_y(
+                    vec![
+                        (Point2::new(0.0, -1.0), bulge),
+                        (Point2::new(0.0, 1.0), 0.0),
+                    ],
+                    Revolution::Full,
+                    tol(),
+                )
+            };
+            let two_bands = mesh::validate::signed_volume(
+                &mesh::tessellate(&lemon(), DELTA, tol()).expect("the two-band lemon meshes"),
+            );
+            let one = one_wrap_edge(lemon(), pole, false);
+            let mesh = mesh::tessellate(&one, DELTA, tol())
+                .unwrap_or_else(|e| panic!("bulge {bulge} {name}: the one-face lemon: {e:?}"));
+            assert_eq!(
+                check_mesh(&mesh),
+                Ok(()),
+                "bulge {bulge} {name}: the one-face lemon is watertight"
+            );
+            let volume = mesh::validate::signed_volume(&mesh);
+            assert!(
+                (volume - two_bands).abs() < 0.05 * two_bands,
+                "bulge {bulge} {name}: volume {volume} against the two-band {two_bands}"
+            );
+            let void = mesh::tessellate(&one.revert().expect("reverts"), DELTA, tol())
+                .unwrap_or_else(|e| panic!("bulge {bulge} {name}: the reverted lemon: {e:?}"));
+            let inside = mesh::validate::signed_volume(&void);
+            assert!(
+                (inside + two_bands).abs() < 0.05 * two_bands,
+                "bulge {bulge} {name}: void volume {inside} against −{two_bands}"
+            );
+        }
+    }
 }
 
 /// **A slit between the tips is not the strip.** The two-band ball with
