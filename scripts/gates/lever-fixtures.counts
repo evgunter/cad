@@ -1,7 +1,7 @@
 # Fixture levers (geom_core::test_support::fixture_lever, geom_brep::Reach::fixture, ExtentBall::fixture): references per
 # crate (scripts/gates/lever-sources.sh), pinned: a test's stated scale, with no geometry behind it.
 crates/editor-core 2
-crates/geom-core 8
-crates/geom-brep 463
-crates/sweep 32
-crates/topo 296
+crates/geom-core 10
+crates/geom-brep 486
+crates/sweep 34
+crates/topo 300

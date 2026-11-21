@@ -3862,7 +3862,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, geom_core::Lever::curvature_radius(radius)),
+        Margin::levered(n_a, geom_brep::uniform_curvature_arm(&surface)),
         band,
     )
     .map_err(|diag| JoinError::Escalated { face, diag })?
@@ -4206,6 +4206,8 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
 /// run's loop arcs closed by the chord, the chord's midpoint `q` the
 /// paths arrive at, and its left normal there.
 pub(crate) struct IslandReading<T: Real> {
+    /// The face's surface, which `carrier` is of.
+    surface: geom::Surface<T>,
     carrier: Carrier<T>,
     arcs: Vec<LoopArc<T>>,
     q: Point3<T>,
@@ -4324,6 +4326,7 @@ impl<T: Decide> IslandReading<T> {
             Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
         Ok(Ok(Self {
+            surface: view.surface().clone(),
             carrier,
             arcs,
             q,
@@ -4456,7 +4459,7 @@ impl<T: Decide> IslandReading<T> {
     /// (**`split_ring_path_lean`**) and its parity across the closed
     /// curve; `None` where either is in the zero band.
     pub(crate) fn read(&self, path: Path<T>, band: Band) -> Result<Option<Sign>, Indeterminate> {
-        let Some(lever) = self.carrier.lean_lever(self.q, &path) else {
+        let Some(lever) = self.carrier.lean_lever(&self.surface, self.q, &path) else {
             return Ok(None);
         };
         let lean = decide(
@@ -5245,6 +5248,17 @@ pub(crate) fn reads_loop_side<T: Decide>(surface: &geom::Surface<T>) -> bool {
 /// ([`loop_references`]: its vertices, then its edges' midpoints): `face`
 /// lies on the loop's left, so it holds `outer` exactly when the island
 /// winds clockwise, `outer` on its left.
+///
+/// No path here takes a detour, and a sphere needs none while its faces
+/// keep their reference sets. A path from a reference reads in band where
+/// it runs through the loop's vertex: on a sphere, where the reference
+/// lies on the great circle through the vertex and the loop's midpoint,
+/// that is, on the plane through the centre, the vertex and the midpoint.
+/// A ball face's references are its two poles and its two seam midpoints,
+/// and a one-face zone's lie in its seam meridian's plane: all in one
+/// plane through the centre, which the loop's plane meets in one line, so
+/// at most two references are on it and another decides. A face whose
+/// references all lie on one line through the centre would break this.
 ///
 /// # Errors
 ///
