@@ -1992,6 +1992,24 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
 /// and the upstream arm claims only that its node feeds the minting
 /// node without being on the path. Exact, so a scope cannot quietly
 /// claim the other's relation.
+/// **A parting names the node and keeps the query and the step in
+/// `Debug`**: the site is routing, as a predicate's name is, and the
+/// step indexes a log no sentence shows.
+#[test]
+fn a_parting_says_where_and_claims_no_cause() {
+    let d = Diagnosis::Parted {
+        node: RecipeNodeId::new(0, tagged(8)),
+        site: "bvh_overlapping",
+        step: 19,
+    };
+    assert_eq!(
+        d.to_string(),
+        "at node 000000000008, the two runs part where a query handed on different \
+         candidates, before any verdict flipped; which change made it do so is not on record"
+    );
+    assert_f6(&d, &[], &["Parted", "bvh_overlapping", "19"]);
+}
+
 #[test]
 fn the_path_and_upstream_scopes_state_which_one_answered() {
     use editor_core::{RecipeEditRef, UpstreamCause};

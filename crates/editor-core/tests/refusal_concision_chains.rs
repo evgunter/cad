@@ -1032,7 +1032,8 @@ mod kernel {
 test_utils::f6_variants! {
     /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
     const DIAGNOSIS: Diagnosis = [
-        PredicateFlip, BorderDelta, GroupResized, StructuralParam, IndexCount, RecipeEdit, Cascade,
+        PredicateFlip, BorderDelta, GroupResized, Parted, StructuralParam, IndexCount, RecipeEdit,
+        Cascade,
         WitnessBifurcation, Upstream,
     ];
 }
@@ -5262,6 +5263,14 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     was: 2,
                     now: 1,
                     cutters: editor_core::GroupCutters::NotSeamBounded,
+                }),
+            ),
+            (
+                "Vanished(Parted)",
+                vanished(Diagnosis::Parted {
+                    node: at,
+                    site: "bvh_overlapping",
+                    step: 19,
                 }),
             ),
             (

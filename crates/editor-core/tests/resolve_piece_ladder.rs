@@ -7,7 +7,10 @@
 //! name's walls against those of the nearest piece its parent is held
 //! as now. A group that stopped being divided has no such piece, and
 //! the group-size rung states the count; a recorded flip on the path
-//! outranks both, because it names a cause.
+//! outranks both, because it names a cause. Below every rung that names
+//! a cause and above the group size, a node whose two runs part where a
+//! query handed on different candidates names the query and the step
+//! (`Diagnosis::Parted`): no cause, but where.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -18,7 +21,7 @@ use editor_core::{
     RoleSeg, RunCtx, StableName, evaluate,
 };
 use fixture::{insert, len, minted};
-use geom_core::k_stats::Verdict;
+use geom_core::k_stats::{Mark, MarkItem, Role, Verdict};
 use geom_core::{Sign, Tol};
 
 // ---------------------------------------------------------------
@@ -175,14 +178,14 @@ fn vanished(res: &Resolution) -> &Diagnosis {
 // ---------------------------------------------------------------
 
 #[test]
-fn a_vanished_rim_piece_whose_cut_parts_at_its_candidates_is_diagnosed_group_resized() {
+fn a_vanished_rim_piece_whose_union_parts_at_its_candidates_names_the_query() {
     // The corpus's own flip-vanish row: the rim piece's group goes
     // from two to one as the slab that cut it slides clear. The
-    // union's two runs part where its box queries hand on other
+    // union's two runs part where its first box query hands on other
     // candidates, before any choice turns, so no flip is on the record
     // (the slab's wall is still classified against `a`, but after the
-    // runs parted), and the group-size rung answers. The undivided rim
-    // edge rides in the offers.
+    // runs parted), and the parting rung names that query. The
+    // undivided rim edge rides in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
@@ -199,14 +202,75 @@ fn a_vanished_rim_piece_whose_cut_parts_at_its_candidates_is_diagnosed_group_res
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    assert!(
-        matches!(
-            vanished(res),
-            Diagnosis::GroupResized { was: 2, now: 1, .. }
-        ),
-        "expected the group-size rung: {res:?}"
+    assert_eq!(
+        vanished(res),
+        &Diagnosis::Parted {
+            node: name.node,
+            site: "bvh_overlapping",
+            step: 0,
+        },
+        "expected the parting rung at the union"
     );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
+}
+
+/// **A union's slide sweep names where its runs part, at every
+/// position.** The bar of [`slot`], joined to the plate rather than cut
+/// from it, slides along x from crossing the plate's middle to eight
+/// other places: across an edge, flush with one, or clear of the plate,
+/// on either side. At each, every name the union minted and no longer holds
+/// vanishes, and the union's two runs part where its face-pair query
+/// hands on other candidates, before any choice turns, so each name is
+/// diagnosed `Parted` at the union by that query.
+#[test]
+fn a_unions_slide_sweep_names_the_query_its_runs_part_at() {
+    let doc = ProfileDoc::empty_derived("bool7-sweep", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+    let (doc, bar) = crate::resolve_group_membership::placed(doc, a, b0, 0.5);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), bar.placement.into()]),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let minted: Vec<StableName> = ev1
+        .table_at(union)
+        .expect("the union evaluates")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .filter(|n| n.node == union)
+        .collect();
+    for to in [-3.0_f64, -2.0, -1.5, -1.0, 1.0, 1.5, 2.0, 3.0] {
+        let doc2 = crate::resolve_group_membership::moved(doc.clone(), &bar, [to, 0.0, 0.0]);
+        let ev2 = run(&doc2, Some(&ev1));
+        let now = ev2.table_at(union).expect("the union evaluates");
+        let gone: Vec<&StableName> = minted.iter().filter(|n| now.lookup(n).is_none()).collect();
+        assert!(
+            !gone.is_empty(),
+            "x {to:+}: some name the union minted vanishes"
+        );
+        for name in gone {
+            let res = crate::fixture::resolve_with_prior_at_mint(
+                RunCtx {
+                    doc: &doc2,
+                    eval: &ev2,
+                },
+                RunCtx {
+                    doc: &doc,
+                    eval: &ev1,
+                },
+                name,
+            );
+            let d = vanished(&res);
+            let Diagnosis::Parted { node, site, .. } = d else {
+                panic!("x {to:+}: {name:?} is diagnosed {d:?}");
+            };
+            assert_eq!(*node, union, "x {to:+}: the union's runs part");
+            assert_eq!(*site, "bvh_overlapping", "x {to:+}: at its face-pair query");
+        }
+    }
 }
 
 // ---------------------------------------------------------------
@@ -241,21 +305,44 @@ fn frag(
     }
 }
 
-/// One-node evaluation carrying `t`, the verdict log `log` and the
-/// fragment-group record `groups`.
-fn one_node_eval(
+/// One node's decision log in one run: its verdicts and its candidate
+/// marks.
+type Log = (Vec<Verdict>, Vec<Mark>);
+
+/// Each node's [`Log`] in one run.
+type Logs = Vec<(RecipeNodeId, Log)>;
+
+/// An evaluation whose `node` carries `t` and the fragment-group record
+/// `groups`, and whose every node in `logs` carries that log (a node
+/// other than `node` with an empty table).
+fn hand_eval(
     document: editor_core::DocumentId,
     node: RecipeNodeId,
     t: NameTable,
-    log: Vec<Verdict>,
+    logs: Logs,
     groups: FragmentGroups,
 ) -> Evaluation<f64> {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, log)),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, Vec::new())),
     );
-    Evaluation::<f64>::hand_built(document, vec![node], nodes, Tol::witness())
+    for (at, (verdicts, marks)) in logs {
+        let entry = nodes.entry(at).or_insert_with(|| {
+            editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+                NameTable::new(),
+                FragmentGroups::new(),
+                Vec::new(),
+            ))
+        });
+        let editor_core::NodeResult::Ok(value) = entry else {
+            unreachable!("every hand-built node is Ok")
+        };
+        value.verdicts = std::sync::Arc::new(verdicts);
+        value.marks = std::sync::Arc::new(marks);
+    }
+    let order = nodes.keys().copied().collect();
+    Evaluation::<f64>::hand_built(document, order, nodes, Tol::witness())
 }
 
 /// A two-frame document and the vanished/base/wall names
@@ -321,14 +408,14 @@ fn hand() -> Hand {
 }
 
 #[test]
-fn a_withdrawn_bar_names_no_flip_and_is_answered_by_its_group_size() {
+fn a_withdrawn_bar_names_where_its_cuts_runs_part() {
     // The bar moves away along x and no longer meets the plate. Both
     // pieces vanish. The cut's two runs part at the candidates its box
     // queries hand on (the withdrawn bar's faces meet none of the
     // plate's), before any choice turns: the containment readings that
     // follow are about other pairs, so no flip is recorded, and the
-    // group-size rung (two pieces became one) answers.
-    // `a_recorded_turn_outranks_the_group_size_rung` holds the order.
+    // parting rung names the query, above the group-size rung (two
+    // pieces became one). The hand-built rows below hold the order.
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = border_pieces(&ev1, s.cut);
@@ -349,9 +436,9 @@ fn a_withdrawn_bar_names_no_flip_and_is_answered_by_its_group_size() {
     assert!(
         matches!(
             vanished(&res),
-            Diagnosis::GroupResized { was: 2, now: 1, .. }
+            Diagnosis::Parted { node, site: "bvh_overlapping", .. } if *node == s.cut
         ),
-        "no turn on the record, so the group-size rung: {:?}",
+        "no turn on the record, so the parting rung at the cut: {:?}",
         vanished(&res)
     );
 }
@@ -367,7 +454,10 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let ev1 = run(&s.doc, None);
         let frags = border_pieces(&ev1, s.cut);
         let doc2 = slide(&s, 1, to);
-        let ev2 = run(&doc2, Some(&ev1));
+        // Read silent: the cut's runs part at a query's candidates,
+        // and the parting rung would answer above this one.
+        let ev2 = fixture::silent(run(&doc2, Some(&ev1)));
+        let ev1 = fixture::silent(ev1);
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
         let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
@@ -436,7 +526,9 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             "the cut names some edge pieces by their ends"
         );
         let doc2 = slide(&s, 1, to);
-        let ev2 = run(&doc2, Some(&ev1));
+        // Read silent, as the row above.
+        let ev2 = fixture::silent(run(&doc2, Some(&ev1)));
+        let ev1 = fixture::silent(ev1);
         let gone: Vec<&StableName> = pieces
             .iter()
             .filter(|n| {
@@ -517,12 +609,12 @@ fn group_diagnosis(
     logged_group_diagnosis(h, name, (prior, vec![]), (now, vec![]))
 }
 
-/// [`group_diagnosis`] with each run's verdict log at the node.
+/// [`group_diagnosis`] with each run's decision logs, by node.
 fn logged_group_diagnosis(
     h: &Hand,
     name: &StableName,
-    ((prior, prior_groups), prior_log): (Run, Vec<Verdict>),
-    ((now, now_groups), now_log): (Run, Vec<Verdict>),
+    ((prior, prior_groups), prior_log): (Run, Logs),
+    ((now, now_groups), now_log): (Run, Logs),
 ) -> editor_core::ResolutionFailure {
     let record = FragmentGroups::from_sizes;
     let table = |rows: Vec<(StableName, usize)>| {
@@ -555,14 +647,14 @@ fn logged_group_diagnosis(
         }
         t
     };
-    let prior_ev = one_node_eval(
+    let prior_ev = hand_eval(
         h.doc.id(),
         h.node,
         table(prior),
         prior_log,
         record(prior_groups),
     );
-    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), now_log, record(now_groups));
+    let new_ev = hand_eval(h.doc.id(), h.node, table(now), now_log, record(now_groups));
     let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &h.doc,
@@ -641,11 +733,11 @@ fn a_recorded_turn_outranks_the_group_size_rung() {
                 vec![(h.frag.clone(), 1), (sibling(&h, &[1]), 1)],
                 one_group(&h, 2),
             ),
-            vec![turn(Sign::Negative)],
+            vec![(h.node, (vec![turn(Sign::Negative)], vec![]))],
         ),
         (
             (vec![(h.base.clone(), 1)], one_group(&h, 1)),
-            vec![turn(Sign::Positive)],
+            vec![(h.node, (vec![turn(Sign::Positive)], vec![]))],
         ),
     );
     assert_eq!(
@@ -656,6 +748,227 @@ fn a_recorded_turn_outranks_the_group_size_rung() {
             to: Sign::Positive,
         }
     );
+}
+
+/// A choice of `predicate` decided `sign`.
+fn choice(predicate: &'static str, sign: Sign) -> Verdict {
+    Verdict {
+        predicate,
+        sign,
+        role: Role::Choice,
+    }
+}
+
+/// A mark of `site` placed before verdict `before`, feeding `role`.
+fn mark(site: &'static str, before: usize, item: MarkItem, role: Role) -> Mark {
+    Mark {
+        before,
+        site,
+        item,
+        role,
+    }
+}
+
+/// [`logged_group_diagnosis`] over the group that stops being divided
+/// (2 → 1) at `h.node`, with each run's decision logs.
+fn parting_diagnosis(h: &Hand, prior: Logs, now: Logs) -> Diagnosis {
+    let f = logged_group_diagnosis(
+        h,
+        &h.frag,
+        (
+            (
+                vec![(h.frag.clone(), 1), (sibling(h, &[1]), 1)],
+                one_group(h, 2),
+            ),
+            prior,
+        ),
+        ((vec![(h.base.clone(), 1)], one_group(h, 1)), now),
+    );
+    diag(&f).clone()
+}
+
+/// **A parting at a mark outranks the group-size rung**: the node's
+/// group stops being divided AND its runs part where one query handed
+/// on different candidates, before any choice turns. The parting names
+/// the query and the step, the index along the choices and candidates
+/// both runs walked alike; the group size names only the effect.
+#[test]
+fn a_parting_at_a_mark_outranks_the_group_size_rung() {
+    let h = hand();
+    let c = |sign| choice("bool_point_in_solid_plane", sign);
+    let cand = |i| MarkItem::Candidate(i);
+    // A query that handed on candidate 0 then 1, against one that
+    // handed on 0 alone: the runs part at its second step.
+    let d = parting_diagnosis(
+        &h,
+        vec![(
+            h.node,
+            (
+                vec![c(Sign::Positive), c(Sign::Negative)],
+                vec![
+                    mark("bvh_overlapping", 0, cand(0), Role::Choice),
+                    mark("bvh_overlapping", 0, cand(1), Role::Choice),
+                    mark("bvh_overlapping", 0, MarkItem::End, Role::Choice),
+                ],
+            ),
+        )],
+        vec![(
+            h.node,
+            (
+                vec![c(Sign::Positive), c(Sign::Positive)],
+                vec![
+                    mark("bvh_overlapping", 0, cand(0), Role::Choice),
+                    mark("bvh_overlapping", 0, MarkItem::End, Role::Choice),
+                ],
+            ),
+        )],
+    );
+    assert_eq!(
+        d,
+        Diagnosis::Parted {
+            node: h.node,
+            site: "bvh_overlapping",
+            step: 1,
+        },
+        "a query's candidates part the runs"
+    );
+    // A marked test that answered otherwise, after one identical
+    // choice: the runs part at the test, and the turn after it, about
+    // what the test let through, is not read.
+    let d = parting_diagnosis(
+        &h,
+        vec![(
+            h.node,
+            (
+                vec![c(Sign::Positive), c(Sign::Negative)],
+                vec![mark(
+                    "blend_reach_sure",
+                    1,
+                    MarkItem::Outcome(true),
+                    Role::Choice,
+                )],
+            ),
+        )],
+        vec![(
+            h.node,
+            (
+                vec![c(Sign::Positive), c(Sign::Positive)],
+                vec![mark(
+                    "blend_reach_sure",
+                    1,
+                    MarkItem::Outcome(false),
+                    Role::Choice,
+                )],
+            ),
+        )],
+    );
+    assert_eq!(
+        d,
+        Diagnosis::Parted {
+            node: h.node,
+            site: "blend_reach_sure",
+            step: 1,
+        },
+        "a marked test's answer parts the runs"
+    );
+}
+
+/// **A recorded turn outranks a parting**: one node on the path parts
+/// at a mark, and another turns. The turn names a decision, so it
+/// answers; the parting would name only where one node's runs stopped
+/// being comparable.
+#[test]
+fn a_recorded_turn_outranks_a_parting() {
+    let h = hand();
+    // The walls' node, on the path the vanished piece's name spells.
+    let other = h.walls[0].node;
+    assert_ne!(other, h.node);
+    let c = |sign| choice("bool_point_in_solid_plane", sign);
+    let parts = |item| {
+        (
+            h.node,
+            (
+                vec![c(Sign::Positive)],
+                vec![mark("bvh_overlapping", 0, item, Role::Choice)],
+            ),
+        )
+    };
+    let turns = |sign| (other, (vec![c(sign)], vec![]));
+    let d = parting_diagnosis(
+        &h,
+        vec![parts(MarkItem::Candidate(0)), turns(Sign::Negative)],
+        vec![parts(MarkItem::End), turns(Sign::Positive)],
+    );
+    assert_eq!(
+        d,
+        Diagnosis::PredicateFlip {
+            predicate: "bool_point_in_solid_plane",
+            from: Sign::Negative,
+            to: Sign::Positive,
+        }
+    );
+}
+
+/// **A parting at no mark names nothing**, and the group-size rung
+/// answers (N5: a node whose choices part any other way names no
+/// flip, and only a query's candidates name where). Each case parts
+/// the node's two runs, at its first step, some other way.
+#[test]
+fn a_parting_at_no_mark_falls_to_the_group_size_rung() {
+    let h = hand();
+    let resized = Diagnosis::GroupResized {
+        node: h.node,
+        was: 2,
+        now: 1,
+        cutters: GroupCutters::NotSeamBounded,
+    };
+    let c = |predicate| choice(predicate, Sign::Positive);
+    let at = |verdicts: Vec<Verdict>, marks: Vec<Mark>| vec![(h.node, (verdicts, marks))];
+    let one = |site, item| vec![mark(site, 0, item, Role::Choice)];
+    let cases: [(&str, Logs, Logs); 5] = [
+        (
+            "another predicate",
+            at(vec![c("bool_point_in_solid_plane")], vec![]),
+            at(vec![c("plane_eq_parallel")], vec![]),
+        ),
+        (
+            "one log ending",
+            at(vec![c("bool_point_in_solid_plane")], vec![]),
+            at(vec![], vec![]),
+        ),
+        (
+            "a choice against a mark",
+            at(vec![c("bool_point_in_solid_plane")], vec![]),
+            at(
+                vec![c("bool_point_in_solid_plane")],
+                one("bvh_overlapping", MarkItem::End),
+            ),
+        ),
+        (
+            "two queries' marks",
+            at(vec![], one("bvh_overlapping", MarkItem::End)),
+            at(vec![], one("bvh_within", MarkItem::End)),
+        ),
+        (
+            "a query's candidates feeding only checks",
+            at(
+                vec![],
+                vec![mark(
+                    "bvh_overlapping",
+                    0,
+                    MarkItem::Candidate(0),
+                    Role::Check,
+                )],
+            ),
+            at(
+                vec![],
+                vec![mark("bvh_overlapping", 0, MarkItem::End, Role::Check)],
+            ),
+        ),
+    ];
+    for (case, prior, now) in cases {
+        assert_eq!(parting_diagnosis(&h, prior, now), resized, "{case}");
+    }
 }
 
 #[test]
@@ -882,7 +1195,7 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
         t.insert(inner.clone(), body_ent(1000 + i as u32)).unwrap();
     }
     let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
-    let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
+    let ev = hand_eval(h.doc.id(), h.node, t, vec![], groups);
     let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &h.doc,

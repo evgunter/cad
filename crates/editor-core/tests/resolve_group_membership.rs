@@ -19,6 +19,12 @@
 //! that starts, two at once, a union's member-space cutters in every
 //! fold order, and a cutter a fold step re-qualified that is not read as
 //! gone and new.
+//!
+//! Every row reads its two real runs `silent`: an edit that resizes a
+//! group moves a vertex across a plane (a flip) or changes the
+//! candidates a query hands on (a parting), and both rungs answer above
+//! this one. What is left is the rung, over the tables and the groups
+//! the two runs emitted.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -28,7 +34,7 @@ use editor_core::{
     Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
     evaluate,
 };
-use fixture::{insert, len, prism, step};
+use fixture::{insert, len, prism, silent, step};
 use geom_core::Tol;
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -302,7 +308,8 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     let (doc, _, tr, cut) = tied_prongs_cut(&fixture::U_CUTTER);
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
-    let ev2 = run(&doc2, Some(&ev1));
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
     // The tied parents' fragments: tied rows of the cut's own groups.
     let rows = vanished(
         (&doc2, &ev2),
@@ -362,7 +369,8 @@ fn a_tied_parents_seam_group_counts_its_own_pieces() {
     let (doc, sub, tr, cut) = tied_prongs_cut(&TINED_U_CUTTER);
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
-    let ev2 = run(&doc2, Some(&ev1));
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
     let tied = ev1.table_at(sub).expect("the first cut evaluates");
     let is_tied = |side: &StableName| match side.path.as_slice() {
         [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),
@@ -391,17 +399,6 @@ fn a_tied_parents_seam_group_counts_its_own_pieces() {
             "{n:?}"
         );
     }
-}
-
-/// `ev` with every node's verdict log emptied: the flip lanes then have
-/// nothing to diff.
-fn silent(mut ev: Evaluation<f64>) -> Evaluation<f64> {
-    for result in ev.nodes.values_mut() {
-        if let editor_core::NodeResult::Ok(v) = result {
-            v.verdicts = std::sync::Arc::new(Vec::new());
-        }
-    }
-    ev
 }
 
 /// **A split that stops dividing a face leaves a group of one.**
