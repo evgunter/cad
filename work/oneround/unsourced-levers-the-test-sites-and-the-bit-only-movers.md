@@ -20,12 +20,15 @@ part both designers read as needing no ruling. Stacked on
   `boolean::fan` (2), a `join` fixture, `link::chord_rows`,
   `ssi::certify`'s test twin) go to the fixture doors.
 - **The arms whose honest read moves only last bits** are re-read from
-  the extent itself: `metering_arm`'s callers (and
-  `geom_brep::sector_shape::metering_arm(arm: T)`, a `pub fn` over one
-  pinned reference, takes what it reads instead of a length),
-  `departure_arm_lever`, `leaned_lever`, the line parameter spans in
-  `offset_axial`, `boolean::reduce` and `census`, and `intersect`'s
-  quotient forms (`levered_inv` differs in the last bit).
+  the extent itself: `leaned_lever` (`topo::star::order`), the line
+  parameter spans in `offset_axial`, `curve_face::line_quadric`'s
+  `line_cone_roots` and `census`, `census`'s wedge sides, and
+  `intersect`'s quotient forms (`levered_inv` differs in the last bit).
+- **Not this unit after all: `geom_brep::sector_shape::metering_arm` and
+  its nine callers** (`topo::boolean::sectors::metering_arm` and
+  `departure_arm_lever` no longer exist). The arm reaches them as a bare
+  `T` held in `SectorShape`, `FullTurn` and `ApexShape`, so the family
+  waits whole for the records unit (the parent row's 2026-11-21 note).
 
 `lever-sources.counts` falls by what is converted. Whether a mover is
 "bit-only" is a claim: each is measured by a differential, and one that
