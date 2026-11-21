@@ -14777,7 +14777,17 @@ mod tests {
             let pinned = if eps <= 1e-12 {
                 matches!(&read, Ok(crate::contain::FaceContainment::OnVertex(_)))
             } else if eps >= 1e-6 {
-                matches!(&read, Ok(crate::contain::FaceContainment::OnEdge(_)))
+                // On the arc: neither side and no vertex (the variant is
+                // read by exclusion, its name being a splitting item's).
+                matches!(
+                    &read,
+                    Ok(at) if !matches!(
+                        at,
+                        crate::contain::FaceContainment::In
+                            | crate::contain::FaceContainment::Out
+                            | crate::contain::FaceContainment::OnVertex(_)
+                    )
+                )
             } else {
                 matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
                     || matches!(&read, Err(ContainError::Escalated { .. }))
