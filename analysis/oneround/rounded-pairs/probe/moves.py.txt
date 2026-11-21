@@ -1,0 +1,19 @@
+import sys,glob
+def load(d):
+    m={}
+    for f in glob.glob(d+'/*.tsv'):
+        for line in open(f):
+            p=line.rstrip('\n').split('\t')
+            if len(p)!=9: continue
+            k=(p[0],p[1],p[2],p[3]); v=[int(x) for x in p[4:8]]
+            if k in m: v=[a+b for a,b in zip(m[k],v)]
+            m[k]=v
+    return m
+a=load(sys.argv[1]); b=load(sys.argv[2])
+ta={k[:2] for k in a}
+for k in sorted(set(a)|set(b)):
+    va=a.get(k,[0]*4); vb=b.get(k,[0]*4)
+    if va!=vb:
+        new='' if k[:2] in ta else ' [NEW TEST]'
+        lane='I' if 'nterval' in k[3] else k[3]
+        print(f"{k[1]}{new}\t{k[2]}\t{lane}\tbase(p,n,z,e)={va}\thead={vb}")

@@ -1,0 +1,74 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 7dbedcfe..733282fb 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -166,7 +166,7 @@ truck-stepio = "0.3.0"
+ # which runs each pin `scripts/gates/any-climb-pins.counts` names under it
+ # and reds one that stays green.
+ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(any_first_mutant)'] }
+-unsafe_code = "forbid"
++unsafe_code = "deny"
+ missing_docs = "warn"
+ # A `pub` item that no path from the crate root reaches is invisible to
+ # `dead_code`, which exempts anything `pub` on the assumption an external
+diff --git a/crates/geom-core/src/k_stats.rs b/crates/geom-core/src/k_stats.rs
+index 2f11d17a..36adcf13 100644
+--- a/crates/geom-core/src/k_stats.rs
++++ b/crates/geom-core/src/k_stats.rs
+@@ -485,6 +485,7 @@ fn classify<T: Decide>(
+         }),
+         o => o,
+     };
++    review_dump::note(name, core::any::type_name::<T>(), &outcome);
+     // Both channels of the innermost open bracket: a definite sign as
+     // a verdict, an indeterminate outcome as an escalation.
+     match &outcome {
+@@ -2916,3 +2917,48 @@ mod tests {
+         }
+     }
+ }
++
++// ---- REVIEW INSTRUMENT (not for commit): per-process verdict census ----
++pub(crate) mod review_dump {
++    use std::collections::HashMap;
++    use std::hash::{Hash, Hasher};
++    use std::sync::Mutex;
++    type Key = (&'static str, &'static str);
++    #[derive(Default, Clone, Copy)]
++    pub(crate) struct Row { pos: u64, neg: u64, zero: u64, esc: u64, hash: u64 }
++    static MAP: Mutex<Option<HashMap<Key, Row>>> = Mutex::new(None);
++    pub(crate) fn note(name: &'static str, lane: &'static str, outcome: &Result<crate::Decided, crate::Indeterminate>) {
++        if std::env::var_os("CAD_REVIEW_DUMP").is_none() { return; }
++        let mut h = std::collections::hash_map::DefaultHasher::new();
++        let tag = match outcome {
++            Ok(d) => { format!("{:?}|{:?}", d.sign, d.margin).hash(&mut h); match d.sign { crate::Sign::Positive => 0, crate::Sign::Negative => 1, crate::Sign::Zero => 2 } }
++            Err(e) => { format!("E|{:?}", e.margin).hash(&mut h); 3 }
++        };
++        let eh = h.finish();
++        let mut g = MAP.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++        let r = g.get_or_insert_with(HashMap::new).entry((name, lane)).or_default();
++        match tag { 0 => r.pos += 1, 1 => r.neg += 1, 2 => r.zero += 1, _ => r.esc += 1 }
++        r.hash = r.hash.wrapping_add(eh);
++    }
++    extern "C" fn dump() {
++        let Some(dir) = std::env::var_os("CAD_REVIEW_DUMP") else { return };
++        let g = MAP.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++        let Some(m) = g.as_ref() else { return };
++        let args: Vec<String> = std::env::args().collect();
++        let test = args.iter().skip(1).filter(|a| !a.starts_with("--")).cloned().collect::<Vec<_>>().join(" ");
++        let bin = args.first().cloned().unwrap_or_default();
++        let bin = bin.rsplit('/').next().unwrap_or("").split('-').next().unwrap_or("").to_string();
++        let mut out = String::new();
++        let mut keys: Vec<_> = m.keys().copied().collect();
++        keys.sort_unstable();
++        for k in keys { let r = m[&k]; out.push_str(&format!("{bin}\t{test}\t{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\n", k.0, k.1, r.pos, r.neg, r.zero, r.esc, r.hash)); }
++        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
++        let path = std::path::Path::new(&dir).join(format!("{}-{}.tsv", std::process::id(), nanos));
++        use std::io::Write as _;
++        if let Ok(mut fh) = std::fs::OpenOptions::new().write(true).create_new(true).open(&path) { let _ = fh.write_all(out.as_bytes()); } else { eprintln!("REVIEW_DUMP_COLLISION {}", path.display()); }
++    }
++    #[allow(unsafe_code)]
++    #[used]
++    #[unsafe(link_section = ".fini_array")]
++    static DUMP_AT_EXIT: extern "C" fn() = dump;
++}

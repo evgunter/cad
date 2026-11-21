@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_face/conic_quadric.rs b/crates/geom-brep/src/curve_face/conic_quadric.rs
+index f3032646..683e0261 100644
+--- a/crates/geom-brep/src/curve_face/conic_quadric.rs
++++ b/crates/geom-brep/src/curve_face/conic_quadric.rs
+@@ -647,7 +647,7 @@ fn through_the_apex<T: Decide>(
+         let (s2, c2) = (two * theta).sin_cos();
+         Rounded {
+             value: h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2),
+-            error: two * noise,
++            error: noise,
+         }
+     };
+     let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()

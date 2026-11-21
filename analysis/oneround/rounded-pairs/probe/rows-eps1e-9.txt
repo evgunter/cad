@@ -1,0 +1,120 @@
+tests with dumps 8956 8960 only-a 0 only-b 4
+arc_diameter_clearance	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+bool_ring_run_winding	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+canonical_order_y	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+carrier_endpoint_end	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+carrier_matches_mapped_source	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+carrier_on_surface_1	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+carrier_on_surface_2	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+chart_singularity_pole_plane	I	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[-2, 0, 0, 0]
+chart_singularity_pole_plane	f	count-moves:13	bit-only:0	delta(pos,neg,zero,esc)=[-1551, 1, 1, 0]
+chord_side	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+circle_torus_sub_monotone	I	count-moves:0	bit-only:3	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+circle_torus_sub_monotone	f	count-moves:0	bit-only:16	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+circle_torus_sub_root_slack	I	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+circle_torus_sub_root_slack	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+conic_quadric_cone_deflated_side	f	count-moves:4	bit-only:0	delta(pos,neg,zero,esc)=[-19, 1, 1, 0]
+conic_quadric_first_constant	f	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[1, 0, 0, 0]
+conic_quadric_first_extreme	f	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[0, 1, 0, 1]
+conic_quadric_first_noise	f	count-moves:1	bit-only:5	delta(pos,neg,zero,esc)=[0, 0, 1, 0]
+conic_quadric_first_root_slack	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+conic_quadric_sub_monotone	I	count-moves:0	bit-only:3	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+conic_quadric_sub_monotone	f	count-moves:0	bit-only:49	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+conic_quadric_sub_root_slack	I	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+conic_quadric_sub_root_slack	f	count-moves:0	bit-only:4	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ct_critical_gap	f	count-moves:0	bit-only:11	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ct_critical_gap_clear	f	count-moves:0	bit-only:19	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ct_critical_gap_monotone	f	count-moves:2	bit-only:16	delta(pos,neg,zero,esc)=[0, -73713, 58082, 15631]
+curve_pair_coplanar_sub_clear	f	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[24, 19, 0, 1]
+curve_pair_coplanar_sub_convex	f	count-moves:1	bit-only:7	delta(pos,neg,zero,esc)=[28, 14, 0, 0]
+curve_pair_coplanar_sub_monotone	f	count-moves:1	bit-only:12	delta(pos,neg,zero,esc)=[6, 14, 0, 0]
+curve_pair_coplanar_sub_side	f	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[44, 0, 24, 14]
+curve_pair_coplanar_sub_touch	f	count-moves:1	bit-only:2	delta(pos,neg,zero,esc)=[13, 0, 1, 0]
+curve_pair_coplanar_sub_width	f	count-moves:1	bit-only:0	delta(pos,neg,zero,esc)=[13, 0, 0, 0]
+curve_pair_pose_touch_spread	f	count-moves:0	bit-only:3	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+curve_pair_span_end_chord	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+curve_pair_span_end_side	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+dihedral_arm	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+dihedral_sign	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+dihedral_wedge	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ellipse_torus_root_slack	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ellipse_torus_sub_monotone	f	count-moves:0	bit-only:5	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+extrusion_normal_component	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_corner_arm	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_corner_turn	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_enclosing_carrier	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_leg_fit	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_leg_reach	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+fillet_offset_line_circle	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+half_angle_guard_root_slack	I	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+interval_span_chord	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+interval_span_forward	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+interval_span_sense	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+interval_span_winding	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+loop_orientation	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_arc_branch	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_arc_center_radius	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_arc_landing	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_arc_start_on_carrier	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_carrier_meet	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_continuation_target_offset	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_corner_advance	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_corner_reach_arc	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_director_norm	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_fillet_joint_turn	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_fillet_radius	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_junction_turn	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+path_leg_length	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+pcurve_line_chart_incident	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+pcurve_point_chart_incident	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+period_near_mark	f	count-moves:1	bit-only:1	delta(pos,neg,zero,esc)=[1, 1, 0, 0]
+plane_crossing_belly_graze	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+plane_crossing_root_order	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+plane_crossing_roots_apart	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+positive_volume_exact	I	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+section_cone_cylinder_fold	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+section_cone_pair_fold	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+section_ruling_monotone	f	count-moves:0	bit-only:23	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+segment_direction_axis	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+segment_gap	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+segment_straightness	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+session_box_reach	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_advance	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_denom	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_edge	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_edge_span	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_order	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_vertex	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_at_infinity_winding	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+side_planes_cosurface	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+split_vertex_side	f	count-moves:0	bit-only:1	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+ssi_hull_sup	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+tt_critical_gap	f	count-moves:0	bit-only:19	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+tt_critical_gap_clear	f	count-moves:0	bit-only:25	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+tt_critical_gap_monotone	f	count-moves:1	bit-only:22	delta(pos,neg,zero,esc)=[0, -83085, 43672, 39413]
+vertex_separation	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+witness_on_surface_1	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+witness_on_surface_2	f	count-moves:0	bit-only:2	delta(pos,neg,zero,esc)=[0, 0, 0, 0]
+TESTS WITH COUNT MOVES 22
+   all a_trace_reads_a_piece_against_its_carrier::a_piece_through_a_cones_apex_refuses_at_the_apex
+   all chart_singularity_locate::a_distance_in_band_is_undecided
+   all chart_singularity_locate::a_hole_takes_the_pole_out_only_where_it_rings_it
+   all chart_singularity_locate::a_rim_only_cap_holds_the_pole_on_its_side
+   all chart_singularity_locate::a_tilted_cap_holds_a_pole_by_its_region_not_its_meridians
+   all chart_singularity_locate::spurs_through_both_poles_leave_their_sides_to_the_rim
+   all chart_singularity_locate::the_cap_reads_alike_at_interval
+   all chart_singularity_sweep::closed_form_and_walk::a_sliver_near_a_pole_reads_the_poles_outside
+   all chart_singularity_sweep::closed_form_and_walk::a_spur_short_of_the_pole_leaves_it_inside
+   all chart_singularity_sweep::closed_form_and_walk::sampled_rim_a_centimetre_from_the_pole_still_places_it
+   all chart_singularity_sweep::closed_form_and_walk::tilted_caps_match_the_plane_test
+   all chart_singularity_sweep::sampled_and_fuzzed::a_meridian_spur_short_of_the_pole
+   all chart_singularity_sweep::sampled_and_fuzzed::caps_near_a_pole_read_by_their_region
+   all chart_singularity_sweep::sampled_and_fuzzed::thin_lens_far_from_poles
+   all torus_gap::the_tube_circle_tangency_decides_zero
+   geom_brep curve_face::circle_roots::tests::an_extreme_is_read_with_its_bound
+   geom_brep curve_face::conic_quadric::cone_rows::a_deflated_roots_side_is_read_past_its_rounding
+   geom_brep curve_face::conic_quadric::cone_rows::a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses
+   geom_brep curve_face::conic_quadric::cone_rows::a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it
+   geom_brep half_angle::subdivision_guard_rows::a_touchs_fall_charges_the_values_bound
+   geom_brep props::curved::pole_plane_rows::a_height_within_its_rounding_reads_no_side
+   topo boolean::section_cert::section_cert_square_rows::a_pipe_along_the_cores_tangent_places_its_folds_within_the_band

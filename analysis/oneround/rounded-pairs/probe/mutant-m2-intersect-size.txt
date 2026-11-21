@@ -1,0 +1,4 @@
+--- a/crates/geom-brep/src/intersect.rs
++++ b/crates/geom-brep/src/intersect.rs
+(both sites) -        let size = gap.magnitude();
+              +        let size = gap.value.abs();

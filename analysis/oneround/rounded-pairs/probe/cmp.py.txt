@@ -1,0 +1,31 @@
+import sys,glob,collections
+def load(d):
+    m={}  # (bin,test,row,lane) -> (pos,neg,zero,esc,hash)
+    for f in glob.glob(d+'/*.tsv'):
+        for line in open(f):
+            p=line.rstrip('\n').split('\t')
+            if len(p)!=9: continue
+            k=(p[0],p[1],p[2],p[3]); v=tuple(int(x) for x in p[4:8])+(p[8],)
+            if k in m: v=tuple(a+b for a,b in zip(m[k][:4],v[:4]))+(m[k][4]+'+'+v[4],)
+            m[k]=v
+    return m
+a=load(sys.argv[1]); b=load(sys.argv[2])
+tests_a={k[:2] for k in a}; tests_b={k[:2] for k in b}
+print('tests with dumps', len(tests_a), len(tests_b), 'only-a', len(tests_a-tests_b), 'only-b', len(tests_b-tests_a))
+rows=collections.defaultdict(lambda: {'cnt':0,'bits':0,'tests':set(),'d':[0,0,0,0]})
+for k in set(a)|set(b):
+    va=a.get(k,(0,0,0,0,'-')); vb=b.get(k,(0,0,0,0,'-'))
+    lane='I' if 'nterval' in k[3] else ('f' if k[3]=='f64' else k[3])
+    r=rows[(k[2],lane)]
+    if va[:4]!=vb[:4]:
+        r['cnt']+=1; r['tests'].add(k[:2])
+        for i in range(4): r['d'][i]+=vb[i]-va[i]
+    elif va[4]!=vb[4]: r['bits']+=1
+for (row,lane),r in sorted(rows.items()):
+    if r['cnt'] or r['bits']:
+        print(f"{row}\t{lane}\tcount-moves:{r['cnt']}\tbit-only:{r['bits']}\tdelta(pos,neg,zero,esc)={r['d']}")
+alltests=set()
+for r in rows.values():
+    if r['cnt']: alltests|=r['tests']
+print('TESTS WITH COUNT MOVES', len(alltests))
+for t in sorted(alltests): print('  ',*t)

@@ -1,0 +1,10 @@
+#!/bin/bash
+# run.sh <tree> <eps> <tag> [extra nextest args...]
+S=/tmp/claude-0/-home-user-cad/6f70739e-fa8f-5fb0-ac2a-0f8117b0c698/scratchpad
+t=$1; e=$2; tag=$3; shift 3
+d=$S/dump-$tag; rm -rf $d; mkdir -p $d
+cd $S/$t
+start=$(date +%s)
+CAD_REVIEW_DUMP=$d CAD_TOLERANCE_EPS=$e CAD_FUZZ_SEED=0x5eed PROPTEST_RNG_SEED=7 CARGO_TARGET_DIR=$S/target-$t \
+  cargo nextest run --profile ci --no-fail-fast -p geom-core -p geom-brep -p topo -p profile -p sweep "$@" > $S/run-$tag.log 2>&1
+echo "$tag exit $? secs $(( $(date +%s) - start ))" >> $S/runs.status
