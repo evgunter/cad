@@ -2469,8 +2469,17 @@ where
         } else {
             Axes::Relative
         };
+        let m_sep = separation(&pair.a.enc, &pair.b.enc);
+        let m_code = crate::gate_measure::distance_split(
+            m_sep.lo(),
+            m_sep.hi(),
+            self.sweep.band.escalate(),
+            task.m_why,
+        );
         let task = Task {
             open: split,
+            m_why: m_code,
+            m_after: task.m_after || self.lower_refusal.is_some(),
             ..task
         };
         if std::env::var_os("CV_PAIRS").is_some() {

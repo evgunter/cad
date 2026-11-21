@@ -692,34 +692,58 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
     // M5b: per refusing face pair, the first depth where a split repeats
     // its parent's reason, reads a margin wholly in band, or holds a
     // Structural part; and what the pair spent below that depth.
-    let fixed = |code: u32, same: bool| {
+    let strict = |code: u32| {
         let k = key_of(code);
-        same || k.contains("wholly-in-band") || k.contains("Structural")
+        k.contains("wholly-in-band") || k.contains("Structural")
     };
+    // Per refusing pair: (strict) the first depth with a split whose reason
+    // no smaller cell changes; (repeat) the depth below which every split
+    // repeats its parent's reason exactly (class, site, shared cell). And
+    // what the pair spent below each.
+    let (mut st_splits, mut st_secs, mut st_pairs) = (0usize, 0f64, 0usize);
     let (mut m5b_splits, mut m5b_secs, mut m5b_pairs) = (0usize, 0f64, 0usize);
     let mut m5b_depths: Vec<u32> = Vec::new();
+    let mut st_depths: Vec<u32> = Vec::new();
     for p in refusing.keys() {
-        let d_star = rec
+        let mine: Vec<(
+            usize,
+            &(FaceKey, FaceKey, usize, f64, bool, u32, Option<String>),
+        )> = rec
             .events
             .iter()
             .enumerate()
             .filter(|(_, e)| key(e.0, e.1) == *p)
-            .filter_map(|(n, e)| {
-                rec.splits
-                    .get(&n)
-                    .filter(|&&(c, sm)| fixed(c, sm))
-                    .map(|_| e.5)
-            })
+            .collect();
+        let d_strict = mine
+            .iter()
+            .filter(|(n, _)| rec.splits.get(n).is_some_and(|&(c, _)| strict(c)))
+            .map(|(_, e)| e.5)
             .min();
-        if let Some(d) = d_star {
+        if let Some(d) = d_strict {
+            st_pairs += 1;
+            st_depths.push(d);
+            for (_, e) in mine.iter().filter(|(_, e)| e.5 > d) {
+                st_splits += e.2;
+                st_secs += e.3;
+            }
+        }
+        let changed = mine
+            .iter()
+            .filter(|(n, _)| rec.splits.get(n).is_some_and(|&(_, same)| !same))
+            .map(|(_, e)| e.5)
+            .max();
+        let d_rep = changed.map_or(0, |d| d + 1);
+        let below: Vec<_> = mine.iter().filter(|(_, e)| e.5 > d_rep).collect();
+        if !below.is_empty() {
             m5b_pairs += 1;
-            m5b_depths.push(d);
-            for e in rec.events.iter().filter(|e| key(e.0, e.1) == *p && e.5 > d) {
+            m5b_depths.push(d_rep);
+            for (_, e) in below {
                 m5b_splits += e.2;
                 m5b_secs += e.3;
             }
         }
     }
+    st_depths.sort_unstable();
     m5b_depths.sort_unstable();
     let m5c = rec
         .crossed_at
@@ -727,7 +751,7 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
             format!("depth={d},fresh={fresh},touching_split_after_first_refusal_in_lineage={after}")
         });
     write(&format!(
-        "M5\t{}\tverdict_crosses={}\tsplit_reasons={reasons:?}\tm5b_pairs={m5b_pairs}/{}\tm5b_depths={m5b_depths:?}\tm5b_after={m5b_splits}:{m5b_secs:.4}\tsecs={secs:.4}\tm5c={m5c}\n",
+        "M5\t{}\tverdict_crosses={}\tsplit_reasons={reasons:?}\tm5b_pairs={m5b_pairs}/{}\tm5b_depths={m5b_depths:?}\tm5b_after={m5b_splits}:{m5b_secs:.4}\tstrict_pairs={st_pairs}\tstrict_depths={st_depths:?}\tstrict_after={st_splits}:{st_secs:.4}\tsecs={secs:.4}\tm5c={m5c}\n",
         test_name(),
         matches!(r.verdict, Embedding::Crosses(_)),
         refusing.len(),
@@ -784,4 +808,23 @@ pub fn continue_cost<T: geom_core::Decide + geom_core::CertifiedBounds>(
         r.receipt.splits,
         r.receipt.violated
     ));
+}
+
+/// M5: a non-touching cell pair split because its distance is undecided:
+/// classed by its separation's enclosure against the band.
+pub fn distance_split(lo: f64, hi: f64, esc: f64, parent: u32) -> u32 {
+    let class = if hi < esc {
+        "distance:separation-wholly-in-band"
+    } else if lo < esc {
+        "distance:separation-straddles-band-edge"
+    } else {
+        "distance:separation-past-band-undecided"
+    };
+    let code = code_of(format!("{class}#distance"));
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.pending_split = Some((code, parent == code));
+        }
+    });
+    code
 }
