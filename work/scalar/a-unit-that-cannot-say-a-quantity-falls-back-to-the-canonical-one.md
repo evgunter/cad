@@ -6,8 +6,8 @@ status: open
 opened: 2026-11-20
 priority: P1
 cost: M
-design: true
 parent: patherror-display-renders-float-noise
+rides_with: a-number-in-a-unit-is-rounded-once
 ---
 
 
@@ -43,3 +43,7 @@ about the canonical value and a given number in another unit is told
 to seventeen figures.
 `two-quantities-of-one-sentence-told-apart-can-read-in-two-units` is
 what the fallback does to a sentence.
+
+## Decided
+
+Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.

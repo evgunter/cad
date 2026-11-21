@@ -6,8 +6,8 @@ status: open
 opened: 2026-11-20
 priority: P1
 cost: M
-design: true
 parent: patherror-display-renders-float-noise
+rides_with: a-number-in-a-unit-is-rounded-once
 ---
 
 
@@ -43,3 +43,7 @@ is what a certified bound needs if the kernel compares the typed
 float against the bound exactly; the second is what a person reads.
 A third: offer in the unit only where the round number types back on
 the side, and step by a whole grid step otherwise.
+
+## Decided
+
+Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.

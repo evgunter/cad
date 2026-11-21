@@ -6,8 +6,8 @@ status: open
 opened: 2026-11-20
 priority: P2
 cost: M
-design: true
 parent: patherror-display-renders-float-noise
+rides_with: a-number-in-a-unit-is-rounded-once
 ---
 
 
@@ -38,3 +38,7 @@ every existing `{told}` outside a `tell` body is a call site to
 change, and `Debug` and log lines need a spelling); or `tell` takes
 a writer that is not a `fmt::Formatter`, so `write!` into it cannot
 format a `Display` at all; or the gate stays the answer.
+
+## Decided
+
+Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.

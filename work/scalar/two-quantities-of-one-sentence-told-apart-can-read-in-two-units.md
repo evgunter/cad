@@ -6,8 +6,8 @@ status: open
 opened: 2026-11-20
 priority: P2
 cost: M
-design: true
 parent: patherror-display-renders-float-noise
+rides_with: a-number-in-a-unit-is-rounded-once
 ---
 
 
@@ -36,3 +36,7 @@ quantities together (a group that falls back whole, as `Compared`
 does for two), and the `tell` bodies need to use it. If each
 quantity's: the two-unit sentence stands and the unit word carries
 it.
+
+## Decided
+
+Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.

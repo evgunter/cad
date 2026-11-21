@@ -2,12 +2,14 @@
 id: a-refusal-is-told-in-the-readers-notation
 kind: unit
 title: A told quantity renders in the reader's notation; the viewer's readout grid retires onto it
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: patherror-display-renders-float-noise
 branch: scalar/a-refusal-is-told-in-the-readers-notation
+closed: 2026-11-21
+pr: 7229
 ---
 
 Unit 2 of `patherror-display-renders-float-noise`, the build of the

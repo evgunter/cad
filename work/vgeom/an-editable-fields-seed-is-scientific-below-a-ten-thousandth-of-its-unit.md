@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-20
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -56,3 +55,7 @@ fields only; or the told number as it is now.
 Not changed in PR 7229: the question is this program's.
 `the-field-door-tells-a-written-number-with-no-unit-in-hand` is the
 neighbouring row (the field door's dimension).
+
+## Decided
+
+Ev, PR 7261 (2026-11-21): an editable field over a written value shows its exact positional spelling in the unit it was written in, never exponent form (`crates/geom-core/README.md`, "A number told to a person"). The row is now a build, not a question.
