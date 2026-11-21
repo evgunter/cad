@@ -669,7 +669,7 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, (old.eval(span.0), old.eval(span.1)));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -1590,14 +1590,14 @@ mod square {
         };
         let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
         let circle = |center, axis, radius, u_ref| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            })
+            ))
         };
         let cylinder = Surface::Cylinder {
             origin: o,

@@ -100,7 +100,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    the caps, and the caps rest on each other: the `z ∈ [0, 4]`
 ///    cylinder.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
-///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
+///    and the conic × quadric root door (`geom_brep::curve_face::conic_quadric`)
 ///    certifies where. Both operands span one height, so their cap
 ///    discs overlap in the planes `z = 0` and `z = 2`, one plane each
 ///    by margin, which the boolean glues: the union is the two discs'

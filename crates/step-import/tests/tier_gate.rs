@@ -409,14 +409,14 @@ const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or
      one of its vertices is undecided: margin 9.999999999789241e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 9.999999999789241e-10 m";
+     the tolerance below 9.999e-10 m";
 /// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
 const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
      or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
      one of its vertices is undecided: margin 1.0000000011961913e-9 \
      lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
      vertex, onto that point or clear of it, or, if this distance is intended, tighten \
-     the tolerance below 1.0000000011961913e-10 m";
+     the tolerance below 1e-10 m";
 
 /// `nist_ftc_09`'s refusal at every band. Its five fillet cylinders bite
 /// into their planes by 1.5 to 13 µm, tangent at the file's band
@@ -452,16 +452,45 @@ const CORPUS: &[(&str, Disposition)] = &[
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // A quarter-cylinder wedge whose bottom rim's spline promotes to its
+    // circle (`an_open_arc_trims_inside_what_its_spline_covers`): on the
+    // half circle the spline covers, and refused where the edge names
+    // the arc it does not.
+    ("tests/fixtures/arc-trim/w_semi.step", Pass(1, 1, 5, 9, 6)),
+    (
+        "tests/fixtures/arc-trim/w_comp.step",
+        Refused("outside the piece the file's spline covers"),
+    ),
+    // The kernel's cylinder with its rims restated as splines
+    // (`a_closed_rim_promotes_whatever_its_spline_form`): each imports
+    // as the cylinder it is.
+    (
+        "tests/fixtures/closed-rim/cyl_cubic.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_quad.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_single.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
-    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
-    // is a vertex the closing join keeps; the C prism's top is three
-    // pieces, and the half ridge's top stays whole along its knot line
-    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    // two sub-arcs and each elliptic cone rim two arcs, and a knot on an
+    // edge alone is a vertex the closing join keeps; the C prism's top is
+    // three pieces, and the half ridge's top stays whole along its knot
+    // line; the circular half cone is promoted to a cone first, so it
+    // keeps the file's census (`a_foreign_carrier_splits_at_each_c0_knot`).
     (
         "tests/fixtures/c0-knot/c_prism.step",
         Pass(1, 1, 12, 30, 20),
     ),
-    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 4, 6, 4)),
+    (
+        "tests/fixtures/c0-knot/half_elliptic_cone.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
     (
         "tests/fixtures/c0-knot/half_ridge.step",
         Pass(1, 1, 6, 12, 8),
@@ -471,6 +500,26 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/c0-knot/seam_edge.step",
         Pass(1, 1, 6, 13, 9),
+    ),
+    // A half cylinder and a half cone frustum on rational walls, each
+    // also stated with its parameters swapped: each wall promotes whole to
+    // its own kind either way round, so each keeps the file's census
+    // (`a_promoted_kind_is_the_same_whichever_way_the_net_runs`).
+    (
+        "tests/fixtures/promotion/a_half_cone.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cone_T.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl_T.step",
+        Pass(1, 1, 4, 6, 4),
     ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
@@ -577,6 +626,29 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
+    ),
+    // The C⁰-knot half cone with its bottom rim restated as the wall's
+    // own row (`a_promotion_no_edge_carries_is_not_reported`).
+    (
+        "tests/fixtures/promoted-rim/half_cone_spline_rim.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
+    // The M7-8 cube with its straight columns re-timed
+    // (`a_retimed_straight_rim_imports_on_its_wall`).
+    (
+        "tests/fixtures/retimed-rim/side_column.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    // -- tests/fixtures/retimed-seam/ --------------------------------
+    // The nonuniform loft with one seam straight on a re-timed column
+    // (`a_straight_seam_on_a_retimed_column_imports`).
+    (
+        "tests/fixtures/retimed-seam/seam_line.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/retimed-seam/seam_spline.step",
+        Pass(1, 1, 6, 12, 8),
     ),
     // -- tests/fixtures/m7-8-cube/ -----------------------------------
     // The unit cube with one bowed NURBS wall whose rims are M7-8

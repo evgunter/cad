@@ -380,10 +380,10 @@ impl<T: Decide> ConicArc<T> {
     /// the far end, so the point lies on the edge.
     fn at(self, l: T) -> Point3<T> {
         let (carrier, speed) = match self.conic {
-            ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius.abs()),
+            ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius().abs()),
             ArcConic::Ellipse(ellipse) => (
                 geom::Curve3::Ellipse(ellipse),
-                ellipse.semi_u.abs().max(ellipse.semi_v.abs()),
+                ellipse.semi_u().abs().max(ellipse.semi_v().abs()),
             ),
         };
         let span = self.to - self.from;
@@ -1303,12 +1303,7 @@ mod tests {
             "the bend is square to the tangent"
         );
         let carrier = geom::Curve3::circle(Point3::origin() + bend, t.cross(bend), 1.0, -bend);
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(0.0), carrier.eval(span)),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -1818,12 +1813,7 @@ mod tests {
                         let carrier =
                             geom::Curve3::circle(center, u_ref.cross(d).normalize(), radius, u_ref);
                         let span = 0.5 * k;
-                        let extent = geom_brep::edge_extent_inf(
-                            &carrier,
-                            0.0,
-                            span,
-                            (carrier.eval(0.0), carrier.eval(span)),
-                        );
+                        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         (
@@ -1934,12 +1924,7 @@ mod tests {
         let arc = |p: Point3<f64>, t: Vec3<f64>, c: Vec3<f64>, radius: f64, span: f64| {
             let u_ref = -c;
             let carrier = geom::Curve3::circle(p + c * radius, u_ref.cross(t), radius, u_ref);
-            let extent = geom_brep::edge_extent_inf(
-                &carrier,
-                0.0,
-                span,
-                (carrier.eval(0.0), carrier.eval(span)),
-            );
+            let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
             let tangent = carrier.deriv(0.0);
             let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
             (
@@ -2150,7 +2135,7 @@ mod tests {
     ) -> (Vec3<f64>, BoundSupport<f64>) {
         let (radius, u_ref) = (1.0 / k, -toward);
         let carrier = geom::Curve3::circle(p + toward * radius, u_ref.cross(d), radius, u_ref);
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, (p, carrier.eval(span)));
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (

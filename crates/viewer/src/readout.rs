@@ -25,8 +25,8 @@
 //! [`tolerance`] is the grid, and it is **a difference the kernel can
 //! decide**, not a width a box has: an absolute cap one decade below ε
 //! met with a relative arm, the finer of the two winning. The same
-//! grid `crates/profile/src/path.rs`'s `num` renders a refusal
-//! sentence's scalars on, for the same reason — ε is a LENGTH
+//! grid `geom_core::Told` tells a refusal sentence's computed lengths
+//! on, for the same reason — ε is a LENGTH
 //! (`docs/DESIGN.md` D4 ¶1), so a purely relative rule crosses it and
 //! is coarser above the crossing, and two lengths the kernel certifies
 //! as DIFFERENT would then render as one number. Two chrome sentences
@@ -92,7 +92,7 @@ use pncad::geom_core::tolerance::DEFAULT_EPS;
 ///
 /// **It is the compile-time [`DEFAULT_EPS`] and never the run's live
 /// `Tolerance::eps()`**, which is the same choice
-/// `crates/profile/src/path.rs`'s `num` states at its own site: a live
+/// `geom_core::told` states at its own site: a live
 /// ε would make one rendered value spell three ways across the ε rows
 /// CI gates, so the grid is a display choice stated once against the
 /// ratified default (`docs/DESIGN.md` D4).
@@ -156,43 +156,29 @@ pub const REL_TOLERANCE: f64 = 5.0e-4;
 /// # This is the SECOND spelling of one rule, and it is the deletable
 /// one
 ///
-/// `crates/profile/src/path.rs`'s `num` computes the same grid for the
-/// scalars a kernel refusal sentence quotes. **Where that rule lives
-/// once a second crate wants it is
-/// `work/props/patherror-display-renders-float-noise.md`'s question**,
-/// not this module's, and this function is what a consolidation
-/// deletes: one function, value in and tolerance out, called from
-/// [`reads_back`] alone, so nothing here spreads the two arms across
-/// the search that uses them.
+/// `geom_core::Told` computes the same grid for the lengths a kernel
+/// refusal sentence quotes: a tenth of ε met with four significant
+/// figures, the finer winning. This function is what moving the
+/// readout onto it deletes
+/// (`work/scalar/patherror-display-renders-float-noise.md`, the
+/// notation-taking rendering): one function, value in and tolerance
+/// out, called from [`reads_back`] alone, so nothing here spreads the
+/// two arms across the search that uses them.
 ///
-/// **The three places the two rules deliberately differ, marked here so
-/// a lane merging them can tell a decision from drift:**
+/// **The two places the two deliberately differ, marked here so a lane
+/// merging them can tell a decision from drift:**
 ///
-/// - **Notation.** `num` follows the `Debug` form's own choice — fixed
-///   where `{:?}` is fixed, exponential where it is exponential — and
-///   only ever shortens that spelling's mantissa. [`number`] chooses:
-///   the shortest decimal that reads back, and [`scientific`] when no
-///   decimal does. The reason is the caller. `num` renders a payload
-///   inside a sentence about geometry a person did not choose the
-///   magnitude of; this renders a value in a notation the person chose,
-///   and a length they wrote in millimetres wants to read back in
-///   millimetres.
-/// - **The relative arm.** Different on purpose: `num`'s is `1e-9` and
-///   this one is [`REL_TOLERANCE`], 5·10⁻⁴. `num` has no character
-///   bound and renders a payload at a magnitude nobody chose, so it can
-///   afford ten figures below the crossing; this arm is the width of
-///   its own fallback notation, and below the crossing a length is
-///   below ε in every notation the chrome writes one in, where a fifth
-///   figure would be precision no probe established. **Both are
-///   legibility choices under the same cap** — neither is derived from
-///   ε, because the cap has already answered ε — so a consolidation
-///   takes the arm as a parameter or takes the coarser one knowingly.
-///   It must not take one by accident.
-/// - **The character bound.** `num` has none — a refusal sentence is as
-///   wide as it needs to be. [`number`] has [`MAX_CHARS`], because its
-///   texts go in boxes and a clipped render reads as a different value.
-///   That bound is what makes the two searches different lengths of
-///   loop and is the one difference a merge cannot simply drop.
+/// - **Notation.** `Told` writes metres or radians in the notation
+///   `geom_core::Readable` picks by magnitude. [`number`] writes the
+///   notation the person chose: the shortest decimal that reads back,
+///   and [`scientific`] when no decimal does, since a length they wrote
+///   in millimetres wants to read back in millimetres.
+/// - **The character bound.** `Told` has none — a refusal sentence is
+///   as wide as it needs to be. [`number`] has [`MAX_CHARS`], because
+///   its texts go in boxes and a clipped render reads as a different
+///   value. That bound is what makes the two searches different
+///   lengths of loop and is the one difference a merge cannot simply
+///   drop.
 fn tolerance(value: f64) -> f64 {
     EPS_CAP.min(value.abs() * REL_TOLERANCE)
 }
