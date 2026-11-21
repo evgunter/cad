@@ -50,21 +50,22 @@ impl<X> Deref for ValueView<'_, X> {
 }
 
 /// **A place, at a scalar that is its own value channel**: the `f64` the
-/// code chose to evaluate at, embedded exactly. The bound admits no
-/// dual, so a place has no tangent by type. What it means at each
-/// scalar the bound admits:
+/// code chose to evaluate at. The bound admits no dual, so a place has
+/// no tangent by type. What it means at each scalar the bound admits:
 ///
 /// - `f64` and [`crate::Probe`]: the number itself.
 /// - [`crate::Interval`]: the point `[x, x]`. The place is exactly `x`,
 ///   so its point encloses nothing wider; what the evaluator answers
 ///   encloses the geometry's exact value there.
-/// - [`crate::Sym`]: the exact rational `x`, a constant. A decision over
-///   what is evaluated there proves an identity at that fixed place,
-///   which is what the code chose to read; it claims nothing of a place
-///   that would move with the unknowns, since none is read.
+/// - [`crate::Sym`]: its own unknown ([`crate::Sym::opaque`]). The code
+///   chose the place from the nominal values, so it is no function of
+///   the document's unknowns that anything tracked: a re-valuation of
+///   what is read there at other values has no place to read at, and
+///   refuses, where an exact constant would re-value at a place nobody
+///   would have chosen there.
 #[must_use]
 pub fn place<V: Real<Value = V>>(x: f64) -> V {
-    V::from_f64(x)
+    V::from_computed(x)
 }
 
 #[cfg(test)]
@@ -87,18 +88,18 @@ mod tests {
         f64::NAN,
     ];
 
-    /// The places these sites took as `from_computed` are the same
-    /// numbers at every scalar that is its own value channel and has no
-    /// symbols: a moved site reads what it read.
+    /// A place is the number `from_computed` embeds at every scalar the
+    /// bound admits, and at the three without symbols that is the number
+    /// itself: a moved site reads what it read.
     #[test]
-    fn a_place_is_the_computed_embedding_at_f64_interval_and_the_probe() {
+    fn a_place_is_the_number_itself_at_f64_interval_and_the_probe() {
         for x in EDGES {
             assert_eq!(
                 place::<f64>(x).to_bits(),
                 f64::from_computed(x).to_bits(),
                 "f64 at {x}"
             );
-            let (p, c) = (place::<Interval>(x), Interval::from_computed(x));
+            let (p, c) = (place::<Interval>(x), Interval::from_f64(x));
             assert_eq!(
                 (p.lo().to_bits(), p.hi().to_bits(), p.is_poison()),
                 (c.lo().to_bits(), c.hi().to_bits(), c.is_poison()),
@@ -106,7 +107,7 @@ mod tests {
             );
             #[cfg(feature = "probe")]
             {
-                let (p, c) = (place::<crate::Probe>(x), crate::Probe::from_computed(x));
+                let (p, c) = (place::<crate::Probe>(x), crate::Probe(x));
                 assert_eq!(p.0.to_bits(), c.0.to_bits(), "Probe at {x}");
             }
         }
@@ -136,10 +137,12 @@ mod tests {
             "Interval borrows"
         );
         let dual: Vec<Dual64> = EDGES.iter().map(|&x| Dual64::new(x, 3.0)).collect();
-        let ValueView::Stripped(values) = Dual64::view::<Row>(&dual) else {
-            panic!("a dual's view is a copy");
-        };
-        for (d, v) in dual.iter().zip(&values) {
+        let view = Dual64::view::<Row>(&dual);
+        assert!(
+            matches!(view, ValueView::Stripped(_)),
+            "a dual's view is a copy"
+        );
+        for (d, v) in dual.iter().zip(view.iter()) {
             assert_eq!(
                 d.value.to_bits(),
                 v.to_bits(),
