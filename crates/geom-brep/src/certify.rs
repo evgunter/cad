@@ -5650,7 +5650,11 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             // names it in, so that every door asks one question and a
             // certificate's support (its order included: the limbs
             // decide operand by operand) is the same at each: by kind,
-            // and as named between two of one kind.
+            // and as named between two of one kind. That last order is
+            // the edge's `SurfacePair`'s, so a partner copy naming a
+            // same-kind pair the other way misses and derives (time,
+            // never a wrong read): SECT's row
+            // `a-same-kind-pairs-canonical-order-reads-arena-keys`.
             let (surf1, surf2) = if surf2.kind() < surf1.kind() {
                 (surf2, surf1)
             } else {

@@ -177,7 +177,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::k_stats::{Replayable, decide, recorded as recorded_run};
+use geom_core::k_stats::{Replayable, decide, run_replayable};
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::compose::CanonicalSurface;
 use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
@@ -5037,7 +5037,7 @@ impl<T: Decide> RowSupport<T> {
         surface: &Surface<T>,
         band: Band,
         fitted: bool,
-        recorded: Option<Replayable>,
+        recorded: Replayable,
     ) -> Option<Arc<Self>> {
         (!matches!(pcurve, Pcurve::Harmonic { .. })).then(|| {
             Arc::new(Self {
@@ -5045,7 +5045,7 @@ impl<T: Decide> RowSupport<T> {
                 surface: surface.clone(),
                 band,
                 fitted: Self::fitted_read(pcurve, fitted),
-                recorded: recorded.unwrap_or_default(),
+                recorded,
             })
         })
     }
@@ -5375,8 +5375,9 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
-        let mut recorded = None;
-        let certificate = incidence_ended(
+        // The door's record travels with its certificate, so a row
+        // holds the decisions of the one run that certified it.
+        let (certificate, recorded) = incidence_ended(
             carrier,
             span,
             span,
@@ -5384,7 +5385,7 @@ impl<T: Decide> PcurveCache<T> {
             band,
             |e| e,
             |shown| {
-                let (out, record) = recorded_run(|| match &pcurve {
+                let (out, record) = run_replayable(|| match &pcurve {
                     Pcurve::Fitted(_) | Pcurve::General(_) => {
                         Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
                             image: PcurveKind::of(&pcurve),
@@ -5430,8 +5431,7 @@ impl<T: Decide> PcurveCache<T> {
                         projected, t0, t1, carrier, surface, band, None,
                     ),
                 });
-                recorded = Some(record);
-                out
+                out.map(|certificate| (certificate, record))
             },
         )?;
         Ok(Self {
@@ -5486,8 +5486,9 @@ impl<T: Decide> PcurveCache<T> {
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
-        let mut recorded = None;
-        let certificate = incidence_ended(
+        // The door's record travels with its certificate, so a row
+        // holds the decisions of the one run that certified it.
+        let (certificate, recorded) = incidence_ended(
             carrier,
             span,
             span,
@@ -5495,11 +5496,10 @@ impl<T: Decide> PcurveCache<T> {
             band,
             |e| e,
             |_| {
-                let (out, record) = recorded_run(|| {
+                let (out, record) = run_replayable(|| {
                     run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane))
                 });
-                recorded = Some(record);
-                out
+                out.map(|certificate| (certificate, record))
             },
         )?;
         let pcurve = Pcurve::Fitted(image);
@@ -5564,8 +5564,9 @@ impl<T: Decide> PcurveCache<T> {
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
-        let mut recorded = None;
-        let certificate = incidence_ended(
+        // The door's record travels with its certificate, so a row
+        // holds the decisions of the one run that certified it.
+        let (certificate, recorded) = incidence_ended(
             carrier,
             span,
             span,
@@ -5573,11 +5574,10 @@ impl<T: Decide> PcurveCache<T> {
             band,
             |e| e,
             |_| {
-                let (out, record) = recorded_run(|| {
+                let (out, record) = run_replayable(|| {
                     run_fitted_checks(&image, t0, t1, carrier, surface, band, lane)
                 });
-                recorded = Some(record);
-                out
+                out.map(|certificate| (certificate, record))
             },
         )?;
         let pcurve = Pcurve::General(image);
@@ -5612,19 +5612,12 @@ impl<T: Decide> PcurveCache<T> {
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let pcurve = Pcurve::Projected(Box::new(image));
-        let (certificate, recorded) = recorded_run(|| {
+        let (certificate, recorded) = run_replayable(|| {
             projected::run_projected_checks(&pcurve, t0, t1, carrier, surface, band, lane)
         });
         let certificate = certificate?;
         Ok(Self {
-            support: RowSupport::of(
-                &pcurve,
-                carrier,
-                surface,
-                band,
-                lane.is_some(),
-                Some(recorded),
-            ),
+            support: RowSupport::of(&pcurve, carrier, surface, band, lane.is_some(), recorded),
             pcurve,
             param_start: t0,
             param_end: t1,
@@ -17848,7 +17841,15 @@ mod row_support_rows {
         )
         .unwrap();
         let fitted = Pcurve::Fitted(Arc::new(net));
-        let support = RowSupport::of(&fitted, &line(0.0), &surface, band(), true, None).unwrap();
+        let support = RowSupport::of(
+            &fitted,
+            &line(0.0),
+            &surface,
+            band(),
+            true,
+            geom_core::k_stats::Replayable::default(),
+        )
+        .unwrap();
         assert!(
             support.holds(&fitted, &line(0.0), &surface, band(), true),
             "the fitted image with the door"

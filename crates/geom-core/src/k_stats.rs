@@ -1650,6 +1650,15 @@ pub fn splice_superseded(recording: Detached) {
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
 /// no sample reaches the sink.
+///
+/// **A certificate read by its support** is one such caller: it relogs,
+/// in place of the one derivation it stands for, that derivation's
+/// record as [`Replayable::here`] states it in this scope. That is not
+/// the double splice [`Detached`] guards against, which would move one
+/// recording onto a frame twice; a read relogs once, exactly where
+/// deriving would have recorded. The recording scalar (`Probe`) reads no
+/// certificate, so a read never stands for a derivation that would have
+/// sampled. Its row is geom-brep's `a_read_records_what_a_derivation_records`.
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
@@ -1658,11 +1667,9 @@ pub fn relog(recorded: &Recorded) {
     });
 }
 
-/// The one body behind [`splice`] and [`splice_superseded`]: they differ
-/// only in whether the escalation channel travels.
 /// **A derivation's record, held with the role it was taken in**, for a
 /// certificate that stands for that derivation and replays it in its
-/// place ([`replay`]). A verdict's and a mark's role is the scope's it
+/// place ([`relog`]). A verdict's and a mark's role is the scope's it
 /// was taken in ([`checking`]), not the derivation's own, so a record is
 /// a derivation's in another scope only where the roles agree.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -1673,8 +1680,8 @@ pub struct Replayable {
 
 /// `work`, run under its own frame, its record spliced where this
 /// thread's decisions go, and handed back with the role it was taken in
-/// for a certificate to keep and [`replay`] in place of deriving again.
-pub fn recorded<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+/// for a certificate to keep and [`relog`] in place of deriving again.
+pub fn run_replayable<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
     let taken_as = current_role();
     let (out, recording) = detached(work);
     let record = Replayable {
@@ -1712,31 +1719,8 @@ impl Replayable {
     }
 }
 
-/// **Replays a certificate's record into this thread's open frame** —
-/// the verdicts, escalations and marks the one derivation the
-/// certificate stands for recorded, as [`Replayable::here`] states them
-/// in this scope.
-///
-/// Not the double splice [`Detached`] guards against. A splice moves a
-/// recording made on another frame into this one, once, so taking it
-/// twice would record one derivation twice. A replay records, in place
-/// of a derivation that does not run, the decisions that derivation
-/// would record: a certificate read by its support replays its record
-/// once per read, exactly where deriving it would have recorded, so the
-/// frame holds what a derivation would have left there in every lane.
-/// The sample sink is not replayed: the recording scalar (`Probe`) reads
-/// no certificate, so a replay never stands for a derivation that would
-/// have sampled.
-///
-/// No open frame, and the record is dropped, as a derivation's would be.
-pub fn replay(recorded: &Recorded) {
-    FRAMES.with(|f| {
-        if let Some(top) = f.borrow_mut().last_mut() {
-            top.recorded.extend(recorded);
-        }
-    });
-}
-
+/// The one body behind [`splice`] and [`splice_superseded`]: they differ
+/// only in whether the escalation channel travels.
 fn splice_channels(recording: Detached, escalations: bool) {
     let Detached {
         mut recorded,

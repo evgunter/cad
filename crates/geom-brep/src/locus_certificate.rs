@@ -34,13 +34,13 @@
 //! `read-pins-testing` feature — [`read_or_derive`] derives a certificate
 //! it reads again and asserts the two agree. A release build (the
 //! viewer's, debug assertions and all) carries no pin, so a read costs
-//! the comparison alone there. The pin's derivation runs detached from
+//! the comparison and the replay of its record there. The pin's derivation runs detached from
 //! the decision record (`k_stats::detached`, `sym::aside`), so a run
 //! with it and one without record the same decisions.
 //!
 //! **A read records what deriving would.** A certificate keeps the
 //! decisions its derivation recorded, and a read replays them
-//! ([`k_stats::replay`]), so every lane's verdict and escalation logs
+//! ([`k_stats::relog`]), so every lane's verdict and escalation logs
 //! are the same whether a door read or derived: the subdivision driver
 //! certifies a leaf on that equality.
 
@@ -187,11 +187,11 @@ impl<R> Got<R> {
 /// **A certificate read by its support, or derived** (module docs).
 ///
 /// Where nothing is `held`, `derive` runs under its own decision frame
-/// ([`k_stats::detached`]), whose record is spliced where the caller's
+/// ([`k_stats::run_replayable`]), whose record is spliced where the caller's
 /// decisions go and handed back with the certificate. Where a reader's
 /// comparison found one, the held certificate is returned and its
 /// derivation's record replayed in the derivation's place
-/// ([`k_stats::replay`]) as this scope would record it
+/// ([`k_stats::relog`]) as this scope would record it
 /// ([`Replayable::here`]), so the frame holds exactly what deriving it
 /// would have left (Ev's ruling on PR 7182: a read returns what deriving
 /// would, and the decisions a derivation records are part of that).
@@ -225,7 +225,7 @@ pub(crate) fn read_or_derive<R, E>(
     #[cfg(any(test, feature = "read-pins-testing"))]
     counts::tally(kind, held.is_some());
     let Some((held, recorded)) = held else {
-        let (out, record) = k_stats::recorded(derive);
+        let (out, record) = k_stats::run_replayable(derive);
         return out.map(|derived| Got::Derived(derived, record));
     };
     #[cfg(any(test, feature = "read-pins-testing"))]
@@ -252,7 +252,7 @@ pub(crate) fn read_or_derive<R, E>(
             "a certificate read by its support differs from the one derived again"
         );
     }
-    k_stats::replay(&recorded);
+    k_stats::relog(&recorded);
     Ok(Got::Read(held))
 }
 
