@@ -1824,22 +1824,11 @@ mod tests {
         ]
     }
 
-    /// Every edge of `body` split at `fracs` of its own parameter
-    /// range, then the whole body placed by an oblique rigid map —
-    /// #653's two ingredients, applied to a fixture wholesale.
-    ///
-    /// One body per (edge, fracs) pair, because splitting every edge of
-    /// one body at once would also change which faces are adjacent to
-    /// which and stop being a controlled comparison.
-    ///
-    /// Returns `(placed bodies, skipped edges)`. **The skips are
-    /// returned rather than `continue`d silently**: an edge that drops
-    /// out here is an edge the row above never covers, and a helper
-    /// that swallows them lets a fixture stop contributing without any
-    /// row going red. The caller asserts the skip list is empty.
     /// A fixture's volume and area, measured by props on the body as built
     /// (a revolve, which tier 3 is not asked to pass here).
     fn enclosed(body: &Body<f64>) -> (f64, f64) {
+        // Raw door: a revolve as built here, with no tier-3 pass asked of it;
+        // the rows read its volume and area, not its validity.
         let m = topo::test_support::measure_unvalidated(
             body,
             Tol::witness(),
@@ -1880,6 +1869,19 @@ mod tests {
         }
     }
 
+    /// Every edge of `body` split at `fracs` of its own parameter
+    /// range, then the whole body placed by an oblique rigid map —
+    /// #653's two ingredients, applied to a fixture wholesale.
+    ///
+    /// One body per (edge, fracs) pair, because splitting every edge of
+    /// one body at once would also change which faces are adjacent to
+    /// which and stop being a controlled comparison.
+    ///
+    /// Returns `(placed bodies, skipped edges)`. **The skips are
+    /// returned rather than `continue`d silently**: an edge that drops
+    /// out here is an edge the row above never covers, and a helper
+    /// that swallows them lets a fixture stop contributing without any
+    /// row going red. The caller asserts the skip list is empty.
     fn split_each_edge_then_place(
         body: &Body<f64>,
         fracs: &[f64],
