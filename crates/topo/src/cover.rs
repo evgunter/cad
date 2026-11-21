@@ -856,9 +856,7 @@ fn sphere_window<T: Decide>(
         let trim = match crate::solid_contain::sphere_chart_trim(
             body,
             f.key(),
-            *center,
-            *radius,
-            *axis,
+            (surface, *center, *radius, *axis),
             band,
         ) {
             Ok(Some(trim)) => trim,

@@ -1003,9 +1003,14 @@ fn join(
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()
-        .map(|j| {
+        .enumerate()
+        .map(|(i, j)| {
+            // A later join may kill this one's kept edge (a chain of
+            // joins along one carrier): the record is keyed by the edge
+            // that survives them all.
+            let survivor = topo::joined_edge(&joins[i + 1..], j.kept);
             let face = body
-                .get_edge(j.kept)
+                .get_edge(survivor)
                 .into_iter()
                 .flat_map(|e| [e.he_plus, e.he_minus])
                 .filter_map(|h| body.face_of_half_edge(h))

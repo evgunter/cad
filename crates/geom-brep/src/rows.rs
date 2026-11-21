@@ -499,37 +499,35 @@ geom_core::row_registry! {
         "props_cone_ellipse_span_winding_straddle",
     );
 
-    // ------------------------------------------------- topo's readers
-
-    /// `topo`'s conic × quadric first-harmonic arm's rows
-    /// (`topo::boolean::conic_quadric`).
+    /// The conic × quadric first-harmonic arm's rows
+    /// (`curve_face::conic_quadric`).
     pub const CONIC_QUADRIC_FIRST: FirstHarmonicRows = FirstHarmonicRows {
-        noise: "bool_conic_quadric_first_noise",
-        coaxial: "bool_conic_quadric_first_constant",
-        extreme: "bool_conic_quadric_first_extreme",
-        root_slack: "bool_conic_quadric_first_root_slack",
+        noise: "conic_quadric_first_noise",
+        coaxial: "conic_quadric_first_constant",
+        extreme: "conic_quadric_first_extreme",
+        root_slack: "conic_quadric_first_root_slack",
     };
 
-    /// `topo`'s conic × quadric ladder's rows
-    /// (`topo::boolean::conic_quadric`); its noise row is also the arm
+    /// The conic × quadric ladder's rows
+    /// (`curve_face::conic_quadric`); its noise row is also the arm
     /// switch's ladder meter there.
     pub const CONIC_QUADRIC_LADDER: HalfAngleRows = HalfAngleRows {
-        pole: "bool_conic_quadric_pole",
-        conditioning: "bool_conic_quadric_pole_conditioning",
-        noise: "bool_conic_quadric_ladder_noise",
+        pole: "conic_quadric_pole",
+        conditioning: "conic_quadric_pole_conditioning",
+        noise: "conic_quadric_ladder_noise",
         quartic: QuarticRows {
-            disc: "bool_conic_quadric_disc",
-            shape: "bool_conic_quadric_shape",
-            depth: "bool_conic_quadric_depth",
-            odd: "bool_conic_quadric_odd",
-            split: "bool_conic_quadric_split",
-            split_lead: "bool_conic_quadric_split_lead",
+            disc: "conic_quadric_disc",
+            shape: "conic_quadric_shape",
+            depth: "conic_quadric_depth",
+            odd: "conic_quadric_odd",
+            split: "conic_quadric_split",
+            split_lead: "conic_quadric_split_lead",
         },
         verify: SubdivisionRows {
-            clear: "bool_conic_quadric_sub_clear",
-            monotone: "bool_conic_quadric_sub_monotone",
-            side: "bool_conic_quadric_sub_side",
-            width: "bool_conic_quadric_sub_width",
+            clear: "conic_quadric_sub_clear",
+            monotone: "conic_quadric_sub_monotone",
+            side: "conic_quadric_sub_side",
+            width: "conic_quadric_sub_width",
         },
     };
 
@@ -542,6 +540,8 @@ geom_core::row_registry! {
         split: "line_quadric_torus_split",
         split_lead: "line_quadric_torus_split_lead",
     };
+
+    // ------------------------------------------------- topo's readers
 
     /// The subdivision rows every `topo` section ruling chart walks under
     /// (`topo::boolean::section_cert`).
