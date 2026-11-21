@@ -149,8 +149,7 @@ use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Lever, Margin, Point2, Sign,
-    Vec2,
-    is_underflowed_length,
+    Vec2, is_underflowed_length,
 };
 
 use crate::body::Body;
@@ -1676,10 +1675,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     signed_gate("chart_region_cyl_radius", Margin::of(a_radius - b_radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
-        Margin::levered(
-            a.axis.cross(b.axis).norm(),
-            above,
-        ),
+        Margin::levered(a.axis.cross(b.axis).norm(), above),
     )?;
     let perp_a = a.axis_line().distance(b.origin);
     let perp_b = b.axis_line().distance(a.origin);
@@ -1695,10 +1691,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     than the band.
     let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
-        Margin::levered(
-            a.axis.dot(b.axis),
-            below,
-        ),
+        Margin::levered(a.axis.dot(b.axis), below),
         band,
     )
     .map_err(ChartRegionError::Escalated)?

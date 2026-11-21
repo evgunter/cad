@@ -68,21 +68,8 @@ impl<T: Decide> Rim<T> {
     /// a circle, so one read bounds it from both sides; poison where the
     /// circle has no cover.
     fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
-        let circle = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: self.center,
-                axis: self.axis,
-                u_ref: self.u_ref,
-            },
-            self.radius,
-        ));
-        let cover = circle
-            .cover_over(geom::cover::ParamWindow::new(
-                T::zero(),
-                T::from_f64(core::f64::consts::TAU),
-            ))
-            .ok();
-        geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
+        let circle = geom::Curve3::circle(self.center, self.axis, self.radius, self.u_ref);
+        geom_brep::ExtentBall::of_cover_from(circle.cover().as_ref().ok(), pivot).lever()
     }
 }
 
@@ -1366,6 +1353,29 @@ mod redfirst {
             !matches!(rim_identity(&big, &big_tilted, b), Ok(true)),
             "the same tilt over a 2000 km rim is not the same circle"
         );
+    }
+
+    /// **The tilt is levered at the two circles' union, not their
+    /// radii's sum.** Two unit circles about one centre, their axes
+    /// tilted `0.75·z` radians apart: the union's reach from the centre
+    /// is the radius, so the tilt reads `0.75·z` and the circles are one.
+    /// The sum of the radii reads it `1.5·z`, past the zero. The same
+    /// pair a kilometre from the world origin reads alike: the lever is
+    /// read from the centre the centre datum pins, not from anywhere
+    /// else. Red where the arm is the radii's sum, or read from the
+    /// origin.
+    #[test]
+    fn rim_axis_tilt_is_levered_at_the_circles_union_from_their_centre() {
+        let b = band();
+        let tilt = 0.75 * b.zero();
+        for at in [[0.0, 0.0, 0.0], [1.0e3, 0.0, 0.0]] {
+            let one = circle(at, [0.0, 0.0, 1.0], 1.0);
+            let tilted = circle(at, [tilt, 0.0, 1.0], 1.0);
+            assert!(
+                rim_identity(&one, &tilted, b).unwrap(),
+                "about {at:?}: a tilt of 0.75 z over a unit circle is one rim"
+            );
+        }
     }
 
     /// **The two sense words route the same geometry to different
