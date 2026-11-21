@@ -3827,16 +3827,19 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
 }
 
 /// **Whether two edges' stored carriers are one conic, as one value**:
-/// one plane through one centre ([`one_plane`]) and the same radius; on
+/// one plane through one centre ([`coplanar`]) and the same radius; on
 /// an ellipse the same semi-axes along the same lines (`u_ref` equal or
-/// opposed, a half-turn of the parameter). Every comparison is
-/// [`one_value`]'s, so a component held as a bracket wider than a point
-/// is never one conic, even against itself: at `Interval` this admits
-/// only carriers stored as points. The two parametrizations may differ;
-/// the reading never maps one onto the other ([`continues`]).
+/// opposed, a half-turn of the parameter). Every comparison of the lifts
+/// is [`one_value`]'s, so a component held as a bracket wider than a
+/// point is never one conic, even against itself; a point-scalar body's
+/// carriers are compared as it stores them ([`one_stated_conic`]). The
+/// two parametrizations may differ; the reading never maps one onto the
+/// other ([`continues`]).
 fn one_conic(e: &Rim, o: &Rim) -> bool {
-    if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref()) {
-        return one_stated_conic(se, so);
+    if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
+        && one_stated_conic(se, so)
+    {
+        return true;
     }
     let (Some((ce, _)), Some((co, _))) = (e.arc.as_ref(), o.arc.as_ref()) else {
         return false;
@@ -3859,36 +3862,64 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
 }
 
 /// [`one_conic`] on two carriers as a point-scalar body stores them:
-/// the same comparisons, of stored values (a stored value is its one
-/// value), so one plane through one centre, the same radius, and
-/// on an ellipse the same semi-axes along `u_ref` equal or opposed. It is
-/// what [`one_conic`] read of their lifts when a lift carried the stored
-/// entries as points; a frame lifted to an enclosure of the rotation it
-/// states is a rounding wide wherever its entries are not exactly rigid,
-/// and the claim two such carriers make is still the stored one.
+/// frames that place one plane ([`one_stated_plane`]), and the same
+/// radius, or the same semi-axes (`u_ref` equal or opposed follows from
+/// the frames).
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
-    // Equal as numbers, as [`one_value`] compares a point's ends (a
-    // signed zero is its own negation's value): `equals_exactly`, the
-    // value question, of the vectors placed at the origin.
-    let same =
-        |a: Vec3<f64>, b: Vec3<f64>| (Point3::origin() + a).equals_exactly(Point3::origin() + b);
-    let line = |a: Vec3<f64>, b: Vec3<f64>| same(a, b) || same(a, -b);
-    let plane = |f: &geom::Frame<f64>, g: &geom::Frame<f64>| {
-        f.origin().equals_exactly(g.origin()) && line(f.axis(), g.axis())
-    };
-    let one = |a: f64, b: f64| a == b;
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            plane(&a.frame, &b.frame) && one(a.radius(), b.radius())
+            one_stated_plane(&a.frame, &b.frame) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            plane(&a.frame, &b.frame)
-                && line(a.frame.u_ref(), b.frame.u_ref())
-                && one(a.semi_u(), b.semi_u())
-                && one(a.semi_v(), b.semi_v())
+            one_stated_plane(&a.frame, &b.frame)
+                && a.semi_u() == b.semi_u()
+                && a.semi_v() == b.semi_v()
         }
         _ => false,
     }
+}
+
+/// **Whether two planar conics hold one plane**: their lifted frames do
+/// as one value ([`one_plane`]), or a point-scalar body stores frames
+/// that place one plane ([`one_stated_plane`]).
+fn coplanar(e: &Rim, o: &Rim) -> bool {
+    let lifted = |r: &Rim| match r.arc.as_ref()? {
+        (
+            Curve3::Circle(geom::Circle { frame, .. })
+            | Curve3::Ellipse(geom::Ellipse { frame, .. }),
+            _,
+        ) => Some((frame.origin(), frame.axis())),
+        _ => None,
+    };
+    let stated = |r: &Rim| match r.stated.as_ref()? {
+        Curve3::Circle(geom::Circle { frame, .. })
+        | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(*frame),
+        _ => None,
+    };
+    lifted(e)
+        .zip(lifted(o))
+        .is_some_and(|(f, g)| one_plane(f, g))
+        || stated(e)
+            .zip(stated(o))
+            .is_some_and(|(f, g)| one_stated_plane(&f, &g))
+}
+
+/// **Whether two stored `f64` frames place one plane as their lifts
+/// read it**: one origin, and each of the second's axes `u`, `v`, `w` the
+/// first's or its negation, as numbers (a signed zero is its negation).
+/// A stored frame is lifted as the enclosure of its polar factor, the
+/// rotation nearest its stored axes; the polar factor of `M·D`, with `D`
+/// a diagonal of signs, is `M`'s times `D`, so the two lifts enclose one
+/// origin and one axis line, the one value each holds. The axes `w`
+/// alone would not do: the polar factor's axis leans on all three stored
+/// axes wherever they are not exactly rigid.
+fn one_stated_plane(f: &geom::Frame<f64>, g: &geom::Frame<f64>) -> bool {
+    let same = |a: Vec3<f64>, b: Vec3<f64>| a.x == b.x && a.y == b.y && a.z == b.z;
+    let (m, n) = (f.motion(), g.motion());
+    f.origin().equals_exactly(g.origin())
+        && [(m.u(), n.u()), (m.v(), n.v()), (m.w(), n.w())]
+            .into_iter()
+            .all(|(a, b)| same(a.get(), b.get()) || same(a.get(), -b.get()))
 }
 
 /// **`o` is `e`'s continuation through `v` along one conic**
@@ -5940,9 +5971,8 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 ///
 /// - where every shared edge is a planar conic, each one's own plane in
 ///   turn: `n` its stored axis, `q` its stored centre. It lists that
-///   conic, every other whose stored plane is the same value
-///   ([`one_plane`]), and their ends; a plane already listed is not
-///   built twice;
+///   conic, every other in the same plane ([`coplanar`]), and their
+///   ends; a plane already listed is not built twice;
 /// - through one line edge: `n` a chosen direction bisecting the faces'
 ///   headings about the line, less its part along the line's stored
 ///   direction, `q` a point of the line. It lists the edge and its ends;
@@ -5992,14 +6022,13 @@ fn planes_through(
         return frames
             .iter()
             .enumerate()
-            .filter(|&(i, &f)| !frames[..i].iter().any(|&g| one_plane(g, f)))
+            .filter(|&(i, _)| !rims[..i].iter().any(|g| coplanar(g, rims[i])))
             .map(|(i, &(q, n))| {
                 let held: Vec<&Rim> = rims
                     .iter()
-                    .zip(&frames)
                     .enumerate()
-                    .filter(|&(j, (_, &g))| j == i || one_plane((q, n), g))
-                    .map(|(_, (r, _))| *r)
+                    .filter(|&(j, r)| j == i || coplanar(rims[i], r))
+                    .map(|(_, r)| *r)
                     .collect();
                 (Psi::Linear { n, q }, through(&held))
             })
