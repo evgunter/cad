@@ -127,3 +127,50 @@ fn check1_turned_disc() {
         }
     }
 }
+
+/// What stands behind check 1 on the moved disc: its finish, and its
+/// union with a second copy standing clear (moved by the same turn, then
+/// translated 3r along x).
+#[test]
+#[ignore = "probe"]
+fn check1_turned_disc_behind() {
+    let tol = Tol::witness();
+    let theta = 30f64.to_radians();
+    let flat = disc(SketchPlane::xy()).expect("the flat disc builds");
+    for k in 0..=10 {
+        let delta_deg = 10f64.powi(-k);
+        let delta = delta_deg.to_radians();
+        let angle = Interval::from_bounds(theta - delta, theta + delta);
+        let turn = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), angle).expect("a turn");
+        let moved = topo::transform_rigid(&flat, &turn).expect("moved");
+        let shift = RigidMotion::translation(geom_core::Vec3::new(
+            Interval::from_f64(3.0 * RADIUS),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        ))
+        .expect("a shift");
+        let clear = topo::transform_rigid(&flat, &shift).expect("shifted");
+        let short = |e: String| e;
+        let a = match topo::finish(moved, tol) {
+            Ok(a) => {
+                eprintln!("[c1b] δ {delta_deg:e}°: the moved disc finishes");
+                a
+            }
+            Err(e) => {
+                eprintln!(
+                    "[c1b] δ {delta_deg:e}°: finish refuses {}",
+                    short(format!("{e:?}"))
+                );
+                continue;
+            }
+        };
+        let b = topo::finish(clear, tol).expect("the clear copy finishes");
+        match topo::union(&a, &b, tol) {
+            Ok(r) => eprintln!("[c1b] δ {delta_deg:e}°: union {}", short(format!("{r:?}"))),
+            Err(e) => eprintln!(
+                "[c1b] δ {delta_deg:e}°: union refuses {}",
+                short(format!("{e:?}"))
+            ),
+        }
+    }
+}
