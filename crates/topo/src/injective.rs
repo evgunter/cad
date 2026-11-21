@@ -3830,9 +3830,11 @@ fn present_corner<'a>(
                 return Err(unread);
             }
             present_curved(piece, c.other, Some(run), near_edges, near_vertices, band).map_err(
-                |e| match (unread, e) {
-                    (Unpresented::Structural, _) | (_, Unpresented::Local) => Unpresented::Local,
-                    (unread, _) => unread,
+                // A run a smaller cell may read; one no cell reads leaves
+                // the corner as the line's reading typed it.
+                |e| match e {
+                    Unpresented::Local => Unpresented::Local,
+                    _ => unread,
                 },
             )
         }),
@@ -5133,17 +5135,27 @@ fn graph_read(
                     (ends, k)
                 };
                 // It runs on across the columns the way the curve came to
-                // the vertex, past their far end.
+                // the vertex. One that does not is no graph with the curve
+                // over this axis, at any depth: the corner stays unread, as
+                // it was typed.
                 let onward = rising != th.start;
                 let advance = column.of((l.d[0], l.d[1])) * at(l.speed[column.index()]);
-                let sign = interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band)?;
-                let end = column.of((l.far[0], l.far[1]));
-                let passes = if onward {
-                    sign == Sign::Positive && end.lo() >= a1
+                let wanted = if onward {
+                    Sign::Positive
                 } else {
-                    sign == Sign::Negative && end.hi() <= a0
+                    Sign::Negative
                 };
-                if !passes {
+                if interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band) != Some(wanted) {
+                    return (th.corner.run || l.leaves == Leaves::Reflex)
+                        .then_some(Err(Unpresented::Structural));
+                }
+                // And past the columns' far end.
+                let end = column.of((l.far[0], l.far[1]));
+                if !(if onward {
+                    end.lo() >= a1
+                } else {
+                    end.hi() <= a0
+                }) {
                     return None;
                 }
                 // Its reach on the other axis over the columns it crosses:
@@ -8390,18 +8402,241 @@ mod presentation_rows {
         );
     }
 
-    /// **A line tangent to the arc at its end is not read through the
-    /// corner**: it leaves `(1, 0)` along the circle's tangent, against
-    /// the arc's run, so it stands outside the circle, by second order,
-    /// while the face beside it is inside the line — not the circle.
-    /// Red if [`leaves_graph`] admits an undecided sign.
+    /// The run a cell of `b` on [`floor`] about `(1, 0)` is presented by,
+    /// the edge `shared` on the shared cell: the side the face is on,
+    /// the curve's parameters, the edges its part on the shared cell
+    /// lies along, the vertex it runs on through, and the edge it runs
+    /// on along. `None` where the cell is not presented by a run.
+    #[allow(clippy::type_complexity)]
+    fn run_about(
+        b: &Boundary,
+        shared: usize,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Option<(Side, (f64, f64), Vec<EdgeKey>, Option<VertexKey>, RunOn)> {
+        let s = floor();
+        let local = both_arcs();
+        let piece = Piece {
+            u,
+            v,
+            ..piece_on(&s, b, &local, 1)
+        };
+        let vertices = if shared == 0 { vec![] } else { vec![vertex(1)] };
+        match present_plane(&piece, &[shared], &vertices, band()) {
+            Ok(Presentation::Of(q)) => match &q.zero {
+                Zero::Curve(side, c) => c
+                    .run
+                    .map(|run| (*side, c.t, c.along.edges.clone(), c.past, run)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// **A line tangent to the arc at its end is read with it as one
+    /// run** ([`present_corner`]): it leaves `(1, 0)` along the circle's
+    /// tangent, against the arc's run, so it stands outside the circle,
+    /// by second order, and the face beside it is inside the line — not
+    /// the circle. The cell is presented by the arc up to the vertex and
+    /// the line from it, from either edge: the curve's parameters stop
+    /// at the vertex's, the part on the shared cell is the shared edge's,
+    /// and the side runs on along the other. Red if the corner is read
+    /// through by the circle continued (no run), or the curve's
+    /// parameters run past the vertex.
     #[test]
-    fn a_line_tangent_to_the_arc_at_the_corner_is_not_read_through_it() {
+    fn a_line_tangent_to_the_arc_at_the_corner_is_read_with_it_as_one_run() {
         let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let cell = ((0.98, 1.02), (-0.02, 0.02));
+        let (side, t, along, past, run) =
+            run_about(&b, 0, cell.0, cell.1).expect("a run, the arc shared");
+        assert_eq!(side, Side::XHi, "the face is at lower u than the run");
+        assert!(t.0 == 0.0 && t.1 > 0.0, "the arc from the vertex on: {t:?}");
+        assert_eq!(along, [edge(10)], "its shared part is the arc's");
+        assert_eq!(past, Some(vertex(1)), "it runs on through the vertex");
         assert_eq!(
-            on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+            run,
+            RunOn {
+                edge: edge(20),
+                start: true
+            },
+            "along the line, from the arc's start"
+        );
+        let (side, t, along, past, run) =
+            run_about(&b, 1, cell.0, cell.1).expect("a run, the line shared");
+        assert_eq!(side, Side::XHi, "the same side, the line shared");
+        assert!(t.0 == 0.0 && t.1 > 0.0, "the arc from the vertex on: {t:?}");
+        assert_eq!(along, [edge(20)], "its shared part is the line's");
+        assert_eq!(past, Some(vertex(1)), "it runs on through the vertex");
+        assert_eq!(
+            run,
+            RunOn {
+                edge: edge(10),
+                start: false
+            },
+            "along the arc, from the line's end"
+        );
+    }
+
+    /// **A reflex corner whose line runs on across the columns is one
+    /// run**: the line reaches `(1, 0)` from `(1.5, −1)`, outside the
+    /// circle and below the vertex, so over `v` the arc and the line are
+    /// one graph. Where the line reaches it from `(2, 0)`, along `u`, it
+    /// is no graph with the arc over either axis, and the corner stays
+    /// `Structural` ([`a_reflex_corner_of_a_curved_shared_edge_is_structural`]).
+    /// Red if a reflex corner is read through by the circle continued.
+    #[test]
+    fn a_reflex_corner_whose_line_runs_on_across_the_columns_is_one_run() {
+        let b = quarter(segment(20, [3, 1], (1.5, -1.0), (1.0, 0.0)), Vec::new());
+        let (side, t, along, past, run) =
+            run_about(&b, 0, (0.98, 1.02), (-0.02, 0.02)).expect("a run");
+        assert_eq!(side, Side::XHi, "the face is at lower u than the run");
+        assert!(t.0 == 0.0 && t.1 > 0.0, "the arc from the vertex on: {t:?}");
+        assert_eq!(
+            (along.as_slice(), past, run.edge),
+            (&[edge(10)][..], Some(vertex(1)), edge(20)),
+            "the arc, on through the vertex along the line"
+        );
+    }
+
+    /// **A run's rectangle holds the line over the columns it crosses,
+    /// and nothing else**: the tangent line of the row above, with a
+    /// third edge from `(0.99, −0.015)`, between the line and the
+    /// circle's continuation, in reach. Red if the run admits an edge
+    /// that is neither of the corner's two.
+    #[test]
+    fn a_run_with_a_third_edge_in_reach_is_not_read() {
+        let third = segment(30, [5, 6], (0.99, -0.015), (0.99, -0.5));
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), vec![third]);
+        assert_eq!(
+            on_floor(
+                &b,
+                vec![0, 1, 2],
+                vec![vertex(1)],
+                (0.98, 1.02),
+                (-0.02, 0.02)
+            ),
             Read::Local,
-            "the tangent join at (1, 0)"
+            "a third edge in reach"
+        );
+        // The line's own far end in the columns: its vertex is in reach.
+        let short = quarter(segment(20, [3, 1], (1.0, -0.01), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor(
+                &short,
+                vec![0, 1],
+                vec![vertex(1), vertex(3)],
+                (0.98, 1.02),
+                (-0.02, 0.02)
+            ),
+            Read::Local,
+            "the line ends inside the columns"
+        );
+    }
+
+    /// **The graph separator runs on along a run's other edge**
+    /// ([`graph_of`], [`graph_run`]): the tangent joint of the rows
+    /// above against a wall standing on the arc, the cylinder over the
+    /// unit circle from the vertex on. The graph lists the line as its
+    /// run, its slopes hold the line's, and the two faces read opposite
+    /// signs under it. Red if a run is read zero under a graph that does
+    /// not run on along its edge, or under a plane; red if the graph's
+    /// own edge is taken past the vertex along its circle, where the
+    /// face's boundary is the line.
+    #[test]
+    fn the_graph_runs_on_along_a_runs_other_edge() {
+        let s = floor();
+        let local = both_arcs();
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let x = piece_on(&s, &b, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("the floor is presented about (1, 0)");
+        };
+        let cyl = cylinder();
+        let wall = |u: (f64, f64)| Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: u,
+            y: (0.0, 0.02),
+            zero: Zero::Side(
+                Side::YLo,
+                Along {
+                    edges: vec![edge(10)],
+                    vertex: None,
+                    whole: true,
+                    params: Some(Params {
+                        t: u,
+                        periodic: true,
+                    }),
+                    on_edges: true,
+                },
+            ),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let on_the_arc = wall((0.0, 0.02));
+        let (psi, on) = graph_of(&x, &x, &near, &p, &on_the_arc, band()).expect("a graph");
+        assert_eq!(
+            (on.edges.as_slice(), on.run),
+            (&[edge(10)][..], Some(edge(20))),
+            "the arc, run on along the line"
+        );
+        let Psi::Graph { slope, piece, .. } = psi else {
+            panic!("the graph");
+        };
+        assert!(piece.0 == 0.0, "the piece stops at the vertex: {piece:?}");
+        assert!(
+            slope.lo() <= 0.0 && 0.0 <= slope.hi(),
+            "the slopes hold the tangent line's: {slope:?}"
+        );
+        let (floor_sign, wall_sign) = (
+            sign_on(&psi, Some(&on), &p, Some(&on_the_arc), band()),
+            sign_on(&psi, Some(&on), &on_the_arc, Some(&p), band()),
+        );
+        assert!(
+            matches!((floor_sign, wall_sign), (Some(a), Some(b)) if a == flip(b)),
+            "the floor and the wall part: {floor_sign:?} {wall_sign:?}"
+        );
+        // A graph that does not run on along the line reads the run
+        // nowhere, and a plane does not either.
+        let no_run = On {
+            run: None,
+            ..on.clone()
+        };
+        assert_eq!(
+            sign_on(&psi, Some(&no_run), &p, Some(&on_the_arc), band()),
+            None,
+            "a graph that stops at the vertex"
+        );
+        let own_plane = Psi::Linear {
+            n: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            q: origin(),
+        };
+        let whole = On {
+            whole: true,
+            ..on.clone()
+        };
+        assert_eq!(
+            sign_on(&own_plane, Some(&whole), &p, Some(&on_the_arc), band()),
+            None,
+            "a plane holding the arc's circle"
+        );
+        // A wall whose side runs past the vertex along the circle: the
+        // graph would follow the circle there, off the line.
+        let past_the_vertex = wall((-0.01, 0.02));
+        assert!(
+            graph_of(&x, &x, &near, &p, &past_the_vertex, band()).is_none(),
+            "the graph's own edge stops at the vertex"
+        );
+        // Never in the carrier arm, nor against a partner read past the
+        // shared cell.
+        assert_eq!(
+            sign_on(&psi, Some(&on), &p, None, band()),
+            None,
+            "no partner"
         );
     }
 
@@ -10011,18 +10246,23 @@ mod presentation_rows {
         );
     }
 
-    /// **The same, on a plane**: the quarter disc's line runs from
-    /// `(1, 0)` toward `(0.98, −1)`, inside the continued circle at first,
-    /// and crosses back out at `y ≈ −0.04`, inside the cell
-    /// `(0.97, 1.02) × (−0.05, 0.05)`. Red if [`leaves_graph`] decides
-    /// the tangents at the vertex alone.
+    /// **The same, on a plane, is one run**: the quarter disc's line
+    /// runs from `(1, 0)` toward `(0.98, −1)`, inside the continued
+    /// circle at first, and crosses back out at `y ≈ −0.04`, inside the
+    /// cell `(0.97, 1.02) × (−0.05, 0.05)`. The circle continued does not
+    /// bound the face there; the arc and the line as one run do. Red if
+    /// [`leaving`] decides the tangents at the vertex alone, so the
+    /// corner is read through by the circle continued.
     #[test]
-    fn a_line_the_continued_arc_comes_back_across_is_not_read_through_the_corner() {
+    fn a_line_the_continued_arc_comes_back_across_is_read_as_one_run() {
         let b = quarter(segment(20, [3, 1], (0.98, -1.0), (1.0, 0.0)), Vec::new());
+        let (_, t, along, past, run) =
+            run_about(&b, 0, (0.97, 1.02), (-0.05, 0.05)).expect("a run");
+        assert!(t.0 == 0.0, "the arc from the vertex on: {t:?}");
         assert_eq!(
-            on_floor(&b, vec![0, 1], vec![vertex(1)], (0.97, 1.02), (-0.05, 0.05)),
-            Read::Local,
-            "the line crosses back out of the circle"
+            (along.as_slice(), past, run.edge),
+            (&[edge(10)][..], Some(vertex(1)), edge(20)),
+            "the arc, on through the vertex along the line"
         );
     }
 
