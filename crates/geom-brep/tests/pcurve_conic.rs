@@ -39,7 +39,7 @@ fn section_ellipse(phi: f64) -> Curve3<f64> {
     match plane_cylinder_section(
         &plane(phi),
         &cyl(),
-        &Reach::of_frame(Point3::new(1.0, 2.0, 3.0), (1.0, 1.0)),
+        &Reach::fixture(Point3::new(1.0, 2.0, 3.0), 1.0),
         band(),
     )
     .unwrap()
@@ -295,19 +295,21 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 /// Builds the exact rational-quadratic NURBS 3-D form of an ellipse
 /// arc (Book §7.3, ≤ 90° segments) — the TEST oracle only.
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = *e
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = *e
     else {
         panic!("oracle needs an ellipse");
     };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let v_ref = axis.cross(u_ref);
     let at = |theta: f64| -> Point3<f64> {
         let (s, c) = theta.sin_cos();

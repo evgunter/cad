@@ -57,15 +57,17 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) if center.z > 0.5 => Some((k, *axis, *radius)),
+                geom::Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis,
+                                ..
+                            },
+                        ..
+                    },
+                ) if center.z > 0.5 => Some((k, *axis, circle.radius())),
                 _ => None,
             }
         })

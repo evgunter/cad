@@ -786,7 +786,14 @@ impl<'a, T: Decide> Sides<'a, T> {
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
         if let Surface::Sphere { center, radius, .. } = *self.surface {
-            match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
+            match sphere_pole_left(
+                center,
+                radius,
+                crate::uniform_curvature_arm(self.surface),
+                x,
+                self.loops[l],
+                self.band,
+            ) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
                 PoleLeft::Banded(cause) => return Err(side(SideUnread::Banded(cause))),
@@ -1185,14 +1192,19 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                radius,
-            }) => Self {
-                speed,
-                line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
-            },
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: geom::Frame { axis: n, .. },
+                    ..
+                },
+            ) => {
+                let radius = circle.radius();
+                Self {
+                    speed,
+                    line: false,
+                    height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
+                }
+            }
             _ => Self {
                 speed,
                 line: false,

@@ -68,6 +68,8 @@ mod a_circle_of_one_radius_elsewhere_is_no_rim;
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
+#[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
+mod a_corner_cut_on_a_far_wall_reads_its_sections_width;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -1113,6 +1115,8 @@ mod r1_probes_m9_3;
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
 
+#[path = "a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta.rs"]
+mod a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta;
 #[path = "curved_coincident_fates.rs"]
 mod curved_coincident_fates;
 #[path = "curved_copies_filling_one_volume.rs"]

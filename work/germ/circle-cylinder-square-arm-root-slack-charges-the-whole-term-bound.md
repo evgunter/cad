@@ -13,7 +13,7 @@ refs: [3847]
 ## What
 
 The conic × quadric door's first-harmonic arm on a circle against a
-wall (`crates/topo/src/boolean/conic_quadric/mod.rs`,
+wall (`crates/geom-brep/src/curve_face/conic_quadric.rs`,
 `conic_quadric_roots`; the circle × cylinder door's square arm before
 the two doors were one)
 hands the shared first-harmonic door
@@ -62,7 +62,7 @@ second harmonic stays charged to both. Measure the 8,120-pose probe
 before and after.
 
 The tilted arm's ladder slack (`circle_roots::half_angle_roots`,
-the `bool_conic_quadric_*` ladder rows) has the same shape — a
+the `conic_quadric_*` ladder rows) has the same shape — a
 uniform `noise` over `|F′|` — but no closed-form extremes to factor;
 GERM's `circle-torus-root-slack-crowds-the-zero-band-at-1e-12` asks
 that question of the same ladder.

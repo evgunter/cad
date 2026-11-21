@@ -22,7 +22,7 @@ callers hand it the bare `f64` evaluation:
 
 - `circle_torus::circle_torus_roots` (`circle_torus.rs`, the
   `half_angle_roots` call): `geom_brep::implicit_residual(torus, …)`;
-- `conic_quadric::conic_quadric_roots` (`conic_quadric/mod.rs`, both
+- `conic_quadric::conic_quadric_roots` (`geom-brep/src/curve_face/conic_quadric.rs`, both
   `half_angle_roots` calls): `geom_brep::implicit_residual(surface, …)`;
 - `ellipse_torus::torus_walk` (`ellipse_torus.rs`, the
   `certified_subdivision` call): the same.

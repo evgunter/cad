@@ -2,10 +2,12 @@
 id: value-error-pairs-are-carried-beside-rounded-in-four-modules
 kind: issue
 title: Four modules carry (value, error) pairs of their own beside Rounded and spell room and magnitude on them by hand
-status: open
+status: review
 opened: 2026-11-19
 priority: P1
 cost: M
+branch: oneround/rounded-pairs
+pr: 7221
 ---
 
 
@@ -32,7 +34,7 @@ bound as two names of its own, a vocabulary parallel to
   `(gap, gap_err)` and `(c, c_err)` tuples, `size = gap.abs() +
   gap_err`, and `undecided = (gap.abs() - gap_err).min(c.abs() -
   c_err)`, two rooms read through `select_le_zero`.
-- `topo::boolean::conic_quadric` (`mod.rs`, the cone arm's root slack):
+- `geom_brep::curve_face::conic_quadric` (`conic_quadric.rs`, the cone arm's root slack):
   `least = slope(theta).abs() - two * noise - width * bend` and
   `(f(theta).abs() + noise) / least`, the division guarded by
   `least.select_le_zero(unbounded, …)`.
