@@ -7392,7 +7392,7 @@ fn fidelity<T: Decide>(
 /// **A focal-section image's structure**, decided in band, the one
 /// spelling of it for every door that reads one: its sense `±1` and its
 /// tube rate `±1` on a torus (`tube` its minor radius), each a residue
-/// metered at its channel's rate; `|β| < 1`, levered at the azimuth's.
+/// metered at its channel's rate; `|β| < 1`, read by its sign alone.
 /// Returns the azimuth's arm, metres per radian over the image's box,
 /// with the two unit signs it decided.
 pub(super) fn focal_section_identity<T: Decide>(
@@ -7437,16 +7437,14 @@ pub(super) fn focal_section_identity<T: Decide>(
             ));
         }
     }
+    // `1 − |β|` is the least modulus of the true-anomaly map's `atan2`
+    // argument `(β·sin E, 1 − β·cos E)`, a point on the circle of radius
+    // `|β|` about `(1, 0)`: the map is cut-free exactly where it is
+    // positive, whatever its size, so its sign alone is read.
     match decide(
         "pcurve_focal_section_beta",
-        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
-        // headroom, a coefficient that is no parameter span, and the
-        // azimuth arm is a rate (metres per radian), not an extent.
-        Margin::levered(
-            T::one() - image.beta.abs(),
-            geom_core::Lever::unsourced(arm),
-        ),
-        band,
+        Margin::sign_of(T::one() - image.beta.abs()),
+        Band::enclosure_sign(),
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
     {
