@@ -8411,8 +8411,9 @@ fn route_rim<T: Decide>(
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
     let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
-    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
-        .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
+    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole, band)
+        .below()
+        .max(crate::wedge_reach(b, [fb; 2], &circle, whole, band).below());
     let routing =
         crate::rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, reach, band)
             .map_err(in_band)?;

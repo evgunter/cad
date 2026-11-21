@@ -1239,7 +1239,8 @@ fn stands_on<T: Decide>(
         let Some(n) = plane(x, face) else {
             continue;
         };
-        let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
+        let arm =
+            crate::wedge_reach(x, [face, face], curve.carrier(), curve.params(), band).below();
         let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
         return Ok(
             decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(

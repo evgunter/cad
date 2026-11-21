@@ -423,7 +423,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
         let periods = ChartPeriods::of(surface, band);
-        let wedges = crate::wedge_reach::WedgeReach::new(body);
+        let wedges = crate::wedge_reach::WedgeReach::new(body, band);
         let has_singular_points = has_singular_set(surface);
         let sense = face.sense();
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {

@@ -14,47 +14,50 @@
 //! wedge, and one large face beside a small one reads the gap the large
 //! one opens.
 //!
-//! **The measure never over-states the faces' boundaries**, the unsafe
-//! direction for a lever, which would read a corner more definitely
-//! than the faces support. One over-statement remains: the reach is
-//! measured from the edge's middle, so a face's run ALONG the edge
-//! counts as lever, though two faces separate only with distance from
-//! the edge (`work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`;
-//! the edge's own extent read it the same way). A face is read at its
-//! boundary's vertices, so a short
-//! arc of a large circle reads the arc's ends and not the circle, and a
-//! lune of a large sphere its own extent, not the sphere's diameter.
-//! That falls short of the boundary by at most a curved edge's bulge
-//! past its ends, and of a curved face that stands farther inside its
-//! boundary than on it, both the safe direction; the curvature arm
-//! ([`geom_brep::folded_lever_arm`]) caps the lever at the face's
-//! radius in any case. The edge's own ends are read too, for a door
-//! minting it into a face it does not bound yet. A face's vertices do
-//! not depend on the edge being read, so [`WedgeReach`] collects them
-//! once per face and a pass over many edges (tier 3) reads each face's
-//! boundary once; and they are points, not the trigonometric forms a
-//! curved edge's interior point would be, which the symbolic tier pays
-//! for at every margin the lever enters.
+//! **The reach is known from both sides** ([`geom_brep::LeverBounds`]),
+//! each read from the carrier's middle, and each caller takes the bound
+//! its action needs (`crates/geom-core/README.md`, "Float rounding", the
+//! lever bullet). From below: the faces' boundary vertices and the
+//! edge's own ends, each a point of the region, so a short arc of a
+//! large circle reads the arc's ends and not the circle. From above:
+//! the faces' covers ([`crate::cover::face_cover`]), which hold what
+//! bulges past the boundary (a curved edge's bulge, a sphere's far
+//! side), and the edge's own cover over its span, for a door minting it
+//! into a face it does not bound yet; a face with no cover reads poison
+//! there, which a reading levered at it escalates. The reach is measured
+//! from the edge's middle, so a face's run ALONG the edge counts as
+//! lever, though two faces separate only with distance from the edge
+//! (`work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`).
+//! A face's vertices and cover do not depend on the edge being read, so
+//! [`WedgeReach`] reads them once per face and a pass over many edges
+//! (tier 3) reads each face once; the vertices are points, not the
+//! trigonometric forms a curved edge's interior point would be, which
+//! the symbolic tier pays for at every margin the lever enters.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use geom::Curve3;
-use geom_core::{Decide, Point3};
+use geom::cover::Cover;
+use geom_brep::{ExtentBall, LeverBounds};
+use geom_core::{Band, Decide, Point3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
+use crate::cover::FaceCovered;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 
 /// The reach of the wedge between `faces` along the edge on `carrier`
-/// over `(t0, t1)`: the farthest either face's boundary vertices (module
-/// docs) and the edge's own ends stand from the carrier's middle. At
-/// rest the edge bounds both faces already; a door minting the edge
-/// names the faces it reads (both one face, where the edge is a strut
-/// in it or a chord dividing it). [`WedgeReach`] is the same reading
-/// with each face's points collected once, for a caller reading many
-/// edges of one body.
+/// over `(t0, t1)`, from the carrier's middle and bounded from both
+/// sides (module docs): from below the farthest of the faces' boundary
+/// vertices and the edge's own ends, from above the farthest of the
+/// faces' covers ([`crate::cover::face_cover`]) and the edge's own
+/// cover over the span. At rest the edge bounds both faces already; a
+/// door minting the edge names the faces it reads (both one face, where
+/// the edge is a strut in it or a chord dividing it). [`WedgeReach`] is
+/// the same reading with each face's points and cover read once, for a
+/// caller reading many edges of one body.
 ///
 /// # Panics
 ///
@@ -66,8 +69,9 @@ pub fn wedge_reach<T: Decide>(
     faces: [FaceKey; 2],
     carrier: &Curve3<T>,
     interval: (T, T),
-) -> geom_core::Lever<T> {
-    WedgeReach::new(body).reach(faces, carrier, interval)
+    band: Band,
+) -> LeverBounds<T> {
+    WedgeReach::new(body, band).reach(faces, carrier, interval)
 }
 
 /// [`wedge_reach`] of a live `edge`, over its two faces and its stored
@@ -79,25 +83,39 @@ pub fn wedge_reach<T: Decide>(
 /// Where `edge` or a record on the walk from it does not resolve: every
 /// caller read `edge` out of `body`.
 #[must_use]
-pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<geom_core::Lever<T>> {
-    WedgeReach::new(body).edge(edge)
+pub fn edge_wedge_reach<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Option<LeverBounds<T>> {
+    WedgeReach::new(body, band).edge(edge)
 }
 
-/// **[`wedge_reach`] over one body, each face's boundary points
-/// collected once** and kept for every later edge the face bounds. The
+/// **[`wedge_reach`] over one body, each face's boundary points and
+/// cover read once** and kept for every later edge the face bounds. The
 /// body is borrowed, so it cannot change under the cache.
 pub struct WedgeReach<'a, T: Decide> {
     body: &'a Body<T>,
-    points: RefCell<SecondaryMap<FaceKey, Rc<[Point3<T>]>>>,
+    band: Band,
+    faces: RefCell<SecondaryMap<FaceKey, Rc<FaceRead<T>>>>,
+}
+
+/// What a face contributes to every wedge it bounds: its boundary's
+/// vertices, points of the face, and its cover, which holds it.
+struct FaceRead<T: geom_core::Real> {
+    points: Vec<Point3<T>>,
+    cover: FaceCovered<T>,
 }
 
 impl<'a, T: Decide> WedgeReach<'a, T> {
-    /// A reader of `body`'s wedges, nothing collected yet.
+    /// A reader of `body`'s wedges, its faces' covers read under
+    /// `band`; nothing read yet.
     #[must_use]
-    pub fn new(body: &'a Body<T>) -> Self {
+    pub fn new(body: &'a Body<T>, band: Band) -> Self {
         Self {
             body,
-            points: RefCell::new(SecondaryMap::new()),
+            band,
+            faces: RefCell::new(SecondaryMap::new()),
         }
     }
 
@@ -113,19 +131,24 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         faces: [FaceKey; 2],
         carrier: &Curve3<T>,
         (t0, t1): (T, T),
-    ) -> geom_core::Lever<T> {
-        // The edge's own ends: a door minting the edge reads a face it
-        // does not bound yet. Its middle is `at`.
+    ) -> LeverBounds<T> {
         let at: Point3<T> = carrier.mid_point(t0, t1);
+        let ends = (carrier.eval(t0), carrier.eval(t1));
         let [a, b] = faces;
-        let (pa, pb) = (self.face_points(a), (b != a).then(|| self.face_points(b)));
-        geom_brep::points_lever_from(
-            at,
-            [carrier.eval(t0), carrier.eval(t1)]
-                .into_iter()
-                .chain(pa.iter().copied())
-                .chain(pb.iter().flat_map(|p| p.iter().copied())),
-        )
+        let reads = [Some(self.face(a)), (b != a).then(|| self.face(b))];
+        let reads = reads.iter().flatten();
+        let points = [ends.0, ends.1]
+            .into_iter()
+            .chain(reads.clone().flat_map(|f| f.points.iter().copied()))
+            .collect();
+        let far = |cover: Option<&Cover<T>>| ExtentBall::of_cover_from(cover, at).lever();
+        let own = crate::cover::edge_cover_over(carrier, (t0, t1), ends).ok();
+        LeverBounds::Between {
+            below: far(Cover::points(points).as_ref()),
+            above: reads.fold(far(own.as_ref()), |above, f| {
+                above.max(far(f.cover.as_ref().ok()))
+            }),
+        }
     }
 
     /// [`edge_wedge_reach`], reading faces through this cache.
@@ -134,17 +157,17 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     ///
     /// As [`edge_wedge_reach`].
     #[must_use]
-    pub fn edge(&self, edge: EdgeKey) -> Option<geom_core::Lever<T>> {
+    pub fn edge(&self, edge: EdgeKey) -> Option<LeverBounds<T>> {
         let data = &self.body.edges[edge];
         let curve = self.body.curves.get(data.curve)?.certified()?;
         Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
     }
 
-    /// `face`'s boundary points (module docs): every loop's vertices, a
-    /// lone vertex included. Collected on first ask.
-    fn face_points(&self, face: FaceKey) -> Rc<[Point3<T>]> {
-        if let Some(points) = self.points.borrow().get(face) {
-            return Rc::clone(points);
+    /// `face`'s read (module docs): every loop's vertices, a lone vertex
+    /// included, and its cover. Read on first ask.
+    fn face(&self, face: FaceKey) -> Rc<FaceRead<T>> {
+        if let Some(read) = self.faces.borrow().get(face) {
+            return Rc::clone(read);
         }
         let body = self.body;
         let view = body.proven_face(face);
@@ -163,9 +186,12 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
                 }
             }
         }
-        let points: Rc<[Point3<T>]> = points.into();
-        self.points.borrow_mut().insert(face, Rc::clone(&points));
-        points
+        let read = Rc::new(FaceRead {
+            points,
+            cover: crate::cover::face_cover(body, face, self.band),
+        });
+        self.faces.borrow_mut().insert(face, Rc::clone(&read));
+        read
     }
 }
 

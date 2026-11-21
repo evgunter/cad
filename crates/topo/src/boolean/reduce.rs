@@ -3941,9 +3941,9 @@ fn sheets_part<T: Decide>(
         along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
     );
     let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
-    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params()).max(
-        crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params()),
-    );
+    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params(), band)
+        .below()
+        .max(crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params(), band).below());
     let sign = decide(
         "bool_touch_sheets_part",
         Margin::levered(into_x.dot(into_y), arm),

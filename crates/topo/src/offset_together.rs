@@ -469,7 +469,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                                 crate::edge_faces(body, edge),
                                 &carrier,
                                 (t0, t1),
-                            ),
+                                band,
+                            )
+                            .below(),
                             declared,
                             band,
                         )
@@ -485,7 +487,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                                 crate::edge_faces(body, edge),
                                 &carrier,
                                 (t0, t1),
-                            ),
+                                band,
+                            )
+                            .below(),
                             band,
                         )
                     },

@@ -68,7 +68,10 @@ fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
         .clone();
     let (t0, t1) = curve.params();
     let witness = curve.carrier().eval(t0 + (t1 - t0) * 0.5);
-    let extent = topo::edge_wedge_reach(body, edge).expect("a certified rim");
+    let band = Band::linear(Tol::witness()).unwrap();
+    let extent = topo::edge_wedge_reach(body, edge, band)
+        .expect("a certified rim")
+        .below();
     RimInputs {
         s_cap,
         s_wall,

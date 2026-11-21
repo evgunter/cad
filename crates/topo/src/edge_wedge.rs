@@ -109,7 +109,7 @@ pub fn edge_wedge<T: Decide>(
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
     let read = walk_of(body, edge)?;
-    let reach = crate::edge_wedge_reach(body, edge)?;
+    let reach = crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::below)?;
     Some(verdict_of(
         body,
         &read,
@@ -168,7 +168,7 @@ pub(crate) fn edge_wedge_read<T: Decide>(
     let verdict = verdict_of(
         body,
         &read,
-        crate::edge_wedge_reach(body, edge)?,
+        crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::below)?,
         band,
         geom_core::k_stats::Role::Check,
     );

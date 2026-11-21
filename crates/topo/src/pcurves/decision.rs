@@ -201,7 +201,7 @@ pub(crate) struct JointHalf<'a, T: Real> {
     pub(crate) edge: WalkEdge,
     /// The extent of the faces the edge bounds, asked only at a joint
     /// on the singular set; `None` where it is not read.
-    pub(crate) reach: &'a dyn Fn() -> Option<geom_core::Lever<T>>,
+    pub(crate) reach: &'a dyn Fn() -> Option<geom_brep::LeverBounds<T>>,
 }
 
 /// **The face's side of a joint**: what [`decide_joint`] reads of a
@@ -220,7 +220,7 @@ pub(crate) struct JointSides<'a, T: Real> {
     /// The edge the walk leaves on.
     leaving: EdgeEnd<'a, T>,
     /// The two edges' reaches, the arriving edge's first.
-    reaches: [&'a dyn Fn() -> Option<geom_core::Lever<T>>; 2],
+    reaches: [&'a dyn Fn() -> Option<geom_brep::LeverBounds<T>>; 2],
     /// **The rest of the loop**: its other joints' elements composed,
     /// where the loop is closed and every one of them is decided. Read
     /// only where two distinct edges leave the point along one
@@ -258,16 +258,17 @@ impl<'a, T: Real> JointSides<'a, T> {
 
     /// **The lever of the turn between the two edges**: the extent of
     /// the faces they bound, the shorter of the two edges' reaches
-    /// ([`edge_reach`]). `None` where either is not read.
-    fn lever(&self) -> Option<geom_core::Lever<T>> {
+    /// ([`edge_reach`]), bounded from both sides. `None` where either is
+    /// not read.
+    fn lever(&self) -> Option<geom_brep::LeverBounds<T>> {
         let [arrived, leaving] = self.reaches;
         Some(arrived()?.min(leaving()?))
     }
 }
 
 /// **An edge's reach, for the turn at a joint on the singular set**: the
-/// extent of the faces it bounds, how far their boundary vertices and
-/// the edge's own ends stand from the middle of its span
+/// extent of the faces it bounds, from below how far their boundary
+/// vertices and the edge's own ends stand from the middle of its span
 /// ([`mod@crate::wedge_reach`]). An angle between two edges on a face is
 /// levered at that extent, not at how long either edge is.
 ///
@@ -284,22 +285,32 @@ impl<'a, T: Real> JointSides<'a, T> {
 /// - a site mint reads the face it mints as the door leaves it, alone:
 ///   the vertices of its loops ([`site_rows`]).
 ///
-/// So a door's reach is the finished edge's or shorter, and a turn a
-/// door decides is one tier 3 decides the same way: a longer lever
-/// only moves a margin farther from its mark.
+/// So a door's bound from below is the finished edge's or shorter, and a
+/// turn a door decides on it is one tier 3 decides the same way: a
+/// longer lever only moves a margin farther from its mark. The bound
+/// from above is the faces' covers' ([`crate::wedge_reach::WedgeReach`]);
+/// the face a site mint walks is not in the body as the door leaves it,
+/// so no cover holds it, and its bound from above is poison, which a
+/// reading levered at it escalates.
 ///
 /// [`site_rows`]: super::site_rows
 pub(super) fn edge_reach<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     points: impl IntoIterator<Item = geom_core::Point3<T>>,
-) -> geom_core::Lever<T> {
-    geom_brep::points_lever_from(
-        carrier.mid_point(t0, t1),
-        [carrier.eval(t0), carrier.eval(t1)]
-            .into_iter()
-            .chain(points),
-    )
+) -> geom_brep::LeverBounds<T> {
+    let at = carrier.mid_point(t0, t1);
+    let points = [carrier.eval(t0), carrier.eval(t1)]
+        .into_iter()
+        .chain(points)
+        .collect();
+    let far = |cover: Option<&geom::cover::Cover<T>>| {
+        geom_brep::ExtentBall::of_cover_from(cover, at).lever()
+    };
+    geom_brep::LeverBounds::Between {
+        below: far(geom::cover::Cover::points(points).as_ref()),
+        above: far(None),
+    }
 }
 
 /// [`edge_reach`] of the edge of `half_edge` as the body holds it, over
@@ -308,7 +319,7 @@ pub(super) fn stored_reach<T: Decide>(
     wedges: &crate::wedge_reach::WedgeReach<'_, T>,
     body: &Body<T>,
     half_edge: HalfEdgeKey,
-) -> Option<geom_core::Lever<T>> {
+) -> Option<geom_brep::LeverBounds<T>> {
     wedges.edge(half_edge_record(body, half_edge).edge)
 }
 
@@ -443,7 +454,7 @@ pub(super) fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     len: usize,
     mut item: impl FnMut(usize) -> Result<WalkItem<T, I>, E>,
     kept: impl Fn(usize) -> Option<JointElement>,
-    reach: &dyn Fn(usize) -> Option<geom_core::Lever<T>>,
+    reach: &dyn Fn(usize) -> Option<geom_brep::LeverBounds<T>>,
     band: Band,
     closes: bool,
 ) -> Result<Vec<Pinned<T, I>>, WalkFail<E>> {
@@ -729,7 +740,7 @@ pub(crate) fn walk_halves<T: AtRestPolicy>(
             stored_edge(body, he),
         ))
     };
-    let wedges = crate::wedge_reach::WedgeReach::new(body);
+    let wedges = crate::wedge_reach::WedgeReach::new(body, band);
     let reach = |i: usize| stored_reach(&wedges, body, halves[i]);
     let walked = walk_cycle(
         chart,
@@ -826,7 +837,7 @@ pub(super) fn walk_runs<T: AtRestPolicy>(
                 .take()
                 .unwrap_or_else(|| unreachable!("walk_cycle reads each item of a run once")))
         };
-        let wedges = crate::wedge_reach::WedgeReach::new(body);
+        let wedges = crate::wedge_reach::WedgeReach::new(body, band);
         let reach = |i: usize| stored_reach(&wedges, body, keys[i]);
         match walk_cycle(
             chart,
@@ -1154,8 +1165,10 @@ fn singular_turn<T: Decide>(
         return Err(PinMiss::Singular(SingularMiss::NoLever));
     };
     let entry = image.eval(entry_t);
-    let twin = half_turn_off(chart, sides.arrived, prev.x, lever, band)?
-        != half_turn_off(chart, sides.leaving, entry.x, lever, band)?;
+    // The sheet claims a definite side (its Zero refuses), so it reads
+    // the bound from below.
+    let twin = half_turn_off(chart, sides.arrived, prev.x, lever.below(), band)?
+        != half_turn_off(chart, sides.leaving, entry.x, lever.below(), band)?;
     let entry = if twin {
         let Some(sheet) = sphere_twin(chart.surface(), image) else {
             return Err(PinMiss::Singular(SingularMiss::TwoNappes));
@@ -1170,7 +1183,7 @@ fn singular_turn<T: Decide>(
     match geom_brep::Period::angle().decide(
         "pcurve_singular_turn",
         shifted,
-        |g| Margin::levered(g, lever),
+        |g| Margin::levered(g, lever.below()),
         band,
     ) {
         Ok(k) => Ok((k, twin)),
@@ -1530,7 +1543,7 @@ pub(super) fn decide_plain_joint<T: Decide>(
     };
     let arrived = geom::Curve3::line(vertex, along(prev.x));
     let leaving = geom::Curve3::line(vertex, along(image.eval(entry_t).x));
-    let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
+    let reach = || Some(geom_core::Lever::curvature_radius(T::one()).into());
     decide_joint(
         chart,
         image,

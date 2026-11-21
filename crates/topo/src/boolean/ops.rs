@@ -3112,8 +3112,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
-        let reach =
-            crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
+        let reach = crate::wedge_reach(
+            body,
+            [sides.plus.face, sides.minus.face],
+            carrier,
+            interval,
+            band,
+        )
+        .below();
         let witness = draft.witness;
         let face = |side: crate::readback::EdgeSide, surface| {
             crate::pcurves::seam_face(body, side.half_edge, surface, existing.as_ref(), band)
