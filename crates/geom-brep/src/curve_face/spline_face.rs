@@ -1121,7 +1121,7 @@ fn held(found: &[Found], ends: &[Cell], x: Cell) -> bool {
 /// # Errors
 ///
 /// [`SplineFaceRefusal`], as its variants say.
-pub fn settle<T: Decide<Value = T>>(
+pub fn settle<T: geom_core::Certifies>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
     isolated: &Isolated,
