@@ -45,21 +45,46 @@ Both are a local debug run of the slow set's rows that reach the anchored
 mint (23 of the 83 slow rows naming a cone); the other 21 pass at all
 three ε, as do the 65 per-PR rows that reach it.
 
-## Not established
+## Cause
 
-Why it is wider. The anchored point is `anchor + u·a·(−2·sin²(θ/2)) +
-v·b·sin θ` and the offsets have no dependency between factors, so the
-candidate is the width of the anchor itself as `ConeTilt::near_vertex`
-computes it at `Interval`, against the centre's; and every reader that
-takes the centre (`Conic::center()`, `Conic::frame()`) now takes
-`anchor − u·a`, the anchor's width plus the semi-axis's. Neither width
-was measured.
+The re-seam's half turn, and not the anchored datum. Measured on
+`box ∪ cone` at the certified scalar with temporary switches in the mint
+and in `conic.rs` (width of the volume enclosure, m³; the row's bar is
+`1e-10`):
 
-## What would settle it
+| variant | width |
+|---|---|
+| the base's centre-born mint | 7.78e-11 |
+| as built, anchored | 1.061e-10 |
+| anchored, the anchor a point (zero width) | 1.017e-10 |
+| centre-born, stored at the derived centre `vertex − toward·a` | 7.75e-11 |
+| anchored, evaluated through the centre chain on `frame()` | 1.122e-10 |
+| anchored, a half-turned seam handed back centre-born | 8.36e-11 |
 
-The width of the anchor and of the derived centre at `Interval` on this
-fixture, beside the centre-born centre's. If the anchor is the wider
-datum, the mint's reading of the vertex is what to tighten; if the derived
-centre is, it is the readers of the centre
-(`work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`
-is one).
+- The anchor as minted (`ConeTilt::near_vertex`) is the narrowest datum:
+  5e-15 to 2.7e-14 wide over the row's eight mints, against 1.9e-14 to
+  1.3e-13 for the base's centre. The derived centre is within 25% of
+  the base's centre either way. The semi-axis is 2e-14 to 1.1e-13 wide.
+- The anchored evaluator is the tighter of the two chains.
+- `Ellipse::seamed_toward` (`crates/geom/src/curves/conic.rs`) re-anchors
+  a half-turned seam at the far vertex as `anchor − u·2a`. Every reader
+  of the centre then derives `(anchor − u·2a) + u·a`, so `u·a` enters
+  three times and interval arithmetic cannot cancel it.
+- The row reaches it through `SectionCurve::Conic(conic.seamed_near(middle))`
+  in `crates/topo/src/chord_join.rs`: 12 calls on anchored ellipses at
+  `Interval`, half of them at `θ ≈ π`. Its 92 quarter-turn calls all keep
+  the seam, and the anchor with it.
+- It is not the readers of `frame()`: they read the value a stored centre
+  held, as the stored-at-the-derived-centre run shows.
+
+The 7% between 8.36e-11 and 7.78e-11 was not traced.
+
+## What closes it
+
+A phase: a re-seam then moves parameter zero and leaves the anchor where
+it is, and nothing is re-summed
+(`a-section-conic-is-anchored-at-a-general-point-of-its-arc`, and PR 7194).
+Handing a turned seam back centre-born is not taken: it is a second way
+to be born, chosen by the sign of a quantity that straddles at
+`Interval`. The two rows stay red until then, with their bars as they
+are.
