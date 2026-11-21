@@ -10,7 +10,7 @@ is 24 files, +478 −235, the PR's own numbers).
 **NOT-MERGEABLE-AS-IS.**
 
 Thirteen of the fifteen pin falls are what the unit says they are, no suite verdict moved in my
-differential, and the rim row's re-baseline is a right answer. Two things stop it:
+differential, and the rim row's re-baseline is a right answer. Three things stop it:
 
 - **M1.** The axial frame's one lever was moved from a bound from below to a bound from above on
   the ground that "its alignment verdicts act on Zero". Four of the verdicts that same lever arms
@@ -37,7 +37,10 @@ was made on one.
 - Three probe rows of my own and a sweep of the rim row (`probes/mutant-switches-and-probe-rows.patch`).
 - A mutant sweep: 28 mutants behind an environment switch in one build, each run over the per-PR
   topo suite (`--profile ci`, 4022 tests, the slow set not in it).
-- The differential: see C4 for exactly which runs finished.
+- The differential, base against head with one fuzz seed: the whole topo suite with the slow set
+  at ε = 1e-9, the per-PR topo set at 1e-12, and the sweep and step-import tests that reach the
+  axial door at both ε (C4).
+- `recourse_roster` and the square-wall fuzzer (on the author's seed) alone on each side.
 - The hosted run 44862635526 resolved to step level through the jobs API.
 
 **Only read**: `fate.rs`, `overlap.rs`, `join.rs` (the frame functions and `bool_connect`'s germ
@@ -255,13 +258,18 @@ Thirteen callers checked against the code (list under C7). Ten are classified as
 
 The two callers outside topo are listed and not classified, as the row says.
 
-### m6. The PR body is not true of the frozen head in three places — DEMONSTRATED, sure
+### m6. The PR body is not true of the frozen head in two more places — DEMONSTRATED, sure
 
-See C11 for the evidence.
+Beyond M3: its CI section reports a red in `test (app)` that the frozen head's run does not have
+(that job is green; its ε step ran for one second), and its differential was taken against a base
+that is not the frozen head's. C11 has the evidence. Neither changes an outcome.
 
-### m7. Seven conversions have no row, and their mutants survive — DEMONSTRATED, sure
+### m7. Seven conversions have no row, and nineteen mutants at them survive — DEMONSTRATED, sure
 
-See C8. The body discloses "No row for the last-bits sites". Nothing schedules one.
+See C8. The body discloses "No row for the last-bits sites". Nothing schedules one. Four of the
+survivors are not scalings: a swapped pair of spans in `piece_beside`, either term of
+`extent_from`'s fold deleted, the axial scope guard removed, and an uncovered face skipped where
+the comment says it poisons.
 
 ### m8. New refusal arms with no row, two of them unreachable — BY-INSPECTION, likely
 
@@ -288,8 +296,7 @@ See C8. The body discloses "No row for the last-bits sites". Nothing schedules o
 - `axial_frame` now reads `face_cover` of every in-scope face on each of its two entries
   (`is_axial_in`, `offset_charts_together_staged`). Not timed. `unsure` whether it matters.
 - A face with no cover in the scope now poisons every margin on the frame, exact zeros included
-  (`0 · NaN`). Before, the fold never read a face. The `axial_skip_uncovered` mutant says whether a
-  row holds that (C8).
+  (`0 · NaN`). Before, the fold never read a face. No row holds it (C8).
 
 ## The claims
 
@@ -344,7 +351,31 @@ shorter bound from above, for a definite-sign reader) and stops short of it. `ax
 
 ### C4 — no verdict moved but the rim row
 
-DIFFERENTIAL_PLACEHOLDER
+**Holds at the level I measured, which is test verdicts and failure text, not per-call readings.**
+I did not rebuild the author's per-call old/new logging, so the counts in the PR body (same bits,
+last bits, more) are not re-measured here.
+
+Base `71068072` against head `ad1b9352`, each in its own worktree and target directory, one fuzz
+seed on both sides (`CAD_FUZZ_SEED=0x00c0ffee00000001`):
+
+| Run | Base | Head | Difference in the pass/fail sets |
+|---|---|---|---|
+| `nextest run -p topo`, default profile (**the slow set included**), ε = 1e-9 | 4319 run, 4315 pass, 4 fail | 4323 run, 4319 pass, 4 fail | the 4 rows the head adds, all passing; nothing else |
+| `nextest run -p topo --profile ci` (the per-PR set), ε = 1e-12 | 4014 pass, 0 fail | 4018 pass, 0 fail | the same 4 rows; nothing else |
+| `nextest run -p sweep -p step-import -E 'test(/shell\|offset\|hollow\|thick\|axial\|cavity\|lift\|revolve/)'`, ε = 1e-9 | 616 pass | 616 pass | none |
+| the same, ε = 1e-12 | 616 pass | 616 pass | none |
+
+The four failures at 1e-9 are the same four on both sides:
+`boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it`,
+`a_corner_reads_only_its_own_sectors::{an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt, the_corners_offer_executes}`
+and `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read`. Their panic text is
+identical line for line, **except one line of the roster's, which is M3**. The rim row passes on
+both sides, each under its own baseline, at both ε.
+
+What this does not cover: the slow set at 1e-12 (one full run took 45 to 77 minutes here; I ran it
+at one ε); ε = 1e-6; the `mesh` and `editor-core` suites, and so the symbolic lane's rows that live
+there; per-call readings. The `Interval` instantiations inside the topo and sweep suites are in
+every run above.
 
 **The rim row.** `review_probe_rim_sweep` runs the row's fixture at 201 values of `k` from 0.5 to
 10.5, in both face orders, through `frame_lever`. Below the band (`k < 1`): served. From `k = 1.00`:
@@ -488,7 +519,42 @@ m4.
 
 ### C11 — the PR body, and the reds that are not this unit's
 
-CI_PLACEHOLDER
+**Hosted run 44862635526, on the frozen head, by step.**
+
+- `change filter`: success. Step "the merge this dispatch gates" skipped.
+- `prime the build cache`: skipped.
+- `lint (fmt, clippy, gates)`: success. Ran: work tracker lint, the three self-tests, ruff,
+  actionlint, **gates (5 m 21 s)**, rustfmt, clippy `--all-features`, rustdoc. Skipped: "change
+  filter self-test".
+- `test (kernel)`: success. Ran: build, default ε (1 m 50 s), "eps 1e-6, 1e-12 — the eps-sensitive
+  crates and test files this diff touches" (1 m 16 s), "the slow-set tests this diff adds or edits"
+  (1 s), doc-tests. Skipped: the slow set, and the failing-tests summary.
+- `test (app)`: success. Ran: build, default ε (1 m 02 s), the ε step (**1 s**), the slow-set step
+  (1 s), doc-tests. Skipped: the slow set.
+- `mesh budget meter + certificate falsifier`, `corrupt input (release profile)`: success.
+- Skipped whole: `python suite`, `interval`, `demos`, `viewer app feature`, `step import (freecad)`,
+  `tools`.
+- `gate ok`: success.
+
+So no hosted step ran the slow set, which is where M3's row and all four of the 1e-9 failures live.
+
+**The body against the frozen head.**
+
+- *"The four are not this change's. They fail on the base as on the head."* Three are, with
+  identical text on both sides. The fourth, `recourse_roster`, fails on the head for a line this
+  unit added: **M3**.
+- *The square-wall fuzzer on seed `0x7268e17b993b86d7`.* Confirmed on both sides: "2 mismatches" on
+  the base and on the head alike. On my seed it passes on both.
+- *The three slow rows that read an offer back from a refusal's text.* Confirmed red on the base
+  with the head's text.
+- *"`test (app)`, `mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound` at 1e-12:
+  an inherited red."* On the frozen head's run `test (app)` is green and its ε step ran for one
+  second. The body's CI section describes an earlier run. I did not run `mesh` or `editor-core`, so
+  the seven app reds at 1e-12 are **not confirmed** on the base here, and not counted against the
+  unit either.
+- *The differential's base* is "#7143's branch merged with `main` at `3c300524`", not the frozen
+  head's base `71068072`. Its outcome agrees with mine.
+- *The pin arithmetic* (39 → 24, 59 → 44, fifteen converted, eleven left) is right.
 
 ## Ratings
 
@@ -496,9 +562,10 @@ CI_PLACEHOLDER
   other kind already took (`fate.rs:500`, `overlap.rs:563`). Against that: one `Lever` on `Frame`
   for verdicts of both kinds (M1), and three different answers to "a face with no cover" in three
   folds written in one unit.
-- **Test quality: 2/5.** Five rows with tight two-sided windows, each of which I saw go red on a
-  mutant. But seven conversions have none, and eleven of my mutants at them survive 4022 tests,
-  two of them deleting a whole term.
+- **Test quality: 2/5.** The new rows have tight two-sided windows, and the three I mutated went
+  red each time. But seven conversions have no row, nineteen of my mutants at them survive 4022
+  tests, two of those delete a whole term of a fold, and the unit's one new slow-set obligation
+  (the roster) was not met.
 - **Doc and comment honesty: 2/5.** The PR body is unusually exact about what it measured. But the
   comment that justifies M1 is false of four of the six sites it governs, a true "unpinnable"
   disclosure was deleted with nothing pinning what it disclosed, and the chord, the box diagonal
@@ -526,8 +593,8 @@ prose sweeps of Q1 and Q2 were run over the twelve touched files; the constants 
   `reduce(Lever::max)` and `try_fold` over `face_reach_from`.
 - **S4 (Q2, Q6, sure).** `offset_axial.rs`, the comment removed above `:1085`. The deleted paragraph
   said the scoping of the extent's walk is unpinnable and why. The scoping is still there
-  (`scope.faces_in_scope()`), and the new row builds `Scope::whole`. Whether anything pins it now is
-  the `axial_allfaces` mutant in C8.
+  (`scope.faces_in_scope()`), the new row builds `Scope::whole`, and the mutant that reads every
+  face of the body survives (C8). A true disclosure was deleted while it was still true.
 - **S5 (Q4, Q5, sure).** `separating.rs:42-45` (`PAIR_NORMAL`: "levered by the face's reach
   diagonal"), `:102` ("a face with no reach"), `census/in_plane.rs:172-173`,
   `boolean/reduce.rs:658` and the refusal text at `:673` ("over its reach"). All cite the lever
