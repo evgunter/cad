@@ -471,3 +471,63 @@ fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
         "{got:?}"
     );
 }
+
+/// **At a dual the crossings read what `f64` reads**: the residual, the
+/// creases and each located crossing are places read on the value
+/// channel, so a carrier and a plane whose every coordinate carries a
+/// tangent settle the same roots, bit for bit, and refuse the same
+/// refusals. Read across the crease's band: the plane lifted from on the
+/// turn, through the lifts that refuse as the crease's, to one well clear
+/// of it that crosses on the second piece.
+#[test]
+fn at_a_dual_the_crossings_are_the_f64_ones_across_the_creases_band() {
+    use geom_core::{Dual64, Real};
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, -1.0),
+        Point3::new(0.5, 0.0, -0.5),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.5, 0.5),
+        Point3::new(1.0, 1.0, 1.0),
+    ];
+    let net = NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap();
+    let dual_net = net.map_scalar(Dual64::variable);
+    let (mut moved, mut refused) = (0, 0);
+    for lift in [0.0, 1e-11, 5e-10, 2e-9, 1e-8, 1e-7, 0.25, 0.5] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, lift),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let at_f64 = read(&net, &plane);
+        let (lo, hi) = dual_net.domain();
+        let at_dual = crossings(
+            &dual_net,
+            (Dual64::from_f64(lo), Dual64::from_f64(hi)),
+            &plane.map_scalar(Dual64::variable),
+            band(),
+            |d: Dual64| Interval::from_certified(d.value()),
+        );
+        match (&at_f64, &at_dual) {
+            (Ok(f), Ok(d)) => {
+                moved += usize::from(!f.is_empty());
+                let d: Vec<u64> = d.iter().map(|t| t.value.to_bits()).collect();
+                let f: Vec<u64> = f.iter().map(|t| t.to_bits()).collect();
+                assert_eq!(f, d, "lift {lift}: the roots, bit for bit");
+            }
+            (Err(f), Err(d)) => {
+                refused += 1;
+                assert_eq!(
+                    format!("{f:?}"),
+                    format!("{d:?}"),
+                    "lift {lift}: the refusal"
+                );
+            }
+            _ => panic!("lift {lift}: f64 read {at_f64:?}, the dual {at_dual:?}"),
+        }
+    }
+    assert!(
+        moved >= 2 && refused >= 1,
+        "crossed {moved}, refused {refused}"
+    );
+}
