@@ -1,0 +1,5 @@
+fork: the-planar-arc-primitives-have-one-home (PROFILE, work/profile/check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector.md P1, with point-in-carrier-loop-is-a-second-copy-of-seg-ray-crossings.md P2)
+drawn: 2026-11-21T03:47:14Z, python3 os.urandom(1)
+arm byte: 42 (< 86): three designers
+label byte: 195 (not 255; 195 mod 3 = 0): A = Fable designer, B and C = the two Opus designers (B = the first dispatched, C = the second)
+protocol: ddd201f411
