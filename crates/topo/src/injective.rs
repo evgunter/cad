@@ -2627,6 +2627,7 @@ fn present_plane<'a>(
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
                     != Some(Sign::Positive)
             {
+                if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVLEAN {} {} face={:?}", mid(lean(n1, bv)), mid(lean(n2, a)), piece.face); }
                 return Err(cvl!());
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
