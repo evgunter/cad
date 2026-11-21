@@ -18,7 +18,10 @@
 //!    the pair section for the pairs it serves), the tangent locus
 //!    ([`geom_brep::tangent_locus`], [`geom_brep::coaxial_tangent_circle`]),
 //!    the wall's own iso ([`geom_brep::boundary_iso_u`]), the surface's own
-//!    seam generator. A carrier the file band reads off the printed one
+//!    seam generator. The printed carrier is then certified on the built
+//!    one over its whole trim, by locus ([`crate::on_built`]): its kind
+//!    chooses no arm, and whether recognition promoted it decides
+//!    nothing. A printed carrier the file band reads off the built one
 //!    refuses as the file's (D7: data no description satisfies within
 //!    ε_in); a description the kernel cannot construct refuses
 //!    not-yet-supported, naming the lane.
@@ -45,9 +48,9 @@ use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
-/// Whether a printed carrier lies on the description built for it: the
-/// farthest of its two ends and its middle from the built carrier, read at
-/// the file's band.
+/// Whether a printed carrier lies on the description built for it: how
+/// far it stands off the built carrier over its trim ([`description_gap`]),
+/// read at the file's band.
 pub(crate) const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
 
 /// Whether a printed vertex point lies where the build put its vertex,

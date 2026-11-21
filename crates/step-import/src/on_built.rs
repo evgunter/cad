@@ -43,6 +43,10 @@
 //! answers `None`: the build then reads the printed carrier's ends and
 //! middle (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
 
+// The `!(a > b)` forms are deliberate, NaN-catching negations: a NaN
+// quantity refuses, where the positive form would accept it.
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
+
 use geom::{Curve3, NurbsCurve3};
 use geom_core::interval::certification::Certification as _;
 use geom_core::interval::{cross, max_bound, norm_sup};
@@ -261,6 +265,7 @@ fn arc_on_circle(
         printed.radius(),
     );
     let v = n1.cross(u);
+    let v_dir = v;
     let (c2, n, r2) = (built.frame.origin, built.frame.axis, built.radius());
     let off = sub(pt(c1), pt(c2));
     let (u, v, n) = (vc(u), vc(v), vc(n));
@@ -276,9 +281,12 @@ fn arc_on_circle(
     };
     let period = geom::conic_period::<f64>().length();
     let slack = 1e-6;
-    let inside = |theta: f64| {
-        let d = (theta - t0).rem_euclid(period);
-        t1 - t0 >= period - slack || d <= (t1 - t0) + slack || d >= period - slack
+    // Whether the printed point along `(cos, sin)` lies within the slack
+    // of the trim, its angle read through the circle's own azimuth.
+    let inside = |(cs, sn): (f64, f64)| {
+        let q = c1 + printed.frame.u_ref * cs + v_dir * sn;
+        let theta = geom::Conic::azimuth(printed, q).near(0.0);
+        t1 - t0 >= period - slack || printed.period().above(theta, t0 - slack) <= t1 + slack
     };
     let extremes = |a: Interval, b: Interval, c: Interval| {
         let mut values = Vec::with_capacity(4);
@@ -287,12 +295,14 @@ fn arc_on_circle(
             values.push(a + b * cs + c * sn);
         }
         let amp = (b.sqr() + c.sqr()).sqrt();
-        let mid = |x: Interval| 0.5 * x.lo() + 0.5 * x.hi();
-        let peak = mid(c).atan2(mid(b));
-        if inside(peak) {
+        let (bm, cm) = (
+            geom::mid_param(b.lo(), b.hi()),
+            geom::mid_param(c.lo(), c.hi()),
+        );
+        if inside((bm, cm)) {
             values.push(a + amp);
         }
-        if inside(peak + core::f64::consts::PI) {
+        if inside((-bm, -cm)) {
             values.push(a - amp);
         }
         values
@@ -400,5 +410,204 @@ impl Conic {
             .fold(f64::INFINITY, geom_core::interval::min_bound);
         let sum = Interval::point(centre) + Interval::point(least);
         Some(sum.hi())
+    }
+}
+
+/// Each arm's bound against the TRUE distance read densely off the
+/// printed carrier (closed-form distance from each built locus): sound
+/// everywhere, blind to nothing the trim holds, and tight where the
+/// printed carrier lies on the built one.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn spec(carrier: Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeSpec {
+        EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier,
+            t0,
+            t1,
+            reversed: false,
+            curve: None,
+        }
+    }
+
+    /// The farthest of 4001 points of the printed trim from `truth`.
+    fn dense(spec: &EdgeSpec, truth: impl Fn(Point3<f64>) -> f64) -> f64 {
+        (0..=4000)
+            .map(|k| f64::from(k) / 4000.0)
+            .map(|f| truth(spec.carrier.eval(spec.t0 + (spec.t1 - spec.t0) * f)))
+            .fold(0.0, f64::max)
+    }
+
+    /// Distance from the circle about `c` in the plane normal to unit `n`.
+    fn off_circle(p: Point3<f64>, c: Point3<f64>, n: Vec3<f64>, r: f64) -> f64 {
+        let d = p - c;
+        let h = d.dot(n);
+        let rho = (d - n * h).norm();
+        h.hypot(rho - r)
+    }
+
+    /// Two cubic spans along the `y` axis, `[0, 1]` straight and `[1, 2]`
+    /// bulging `off` along `x` with a shape that vanishes at the span's
+    /// ends and middle (`3s(1 − s)(1 − 2s)`).
+    fn bulging_line(off: f64) -> Curve3<f64> {
+        let knots = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0],
+            3,
+        )
+        .unwrap();
+        let y = |v: f64| Point3::new(0.0, v, 0.0);
+        let control = vec![
+            y(0.0),
+            y(1.0 / 3.0),
+            y(2.0 / 3.0),
+            y(1.0),
+            Point3::new(off, 4.0 / 3.0, 0.0),
+            Point3::new(-off, 5.0 / 3.0, 0.0),
+            y(2.0),
+        ];
+        Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0; 7]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn a_spline_on_a_line_is_bounded_over_its_trim_alone() {
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let truth = |p: Point3<f64>| p.x.hypot(p.z);
+        let printed = bulging_line(1e-3);
+        let straight = spec(printed.clone(), (0.0, 1.0));
+        let whole = spec(printed, (0.0, 2.0));
+        let on = printed_on(&straight, &line).unwrap();
+        assert!(on <= 1e-15, "the straight span is on the line: {on:e}");
+        let bound = printed_on(&whole, &line).unwrap();
+        let true_sup = dense(&whole, truth);
+        assert!(true_sup > 2.5e-4, "the bulge is there: {true_sup:e}");
+        assert!(bound >= true_sup, "sound: {bound:e} < {true_sup:e}");
+        assert!(bound <= 1e-3 * (1.0 + 1e-12), "the hull bound: {bound:e}");
+    }
+
+    #[test]
+    fn a_spline_on_a_circle_is_bounded_over_its_trim_alone() {
+        // Two rational quarter circles about z of radius 2, the second's
+        // middle control pushed out by `push`.
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let push = 1e-4;
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let control = vec![
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-2.0 - push, 2.0 + push, 0.0),
+            Point3::new(-2.0, 0.0, 0.0),
+        ];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0]).unwrap(),
+        ));
+        let (c, n) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, n, 2.0, Vec3::new(1.0, 0.0, 0.0));
+        let first = spec(printed.clone(), (0.0, 1.0));
+        let on = printed_on(&first, &built).unwrap();
+        assert!(on <= 1e-14, "the first quarter is on the circle: {on:e}");
+        let whole = spec(printed, (0.0, 2.0));
+        let bound = printed_on(&whole, &built).unwrap();
+        let true_sup = dense(&whole, |p| off_circle(p, c, n, 2.0));
+        assert!(true_sup > push / 4.0, "the push shows: {true_sup:e}");
+        assert!(bound >= true_sup, "sound: {bound:e} < {true_sup:e}");
+        assert!(
+            bound <= 4.0 * true_sup,
+            "and near it: {bound:e} vs {true_sup:e}"
+        );
+    }
+
+    #[test]
+    fn a_line_on_a_line_reads_its_trim_ends() {
+        let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let tilted = Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 1e-6, 0.0));
+        let printed = spec(tilted, (0.0, 3.0));
+        let bound = printed_on(&printed, &built).unwrap();
+        let true_sup = dense(&printed, |p| p.y.hypot(p.z));
+        assert!(bound >= true_sup, "sound: {bound:e} < {true_sup:e}");
+        assert!(
+            bound <= true_sup * (1.0 + 1e-9),
+            "tight: {bound:e} vs {true_sup:e}"
+        );
+    }
+
+    #[test]
+    fn an_arc_on_a_circle_is_read_over_its_trim_not_its_whole_turn() {
+        // A printed circle of radius 1 + δ tangent inside the built unit
+        // circle at angle 0, tilted by `tilt` about the x axis: over a
+        // short arc about the tangency it stays near; over its whole turn
+        // it does not.
+        let (delta, tilt) = (1e-3_f64, 1e-4_f64);
+        let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+        let printed_circle = Curve3::circle(
+            Point3::new(-delta, 0.0, 0.0),
+            n,
+            1.0 + delta,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, z, 1.0, Vec3::new(1.0, 0.0, 0.0));
+        let truth = |p| off_circle(p, c, z, 1.0);
+        for (trim, slack) in [((-0.01, 0.01), 4.0), ((0.5, 1.0), 1.5), ((0.0, 6.0), 1.5)] {
+            let arc = spec(printed_circle.clone(), trim);
+            let bound = printed_on(&arc, &built).unwrap();
+            let true_sup = dense(&arc, truth);
+            assert!(
+                bound >= true_sup,
+                "{trim:?}: sound: {bound:e} < {true_sup:e}"
+            );
+            assert!(
+                bound <= slack * true_sup + 1e-15,
+                "{trim:?}: near the truth: {bound:e} vs {true_sup:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_ellipse_on_its_twin_with_its_axes_swapped_reads_nothing_between() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let (c, z) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let built = Curve3::ellipse(c, z, 2.0, 1.0, x, band).unwrap();
+        // The same locus, seam on the minor axis, wound the other way.
+        let twin = Curve3::ellipse(c, -z, 1.0, 2.0, y, band).unwrap();
+        let printed = spec(twin, (0.0, 6.0));
+        let bound = printed_on(&printed, &built).unwrap();
+        assert!(bound <= 1e-14, "one locus: {bound:e}");
+        let fat = Curve3::ellipse(c, z, 2.0, 1.0 + 1e-5, x, band).unwrap();
+        let printed = spec(fat, (0.0, 6.0));
+        let bound = printed_on(&printed, &built).unwrap();
+        assert!(bound >= 0.99e-5, "the fatter ellipse stands off: {bound:e}");
+    }
+
+    #[test]
+    fn a_spline_on_another_spline_has_no_arm_but_its_twin() {
+        let printed = bulging_line(0.0);
+        let Curve3::Nurbs(n) = &printed else {
+            unreachable!()
+        };
+        let twin = Curve3::Nurbs(std::sync::Arc::new(n.as_ref().clone()));
+        assert_eq!(
+            printed_on(&spec(printed.clone(), (0.0, 2.0)), &twin),
+            Some(0.0)
+        );
+        let other = bulging_line(1e-300);
+        assert_eq!(printed_on(&spec(printed, (0.0, 2.0)), &other), None);
+    }
+
+    #[test]
+    fn a_point_beyond_a_segments_end_reads_its_distance_from_that_end() {
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let past = point_segment_sup(Point3::new(1.3, 0.4, 0.0), (a, b));
+        assert!((past - 0.5).abs() <= 1e-15, "{past}");
+        let beside = point_segment_sup(Point3::new(0.5, 0.4, 0.0), (a, b));
+        assert!((beside - 0.4).abs() <= 1e-15, "{beside}");
     }
 }

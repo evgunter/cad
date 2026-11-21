@@ -54,8 +54,9 @@
 //!    the description fixes it (built carriers crossing a surface, a
 //!    pole or an apex), else, where the description leaves it free along
 //!    one built carrier, at the foot of its printed point on that
-//!    carrier, each interval by the carrier's own inverse. No curve or
-//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
+//!    carrier, each interval by the carrier's own inverse; each printed
+//!    carrier is certified on its built one over its trim, by locus
+//!    ([`on_built`]). No curve or point the file printed is a cache. Surfaces attach (bitwise-identical records
 //!    share one kernel surface key, restoring the writer-side key
 //!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the
@@ -580,9 +581,11 @@ pub enum NormalizationKind {
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
     /// #327): the carrier's locus residual against the analytic curve
     /// read Zero at the file's band, and it covers that curve's arc,
-    /// segment or full turn between its ends in the curve's sense, so
-    /// the edges on it read the analytic carrier ([`CurvePromotion`] is
-    /// this record read off the ledger). The promotion is the CURVE's:
+    /// segment or full turn between its ends in the curve's sense
+    /// ([`CurvePromotion`] is this record read off the ledger). On a
+    /// solid it is evidence: each edge on it is built from its own
+    /// description and the promoted curve certified on that carrier, as
+    /// any printed carrier is. The promotion is the CURVE's:
     /// it is recorded unless every edge that reads the curve is carried on
     /// a spline the body holds instead (a wall's own column), each such
     /// edge reporting that through its own `CarrierBuilt`. An edge built
