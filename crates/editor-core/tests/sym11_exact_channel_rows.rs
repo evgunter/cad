@@ -100,13 +100,18 @@ use crate::m10_9_pins_interval::measured_studies;
 /// annulus, the link and the pad unmoved, one for one. No symbolic or
 /// frozen count moves, and no dispute fired. Measured by dropping the
 /// placement's ask, which takes each document one numeric per placement
-/// below these.
+/// below these. Then each edge's certification asks the session box of
+/// the edge first (`session_box_reach`): numeric, the plate `1047 →
+/// 1095`, the annulus `548 → 572`, the link `943 → 979`, the bracket
+/// `1546 → 1612` and the pad `1709 → 1769`; and the link's frozen `2738 →
+/// 2746`, the forms of its edges' covers past the ceiling. No symbolic
+/// count moves, and no dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1047, 54]),
-    ("r1_annulus", [511, 548, 54]),
-    ("r2_link", [786, 943, 2738]),
-    ("r2_filleted_bracket", [1367, 1546, 84]),
-    ("r2_rounded_pad", [1483, 1709, 2773]),
+    ("two_hole_plate", [979, 1095, 54]),
+    ("r1_annulus", [511, 572, 54]),
+    ("r2_link", [786, 979, 2746]),
+    ("r2_filleted_bracket", [1367, 1612, 84]),
+    ("r2_rounded_pad", [1483, 1769, 2773]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

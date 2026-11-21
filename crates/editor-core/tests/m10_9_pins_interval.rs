@@ -280,7 +280,11 @@ pub(crate) struct Study {
 /// each placement asks it of where its copy stands
 /// (`topo::session_box_at`) and no measure asks it of an image, door
 /// shut: the bracket, two placements where one measure asked,
-/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved.
+/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved. Then
+/// each edge's certification asks the session box of the edge first
+/// (`session_box_reach`, one numeric decision where its cover is in the
+/// box), door shut: the link (696, 843) -> (696, 878), the bracket
+/// (1290, 1612) -> (1290, 1678) and the pad (1483, 1709) -> (1483, 1769).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -335,7 +339,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
+            without_the_registry: Some(((696, 878), Some("Stalled { operand: Cylinder"))),
             symbolic: [786, 786, 786],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -373,7 +377,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1612), None)),
+            without_the_registry: Some(((1290, 1678), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -406,7 +410,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1709), None)),
+            without_the_registry: Some(((1483, 1769), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -966,8 +970,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // frozen. Then the decided least-turn mint (fork 270) took the pad's
     // identity chart with no pole verdict: 1710 -> 1709 numeric. The
     // pad's one session-box ask is its placement's, not its measure's
-    // (PR 7088), so the count does not move.
-    assert_eq!(got[0], (1483, 1709, 2773), "rule F shut: the pad's receipt");
+    // (PR 7088), so the count does not move. Each edge's certification
+    // asks the session box of the edge first: 1709 -> 1769 numeric.
+    assert_eq!(got[0], (1483, 1769, 2773), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

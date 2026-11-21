@@ -169,7 +169,9 @@ fn a0_alone() -> SymRules {
 /// normal is exact over the box, limb 2 reads its net, and the root box
 /// certifies in ONE leaf again, fitting no plane on the way: plain
 /// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
-/// one replay's.
+/// one replay's. Then each edge's certification asks the session box of
+/// the edge first, numeric only: plain 460/504 → 460/528, shipped
+/// 468/496 → 468/520. A0's yield holds at 8.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -200,13 +202,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=460 numeric=504 frozen=0",
+        "decisions symbolic=460 numeric=528 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=468 numeric=496 frozen=0",
-        "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
+        "decisions symbolic=468 numeric=520 frozen=0",
+        "8 of the 528 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
          decides exactly"
     );
     assert_eq!(
