@@ -27,3 +27,33 @@ through the nearest shared frame). About 630–860 geometry reads move
 behind one aligning door, module by module, behind a temporary
 accessor. A Boolean's result keeps each operand's survivors bit for
 bit under its own frame. Estimated 9–30 PRs depending on staging.
+
+## The whole-Boolean numbers after stage 1
+
+Stage 1 landed: PR 7088 (pairwise readers through `topo::Seat`), PR 7099
+(the one aggregate door, `graft_placed`) and PR 7206 (the Boolean's
+doors take placed operands). The cross-placement probe of PR 7079
+(`onehome/cross-placement-probe`, `35c730475`) was rerun end to end
+through the placed door, placed against moved, over 2 scalars × 3 cases
+× 10 boxed motions (turns 30° ± 1e-8°…1°, shifts ± 1.7e-10…1.7e-2 m).
+The full table, with each row's first refusal, its escalations and both
+times, is in PR 7206's body.
+
+- Placed and moved agree on all 60 rows in outcome, result bits and
+  escalations. Stage 1's door still moves the operand up front, inside
+  itself, so this holds by construction.
+- 7 of 60 build:
+
+  | scalar | turned disc ∪ clear copy | base − placed pocket | stacked on the top cap |
+  |---|---|---|---|
+  | `Interval` | 0 / 10 | 0 / 10 | 1 / 10 (turn ± 1e-8°) |
+  | `Sym<Interval>` | 1 / 10 (turn ± 1e-8°) | 0 / 10 | 5 / 10 (every turn) |
+
+- The smallest boxes already refuse: a shift of ± 1.7e-10 m refuses in
+  every case at both scalars.
+- The first refusals sit in readings of data the up-front move wrote:
+  carrier endpoints (`carrier_endpoint_start`/`_end`), a pcurve's chart
+  incidence (`pcurve_cylinder_chart_incident`, `pcurve_envelope`), a
+  vertex's face side (`bool_vertex_face_side`), and at `Sym` the result's
+  junction and volume (`props_chart_junction_closed`,
+  `props_cylinder_circle_off_axis`).
