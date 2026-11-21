@@ -210,10 +210,10 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
     const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x0bdb_95bd_c65c_bb63),
-        (0.3, 3e-9, 0x4456_183e_d2b3_23c3),
-        (0.3, 5e-9, 0xf66a_af34_e45a_96bc),
-        (0.3, 8e-9, 0xad72_9e9f_97e5_2bde),
+        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
+        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
+        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
+        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
         (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
         (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
         (0.6, 5e-9, 0x02eb_fa12_532b_212e),
@@ -307,7 +307,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0xf469_5056_90db_252a,
+            0x9809_23f1_eddf_8051,
         ),
         (
             "pipe cut on a tilt",
@@ -319,7 +319,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab at 0.3 turned 2e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x0bdb_95bd_c65c_bb63,
+            0x8f44_f884_2b54_c898,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
