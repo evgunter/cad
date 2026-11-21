@@ -3663,3 +3663,32 @@ fn op_probe_turned_balls() {
         println!("OPBALL frame {k}: {:?} {:?}", report.verdict, report.receipt);
     }
 }
+
+fn op_revolved_on_t<T: Scalar>(plane: &SketchPlane<f64>, verts: Vec<(Point2<f64>, f64)>) -> Body<T> {
+    let loops = vec![profile::test_support::bulge_loop(verts)];
+    let profile = Profile::new(SketchPlane::from_frame(plane.frame().map_scalar(T::from_f64)), lifted::<T>(&loops))
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+#[test]
+#[ignore]
+fn op_probe_turned_balls_both() {
+    for k in 0..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
+        let _ = c;
+        println!("OPBOTH bulge {:?}", bulge(a, b, c));
+        let verts = vec![(a, 1.0), (b, 0.0)];
+        let f = op_revolved_on_t::<f64>(&turned_plane(k), verts.clone());
+        let r = injective(&f, None, BUDGET);
+        println!("OPBOTH f64 frame {k}: {:?} {:?}", r.verdict, r.receipt);
+        let i = op_revolved_on_t::<Interval>(&turned_plane(k), verts);
+        let r = injective(&i, None, BUDGET);
+        println!("OPBOTH Interval frame {k}: {:?} {:?}", r.verdict, r.receipt);
+    }
+}
