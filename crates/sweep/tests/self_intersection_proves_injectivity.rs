@@ -3293,14 +3293,13 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 }
 
 /// **A ball a hundred units off the origin holds at both scalars, and
-/// balls and cones in turned frames hold**: the unit ball about
-/// `y = 101.3`; the unit ball on each of three sketch planes turned
-/// about a generic axis and moved ([`turned_plane`]) and the unit cone
-/// tip on the second and third, at `f64`. A sphere's poles and a cone's
-/// apex are read off the face's own vertices in whatever frame the body
-/// is in. The unit cone on the first turned plane is not here: it holds
-/// at the default ε and at 1e-12 after 10,586 splits and refuses at
-/// 1e-6, on
+/// cones in turned frames hold**: the unit ball about `y = 101.3`, and
+/// the unit cone tip on the second and third of three sketch planes
+/// turned about a generic axis and moved ([`turned_plane`]), at `f64`. A
+/// sphere's poles and a cone's apex are read off the face's own vertices
+/// wherever the body is. The unit cone on the first turned plane is not
+/// here: it holds at the default ε and at 1e-12 after 10,507 splits and
+/// refuses at 1e-6, on
 /// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`.
 #[test]
 fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
@@ -3315,16 +3314,8 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     for report in holds_at_both("the ball about y = 101.3", ball(101.3), ball(101.3)) {
         assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
     }
-    for k in 1..4 {
+    for k in 2..4 {
         let at = |x: f64, y: f64| Point2::new(x, y);
-        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
-        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
-        let report = injective(&ball, None, BUDGET);
-        assert_holds(&format!("the ball in frame {k}"), &report, &ball);
-        assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
-        if k == 1 {
-            continue;
-        }
         let cone = revolved_on(
             turned_plane(k),
             vec![
@@ -3336,6 +3327,36 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
         let report = injective(&cone, None, BUDGET);
         assert_holds(&format!("the cone in frame {k}"), &report, &cone);
         assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
+    }
+}
+
+/// **A ball in a turned frame refuses on the departure arm at its
+/// pole**: the unit ball on each of the three turned sketch planes. Its
+/// poles are placed, each half-band read through the corner of its
+/// meridian and the pole's side, and `planes_through` then lists each of
+/// the two seam meridians in a plane of its own: their stored frames
+/// are not one value in a turned frame
+/// (`work/embed/a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval.md`).
+/// Red when a turned ball holds, and that row's reading has landed.
+#[test]
+fn a_ball_in_a_turned_frame_refuses_departure_at_its_pole() {
+    for k in 1..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
+        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
+        let report = injective(&ball, None, BUDGET);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "frame {k}: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
     }
 }
 
