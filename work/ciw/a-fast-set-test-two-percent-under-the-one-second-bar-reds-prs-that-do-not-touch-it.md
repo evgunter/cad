@@ -5,7 +5,7 @@ title: A fast-set test two percent from the 1.0 s bar reds a PR that does not to
 status: open
 opened: 2026-11-20
 priority: P3
-cost: L
+cost: E
 ---
 
 
