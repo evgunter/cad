@@ -85,3 +85,46 @@ A span's distance bound says nothing about where the polish from its minima
 ends. Confining each polish to its start's piece would make a pruned search
 exact, but that changes which foot the search returns, which is the design
 row's question. That row's answer decides this row's whole remainder.
+
+## Re-measured (2026-11-21): the stop's foot is gone, and most of the winding with it
+
+Re-measured by ONEHOME on main `6abbae4ae5`. PR 7048 (`ecab2a0ea9`,
+2026-11-16) changed the walk's stop to read its Gauss–Newton pair as a
+pair, with no foot (`crates/geom-brep/src/curve_pair/walk.rs`,
+`read_polished`). The 0.85 s that waited on the foot design row is gone
+with it, and the ends' and witnesses' feet are now about 3 ms.
+
+**The operation**, `cargo run -p sweep --release --example
+cylinder_pair_cost_probe unequal`, three runs, on the same container as
+the timing split below:
+
+| run | union | intersect | subtract |
+|---|---|---|---|
+| 1 | 2.79 s | 2.68 s | 2.76 s |
+| 2 | 2.70 s | 2.30 s | 2.63 s |
+| 3 | 2.68 s | 2.69 s | 1.96 s |
+
+That is 2.0–2.8 s, against 4.2–4.8 s here before. It is below
+3.4–4.0 s, what holding the stop's feet would have reached.
+
+**The winding's split**, per operation, from timing probes on the
+unmerged branch `onehome/stop-foot-probe`, three more runs of each
+operation (those runs read 2.3–3.3 s an operation):
+
+| Where | Time |
+|---|---|
+| `chord_join::path_island_winding_closed_by`, in all | 0.20–0.35 s |
+| of it, `curve_pair::meet` from `ring_path.rs` `spline_crossings` (all walk) | 0.13–0.24 s |
+| of that, the ends' feet | 0.001 s |
+| the witnesses' feet | 0.002–0.003 s |
+| the bisection | 0.06–0.12 s, nearly all the stops' polish and pair read |
+| the rest of the walk (its floor, its reads' setup, `finish`) | 0.06–0.12 s |
+
+The winding was 1.2 s of 4.4 s; it is now about a tenth of each
+operation.
+
+The walk's stop still settles or refuses by where its pair polish
+lands. That is a question of refusal, not soundness:
+`work/onehome/the-stops-settling-rests-on-where-the-pair-polish-lands.md`
+(P2).
+
