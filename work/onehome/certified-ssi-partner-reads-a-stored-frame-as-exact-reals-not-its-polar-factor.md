@@ -2,10 +2,13 @@
 id: certified-ssi-partner-reads-a-stored-frame-as-exact-reals-not-its-polar-factor
 kind: issue
 title: Three certified SSI readers read a stored f64 frame's entries as exact reals, where the Interval lift reads its polar factor: one kernel, two truths of one carrier
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
+closed: 2026-11-21
+pr: 7131
+branch: onehome/carrier-frames
 ---
 
 
@@ -63,3 +66,28 @@ double-double).
 Also audit ONEROUND's chord readings when they land:
 `oneround/anchored-conic` `conic.rs:389-399` enters the frame's centre,
 `u_ref` and `n × u` exactly.
+
+## Fixed by #7131
+
+The three readers take one spelling, `geom-brep` `ssi/residual.rs`
+`certified_frame`: the stored frame's origin and the columns of its polar
+enclosure (`Frame::map_scalar` to `Interval`). `ImplicitForm::of` reads
+it in place of the point lift and Gram–Schmidt; `boundary_section` takes
+the plane's `Frame` (its two `topo` `offset_derive.rs` callers pass it);
+the pivot's lift is `spline_implicit.rs` `stored_height`. Each site has a
+row against a double-double polar truth (`residual::polar_truth`): 4,096
+tilted frames out to 10 km, a near-graze point 10 to 20 km out along each
+seam. `ssi::residual::a_partner_form_reads_a_stored_frame_on_its_polar_factor`,
+`ssi::section::the_boundary_section_reads_its_plane_on_the_polar_factor`
+and `pair_section::spline_implicit::a_pivots_lift_reads_its_stored_plane_on_the_polar_factor`
+go red under the stored entries lifted as points and squared at the
+scalar (the old lifts), and under them read raw.
+
+The test oracles (`conic_oracle/exact.rs` `truth`, `carrier_resolution`)
+still read the stored entries; at their unit scale the gap is under their
+tolerances, and none of their rows moved.
+
+**ONEROUND's chord reader needs the same check when it lands:**
+`oneround/anchored-conic` `conic.rs:389-399` enters the frame's centre,
+`u_ref` and `n × u` exactly, the stored entries as reals.
+
