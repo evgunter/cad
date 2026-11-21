@@ -58,3 +58,45 @@ say what they say (`[one-way]`).
   of this sugar over what exists.
 - Whether the hand-typed elbow builds: an annulus on the end face
   revolved about an axis in that plane. Read, not run.
+
+## Weighed (2026-11-21)
+
+Two designers, three rounds (fork log row 297). They crossed twice on
+whether a picked loop is the face's outline as it becomes or the edges
+picked, and met on this:
+
+- **A profile drawn on a face may hold that face's loops**:
+  `Boundary { Outer | Through(edge) }`, on the face the profile is drawn
+  on and no other. It stores the face's name (the chart already holds
+  it) and, for a hole, one edge name. Each evaluation walks the loop on
+  the body as it is and lowers it to `line`, `arc_to(Center)` and
+  `circle`, so the replay, validation and the scalar tiers see an
+  ordinary program. A keyway cut later is in the loop; a filleted rim
+  moves it; a lost face name or hole edge refuses typed.
+- **The precedent is the face read, not the selector.** A shell's open
+  face and a profile's own chart store a face name and read its
+  boundary as it is. `names/select.rs`'s freeze is for a set an
+  operation acts on cell by cell (a fillet gaining edges).
+- **Not a sweep-level input.** A revolve's axis and an extrude's depth
+  are written in a chart on the face, and a profile on the face is that
+  chart.
+- **Corrections to this row.** The three trace forms cannot spell a
+  whole circle: the arc form's centre is written, `AlongTrace` is a
+  heading, and a chain may not close on its own carrier. An "open chain
+  of edges" is not a refusal under this answer, and a non-planar loop
+  cannot be written. `Node::HollowTube` with an arc window is already a
+  hollow elbow, from four typed numbers.
+
+What they did not settle is the second read, for the cases a face's
+loop does not cover (part of an outline; a section where no edge
+exists): a piece or closed loop along a wall's **trace**, which ignores
+edits to the cap, or a run along picked **edges**, frozen as a fillet's
+selection is. Either is a further row.
+
+First check for a spec: the lowered joints. Where two loop edges meet
+tangentially the lowering must declare the joint from the body's
+smooth-edge fact and not re-decide it; smoothness is read per edge
+(`geom-brep/src/certify.rs`, `geom_brep::dihedral`, `topo::edge_wedge`),
+and nothing yet maps a loop vertex to the edge between its two walls.
+A filleted rim's wall is tangent to the cap, which the trace reading
+refuses as `Grazing`; the boundary loop reads the edge's own curve.
