@@ -600,10 +600,13 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
     }
     match near.edges.as_slice() {
         [_] => departure(x, y, near, band, false),
-        _ => Outcome::Split {
-            arm: CertificateArm::Departure,
-            shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
-        },
+        _ => crate::gate_measure::reason(
+            "self-not-one-edge",
+            Outcome::Split {
+                arm: CertificateArm::Departure,
+                shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
+            },
+        ),
     }
 }
 
@@ -722,7 +725,10 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        _ => None,
+        _ => {
+            crate::gate_measure::margin_undecided(x.lo(), x.hi(), band.escalate());
+            None
+        }
     }
 }
 
@@ -1870,7 +1876,13 @@ fn present_chart<'a>(
     let mut inside = false;
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err(Unpresented::Local);
+            return Err({
+                crate::gate_measure::local_site("chart", line!());
+                if std::env::var_os("CV_TRACE").is_some() {
+                    eprintln!("CVL chart {}", line!());
+                }
+                Unpresented::Local
+            });
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -1913,7 +1925,13 @@ fn present_chart<'a>(
             // Every read below, and the merge's folds, see only a
             // certified line.
             if !line.is_certified() {
-                return Err(Unpresented::Local);
+                return Err({
+                    crate::gate_measure::local_site("chart", line!());
+                    if std::env::var_os("CV_TRACE").is_some() {
+                        eprintln!("CVL chart {}", line!());
+                    }
+                    Unpresented::Local
+                });
             }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
@@ -1944,7 +1962,13 @@ fn present_chart<'a>(
         return if vacuous(b, piece.surface, cell, &outside) {
             Ok(Presentation::Vacuous)
         } else {
-            Err(Unpresented::Local)
+            Err({
+                crate::gate_measure::local_site("chart", line!());
+                if std::env::var_os("CV_TRACE").is_some() {
+                    eprintln!("CVL chart {}", line!());
+                }
+                Unpresented::Local
+            })
         };
     }
     // Lines on one side merge when they hold one common value; two
@@ -1961,7 +1985,13 @@ fn present_chart<'a>(
             .fold(f64::NEG_INFINITY, f64::max);
         let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
         if common_lo > common_hi {
-            return Err(Unpresented::Local);
+            return Err({
+                crate::gate_measure::local_site("chart", line!());
+                if std::env::var_os("CV_TRACE").is_some() {
+                    eprintln!("CVL chart {}", line!());
+                }
+                Unpresented::Local
+            });
         }
         let hull = Interval::from_bounds(
             on.iter().map(|c| c.at.lo()).fold(first.at.lo(), f64::min),
@@ -2029,7 +2059,15 @@ fn present_chart<'a>(
             // not agree, which a smaller cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
-                Some(_) => return Err(Unpresented::Local),
+                Some(_) => {
+                    return Err({
+                        crate::gate_measure::local_site("chart", line!());
+                        if std::env::var_os("CV_TRACE").is_some() {
+                            eprintln!("CVL chart {}", line!());
+                        }
+                        Unpresented::Local
+                    });
+                }
                 None => merged.push(Clip {
                     side,
                     at: at(0.0),
@@ -2058,6 +2096,12 @@ fn present_chart<'a>(
                 continue;
             };
             for (pole, point) in poles {
+                if std::env::var_os("CV_POLE").is_some() {
+                    eprintln!(
+                        "CVPOLE v={v:?} p={p:?} pole={pole:?} point={point:?} at={:?} y={y:?}",
+                        vertex_at_singular_point(p, point, band)
+                    );
+                }
                 if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
                     continue;
                 }
@@ -2067,7 +2111,13 @@ fn present_chart<'a>(
                     continue;
                 }
                 if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err(Unpresented::Local);
+                    return Err({
+                        crate::gate_measure::local_site("chart", line!());
+                        if std::env::var_os("CV_TRACE").is_some() {
+                            eprintln!("CVL chart {}", line!());
+                        }
+                        Unpresented::Local
+                    });
                 }
                 if north {
                     y.1 = line.hi();
@@ -2079,7 +2129,15 @@ fn present_chart<'a>(
                     Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
                         m.collapsed = Some(v);
                     }
-                    Some(_) => return Err(Unpresented::Local),
+                    Some(_) => {
+                        return Err({
+                            crate::gate_measure::local_site("chart", line!());
+                            if std::env::var_os("CV_TRACE").is_some() {
+                                eprintln!("CVL chart {}", line!());
+                            }
+                            Unpresented::Local
+                        });
+                    }
                     None => merged.push(Clip {
                         side,
                         at: line,
@@ -2100,12 +2158,24 @@ fn present_chart<'a>(
     // `a_filleted_drum_certifies_across_its_fillet` pins.
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
     if !piece.whole && (no_width(x) || no_width(y)) {
-        return Err(Unpresented::Local);
+        return Err({
+            crate::gate_measure::local_site("chart", line!());
+            if std::env::var_os("CV_TRACE").is_some() {
+                eprintln!("CVL chart {}", line!());
+            }
+            Unpresented::Local
+        });
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
-        return Err(Unpresented::Local);
+        return Err({
+            crate::gate_measure::local_site("chart", line!());
+            if std::env::var_os("CV_TRACE").is_some() {
+                eprintln!("CVL chart {}", line!());
+            }
+            Unpresented::Local
+        });
     }
     // A rectangle clipped to within the band of a shared line is read as
     // holding no point of the face off that line: its extent across, in
@@ -2284,10 +2354,22 @@ fn zero_of(
             }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
-                _ => Err(Unpresented::Local),
+                _ => Err({
+                    crate::gate_measure::local_site("zero_of", line!());
+                    if std::env::var_os("CV_TRACE").is_some() {
+                        eprintln!("CVL zero_of {}", line!());
+                    }
+                    Unpresented::Local
+                }),
             }
         }
-        _ => Err(Unpresented::Local),
+        _ => Err({
+            crate::gate_measure::local_site("zero_of", line!());
+            if std::env::var_os("CV_TRACE").is_some() {
+                eprintln!("CVL zero_of {}", line!());
+            }
+            Unpresented::Local
+        }),
     }
 }
 
@@ -5827,6 +5909,38 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
+    if std::env::var_os("CV_TRACE").is_some() {
+        let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Ok(Presentation::Of(q)) => format!(
+                "Of(zero={} x={:?} y={:?})",
+                match &q.zero {
+                    Zero::None => "None".to_string(),
+                    Zero::Side(s, _) => format!("Side({s:?})"),
+                    Zero::Past(s, _) => format!("Past({s:?})"),
+                    Zero::Corner(..) => "Corner".into(),
+                    Zero::Curve(s, c) => format!("Curve({s:?},past={:?})", c.past),
+                    Zero::Point(..) => "Point".into(),
+                },
+                q.x,
+                q.y
+            ),
+            Ok(Presentation::Vacuous) => "Vacuous".into(),
+            Err(e) => format!("Err({e:?})"),
+        };
+        eprintln!(
+            "CVT {:?} u={:?} v={:?} | {:?} u={:?} v={:?} nv={:?} ne={:?} | {} | {}",
+            x.face,
+            x.u,
+            x.v,
+            y.face,
+            y.u,
+            y.v,
+            near.vertices,
+            ex,
+            d(&px),
+            d(&py)
+        );
+    }
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -5859,8 +5973,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         });
     }
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
+        let why = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Err(Unpresented::Structural) => "Structural",
+            Err(Unpresented::Local) => "Local",
+            _ => "presented",
+        };
+        crate::gate_measure::set_reason(format!("unpresented:{}|{}", why(&px), why(&py)));
         return split;
     };
+    crate::gate_measure::clear_margin();
     let opposite = |(psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
@@ -5878,6 +5999,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
+    crate::gate_measure::set_reason_undecided();
     split
 }
 

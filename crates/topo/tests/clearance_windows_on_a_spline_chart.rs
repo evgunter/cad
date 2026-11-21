@@ -96,6 +96,7 @@ fn windows<T: AtRestPolicy + geom_core::CertifiedBounds>(
     Side {
         body,
         faces: vec![face],
+        excluded: topo::clearance::FacePairs::none(),
     }
     .windows(Which::First)
     .map(|_| ())
