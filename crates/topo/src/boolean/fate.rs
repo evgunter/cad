@@ -584,11 +584,15 @@ pub(super) fn bisector<T: Decide>(
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
     let (dir, len) = mid.direction_and_length();
-    // The bounds' sum, levered at the sector's metering arm (the nearer
-    // of its bounds' reaches): the gap between one bound's point there and
-    // the other's reflection.
-    match crate::validate::decide("bool_fate_corner", Margin::levered(len, s.arm), band)
-        .map_err(corner_refused)?
+    // The bounds' sum, levered at the nearer of the bounds' reaches: the
+    // gap between one bound's point there and the other's reflection.
+    let [(_, start), (_, end)] = s.reached_bounds();
+    match crate::validate::decide(
+        "bool_fate_corner",
+        Margin::levered(len, start.min(end)),
+        band,
+    )
+    .map_err(corner_refused)?
     {
         Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
@@ -2597,25 +2601,26 @@ mod bisector_rows {
                 true,
             )),
             bend: crate::bound_side::FaceBend::Plane,
-            arm: near,
+            // The departures' metering arm, which this reading does not use.
+            arm: fixture_lever(1.0),
         }
     }
 
-    /// **The bisector's length is read at the sector's arm.** Bounds
-    /// `1e-7` short of opposite are a sector a half-turn wide to within
-    /// `1e-9` at the arm `0.01`, the band's zero: no inside, an invariant
-    /// refusal. A unit arm would read `1e-7`, past the escalation, and the
-    /// farther reach `2e-9`, in band. Bounds `1e-5` short read `1e-7` at
-    /// the arm, an inside.
+    /// **The bisector's length is read at its bounds' nearer reach.**
+    /// Bounds `1e-7` short of opposite are a sector a half-turn wide to
+    /// within `1e-9` at the nearer reach `0.01`, the band's zero: no
+    /// inside, an invariant refusal. A unit arm would read `1e-7`, past
+    /// the escalation, and the farther reach `2e-9`, in band. Bounds `1e-5`
+    /// short read `1e-7` there, an inside.
     #[test]
-    fn a_sector_a_half_turn_wide_at_its_arm_has_no_bisector() {
+    fn a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         assert!(
             matches!(
                 bisector(&sector(1e-7), band),
                 Err(BooleanError::ClassificationInvariant { .. })
             ),
-            "1e-7 short of a half-turn: no inside at the arm"
+            "1e-7 short of a half-turn: no inside at the nearer reach"
         );
         let dir = bisector(&sector(1e-5), band).expect("1e-5 short: an inside");
         assert!(
