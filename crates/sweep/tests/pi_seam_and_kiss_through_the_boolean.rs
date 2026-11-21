@@ -233,9 +233,11 @@ fn tangent_intersections(b: &Body<f64>) -> Vec<topo::EdgeKey> {
 /// The body is the tube and the half ball, exactly: the two discs
 /// removed as interior, the rim minted once as two `TangentIntersection`
 /// semicircles, and nothing else of either operand touched. It is the
-/// same body, census and volume, as the capsule revolved from ONE
-/// profile with its joint authored
-/// ([`a_g1_joint_authored_inside_one_profile_is_the_seams_union`]).
+/// same body and volume as the capsule revolved from ONE profile with
+/// its joint authored
+/// ([`a_g1_joint_authored_inside_one_profile_is_the_seams_union`]),
+/// whose revolve splits the tube's wall in two where the extruded
+/// circle's is one face.
 #[test]
 fn the_sphere_capped_tube_builds_as_a_seam() {
     let tol = Tol::witness();
