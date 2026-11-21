@@ -54,3 +54,19 @@ ERROR: scripts/gates/cover-kind-match.sh failed
 ROSE names-splitting census.rs: 52 -> 53 (run engine-leaves.sh --lines census.rs to list its counted sites)
 ERROR: scripts/gates/engine-leaves.sh failed
 ERROR: scripts/gates/pin-cites-an-open-row.sh failed
+== r1_ci_mut4.log
+     Summary [ 519.398s] 17467 tests run: 17456 passed, 11 failed, 2731 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+mesh trimmed::tests::a_cone_faces_window_reads_its_widest_edge
+mesh::all reach_probes::a_cone_face_through_its_apex_meshes_on_the_cone_row
+mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+mesh::all split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes
+sweep::all a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts
+sweep::all a_ring_on_a_cone_face::a_ringed_cone_faces_sense_flip_fails_tier_3
+sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment
+sweep::all reach_cone_split::cuts_through_a_cap_and_the_apex_region
+sweep::all reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt
+sweep::all reach_cone_split::tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes
+== r1_ci_mut3.log
+     Summary [ 513.524s] 17467 tests run: 17466 passed, 1 failed, 2731 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
