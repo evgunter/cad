@@ -353,9 +353,13 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
                 ends()
             }
         }
-        Curve3::Circle(circle @ geom::Circle { radius, .. }) => {
-            let frame = circle.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(circle) => {
+            let (center, axis, u_ref) = (
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
+            );
+            let radius = circle.radius();
             let w = q - center;
             let v = axis.cross(u_ref);
             let angle = (w.dot(v) * radius.signum()).atan2(w.dot(u_ref) * radius.signum());

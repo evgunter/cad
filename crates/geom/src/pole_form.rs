@@ -55,15 +55,12 @@ pub fn half_turn_curve<T: Real>(
     let turn = |w: Vec3<T>| vector(half_turn(w, axis));
     match *carrier {
         Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
-        Curve3::Circle(the_circle @ crate::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            Some(Curve3::circle(
-                place(frame.origin()),
-                turn(frame.axis()),
-                radius,
-                turn(frame.u_ref()),
-            ))
-        }
+        Curve3::Circle(c) => Some(Curve3::circle(
+            place(c.frame().origin()),
+            turn(c.frame().axis()),
+            c.radius(),
+            turn(c.frame().u_ref()),
+        )),
         _ => None,
     }
 }

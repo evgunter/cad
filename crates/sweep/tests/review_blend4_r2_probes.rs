@@ -239,18 +239,18 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                     .get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .expect("a corner arc is described and certified");
-                let Curve3::Circle(circle @ geom::Circle { radius: ar, .. }) = *c.carrier() else {
+                let Curve3::Circle(circle) = *c.carrier() else {
                     // A corner patch's cycle also meets the cove
                     // bands' straight trimlines at some fixtures;
                     // only the arcs are this row's subject.
                     continue;
                 };
-                let carrier_frame = circle.frame();
                 let (ac, aa, au) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
+                    circle.frame().origin(),
+                    circle.frame().axis(),
+                    circle.frame().u_ref(),
                 );
+                let ar = circle.radius();
                 seen += 1;
                 assert!(
                     (ac - center).norm() < 1e-12,

@@ -328,9 +328,10 @@ impl<T: Decide> SphereFaceRegion<T> {
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let half = T::from_f64(0.5);
         let arc = self.edges.first()?;
-        let geom::Curve3::Circle(geom::Circle { radius, .. }) = arc.carrier else {
+        let geom::Curve3::Circle(conic_k) = arc.carrier else {
             unreachable!("sphere_face_region admits circles only")
         };
+        let radius = conic_k.radius();
         let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
         let m = arc.at(t);
         let own = (radius / self.radius).abs().min(T::one()).asin() * half;

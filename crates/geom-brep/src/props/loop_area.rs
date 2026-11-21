@@ -71,14 +71,14 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                let frame = the_circle.frame();
-                let axis = frame.axis();
+            Curve3::Circle(circle) => {
+                let axis = circle.frame().axis();
+                let radius = circle.radius();
                 arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
             }
-            Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-                let frame = the_ellipse.frame();
-                let axis = frame.axis();
+            Curve3::Ellipse(ellipse) => {
+                let axis = ellipse.frame().axis();
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
             }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
@@ -114,13 +114,15 @@ fn arc_vector_area<T: SpanLocate>(
     (p0 - ref_point).cross(e.p1() - p0) + arc_segment_term(axis, rate, e.t1 - e.t0)
 }
 
-/// **The bulge of an arc over its chord** — the one statement of it:
-/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
-/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
-/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
-/// signed `Δ` and any `a`, `b`.
+/// **The bulge of an arc over its chord**: `Δ − sin Δ` for the signed
+/// span `Δ`, read through its one statement, [`Real::less_sin`] (which
+/// `profile`'s loop orientation reads for its arcs too). Twice the area
+/// between a unit circle's arc and its chord; an arc of the conic
+/// `c + a·cos θ + b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area,
+/// for any signed `Δ` and any `a`, `b`. It reads no centre and no point
+/// of the conic, and a short arc's keeps its digits.
 pub fn chord_bulge<T: Real>(span: T) -> T {
-    span - span.sin()
+    span.less_sin()
 }
 
 /// **Twice the vector area between a conic arc and its chord**:

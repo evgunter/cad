@@ -1095,13 +1095,12 @@ pub struct ConicHarmonics<T> {
     /// scale their rounding is charged against.
     ///
     /// **Every charge here reads the semi-axes through
-    /// [`Conic::speed_hi`]**, the larger stored one, and that is
-    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
-    /// the edge certificate refuses a stored semi-axis that is not a
-    /// finite number or is definitely negative
-    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
-    /// before any charge reads it, and its span check reads a zero one
-    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// [`Conic::speed_hi`]**, which is `max(|a|, |b|)`: a stored
+    /// semi-axis is a finite length never definitely negative
+    /// (`geom::Ellipse::new`), and the reader holds the bound over an
+    /// enclosure that reaches below zero. The edge certificate's span
+    /// check reads a zero one as a collapsed length
+    /// (`CertifyError::StatedInterval`). This is
     /// the invariant's one statement for this module's charges: these
     /// terms, the cone's reach in [`conic_cone_harmonics`] and
     /// [`conic_axis_distance_floor`]'s terms each read it.
@@ -1980,9 +1979,13 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let the_circle @ geom::Circle { radius, .. } = *circle;
-    let frame = the_circle.frame();
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let conic_k = *circle;
+    let (center, axis, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let radius = conic_k.radius();
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
@@ -3354,8 +3357,8 @@ mod conic_tests {
                 first.frame().axis(),
                 Vec3::new(1.0, 0.3, 0.1),
             ),
-            first.semi_u,
-            first.semi_v,
+            first.semi_u(),
+            first.semi_v(),
         )));
         for (c, n, r) in [
             ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
@@ -3567,8 +3570,8 @@ mod conic_tests {
                 first.frame().axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
-            first.semi_u,
-            first.semi_v,
+            first.semi_u(),
+            first.semi_v(),
         )));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
@@ -3665,8 +3668,8 @@ mod conic_tests {
                 first.frame().axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
-            first.semi_u,
-            first.semi_v,
+            first.semi_u(),
+            first.semi_v(),
         )));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {

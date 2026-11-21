@@ -804,9 +804,13 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
             let place = || placement(&recs, refs(&a[1])[0]);
             match *carrier {
                 Curve3::Line(_) => assert_eq!(kw, "LINE", "{name}"),
-                Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                    let frame = the_circle.frame();
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Curve3::Circle(conic_k) => {
+                    let (center, axis, u_ref) = (
+                        conic_k.frame().origin(),
+                        conic_k.frame().axis(),
+                        conic_k.frame().u_ref(),
+                    );
+                    let radius = conic_k.radius();
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
                     assert_eq!(l, center.to_array(), "{name} circle centre");
@@ -814,9 +818,13 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
-                Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-                    let frame = the_ellipse.frame();
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Curve3::Ellipse(conic_k) => {
+                    let (center, axis, u_ref) = (
+                        conic_k.frame().origin(),
+                        conic_k.frame().axis(),
+                        conic_k.frame().u_ref(),
+                    );
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();

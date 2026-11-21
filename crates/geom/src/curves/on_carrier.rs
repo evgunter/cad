@@ -662,11 +662,10 @@ impl<T: Decide> Curve3<T> {
             Self::Line(line) => line.distance(q),
             Self::Circle(c) => {
                 let (h, rho) = c.frame().axis_line().height_and_distance(q);
-                (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
+                (h.powi(2) + (rho - c.radius()).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
-                let lower =
-                    ellipse_level_clearance(e.frame().in_plane(q), (e.semi_u, e.semi_v)).abs();
+                let lower = ellipse_level_clearance(e.frame().in_plane(q), e.semi_axes()).abs();
                 (lower.powi(2) + e.frame().height(q).powi(2)).sqrt()
             }
             Self::Spiric {

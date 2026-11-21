@@ -564,7 +564,7 @@ pub(crate) fn loop_circle<T: Decide>(
     let Some(geom::Curve3::Circle(c)) = carriers[at] else {
         unreachable!("loop_circle: the reference is a circle")
     };
-    let (c0, a0, r0) = (c.frame().origin(), c.frame().axis(), c.radius);
+    let (c0, a0, r0) = (c.frame().origin(), c.frame().axis(), c.radius());
     // Any edge decided off the reference circle answers "not one circle",
     // whatever another edge read ([`climb`], [`Answering::Any`]: an
     // identity). An edge read in band is kept, and refuses only where
@@ -575,7 +575,7 @@ pub(crate) fn loop_circle<T: Decide>(
         |(_, carrier)| match carrier {
             Some(geom::Curve3::Circle(arc)) => {
                 let d = (arc.frame().origin() - c0).norm()
-                    + (arc.radius - r0).abs()
+                    + (arc.radius() - r0).abs()
                     + arc.frame().axis().cross(a0).norm() * r0;
                 match decide("bool_face_disc_carrier", Margin::of(d), band) {
                     Ok(Sign::Zero) => Rung::Passes,

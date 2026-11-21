@@ -168,14 +168,22 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
-        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(conic_k) => {
+            let (center, axis, u_ref) = (
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
+            );
+            let radius = conic_k.radius();
             Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref))
         }
-        Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-            let frame = the_ellipse.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Ellipse(ellipse) => {
+            let (center, axis, u_ref) = (
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(p(center), v(axis), v(u_ref)),
                 T::from_f64(semi_u),
@@ -367,11 +375,22 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
 /// The section's major semi-axis stretched until its farthest point is
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
-    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = section(c) else {
+    let Curve3::Ellipse(conic_k) = section(c) else {
         unreachable!()
     };
-    let frame = the_ellipse.frame();
-    let stretched = |k: f64| Curve3::Ellipse(geom::Ellipse::new(frame, semi_u * (1.0 + k), semi_v));
+    let (center, axis, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
+    let stretched = |k: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, axis, u_ref),
+            semi_u * (1.0 + k),
+            semi_v,
+        ))
+    };
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;
     let k = k0 * d / max_elevation(c, &stretched(k0), 0.0, TAU);
@@ -544,9 +563,10 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
         let (s, co) = c.alpha.sin_cos();
         let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
-        let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
+        let Curve3::Ellipse(conic_k) = e else {
             unreachable!()
         };
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         assert!(
             (semi_u / semi_v - squash).abs() < 0.01 * squash,
             "{c:?}: the section is {semi_u} by {semi_v}"

@@ -68,15 +68,15 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 
 /// The same locus traversed backwards (the arc-side rule's cw arm).
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
-    let &Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = e else {
+    let &Curve3::Ellipse(conic_k) = e else {
         unreachable!()
     };
-    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, -axis, u_ref),
         semi_u,
@@ -88,15 +88,15 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 /// principal vertices in turn: `u_ref` turned about `axis` and, on an
 /// odd turn, the semi-axes swapped.
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
-    let &Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = e else {
+    let &Curve3::Ellipse(conic_k) = e else {
         unreachable!()
     };
-    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (u_ref, semi_u, semi_v) = match k % 4 {
         0 => (u_ref, semi_u, semi_v),
         1 => (axis.cross(u_ref), semi_v, semi_u),
@@ -348,15 +348,17 @@ fn read_off_the_sum(
 ) -> Pcurve<f64> {
     let (
         &Pcurve::FocalSection(focal),
-        &Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, .. }),
-        &Surface::Cone { frame, .. },
+        &Curve3::Ellipse(ellipse),
+        &Surface::Cone {
+            frame: cone_frame, ..
+        },
     ) = (image, carrier, surface)
     else {
         unreachable!()
     };
-    let carrier_frame = the_ellipse.frame();
-    let (center, e_u) = (carrier_frame.origin(), carrier_frame.u_ref());
-    let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, e_u) = (ellipse.frame().origin(), ellipse.frame().u_ref());
+    let (apex, axis, u_ref) = (cone_frame.origin(), cone_frame.axis(), cone_frame.u_ref());
+    let semi_u = ellipse.semi_u();
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
     let start = (radial(w) + radial(e_u * semi_u)) * w.dot(axis).signum();
@@ -845,11 +847,15 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Ok(pose) => pose,
         Err(why) => return refused(why),
     };
-    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = exact else {
+    let Curve3::Ellipse(conic_k) = exact else {
         unreachable!()
     };
-    let frame = the_ellipse.frame();
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
         semi_u,

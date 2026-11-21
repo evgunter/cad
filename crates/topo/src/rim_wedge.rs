@@ -874,10 +874,10 @@ fn crossings<T: Decide>(
             }
             Ok(Some(kept))
         }
-        (geom::Curve3::Circle(arc @ the_circle @ geom::Circle { radius, .. }), _) => {
-            let frame = the_circle.frame();
-            let (center, axis) = (frame.origin(), frame.axis());
-            let (ce, ae, re) = (center, axis, *radius);
+        (geom::Curve3::Circle(arc), _) => {
+            let (center, axis) = (arc.frame().origin(), arc.frame().axis());
+            let radius = arc.radius();
+            let (ce, ae, re) = (center, axis, radius);
             let e1 = {
                 let d = p0 - ce;
                 d.normalize()
@@ -963,14 +963,19 @@ fn rides<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })) => {
-            let frame = the_circle.frame();
+        (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
+            let (center, axis, u_ref) = (
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
+            );
+            let radius = circle.radius();
             same_circle(
                 Rim {
-                    center: frame.origin(),
-                    axis: frame.axis(),
-                    radius: *radius,
-                    u_ref: frame.u_ref(),
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
                 },
                 rim,
                 band,
@@ -1030,9 +1035,13 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                let frame = the_circle.frame();
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            geom::Curve3::Circle(circle) => {
+                let (center, axis, u_ref) = (
+                    circle.frame().origin(),
+                    circle.frame().axis(),
+                    circle.frame().u_ref(),
+                );
+                let radius = circle.radius();
                 Some(Rim {
                     center,
                     axis,

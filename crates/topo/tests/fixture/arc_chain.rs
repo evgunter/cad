@@ -17,11 +17,15 @@ use geom_core::spline::{Knots, SpanLocate};
 
 /// The chain of the `circle` arc over `[f0, f1]` (radians), at `T`.
 pub fn chain<T: SpanLocate>(circle: &Curve3<T>, f0: f64, f1: f64) -> NurbsCurve3<T> {
-    let &Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = circle else {
+    let &Curve3::Circle(conic_k) = circle else {
         panic!("the arc chain is a circle's");
     };
-    let frame = the_circle.frame();
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let radius = conic_k.radius();
     let span = f1 - f0;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let n = (span / core::f64::consts::FRAC_PI_2).ceil().max(1.0) as usize;

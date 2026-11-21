@@ -93,6 +93,16 @@ pub(super) fn cylinder(radius: f64) -> Surface<f64> {
 /// semi-axes. At `tau = 0` the rim at `h`; tilted, it leaves the cone to
 /// second order in `tau`.
 fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Curve3<f64> {
+    let Some(circle) = section_circle(surface, alpha, h, tau) else {
+        panic!("the plane cuts the cone in an ellipse")
+    };
+    circle
+}
+
+/// [`cone_section_circle`], or `None` where the plane cuts no ellipse
+/// (a wide cone tilted past its opening cuts a hyperbola, whose minor
+/// semi-axis reads NaN).
+fn section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Option<Curve3<f64>> {
     let (sa, ca) = alpha.sin_cos();
     let (st, ct) = tau.sin_cos();
     let n = Vec3::new(0.0, -st, ct);
@@ -109,7 +119,8 @@ fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> 
     let semi_minor = ((m.z * sa / ca).powi(2) - m.y.powi(2)).sqrt();
     let u = Vec3::unit_x();
     let v = (p - q).normalize();
-    framed_circle(surface, m, u, v, 0.5 * (semi_major + semi_minor))
+    let r = 0.5 * (semi_major + semi_minor);
+    r.is_finite().then(|| framed_circle(surface, m, u, v, r))
 }
 
 /// The cone's frame distance `|ρ cos α − σ z sin α|` of a world point.
@@ -197,6 +208,20 @@ pub(super) fn certifies_projected(
     span: (f64, f64),
     surface: &Surface<f64>,
 ) -> (f64, f64, f64) {
+    certifies_projected_at(what, carrier, span, surface, None)
+        .unwrap_or_else(|| unreachable!("{what}: no pin, so it certifies"))
+}
+
+/// [`certifies_projected`], or `None` where `pin` names the margin band
+/// its `Interval` certificate is pinned to escalate `pcurve_envelope` in
+/// at ε 1e-12 ([`super::frame_cost`]).
+pub(super) fn certifies_projected_at(
+    what: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    surface: &Surface<f64>,
+    pin: Option<(f64, f64)>,
+) -> Option<(f64, f64, f64)> {
     let (at_f64, at_interval) = derived(carrier, span, surface);
     let image = at_f64.unwrap_or_else(|e| panic!("{what}: derives at f64: {e:?}"));
     let image_i = at_interval.unwrap_or_else(|e| panic!("{what}: derives at Interval: {e:?}"));
@@ -219,8 +244,18 @@ pub(super) fn certifies_projected(
         &carrier.map_scalar(f),
         &surface.map_scalar(f),
         band(),
-    )
-    .unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
+    );
+    let cache_i = match (
+        cache_i,
+        pin.filter(|_| super::frame_cost::at_the_least_band()),
+    ) {
+        (Err(e), Some(band)) if super::frame_cost::envelope_escalates(&e, band) => return None,
+        (got, Some(band)) => panic!(
+            "{what}: pinned to escalate pcurve_envelope in {band:?} at Interval at ε 1e-12: {:?}",
+            got.map(|_| ())
+        ),
+        (got, None) => got.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}")),
+    };
     let (envelope, hi) = (
         cache.certificate().envelope,
         cache_i.certificate().envelope.hi(),
@@ -239,7 +274,7 @@ pub(super) fn certifies_projected(
     if sup > zero() / 2.0 {
         covers(what, &image, span, carrier, surface, envelope, hi);
     }
-    (envelope, hi, sup)
+    Some((envelope, hi, sup))
 }
 
 /// The class reading lands in band: the closed-form derivation escalates
@@ -842,10 +877,7 @@ fn a_cone_sections_coefficients_stay_within_their_charge() {
         } else {
             s.log_uniform(1e-9, 1e-2)
         };
-        let carrier = cone_section_circle(&surface, alpha, h, tau);
-        // A wide cone tilted past its opening cuts a hyperbola: no
-        // section circle.
-        if carrier.conic().is_some_and(|c| c.semi_axes().0.is_finite()) {
+        if let Some(carrier) = section_circle(&surface, alpha, h, tau) {
             rows.push((
                 format!("draw {i}: α {alpha:e}, far {far:e}, h {h:e}, τ {tau:e}"),
                 surface,
@@ -1166,9 +1198,13 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                let frame = the_circle.frame();
-                let (center, n, x) = (frame.origin(), frame.axis(), frame.u_ref());
+            Curve3::Circle(conic_k) => {
+                let (center, n, x) = (
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
+                );
+                let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
                 let t1 = t0
                     + if s.below(4) == 0 {
@@ -1459,9 +1495,13 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            let (centre, n, x) = (frame.origin(), frame.axis(), frame.u_ref());
+        Curve3::Circle(conic_k) => {
+            let (centre, n, x) = (
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
+            );
+            let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),

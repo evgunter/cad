@@ -13,8 +13,7 @@
 //! the search; `charge-circular` (the cone's charge read at the first
 //! semi-axis for both) reds the coefficient rows; `ellipse-term-dropped`
 //! (the second harmonic's `a² − b²` part dropped) reds the coefficient
-//! rows and the search; `semi-axis-unchecked` (the edge certificate's
-//! positive semi-axis check skipped) reds the defect row.
+//! rows and the search.
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
@@ -22,8 +21,8 @@ use geom_core::{Bounds, Interval};
 use test_utils::fuzz;
 
 use super::circle_lane_rows::{
-    certifies_projected, cone, cone_coefficient_excess, cylinder, derived, lemma_envelopes,
-    other_charts_within, torus, world, world_dir,
+    certifies_projected, certifies_projected_at, cone, cone_coefficient_excess, cylinder, derived,
+    lemma_envelopes, other_charts_within, torus, world, world_dir,
 };
 use super::harmonic_sup_rows::{band, sampled_residual, zero};
 use super::*;
@@ -214,6 +213,15 @@ fn takes_the_general_lane(
 /// speed `b` the interval meter decides has its orientation within
 /// `b − zero` of the escalation band. A minor semi-axis inside the band
 /// takes the lane too, and ends at the meter, as on every lane.
+///
+/// At ε 1e-12 the needle certifies at `f64` and its `Interval`
+/// certificate escalates `pcurve_envelope`, margin in `(1.0e-12,
+/// 1.05e-12]` (measured 1.023e-12 and 1.029e-12, on either nappe and
+/// span). It has both causes: a stored frame read as its polar enclosure
+/// (decision 1, #7131), and a frame built at Interval from bracket
+/// inputs, a rigid-motion claim (fork 274). Neither mutation alone
+/// certifies it; mutation A with F1 on the bracket path does, and turns
+/// this pin red. It certifies at ε 1e-9 and 1e-6.
 #[test]
 fn an_in_band_cone_section_certifies_through_the_projected_lane() {
     let cone = cone(0.5);
@@ -222,7 +230,8 @@ fn an_in_band_cone_section_certifies_through_the_projected_lane() {
         for span in [(0.3, 2.5), (-1.0, TAU - 1.0)] {
             let what = format!("nappe {sigma}, span {span:?}");
             takes_the_general_lane(&what, &needle, span, &cone, true);
-            certifies_projected(&what, &needle, span, &cone);
+            // Both causes of the frame cost at ε 1e-12 (PR 7131).
+            certifies_projected_at(&what, &needle, span, &cone, Some((1.0e-12, 1.05e-12)));
         }
         let thin = cone_needle(&cone, sigma, 1.2, (0.3, 0.5 * band().escalate(), 0.0), 0.0);
         let (image, image_i) = derived(&thin, (0.3, 2.5), &cone);
@@ -645,8 +654,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
             let (n, u) = (e.frame().axis(), e.frame().u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(e.frame().origin(), n, n.cross(u)),
-                e.semi_v,
-                e.semi_u,
+                e.semi_v(),
+                e.semi_u(),
             ))
         }
         other => other,
@@ -661,8 +670,8 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
             e.frame().axis(),
             e.frame().u_ref(),
         ),
-        e.semi_u,
-        e.semi_v,
+        e.semi_u(),
+        e.semi_v(),
     ));
     let t0 = s.range(-4.0, 4.0);
     let t1 = t0
@@ -871,8 +880,8 @@ fn oracle_row(
         p(e.frame().origin()),
         v(e.frame().axis()),
         v(e.frame().u_ref()),
-        e.semi_u,
-        e.semi_v
+        e.semi_u(),
+        e.semi_v()
     )
 }
 
@@ -1050,137 +1059,12 @@ fn parallel_frame<T: Real>() -> geom::Frame<T> {
     )
 }
 
-/// The three door endings a stored semi-axis refusal renders: the lever
-/// at a build, where the record is the caller's input (the kernel mints
-/// none), the stored culprit's defect at rest and a damaged file at the
-/// import door.
-fn semi_axis_doors(err: &crate::CertifyError, what: &str) {
-    use crate::recourse::{ReadAt, Reading};
-    let lever = geom_core::lever_recourse(crate::certify::SEMI_AXIS_LEVER, None);
-    for (at, culprit) in [
-        (ReadAt::Run(Reading::Build), lever.as_str()),
-        (
-            ReadAt::Run(Reading::AtRest),
-            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-        ),
-        (
-            ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
-            geom_core::DAMAGED_FILE_ENDING,
-        ),
-    ] {
-        assert_eq!(err.ending(at).as_deref(), Some(culprit), "{what} at {at:?}");
-    }
-}
-
-/// **A conic stored with a negative semi-axis refuses typed at the edge
-/// certificate** (`CertifyError::SemiAxisNegative`), never as a span
-/// that does not run forward: the parallel of the unit sphere at height
-/// `0.6` stored as an ellipse with its first, its second or both
-/// semi-axes negative, and as a circle of negative radius, each described
-/// on the sphere's chart, at `f64` and at `Interval`. The positive
-/// spelling certifies, and a circle of zero radius, a collapsed length,
-/// is the span check's (`StatedInterval`). Each refusal renders its own
-/// lever at a build, where it is the caller's input (the kernel mints
-/// none), the stored culprit's defect at rest and a damaged file at the
-/// import door. Red under `semi-axis-unchecked`.
-#[test]
-fn a_conic_stored_with_a_negative_semi_axis_refuses_typed() {
-    use crate::CertifyError;
-    let frame = parallel_frame::<f64>();
-    let ellipse = |a: f64, b: f64| Curve3::Ellipse(geom::Ellipse::new(frame, a, b));
-    let circle = |r: f64| Curve3::Circle(geom::Circle::new(frame, r));
-    let (rho, squash) = (0.8, 0.8 - 0.25 * zero());
-    let certify = |carrier: &Curve3<f64>| {
-        [
-            ("f64", certify_on_the_unit_sphere!(f64, carrier)),
-            (
-                "Interval",
-                certify_on_the_unit_sphere!(Interval, &carrier.map_scalar(Interval::from_f64)),
-            ),
-        ]
-    };
-    for (lane, got) in certify(&circle(0.0)) {
-        assert!(
-            matches!(got, Err(CertifyError::StatedInterval { .. })),
-            "a circle of zero radius is the span check's ({lane}): {got:?}"
-        );
-    }
-    for (lane, got) in certify(&ellipse(rho, squash)) {
-        assert!(
-            got.is_ok(),
-            "the positive spelling certifies ({lane}): {got:?}"
-        );
-    }
-    for (what, carrier) in [
-        ("the first semi-axis negative", ellipse(-rho, squash)),
-        ("the second negative", ellipse(rho, -squash)),
-        ("both negative", ellipse(-rho, -squash)),
-        ("a circle of negative radius", circle(-rho)),
-    ] {
-        for (lane, got) in certify(&carrier) {
-            let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
-                panic!("{what} ({lane}): refused as a negative semi-axis: {got:?}")
-            };
-            semi_axis_doors(err, &format!("{what} ({lane})"));
-        }
-    }
-}
-
-/// **A conic stored with a semi-axis that is not a finite number refuses
-/// as that** (`CertifyError::SemiAxisNotFinite`), the same ending at
-/// `f64` and at `Interval`: NaN, `+∞` and `−∞` as either semi-axis of an
-/// ellipse and as a circle's radius, on the sphere's chart. None is read
-/// as a sign: `−∞` is no more a negative length than NaN is. Each renders
-/// the semi-axis lever at a build, the stored culprit's defect at rest
-/// and a damaged file at the import door. Red under
-/// `semi-axis-unchecked`.
-#[test]
-fn a_conic_stored_with_a_semi_axis_not_finite_refuses_as_that() {
-    use crate::CertifyError;
-    let frame = parallel_frame::<f64>();
-    let rho = 0.8;
-    for (name, bad) in [
-        ("NaN", f64::NAN),
-        ("+∞", f64::INFINITY),
-        ("−∞", f64::NEG_INFINITY),
-    ] {
-        for (what, carrier) in [
-            (
-                "the first semi-axis",
-                Curve3::Ellipse(geom::Ellipse::new(frame, bad, rho)),
-            ),
-            (
-                "the second",
-                Curve3::Ellipse(geom::Ellipse::new(frame, rho, bad)),
-            ),
-            (
-                "a circle's radius",
-                Curve3::Circle(geom::Circle::new(frame, bad)),
-            ),
-        ] {
-            for (lane, got) in [
-                ("f64", certify_on_the_unit_sphere!(f64, &carrier)),
-                (
-                    "Interval",
-                    certify_on_the_unit_sphere!(Interval, &carrier.map_scalar(Interval::from_f64)),
-                ),
-            ] {
-                let Err(err @ CertifyError::SemiAxisNotFinite { .. }) = &got else {
-                    panic!("{what} {name} ({lane}): refused as not finite: {got:?}")
-                };
-                semi_axis_doors(err, &format!("{what} {name} ({lane})"));
-            }
-        }
-    }
-}
-
 /// **A semi-axis read in band is not a definite defect**: an `Interval`
 /// ellipse on the sphere's parallel whose first semi-axis encloses
-/// `[−1e-20, 0.8]` (its sign undecided) is not refused as a negative
-/// semi-axis, a stored defect at rest; it falls through to the span
-/// meter, which reads its winding in band (`Escalated`), and that ends
-/// in a lever at every door (E1d). The
-/// definite spelling, `[−0.8, −1e-20]`, is the defect.
+/// `[−1e-20, 0.8]` (its sign undecided) is representable
+/// (`geom::Ellipse::new` refuses only a definite negative), and the span
+/// meter reads its winding in band (`Escalated`), which ends in a lever
+/// at every door (E1d).
 #[test]
 fn an_interval_semi_axis_straddling_zero_ends_in_its_lever() {
     use crate::CertifyError;
@@ -1192,13 +1076,6 @@ fn an_interval_semi_axis_straddling_zero_ends_in_its_lever() {
     let Err(err) = &got else {
         panic!("a straddling semi-axis is not certified: {got:?}")
     };
-    assert!(
-        !matches!(
-            err,
-            CertifyError::SemiAxisNegative { .. } | CertifyError::SemiAxisNotFinite { .. }
-        ),
-        "a straddling semi-axis is not a definite stored defect: {err:?}"
-    );
     assert!(
         matches!(err, CertifyError::Escalated { .. }),
         "the span meter reads the straddle in band: {err:?}"
@@ -1216,10 +1093,4 @@ fn an_interval_semi_axis_straddling_zero_ends_in_its_lever() {
             "a straddling semi-axis ends in its lever at {at:?}: {ending:?} ({err:?})"
         );
     }
-    let definite =
-        certify_on_the_unit_sphere!(Interval, &ellipse(Interval::from_bounds(-0.8, -1e-20)));
-    assert!(
-        matches!(definite, Err(CertifyError::SemiAxisNegative { .. })),
-        "a definitely negative enclosure is the defect: {definite:?}"
-    );
 }

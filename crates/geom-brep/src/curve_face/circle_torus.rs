@@ -185,9 +185,9 @@ pub fn circle_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     let (
-        &geom::Curve3::Circle(circle @ geom::Circle { radius, .. }),
+        &geom::Curve3::Circle(circle),
         &geom::Surface::Torus {
-            frame,
+            frame: torus_frame,
             major_radius,
             minor_radius,
             ..
@@ -199,13 +199,13 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
-    let carrier_frame = circle.frame();
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        circle.frame().origin(),
+        circle.frame().axis(),
+        circle.frame().u_ref(),
     );
-    let (t_center, t_axis) = (frame.origin(), frame.axis());
+    let (t_center, t_axis) = (torus_frame.origin(), torus_frame.axis());
+    let radius = circle.radius();
     // The door reads only a ring, asked of the convention before any pose:
     // its harmonics take the witness, whose floor on `|F|` per metre and
     // whose meridian bound lean on `R − r > 0`.
@@ -226,7 +226,7 @@ pub fn circle_torus_roots<T: Decide>(
     let tilt = radius * axis.cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
-        dir: frame.axis(),
+        dir: t_axis,
     }
     .param_and_offset(center);
     let offset = w_perp.norm();
@@ -536,7 +536,7 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        circle: the_circle @ geom::Circle { radius, .. },
+        circle,
         w_perp,
         offset,
         h0,
@@ -544,8 +544,8 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
-    let carrier_frame = the_circle.frame();
-    let (center, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
+    let (center, u_ref) = (circle.frame().origin(), circle.frame().u_ref());
+    let radius = circle.radius();
     let v_ref = pose.circle.frame().v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);

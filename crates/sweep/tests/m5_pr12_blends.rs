@@ -254,21 +254,23 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     assert!((major_radius - s).abs() < 1e-12);
     assert!((minor_radius - r).abs() < 1e-15);
     assert!((b.spine_curvature - 1.0 / s).abs() < 1e-12);
-    let Curve3::Circle(the_circle @ geom::Circle { radius: ra, .. }) = b.trim_a.0 else {
+    let Curve3::Circle(conic_k) = b.trim_a.0 else {
         panic!("a circular trimline on the plane");
     };
-    let carrier_frame = the_circle.frame();
+    let carrier_frame = conic_k.frame();
     let ca = carrier_frame.origin();
+    let ra = conic_k.radius();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
     assert!(
         (b.trim_a.1 - (s - a)).abs() < 1e-12,
         "the plane-side setback is s − a"
     );
-    let Curve3::Circle(circle_2 @ geom::Circle { radius: rb, .. }) = b.trim_b.0 else {
+    let Curve3::Circle(conic_k) = b.trim_b.0 else {
         panic!("a circular trimline on the sphere");
     };
-    let carrier_frame = circle_2.frame();
+    let carrier_frame = conic_k.frame();
     let cb = carrier_frame.origin();
+    let rb = conic_k.radius();
     assert!((rb - big_r * s / (big_r + r)).abs() < 1e-12);
     assert!((cb.z + r * (big_r - c) / (big_r + r)).abs() < 1e-12);
 }
@@ -320,21 +322,23 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         major_radius > minor_radius,
         "the spine is a ring torus, which is what #889's net also checks at rest"
     );
-    let Curve3::Circle(the_circle @ geom::Circle { radius: ra, .. }) = b.trim_a.0 else {
+    let Curve3::Circle(conic_k) = b.trim_a.0 else {
         panic!("a circular trimline on the plane");
     };
-    let carrier_frame = the_circle.frame();
+    let carrier_frame = conic_k.frame();
     let ca = carrier_frame.origin();
+    let ra = conic_k.radius();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
     assert!(
         (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
-    let Curve3::Circle(circle_2 @ geom::Circle { radius: rb, .. }) = b.trim_b.0 else {
+    let Curve3::Circle(conic_k) = b.trim_b.0 else {
         panic!("a circular trimline on the sphere");
     };
-    let frame = circle_2.frame();
+    let frame = conic_k.frame();
     let cb = frame.origin();
+    let rb = conic_k.radius();
     assert!((rb - big_r * s / (big_r - r)).abs() < 1e-12);
     assert!(
         (cb.z - r * big_r / (big_r - r)).abs() < 1e-12,

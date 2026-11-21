@@ -159,11 +159,11 @@ fn die_pip_subtract_is_green() {
         let Some(curve) = cut.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let &Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = curve.carrier() else {
+        let &Curve3::Circle(conic_k) = curve.carrier() else {
             continue;
         };
-        let carrier_frame = the_circle.frame();
-        let center = carrier_frame.origin();
+        let center = conic_k.frame().origin();
+        let radius = conic_k.radius();
         if (radius - rho).abs() < slack() && (center.z - 1.0).abs() < slack() {
             seam_arcs += 1;
             // Certified pcurve on the seam circle: the plane-side

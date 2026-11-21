@@ -492,9 +492,13 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 .height_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
-            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                let frame = the_circle.frame();
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            geom::Curve3::Circle(conic_k) => {
+                let (center, axis, u_ref) = (
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
+                );
+                let radius = conic_k.radius();
                 let w = y - center;
                 // A parallel leg across a meridian's or a Villarceau
                 // circle's plane, which meets the torus in it and its

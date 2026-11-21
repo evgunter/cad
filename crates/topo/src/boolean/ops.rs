@@ -6605,11 +6605,13 @@ fn sphere_pair_cut<T: Decide>(
     };
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-            the_circle @ geom::Circle { radius: rho, .. },
-        ))) => {
-            let frame = the_circle.frame();
-            let (foot, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(circle))) => {
+            let (foot, normal, u_ref) = (
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
+            );
+            let rho = circle.radius();
             Ok(SphereCutIn {
                 operand,
                 face: holder,
@@ -7265,9 +7267,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let (t0, t1) = curve.params();
                 let carrier = curve.carrier();
-                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
+                let &geom::Curve3::Circle(conic_k) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
+                let cr = conic_k.radius();
                 let uncertified = || {
                     refuse(
                         "a boundary arc of the sphere face meets the cut's meridian plane where \

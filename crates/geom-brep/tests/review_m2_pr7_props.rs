@@ -615,16 +615,20 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
 #[test]
 fn out_of_inventory_boundaries_refuse_typed() {
     let s = cyl();
-    let Surface::Cylinder { frame, .. } = s else {
+    let Surface::Cylinder {
+        frame: carrier_frame,
+        ..
+    } = s
+    else {
         panic!("cylinder expected")
     };
-    let (origin, u_ref) = (frame.origin(), frame.u_ref());
+    let (origin, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
     let b = band();
     let _ = origin;
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Circle(geom::Circle { radius, .. }) = &mut lp.edges[0].carrier {
-        *radius += 0.05;
+    if let Curve3::Circle(c) = &mut lp.edges[0].carrier {
+        *c = geom::Circle::new(c.frame(), c.radius() + 0.05);
     }
     assert!(
         matches!(

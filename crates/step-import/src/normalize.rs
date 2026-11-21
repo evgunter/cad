@@ -302,9 +302,9 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                    let frame = the_circle.frame();
-                    let (center, n) = (frame.origin(), frame.axis());
+                Curve3::Circle(circle) => {
+                    let (center, n) = (circle.frame().origin(), circle.frame().axis());
+                    let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
                         dir: s_axis,
@@ -549,8 +549,9 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q =
-            crate::signed_zero::plus_zero_point(circle.frame().origin() + s_u_ref * circle.radius);
+        let q = crate::signed_zero::plus_zero_point(
+            circle.frame().origin() + s_u_ref * circle.radius(),
+        );
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);

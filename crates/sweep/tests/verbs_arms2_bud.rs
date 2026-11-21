@@ -218,11 +218,12 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = *c.carrier() else {
+        let Curve3::Circle(conic_k) = *c.carrier() else {
             panic!("a trim circle")
         };
-        let frame = the_circle.frame();
+        let frame = conic_k.frame();
         let center = frame.origin();
+        let radius = conic_k.radius();
         assert!(
             (radius - want_r).abs() < 1e-12,
             "the {which} trim circle's radius is {want_r}, got {radius}"

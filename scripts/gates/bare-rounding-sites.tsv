@@ -28,14 +28,15 @@ crates/geom-brep/src/curve_face/circle_roots.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle
-crates/geom-brep/src/curve_face/line_quadric.rs	prod	6	re-pose
+crates/geom-brep/src/curve_face/line_quadric.rs	prod	5	re-pose
 crates/geom-brep/src/curve_face/line_quadric.rs	test	1	oracle
 crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
 crates/geom-brep/src/curve_pair/pose.rs	prod	4	re-pose,far-centre
 crates/geom-brep/src/curve_pair/pose/window.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	1	oracle
-crates/geom-brep/src/half_angle.rs	test	1	oracle
+crates/geom-brep/src/half_angle.rs	prod	1	re-pose
+crates/geom-brep/src/half_angle.rs	test	7	oracle
 crates/geom-brep/src/implicit.rs	prod	64	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	5	oracle
 crates/geom-brep/src/intersect.rs	prod	6	re-pose

@@ -292,12 +292,10 @@ pub(super) fn edge_face<T: Decide>(
         return Read::Pushed;
     };
     let touch = match (curve, surface(body, face)) {
-        (
-            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }),
-            Some(Surface::Plane { origin, normal }),
-        ) => {
-            let frame = the_circle.frame();
+        (geom::Curve3::Circle(circle), Some(Surface::Plane { origin, normal })) => {
+            let frame = circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
+            let radius = circle.radius();
             match circle_plane((center, axis, radius), (origin, normal), band, errors) {
                 None => None,
                 Some(Locus::Touch(touch)) => Some(touch),

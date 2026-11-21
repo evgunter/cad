@@ -1567,8 +1567,9 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
         // An ARC cap rim on a rational wall (M8-3): the metric
         // length is exactly `r·Δθ` — the carrier's own parameter
         // IS the angle, so no bound is needed.
-        Curve3::Circle(geom::Circle { radius, .. }) => {
-            (Interval::from_certified(*radius) * Interval::from_certified(t1 - t0)).mag()
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            (Interval::from_certified(radius) * Interval::from_certified(t1 - t0)).mag()
         }
         _ => {
             return Err(PropsError::QuadratureUnsupported {

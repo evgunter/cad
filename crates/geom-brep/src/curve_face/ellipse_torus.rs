@@ -1048,7 +1048,7 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }),
+                        geom::Curve3::Ellipse(ellipse),
                         geom::Surface::Torus {
                             frame,
                             major_radius,
@@ -1059,13 +1059,13 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
-                    let carrier_frame = the_ellipse.frame();
                     let (center, axis, u_ref) = (
-                        carrier_frame.origin(),
-                        carrier_frame.axis(),
-                        carrier_frame.u_ref(),
+                        ellipse.frame().origin(),
+                        ellipse.frame().axis(),
+                        ellipse.frame().u_ref(),
                     );
                     let (hub, t_axis) = (frame.origin(), frame.axis());
+                    let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
                         Ok(Ok(CircleRoots::Certified(found))) => {
                             ("certified", found.roots().to_vec())

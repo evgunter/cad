@@ -85,9 +85,9 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         Curve3::Line(_) => Some(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         }),
-        Curve3::Circle(circle @ geom::Circle { radius, .. }) => {
-            let carrier_frame = circle.frame();
-            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+        Curve3::Circle(circle) => {
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
+            let radius = circle.radius();
             if axis.dot(chart.frame().axis()).abs() > 0.5 {
                 Some(TravKind::Rim {
                     v_raw: chart.rim_v(center, radius),

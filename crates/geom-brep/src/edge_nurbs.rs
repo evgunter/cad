@@ -4432,10 +4432,10 @@ mod tests {
             [second, first],
             band,
         ));
-        // The 3e-6 end's reading, an enclosure about it; the 1e-6 end's
-        // would read 1e-6.
+        // The 3e-6 end's reading, an enclosure about it told outward on
+        // the grid; the 1e-6 end's would read about 1e-6.
         assert!(
-            forward.contains("3.0000000000000005e-6") && forward == backward,
+            forward == "[2.9999e-6, 3.0001e-6]" && forward == backward,
             "the worse miss, whichever end is met first: {forward} and {backward}"
         );
         let verdicts = read

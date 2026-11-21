@@ -2,10 +2,11 @@
 id: the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta
 kind: issue
 title: The trimmed lane's 'nu = 2 with an id repeated apart' assertion, documented as vacuous, panics on cylinder booleans at δ = 1
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: tesslie/nu-2-repeat
 ---
 
 

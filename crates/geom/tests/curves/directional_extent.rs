@@ -82,14 +82,14 @@ fn reading(c: &Curve3<f64>, t: f64, origin: Point3<f64>, n: Vec3<f64>) -> f64 {
 /// crest angle `atan2(q, p)`.
 fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     let (axis, u, a, b) = match *c {
-        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+        Curve3::Circle(circle) => {
+            let (axis, u_ref) = (circle.frame().axis(), circle.frame().u_ref());
+            let radius = circle.radius();
             (axis, u_ref, radius, radius)
         }
-        Curve3::Ellipse(ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-            let frame = ellipse.frame();
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+        Curve3::Ellipse(ellipse) => {
+            let (axis, u_ref) = (ellipse.frame().axis(), ellipse.frame().u_ref());
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (axis, u_ref, semi_u, semi_v)
         }
         _ => unreachable!(),
@@ -309,7 +309,7 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
             dhi.hi()
         );
     }
-    let poisoned = circle(Point3::origin(), axis, f64::NAN, u);
+    let poisoned = circle(Point3::new(f64::NAN, 0.0, 0.0), axis, 1.0, u);
     let (lo, hi) = conic_arc_extent_along(&poisoned, 0.1, 1.2, Point3::origin(), n).unwrap();
     assert!(
         lo.is_nan() && hi.is_nan(),

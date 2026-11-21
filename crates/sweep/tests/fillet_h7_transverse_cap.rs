@@ -169,11 +169,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .get_curve_geom(out.body.get_edge(a).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
-            let Curve3::Circle(the_circle @ geom::Circle { radius: rr, .. }) = *c.carrier() else {
+            let Curve3::Circle(conic_k) = *c.carrier() else {
                 panic!("{what}: a cut-off arc is a circle, got {:?}", c.carrier());
             };
-            let frame = the_circle.frame();
+            let frame = conic_k.frame();
             let (center, ax) = (frame.origin(), frame.axis());
+            let rr = conic_k.radius();
             assert_eq!(rr, R, "{what}: the section circle has the band's radius");
             assert!(
                 (center.x - origin.x).abs() < 1e-12
@@ -504,9 +505,9 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                         let center = frame.origin();
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
-                    Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-                        let frame = the_ellipse.frame();
-                        let axis = frame.axis();
+                    Curve3::Ellipse(conic_k) => {
+                        let axis = conic_k.frame().axis();
+                        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                         ellipses += 1;
                         assert_eq!(semi_v, R, "{what}: minor = r");
                         assert!(
@@ -554,13 +555,12 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
     let oblique =
         cap_transverse(v, n, tau, R, arm(1.0), band).expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. })) =
-        oblique
-    else {
+    let EndSection::Ellipse(Curve3::Ellipse(conic_k)) = oblique else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
-    let carrier_frame = the_ellipse.frame();
+    let carrier_frame = conic_k.frame();
     let (u_major, normal) = (carrier_frame.u_ref(), carrier_frame.axis());
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert_eq!(semi_v, R, "the minor semi-axis is the radius");
     assert!((semi_u - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
@@ -581,13 +581,11 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(t, 0.0, 1.0);
     let sliver = cap_transverse(v, n, tau, R, arm(1e3), band)
         .expect("levered up, the departure is definite: the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse(ellipse_2 @ geom::Ellipse { semi_u, semi_v, .. })) =
-        sliver
-    else {
+    let EndSection::Ellipse(Curve3::Ellipse(conic_k)) = sliver else {
         panic!("the sliver band picks the ellipse, got {sliver:?}");
     };
-    let frame = ellipse_2.frame();
-    let u_major = frame.u_ref();
+    let u_major = conic_k.frame().u_ref();
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     assert!(
         semi_u - semi_v < band.zero(),
         "the axes {semi_u}, {semi_v} are within the zero band"
@@ -617,11 +615,15 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .and_then(|g| g.certified())
         .unwrap()
         .clone();
-    let Curve3::Circle(the_circle @ geom::Circle { radius, .. }) = *c.carrier() else {
+    let Curve3::Circle(conic_k) = *c.carrier() else {
         panic!("an arc");
     };
-    let frame = the_circle.frame();
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
+    );
+    let radius = conic_k.radius();
     let EdgeDescription::Intersection {
         pair,
         selector: geom_brep::CurveSelector::Witness(witness),

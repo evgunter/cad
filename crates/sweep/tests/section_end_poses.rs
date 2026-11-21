@@ -334,6 +334,17 @@ const AXIAL_PAST: [(f64, u8, f64, f64); 8] = [
     (0.95, 4, 1e-6, 0.3),
 ];
 
+/// The two [`AXIAL`] poses whose ends join at ε = 1e-12, so the cut is
+/// made and its result is read instead. A frame built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274): the section pieces'
+/// frames are squared over their brackets, where main stored them raw,
+/// and the result's face escalates `props_chart_junction_open` at margin
+/// exactly 0 (a junction the band can call neither closed nor open).
+/// With the bracket squaring storing the stated vectors raw (mutation F1
+/// on the bracket path) they refuse at their ends as the other [`AXIAL`]
+/// poses do, and this pin goes red.
+const JUNCTION_OPEN: [(f64, u8, f64, f64); 2] = [(0.7, 3, 3e-4, 0.3), (0.95, 3, 3e-4, 0.5)];
+
 /// The cause an in-band end pin on an unresolved carrier states, then
 /// D4 ¶1 (i)'s last resort, and no lever.
 const UNRESOLVED: &str = "The section curve's own rounding over this edge is too coarse to read this miss as the model's.";
@@ -346,7 +357,9 @@ const WITHIN: &str = "The section curve's own rounding over this edge can accoun
 /// refuses as a reading of the input. At ε = 1e-12 each [`AXIAL`] pose
 /// refuses with an in-band end pin on a carrier that cannot resolve it,
 /// and each [`AXIAL_PAST`] pose with a definite end miss the carrier's
-/// rounding covers: each a kernel limitation, in exactly its words.
+/// rounding covers: each a kernel limitation, in exactly its words. The
+/// two [`JUNCTION_OPEN`] poses are cut there instead, and their result
+/// refuses on its junction (the frame cost, PR 7131).
 #[test]
 fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     let tol = Tol::witness();
@@ -362,6 +375,29 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             continue;
         }
         let past = AXIAL_PAST.contains(&pose);
+        if JUNCTION_OPEN.contains(&pose) {
+            // A frame built at Interval from bracket inputs, a
+            // rigid-motion claim (fork 274).
+            let pinned = matches!(
+                &got,
+                Err(SplitError::Finish(topo::splitting::SplitFinishError::ResultNotAtRest {
+                    findings,
+                    ..
+                })) if crate::common::frame_cost::volume_escalates(
+                    findings.as_slice(),
+                    "props_chart_junction_open",
+                    (-f64::MIN_POSITIVE, 0.0),
+                )
+            );
+            if !pinned {
+                wrong.push(format!(
+                    "{pose:?}: pinned to cut, then escalate props_chart_junction_open at margin 0 \
+                     in the result: {:?}",
+                    got.as_ref().err()
+                ));
+            }
+            continue;
+        }
         let want = match &got {
             Err(SplitError::Join(JoinError::SectionUnresolved {
                 miss:

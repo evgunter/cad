@@ -983,11 +983,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
         (
-            "circle, NaN radius",
-            circle(o, z, nan, x),
-            Some(V::Poisoned(vec![D::Radius])),
-        ),
-        (
             "circle, infinite center",
             circle(Point3::new(0.0, inf, 0.0), z, 1.0, x),
             Some(V::Poisoned(vec![D::Center])),
@@ -1000,16 +995,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Value, Lower)),
-        ),
-        (
-            "ellipse, negative major with u_ref flipped",
-            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, -x), -0.5, 0.3)),
-            Some(V::Unrepresentable(D::SemiU, Value, Lower)),
-        ),
-        (
-            "circle, negative radius",
-            circle(o, z, -1.0, x),
             Some(V::Unrepresentable(D::Radius, Value, Lower)),
         ),
         (
@@ -1082,7 +1067,8 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
 /// **The carrier poison read reads every scalar**: each scalar of each
 /// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
 /// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
-/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// datum the walk ([`geom::Curve3::data`]) says owns it, except a
+/// conic's size, which its constructor refuses. The walk's
 /// scalars must be exactly the builder's, so a walk that drops a field
 /// reds on the count, and a fold that skips a datum reds on that
 /// datum's rows.
@@ -1122,6 +1108,24 @@ fn the_carrier_poison_read_reads_every_scalar() {
         for (i, &(datum, _)) in walked.iter().enumerate() {
             let mut poisoned = base.clone();
             poisoned[i] = f64::NAN;
+            // A conic's size is no stored datum when it is NaN: its
+            // constructor refuses it (`geom::Circle::new`,
+            // `geom::Ellipse::new`), so no carrier at rest holds one.
+            let size = match at_rest {
+                geom::Curve3::Circle(_) => datum == geom::CurveDatum::Radius,
+                geom::Curve3::Ellipse(_) => {
+                    matches!(datum, geom::CurveDatum::SemiU | geom::CurveDatum::SemiV)
+                }
+                _ => false,
+            };
+            if size {
+                assert!(
+                    std::panic::catch_unwind(|| (kind.build)(&poisoned)).is_err(),
+                    "{at_rest:?}: a NaN {} is refused at construction",
+                    datum.name()
+                );
+                continue;
+            }
             // An axis that is not a number poisons the seam squared
             // against it too.
             let want = match datum {
@@ -2705,8 +2709,8 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
-            (quoted - offered).abs() <= 1e-9 * offered,
-            "{label}: offers {quoted:e}, wants {offered:e}"
+            geom_core::test_support::is_told_offer_of(quoted, offered),
+            "{label}: offers {quoted:e}, wants {offered:e} told as a bound"
         );
     }
     // The end read's own stop, as the fold raises it, through check 4's

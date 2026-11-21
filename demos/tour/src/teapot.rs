@@ -1210,7 +1210,7 @@ fn rim_circle(
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
                 Curve3::Circle(circle) => {
-                    let (center, radius) = (circle.frame().origin(), circle.radius);
+                    let (center, radius) = (circle.frame().origin(), circle.radius());
                     assert!(
                         center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                         "a latitude rim's circle is centred ON the axis: got {center:?}"

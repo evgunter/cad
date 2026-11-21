@@ -856,9 +856,13 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
-                    Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                        let frame = the_circle.frame();
-                        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                    Curve3::Circle(circle) => {
+                        let (center, axis, u_ref) = (
+                            circle.frame().origin(),
+                            circle.frame().axis(),
+                            circle.frame().u_ref(),
+                        );
+                        let radius = circle.radius();
                         (center, axis, radius, radius, u_ref)
                     }
                     ref ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {

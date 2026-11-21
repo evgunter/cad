@@ -22,15 +22,23 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
     let pair = t0.elapsed().as_secs_f64() / f64::from(n) * 1e9;
     // The fused jet: one sin_cos, the frame built once.
     let (center, u, v, su, sv) = match carrier {
-        Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-            let frame = the_circle.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            (center, u_ref, axis.cross(u_ref), *radius, *radius)
+        Curve3::Circle(circle) => {
+            let (center, axis, u_ref) = (
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
+            );
+            let radius = circle.radius();
+            (center, u_ref, axis.cross(u_ref), radius, radius)
         }
-        Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) => {
-            let frame = the_ellipse.frame();
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            (center, u_ref, axis.cross(u_ref), *semi_u, *semi_v)
+        Curve3::Ellipse(ellipse) => {
+            let (center, axis, u_ref) = (
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            (center, u_ref, axis.cross(u_ref), semi_u, semi_v)
         }
         _ => panic!("conic only"),
     };

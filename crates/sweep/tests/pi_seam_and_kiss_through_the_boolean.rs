@@ -265,13 +265,12 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) =
-                carrier_of(&body, k)
-            else {
+            let geom::Curve3::Circle(conic_k) = carrier_of(&body, k) else {
                 panic!("{label}: the rim is a circle");
             };
-            let frame = the_circle.frame();
+            let frame = conic_k.frame();
             let center = frame.origin();
+            let radius = conic_k.radius();
             assert!(
                 (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
                 "{label}: on the rim at z = H: {center:?}, {radius}"
@@ -743,10 +742,9 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })
-                    if (the_circle.frame().origin().z - H).abs() < 1e-9 =>
-                {
-                    Some(radius)
+                geom::Curve3::Circle(circle) if (circle.frame().origin().z - H).abs() < 1e-9 => {
+                    let _ = circle.frame().origin();
+                    Some(circle.radius())
                 }
                 _ => None,
             })

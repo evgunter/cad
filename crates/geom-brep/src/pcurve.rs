@@ -129,17 +129,17 @@ pub fn ellipse_pcurve_on_plane(
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
-    let &Curve3::Ellipse(the_ellipse @ geom::Ellipse { semi_u, semi_v, .. }) = carrier else {
+    let &Curve3::Ellipse(conic_k) = carrier else {
         return Err(PcurveError::WrongLane {
             expected: "an Ellipse carrier into a Plane chart",
         });
     };
-    let carrier_frame = the_ellipse.frame();
     let (center, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let &Surface::Plane {
         frame: carrier_frame,
     } = plane

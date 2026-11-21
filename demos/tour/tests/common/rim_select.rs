@@ -64,7 +64,7 @@ pub fn arcs_at(body: &Body<f64>, r: f64, y: f64, seeds: Seeds) -> Vec<EdgeKey> {
                 return false;
             };
             matches!(*c.carrier(), Curve3::Circle(circle)
-                if (circle.frame().origin().y - y).abs() < 1e-9 && (circle.radius - r).abs() < 1e-9)
+                if (circle.frame().origin().y - y).abs() < 1e-9 && (circle.radius() - r).abs() < 1e-9)
         })
         .collect()
 }

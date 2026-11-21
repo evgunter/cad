@@ -459,9 +459,9 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
             .unwrap()
             .carrier()
         {
-            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. }) => {
-                let frame = the_circle.frame();
-                let center = frame.origin();
+            geom::Curve3::Circle(circle) => {
+                let center = circle.frame().origin();
+                let radius = circle.radius();
                 [
                     center.x.to_bits(),
                     center.y.to_bits(),

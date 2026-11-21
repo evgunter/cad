@@ -283,17 +283,18 @@ fn carved_clearance(body: &Body<f64>, rod: Rod, r: f64) -> f64 {
                     lines.push((x.x.hypot(x.z), (p.x * n.x + p.z * n.z)));
                 }
             }
-            geom::Curve3::Circle(the_circle @ geom::Circle { radius, .. })
-                if the_circle
+            geom::Curve3::Circle(circle)
+                if circle
                     .frame()
                     .origin()
                     .x
-                    .hypot(the_circle.frame().origin().y)
-                    .hypot(the_circle.frame().origin().z)
+                    .hypot(circle.frame().origin().y)
+                    .hypot(circle.frame().origin().z)
                     < 1e-12
-                    && radius < 2.0 =>
+                    && circle.radius() < 2.0 =>
             {
-                circles.push(radius);
+                let _ = circle.frame().origin();
+                circles.push(circle.radius());
             }
             _ => {}
         }

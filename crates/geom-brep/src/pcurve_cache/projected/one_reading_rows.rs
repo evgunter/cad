@@ -161,6 +161,7 @@ fn compare<T: Decide>(lift: impl Fn(f64) -> T, bracket: Bracket<T>) -> usize {
                             u_off: T::zero(),
                             v_off: T::zero(),
                             v_sign: T::one(),
+                            pole: None,
                         };
                         let psi = image.raw(framed, 0);
                         let theta = f64::from(m) * FRAC_PI_2;
@@ -234,6 +235,7 @@ fn the_sphere_latitude_at_negative_zero_height_reads_positive_zero() {
         u_off: 0.0,
         v_off: 0.0,
         v_sign: 1.0,
+        pole: None,
     };
     let v = image.raw(Vec3::new(0.6, 0.1, -0.0), 0).y;
     assert_eq!(

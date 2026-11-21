@@ -795,7 +795,7 @@ fn register_placed_carrier_end<T: Real>(
     let Some(circle) = carrier.as_circle() else {
         return;
     };
-    let end = Curve3::circle_at(&circle.frame(), circle.radius, param_end);
+    let end = Curve3::circle_at(&circle.frame(), circle.radius(), param_end);
     let sketch = arc.carrier_end(start);
     let placed = place.point(sketch);
     for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
@@ -1710,12 +1710,11 @@ mod tests {
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, q_from, tol);
-            let Curve3::Circle(circle @ the_circle @ geom::Circle { radius, .. }) = spec.carrier
-            else {
+            let Curve3::Circle(circle) = spec.carrier else {
                 panic!("an arc places onto a circle carrier");
             };
-            let carrier_frame = the_circle.frame();
-            let center = carrier_frame.origin();
+            let center = circle.frame().origin();
+            let radius = circle.radius();
             let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
             let rim = (q_from - center).norm();
             let end = Curve3::circle_at(&circle.frame(), radius, spec.param_end);
