@@ -915,11 +915,13 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
 
 /// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
 /// answer on a body whose largest `|coordinate|` is `reach`, past the
-/// 1 km box, is its refusal by the box: `OutsideSessionBox` (the
-/// finished body's finding, or its farthest edge's certification), its
-/// margin the box's extent less `reach` (to a part in 1e9 of `reach`),
-/// and its sentence, read at the build door, the box's one recourse
-/// (`topo::FindingFamily::SessionBox`). `what` names the body.
+/// 1 km box, is its refusal by the box: `OutsideSessionBox`, and its
+/// sentence, read at the build door, the box's one recourse
+/// (`topo::FindingFamily::SessionBox`). The finished body's finding has
+/// its margin the box's extent less `reach` (to a part in 1e9 of
+/// `reach`); an edge's certification refuses at the first edge past the
+/// box, a point of the body, so its margin lies between that and zero.
+/// `what` names the body.
 ///
 /// # Panics
 ///
@@ -944,8 +946,13 @@ pub fn refused_by_the_session_box<T, E: geom_brep::recourse::Ended + core::fmt::
         .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
         .unwrap_or_else(|| panic!("{what}: the door refuses by the session box: {debug}"));
     let want = geom_core::tolerance::SESSION_BOX_EXTENT - reach;
+    let at_an_edge = debug.contains("Certification { error: OutsideSessionBox");
     assert!(
-        (margin - want).abs() <= 1e-9 * reach,
+        if at_an_edge {
+            margin >= want - 1e-9 * reach && margin < 0.0
+        } else {
+            (margin - want).abs() <= 1e-9 * reach
+        },
         "{what}: the box's margin is its extent less the body's reach {reach}, {want}, got \
          {margin}"
     );
