@@ -24,3 +24,7 @@ The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table
 
 - The check inside the door is the one each site ran by hand: a site whose hand check differs in kind (a pairwise agreement, a window bound) is a finding before it is a port.
 - At `Interval`, a wide family refuses at the door. Pin one row per site where it does, so the refusal is typed and named, not a later certification failure.
+
+## Note from `a-place-is-an-f64-argument-answered-on-the-value-channel`
+
+`geom_core::place` (`crates/geom-core/src/value_view.rs`), the place door, is `V::from_computed(x)` under the bound `V: Real<Value = V>`: at `Sym` a place has to be its own unknown, or a re-valuation reads at a place chosen for the nominal values (pinned by `ssi::one_arc::tests::a_window_ends_parameter_enters_as_a_computed_value` and the two projection seed pins in `geom`). So it is a second caller of `from_computed` beside this unit's door. The gate this unit adds either names `place` as the second caller or gives a place its own `Sym` spelling.
