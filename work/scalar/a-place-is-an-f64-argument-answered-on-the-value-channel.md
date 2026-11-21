@@ -2,11 +2,12 @@
 id: a-place-is-an-f64-argument-answered-on-the-value-channel
 kind: unit
 title: A place is an f64 argument to the evaluator, answered on the value channel
-status: spec
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
+branch: scalar/a-place-is-an-f64-argument
 ---
 
 The rule is `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" (DL5.2, DL5.3), ratified by Ev on PR 7155. The site counts below are two designers' readings (`work/scalar/log.md`, 2026-11-20), mostly not traced to consumers: re-measure before building on one.

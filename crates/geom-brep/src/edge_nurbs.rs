@@ -3031,7 +3031,13 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
     }
 
     /// The carrier's parameter at schedule fraction `at`: its held ends
-    /// at `0` and `1`.
+    /// at `0` and `1`, and inside them the point at the `f64` station,
+    /// as [`crate::certify::held_station`]'s interior station is a point
+    /// (a read at a chosen point has no use for the station's own
+    /// width). `at` is a schedule fraction, a bisection iterate or a
+    /// midpoint of two (`general_chart_image`), so the station is a
+    /// place, its own unknown at `Sym`; `held_station`'s fractions are
+    /// the fixed schedule's alone, constants.
     fn station(&self, at: f64) -> T {
         let (t0, t1) = self.domain;
         if at <= 0.0 {
@@ -3257,8 +3263,7 @@ where
     // An image's gap at a fraction: its chart point mapped through the
     // wall, less the carrier's point there.
     let gap = |at: f64, p: Point2<f64>| {
-        let gap = wall.eval(T::from_computed(p.x), T::from_computed(p.y))
-            - (schedule.eval)(schedule.station(at));
+        let gap = wall.eval_at(p.x, p.y) - (schedule.eval)(schedule.station(at));
         Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z))
     };
     // The miss midway between two nodes, net of the standoff they carry:
