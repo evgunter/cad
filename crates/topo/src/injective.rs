@@ -1637,11 +1637,123 @@ fn vacuous(
             Side::XLo | Side::YLo => line.lo() <= hi + few_ulps(hi),
             Side::XHi | Side::YHi => line.hi() >= lo - few_ulps(lo),
         };
-        let axis = side.axis().other();
+        let (held, axis) = (side.axis(), side.axis().other());
+        // The line's edges: the face on the same side of each, on a line
+        // holding a value of this one's.
+        let on_line: Vec<usize> = outside
+            .iter()
+            .filter(|&&(s, l, _)| s == side && l.lo() <= line.hi() && line.lo() <= l.hi())
+            .map(|&(_, _, e)| e)
+            .collect();
+        let run = run_through(b, surface, &on_line, ei, held);
         touches
-            && edge_ranges(b, &[ei], side.axis())
+            && line_ranges(b, surface, &run, held)
                 .is_some_and(|r| covered(axis.of(cell), &r, periodic(surface, axis)))
     })
+}
+
+/// **A line edge's two ends along its line**: the vertex and the moving
+/// coordinate at its low end, then at its high. `None` for an edge the
+/// face uses twice, a whole turn's image, a use holding the other axis,
+/// and one whose direction does not certify.
+fn line_ends(e: &Rim, held: Axis) -> Option<[(VertexKey, Interval); 2]> {
+    let [u] = e.uses.as_slice() else {
+        return None;
+    };
+    let iso = u.iso.filter(|iso| iso.held == held && !iso.full)?;
+    let [p, q] = u.image?;
+    let ends = [(e.ends[0], iso.moving(p)), (e.ends[1], iso.moving(q))];
+    Some(if forward(u, iso)? > 0.0 {
+        ends
+    } else {
+        [ends[1], ends[0]]
+    })
+}
+
+/// **The joints of one line's edges**: each pair `(i, j)` of `edges`
+/// where the high end of `i` and the low end of `j` are one vertex by
+/// key, with the range between the two stored readings of that vertex's
+/// coordinate, `j`'s moved by whole turns to `i`'s on a periodic axis.
+///
+/// `edges` are on one line with the face on the same side of each (the
+/// caller's: one merged clip, or [`vacuous`]'s line), so they run one
+/// way along it, and at a joint one ends where the next begins. Each
+/// edge's range ends at its vertex's chart point, of which the line
+/// holds one, up to whole turns; the two stored ends are two readings of
+/// it, each its own row's, agreeing only to rounding, which no cell
+/// narrows. So the edges cover the line from the one's far end to the
+/// other's whatever the two readings are, and nothing is compared.
+/// That the readings agree is the lift's ([`crate::pcurves::Lift`]).
+///
+/// **On the closed-form charts only.** A spline chart may carry one
+/// point at two parameters of a line (a closed net), where a shared
+/// vertex does not say the ranges are adjacent.
+fn joints(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    edges: &[usize],
+    held: Axis,
+) -> Vec<(usize, usize, Interval)> {
+    if matches!(surface, Surface::Nurbs(_)) {
+        return Vec::new();
+    }
+    let periodic = periodic(surface, held.other());
+    let ends: Vec<(usize, [(VertexKey, Interval); 2])> = edges
+        .iter()
+        .filter_map(|&i| Some((i, line_ends(b.edges.get(i)?, held)?)))
+        .collect();
+    let mut out = Vec::new();
+    for &(i, [_, (v, hi)]) in &ends {
+        for &(j, [(w, lo), _]) in &ends {
+            if i == j || v != w {
+                continue;
+            }
+            let lo = if periodic { wrap(lo, mid(hi)) } else { lo };
+            out.push((
+                i,
+                j,
+                Interval::from_bounds(hi.lo().min(lo.lo()), hi.hi().max(lo.hi())),
+            ));
+        }
+    }
+    out
+}
+
+/// The edges of `on_line` joined to `ei`, end to end ([`joints`]),
+/// `ei` among them.
+fn run_through(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    on_line: &[usize],
+    ei: usize,
+    held: Axis,
+) -> Vec<usize> {
+    let joints = joints(b, surface, on_line, held);
+    let mut run = vec![ei];
+    while let Some(next) = joints.iter().find_map(|&(i, j, _)| {
+        match (run.contains(&i), run.contains(&j)) {
+            (true, false) => Some(j),
+            (false, true) => Some(i),
+            _ => None,
+        }
+    }) {
+        run.push(next);
+    }
+    run
+}
+
+/// **The ranges one line's edges cover together**: each edge's
+/// ([`edge_ranges`]) and, across each joint, the range between its two
+/// readings ([`joints`]).
+fn line_ranges(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    edges: &[usize],
+    held: Axis,
+) -> Option<Vec<Interval>> {
+    let mut out = edge_ranges(b, edges, held)?;
+    out.extend(joints(b, surface, edges, held).into_iter().map(|(.., r)| r));
+    Some(out)
 }
 
 /// The ranges the uses of `edges` holding `held` run over on the other
@@ -1681,15 +1793,14 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
 /// [`convex`].
 fn sides_are_the_faces(
     b: &Boundary,
+    surface: &Surface<Interval>,
     merged: &[Clip],
     rect: ((f64, f64), (f64, f64)),
-    periodic: impl Fn(Axis) -> bool,
 ) -> bool {
     let covers = |c: &Clip| {
         let axis = c.side.axis().other();
-        let periodic = periodic(axis);
-        run_on(b, c, merged, periodic)
-            .is_some_and(|ranges| covered(axis.of(rect), &ranges, periodic))
+        run_on(b, surface, c, merged)
+            .is_some_and(|ranges| covered(axis.of(rect), &ranges, periodic(surface, axis)))
     };
     let other_axis = |c: &Clip, d: &Clip| {
         c.side.axis() != d.side.axis() && c.collapsed.is_none() && d.collapsed.is_none()
@@ -1727,9 +1838,15 @@ fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
 /// past the corner, on the other line's non-face side, where the face
 /// has no point to wrap round the end into. Read only by
 /// [`sides_are_the_faces`], beside the checks that make that so.
-fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
+fn run_on(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    c: &Clip,
+    merged: &[Clip],
+) -> Option<Vec<Interval>> {
     let held = c.side.axis();
-    let mut out = edge_ranges(b, &c.edges, held)?;
+    let periodic = periodic(surface, held.other());
+    let mut out = line_ranges(b, surface, &c.edges, held)?;
     for d in merged
         .iter()
         .filter(|d| d.side.axis() != held && d.collapsed.is_none())
@@ -2101,7 +2218,7 @@ fn present_chart<'a>(
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
-    if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
+    if !piece.whole && !sides_are_the_faces(b, piece.surface, &merged, (x, y)) {
         return Err(Unpresented::Local);
     }
     // A rectangle clipped to within the band of a shared line is read as
@@ -2149,7 +2266,7 @@ fn present_chart<'a>(
             // run-on past a vertex ([`run_on`]), whose far bound is the
             // other line's enclosure, off the edge's span.
             let on_edges = clip.is_some_and(|c| {
-                edge_ranges(b, &c.edges, held).is_some_and(|ranges| {
+                line_ranges(b, piece.surface, &c.edges, held).is_some_and(|ranges| {
                     covered(range, &ranges, periodic(piece.surface, held.other()))
                 })
             });
@@ -7537,6 +7654,185 @@ mod presentation_rows {
                 "{what}: the cell beside the gap is not presented"
             );
         }
+    }
+
+    /// **A stepped face's low line `v = 0.5`, the face above it, as two
+    /// edges**: the first from `u = 0.2` to `ends[0]` at vertex
+    /// `keys[0]`, the second from `ends[1]`, on `line`, at vertex
+    /// `keys[1]`, to `u = 0.8`. The face's hull reaches below the line
+    /// (its step is elsewhere), so no cell beside the line misses its
+    /// extent.
+    fn stepped(ends: [f64; 2], keys: [u64; 2], line: f64) -> Boundary {
+        Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, keys[0]], Axis::V, 0.5, (0.2, 0.5), (ends[0], 0.5)),
+                rim(2, [keys[1], 2], Axis::V, line, (ends[1], line), (0.8, line)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.2, 0.8), (0.0, 1.0)]),
+        }
+    }
+
+    /// The cells across [`stepped`]'s joint, below its line and above.
+    const BELOW: ((f64, f64), (f64, f64)) = ((0.45, 0.55), (0.4, 0.5));
+    const ABOVE: ((f64, f64), (f64, f64)) = ((0.45, 0.55), (0.5, 0.6));
+
+    /// One ulp above `0.5`.
+    fn up() -> f64 {
+        f64::from_bits(0.5f64.to_bits() + 1)
+    }
+
+    /// **A line's edges joined at a vertex cover a side together**
+    /// ([`joints`]): two edges of one line, the face above both, the one
+    /// ending at the vertex the other starts at. A cell below the line
+    /// across the joint holds none of the face ([`vacuous`]) and one
+    /// above it presents with the line as its side
+    /// ([`sides_are_the_faces`]), whether the two stored ends at the
+    /// joint are equal, an ulp apart or an ulp over: they are two
+    /// readings of one vertex. Red if a side is read against one edge
+    /// alone, or if the two readings are compared.
+    #[test]
+    fn a_lines_edges_joined_at_a_vertex_cover_a_side_together() {
+        for (kind, s) in [("cylinder", cylinder()), ("torus", ring(2.0))] {
+            for (what, ends) in [
+                ("equal", [0.5, 0.5]),
+                ("an ulp apart", [0.5, up()]),
+                ("an ulp over", [up(), 0.5]),
+            ] {
+                let b = stepped(ends, [5, 5], 0.5);
+                assert_eq!(
+                    chart(&s, &b, &[0, 1], BELOW.0, BELOW.1),
+                    Read::Vacuous,
+                    "{kind}, {what}: the cell below"
+                );
+                assert!(
+                    matches!(chart(&s, &b, &[0, 1], ABOVE.0, ABOVE.1), Read::Of(..)),
+                    "{kind}, {what}: the cell above: {:?}",
+                    chart(&s, &b, &[0, 1], ABOVE.0, ABOVE.1)
+                );
+            }
+        }
+    }
+
+    /// **Edges that share no vertex are not joined**: the two edges end
+    /// at two vertices, an ulp apart, so the face may come through
+    /// between them, and neither cell is read. Where their stored ranges
+    /// overlap instead, the cell below is still not read vacuous: a join
+    /// is a vertex, never an overlap. Red if two edges are joined by
+    /// their ranges.
+    #[test]
+    fn edges_of_a_line_that_share_no_vertex_are_not_joined() {
+        let s = cylinder();
+        let gap = stepped([0.5, up()], [5, 6], 0.5);
+        for cell in [BELOW, ABOVE] {
+            assert_eq!(chart(&s, &gap, &[0, 1], cell.0, cell.1), Read::Local);
+        }
+        let over = stepped([0.52, 0.48], [5, 6], 0.5);
+        assert_eq!(chart(&s, &over, &[0, 1], BELOW.0, BELOW.1), Read::Local);
+    }
+
+    /// **Edges on two lines are not joined**: the second edge starts at
+    /// the first's vertex on the line `v = 0.55`, above the cell and off
+    /// the first's line. Red if a joint is read between edges whose
+    /// lines hold no common value.
+    #[test]
+    fn edges_on_two_lines_are_not_joined() {
+        let b = stepped([0.5, 0.5], [5, 5], 0.55);
+        assert_eq!(
+            chart(&cylinder(), &b, &[0, 1], BELOW.0, BELOW.1),
+            Read::Local
+        );
+    }
+
+    /// **Edges with the face on opposite sides are not joined**
+    /// ([`vacuous`]'s line): a slit's two edges on one line, the one
+    /// ending where the other starts, handed to [`vacuous`] as lines the
+    /// cell lies outside of. Red if the line's edges are gathered
+    /// whatever side their face is on.
+    #[test]
+    fn edges_with_the_face_on_opposite_sides_are_not_joined() {
+        let b = stepped([0.5, 0.5], [5, 5], 0.5);
+        let s = cylinder();
+        let line = iv0(0.5);
+        assert!(
+            vacuous(
+                &b,
+                &s,
+                BELOW,
+                &[(Side::YLo, line, 0), (Side::YLo, line, 1)]
+            ),
+            "the control: both edges with the face above"
+        );
+        assert!(!vacuous(
+            &b,
+            &s,
+            BELOW,
+            &[(Side::YLo, line, 0), (Side::YHi, line, 1)]
+        ));
+    }
+
+    /// **A spline chart's edges are not joined** ([`joints`]): a closed
+    /// net carries one point at two parameters of a line, so a shared
+    /// vertex does not put two ranges end to end. The patch's one edge
+    /// over the whole line is the control. Red if a joint is read on a
+    /// free-form chart.
+    #[test]
+    fn a_spline_charts_edges_are_not_joined() {
+        let s = sheet();
+        let whole = Boundary {
+            edges: vec![rim(1, [1, 2], Axis::V, 0.5, (0.2, 0.5), (0.8, 0.5))],
+            ..stepped([0.5, 0.5], [5, 5], 0.5)
+        };
+        assert_eq!(chart(&s, &whole, &[0], BELOW.0, BELOW.1), Read::Vacuous);
+        assert!(matches!(
+            chart(&s, &whole, &[0], ABOVE.0, ABOVE.1),
+            Read::Of(..)
+        ));
+        let b = stepped([0.5, up()], [5, 5], 0.5);
+        for cell in [BELOW, ABOVE] {
+            assert_eq!(chart(&s, &b, &[0, 1], cell.0, cell.1), Read::Local);
+        }
+    }
+
+    /// **A line's edges joined across the chart's seam cover a side
+    /// together**: a parallel of the cylinder's chart whose first edge
+    /// ends at `u = 2π` and whose second starts, at the same vertex, a
+    /// turn below and a few ulps on. The cells across the joint read as
+    /// across any other, on either sheet; a cell where the line has no
+    /// edge is not read vacuous. Red if the second end is not moved by
+    /// whole turns to the first (the range between them is then most of
+    /// the turn, and covers the cell the line has no edge beside).
+    #[test]
+    fn a_lines_edges_joined_across_the_seam_cover_a_side_together() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 5], Axis::V, 0.5, (5.5, 0.5), (TURN, 0.5)),
+                rim(2, [5, 2], Axis::V, 0.5, (4e-15, 0.5), (0.7, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, TURN), (0.0, 1.0)]),
+        };
+        for turn in [0.0, TURN] {
+            let u = (turn - 0.05, turn + 0.05);
+            assert_eq!(
+                chart(&s, &b, &[0, 1], u, BELOW.1),
+                Read::Vacuous,
+                "{turn} round: the cell below"
+            );
+            assert!(
+                matches!(chart(&s, &b, &[0, 1], u, ABOVE.1), Read::Of(..)),
+                "{turn} round: the cell above: {:?}",
+                chart(&s, &b, &[0, 1], u, ABOVE.1)
+            );
+        }
+        assert_eq!(
+            chart(&s, &b, &[0, 1], (3.0, 3.1), BELOW.1),
+            Read::Local,
+            "a cell the line has no edge beside"
+        );
     }
 
     /// **`convex` decides a corner `present_chart` reads**: two `T`
