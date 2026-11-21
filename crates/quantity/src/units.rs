@@ -158,13 +158,13 @@ pub struct UnitDef {
 /// where `pi`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Factor {
-    num: u32,
-    den: u32,
+    num: u16,
+    den: u16,
     pi: bool,
 }
 
 impl Factor {
-    const fn rational(num: u32, den: u32) -> Self {
+    const fn rational(num: u16, den: u16) -> Self {
         Self {
             num,
             den,
@@ -172,7 +172,7 @@ impl Factor {
         }
     }
 
-    const fn times_pi(num: u32, den: u32) -> Self {
+    const fn times_pi(num: u16, den: u16) -> Self {
         Self { num, den, pi: true }
     }
 

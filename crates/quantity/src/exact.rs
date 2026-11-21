@@ -347,7 +347,7 @@ fn machin(bits: u64) -> (Nat, Nat) {
     let scale = bits + GUARD;
     // (Σ even terms, Σ odd terms, how far the alternating sum may be off)
     let atan_inverse = |x: u32| {
-        let x2 = x * x;
+        let x2 = x.pow(2);
         let mut t = Nat::from_u64(1).shl(scale).div_small(x).0;
         let (mut even, mut odd, mut k) = (Nat::zero(), Nat::zero(), 0u32);
         while !t.is_zero() {
