@@ -167,7 +167,7 @@ a box row, by accident of its fixture (MINOR 7).
 |---|---|---|
 | 12: the placement filter of `face_extreme_points` dropped (`cover.rs:520`) | every candidate pole counts as a point of the face | yes: the in-box ball wedge above is then refused as **past** the box by 200 m, a false finding; a dimple past the box by 5 m reads 65 m |
 | 6: stage 2 reads the stage-1 bound again | `face_cover` never admits | yes: every dimple whose ball pokes out is refused as a limit; red on no box row, and on one fast test by accident (MINOR 7) |
-| 8: the gate drops `SessionBoxUncovered` | a body with an uncovered face that tier 3 passes is admitted | no test reaches `validate.rs:6669` or `:11038` |
+| 8: the gate drops `SessionBoxUncovered` | a body with an uncovered face that tier 3 passes is admitted | no test goes red when `validate.rs:6669` and `:11038` never fire |
 | 15: an uncovered face counts as within at stage 1 | the move and placing doors admit it | not shown |
 | 7: a Zero margin read as past | a body within the band of the box's edge refuses | not shown |
 | 10: the cone's apex dropped from the stage-1 bound | | not shown |
@@ -195,8 +195,8 @@ The body is refused either way, so nothing is admitted. But the
 deferral changes what the ratified sentence decides, the PR body
 discloses it and the README does not, and its justification is a
 measurement ("every such face the suites reach is a stored-data fault
-check 1 names") with no guard: no test reaches the arm that refuses when
-tier 3 finds nothing (mutant 8). Whether this is the README's "before
+check 1 names") with no guard: no test goes red when the arm that
+refuses after tier 3 finds nothing is taken out (mutant 8). Whether this is the README's "before
 anything is decided" is Ev's to say, not the PR's.
 
 ### MINOR 5. `SessionBoxUncovered` ends on a recourse that cannot cure it. BY-INSPECTION, likely
