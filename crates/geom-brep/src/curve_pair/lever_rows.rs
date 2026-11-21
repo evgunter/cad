@@ -98,8 +98,8 @@ fn a_segment_over_a_short_arcs_far_side_meets_it_at_its_middle() {
     {
         let met = got.unwrap_or_else(|e| panic!("{order}: the meeting refused: {e:?}"));
         assert!(
-            met.points.len() == 1 && met.points[0].point.distance(middle) < 1e-12,
-            "{order}: one meeting, at the arc's middle: {met:?}"
+            met.points.len() == 1 && met.points[0].point.distance(middle) <= band.zero(),
+            "{order}: one meeting, within the zero band of the arc's middle: {met:?}"
         );
     }
 }
