@@ -98,7 +98,7 @@ else {
     panic!("two rays that never meet have no corner");
 };
 assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1)"));
-assert!(refused.to_string().starts_with("not resolved at step 5, its arrival: "));
+assert!(refused.to_string().starts_with("step 3's fillet, not resolved at step 5: "));
 ```
 
 A fillet is resolved by the step that fixes its arrival, so its

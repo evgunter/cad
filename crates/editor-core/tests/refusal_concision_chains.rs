@@ -4728,21 +4728,18 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The state that takes the most verbs, so its recourse is the
     // longest list a lattice refusal draws.
-    let transition = ReplayError {
-        step: 2,
-        kind: ReplayErrorKind::Transition {
+    let transition = ReplayError::new(
+        2,
+        ReplayErrorKind::Transition {
             state: TipState::DirectedPoint,
             verb: Some(profile::Verb::CloseTo),
         },
-    };
+    );
     path.into_iter()
         .map(|(n, p)| {
             (
                 format!("ProfileReplay/Path/{n}"),
-                ReplayError {
-                    step: 2,
-                    kind: ReplayErrorKind::Path(p),
-                },
+                ReplayError::new(2, ReplayErrorKind::Path(p)),
             )
         })
         .chain([("ProfileReplay/Transition".to_owned(), transition)])

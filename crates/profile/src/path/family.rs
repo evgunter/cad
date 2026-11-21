@@ -239,7 +239,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
-    let trims = core.resolving(meta.bound_at, |core| {
+    let trims = core.resolving(meta.bound_at, false, |core| {
         let trims = core.fit_arc_fillet(
             resolver,
             meta.bound_at,
@@ -345,7 +345,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
     let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
-    let trims = core.resolving(meta.bound_at, |core| {
+    let trims = core.resolving(meta.bound_at, true, |core| {
         let trims = core.fit_arc_fillet(
             resolver,
             meta.bound_at,
@@ -366,7 +366,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
         // interior segment and the run itself closes the loop.
-        core.resolving(meta.bound_at, |core| {
+        core.resolving(meta.bound_at, true, |core| {
             core.emit_fillet_arc(
                 &trims,
                 Some(super::ArrivalCarrier::AuthoredArc),
@@ -408,7 +408,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         // other fillet arc, so the close re-reads its STORED form too —
         // the seam junction check below reads the resolver's computed
         // carrier and says nothing about what was stored.
-        let leaving = core.resolving(meta.bound_at, |core| {
+        let leaving = core.resolving(meta.bound_at, true, |core| {
             let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
             core.close_leaving(Some(trims.fillet().decided()), FirstSeg::Arc)?;
             Ok(leaving)

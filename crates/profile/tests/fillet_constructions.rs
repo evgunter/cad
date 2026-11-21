@@ -190,7 +190,7 @@ fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize,
     // every fillet step.
     let opened = match &replayed {
         Ok(_) => steps.len(),
-        Err(e) => e.step,
+        Err(e) => e.raised_at(),
     };
     let mut got: Vec<usize> = built
         .iter()
@@ -588,7 +588,7 @@ fn an_anchor_fit_refusal_draws_its_overrunning_circle() {
     let Err(refused) = replayed else {
         panic!("the arrival leg is too short: {replayed:?}")
     };
-    assert_eq!(refused.step, 2, "refused at the fillet step");
+    assert_eq!(refused.step(), 2, "refused at the fillet step");
     assert!(
         matches!(
             &refused.kind,
@@ -637,7 +637,7 @@ fn a_fillet_refused_before_its_arrival_draws_its_incoming_side() {
     let Err(refused) = replayed else {
         panic!("a zero director refuses: {replayed:?}")
     };
-    assert_eq!(refused.step, 3);
+    assert_eq!(refused.step(), 3);
     let [c] = built.as_slice() else {
         panic!("one fillet step, one construction: {built:?}")
     };

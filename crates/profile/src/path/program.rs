@@ -2513,16 +2513,19 @@ impl core::fmt::Display for Takes {
 
 /// Why a replay refused, and at which step.
 ///
-/// The `step` index is into the program slice; for a program that ENDS
-/// without closing it is the length (one past the last step), and the
-/// kind's `verb` is then `None`. A refusal a later step raises about an
-/// earlier one ([`PathError::Deferred`]: a fillet resolved where its
-/// arrival is fixed, a stored form re-read where the loop closes) is
-/// at the earlier step, whose arguments the refusal's recourse edits.
+/// Step indices are into the program slice; for a program that ENDS
+/// without closing the step is the length (one past the last step),
+/// and the kind's `verb` is then `None`. The error holds the step the
+/// replay was applying ([`Self::raised_at`]); the step it is about
+/// ([`Self::step`]) is read off the kind, so the two cannot disagree: a
+/// refusal a later step raises about an earlier one
+/// ([`PathError::Deferred`]: a fillet resolved where its arrival is
+/// fixed, a stored form re-read where the loop closes) is about the
+/// earlier step.
 #[derive(Clone, Debug)]
 pub struct ReplayError<T: Real> {
-    /// The index of the step the refusal is about.
-    pub step: usize,
+    /// The step being applied when the replay refused.
+    applying: usize,
     /// The refusal class.
     pub kind: ReplayErrorKind<T>,
 }
@@ -2555,35 +2558,39 @@ pub enum ReplayErrorKind<T: Real> {
 }
 
 impl<T: Real> ReplayError<T> {
-    /// What the step at `applying` refused, at the step it is about.
-    fn applying(applying: usize, kind: ReplayErrorKind<T>) -> Self {
-        let step = match &kind {
-            ReplayErrorKind::Path(source) => source.step().unwrap_or(applying),
-            ReplayErrorKind::Transition { .. } => applying,
-        };
-        Self { step, kind }
+    /// What the step at `applying` refused.
+    #[must_use]
+    pub fn new(applying: usize, kind: ReplayErrorKind<T>) -> Self {
+        Self { applying, kind }
     }
 
-    /// The step the replay was applying when it refused: [`Self::step`],
-    /// or the later step a deferred refusal was raised at
-    /// ([`PathError::Deferred`]). The replay got through every step
-    /// before it.
+    /// The step the refusal is about: the one whose arguments its
+    /// recourse edits — [`Self::raised_at`], or the earlier step a
+    /// deferred refusal names ([`PathError::step`]).
+    #[must_use]
+    pub fn step(&self) -> usize {
+        match &self.kind {
+            ReplayErrorKind::Path(source) => source.step().unwrap_or(self.applying),
+            ReplayErrorKind::Transition { .. } => self.applying,
+        }
+    }
+
+    /// The step the replay was applying when it refused. The replay
+    /// got through every step before it, so this, not [`Self::step`],
+    /// is how far a replay reached.
     #[must_use]
     pub fn raised_at(&self) -> usize {
-        match &self.kind {
-            ReplayErrorKind::Path(PathError::Deferred { raised_at, .. }) => *raised_at,
-            ReplayErrorKind::Path(_) | ReplayErrorKind::Transition { .. } => self.step,
-        }
+        self.applying
     }
 
     fn transition(step: usize, state: TipState, verb: Verb) -> Self {
-        Self {
+        Self::new(
             step,
-            kind: ReplayErrorKind::Transition {
+            ReplayErrorKind::Transition {
                 state,
                 verb: Some(verb),
             },
-        }
+        )
     }
 }
 
@@ -2617,12 +2624,16 @@ impl<T: Real> geom_core::Tell for ReplayError<T> {
                 write!(
                     f,
                     "step {}: {refused} (lattice violation — {class}). {}",
-                    self.step,
+                    self.applying,
                     geom_core::Recourse(refused.recourse())
                 )
             }
+            // A deferred refusal's sentence opens on the step it names.
+            ReplayErrorKind::Path(source) if source.step().is_some() => {
+                write!(f, "{}", source.told_in(notation))
+            }
             ReplayErrorKind::Path(source) => {
-                write!(f, "step {}: {}", self.step, source.told_in(notation))
+                write!(f, "step {}: {}", self.applying, source.told_in(notation))
             }
         }
     }
@@ -3210,9 +3221,8 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     // per-decision disagreement — no single predicate moved — so it is
     // reported at the record's own shape.
     let got = closed.structure.fillets.len();
-    let refuse = |r: StructureRefusal| ReplayError {
-        step: steps.len(),
-        kind: ReplayErrorKind::Path(PathError::Structure(r)),
+    let refuse = |r: StructureRefusal| {
+        ReplayError::new(steps.len(), ReplayErrorKind::Path(PathError::Structure(r)))
     };
     if got != want {
         return Err(refuse(StructureRefusal::shape(want, got)));
@@ -3406,9 +3416,9 @@ impl<T: Real> Carrier<T> {
 /// **What one fillet step constructs** — every fillet verb's, the bare
 /// `fillet(r)` included: the sides its fit was handed, each recorded
 /// when it is bound, and the fit's answer once it has one. The record
-/// is filed against the fillet step, and so is the refusal of its fit,
-/// though a later binder fixes the arrival and raises it
-/// ([`PathError::Deferred`]).
+/// is filed against the fillet step, and so is a refusal of its fit
+/// whose levers include the fillet's, though a later binder fixes the
+/// arrival and raises it ([`PathError::Deferred`]).
 #[derive(Clone, Debug)]
 pub struct FilletConstruction<T: Real> {
     /// The fillet step, in program order.
@@ -3687,13 +3697,13 @@ fn drive<T: ArcCarrierScalar>(
             )),
             None => Ok(closed),
         },
-        Walked::Open(tip) => Err(ReplayError {
-            step: steps.len(),
-            kind: ReplayErrorKind::Transition {
+        Walked::Open(tip) => Err(ReplayError::new(
+            steps.len(),
+            ReplayErrorKind::Transition {
                 state: tip.state(),
                 verb: None,
             },
-        }),
+        )),
     }
 }
 
@@ -3733,14 +3743,14 @@ fn walk<T: ArcCarrierScalar>(
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied =
-            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError::applying(i, kind))?;
+            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError::new(i, kind))?;
         if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
-            return Err(ReplayError {
-                step: 0,
-                kind: ReplayErrorKind::Path(PathError::Structure(
-                    StructureRefusal::guide_not_installed(),
-                )),
-            });
+            return Err(ReplayError::new(
+                0,
+                ReplayErrorKind::Path(
+                    PathError::Structure(StructureRefusal::guide_not_installed()),
+                ),
+            ));
         }
         match applied {
             Applied::Tip(next) => tip = next,

@@ -3,6 +3,9 @@ id: a-cusp-refused-at-the-close-is-filed-against-the-close
 kind: issue
 title: A cusp that doubles back over its leg is refused at the close, and filed against the close rather than the cusp step
 status: open
+priority: P2
+cost: M
+design: true
 opened: 2026-11-20
 ---
 

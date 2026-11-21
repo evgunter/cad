@@ -1358,7 +1358,8 @@ pub fn grid_a_overruns_inside_the_band() -> (usize, usize, usize) {
     std::fs::remove_file(&out).expect("the child's file is removed");
     let mut taken = std::collections::BTreeSet::new();
     grid_a(|n, _, _, res| {
-        if let Err(PathError::Escalated { source, .. }) = res
+        if let Err(e) = res
+            && let PathError::Escalated { source, .. } = e.refusal()
             && source.predicate == Some("fillet_leg_fit")
         {
             taken.insert(n);

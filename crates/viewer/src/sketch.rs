@@ -1394,11 +1394,16 @@ impl Tell for PreviewError {
                 step,
                 rendered,
                 ..
-            } => write!(
-                f,
-                "loop {loop_} step {step}: {}",
-                rendered.told_in(notation)
-            ),
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                let said = rendered.told_in(notation).to_string();
+                if said.starts_with(&format!("step {step}'s ")) {
+                    write!(f, "loop {loop_}: {said}")
+                } else {
+                    write!(f, "loop {loop_} step {step}: {said}")
+                }
+            }
         }
     }
 }
@@ -2113,11 +2118,10 @@ pub fn tip_state_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Option<TipState
     }
     match replay(prefix, tol) {
         Ok(_) => Some(TipState::Closed),
-        Err(ReplayError {
-            step,
-            kind: ReplayErrorKind::Transition { state, verb: None },
-        }) if step == at => Some(state),
-        Err(_) => None,
+        Err(e) => match e.kind {
+            ReplayErrorKind::Transition { state, verb: None } if e.raised_at() == at => Some(state),
+            _ => None,
+        },
     }
 }
 
@@ -2217,13 +2221,13 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
     match error.kind {
         ReplayErrorKind::Transition { state, verb } => PreviewError::Transition {
             loop_,
-            step: error.step,
+            step: error.step(),
             state,
             verb,
         },
         ReplayErrorKind::Path(ref source) => PreviewError::Geometry {
             loop_,
-            step: error.step,
+            step: error.step(),
             kind: source.kind(),
             rendered: pncad::geom_core::Sentence::new(source.clone()),
         },
@@ -2728,7 +2732,9 @@ mod tests {
             matches!(
                 &refused,
                 PreviewError::Geometry { step: 3, rendered, .. }
-                    if rendered.starts_with("not resolved at step 5, its arrival: ")
+                    if rendered
+                        .to_string()
+                        .starts_with("step 3's fillet, not resolved at step 5: ")
             ),
             "the fillet refuses at its own step, raised by the binder that completes its \
              arrival: {refused}"
@@ -3002,16 +3008,16 @@ mod tests {
                     ..
                 } if *step == steps.len() => None,
                 // The close's refusal of the pending fillet, at the
-                // fillet's step, naming the close as its arrival.
+                // fillet's step, naming the close, not a step number
+                // nobody wrote.
                 PreviewError::Geometry {
                     loop_: 0,
                     step,
                     kind,
                     rendered,
                 } if *step == steps.len() - 2
-                    && rendered.starts_with(&format!(
-                        "not resolved at step {}, its arrival: ",
-                        steps.len()
+                    && rendered.to_string().starts_with(&format!(
+                        "step {step}'s fillet, not resolved at the close: "
                     )) =>
                 {
                     Some(*kind)

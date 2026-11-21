@@ -1564,7 +1564,7 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
-                step: error.step,
+                step: error.step(),
                 structure: match &error.kind {
                     profile::ReplayErrorKind::Path(source) => match source.refusal() {
                         profile::PathError::Structure(r) => Some(r.clone()),

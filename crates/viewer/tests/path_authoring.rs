@@ -608,11 +608,19 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
         matches!(
             &refusal,
             PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
-                if rendered.starts_with(
-                    "not stored at step 8, the close: "
+                if rendered.to_string().starts_with(
+                    "step 2's fillet, not stored at the close: "
                 )
         ),
         "{refusal}",
+    );
+    // The sentence opens on the step it names, so the preview's own
+    // prefix does not name it again.
+    assert!(
+        refusal
+            .to_string()
+            .starts_with("loop 0: step 2's fillet, not stored at the close: "),
+        "{refusal}"
     );
 
     // The document lands the profile and its evaluation refuses it,
@@ -631,7 +639,7 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
     };
     let said = error.to_string();
     assert!(
-        said.contains("profile loop 0 refused at step 2: not stored at step 8, the close: "),
+        said.contains("profile loop 0 refused at step 2's fillet, not stored at the close: "),
         "the document files it at the fillet too: {said}",
     );
 }
@@ -688,7 +696,8 @@ fn an_arc_spec_verb_starts_in_a_form_its_row_takes() {
             let mut chain = prefix.clone();
             chain.push(sketch::fresh_step_at(verb, state));
             let refused = pncad::profile::replay(&chain, tol).err().filter(|e| {
-                e.step == at && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
+                e.step() == at
+                    && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
             });
             assert!(refused.is_none(), "{verb} at {want:?}: {refused:?}");
         }
