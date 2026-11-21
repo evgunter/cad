@@ -724,9 +724,19 @@ pub(crate) enum MevCurveMint<T: Real> {
 pub(crate) enum NewCurve<T: Real> {
     /// The caller's spec.
     Given(EdgeCurveSpec<T>),
+    /// The caller's spec, a copy of an edge whose locus certificate the
+    /// caller holds, which the edge door reads where its support is the
+    /// spec's ([`Body::certify_edge_spec`]).
+    Kept(EdgeCurveSpec<T>, geom_brep::LocusCertificate<T>),
     /// The chord line between the endpoints' points, or the canonical
     /// scaffolding circle when both endpoints are one vertex.
     Chord,
+}
+
+impl<T: Real> From<EdgeCurveSpec<T>> for NewCurve<T> {
+    fn from(spec: EdgeCurveSpec<T>) -> Self {
+        Self::Given(spec)
+    }
 }
 
 impl<T: Real> NewCurve<T> {
@@ -740,9 +750,30 @@ impl<T: Real> NewCurve<T> {
         p_to: Point3<T>,
     ) -> EdgeCurveSpec<T> {
         match self {
-            Self::Given(spec) => spec,
+            Self::Given(spec) | Self::Kept(spec, _) => spec,
             Self::Chord if one_vertex => EdgeCurveSpec::self_loop_circle_at(p_from),
             Self::Chord => EdgeCurveSpec::line_between(p_from, p_to),
+        }
+    }
+
+    /// The caller's spec, held with the locus certificate of the edge it
+    /// copies where the caller holds one.
+    pub(crate) fn keeping(
+        spec: EdgeCurveSpec<T>,
+        locus: Option<geom_brep::LocusCertificate<T>>,
+    ) -> Self {
+        match locus {
+            Some(locus) => Self::Kept(spec, locus),
+            None => Self::Given(spec),
+        }
+    }
+
+    /// The locus certificate the caller holds for the spec, where it
+    /// holds one.
+    pub(crate) fn kept(&self) -> Option<geom_brep::LocusCertificate<T>> {
+        match self {
+            Self::Kept(_, locus) => Some(locus.clone()),
+            Self::Given(_) | Self::Chord => None,
         }
     }
 }
@@ -2323,7 +2354,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn mef(
         &mut self,
         site: MefSite,
-        curve: EdgeCurveSpec<T>,
+        curve: impl Into<NewCurve<T>>,
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError>
@@ -2332,7 +2363,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mef_with(site, NewCurve::Given(curve), surface, tol)?;
+        let created = self.mef_with(site, curve.into(), surface, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
         Ok(created)
@@ -2439,6 +2470,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(false, p_old, point),
             p_old,
             point,
@@ -2708,6 +2740,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(false, p_old, point),
             p_old,
             point,
@@ -2932,10 +2965,19 @@ impl<T: Decide> Body<T> {
         )?;
         let carried = resolved.on_parent_chart;
         let after = Slot::of_spec(&surface, inherit_surface);
+        let kept = curve.kept();
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified =
-            self.certify_edge_spec(Origin::Callers, None, spec, p1, p2, [face_key; 2], tol)?;
+        let certified = self.certify_edge_spec(
+            Origin::Callers,
+            None,
+            kept.as_ref(),
+            spec,
+            p1,
+            p2,
+            [face_key; 2],
+            tol,
+        )?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3105,11 +3147,13 @@ impl<T: Decide> Body<T> {
             ParentSide::With,
         )?;
         let after = Slot::of_spec(&surface, inherit_surface);
+        let kept = curve.kept();
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
         let certified = self.certify_edge_spec(
             Origin::Callers,
             None,
+            kept.as_ref(),
             spec,
             anchor,
             anchor,
@@ -3659,8 +3703,11 @@ impl<T: Decide> Body<T> {
     /// that operand's untrimmed faces, and later discards one piece of a
     /// face a chord divides. What guarantees the result is the at-rest
     /// gate, which re-reads every edge at the faces it bounds there
-    /// (tier 3's re-certification and check 4). Pure (no mutation) —
-    /// ops call it inside their precondition phase.
+    /// (tier 3's re-certification and check 4). The locus certificate
+    /// of `edge`'s own curve, and `kept` (one a door holds for an edge it
+    /// copies), are read where their support is the spec's, and derived
+    /// again where it is not ([`geom_brep::EdgeCurve::certify_carrying`]).
+    /// Pure (no mutation) — ops call it inside their precondition phase.
     ///
     /// # Errors
     ///
@@ -3670,6 +3717,7 @@ impl<T: Decide> Body<T> {
         &self,
         origin: Origin,
         edge: Option<EdgeKey>,
+        kept: Option<&geom_brep::LocusCertificate<T>>,
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
@@ -3694,6 +3742,12 @@ impl<T: Decide> Body<T> {
             }
             _ => None,
         };
+        let own = edge
+            .and_then(|edge| self.edges.get(edge))
+            .and_then(|data| self.get_curve_geom(data.curve))
+            .and_then(|curve| curve.certified())
+            .and_then(geom_brep::EdgeCurve::locus_certificate);
+        let kept: Vec<_> = kept.into_iter().chain(own).collect();
         crate::policy_lane::certify_stated(
             origin,
             spec,
@@ -3703,6 +3757,7 @@ impl<T: Decide> Body<T> {
             reach,
             band,
             stated.as_ref(),
+            &kept,
         )
         .map_err(|error| EulerOpError::Certification { error })
     }
@@ -3823,8 +3878,9 @@ impl<T: Decide> Body<T> {
     /// run from. So the operator asks, before it mutates, whether that
     /// certificate is still true of the edge it is about to make —
     /// through [`EdgeCurve::recertify`], the same door `split_edge`
-    /// certifies its children through, which re-derives rather than
-    /// trusting the stored certificate. Where it holds the certificate
+    /// certifies its children through, which runs every check again and
+    /// reads the edge's locus certificate only where its support is the
+    /// edge's as it stands. Where it holds the certificate
     /// is carried untouched (the coincident-point case: no endpoint
     /// moved, so nothing is re-minted and no byte changes); where it
     /// fails because of the move the operator refuses
@@ -3888,9 +3944,10 @@ impl<T: Decide> Body<T> {
     /// `work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`.
     /// Every other doc that meets this question points here.
     ///
-    /// **Each edge is re-derived through the scalar's edge door**
-    /// ([`crate::AtRestPolicy::reattach_edge`]): its certificate in full
-    /// where the scalar certifies, its mint where it never does. A run
+    /// **Each edge is certified again through the scalar's edge door**
+    /// ([`crate::AtRestPolicy::reattach_edge`]): every check where the
+    /// scalar certifies (its locus read by its support), its mint where it
+    /// never does. A run
     /// moving one half of a null edge is refused at the old point at
     /// every scalar, an over-refusal of a move that moves nothing. A fan split that
     /// keeps the old point is [`Body::mev_null`](crate::construction::Construct::mev_null)'s, which copies the old
@@ -5140,9 +5197,11 @@ mod tests {
             )
             .unwrap();
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let split = body
             .mef(
@@ -5207,14 +5266,18 @@ mod tests {
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_y(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_y(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let mut spec = geom_brep::EdgeCurveSpec::line_between(
             Point3::new(0.0, 0.0, 0.0),
@@ -5657,9 +5720,11 @@ mod tests {
         assert!(!patch.is_placeholder());
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
         *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_y(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::unit_y(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         // The lane's certificate is a hull statement about a control
         // net, so the declared carrier is the chord as a degree-1 spline.

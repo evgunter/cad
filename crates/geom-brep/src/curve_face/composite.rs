@@ -55,7 +55,7 @@ use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
@@ -163,15 +163,44 @@ impl Reading {
 /// true crossing's parameter.
 ///
 /// `cross` takes a scalar of the body into certification arithmetic: it
-/// is the door's ([`crate::NurbsLane::surface_crossings`]), so only a
-/// scalar that may certify reaches the arm.
+/// is the door's ([`crate::NurbsLane::surface_crossings`]). The routine
+/// is certification interior and its bound says so, so a dual cannot
+/// instantiate it:
+///
+/// ```compile_fail,E0277
+/// use geom_brep::curve_face::composite::crossings;
+/// use geom_core::{Band, Dual64, Interval};
+/// fn at_a_dual(
+///     net: &geom::NurbsCurve3<Dual64>,
+///     params: (Dual64, Dual64),
+///     surface: &geom::Surface<Dual64>,
+///     band: Band,
+///     cross: fn(Dual64) -> Interval,
+/// ) {
+///     let _ = crossings(net, params, surface, band, cross);
+/// }
+/// ```
+///
+/// ```
+/// use geom_brep::curve_face::composite::crossings;
+/// use geom_core::{Band, Interval};
+/// fn at_f64(
+///     net: &geom::NurbsCurve3<f64>,
+///     params: (f64, f64),
+///     surface: &geom::Surface<f64>,
+///     band: Band,
+///     cross: fn(f64) -> Interval,
+/// ) {
+///     let _ = crossings(net, params, surface, band, cross);
+/// }
+/// ```
 ///
 /// # Errors
 ///
 /// [`CompositeRefusal`], as its variants say.
 // `!(a < b)` is deliberate: a NaN end refuses.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn crossings<T: Decide>(
+pub fn crossings<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     params: (T, T),
     surface: &Surface<T>,
@@ -271,15 +300,25 @@ pub fn crossings<T: Decide>(
     settle(net, params, band, &creases, meetings, &residual)
 }
 
-/// The composite's rows over `[a, b]`, one piece per knot span, and an
-/// upper bound on the form's distance divisor over the net's hull
-/// (`projected::Meters::divisor`; one for the plane).
-fn composite_rows<T: Real>(
-    net: &NurbsCurve3<T>,
+/// [`framed_form`]'s answer: the points' coordinates in the chart frame,
+/// the canonical form and its metres conversion.
+pub(crate) type FramedForm = ([Vec<Interval>; 3], CanonicalSurface, Meters<Interval>);
+
+/// A surface's canonical form and its metres conversion, with `points`
+/// written in its chart frame in certification arithmetic, coordinate by
+/// coordinate: the operands a composite against the surface reads, for
+/// a carrier's net or a patch's ([`crate::patch_carrier`]) alike.
+///
+/// # Errors
+///
+/// [`CompositeRefusal::Unread`] off an analytic chart or for a point that
+/// does not certify; [`CompositeRefusal::FaceDegenerate`] where the chart
+/// frame does not.
+pub(crate) fn framed_form<T: geom_core::Certifies>(
     surface: &Surface<T>,
-    (a, b): (f64, f64),
+    points: &[Point3<T>],
     cross: &impl Fn(T) -> Interval,
-) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
+) -> Result<FramedForm, CompositeRefusal> {
     let unread = CompositeRefusal::Unread;
     let (origin, frame) = crate::pcurve_cache::projected::chart_frame(surface)
         .ok_or(unread("a spline face has no canonical form"))?;
@@ -304,8 +343,7 @@ fn composite_rows<T: Real>(
             "the face's chart frame does not certify",
         ));
     }
-    let framed: Vec<Vec3<Interval>> = net
-        .control()
+    let framed: Vec<Vec3<Interval>> = points
         .iter()
         .map(|&p| {
             let g = point(p) - o;
@@ -372,6 +410,20 @@ fn composite_rows<T: Real>(
             return Err(unread("a spindle sheet's face has no composite lane yet"));
         }
     };
+    Ok((coords, form, meters))
+}
+
+/// The composite's rows over `[a, b]`, one piece per knot span, and an
+/// upper bound on the form's distance divisor over the net's hull
+/// (`projected::Meters::divisor`; one for the plane).
+fn composite_rows<T: geom_core::Certifies>(
+    net: &NurbsCurve3<T>,
+    surface: &Surface<T>,
+    (a, b): (f64, f64),
+    cross: &impl Fn(T) -> Interval,
+) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
+    let unread = CompositeRefusal::Unread;
+    let (coords, form, meters) = framed_form(surface, net.control(), cross)?;
     // The net's hull in the chart frame bounds every point of the span,
     // so the divisor read over it bounds every point's.
     let divisor = meters
@@ -410,7 +462,7 @@ fn composite_rows<T: Real>(
 
 /// The carrier's creases strictly inside `(a, b)`, each at its held
 /// knot's lower end, which is the knot where it is a point.
-fn creases<T: Real>(
+fn creases<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
@@ -687,7 +739,7 @@ fn knot_crossing(
 /// The meetings found, each placed in metres: against the creases, then
 /// on the surface, then against the span's ends and the crossing before
 /// it.
-fn settle<T: Decide>(
+fn settle<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
     band: Band,

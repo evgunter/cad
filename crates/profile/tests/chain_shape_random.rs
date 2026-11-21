@@ -288,7 +288,8 @@ fn redraws(r: &mut Rng, steps: &[Step<f64>]) -> Vec<Option<(usize, profile::Path
 /// A chord that closes on itself: exactly zero, as a coincidence of two
 /// grid points or a tip that is the entry makes it.
 fn zero_chord(e: &profile::PathError<f64>) -> bool {
-    matches!(e, profile::PathError::DegenerateArcChord { chord } if *chord == 0.0)
+    matches!(e, profile::PathError::DegenerateArcChord { chord }
+        if crate::common::told(chord) == 0.0)
 }
 
 /// What one prefix's comparison reached.

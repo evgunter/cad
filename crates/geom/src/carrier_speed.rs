@@ -60,7 +60,7 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
 /// a line or a clamped spline, which have no period.
 pub fn speed_floor<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
     match carrier {
-        crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
+        crate::Curve3::Circle(c) => Some(InfSpeed::new(crate::Conic::speed_lo(c))),
         crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(e))),
         crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(*minor_radius)),
         // Of the carriers with no closed form, the one with a period.

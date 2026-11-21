@@ -550,12 +550,8 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             };
             match *surface {
                 Surface::Plane { .. } => assert_eq!(kw, "PLANE", "FRAME: {name}"),
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref,
-                } => {
+                Surface::Cylinder { frame, radius } => {
+                    let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     assert_eq!(kw, "CYLINDRICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
                     assert_eq!(l, origin.to_array(), "FRAME: {name} cylinder origin");
@@ -563,12 +559,8 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     assert_eq!(x, u_ref.to_array(), "FRAME: {name} cylinder u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} cylinder radius");
                 }
-                Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    u_ref,
-                } => {
+                Surface::Cone { frame, half_angle } => {
+                    let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     assert_eq!(kw, "CONICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
                     assert_eq!(l, apex.to_array(), "FRAME: {name} cone apex");
@@ -577,12 +569,8 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     assert_eq!(real(&a[2]), 0.0, "FRAME: {name} cone radius at the apex");
                     assert_eq!(real(&a[3]), half_angle, "FRAME: {name} cone semi-angle");
                 }
-                Surface::Sphere {
-                    center,
-                    radius,
-                    axis,
-                    u_ref,
-                } => {
+                Surface::Sphere { frame, radius } => {
+                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     assert_eq!(kw, "SPHERICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
                     assert_eq!(l, center.to_array(), "FRAME: {name} sphere centre");
@@ -591,12 +579,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} sphere radius");
                 }
                 Surface::Torus {
-                    center,
-                    axis,
+                    frame,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 } => {
+                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     assert_eq!(kw, "TOROIDAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
                     assert_eq!(l, center.to_array(), "FRAME: {name} torus centre");
@@ -673,11 +660,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             // reversed NURBS face must hit the panic that names the
             // missing pin, not an index panic inside `placement`.
             let chart = match *surface {
-                Surface::Plane { normal, .. } => normal,
-                Surface::Cylinder { axis, .. }
-                | Surface::Cone { axis, .. }
-                | Surface::Sphere { axis, .. }
-                | Surface::Torus { axis, .. } => axis,
+                Surface::Plane { frame, .. } => frame.axis(),
+                Surface::Cylinder { frame, .. }
+                | Surface::Cone { frame, .. }
+                | Surface::Sphere { frame, .. }
+                | Surface::Torus { frame, .. } => frame.axis(),
                 // NURBS faces exist at rest since M6-3 (loft walls) but
                 // none reverses (pin A's derivation) — and a NURBS chart
                 // has no single axis to compare; if a reversed one ever
@@ -817,15 +804,18 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
             let place = || placement(&recs, refs(&a[1])[0]);
             match *carrier {
                 Curve3::Line(_) => assert_eq!(kw, "LINE", "{name}"),
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    radius,
-                }) => {
+                Curve3::Circle(
+                    conic_k @ geom::Circle {
+                        frame: carrier_frame_2,
+                        ..
+                    },
+                ) => {
+                    let (center, axis, u_ref) = (
+                        carrier_frame_2.origin(),
+                        carrier_frame_2.axis(),
+                        carrier_frame_2.u_ref(),
+                    );
+                    let radius = conic_k.radius();
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
                     assert_eq!(l, center.to_array(), "{name} circle centre");
@@ -833,16 +823,18 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
+                Curve3::Ellipse(
+                    conic_k @ geom::Ellipse {
+                        frame: carrier_frame_1,
+                        ..
+                    },
+                ) => {
+                    let (center, axis, u_ref) = (
+                        carrier_frame_1.origin(),
+                        carrier_frame_1.axis(),
+                        carrier_frame_1.u_ref(),
+                    );
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();

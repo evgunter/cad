@@ -383,7 +383,6 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
         let doctored = perturb_corner_consistently(&src, delta);
         let coarse = ImportOptions {
             eps_in: Some(1000.0 * eps),
-            ..ImportOptions::default()
         };
         match import_step(&doctored, &coarse, Tol::witness()) {
             Ok(StepImport::Solid {
@@ -410,10 +409,7 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
             }
             other => panic!("delta {delta:e}: heals within ε_in, got {other:?}"),
         }
-        let fine = ImportOptions {
-            eps_in: Some(eps),
-            ..ImportOptions::default()
-        };
+        let fine = ImportOptions { eps_in: Some(eps) };
         match import_step(&doctored, &fine, Tol::witness()) {
             Err(StepImportError::Interpretation { .. }) => {}
             other => panic!("delta {delta:e}: refuses past an ε_in of ε, got {other:?}"),
@@ -441,10 +437,7 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
 /// The import read at the run's own ε: the wedge files state themselves
 /// to full precision, and the poses are sized from the run's band.
 fn at_the_run(eps: f64) -> ImportOptions {
-    ImportOptions {
-        eps_in: Some(eps),
-        ..ImportOptions::default()
-    }
+    ImportOptions { eps_in: Some(eps) }
 }
 
 /// A thin triangular wedge prism, hand-emitted STEP: apex edge along z
@@ -660,7 +653,7 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// body is assembled. So this row pins THAT refusal; the
 /// at-rest gate's own `SliverDihedral` is reached by `topo`'s
 /// `review_m2_pr3` lamina, and through import by no row
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/hone/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn r1_in_band_dihedral_wedge_never_ships_silently() {
     let (leg, h) = (10.0_f64, 0.1_f64);

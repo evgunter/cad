@@ -43,7 +43,7 @@ fn ring(s: f64, centroid: f64) -> f64 {
     PI * centroid * s * s
 }
 
-fn volume<T: CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> T {
+fn volume<T: CertifiedBounds + topo::CertifiedPolicy>(body: &Body<T>) -> T {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
@@ -66,7 +66,7 @@ fn chamfer<T: Decide + Bounds + topo::AtRestPolicy>(
 /// volume moved by `want` — at `f64` to 1e-12, at `Interval` bracketed
 /// within a nanometre cubed — and the birth records total over
 /// `blended`, the request less any smooth seam it carries.
-fn built<T: Decide + CertifiedBounds + topo::AtRestPolicy>(
+fn built<T: Decide + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, blended): (&[EdgeKey], &[EdgeKey]),
@@ -119,7 +119,7 @@ fn revolved<T: Decide + topo::AtRestPolicy>(profile: &[(f64, f64)]) -> Body<T> {
 /// outer top edge as its outer cycle (a boss's top), both convex, in one
 /// call; a revolved counterbore's step carries its wide wall's foot
 /// (concave) and its narrow bore's mouth (convex), in one call.
-fn one_edge_annuli<T: Decide + CertifiedBounds + topo::AtRestPolicy>() {
+fn one_edge_annuli<T: Decide + CertifiedBounds + topo::CertifiedPolicy>() {
     let s = 0.1;
     let washer = revolved::<T>(&[(0.3, 0.0), (1.0, 0.0), (1.0, 0.5), (0.3, 0.5)]);
     let rims = [
@@ -467,9 +467,18 @@ fn a_posts_top_past_its_radius_refuses_at_the_screen() {
         1,
         -ring(s, r - s / 3.0),
     );
+    // The post's top: the planar face beside its rim.
+    let (a, b) = topo::readback::edge_sides(&post, top[0]).unwrap().faces();
+    let plane = |f| {
+        post.face_surface(f)
+            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane)
+    };
+    let cap = if plane(a) { a } else { b };
+    assert!(plane(cap), "the rim's other face is the post's planar top");
     for s in [r, 0.6] {
         match chamfer(&post, &top, s) {
-            Err(BlendError::FaceClearanceUncertified { margin, .. }) => {
+            Err(BlendError::FaceClearanceUncertified { face, margin, .. }) => {
+                assert_eq!(face, cap, "s = {s}: the screen names the post's top");
                 let reading = margin
                     .reading
                     .diagnostic_f64_for_error_text()

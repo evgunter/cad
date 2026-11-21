@@ -108,13 +108,10 @@ fn arc_station(s: f64) -> Result<Body<f64>, topo::EulerOpError> {
         .edges()
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
-            let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                ..
-            }) = *c.carrier()
-            else {
+            let Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
                 return None;
             };
+            let center = frame.origin();
             (center.z.abs() < 1e-9).then(|| {
                 let (t0, t1) = c.params();
                 (e, if t1 > t0 { t0 + s } else { t0 - s })
@@ -150,7 +147,7 @@ fn joins_sound(what: &str, mut body: Body<f64>) {
 /// unit height, and its material: a point inside the segment is in, one
 /// on the D short of `x = c` out. The cut's `Transversality` refusal
 /// this row pinned before has no row now
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/hone/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
     use topo::SolidContainment::{In, Out};

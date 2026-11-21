@@ -45,9 +45,9 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
-    chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
-    plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_feet,
+    chamfer_frustum, chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room,
+    plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::junction::JUNCTION_NO_HOST;
@@ -781,35 +781,6 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
-/// **A frustum's plane trim stays off the axis**: the plane support of
-/// a frustum link is a face reaching from the rim to the axis at most
-/// where the plane runs inward (a post's or a boss's top), so the band's
-/// setback there must be shorter than the rim's radius. The margin is the
-/// plane trim circle's own radius, `R − s` inward (`R + s` outward,
-/// always clear), and the gap it is read against the rim's radius `R`:
-/// the screen's own reading of a face too narrow for its setback, which
-/// the caller classifies under `fillet3_face_clearance` before any band
-/// is minted. `None` for a link of any other arm.
-fn frustum_plane_room<T: Decide>(
-    body: &Body<T>,
-    link: &Link<T>,
-) -> Result<Option<(FaceKey, T, T)>, BlendError> {
-    if link.arm != BlendArm::CylinderPlaneCone {
-        return Ok(None);
-    }
-    let (carrier, _, _) = carrier_of(body, link.edge)?;
-    let Some(rim) = carrier.as_circle() else {
-        return Ok(None);
-    };
-    Ok([link.face_a, link.face_b].into_iter().find_map(|face| {
-        let planar = body
-            .face_surface(face)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
-        let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
-        planar.then_some((face, trim.radius, rim.radius))
-    }))
-}
-
 // ---------------------------------------------------------------
 // Predicate 3 — spine regularity.
 // ---------------------------------------------------------------
@@ -1210,8 +1181,21 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         }
     };
     let (arm, blend, axis) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, branch, edge,
-        kind, band,
+        &sa,
+        n_a,
+        &sb,
+        n_b,
+        senses,
+        &carrier,
+        p,
+        tau,
+        extent,
+        radius,
+        convexity,
+        branch,
+        (edge, (face_a, face_b)),
+        kind,
+        band,
     )?;
     let support_axis = axis.map(|(relation, margin)| {
         row(
@@ -1242,7 +1226,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
 /// inherits (never a coordinate-axis tie-break).
 fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     match s {
-        Surface::Plane { u_ref, .. } => *u_ref,
+        Surface::Plane { frame, .. } => frame.u_ref(),
         _ => Vec3::new(T::zero(), T::zero(), T::zero()),
     }
 }
@@ -1372,7 +1356,8 @@ fn classify_arm<T: Decide + Bounds>(
     radius: T,
     convexity: Convexity,
     branch: Branch<T>,
-    edge: EdgeKey,
+    // The edge and its two support faces, in `(sa, sb)` order.
+    (edge, faces): (EdgeKey, (FaceKey, FaceKey)),
     kind: BlendKind,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
@@ -1388,6 +1373,10 @@ fn classify_arm<T: Decide + Bounds>(
                 other => other,
             })
         };
+        // The frustum's plane trim against the rim (`frustum_arm`), on
+        // whichever support is the plane.
+        let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
+        let room = |trim: T, rim: T| face_clearance_margin(plane, trim, rim, false, band);
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
@@ -1405,7 +1394,7 @@ fn classify_arm<T: Decide + Bounds>(
                 (p, tau),
                 radius,
                 convexity,
-                coaxial,
+                (coaxial, room),
                 unsupported,
             ),
             _ => Err(unsupported()),
@@ -1436,19 +1425,25 @@ fn classify_arm<T: Decide + Bounds>(
             None,
         )),
         (
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
         ) => {
-            let room = ball_room(*origin, n_a, *center, *r, senses.1)?;
+            let origin = plane_frame.origin();
+            let center = sphere_frame.origin();
+            let room = ball_room(origin, n_a, center, *r, senses.1)?;
             Ok((
                 BlendArm::PlaneSphereTorus,
                 room.plane_sphere(
-                    *origin,
+                    origin,
                     n_a,
                     plane_u(sa),
-                    *center,
+                    center,
                     *r,
                     radius,
                     senses.1,
@@ -1459,16 +1454,22 @@ fn classify_arm<T: Decide + Bounds>(
         }
         (
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            let room = ball_room(*origin, n_b, *center, *r, senses.0)?;
+            let center = sphere_frame.origin();
+            let origin = plane_frame.origin();
+            let room = ball_room(origin, n_b, center, *r, senses.0)?;
             let mut b = room.plane_sphere(
-                *origin,
+                origin,
                 n_b,
                 plane_u(sb),
-                *center,
+                center,
                 *r,
                 radius,
                 senses.0,
@@ -1491,6 +1492,16 @@ fn classify_arm<T: Decide + Bounds>(
 /// theirs), and the frustum through the strip's feet minted
 /// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
 /// the chamfer's table does not cover (`unsupported`).
+///
+/// **The plane trim stays off the axis, decided before the band is
+/// minted**: the plane support is a face reaching from the rim to the
+/// axis at most where it runs inward (a post's or a boss's top), so its
+/// trim circle's radius, the foot's distance from the axis along the
+/// sheet's radial (`R − s` inward, `R + s` outward), is the margin
+/// `room` decides (`fillet3_face_clearance` against the rim's radius
+/// `R`). Only a definitely positive one is a circle; zero is a cap
+/// consumed to a point and negative one consumed past the axis, and
+/// both refuse typed.
 #[allow(clippy::too_many_arguments)]
 fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
@@ -1500,7 +1511,12 @@ fn frustum_arm<T: Real>(
     (p, tau): (Point3<T>, Vec3<T>),
     radius: T,
     convexity: Convexity,
-    coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+    // The supports' coaxiality, and the plane trim's room (the
+    // caller's `fillet3_face_clearance` on the plane face).
+    (coaxial, room): (
+        impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+        impl FnOnce(T, T) -> Result<(), BlendError>,
+    ),
     unsupported: impl Fn() -> BlendError,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     let sheet = Meridian {
@@ -1514,9 +1530,20 @@ fn frustum_arm<T: Real>(
         return Err(unsupported());
     };
     let margin = coaxial(da.max(db))?;
+    let tau = tau.normalize();
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, radius);
+    let foot = if sa.kind() == geom::SurfaceKind::Plane {
+        foot_a
+    } else {
+        foot_b
+    };
+    room(
+        (foot - sheet.axis.origin).dot(sheet.radial()),
+        circle.radius(),
+    )?;
     Ok((
         BlendArm::CylinderPlaneCone,
-        chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
+        chamfer_frustum(&sheet, tau, n_a, n_b, radius),
         Some((topo::Relation::Coaxial, margin)),
     ))
 }
@@ -2232,14 +2259,9 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // --- 2. face clearance (the conservative screen — see
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
-    // the chamfer's screen runs on the chamfer's own setbacks.
-    for chain in &chains {
-        for link in chain.links() {
-            if let Some((face, trim, rim)) = frustum_plane_room(body, link)? {
-                face_clearance_margin(face, trim, rim, false, band)?;
-            }
-        }
-    }
+    // the chamfer's screen runs on the chamfer's own setbacks. A
+    // frustum's plane trim is screened earlier, when its arm is
+    // classified (`frustum_arm`), before its band is minted.
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for
@@ -2810,32 +2832,42 @@ pub(crate) fn turn_reading<T: Decide>(
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
     let mitre_plane = |k: usize| match (&links[k].blend.surface, &links[1 - k].blend.surface) {
-        (Surface::Plane { origin, normal, .. }, _) => Ok((*origin, *normal)),
+        (
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+            _,
+        ) => {
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            Ok((origin, normal))
+        }
         (
             Surface::Cylinder {
-                origin: c1,
-                axis: a1,
+                frame: cylinder_frame_2,
                 ..
             },
             Surface::Cylinder {
-                origin: c2,
-                axis: a2,
+                frame: cylinder_frame,
                 ..
             },
-        ) => Ok((
-            line_meet(
-                geom::Line {
-                    origin: *c1,
-                    dir: *a1,
-                },
-                geom::Line {
-                    origin: *c2,
-                    dir: *a2,
-                },
-                a1.cross(*a2),
-            ),
-            dirs[0] - dirs[1],
-        )),
+        ) => {
+            let (c1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis());
+            let (c2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
+            Ok((
+                line_meet(
+                    geom::Line {
+                        origin: c1,
+                        dir: a1,
+                    },
+                    geom::Line {
+                        origin: c2,
+                        dir: a2,
+                    },
+                    a1.cross(a2),
+                ),
+                dirs[0] - dirs[1],
+            ))
+        }
         _ => Err(unbuilt_geometry(
             EntityId::Edge(links[k].edge),
             "a turning band is neither a plane nor a cylinder",
@@ -3070,18 +3102,24 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(cap) else {
+        let Some(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = body.face_surface(cap)
+        else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
+        let normal = carrier_frame.axis();
         // The ruling is the arm's own: a ruled arm's band is the
         // cylinder about it (`Ruling::blend`).
-        let Surface::Cylinder { axis, .. } = link.blend.surface else {
+        let Surface::Cylinder { frame, .. } = link.blend.surface else {
             return Err(invariant_broken(
                 EntityId::Edge(link.edge),
                 "a ruled link's band is not the cylinder about its ruling",
             ));
         };
-        let section = cap_transverse(vertex, *normal, axis, radius, link.arm_len, band)?;
+        let axis = frame.axis();
+        let section = cap_transverse(vertex, normal, axis, radius, link.arm_len, band)?;
         if let EndSection::Ellipse(_) = section {
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
@@ -3159,10 +3197,11 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(end) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
-        Some(*normal)
+        let normal = frame.axis();
+        Some(normal)
     } else {
         None
     };
@@ -3411,12 +3450,13 @@ fn cut_off_section<T: Decide + Bounds>(
     match kind {
         BlendKind::Chamfer => Ok(EndSection::Chord),
         BlendKind::Fillet => {
-            let Surface::Cylinder { axis, .. } = link.blend.surface else {
+            let Surface::Cylinder { frame, .. } = link.blend.surface else {
                 return Err(invariant_broken(
                     EntityId::Edge(link.edge),
                     "a plane–plane fillet link's band is not a cylinder",
                 ));
             };
+            let axis = frame.axis();
             cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
         }
     }
@@ -3990,8 +4030,7 @@ mod coaxial_spine_rows {
                     panic!("r = {r}: the rim is a wedge, not a smooth seam");
                 };
                 let Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius,
                     minor_radius,
                     ..
@@ -3999,6 +4038,7 @@ mod coaxial_spine_rows {
                 else {
                     panic!("r = {r}: the coaxial arm's band is a torus");
                 };
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 assert!(
                     major_radius > 0.0,
                     "r = {r}: the spine's radius, {major_radius}"
@@ -4035,11 +4075,9 @@ mod coaxial_spine_rows {
                 );
                 // The signed form's surface, chart for chart.
                 let signed = Surface::Torus {
-                    center,
-                    axis,
+                    frame: geom::Frame::new(center, axis, radial),
                     major_radius: s,
                     minor_radius,
-                    u_ref: radial,
                 };
                 for (i, j) in (0..6).flat_map(|i| (0..6).map(move |j| (i, j))) {
                     let (u, v) = (f64::from(i) * 1.1, f64::from(j) * 1.1);
@@ -4057,20 +4095,31 @@ mod coaxial_spine_rows {
                     let Curve3::Circle(c) = trim else {
                         panic!("r = {r}: a coaxial trimline is a circle");
                     };
-                    assert!(c.radius > 0.0, "r = {r}: a trimline's radius, {}", c.radius);
+                    assert!(
+                        c.radius() > 0.0,
+                        "r = {r}: a trimline's radius, {}",
+                        c.radius()
+                    );
                     // The contact: where the circle crosses the rim's
                     // sheet, at the ball's radius from its centre.
-                    let at = |x: f64| ((c.frame.origin + radial * x) - ball).norm() - r;
-                    let rho = if at(c.radius).abs() < at(-c.radius).abs() {
-                        c.radius
+                    let at = |x: f64| ((c.frame.origin() + radial * x) - ball).norm() - r;
+                    let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
+                        c.radius()
                     } else {
-                        -c.radius
+                        -c.radius()
                     };
                     assert!(
                         at(rho).abs() < 1e-9,
                         "r = {r}: the trimline holds the contact"
                     );
-                    let signed = Curve3::circle(c.frame.origin, axis, rho, radial);
+                    // The signed circle at `rho` is the circle of `|rho|`
+                    // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
+                    // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
+                    let signed = if rho > 0.0 {
+                        Curve3::circle(c.frame.origin(), axis, rho, radial)
+                    } else {
+                        Curve3::circle(c.frame.origin(), axis, -rho, -radial)
+                    };
                     for k in 0..8 {
                         let t = f64::from(k) * 0.8;
                         let gap = (trim.eval(t) - signed.eval(t)).norm();

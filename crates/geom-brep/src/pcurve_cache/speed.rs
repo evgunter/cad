@@ -48,7 +48,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, SplineCoeffs};
 use geom_core::{Bounds, Vec2, Vec3};
 
-use super::projected::{FramedCarrier, ProjectedChart, ProjectedImage};
+use super::projected::{FramedCarrier, ProjectedChart, ProjectedImage, in_frame, radial_of};
 use super::{Channel, FocalImage, SpiricImage, harmonic_form_of, iso_arc_skew, iso_arc_spans};
 
 /// Why an image has no certified per-axis speed bound
@@ -351,8 +351,39 @@ pub(super) fn projected_speeds(
     match *image.chart() {
         ProjectedChart::Plane => Ok((speed, speed)),
         ProjectedChart::Cylinder | ProjectedChart::Cone { .. } => Ok((over(levers.rho)?, speed)),
+        ProjectedChart::Sphere if image.pole().is_some() => {
+            Ok((pole_azimuth_speed(image)?, over(levers.norm)?))
+        }
         ProjectedChart::Sphere => Ok((over(levers.rho)?, over(levers.norm)?)),
         ProjectedChart::Torus { major } => Ok((over(levers.rho)?, over(levers.tube(major))?)),
+    }
+}
+
+/// The azimuth's speed bound of an image with a pole end
+/// ([`super::projected::PoleEnd`]): its azimuth is that of the reduced
+/// radial `g(t) = A·cos(t/2) + B·sin(t/2)`, whose rate is
+/// `|g × g′|/|g|²` with `g′ = ½(B·cos(t/2) − A·sin(t/2))`. `g` and `2g′`
+/// are the matrix `M = [A B]` applied to the unit vectors `(cos, sin)`
+/// and `(−sin, cos)`, so `|g × 2g′| = |det M|` exactly and `|g| ≥ σ_min(M)`:
+/// the rate is at most `|det M| / (2·σ_min²) = σ_max² / (2·|det M|)`, from
+/// `σ_min·σ_max = |det M|`. `σ_max²` is the larger eigenvalue of `MᵀM`.
+/// Read in interval arithmetic; a `det M` whose enclosure holds zero (the
+/// conic's radial part a segment, a meridian's) bounds nothing.
+fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> {
+    let (Some(pole), FramedCarrier::Conic { a, b, .. }) = (image.pole(), image.carrier()) else {
+        unreachable!("an image with a pole end is a conic's")
+    };
+    let (ga, gb) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+    let i = Interval::point;
+    let (ax, ay, bx, by) = (i(ga.x), i(ga.y), i(gb.x), i(gb.y));
+    let (aa, bb, ab) = (ax.sqr() + ay.sqr(), bx.sqr() + by.sqr(), ax * bx + ay * by);
+    let sigma_max_sq = i(0.5) * (aa + bb) + hyp(i(0.5) * (aa - bb), ab);
+    let det = ax * by - ay * bx;
+    let det = if det.hi() < 0.0 { i(0.0) - det } else { det };
+    if det.lo() > 0.0 {
+        finite((sigma_max_sq / (i(2.0) * det)).hi())
+    } else {
+        Err(NoSpeedBound::ThroughSingularSet)
     }
 }
 
@@ -437,7 +468,7 @@ fn conic_levers(c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>, params: (f64, f64)) ->
         let swing = i(2.0) * hyp(dot(c, a), dot(c, b)) + hyp(i(0.5) * (aa - bb), ab);
         (k - swing, k + swing)
     };
-    let flat = |v: Vec3<f64>| Vec3::new(v.x, v.y, 0.0);
+    let flat = |v: Vec3<f64>| in_frame(radial_of(v));
     let (p_sq_min, p_sq_max) = quadratic(c, a, b);
     let (xy_sq_min, xy_sq_max) = quadratic(flat(c), flat(a), flat(b));
     let z = harmonic_enclosure(c.z, a.z, b.z, params);
@@ -458,7 +489,7 @@ fn conic_levers(c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>, params: (f64, f64)) ->
 /// the span, at the nearer end. `ρ` is largest at an end.
 fn line_levers(point: Vec3<f64>, dir: Vec3<f64>, (t0, t1): (f64, f64)) -> Levers {
     let i = Interval::point;
-    let flat = |v: Vec3<f64>| Vec3::new(v.x, v.y, 0.0);
+    let flat = |v: Vec3<f64>| in_frame(radial_of(v));
     let at = |p: Vec3<f64>, d: Vec3<f64>, t: f64| {
         let q = |x: f64, dx: f64| i(x) + i(dx) * i(t);
         (q(p.x, d.x).sqr() + q(p.y, d.y).sqr() + q(p.z, d.z).sqr()).sqrt()
@@ -669,7 +700,8 @@ pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
                 } => v3(*point) && v3(*dir) && all(&[*origin, *span]),
                 FramedCarrier::Net(n) => n.control().iter().all(|q| all(&[q.x, q.y, q.z])),
             };
-            chart && carrier && all(&[u_off, v_off, v_sign])
+            let pole = p.pole().is_none_or(|pole| pole.at().is_finite());
+            chart && carrier && pole && all(&[u_off, v_off, v_sign])
         }
     }
 }

@@ -662,21 +662,19 @@ impl<T: Decide> Curve3<T> {
             Self::Line(line) => line.distance(q),
             Self::Circle(c) => {
                 let (h, rho) = c.frame.axis_line().height_and_distance(q);
-                (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
+                (h.powi(2) + (rho - c.radius()).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
-                let lower =
-                    ellipse_level_clearance(e.frame.in_plane(q), (e.semi_u, e.semi_v)).abs();
+                let lower = ellipse_level_clearance(e.frame.in_plane(q), e.semi_axes()).abs();
                 (lower.powi(2) + e.frame.height(q).powi(2)).sqrt()
             }
             Self::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let w = q - center;
                 let plane = (w.dot(u_ref) - offset).abs();
                 let (h, rho) = crate::Line {
@@ -725,7 +723,7 @@ impl<T: Decide> Curve3<T> {
         Some(match self.closed_form()? {
             ClosedForm::Line(line) => line.distance_within(q, (lo, hi)),
             ClosedForm::Circle(c) => {
-                let (o, axis) = (c.frame.origin, c.frame.axis);
+                let (o, axis) = (c.frame.origin(), c.frame.axis());
                 let w = q - o;
                 let v = w - axis * w.dot(axis);
                 let m = self.eval(crate::mid_param(lo, hi)) - o;

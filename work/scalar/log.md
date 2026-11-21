@@ -51,6 +51,23 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   - `patherror-display-renders-float-noise` is a **design fork** (`M +design`). The row's two-helper picture is stale: `geom_core::Readable` landed after it (about 95 uses, exact round-trip, no grid), `profile::path::num` and `viewer::readout::number` still grid differently, and 150 to 200 Display arms use no rule. Three designers dispatched (drawn); draws on `analysis/design-fork/scalar-number-format`.
   - **Class**: a row whose body says "waits on X" in prose, with `status: open`, is read off the board as dispatchable for as long as nobody re-reads it. Both unit-direction rows sat `open` at P1 for two months on a trigger no `blocked_on` named.
 - 2026-11-19 — **Slate hygiene** (orchestrator's read; tracker only). The eight unbanded rows are banded and priced, each on the README's absolute definitions; three carry interval-drive readings (P2), one the mean-width margins (P2 H), the rest P3 or P4. `brk-has-no-certified-door` closed as stale: PRED's D292 deleted `Brk`. `plan.md` is rewritten to the present: it no longer copies the board's table, and it says to re-measure a row before dispatching it. The track's load reads 6/30.
+- 2026-11-19 — **Fork: the delegation rule** (`dl5-has-no-arm-for-a-selection-whose-result-is-the-payload`; `[ev]` PR on `scalar/dl5-two-clauses`; `docs/DESIGN-FORK-LOG.md` row 292). Two designers, three reconciliation rounds: agreed on the rule, split on its home.
+  - **Provenance**: DUAL-DESIGN DL5 is the draft Ev signed off whole on PR 1146, with no tangent condition. The locally-constant clause in `real.rs` is commit `7f3672ae5a`, a fix pass on PR 1154, which has no comment of Ev's. Nobody could check chat-side ratification.
+  - **Where the roster's 25 `Selection` rows land, by both designers' read** (a lane re-reads each): `Choice` takes `map_refusal`, `Unclear`, `displaces`, `holds_enclosures`, the size and datum screens and the cost drivers; `Freeze` takes `mid`, the two projection macro bodies, `carrier_span` (confirmed: it returns `T::from_computed(lo)`, `T::from_computed(hi)`, and is filed `Payload`) and probably `knot_lines`; `Carries` takes `SectionFrame`, `curve_datum_errors`, `surface_datum_errors`. Classified from roster text alone: `sure`, `Least`, `inside_bound`, `curve_in_core`, `past_misses`, `exact_pair`, `exact_zero`.
+  - **After the ruling**: the census re-sort is one implementing unit; `bounds_census.rs`'s `Why::Selection` doc keeps the old wording until it lands. The soundness question under the labels is filed as `census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection`.
+  - **Class**: the reconciliation's home question changed hands in each of three rounds, each designer taking the other's last argument. A round that ends with the positions swapped is not progress toward agreement, and a third such round was the signal to state the split.
+- 2026-11-19 — **Both P1 forks are with Ev**: PR 7154 (a number told to a person) and PR 7155 (the delegation rule). The track holds no other dispatchable P0 or P1 row, so nothing is dispatched until Ev answers; the orchestrator stays on the track to answer on those PRs. Next on an answer: one implementing unit per fork (the told-quantity type and its per-crate sweep; the census re-sort), each re-measured and tiered at dispatch.
+- 2026-11-20 — **PR 7155 rewritten around Ev's question.** Both designers, shown the comment and the survey, dropped DL5.2 as a per-site condition: `from_computed` carries an unknown tangent at a dual (as `Sym`'s is opaque), a zero is claimed only through a listed stationary door pinned against finite differences, and a real tangent is computed at `T`. The build is `from-computed-claims-a-zero-tangent-at-a-dual` (P1 H), parked on the PR. The README states DL5.2 ahead of `Dual::from_computed`, which returns zero until that row lands. The home split of the first rounds is no longer put to Ev: with DL5.2 a scalar's behaviour, what is left to place is DL5.1, and the diff keeps it in the crate README.
+- 2026-11-20 — **PR 7155 rewritten a second time, around necessity.** Ev: "i still don't see why we need to turn a computed f64 back into a T", and "still not sure if duals are, at least type-wise, only where they belong?" Two rounds, both designers counting in the tree. 114 lines (128 calls) are in a dual's reach by the enclosing function's own bound; about 9 produce a value the result is built on, and every other re-entry is a bound to decide against, a place to evaluate at, a free choice, or `f64`-built data. By type a dual is excluded only by `CertifiedBounds`/`CertifiedEnclosure`, which most certification interiors do not carry (`pcurve_cache/projected.rs` 1 of 40 generic headers, `spline_incidence.rs` 0 of 15): they are clear of duals by `AtRestPolicy for Dual` answering `None` and by who calls them. The recommendation is one door per kind of `f64` (DL5.2) and the certifying bound on certification interiors (DL5.3). The designers crossed on how to cut the count (by what the number is, or by what it feeds) and agree on the final state.
+  - **Not checked by anyone**: the consumers of the roughly 55 place sites; whether every certification-interior item can take the certifying bound without splitting a construction caller; `props.rs`'s `T`-typed volume bracket fields; `Link::lowest_on`'s wrong sensitivity is still read, not run.
+  - **Found on the way**: `Margin::<f64>::lift` is a re-entry and `Margin::value` is a public `T` exit; `edge_nurbs` `Schedule::station` holds `T` ends and interpolates in `f64`, where `spline_incidence`'s scheduled samples take a `from_f64` fraction against `T` ends; `ExtentBall::of_overlap` has no callers. These are in the build row.
+- 2026-11-20 — **PR 7155, third rewrite, on Ev's row-by-row answer.** Ev took removing the lift for bounds and `f64`-built data, and asked: when is a place's output lifted at all, and is an unknown tangent a runtime exclusion where a compile-time one is wanted; why is a solved value plain `f64`; what finite differences meant; whether `from_f64` can be misused for any other door; and why certification interiors were not already closed to duals, "is there some reason that this keeps not happening?" Three more rounds. The designers traced 22 place sites to their consumers and every one ends in a decision or a parity, so a place is an `f64` argument and its result comes back on the value channel; the unknown tangent and the zero door are both withdrawn, and `from_computed` leaves the surface dual-reachable code can call.
+  - **Why DL5.3 keeps not happening** (each fact read; that together they are the cause is the designers' judgement): Ev's rulings (PR 5689, "it was supposed to be impossible at the type level for a dual to enter into certification"; PR 6308) were each carried out at the door they were about. Behind the doors, the `Bounds` scope rule asks for the weakest bound that works, which is `Decide`, which a dual implements; the one bound that excludes a dual is also the bracket right, and `bounds-allowlist.sh` refuses it beside `Decide` in any file not ratified onto its list; the lane structs are declared `T: Real`; `AtRestPolicy for Dual` answers `None`; and no gate asks whether certification code can be instantiated at a dual. **Class**: a rule enforced by a gate that prices the safe spelling above the unsafe one is un-enforced wherever nobody is looking.
+  - **Not checked**: about 9 place sites; that the value channel is cheap at a certifying scalar; that a compile-time-constant door covers every `constant` row of `from-f64-sites.tsv`; that every interior can take the marker bound.
+- 2026-11-20 — **Ev ruled on PR 7155**, in stages. Taken: no lift for a bound or for `f64`-built data, the place form, the `from_f64` split, and DL5.3 whole, with the scope rule to be reworded ("weakest bound that works ... should be updated to have more of a focus on semantic correctness"; "the exclusion is free and only the bounds reading needs the extra check"). "you can get started on the fixes in 2 for sure, as well as all the parts of 1 that are like 'remove the lift'; the two things i had additional questions about can be resolved in a new pr". Held for that PR: what a solved value is, and any lift behind `CertifiedEnclosure`.
+  - **The build is six units** under `from-computed-claims-a-zero-tangent-at-a-dual`, which keeps the solved-value question (`design`). Specified now: the `Certifies` marker bound and the scope rule; bounds that never become `T`; places on the value channel. Not yet specified: the `from_f64` split (after the bounds unit takes the lever scales off its list), `f64`-built data (one more read of the sweep path's origin), the finite-difference check (Ev asked whether it sits behind a `debug_assert`).
+  - **Load**: four `H` rows beside the told-quantity build put the track over its 30 points. Splitting it is a sitting's work (`work/README.md`, Track size); the DL5 build is the seam, a program of its own if it outlives this sitting.
+  - **On the two held items the designers read further**: neither found a site that needs a lift behind `CertifiedEnclosure` (the loft has a `T` route in `LoftBuild::in_t`; the fitted pcurve image stays `f64` data), and each walked a solved value scalar by scalar. They differ on what its door is, and that is the new PR's question. `spline_face::settle` returns a box's midpoint as a point where the isolation certified the box.
 - 2026-11-19 — **Fork: a number told to a person** (`patherror-display-renders-float-noise`; `[ev]` PR on `scalar/told-quantity`; `docs/DESIGN-FORK-LOG.md` row 291). Three designers, two reconciliation rounds, converged.
   - **What the tree holds, re-measured**: `profile::path::num`/`num_toward` (grid: finer of ε/10 and a relative 1e-9; all of `crates/profile`'s refusal sentences); `viewer::readout::number` (ε/10 and a relative 5e-4, a 22-character bound); `geom_core::Readable` (exact round-trip, 76 to 95 uses by three counts, and `MarginDiag::readable` through it); `quantity::fmt::render_shortest` (a private copy of `Readable`'s rule). An explorer's scan counted 150 to 200 error `Display` arms rendering a scalar with `{:e}`, bare `{}` or `{:?}`, largest in geom-brep, topo and editor-core; no designer verified the count.
   - **Held until Ev answers**: `user-facing-number-format-is-not-one-across-payloads-endings-and-escalations` (parked on the fork's row) and REROUTE's `refusal-floats-outside-the-spline-stack-render-through-f64-display`. Both move computed numbers onto `Readable`, which keeps the noise.
@@ -66,3 +83,307 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   - The fork went back to both designers with Ev's comment and the survey; the question put is what re-entry should be so the code enforces the answer. **Class**: two designers and three rounds agreed a rule over a population nobody had measured, and Ev's first question was the measurement.
 - 2026-11-20 — **PR 7154 merged** on Ev's ruling. `patherror-display-renders-float-noise` is restated as the build (`H`, three units: the type and `profile`'s move onto it; the notation-taking rendering; one sweep per crate) and is the track's one dispatchable P1. PR 7155 (what a re-entered value carries at a dual) is with Ev; its build row `from-computed-claims-a-zero-tangent-at-a-dual` is parked on it.
 - 2026-11-20 — **Dispatch: `the-told-quantity-type-and-profiles-refusals-on-it`** (unit 1 of the told-quantity build). Letter H, tier dual: a public vocabulary type every sentence-writing crate will hold, with rounding rules that are easy to get subtly wrong. Units 2 (the notation-taking rendering) and 3 onward (per-crate sweeps) stack on it once its type has survived review; they are not dispatched alongside, because the review can still reshape the type they would build on.
+- 2026-11-20 — **Ev questioned PR 7155 again**, on the rewritten recommendation: "i still don't see why we need to turn a computed f64 back into a T. your table of valid cases looks like cases where it doesn't cause an issue if we do this, but none of them obviously look to me like cases where it's necessary", and "still not sure if duals are, at least type-wise, only where they belong?" The survey sorted the 157 re-entries by harm and never by need, so nothing measured answers the first; on the second, a dual is kept out by `CertifiedEnclosure`/`CertifiedBounds` alone and about 100 re-entry sites admit one by type. Round 7 went to both designers with Ev's words and two things to count in the tree: which dual-reachable re-entries the code cannot do without, and where the types admit a dual that has no meaning there. **Class**: a rule about when a thing is safe was put to Ev twice before anyone asked whether the thing is needed.
+- 2026-11-20 — (tracker sweep) **FRAME merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 10 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From FRAME` sections of `program.md` and `plan.md` (`docs/doc-ledger/frame-merges-into-scalar.md`). (tracker sweep)
+- 2026-11-20 — (tracker sweep) To SCALAR's orchestrator: rows were added to this track while it is held (Ev, in chat, 2026-11-02: adding rows to an existing orchestrator is safe). None is P0 or P1, so the sitting's slate is unchanged. (tracker sweep)
+
+- 2026-11-20 — `the-told-quantity-type-and-profiles-refusals-on-it`
+  (PR 7159) reported with hosted CI green on head 75501c0244. Dual
+  review dispatched: two reviewers concurrently on that frozen head,
+  one brief (`review-brief-7159.md` in the forks scratch), ten claims
+  to falsify plus the style lane; slot-order byte on
+  `analysis/model-compare/scalar-2026-11-20`. Held, not dispatched:
+  `a-place-is-an-f64-argument-answered-on-the-value-channel`. The
+  build mutex is width one with two implementers and two reviewers on
+  it, and the fair-pair rule says to reduce simultaneous work rather
+  than narrow a reviewer; the places unit also edits files the two
+  DL5 units in flight edit. It goes out when one of them lands.
+
+- 2026-11-20 — **PR 7159's dual review is in and adjudicated.** Both
+  reviews: APPROVE-WITH-FIXES; the rounding core survived
+  exact-arithmetic sweeps on the parsed-float reading. Taken into the
+  fix pass (`fix-list-7159.md` in the forks scratch, twelve items): an
+  `ArcLen` leg's `len / r` told as given (float noise back in a
+  sentence and out through `as_given`); `Told::beside` false for an
+  offered or enclosure member; `Debug` and `PartialEq` as ways back to
+  a computed number; the field gate failing open on shapes its blind
+  list does not name, and its count pin; four unpinned or loosened
+  contracts in the suites. Nothing argued down. The orchestrator's
+  brief was wrong on one claim and both reviewers corrected it:
+  `Band::offer_deciding` has no production caller outside `geom-core`.
+  - **Class — a role is a constructor name nothing checks.**
+    `authored_*` makes any scalar "given", and `as_given()` then hands
+    it back; every per-crate sweep will make that choice at dozens of
+    sites. To be filed by the fix pass; it shapes how unit 3's sweeps
+    are briefed (each lists the provenance of every given it tells).
+  - **Class — a suite re-baselined onto the function under test.**
+    Seven consumer rows replaced `m / k` with `Band::offer_deciding`.
+    A re-baseline brief has to say that the new expected value is
+    derived independently.
+  - **Friction**: both reviewers lost 25 to 35 minutes at a stretch to
+    the width-one build mutex and ran fewer mutants than they meant
+    to; neither was narrowed by the orchestrator, so the pair is fair.
+
+- 2026-11-20 — **Ev on PR 7176**: "this broadly sounds good", then
+  "how are these used downstream, more concretely? it seems like it
+  would be confusing for something running at interval to have some
+  of its values be exact in a way that, taken literally, would
+  constrain the others." Round 15 went to both designers to trace each
+  solved value forward. They agree: three or four functions store the
+  value in the body (a split parameter, a re-anchored edge end), five
+  only evaluate at it (places under DL5.2, no door), and
+  `editor-core::drive` runs these at `Interval` in production. One
+  found that the proposal conflicts with DESIGN `[scalars]` ("a
+  continuous value that varies over the box is no choice ... so the
+  lane builds it") and that a split parameter already means two things
+  by carrier kind. Put to Ev on the PR as: the point stays and
+  `[scalars]` is amended, or the lane builds an enclosure; both lean
+  the first. The orchestrator's sketch overcounted the door's users
+  (nine; it is three or four) and said so there.
+- 2026-11-20 — **Ev asked, in chat, what note would have made the
+  illegitimate lifts visible without his pokes**, and said the text
+  about types being semantically correct is not landing. Answered,
+  and proposed as PR 7189 (`[ev]`, own PR since it binds future work):
+  a paragraph in DESIGN `[unrepresentable]` that a signature is a
+  claim (a bound says where code has a meaning; a conversion says what
+  makes its result true; one sentence per admitted type; no gate
+  taxes the narrower bound), and three rules in
+  `docs/prompts/designer.md` (need before safety; count before ruling;
+  the per-type sentence). No designer round, stated in the body.
+- 2026-11-20 — **PR 7155 merged** on Ev's ruling (DL5.1 to DL5.3). **The two held questions are with Ev** as a new `[ev]` PR on `scalar/solved-value` (`docs/DESIGN-FORK-LOG.md` row 293; the same two designers, labels redrawn). Two more rounds; they agree. A solved value is not a conversion: an `f64` search proposes a candidate and a check at `T` admits it, so the door takes the candidate and the residual and runs the check, bounded `Certifies`. A closed form stays in `T`. Nothing is owed at a dual, which reaches no solver. No site needs a lift behind `CertifiedEnclosure`. The finite-difference check is recommended as a suite row, not the `debug_assert` Ev asked about: the release profile runs debug assertions, and a difference quotient disagrees with the tangent at a kink.
+  - **Dispatched**: `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (H, dual) and `a-bound-to-decide-against-never-becomes-a-t` (H, single FULL), concurrently; they share files and are logically independent (one changes bounds, the other bodies). `a-place-is-an-f64-argument-answered-on-the-value-channel` (H, dual) waits for the build slot the told-quantity lane holds: the mutex is one wide and four concurrent builders would each crawl.
+  - **Friction**: a full lane clone took over ten minutes with two running beside a build; `work.py set` and `work.py lint` each exceeded two minutes once under the same load. Not measured further.
+- 2026-11-20 — **Ev ruled on PR 7176.** The door stands ("this broadly sounds good"), for values the body stores only; at an enclosure scalar the admitted value is one number checked over the family, and DESIGN `[scalars]` now says that is the one continuous value a lane takes from `f64`. Ev on the alternative (the lane builds an enclosure of each member's root): "leaving it at A is definitely fine for now although B might be needed to support booleans later", since over a box wider than the tolerance the crossings rarely meet at one place. Filed as `a-stored-solved-parameter-is-an-enclosure-of-each-members-root` (P3, design, measure first). The door is unit `a-solved-value-the-body-stores-is-admitted-by-its-check`, after the marker-bound and places units. DL5.2's place row said "a split"; it now says "the point a cell is subdivided at", since a parameter an edge is split at is stored.
+
+- 2026-11-20 — **PR 7176 merged** (Ev's ruling, above). **PR 7189**
+  approved by Ev after four changes ("this looks good!"); merges on
+  green.
+- 2026-11-20 — `a-bound-to-decide-against-never-becomes-a-t` reported
+  as **PR 7185**, hosted CI green on head 2b6ba7b1a4. Single FULL
+  review dispatched on that frozen head (`review-brief-7185.md`, nine
+  claims; reviewer byte on the analysis branch). The implementer chose
+  `Margin<T, A = ()>` with the bound applied by the run's scalar at
+  the decision through a hidden `Decide::allowing`; whether that is a
+  new door from an `f64` to a `T` is the review's first claim. It left
+  five families of bound unmoved and filed each; one is a rule
+  question (a bound a `Sym` identity is proved over has no allowance
+  spelling). Incident, reported by the lane: one pattern `pkill` run by
+  mistake, believed to have hit only its own shell. The places unit
+  stays held: it shares files with 7185, whose shape the review can
+  still change.
+
+- 2026-11-20 — **PR 7189 merged** (Ev: "this looks good!").
+- 2026-11-20 — **PR 7159's fix pass is in**, head e7bd8eb468, hosted
+  CI green. All twelve items done; it found a second site of the
+  MAJOR's kind itself (a `Via` leg's derived bulge told as authored).
+  The pass rewrote more than it patched (about 1,200 lines across
+  `told.rs`, `profile` and the gate; the grid now respects float
+  spacing for a large length; equality is of what is told; a pair's
+  radius lever is an index to its largest corner), so it does not
+  merge on the orchestrator's read: a delta re-review went to one of
+  the two reviewers, continued in its own lane, with eight claims.
+  Only one, because the other's clone is in use by PR 7185's review;
+  the pair's comparison was taken on the frozen head and is not
+  affected. The row will say so.
+
+- 2026-11-20 — **PR 7185's review is in: NOT-MERGEABLE-AS-IS**, one
+  MAJOR, fix pass dispatched to the same implementer
+  (`fix-list-7185.md`, seven items). At `f64`, `Interval` and `Dual`
+  the allowance was measured bit-identical to the lifted spellings.
+  At `Sym` it changed what is proved, both ways: a bound of exactly
+  zero compared equal to "no bound" and proved a `Zero` it should not,
+  and the scaling doors made a form-zero margin opaque, losing proofs
+  the five mate sites had. Also taken: the `spline_trim` floor reorder
+  turns a clean "says nothing" into an in-band refusal; `new_scaled`
+  reads a negative arm as degenerate; two bounds left that fit the
+  form. Nothing argued down.
+  - **Class — "none" decided by a value inside a type that says
+    "some".** `Allowance == NONE` was a float comparison. Whether a
+    thing is present is a fact of its type (DESIGN `[unrepresentable]`).
+  - **Class — one rule written twice, half of it moved.** The spline
+    floor exists in `topo` and `geom-brep`; the sweep moved one and
+    they now clamp in different orders. A sweep's brief should ask for
+    the twins of each site it moves.
+  - **Open, recorded on the fix list**: whether `Margin<T, A = ()>`
+    earns its spread (nineteen funnel signatures) against a door that
+    takes the `f64` and returns a sign. The fix pass is told to say so
+    if it does not, and not to rework it unasked.
+
+- 2026-11-20 — **PR 7159's delta re-review is in: APPROVE-WITH-FIXES,
+  no MAJOR**, on head `e7bd8eb468ec`. The first pass's fixes are
+  closed; the rounding core held over 70,336 floats against an exact
+  rational oracle with the grid restated independently; the three
+  items the implementer argued down stand. A second, small fix pass
+  went to the same implementer (`fix-list-7159-delta.md`, six items):
+  a read-back refusal tells a derived chain vertex as given
+  (`profile/src/path.rs:5351`); a `where` clause with parentheses
+  hides a whole type from the gate; a line pin does not stop a pinned
+  name being rebound to a scalar; two test rows; one backwards
+  sentence in the PR body. Nothing argued down. After it the unit
+  merges on green and the orchestrator's read: the remainder is
+  mechanical.
+  - **Class — a list of checked sites is the checker's own claim.**
+    The first fix pass was asked to re-read every given-role site and
+    list them; it listed the read-back point "authored, kept", and
+    the first review had passed the same site unread. The filed row
+    "a role is a constructor name nothing checks" is the durable
+    home; unit 2's brief asks for the provenance of each given, not
+    a list.
+  - **Class — a pin that names a line holds the line's text, not what
+    its names are bound to.** Inline captures (`{verb:?}`) make the
+    pinned text independent of the value formatted. A gate's header
+    must state what its pin holds.
+
+- 2026-11-20 — **PR 7159 merges**: the second fix pass took all six
+  items (head `07451c1117e7`, green run 44813916029); read by the
+  orchestrator, no third review. Every position a refusal locates is
+  now told as derived, and the seven `{:?}` sites go through
+  `identifier()`, so the gate holds no pins. The comparison row is
+  `docs/model-compare-log/rows/PR-7159.md`. Unit 1 of
+  `patherror-display-renders-float-noise` is closed; units 2 and 3+
+  (the per-crate sweeps) are next on it, their briefs asking for the
+  provenance of each number told as given.
+- 2026-11-20 — **Main-red (EXCH):** filed `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` (P1) on this slate. PR 7159's `told_reading` added two endpoint reads to `interval.rs` that `certified_endpoint_census` (slow set) has no disposition for. ONEROUND's PR 7146 moved the same roster line. (EXCH orchestrator)
+
+- 2026-11-20 — **Unit 2 of the told quantity is specced and
+  dispatched**: `a-refusal-is-told-in-the-readers-notation` (letter M,
+  tier dual, so its reviews run in sequence), into the lane PR 7159
+  freed, branch of the same name. Chosen over a per-crate sweep
+  because it touches `viewer`, `quantity` and `told.rs`, none of which
+  the two DL5 units in flight touch, and because the sweeps should
+  build on the notation door rather than be revisited by it. It also
+  measures, without changing, how many error types would cross
+  clippy's size line with an inline `Told` (the boxing row). The
+  positions row and the per-crate sweeps stay open behind it.
+
+- 2026-11-20 — **PR 7185 merges**: its delta re-review is APPROVE, no
+  finding above NOTE, on head `840cfead10` (green run 44828404802).
+  Against the merge-base spellings the allowance measured identical at
+  `f64`, `Interval`, `Dual` (value and tangent) and, in sign and
+  `proven()`, at `Sym`; the reviewer could write no `f64 → T` exit.
+  The one such step left is the decision's own, private to
+  `predicate.rs`. The implementer's two argued-down items were upheld.
+  The four notes are on
+  `the-margin-allowance-parameter-spreads-to-every-funnel`. The
+  comparison row is `docs/model-compare-log/rows/PR-7185.md`.
+  - **Class — "a `T` or a bound" as a local enum.** `chain_parity::Gap`
+    and `spline_trim::Floor` are two instances, the second grown by the
+    fix pass. A third mixed site gives the pair one home.
+  - **For briefs on a contended slot**: a local compile that times out
+    is not a pass; the fix pass sent two type errors to CI that way.
+  - The places unit (`a-place-is-an-f64-argument-answered-on-the-value-channel`)
+    is dispatchable now that this has landed.
+- 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line: ONEROUND is fixing its read now, on `oneround/less-sin-census`.** EXCH filed one main-red row on each of us for the same roster line (`main-red-endpoint-census-moves-interval-rs-on-the-told-reading` here; ours is `less_sin`'s series test, from PR 7146). The test stays red until all three reads are counted, so a fix for one cannot go green alone. Our lane dispositions its own read and, if your two (`told_reading`'s `Reading::enclosure(self.0.lo(), self.0.hi())`) are still unrostered on main when it pushes, counts them too with the disposition your row proposes, after reading them; it then says so here. If you have a lane on it already, a note back and ours merges yours first.
+- 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line is fixed on main for all three reads (PR 7223).** Your two (`told_reading`) are counted with the disposition your row proposed, which held on the lane's reading: both ends go to `told::Reading::enclosure`, which has no accessor and only renders. So `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` has nothing left to do but close, if you agree with the sentence on the roster. One thing the lane saw and did not file, as a question for you rather than a defect: an uncertified enclosure with ordinary ends is told to a person as its ends, with nothing saying it did not certify.
+- 2026-11-20 23:30 — (GERM orchestrator, seam note) **Main red in the nightly slow set, bisected to PR 7159** (`bd8b2c9bb5`, `scalar/told-quantity-type`). `offer_rows::every_offered_tolerance_passes_just_below_it` offers tolerances whose margins don't pass just below them, on three rows; the offered values are the margins rounded to four significant figures. Filed as `main-red-offer-rows-false-offers-since-the-told-quantity-type` (P1) on this slate. The bisect table is in the row.
+
+- 2026-11-21 — **PR 7185 merged** (02:24Z) after main moved under it:
+  another program made `Lever`'s field private and changed
+  `Margin::sagitta`. The implementer, continued, merged main and added
+  `Lever::<f64>::magnitude` so `new_scaled` stops building a lever by
+  its field; green run 44849868231. That last change had the
+  orchestrator's read only; its row says so.
+- 2026-11-21 — **The places unit is dispatched**
+  (`a-place-is-an-f64-argument-answered-on-the-value-channel`, branch
+  `scalar/a-place-is-an-f64-argument`, the lane 7185 freed). Its brief
+  tells it DL5.2 now answers what its file called open: a stored
+  solved value is the door unit's, an evaluate-only one is a place.
+- 2026-11-21 — **PR 7190 (the `Certifies` marker bound) is built and
+  green** (head `f216849172`, run 44849680614) and went to its dual
+  review: two reviewers concurrently on that frozen head, one brief of
+  nine claims (`review-brief-7190.md`). What the review is asked hardest
+  about: the gate's list is one file where the unit asked for five;
+  about sixty mixed passes hold a lane through a new `…LaneOf` trait
+  instead of being split; about 170 headers in topo took
+  `T: AtRestPolicy` because seven types hold a lane in a field; and the
+  unit's measure-first item (which callers a dual instantiates) was not
+  measured.
+
+- 2026-11-21 — **PR 7190's two reviews are in and adjudicated**: one
+  APPROVE-WITH-FIXES, one NOT-MERGEABLE-AS-IS, on head `f216849172`.
+  The orchestrator sides with the harder verdict: the title is not yet
+  true. Fix pass dispatched to the implementer (`fix-list-7190.md`,
+  thirteen items). Nothing argued down; one deferral is the
+  orchestrator's own (below).
+  - Held in both: `Certifies` is sealed and carries no bracket right;
+    a dual's policy lanes are uninhabited; nothing moved at a
+    certifying scalar.
+  - Did not hold, both demonstrated by compile probe: the ten public
+    `…LaneOf` traits are unsealed, so a downstream crate hands a dual
+    (or an `f64`) a lane of its own making at public doors; and
+    certification still compiles at a dual — sixteen interiors take a
+    lane by value at `T: Decide`, `run_fitted_checks` runs its checks
+    before asking for the lane, and the lane-free projected interiors
+    certify at `Dual64` outright.
+  - **Deferred by the orchestrator**: the lane-free interiors in files
+    that also declare body data (`PcurveCache::{certify,
+    certify_projected}`, `projected_envelope`, `spline_incidence`
+    behind the incidence readers). Closing them needs to know what a
+    dual does where construction reads a certification's answer, which
+    DL5.3 does not say and the unit's unmeasured item (which of these a
+    dual instantiates today) would inform. The two filed rows go to P1
+    and must say this.
+  - **Class — a second name that does not carry the bound.** DL5.3
+    closes interiors by making "every function that names a lane"
+    carry `Certifies`; a trait alias for the lane (`impl XOf<T>`) names
+    the lane without the bound, so the compiler stops asking. A brief
+    that closes something "by type" should ask the reviewer for the
+    probe that builds the excluded thing, as both did here.
+  - **Class — "bodies did not move" as a goal.** The unit said each
+    mixed caller is a function to split; the implementation put the
+    split at leaf calls so no body changed. Minimal diff was bought
+    with the defect. (`docs/prompts/implementer-discipline.md` already
+    says the final state is weighed, not the diff.)
+  - **For Ev, when a channel is open** (filed as a design row by the
+    fix pass): at `Interval`, `Sym` and `Probe` three lanes are an
+    `Option` of a type with no constructor there — DL5.3's forbidden
+    shape at scalars other than a dual.
+
+- 2026-11-21 — **PR 7190's pair is blind-coded** (`coding-7190/`): 30
+  deduplicated findings; both reviewers built the same kind of probe
+  for the unsealed lane traits and planted the same gate blind spot;
+  one tally candidate (the sixteen by-value interiors), contested by
+  the other reviewer and not overlooked.
+- 2026-11-21 — **PR 7229 (the notation unit) is built and green**
+  (head `0cff6e4c8d`, run 44861598189, after five red runs) and went
+  to the first of its sequential reviews (`review-brief-7229.md`,
+  eleven claims). Built: `quantity::Notation` as the one home
+  (`geom-core` now depends on `quantity`), a `Tell` trait with
+  `Display` as the canonical telling, `geom_core::Sentence` for a
+  stored refusal, and the viewer's `readout` as doors onto `Told`.
+  - **Coming to Ev after the review, on that PR**: an offered bound in
+    a non-canonical unit often reads oddly (`at most 0.30004 m` reads
+    `300.0399999 mm`, because the typed float of `300.04 mm` lands
+    above the bound) — whether "the side that works when typed" means
+    the typed float or the exact decimal; and what a unit that cannot
+    say a quantity falls back to. The reviewer is asked to measure the
+    first and state both as questions.
+  - The working notation reaches only the sketch preview's refusal:
+    every other route turns a `PathError` into a `String` before the
+    viewer holds it. Filed P1,
+    `a-kept-refusal-keeps-its-text-where-it-must-keep-its-sentence`.
+  - Measured for the boxing row, as an estimate read from source and
+    not compiled: 65 error types would cross clippy's size line with
+    an inline `Told`.
+- 2026-11-21 — **Friction: the build slot.** Width one, shared by four
+  lanes of this program and by other programs; waits of 20 to 50
+  minutes per compile are routine, a viewer test build did not finish
+  in 90 minutes, and two units sent first-compile errors to CI
+  because local compiles timed out. With four lanes in flight no
+  further lane is dispatched from this container until one lands;
+  the told lane, free now, waits for PR 7229's review before unit 3
+  stacks on an API the review may reshape.
+- 2026-11-21 — (ONEROUND orchestrator) **Three topo slow-set rows are red on main from PR 7159 (`scalar/told-quantity-type`), bisected** (pass on `4d2d9942`, fail on `bd8b2c9b`): `offer_rows::every_offered_tolerance_passes_just_below_it`, which your open row `main-red-offer-rows-false-offers-since-the-told-quantity-type` holds (it is 16 false offers, not three), and two it did not name, `a_corner_reads_only_its_own_sectors::the_corners_offer_executes` and `::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt`. Each reads an offer back from the refusal's text and compares it with the margin's own to 1e-6 relative; the text now carries four figures cut downward. The evidence is on your row under 2026-11-21 (PR 7246). Whether the truncated offer is right is your row's question.
+- 2026-11-21 — **Seam note from SECT:** PR 7193 (`sect/certificate-by-support`, Ev's ruling in PR 7182: a certificate this process derived is read by its bit-identical support) adds one named door to `geom-core` `k_stats`, a replay of a stored `Recorded` into the open frame and sink, so a certificate read in place of its derivation logs exactly the derivation's verdicts and escalations (the ONEHOME drive's lane parity needs it). `Detached`/`Recorded` stay non-`Clone`; `splice` is unchanged. Review the door on the PR if it touches your work. (SECT orchestrator)
+- 2026-11-21, 04:45Z — (ONEROUND orchestrator) A note from another program: three slow-set source censuses are red on main since PR 7159 (`scalar/told-quantity-type`), bisected to its merge `bd8b2c9b` (pass on its first parent): test-utils' two `hand_written_impl_census` rows (`told.rs`'s `impl Debug for Read` and `impl PartialEq for Quantity`, and the file missing from `IMPL_FILES_TODAY`) and pncad-py's `prose_census` undecided list (four `path/program.rs` sites no longer found). The row, with the messages, is `work/green/main-red-three-source-censuses-red-since-the-told-quantity-type.md`; the fix is yours.
+- 2026-11-21 06:10Z — **The notation fork is weighed and goes to Ev** (`[ev]` PR on `scalar/ev-a-number-in-a-unit-is-rounded-once`; unit file `a-number-in-a-unit-is-rounded-once`). Two designers, three rounds, agreed on all four changes: a number in a unit is rounded once over the unit's exact factor at every door (true π for degrees; the Rust and Python doors read a float by its shortest decimal), which deletes the fallback to the canonical unit and the `…9999` offers; a sentence is written through a teller that carries the notation and a told number has no `Display`; equality is of what is held; an editable field over a written value shows its exact positional spelling. Evidence behind the PR body: the review's measurements (20% of `at most` and 6.5% of `at least` bounds round in metres read oddly in mm; a fallback on 2.3% of 12-digit lengths in mm, 8.5% of angles in deg, 3% of ordinary compared pairs; these are synthetic floats, and a number a person typed in mm always has an mm spelling); the designers' checks in exact arithmetic (38 of the integer degrees 1–360 are one float from the nearest to N·π/180 under the stored constant, and 54 differ from the same angle in `pi rad`; 1,500 sampled given numbers each in in, deg and `pi rad` all have a spelling under the once-rounded door). The float multiply at the text door is agent-written (`04d54f7943`, 2026-08-08), not in DESIGN.md, and its stated reason (no exact door can exist for degrees) is false: the stored factor is an exact binary fraction. Reports: `~/.local/share/cad-work/scalar-forks/design-notation-{A,B}{,-r2,-r3}.md`.
+- 2026-11-21 06:00Z — **Ev ratified all four changes of the notation fork on PR 7261** (the once-rounded door; the teller and no `Display` on a told number; equality as a plain derive; the editable field's exact positional spelling). The unit `a-number-in-a-unit-is-rounded-once` is `spec`, P1, and is dispatched after PR 7229 merges, ahead of the per-crate told sweeps. A lesson on the channel: my PR body used "told number" and "notation" as if Ev used those words; three of Ev's four first answers were questions about what the items meant. An `[ev]` body says each item as what a user or an author of code would see, with the type name second.
+- 2026-11-21 05:15Z — **Main is red in the nightly slow set from PR 7159, and the fix is dispatched.** Three families, all bisected by other programs' lanes (GERM, ONEROUND; rows `main-red-offer-rows-false-offers-since-the-told-quantity-type` here and `main-red-three-source-censuses-red-since-the-told-quantity-type` on green): topo rows that read an offer back from refusal text and hold it to the margin's to 1e-6, where the text is now the told offer (four figures, cut to the working side); `hand_written_impl_census` on `told.rs`'s two impls; pncad-py's prose census. One unit, branch `scalar/main-red-since-the-told-quantity-type`, letter M, single FULL review. The brief asks first which side is wrong for the offer rows (the rows' contract is "passes just below it" and "executes", not the spelling) and forbids weakening a row. **The class**: PR 7159 changed refusal text and added hand-written impls, and its gate ran none of the slow-set rows that read either; the PR gate runs only the slow tests a diff adds or edits. A unit that changes text any test parses, or adds an impl a source census walks, owes a run of those rows with `--ignore-default-filter` before merge; the brief has the implementer sweep for the rest of the class, and briefs for the told sweeps carry that from here.
+- 2026-11-21 05:15Z — **PR 7229's review: APPROVE-WITH-FIXES, no MAJOR**, so it is the unit's only review (sequential arm). The arithmetic held against an independent oracle over about two million renders, and `Display` is byte-identical to the merge base. Taken (`fix-list-7229.md`, fourteen items): camera refusal fields told as computed though handed in; an ε_in offer not marked as the tolerance; `readout` recovering a number by stripping the unit word; two near-copies (`render_shortest`, `written`); a guard for the `{}`-inside-`tell` class in place of a script sweep; the equality doc; prose the rename left false; rows for what the rule does not settle. **Unilateral call, changing what I said earlier**: the questions the review raised (an offer that reads `0.1299999 mm`, the fallback to the canonical unit, two units in one sentence, a scientific seed in an editable field, `Display` meaning canonical, equality) are gaps in a ratified rule, so they go to designers and then to Ev on their own `[ev]` PR, not onto PR 7229; PR 7229 merges after its fix pass with the behaviours as built, each on a filed `design: true` row. The alternative, holding the PR for the ruling, would hold the per-crate sweeps behind it for nothing the ruling is likely to reshape at the API (`Tell`/`told_in` held in review). Designers dispatched (two; draws on `analysis/design-fork/a-number-told-in-the-readers-notation`).
+- 2026-11-21 05:15Z — **PR 7190's fix pass is in** (head `afdc949f41`, green): the ten `…Of` traits sealed; ten interiors declared over `T: Certifies` taking the lane, six readers made lane-free; `run_fitted_checks` behind the lane (a dual's fitted row now refuses `FittedLaneUnsupported` first: read from code, not measured); the two rosters tied by a blanket impl; the gate reads `impl Trait`. Argued down: removing `#[allow(private_interfaces)]`, bounding `run_shell` and `enclosed_winding`, the certifying bound on `KeptSign`/`AtRestBody`. The change is large enough to re-read, so the reviewer that found it not mergeable got a delta brief (`review-brief-7190-delta.md`), which asks in particular whether tying `Certifies` to `CertifiedEnclosure` by a blanket impl opened the seal to a downstream impl, and to measure the dual behaviour change.
+- 2026-11-21 06:50Z — **PR 7190's delta re-review: APPROVE-WITH-FIXES; the three majors are closed, and one new MAJOR is mine.** The seal holds (each doctest fails on the seal alone), no lane-taking certification builds at `Dual64`, the gate reads `impl Trait`. The new one: my fix list had the fitted checks ask for the lane first, and that turned `IntervalNotForward`, `PlaceholderChart` and `ImageMismatch` on a stated General image into `FittedLaneUnsupported` at a dual (and at `f64` with the lane withheld), which `mint.rs` `not_owed` excuses, so tier 3 reports nothing: a defect made silent. The implementer's "no certificate ever followed those refusals" did not ask who reads the refusal's kind, and neither did I. **Unilateral ruling**: a defective image refuses as a defect at every scalar (`[loud-failure]`); the defect checks run ahead of the lane again wherever they read no bracket and build no certificate; one that does stays behind the lane with the lost refusal filed P1. The alternative (keep "nothing runs before the lane" and teach `not_owed` to look further) leaves a dual unable to say why an image is bad. **The class**: a change that moves which refusal comes back is a behaviour change even when the call was refused either way; ask who matches on the kind (`not_owed`, `WalkRefusal`, `LaneGap`) before calling it inert. Also taken: the by-function gate list is a hand-kept census that a new interior in the old idiom slips past (the fix reproducing the defect), `enclosed_winding` behind an entry, an associated-type hole in the gate's callback exemption, three missing seal pins, the true mechanism of `Certifies`' closure (`SpanLocate`'s seal, not `CertifiedEnclosure`). Second fix pass dispatched (`fix-list-7190-delta.md`). The re-review ran on one reviewer only (the one that had found it not mergeable); a login expiry interrupted it and the places implementer once, both resumed on the same arm.
+- 2026-11-21 06:50Z — **The places unit is built (PR 7250, green on `689449a483`) and went to its concurrent pair** (`review-brief-7250.md`, nine claims). Built: `Real::Value` (the scalar with its tangent removed) with `value()` and `view()`; `CertifiedEnclosure: Real<Value = Self>`; a `value_view` module whose `place` is bounded so a dual cannot be handed one; 39 `from_computed` spellings became `place`. What I asked the reviewers to press hardest: the unit's title says a place is an `f64` argument and what was built is `V::from_computed(x)` behind a bound, a new conversion door in a unit about removing conversions; `place` at `Sym` is an opaque unknown because an exact rational turned three pins red, which is either the right meaning or a design fitted to a baseline; and "consumers traced by reading only". Filed by the implementer: places read inside a reading held at `T` (P2), `periodic_nurbs`'s shift as a count of periods. Ev ratified the notation fork (PR 7261, merged 06:31Z).
+- 2026-11-21 07:20Z — **PR 7229's fix pass is in (head `232d079590`, green) and the unit closes with this state-sync.** Thirteen of fourteen items taken; the camera fields stay computed on the implementer's evidence (every production value is formed in `viewer::input`, none written by a person or a file), which I accept over my own list. A new gate, `told-in-the-notation.sh`, holds the `{}`-inside-`tell` class until the teller of `a-number-in-a-unit-is-rounded-once` makes it a compile error; the four design rows the pass filed on this slate now ride with that unit, and the viewer's seed row is a build since Ev's ruling. No second review ran (no MAJOR in the first). Row: `docs/model-compare-log/rows/PR-7229.md`.
+- 2026-11-21 07:50Z — **PR 7229 merged (07:37Z); the once-rounded unit is dispatched in the told lane.** It builds changes 1 and 3 of Ev's ruling (the door at every door, the fallback gone, equality a derive); the teller (change 2) and the editable field (change 4) are their own units stacked on it, because both build on a spelling every unit can say and the first rewrites `told.rs` end to end. Sequencing alternative not taken: the teller first (it rewrites every `Tell` body and the per-crate sweeps wait on it), rejected because the door changes what a typed number means and everything else re-baselines on it. The brief carries the main-red lesson (run the text-parsing and census slow rows before the final push) and five measurements, first the 17-figure claim against an exact oracle. The first of the places unit's two reviews is in (not mergeable as is: what was built is a `place` conversion door, not evaluators taking an `f64`); adjudication waits for the second.
+- 2026-11-21 09:55Z — **PR 7250's two reviews are in and adjudicated: not mergeable as built; fix pass dispatched** (`fix-list-7250.md`, thirteen items). The verdicts differ (NOT-MERGEABLE-AS-IS, APPROVE-WITH-FIXES) on the same substance. What held: `Real::Value` means one thing at every scalar; a dual cannot be handed a place through the new door; nothing moved at the certifying scalars but the station. **Unilateral ruling**: the unit builds the ratified row's letter. DL5.2 says a place is handed to the evaluator as an `f64` and is never a `T` a body can hold; what was built is a public `place::<V>(x) = V::from_computed(x)`, a conversion door in a unit about removing conversions, with no evaluator signature changed and the deviation undeclared. The value-channel evaluators take the `f64`; the step to the scalar is private to the evaluator. The alternative (accept the door, and gate it) leaves "by type" true only of an author who chooses the door, which both reviewers demonstrated. If the evaluator fan-out proves worse than the door, the implementer stops and that goes to Ev. **Classes recorded**: (1) a pin that runs code at an instantiation production excludes, through a door the test writes by hand, pins nothing and breaks when the bound closes (the composite row: green with the unit reverted, by one reviewer's mutant); a dual-against-f64 pin belongs at a site a dual reaches, with a non-zero tangent. (2) `from-f64-sites.tsv` has no class for a place, so chosen points are filed as constants (`ssi/certify.rs`, `spline_arc.rs`, rows 63–76, 84–87): the sweep's disclosed blind spot was populated and read as discharged. (3) Two open units on shared ground (`Certifies` in PR 7190, `Value = Self` here) each wrote "the other can carry it"; the coordination is assigned to the places fix pass once 7190 merges.
+- 2026-11-21 11:00Z — **PR 7190's second fix pass is in (head `87662cc1c2`, green) and the unit closes with this state-sync.** The defect checks of the fitted lane run ahead of the lane at every scalar (none reads a bracket or builds a certificate, so no refusal is lost at a dual), unlogged where there is no lane; `not_owed::<Dual64>` is pinned false of the defects. The gate now finds a lane taken by value outside a certifying bound by class, and the hand-kept list is gone; `CertifiedEnclosure` is sealed. Not fixtured, by the implementer's account: a placeholder or analytic-chart mismatch at a dual through the door, and a dual body stating a bad image through `mint_pcurves`. I merge on my read and green CI without a third review: the pass does what the ruling said and each check's "no bracket, no certificate" is visible in `fitted_defects`. Row: `docs/model-compare-log/rows/PR-7190.md`. Next on this ground: the places fix pass takes `Certifies` from main; the design row `a-certifying-scalar-holds-an-option-of-a-lane-it-has-no-constructor-for` goes to designers.

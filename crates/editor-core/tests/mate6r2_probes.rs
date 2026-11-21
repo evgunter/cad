@@ -6,7 +6,7 @@
 //! the tagged lines. **That property is spent** — the branch merged —
 //! and four of the eight rows still assert nothing, so their printed
 //! answers are unguarded;
-//! `work/vacuity/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+//! `work/ciw/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
 //! owns that. What the rows are FOR now is what each one says below.
 //!
 //! P1 — a bad reference fails its placement, and that failure is the
