@@ -87,17 +87,13 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         }),
         Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: carrier_frame,
                 ..
             },
         ) => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             let radius = circle.radius();
-            if axis.dot(chart.frame().axis).abs() > 0.5 {
+            if axis.dot(chart.frame().axis()).abs() > 0.5 {
                 Some(TravKind::Rim {
                     v_raw: chart.rim_v(center, radius),
                 })

@@ -204,71 +204,71 @@ pub fn boundary_material_sign_holding<T: Decide>(
             what: "boundary_material_sign called on a plane (planar orientation is the \
                    check-6 Newell winding, not a props derivation)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder_material_sign(
-            origin,
-            axis,
-            radius,
-            crate::uniform_curvature_arm(surface),
-            loops,
-            band,
-        ),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder_material_sign(
+                origin,
+                axis,
+                radius,
+                crate::uniform_curvature_arm(surface),
+                loops,
+                band,
+            )
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_material_sign(surface, apex, axis, half_angle, loops, band),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => sphere_loop_side(
-            center,
-            radius,
-            crate::uniform_curvature_arm(surface),
-            axis,
-            loops,
-            held,
-            band,
-        ),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            cone_material_sign(surface, apex, axis, half_angle, loops, band)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sphere_loop_side(
+                center,
+                radius,
+                crate::uniform_curvature_arm(surface),
+                axis,
+                loops,
+                held,
+                band,
+            )
+        }
         // A spindle sheet is the torus's parametrisation with a signed
         // major radius, so it reads the torus's closed forms.
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => torus_material_sign(
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            crate::uniform_curvature_arm(surface),
-            loops,
-            band,
-        ),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_material_sign(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                crate::uniform_curvature_arm(surface),
+                loops,
+                band,
+            )
+        }
         Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => sheet_material_sign(
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            crate::uniform_curvature_arm(surface),
-            loops,
-            band,
-        ),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sheet_material_sign(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                crate::uniform_curvature_arm(surface),
+                loops,
+                band,
+            )
+        }
         // As `curved_face_loops`: no closed form for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
@@ -416,12 +416,8 @@ pub fn require_iso_rectangle<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::Defect {
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let b = cylinder_boundary(
                 origin,
                 axis,
@@ -433,21 +429,15 @@ pub fn require_iso_rectangle<T: Decide>(
             linear_rims_at_extremes(&b, band)
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let b = sphere_boundary(
                 center,
                 radius,
@@ -459,19 +449,18 @@ pub fn require_iso_rectangle<T: Decide>(
             linear_rims_at_extremes(&b, band)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let tube_arm = crate::uniform_curvature_arm(surface);
             let p = torus_parse(
                 center,
@@ -529,44 +518,33 @@ impl<T: Real> IsoChart<T> {
     /// chart, which the door answers by its own arms.
     fn of(surface: &Surface<T>) -> Option<Self> {
         match *surface {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self::Cylinder {
-                origin,
-                axis,
+            Surface::Cylinder { frame, radius } => Some(Self::Cylinder {
+                origin: frame.origin(),
+                axis: frame.axis(),
                 radius,
             }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
-            } => Some(Self::Cone {
-                apex,
-                axis,
+            Surface::Cone { frame, half_angle } => Some(Self::Cone {
+                apex: frame.origin(),
+                axis: frame.axis(),
                 sin_a: half_angle.sin(),
                 cos_a: half_angle.cos(),
             }),
-            Surface::Sphere { center, radius, .. } => Some(Self::Sphere { center, radius }),
+            Surface::Sphere { frame, radius } => Some(Self::Sphere {
+                center: frame.origin(),
+                radius,
+            }),
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                ..
             }
             | Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                ..
             } => Some(Self::Torus {
-                center,
-                axis,
+                center: frame.origin(),
+                axis: frame.axis(),
                 major: major_radius,
                 minor: minor_radius,
             }),
@@ -851,7 +829,8 @@ pub fn require_one_chart_branch<T: Decide>(
                    singularity and no branch for an arc to leave)",
         }),
         Surface::Cylinder { .. } => Ok(()),
-        Surface::Cone { apex, .. } => {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
             // A definite crossing anywhere refuses; an apex the band cannot
             // place answers with its cause only where none is definite, so
             // the door's `Ok` means decided on one branch.
@@ -906,21 +885,18 @@ pub fn require_one_chart_branch<T: Decide>(
             undecided.map_or(Ok(()), Err)
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
             ..
         } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             // As on the cone: a definite crossing anywhere refuses first.
             let mut undecided = None;
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { axis: n_c, .. },
-                    ..
-                }) = e.carrier
-                else {
+                let Curve3::Circle(geom::Circle { frame, .. }) = e.carrier else {
                     continue;
                 };
+                let n_c = frame.axis();
                 // Meridians only (see the fn docs): the parse's own
                 // rim/meridian split, on the parse's own margin.
                 if classify_as(
@@ -1781,10 +1757,8 @@ fn cylinder_windings<T: Decide>(
                 .map(|e| {
                     let ends = e.traversal_ends();
                     Ok([match e.carrier {
-                        Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { origin: center, .. },
-                            ..
-                        }) => {
+                        Curve3::Circle(geom::Circle { frame, .. }) => {
+                            let center = frame.origin();
                             let du = rim_turns.next().ok_or(mismatch.clone())?;
                             EdgeTurn::carried(axis, origin, center, du, ends, radius)
                         }
@@ -1977,65 +1951,63 @@ pub fn curved_face_holding<T: Decide>(
         Surface::Plane { .. } => Err(PropsError::Defect {
             what: "curved_face called on a plane (planar faces take the loop route)",
         }),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder_face(
-            origin,
-            axis,
-            radius,
-            crate::uniform_curvature_arm(surface),
-            loops,
-            band,
-        ),
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder_face(
+                origin,
+                axis,
+                radius,
+                crate::uniform_curvature_arm(surface),
+                loops,
+                band,
+            )
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_face_closed_form(surface, apex, axis, half_angle, loops, band),
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => sphere_face(
-            center,
-            radius,
-            crate::uniform_curvature_arm(surface),
-            axis,
-            loops,
-            held,
-            sense,
-            band,
-        ),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            cone_face_closed_form(surface, apex, axis, half_angle, loops, band)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            sphere_face(
+                center,
+                radius,
+                crate::uniform_curvature_arm(surface),
+                axis,
+                loops,
+                held,
+                sense,
+                band,
+            )
+        }
         Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => torus_face(
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            crate::uniform_curvature_arm(surface),
-            loops,
-            Tube::Ring,
-            band,
-        ),
-        // Its passes through an apex are read with the face on the side
-        // its bit says ([`ApexSide`]).
-        Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_face(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                crate::uniform_curvature_arm(surface),
+                loops,
+                Tube::Ring,
+                band,
+            )
+        }
+        // Its passes through an apex are read with the face on the side
+        // its bit says ([`ApexSide`]).
+        Surface::Spindle {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let side = if sense {
                 ApexSide::Left
             } else {
@@ -2193,15 +2165,15 @@ fn cylinder_boundary<T: Decide>(
             }
             Curve3::Circle(
                 conic_k @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n_c,
-                            u_ref: u_c,
-                        },
+                    frame: carrier_frame_16,
                     ..
                 },
             ) => {
+                let (center, n_c, u_c) = (
+                    carrier_frame_16.origin(),
+                    carrier_frame_16.axis(),
+                    carrier_frame_16.u_ref(),
+                );
                 let r_c = conic_k.radius();
                 let s = classify_as(
                     "props_circle_axis_class",
@@ -2635,17 +2607,8 @@ fn require_on_cone<T: Decide>(
         Curve3::Line(geom::Line { dir, .. }) => {
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: n_c,
-                        ..
-                    },
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+            let (center, n_c) = (frame.origin(), frame.axis());
             let r_c = circle.radius();
             require_cone_circle(
                 apex,
@@ -2773,18 +2736,18 @@ fn require_cone_ellipse<T: Decide>(
 ) -> Result<(), PropsError> {
     let Curve3::Ellipse(
         conic_k @ geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: n,
-                    u_ref,
-                },
+            frame: carrier_frame_15,
             ..
         },
     ) = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
+    let (center, n, u_ref) = (
+        carrier_frame_15.origin(),
+        carrier_frame_15.axis(),
+        carrier_frame_15.u_ref(),
+    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
@@ -3360,15 +3323,8 @@ fn cone_loop_winding<T: Decide>(
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        axis: n,
-                        origin: center,
-                        ..
-                    },
-                ..
-            }) => {
+            Curve3::Circle(geom::Circle { frame, .. }) => {
+                let (n, center) = (frame.axis(), frame.origin());
                 let own = sense(n, ends_arm)? * (e.t1 - e.t0);
                 let own = if e.forward { own } else { -own };
                 Turn::Carried(EdgeTurn::carried(
@@ -3380,10 +3336,8 @@ fn cone_loop_winding<T: Decide>(
                     lever,
                 ))
             }
-            Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis: n, .. },
-                ..
-            }) => {
+            Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                let n = frame.axis();
                 let third = (e.t1 - e.t0) / T::from_f64(3.0);
                 let (q1, q2) = (e.carrier.eval(e.t0 + third), e.carrier.eval(e.t1 - third));
                 let (m1, m2) = (radial(q1), radial(q2));
@@ -3491,17 +3445,8 @@ fn cone_boundary<T: Decide>(
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
-            Curve3::Circle(
-                circle @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n_c,
-                            ..
-                        },
-                    ..
-                },
-            ) => {
+            Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                let (center, n_c) = (frame.origin(), frame.axis());
                 let r_c = circle.radius();
                 let s = require_cone_circle(
                     apex,
@@ -4093,18 +4038,7 @@ fn sphere_loop<T: Decide>(
     let mut curvature = T::zero();
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c_c,
-                        axis: n_c,
-                        ..
-                    },
-                ..
-            },
-        ) = e.carrier
-        else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
                     PropsError::Unimplemented
@@ -4114,6 +4048,7 @@ fn sphere_loop<T: Decide>(
                 },
             });
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let w = c_c - center;
         require_on_loop(
@@ -4446,17 +4381,12 @@ pub fn seam_loops<T: Decide>(
     members: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<SeamLoops<T>, PropsError> {
-    let Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    } = *surface
-    else {
+    let Surface::Sphere { frame, radius, .. } = *surface else {
         return Err(PropsError::SphereLoop {
             what: "a seam region read on a surface that is not a sphere",
         });
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     Ok(SeamLoops {
         center,
         radius,
@@ -5318,20 +5248,10 @@ fn sphere_boundary<T: Decide>(
         (h / radius, rho / radius)
     };
     for e in edges {
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c_c,
-                        axis: n_c,
-                        ..
-                    },
-                ..
-            },
-        ) = e.carrier
-        else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
             return Err(IsoChart::Sphere { center, radius }.kind_refusal(e, band));
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let s = classify_as(
             "props_circle_axis_class",
@@ -5952,17 +5872,12 @@ fn torus_chart_loop<T: Decide>(
     // a torus 990 m out at the interval scalar, whatever the minor radius.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: geom::Frame { origin: centre, .. },
-                ..
-            },
-        ) = p.edge.carrier
-        else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = p.edge.carrier else {
             return Err(PropsError::Defect {
                 what: "a torus piece that is no circle",
             });
         };
+        let centre = frame.origin();
         let r_c = conic_k.radius();
         let (wa, wb) = (a - center, b - center);
         let tube = tube_arms(wa, wb);
@@ -6324,18 +6239,7 @@ fn torus_classify<'a, T: Decide>(
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c_c,
-                        axis: n_c,
-                        ..
-                    },
-                ..
-            },
-        ) = e.carrier
-        else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
             return Err(IsoChart::Torus {
                 center,
                 axis,
@@ -6344,6 +6248,7 @@ fn torus_classify<'a, T: Decide>(
             }
             .kind_refusal(e, band));
         };
+        let (c_c, n_c) = (frame.origin(), frame.axis());
         let r_c = conic_k.radius();
         let s = classify_as(
             "props_circle_axis_class",
@@ -6705,10 +6610,8 @@ fn torus_frame_refused(
 #[cfg(test)]
 fn unit_sphere_arm() -> Lever<f64> {
     crate::uniform_curvature_arm(&Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     })
 }
 
@@ -6891,10 +6794,12 @@ mod sphere_region_cover_rows {
     /// The unit sphere about the origin, poled along `z`.
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -6930,15 +6835,11 @@ mod sphere_region_cover_rows {
         let band = Band::linear_at(Tol::witness(), eps).expect("band");
         let surface = match sphere() {
             Surface::Sphere {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 ..
             } => Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius: r,
-                axis,
-                u_ref,
             },
             other => other,
         };

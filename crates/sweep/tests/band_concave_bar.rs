@@ -198,7 +198,8 @@ fn bar_walls<T: Real + Bounds>(body: &Body<T>, section: Section, k: f64) -> Vec<
             (Some(geom::Surface::Cylinder { radius, .. }), Section::Round(a)) => {
                 (mid(*radius) - a).abs() < 1e-9 * k
             }
-            (Some(geom::Surface::Plane { origin, normal, .. }), Section::Square(_)) => {
+            (Some(geom::Surface::Plane { frame, .. }), Section::Square(_)) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 let (y, z) = (mid(origin.y), mid(origin.z));
                 mid(normal.x).abs() < 1e-12
                     && y > 0.25 * k + 1e-9 * k

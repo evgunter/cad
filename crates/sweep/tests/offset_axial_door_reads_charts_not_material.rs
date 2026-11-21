@@ -82,7 +82,10 @@ fn caps_face_alike(what: &str, body: &Body<f64>) {
     let normals: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Plane { normal, .. }) => Some(normal.y),
+            Some(Surface::Plane { frame, .. }) => {
+                let normal = frame.axis();
+                Some(normal.y)
+            }
             _ => None,
         })
         .collect();

@@ -219,11 +219,14 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
     match body.face_surface(face).unwrap() {
         &Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (center, major_radius, minor_radius),
+        } => {
+            let center = frame.origin();
+            (center, major_radius, minor_radius)
+        }
         other => panic!("the band face is a torus, got {other:?}"),
     }
 }

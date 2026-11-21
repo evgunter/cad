@@ -133,10 +133,8 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
     let bd = band();
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let cone_rim = |v: f64, u0: f64, u1: f64, a, b| {
         edge(
@@ -328,13 +326,10 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let t0 = PI / 2.0 - delta;
         let t1 = t0 + 2.0 * PI + 2.0 * delta;
         let e = great(0.0, t0, t1, 0, 1);
-        let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis: n_c, .. },
-            ..
-        }) = e.carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, .. }) = e.carrier else {
             unreachable!()
         };
+        let n_c = frame.axis();
         let w0 = e.carrier.eval(e.t0) - p3(0.0, 0.0, 0.0);
         let sa = w0.dot(axis) / RS;
         let ca = n_c.cross(w0).dot(axis) / RS;

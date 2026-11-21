@@ -344,10 +344,8 @@ mod tests {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Cone {
-                    apex: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     half_angle: alpha,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -397,10 +395,12 @@ mod tests {
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: geom_core::Point3::new(2.0, 2.0, 2.0),
+                    frame: geom::Frame::new(
+                        geom_core::Point3::new(2.0, 2.0, 2.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 12f64.sqrt(),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },

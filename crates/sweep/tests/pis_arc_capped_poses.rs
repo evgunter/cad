@@ -346,8 +346,8 @@ fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::Fac
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal: n, .. })
-                    if n.cross(normal).norm() < 1e-12 && (at - *origin).dot(*n).abs() < 1e-12
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().cross(normal).norm() < 1e-12 && (at - frame.origin()).dot(frame.axis()).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)
@@ -565,9 +565,10 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
         .map(|(k, _)| k)
         .expect("a planar face bounded by a spiric");
     let data = cavity.get_face(spiric_face).expect("face");
-    let Some(geom::Surface::Plane { normal, .. }) = body_surface(&cavity, data.surface) else {
+    let Some(geom::Surface::Plane { frame, .. }) = body_surface(&cavity, data.surface) else {
         unreachable!("selected as a plane");
     };
+    let normal = frame.axis();
     let vertex = loop_vertex(&cavity, data.outer);
     let across = normal.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
     let up = normal.cross(across);
@@ -1206,13 +1207,13 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
     for case in tilted_cut_cases() {
         let mut sections = 0;
         for (key, face) in case.body.faces() {
-            let Some(geom::Surface::Plane { origin, normal, .. }) = case.body.face_surface(key)
-            else {
+            let Some(geom::Surface::Plane { frame, .. }) = case.body.face_surface(key) else {
                 continue;
             };
+            let (origin, normal) = (frame.origin(), frame.axis());
             let in_a_cut = case.cuts.iter().any(|c| {
                 normal.cross(c.normal).norm() < 1e-9
-                    && (*origin - c.point).dot(c.normal).abs() < 1e-9
+                    && (origin - c.point).dot(c.normal).abs() < 1e-9
             });
             if in_a_cut {
                 sections += 1;
