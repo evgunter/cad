@@ -170,6 +170,9 @@ fn a0_alone() -> SymRules {
 /// certifies in ONE leaf again, fitting no plane on the way: plain
 /// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
 /// one replay's.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`), 24 decisions on the slab's four
+/// corners: plain 460/504 → 444/496, shipped 468/496 → 452/488.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -200,13 +203,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=460 numeric=504 frozen=0",
+        "decisions symbolic=444 numeric=496 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=468 numeric=496 frozen=0",
-        "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
+        "decisions symbolic=452 numeric=488 frozen=0",
+        "8 of the 496 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
          decides exactly"
     );
     assert_eq!(

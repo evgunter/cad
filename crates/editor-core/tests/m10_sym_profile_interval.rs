@@ -315,6 +315,13 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
+///
+/// **Moved with validation reading no adjacent line pair's shared
+/// vertex** (`profile::seg`'s `line_line`): its two sides, two spans and
+/// two coincidences at each of the slab's four corners are asked no
+/// more. `Plain/Decision` 936 → 888 calls, and the `Early/Decision`
+/// line, 16 calls, goes with them; the assertions' forms and every
+/// digest move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
@@ -322,10 +329,9 @@ const SLAB_LEDGER: [&str; 3] = [
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Plain/Decision calls 888 forms 8229 frozen 0 digest a35bb655bdbe66d9ab6e06c57239b1ce\n\
+     Plain/Assertion calls 992 forms 2595 frozen 0 digest e079028ab6a774635727a8d9f51d2e95\n\
+     Early/Assertion calls 992 forms 3011 frozen 0 digest de2dc5bde4766d18613e8266d4435b1f",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
      Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
