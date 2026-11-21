@@ -2,11 +2,13 @@
 id: a-half-sphere-reads-vacuous-in-its-own-window-so-a-departure-pair-certifies-on-a-zero-width-rectangle
 kind: issue
 title: A revolved ball's half-band is presented in its own whole window as the zero-width rectangle u = π and read vacuous, so the departure arm certifies the two half-bands at the root without reading either
-status: open
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: M
-blocked_on: [three-walks-of-a-loops-chart-images-each-claim-to-be-the-one]
+closed: 2026-11-18
+pr: 7086
+branch: embed/half-sphere
 ---
 
 
@@ -193,3 +195,113 @@ because the lift fix is in flight.
 the band as holding nothing, while DESIGN's finished-body clause says
 a reading inside the band refuses as ambiguous. Filed separately
 (`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`).
+
+## Measured and landed (EMBED lane half-sphere, 2026-11-17)
+
+**1. The trace re-run on the ball, main at `362cd72fd`.** ONEDOOR's
+lift holds here: `1v1`'s extent reads `u ∈ [π, 2π]`, `2v1`'s
+`[0, π]`. The whole window no longer reads `1v1` vacuous: both faces
+refuse `Local` there, and the pair splits. The ball holds at 227
+splits with 96 certificates across `(1v1, 2v1)`. Of 319 departure
+reads, 2 are `Vacuous`, and both are right: `1v1` in the cell
+`u ∈ [0, π]` and `2v1` in `[π, 2π]`, each through `Sheets::Missed`,
+each a cell the face does not enter.
+
+**2. What landed** (`crates/topo/src/injective.rs`, after two reviews):
+- **`face_extent` is the one reader of `Boundary::extent`.** A face
+  lies within the hull of its boundary.
+  - On every axis, each line of a boundary edge, placed by `placed`,
+    must meet the extent and have room in it, more than `chart_slack`,
+    on its face side.
+  - On a cone, the face's nappe, read off its vertices, must hold the
+    extent's `v`.
+  - A contradiction is the face's fact, so every cell refuses
+    `Structural`. In `departure`, one side's `Structural` only splits,
+    so this means "never presented", not "the pair refused".
+  - This is the trace's option 3, used as a check of the lift.
+  - **First review:** it read periodic axes only, and the face then read
+    vacuous one split below the guard. It now reads every axis.
+  - **Second review:** the nappe was read only in a cell at the apex,
+    and refused `Local`. The children then read the face vacuous on
+    both nappes. It is now read with the lines.
+- **`sheets` names its outcomes.** `Sheets::Missed` (the cell holds none
+  of the face, read `Vacuous`) or `Sheets::On`, each read once. The
+  refusals: `Local` where two copies of the extent are met, which a
+  smaller cell may fix; `Structural` where the cell's bounds are not
+  finite, or the extent is contradicted. The line corner is handed the
+  sheet `present_chart` read, and does not read it again.
+- **One check of the final rectangle** in `present_chart`, after every
+  clip: a low side above a high one, or an axis with no width (read at
+  the touch's slack at either end; the filleted drum pins why no
+  wider), refuses `Local`. Both are the cell's, since a smaller cell
+  holds one part of the face or neither line.
+- **The apex** reads `Vacuous` only where the CELL is on the other
+  nappe. A face with no one nappe refuses `Structural`, the face's
+  fact. The `Local` arm for clips on the other nappe is gone: the
+  extent now holds the nappe.
+- **One spelling of "seam"** (`seam(e)`). An undecided face side is a
+  shared edge's fact in the line corner as in `present_chart`
+  (`Structural`).
+- **`present_line_corner`'s rectangle** was widened, then reverted at
+  the first review: no witness, and the reader is frozen with the
+  sliver fork. The note is on that row.
+
+**3. `Local` beside a `Vacuous` return: is the contradiction the
+cell's or the face's?**
+- `face_extent`, the lines against the extent: the face's →
+  `Structural`.
+- `face_extent`, the nappe against the extent: the face's →
+  `Structural`.
+- The apex, no decided nappe: the face's → `Structural` (was `Local`).
+- The apex, a clip on the collapsed side not at `0` (the
+  mismatched-clip arm): the cell's. A notch face reaches the apex in
+  one `u` range and has a parallel above it in another, and a smaller
+  cell holds one of them → `Local`.
+- The apex, clips on the other nappe: gone (above).
+- The pole, the rectangle past the pole's latitude: the cell's, and
+  reached by no cell inside the chart's domain → `Local`.
+- The final rectangle (a slot, or no width): the cell's → `Local`.
+- The past-the-line test (`!inside`, `vacuous()` false): the cell's;
+  a smaller cell may be touched along an edge covering its side →
+  `Local`.
+- `sheets`, two copies met: the cell's → `Local`.
+
+**4. The `Vacuous` paths, and what each rests on now:**
+- `Sheets::Missed`: the extent, checked against every line and the
+  nappe by `face_extent`. On an axis where no line is read, it rests on
+  the stored lift alone. Filed P3:
+  `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`.
+- `vacuous()`: a line placed on the face's sheet (now checked), the
+  line's face side, and an edge covering the cell's side.
+- The apex: the cell on the other nappe, the nappe checked against the
+  extent.
+- `present_chart`'s sliver: reached only with a rectangle of some
+  width. What is left is the band concession, frozen with designers.
+- `present_line_corner`'s and `present_plane_corner`'s slivers: frozen
+  with the fork, unchanged.
+- `present_plane`'s two half-plane reads: on a plane, where no sheet is
+  chosen.
+
+**5. Pins and mutants** (unit rows in `injective.rs`). Each mutant was
+run and goes red with the reading named:
+- Drop the lines check: `a_half_band_is_not_read_vacuous_where_it_lies`
+  (its own half turn reads `Vacuous`),
+  `a_face_whose_extent_its_line_contradicts_is_not_vacuous_below_the_guard`,
+  and `a_line_apart_from_the_faces_extent_contradicts_it` all go red.
+- Drop `meets`: `a_line_apart_from_the_faces_extent_contradicts_it`.
+- Slack 0 in `face_extent`: `a_line_a_turns_rounding_moves_past_its_extent_agrees_with_it`.
+- Drop the nappe check: `a_face_whose_lines_contradict_its_nappe_refuses_in_every_cell`
+  and `a_face_whose_lines_contradict_its_nappe_is_not_vacuous_on_both`.
+- Drop the zero-width check: `a_rectangle_its_own_clips_leave_no_width_refuses`
+  (two lines `u = 3/2`, the face above one and below the other).
+- A flat-axis miss turned `Local`: `a_cell_past_the_extent_on_a_flat_axis_holds_none_of_the_face`.
+- **Body pin:** `a_revolved_ball_holds_only_after_it_splits` (the review's
+  row; 0.136 s on the PR gate's profile, so not in the slow set). It is what ties the hand-built half-band to
+  what the revolve door stores.
+
+**6. What moved: nothing measured.** The 49 rows of
+`self_intersection_proves_injectivity` give identical receipts on main
+and the branch, and the tour walk holds 82 of 85 on both. Those rows
+exercise none of the change: the contradicted extent, the zero-width
+check and the apex refusals fire on none of them. The identical
+receipts show the change costs no body; the pins show what it does.

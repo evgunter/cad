@@ -42,3 +42,26 @@ What is still spelled more than once:
   argued one.
 
 By `work/README.md`, two implementations of one logic is P1.
+
+## Further evidence: "the shared cell is one vertex alone" (lane conic-vertex, PR 7105 fix pass, 2026-11-18)
+
+The PR 7105 review found the vertex-alone test spelled four ways in
+`topo::injective`. The fix pass gave it one home, `vertex_alone` (no
+shared edge, one shared vertex), and used it at the two sites that ask
+exactly that: `corner_of`'s `alone` corner and `graph_of` at a vertex
+alone. Three spellings stay, because each accepts something else, and
+unifying them would change what they read:
+- `vertex_corner` (the quadrant at a vertex alone) asks one shared vertex
+  and neither of the corner's walls near. It does not ask for no shared
+  edge, so a cell whose shared edge is a seam (no wall) still reads.
+- `planes_through`'s plane through a vertex asks no shared edge and the
+  first of the shared vertices, however many there are.
+- `corner_of`'s lens is read at its end among the cell's local vertices
+  (`common == [v, w]`), against `vertex_corner`'s single common end.
+
+**Which vertices a separator lists is also decided per arm.**
+`planes_through`'s `through` lists every end of each held edge.
+`graph_of` lists none across a shared edge, and at a vertex alone that
+vertex only. Both concede the same thing: the stored vertex's certified
+tolerance off the carrier (the module docs' separator concession). But
+nothing ties the two lists to one rule.

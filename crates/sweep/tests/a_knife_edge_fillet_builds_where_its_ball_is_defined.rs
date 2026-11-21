@@ -313,11 +313,11 @@ fn a_lune_cusp_loses_its_horn_and_a_lune_slit_gains_it() {
 /// **A knife's end is the blend's own building decision**: the end the
 /// fold reads picks the side the ball rests on (a cusp's in the material,
 /// as a convex link's; a slit's in the void, as a concave link's), so the
-/// fold records it under the blend's `fillet3_knife_end`, which the flip
-/// lane reads, and not under tier 3's shared `material_cusp_side`. The
-/// link carries that reading as its convexity margin.
+/// blend records its `material_cusp_side` as a choice, which the flip lane
+/// reads, and none of it as a check. The link carries that reading as its
+/// convexity margin.
 #[test]
-fn a_knifes_end_is_recorded_under_the_blends_own_name() {
+fn a_knifes_end_is_recorded_as_the_blends_choice() {
     use sweep::blend::Convexity;
     use sweep::blend::battery::{BlendRequest, run_battery};
     let band = geom_core::Band::linear(tol()).expect("the run's band");
@@ -337,24 +337,25 @@ fn a_knifes_end_is_recorded_under_the_blends_own_name() {
         let link = verdict.chains[0].first();
         assert_eq!(link.convexity, want, "{what} (horn sign {sign})");
         assert_eq!(
-            link.convexity_margin.predicate, "fillet3_knife_end",
+            link.convexity_margin.predicate,
+            geom_brep::MATERIAL_CUSP_SIDE,
             "{what}"
         );
-        let named = |name| {
+        let named = |role| {
             recorded
                 .verdicts
                 .iter()
-                .filter(|v| v.predicate == name)
+                .filter(|v| v.predicate == geom_brep::MATERIAL_CUSP_SIDE && v.role == role)
                 .count()
         };
         assert!(
-            named("fillet3_knife_end") > 0,
-            "{what}: the end is on the log"
+            named(geom_core::k_stats::Role::Choice) > 0,
+            "{what}: the end is on the log as a choice"
         );
         assert_eq!(
-            named(geom_brep::MATERIAL_CUSP_SIDE),
+            named(geom_core::k_stats::Role::Check),
             0,
-            "{what}: and not as a shape reading"
+            "{what}: and not as a check"
         );
     }
 }

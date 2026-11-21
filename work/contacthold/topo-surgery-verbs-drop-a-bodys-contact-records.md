@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
+refs: [3856]
 branch: contacthold/surgery-carries-records
 pr: 4694
 closed: 2026-10-11

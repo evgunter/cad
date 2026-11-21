@@ -590,9 +590,8 @@ pub(crate) fn sphere_face_widest_cos(
     surface: &geom::Surface<f64>,
 ) -> Result<f64, TessellateError> {
     let geom::Surface::Sphere {
-        center,
+        frame: carrier_frame,
         radius,
-        axis,
         ..
     } = *surface
     else {
@@ -600,13 +599,12 @@ pub(crate) fn sphere_face_widest_cos(
             what: "a sphere face's widest latitude on a non-sphere surface",
         });
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let (z0, z1) = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: cc, .. },
-                ..
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, .. }) => {
+                let cc = frame.origin();
                 let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
                 let c = height(cc);
                 let a = height(curve.carrier().eval(0.0)) - c;
@@ -857,7 +855,7 @@ pub(crate) fn cone_face_rho_max(
     let mut rho_max: Option<f64> = None;
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let rho = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+            geom::Curve3::Circle(circle) => circle.radius(),
             geom::Curve3::Line(_) => continue,
             geom::Curve3::Ellipse(..)
             | geom::Curve3::Nurbs(_)

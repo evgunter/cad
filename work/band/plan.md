@@ -98,3 +98,106 @@ The rest have no order.
 
 Per unit, by the review tiers in `memories/orchestration-model.md`.
 Each dispatch names its tier in the log.
+
+## From BANDMETER (merged 2026-11-20)
+
+the blend surgery's ring, cap and strip meters reading wider than they
+need
+
+Opened 2026-10-26 by BAND's priority-seam split (`work/README.md`,
+Track size). Nothing dispatched.
+
+### The slate
+
+**28.5 budget points** of dispatchable work against a ceiling of 30.
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P3 | `a-ring-of-ellipse-edges-refuses-the-ring-meter` | M | a support ring with an ellipse edge refuses the ring meter |
+| P3 | `a-requested-ruled-ring-edge-refuses-at-the-ring-meter` | M | a ruled band's requested edge in a planar support's ring refuses at the ring meter |
+| P3 | `blend-support-ring-meters-read-two-ways` | M | the support ring meters read a ring wholly inside the strip as a crossing |
+| P3 | `planar-strip-meter-encloses-the-strip-in-its-bounding-rectangle` | M | the planar strip meter reads the strip's bounding rectangle |
+| P3 | `support-boundary-meter-bounds-other-carriers-by-the-whole-carrier` | M | the rim support-boundary meter bounds an ellipse, spiric or NURBS edge by a whole-carrier box |
+| P3 | `cap-sliver-meter-reads-a-curved-edge-term-by-term` | M | the cap meter reads a circle or ellipse edge one enclosure face at a time |
+| P3 | `an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis` | M | an oblique cap's inside reading charges a ring its major semi-axis |
+| P3 | `a-chord-ends-triangle-could-read-a-cycle-outside` | E | a chord end's exact triangle could certify a cycle wholly outside |
+| P3 | `a-cap-slivers-rim-arcs-whole-circle-arms-have-no-cap-row` | M | the cap sliver's rim arcs' whole-circle arms have no cap row |
+| P3 | `ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place` | M | the ruled cap meter reads a co-requested open link at its stored place |
+| P3 | `a-turns-overrun-meters-the-whole-cut-off-sliver` | M | a turn overrun meters the far band's whole cut-off sliver |
+| P3 | `an-overruns-sliver-refuses-a-short-near-edge` | M | a turn overrun's sliver refuses a short near edge |
+
+### Order
+
+`ruled-cap-meter-reads-a-co-requested-open-link-at-its-stored-place`
+is the one row that could be a missed refusal rather than an
+over-refusal (found by reading, not measured), so it is measured
+first. The rest pair up by meter:
+
+- **Ring arm (a).** `a-ring-of-ellipse-edges-refuses-the-ring-meter`
+  and `a-requested-ruled-ring-edge-refuses-at-the-ring-meter` both
+  widen what arm (a) reads; `blend-support-ring-meters-read-two-ways`
+  gives the arms the three-way reading the reach and the cap meter
+  already have.
+- **The cap sliver.** `cap-sliver-meter-reads-a-curved-edge-term-by-term`,
+  `an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis`,
+  `a-chord-ends-triangle-could-read-a-cycle-outside` and
+  `a-cap-slivers-rim-arcs-whole-circle-arms-have-no-cap-row` all read
+  `CapSliver` in `end_face.rs`.
+- **The overrun.** `a-turns-overrun-meters-the-whole-cut-off-sliver`
+  and `an-overruns-sliver-refuses-a-short-near-edge` are both
+  `turn_plan`'s sliver; BANDRULE's
+  `a-feature-inside-a-turns-overrun-is-not-carved` waits on an exact
+  reading of the overrun too.
+
+`planar-strip-meter-encloses-the-strip-in-its-bounding-rectangle` and
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`
+are independent.
+
+### Review posture
+
+Per unit, by the review tiers in `memories/orchestration-model.md`.
+Each dispatch names its tier in the log.
+
+## From BANDREACH (merged 2026-11-20)
+
+predicate 2 reading wider than it needs: the blend's reach meter and
+its support screen
+
+Opened 2026-10-26 by BAND's priority-seam split (`work/README.md`,
+Track size). The P0 is closed (PR 6779).
+
+### The slate
+
+**18.5 budget points** of dispatchable work against a ceiling of 30.
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P3 | `blend-reach-meters-a-nurbs-face-on-its-box-alone` | M | the reach has no surface distance for a NURBS face, so a loft wall whose box meets a band refuses |
+| P3 | `blend-reach-takes-an-open-arc-link-over-the-whole-turn` | M | an open arc link's reach is taken over the whole turn |
+| P3 | `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver` | M | the reach refuses D-rod bores that stay clear of the sliver the cut-off removes |
+| P3 | `the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end` | M | the cross-chain excuse misses an oblique cell past a link's window end |
+| P3 | `blend-reach-never-meters-the-bands-of-one-chain-against-each-other` | M | the reach never meters two bands of one chain, or of two chains that meet, against each other |
+| P3 | `the-strip-screen-reads-a-supports-vertices-not-its-edges` | M | `reach::screened` reads a support's vertices alone |
+| P3 | `the-support-screen-refuses-a-feature-across-the-edges-line` | M | the support screen refuses a feature across a requested edge's line, where the band never reaches |
+| P3 | `support-screen-skips-adjacent-boundary-features-wherever-they-approach` | E | the support screen skips adjacent boundary features wherever they approach |
+
+### Order
+
+Three rows say the meter may excuse what it never reads, and they
+come first, each measure-first:
+`blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+(no door reaches it while every chain is straight),
+`the-strip-screen-reads-a-supports-vertices-not-its-edges` (a curved
+edge can dip into the strip between samples), and
+`support-screen-skips-adjacent-boundary-features-wherever-they-approach`
+(a curved neighbour that comes back). The two screen rows read one
+premise and may share a unit with
+`the-support-screen-refuses-a-feature-across-the-edges-line`. The
+reach's over-refusals (NURBS box, whole turn, ruled cut-off bore,
+oblique cell) are independent. The NURBS row wants the boolean's
+certified NURBS-box machinery.
+
+### Review posture
+
+Per unit, by the review tiers in `memories/orchestration-model.md`.
+Each dispatch names its tier in the log.

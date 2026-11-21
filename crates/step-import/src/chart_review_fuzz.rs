@@ -16,7 +16,8 @@ test_utils::gated_to![
     "crates/geom/src/azimuth.rs",
 ];
 
-use crate::chart::{file_band, uv_of};
+use crate::chart::uv_of;
+use crate::interpret::file_band;
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
@@ -49,34 +50,24 @@ fn review_fuzz_roundtrip() {
         let r = 0.2 + s.unit() * 3.0;
         let kinds: [Surface<f64>; 5] = [
             Surface::Plane {
-                origin,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(origin, axis, u_ref),
             },
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius: r,
-                u_ref,
             },
             Surface::Cone {
-                apex: origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 half_angle: 0.05 + s.unit() * 1.4,
-                u_ref,
             },
             Surface::Sphere {
-                center: origin,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             },
             Surface::Torus {
-                center: origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 major_radius: r + 1.0,
                 minor_radius: r * 0.3,
-                u_ref,
             },
         ];
         for (k, surf) in kinds.iter().enumerate() {
@@ -123,10 +114,8 @@ fn review_fuzz_roundtrip() {
     // Cone mirror nappe: eval at v<0 must round-trip too.
     let (axis, u_ref) = frame(&mut s);
     let cone = Surface::Cone {
-        apex: Point3::new(0.3, -0.2, 0.9),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.3, -0.2, 0.9), axis, u_ref),
         half_angle: 0.6,
-        u_ref,
     };
     let nappe = fuzz::scaled(25);
     for i in 0..nappe {

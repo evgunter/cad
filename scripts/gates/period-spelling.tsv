@@ -26,7 +26,6 @@ crates/geom-brep/src/props/closure.rs	nearest_turns	1	owed
 crates/geom-brep/src/props/quad/rotational.rs	told_turns	1	angle
 crates/geom-brep/src/props/taylor.rs	primitive_each	1	angle
 crates/mesh/src/cert.rs	abs_radial_max	2	owed
-crates/step-import/src/adopt.rs	arc_rim_on_wall_boundary	1	owed
 crates/step-import/src/entities.rs	is_periodic_band	1	owed
 crates/sweep/src/blend/surgery.rs	arc_within	1	owed
 crates/sweep/src/blend/surgery.rs	past_misses	1	owed

@@ -25,6 +25,7 @@ cd demos/tour
 cargo run --release -- ../out                  # build, narrate, export STL + STEP
 cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
 cargo run --release -- certified               # the certified cells: plate tolerance, chain
+cargo run --release --example embed_walk       # is every finished body embedded? one WALK line each
 ```
 
 The first command builds every scene through the public API, narrates each
@@ -34,6 +35,10 @@ opens — *The document gallery*, below. The third narrates the two cells
 whose subject is the certified scalar rather than a scene (`tolerance.rs`,
 `chaintol.rs`); they take minutes where a scene takes seconds, so the walk
 leaves them to their own mode.
+The fourth walks the same stops and asks `topo::clearance::embedded` of
+every finished body, printing one `WALK` line per body and the total that
+hold; `tour/examples/embed_walk.rs` says what it asks, at which budgets,
+and how to capture a report two runs can diff.
 
 **None of them renders anything, and none needs the render guard's override
 sentence.** The pictures in this repository are produced and committed by

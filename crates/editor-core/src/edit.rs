@@ -528,8 +528,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// records the new ε in the document — a pure value edit, and a
     /// STRUCTURAL one (ε parameterizes every content key: the full
     /// cone recomputes). The audit semantics — persist-grade replay
-    /// at the new ε plus the PR 4 diff engine's flipped-predicate
-    /// report — necessarily SPAN processes: one process hosts one ε
+    /// at the new ε plus a report of where each predicate's sign
+    /// counts moved — necessarily SPAN processes: one process hosts one ε
     /// (`geom_core::Tolerance` commits once), so the replay happens
     /// in a fresh process (save → load) and the two runs' serialized
     /// verdict summaries diff through
@@ -1993,18 +1993,22 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     if !copied || of.is_empty() {
         return Some(None);
     }
-    let mut at = copy;
-    for (k, &step) in of.iter().enumerate() {
+    // A pick of a pick walks the inner pick's path first, then `of`
+    // ([`Doc::pick_path`]); a step is counted in `of`.
+    let (mut at, mut path) = doc.pick_path(copy).unwrap_or((copy, Vec::new()));
+    let inner = path.len();
+    path.extend_from_slice(of);
+    for (k, &step) in path.iter().enumerate() {
         let var = match reach(at) {
             Reached::Part => return None,
             Reached::Body(var) => var,
         };
         let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
             Some(Node::Assemble { members }) => members.rows(),
-            _ => return Some(Some(k)),
+            _ => return Some(Some(k.saturating_sub(inner))),
         };
         if members.iter().filter(|(_, read)| read.read == step).count() != 1 {
-            return Some(Some(k));
+            return Some(Some(k.saturating_sub(inner)));
         }
         at = step;
     }
@@ -2579,27 +2583,6 @@ pub enum LoftFault {
         /// The section, in skin order (the first is `0`).
         section: usize,
     },
-    /// A section after the first whose station's moves, under the
-    /// current values, carry the first section's plane exactly onto
-    /// itself (a slide by nothing, a spin in the plane): it stands in
-    /// that plane as an empty station does.
-    ///
-    /// Judged when a door writes the loft, on the values then. A value
-    /// edit (`SetVarValue`) that later brings a station there writes no
-    /// loft and is admitted; evaluation then refuses the loft
-    /// (`LoftError::DegenerateStacking`), and the next edit that writes
-    /// it refuses here.
-    StationInFirstPlane {
-        /// The section, in skin order (the first is `0`).
-        section: usize,
-    },
-    /// A v degree outside `1 ..= sections − 1`.
-    DegreeOutOfRange {
-        /// The degree the slot holds.
-        degree: i64,
-        /// The sections written.
-        sections: usize,
-    },
 }
 
 impl LoftFault {
@@ -2621,17 +2604,6 @@ impl LoftFault {
                 "section {section} of {node} has no station, so it stands in the first \
                  section's plane"
             ),
-            Self::StationInFirstPlane { section } => write!(
-                f,
-                "the station of section {section} of {node} carries the first section's plane \
-                 onto itself under the current values, so the section stands in that plane"
-            ),
-            Self::DegreeOutOfRange { degree, sections } => write!(
-                f,
-                "{node} is a loft of v degree {degree} through {sections} sections, which admit \
-                 degrees 1 to {}",
-                sections - 1
-            ),
         }
     }
 
@@ -2641,13 +2613,6 @@ impl LoftFault {
             Self::TooFewSections { .. } => "write a second section with its station",
             Self::EmptyStation { .. } => {
                 "write the moves that carry the first section's plane to its own"
-            }
-            Self::StationInFirstPlane { .. } => {
-                "move it off that plane: slide it along the first section's z, or spin it \
-                 about its x or y"
-            }
-            Self::DegreeOutOfRange { .. } => {
-                "write a degree in that range, or the sections it needs"
             }
         }
     }
@@ -2711,15 +2676,13 @@ pub enum EditError {
         /// The missing id.
         id: SpokenNode,
     },
-    /// An edit that CREATES or MODIFIES a profile program failed the
-    /// authoring-time check (LIB-SWITCH §4d, VQ9): the program is
-    /// resolved, replayed, and validated under the CURRENT parameter
-    /// environment at the edit door, so the author sees refusals at
-    /// the verb, not at first evaluation. A variable edit deliberately
-    /// NEVER takes this door — a parameter edit that breaks a
-    /// downstream profile surfaces as that node's typed evaluation
-    /// error (V1 class 2: refusing programs may exist at rest); both
-    /// directions are pinned by test.
+    /// An edit that CREATES or MODIFIES a profile program wrote a step
+    /// order its lattice of verbs refuses
+    /// ([`crate::ProfilePayload::lattice`]), or, for a `SetProgram`
+    /// whose names spell a kept step's piece, a program whose pieces
+    /// cannot be named ([`crate::ProfilePayload::drawable_pieces`]). No
+    /// value is read (`[recipe.doors]`): a program whose values refuse
+    /// is admitted and refused typed at evaluation.
     ProfileProgramRefused {
         /// The profile node (for `InsertNode`, the id being minted).
         node: SpokenNode,
@@ -4356,19 +4319,7 @@ impl EditError {
                 )
             }
             Self::PickPath { node, slot, at } => {
-                match at {
-                    Some(at) => write!(
-                        f,
-                        "{node}'s {slot} picks no piece: step {} of its path names no one \
-                         operand of the assemble the walk reaches",
-                        at + 1
-                    )?,
-                    None => write!(
-                        f,
-                        "{node}'s {slot} picks no piece: it reads no placement's copy, or its \
-                         path is empty"
-                    )?,
-                }
+                write!(f, "{}", PicksNoPiece(format_args!("{node}'s {slot}"), *at))?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -5892,29 +5843,21 @@ fn settle_step_ids(
 }
 
 /// **The pieces of kept steps a `SetProgram` stops drawing**, among
-/// those a name in `doc` spells ([`StableName::step_pieces`]): not drawn
-/// by `new` and drawn by `old` where it replays, under `doc`'s current
-/// parameters, as
-/// [`crate::ProfilePayload::drawn_pieces`] answers — the one authority
-/// on which pieces a program draws. A kept step's piece goes undrawn
-/// when another piece takes its segment (N1, "Undrawn pieces vanish
-/// rather than alias"): a fillet inserted or moved before its leg.
-///
-/// A piece `old` draws and `new` does not is the edit's to report; one
-/// `old` already left undrawn is not, since the edit removed nothing.
-/// Where `old` does not replay under the current parameters (a legal
-/// at-rest state) there is no drawn set to compare against, and every
-/// named kept piece `new` does not draw is reported: the edit removes
-/// the referent's future either way. Neither program is replayed when
-/// no name spells a kept step's piece.
+/// those a name in `doc` spells ([`StableName::step_pieces`]): a piece
+/// `old`'s structure can draw and `new`'s cannot, as
+/// [`crate::ProfilePayload::drawable_pieces`] answers from each program
+/// alone (REFERENCES.md DM7). A kept step's piece goes undrawable when
+/// another piece takes its segment by construction (N1, "Undrawn pieces
+/// vanish rather than alias") — a fillet inserted before its leg — or a
+/// `circle_split` count drops it. A piece a value leaves undrawn (a run
+/// that fits `Zero`) is no removal: no value is read, so the same
+/// values written by any door report the same.
 fn undrawn_kept_pieces<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    written: &Doc<P>,
     node: RecipeNodeId,
     old: &P,
     new: &P,
     dropped: &std::collections::BTreeSet<StepId>,
-    tol: Tol,
 ) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
     let Some(ids) = old.step_ids() else {
         return Ok(std::collections::BTreeSet::new());
@@ -5933,20 +5876,15 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
     if named.is_empty() {
         return Ok(named);
     }
-    let env = doc.var_env::<f64>();
     let refused = |refusal| EditError::ProfileProgramRefused {
         node: doc.spoken(node),
         refusal: Box::new(refusal),
     };
-    let before = old.drawn_pieces(&env, tol).ok();
-    // The new program reads the variables its lowering minted, which
-    // the document it is written into holds.
-    let after = new
-        .drawn_pieces(&written.var_env::<f64>(), tol)
-        .map_err(refused)?;
+    let before = old.drawable_pieces().map_err(refused)?;
+    let after = new.drawable_pieces().map_err(refused)?;
     Ok(named
         .into_iter()
-        .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
+        .filter(|p| before.contains(p) && !after.contains(p))
         .collect())
 }
 
@@ -6125,6 +6063,9 @@ pub struct Applied<P> {
 ///   repairs exactly this), strands nothing.
 /// - A [`Maintenance::StrandedAppearance`] survives when the store
 ///   still holds its key.
+/// - A strand of a piece a kept step stopped drawing ([`Took::Piece`])
+///   survives only while the end document's structure still cannot draw
+///   it: a later reshaping that draws it again takes the strand back.
 /// - A [`Maintenance::StrandedRead`] survives when its reader is live at
 ///   the end and its operand still reads the removed output: a later
 ///   edit that deleted the reader or re-pointed the operand took it
@@ -6156,6 +6097,13 @@ impl MaintenanceNet {
         self.rows
             .into_iter()
             .filter(|row| match row {
+                Maintenance::Strand { took, name, .. }
+                | Maintenance::StrandedSelection { took, name, .. }
+                | Maintenance::StrandedAppearance { took, name, .. }
+                    if *took == Took::Piece && drawable_again(end, name.name()) =>
+                {
+                    false
+                }
                 Maintenance::Strand { node, name, .. } => end
                     .node(node.id())
                     .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
@@ -6181,6 +6129,31 @@ impl MaintenanceNet {
             })
             .collect()
     }
+}
+
+/// **Whether every kept-step piece `name` spells is one `end`'s
+/// structure can draw again**: each piece's step is held by a profile
+/// of `end` whose program can draw it
+/// ([`crate::ProfilePayload::drawable_pieces`]). What a
+/// [`Took::Piece`] strand was about came back when this holds; no value
+/// is read, so a value that leaves the piece undrawn does not keep the
+/// strand.
+fn drawable_again<P: crate::ProfilePayload>(end: &Doc<P>, name: &StableName) -> bool {
+    let pieces = name.step_pieces();
+    !pieces.is_empty()
+        && pieces.iter().all(|piece| {
+            end.nodes.values().any(|node| {
+                let Node::Profile(program) = node else {
+                    return false;
+                };
+                program
+                    .step_ids()
+                    .is_some_and(|ids| ids.iter().flatten().any(|id| Some(*id) == piece.step()))
+                    && program
+                        .drawable_pieces()
+                        .is_ok_and(|drawable| drawable.contains(piece))
+            })
+        })
 }
 
 /// **An action of several edits, under way.** Each edit is applied to
@@ -6266,7 +6239,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// As [`Self::apply`]'s.
     pub fn apply_recorded(&mut self, edit: DocEdit<P>) -> Result<EditRecord, EditError> {
         self.open()?;
-        let applied = apply_spaced(self.doc(), &edit, self.tol, None).map_err(|e| self.end(e))?;
+        let applied = apply_spaced(self.doc(), &edit, None).map_err(|e| self.end(e))?;
         let record = applied.record.clone();
         self.take(edit, applied);
         Ok(record)
@@ -6280,7 +6253,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// As [`Self::apply`]'s.
     pub fn insert(&mut self, node: Node<P::Authored, Formula>) -> Result<RecipeNodeId, EditError> {
         self.open()?;
-        let (applied, id) = apply_insert(self.doc(), &node, self.tol).map_err(|e| self.end(e))?;
+        let (applied, id) = apply_insert(self.doc(), &node).map_err(|e| self.end(e))?;
         self.take(
             DocEdit::InsertNode {
                 node: Box::new(node),
@@ -6699,11 +6672,7 @@ fn standing_var<P>(
 /// document holds, at its kind; it does not read itself back (VR3);
 /// and no variable's expansion outgrows [`DEFINITION_NODE_BOUND`].
 /// A free definition reads nothing and passes.
-fn check_definition<P: crate::ProfilePayload>(
-    new: &Doc<P>,
-    id: VarId,
-    tol: Tol,
-) -> Result<(), EditError> {
+fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
     // A source joins the recipe graph: what reads it reads its body, so
     // a definition reading downstream of its own placements is a cycle
     // through nodes (`bracket = F`, `F = fillet(C)`, `C = place(bracket)`)
@@ -6711,7 +6680,7 @@ fn check_definition<P: crate::ProfilePayload>(
     if new.source(id).is_some() {
         expansion_refusal(new)?;
         check_acyclic(new)?;
-        return check_source_readers(new, id, tol);
+        return check_source_readers(new, id);
     }
     let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
         return Ok(());
@@ -6765,7 +6734,6 @@ fn check_definition<P: crate::ProfilePayload>(
 pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
     new: &Doc<P>,
     id: VarId,
-    tol: Tol,
 ) -> Result<(), EditError> {
     let reaches = |read: VarId| new.source_steps(read).iter().any(|&(at, _)| at == id);
     for (&node_id, node) in &new.nodes {
@@ -6800,7 +6768,7 @@ pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
         }
     }
     if let Some(doc) = P::evaluable(new)
-        && let Err(reader) = crate::persist::check::validate_document(doc, tol)
+        && let Err(reader) = crate::persist::check::validate_document(doc)
     {
         return Err(EditError::SourceReaderRefused {
             source: new.spoken_var(id),
@@ -6963,48 +6931,14 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// **A loft's shape**: two sections or more, each after the first with
-/// a station that carries the first section's plane off itself, and a v
-/// degree in `1 ..= sections − 1`. The station and the degree are read
-/// under the document's current values ([`station_keeps_the_first_plane`]);
-/// a value that does not resolve is evaluation's to refuse.
-/// Asked of every loft a door writes ([`check_written_node`]) and
-/// after a slot edit of one ([`set_slot`]); `Ok` for any other node.
-fn check_loft_shape<P: crate::ProfilePayload>(
-    new: &Doc<P>,
-    node: &Node<P>,
-) -> Result<(), LoftFault> {
-    let Node::Loft { then, v_degree, .. } = node else {
-        return Ok(());
-    };
-    if let Some(fault) = loft_structure_fault(node) {
-        return Err(fault);
-    }
-    let sections = then.len() + 1;
-    let env = new.var_env::<f64>();
-    if let Some(k) = then
-        .iter()
-        .position(|s| station_keeps_the_first_plane(&s.station, &env.bindings))
-    {
-        return Err(LoftFault::StationInFirstPlane { section: k + 1 });
-    }
-    if let Some(crate::expr::ParamValue::Count(degree)) = env.bindings.get(v_degree)
-        && !usize::try_from(*degree).is_ok_and(|d| (1..sections).contains(&d))
-    {
-        return Err(LoftFault::DegreeOutOfRange {
-            degree: *degree,
-            sections,
-        });
-    }
-    Ok(())
-}
-
 /// **A loft's shape as written**, read off the node alone: fewer than
 /// two sections ([`LoftFault::TooFewSections`]) or a section after the
-/// first with no station ([`LoftFault::EmptyStation`]). The part of
-/// [`check_loft_shape`] no value moves, so the load door asks it of a
-/// snapshot (`SnapshotError::LoftShape`) as the edit doors ask it of
-/// what they write; `None` for any other node.
+/// first with no station ([`LoftFault::EmptyStation`]). No value moves
+/// it, so the load door asks it of a snapshot
+/// (`SnapshotError::LoftShape`) as the edit doors ask it of what they
+/// write; a station or degree a value makes degenerate is evaluation's
+/// (`LoftError::DegenerateStacking`, the count's range). `None` for any
+/// other node.
 pub(crate) fn loft_structure_fault<P: crate::ProfilePayload>(node: &Node<P>) -> Option<LoftFault> {
     let Node::Loft { then, .. } = node else {
         return None;
@@ -7015,52 +6949,6 @@ pub(crate) fn loft_structure_fault<P: crate::ProfilePayload>(node: &Node<P>) -> 
     then.iter()
         .position(|s| s.station.is_empty())
         .map(|k| LoftFault::EmptyStation { section: k + 1 })
-}
-
-/// **Whether `station` carries the first section's plane exactly onto
-/// itself** under `values`: the moves composed in `f64` as the
-/// evaluation composes them (each about the first section's own axes
-/// through its origin), and the plane's normal and height compared
-/// exactly. Exact, so it refuses only a plane that certainly coincides;
-/// one rounding leaves near it (a half turn about x twice) is the
-/// skin's to refuse (`LoftError::DegenerateStacking`). A move whose
-/// value is not bound answers `false`: what is wrong then is the
-/// binding, which its own check names.
-fn station_keeps_the_first_plane(
-    station: &[crate::node::StationMove],
-    values: &std::collections::BTreeMap<VarId, crate::expr::ParamValue<f64>>,
-) -> bool {
-    use crate::node::StationMove as M;
-    let value = |var: &VarId| match values.get(var) {
-        Some(crate::expr::ParamValue::Continuous { value, .. }) => Some(*value),
-        _ => None,
-    };
-    let index = |axis: crate::Axis3| match axis {
-        crate::Axis3::X => 0,
-        crate::Axis3::Y => 1,
-        crate::Axis3::Z => 2,
-    };
-    // The plane through `origin` with `normal`, the first section's
-    // to begin with.
-    let (mut origin, mut normal) = ([0.0_f64; 3], [0.0, 0.0, 1.0]);
-    for m in station {
-        match m {
-            M::Slide { along, by } => {
-                let Some(by) = value(by) else { return false };
-                origin[index(*along)] += by;
-            }
-            M::Spin { about, by } => {
-                let Some(by) = value(by) else { return false };
-                let a = index(*about);
-                let (i, j) = ((a + 1) % 3, (a + 2) % 3);
-                let (sin, cos) = by.sin_cos();
-                for v in [&mut origin, &mut normal] {
-                    (v[i], v[j]) = (v[i] * cos - v[j] * sin, v[i] * sin + v[j] * cos);
-                }
-            }
-        }
-    }
-    normal[0] == 0.0 && normal[1] == 0.0 && origin[2] == 0.0
 }
 
 /// What of a node a door writes ([`check_written_node`]).
@@ -7088,21 +6976,22 @@ enum Writes {
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
-/// - a loft's shape ([`check_loft_shape`]);
+/// - a loft's sections ([`loft_structure_fault`]);
 /// - the world, which no edit writes;
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
 ///   of the measure it reads ([`check_node_slots`]);
-/// - a profile program that replays under the current values.
+/// - a profile program's lattice of verbs.
 ///
-/// Acyclicity is the document's, asked once the node is written.
+/// Nothing here reads a value (`[recipe.doors]`): what a value moves
+/// is evaluation's to judge. Acyclicity is the document's, asked once
+/// the node is written.
 fn check_written_node<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &Doc<P>,
     id: RecipeNodeId,
     node: &Node<P>,
     writes: Writes,
-    tol: Tol,
 ) -> Result<(), EditError> {
     let spoken = || written(doc, id, node);
     if let Writes::Node = writes {
@@ -7111,10 +7000,12 @@ fn check_written_node<P: crate::ProfilePayload>(
     // Asked of the written document: a read this edit minted (a source
     // or a selection written in place) is held there.
     check_node_inputs(new, id, node)?;
-    check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
-        node: spoken(),
-        fault,
-    })?;
+    if let Some(fault) = loft_structure_fault(node) {
+        return Err(EditError::LoftShape {
+            node: spoken(),
+            fault,
+        });
+    }
     // The world is every document's from its creation: no edit writes
     // one.
     if matches!(node, Node::World) {
@@ -7141,16 +7032,12 @@ fn check_written_node<P: crate::ProfilePayload>(
             b: Box::new(new.spoken_space(b)),
         });
     }
-    // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
-    // program resolves + replays + validates under the CURRENT param
-    // env, refusing typed here rather than at first evaluation.
     if let Node::Profile(p) = node {
-        p.check(&new.var_env::<f64>(), tol).map_err(|refusal| {
-            EditError::ProfileProgramRefused {
+        p.lattice()
+            .map_err(|refusal| EditError::ProfileProgramRefused {
                 node: spoken(),
                 refusal: Box::new(refusal),
-            }
-        })?;
+            })?;
     }
     Ok(())
 }
@@ -7166,7 +7053,6 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     node: RecipeNodeId,
     slot: crate::OperandSlot,
     read: &crate::Operand,
-    tol: Tol,
 ) -> Result<EditRecord, EditError> {
     let Some(current) = new.nodes.get(&node).cloned() else {
         return Err(EditError::UnknownNode {
@@ -7194,7 +7080,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             *held = var;
         }
     }
-    write_reads(doc, new, reported, node, rewritten, tol)
+    write_reads(doc, new, reported, node, rewritten)
 }
 
 /// **The slot door's common half on an operand** (DM6: no edit infers
@@ -7214,9 +7100,8 @@ fn write_reads<P: crate::ProfilePayload>(
     reported: &mut Vec<Maintenance>,
     id: RecipeNodeId,
     rewritten: Node<P>,
-    tol: Tol,
 ) -> Result<EditRecord, EditError> {
-    check_written_node(doc, new, id, &rewritten, Writes::Reads, tol)?;
+    check_written_node(doc, new, id, &rewritten, Writes::Reads)?;
     new.nodes.insert(id, rewritten);
     check_acyclic(new)?;
     reported.extend(stranded_by_repoint(doc, new, id));
@@ -7484,7 +7369,10 @@ impl Recording<'_, crate::ProfileProgram> {
         cancel: &crate::CancelToken,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
-        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
+        let orient = orient.unwrap_or_else(|| {
+            nearest_to_face(self.doc(), &self.evaluated(opts, cancel), &body, &face)
+                .unwrap_or(crate::Orientation::IDENTITY)
+        });
         let whole = body.read.clone();
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
@@ -7517,19 +7405,16 @@ impl Recording<'_, crate::ProfileProgram> {
                 to: plane(body, face),
                 orient,
             }],
-            values: crate::mate::slides_left_along(
-                crate::SubgroupFamily::Planar.slides(),
-                orient.apply(geom_core::linalg::Vec3::<f64>::unit_z()),
-            )
-            .axes()
-            .map(|axis| {
-                (
-                    crate::Coord::slide(axis),
-                    Formula::zero(crate::expr::Dimension::Length),
-                )
-            })
-            .chain([(crate::Coord::SPIN, spin)])
-            .collect(),
+            values: crate::mate::face_chart_slides(orient)
+                .into_iter()
+                .map(|axis| {
+                    (
+                        crate::Coord::slide(axis),
+                        Formula::zero(crate::expr::Dimension::Length),
+                    )
+                })
+                .chain([(crate::Coord::SPIN, spin)])
+                .collect(),
         };
         let placement = self.insert(Node::place(
             crate::BodyRead::plain(crate::Operand::Output {
@@ -7554,6 +7439,40 @@ impl Recording<'_, crate::ProfileProgram> {
             placement,
             union,
         })
+    }
+
+    /// **A profile drawn on a face** (D10 `[placement]`;
+    /// `REFERENCES.md` DM1): `loops` drawn on the face's chart, the frame
+    /// a plane placement onto `face` of `body` gives under `on`'s
+    /// orientation, spin and slides
+    /// ([`chart_on_face`]), tracing `on`'s faces of that body's space, as
+    /// one profile node in that space. Nothing is placed. An orientation
+    /// `None` is the one nearest the face, read off the face as it stands
+    /// under `opts` and written into the recipe. A sweep
+    /// of the profile by a signed depth is a boss above the face or a
+    /// pocket's tool into it.
+    ///
+    /// # Errors
+    ///
+    /// The insert door's refusal.
+    pub fn draw_on_face(
+        &mut self,
+        body: crate::BodyRead<Formula>,
+        face: crate::StableName,
+        loops: Vec<crate::LoopProgram<Formula>>,
+        on: OnFace,
+        (opts, cancel): (&crate::EvalOptions, &crate::CancelToken),
+    ) -> Result<RecipeNodeId, EditError> {
+        let ev = on.orient.is_none().then(|| self.evaluated(opts, cancel));
+        let frame = chart_on_face(self.doc(), ev.as_ref(), body, face, &on);
+        self.insert(Node::Profile(crate::ProfileProgram {
+            loops,
+            ids: Vec::new(),
+            on: Some(crate::DrawnOn {
+                frame,
+                faces: on.traced,
+            }),
+        }))
     }
 
     /// **Add `mate` to `placement`'s bundle, as a gesture**: the edit
@@ -7623,7 +7542,7 @@ impl Recording<'_, crate::ProfileProgram> {
             },
             (None, None) => unreachable!("a gesture adds a mate or takes one out"),
         };
-        let tried = apply_spaced(self.doc(), &raw, self.tol, None);
+        let tried = apply_spaced(self.doc(), &raw, None);
         let tried = tried.map_err(|e| self.end(e))?;
         let along = match crate::mate::solve_document(&tried.doc, opts, cancel, self.tol)
             .fault(placement)
@@ -7659,7 +7578,7 @@ impl Recording<'_, crate::ProfileProgram> {
             constraints: whole,
             fresh: Vec::new(),
         };
-        let applied = apply_spaced(self.doc(), &edit, self.tol, None);
+        let applied = apply_spaced(self.doc(), &edit, None);
         let mut applied = applied.map_err(|e| self.end(e))?;
         applied.maintenance.extend(reported);
         let minted = applied
@@ -7673,51 +7592,106 @@ impl Recording<'_, crate::ProfileProgram> {
         Ok(minted)
     }
 
-    /// **The orientation nearest where a sketch on `face` of `body`
-    /// stands**: the profile's `z` along the face's outward normal, read
-    /// off the face as it stands now under `opts`; the identity where
-    /// the face does not read.
-    fn nearest_to_face(
+    /// The document as it stands now, evaluated under `opts`.
+    fn evaluated(
         &self,
-        body: &crate::BodyRead<Formula>,
-        face: &crate::StableName,
         opts: &crate::EvalOptions,
         cancel: &crate::CancelToken,
-    ) -> crate::Orientation {
-        let doc = self.doc();
-        let at = match &body.read {
-            crate::Operand::Output { node, port } => doc
-                .output(*node, *port)
-                .map_or(crate::At::Node(*node), crate::At::Read),
-            crate::Operand::Node(node) => crate::At::Node(*node),
-            crate::Operand::Var(var) => crate::At::Read(*var),
-            _ => return crate::Orientation::IDENTITY,
-        };
-        let ev: crate::Evaluation<f64> = crate::evaluate(doc, None, cancel, opts, self.tol);
-        // A member's face is named by the member's own name: the family's
-        // table names it otherwise.
-        let family_name;
-        let face = if body.is_indexed() {
-            let Some(name) = body
-                .written_member(doc)
-                .and_then(|member| crate::names::family_entity(&ev, at, &member, face))
-            else {
-                return crate::Orientation::IDENTITY;
-            };
-            family_name = name;
-            &family_name
-        } else {
-            face
-        };
-        crate::names::interrogate::face_frame(&ev, at, face).map_or(
-            crate::Orientation::IDENTITY,
-            |pose| {
-                let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-                crate::Orientation::IDENTITY
-                    .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
-            },
-        )
+    ) -> crate::Evaluation<f64> {
+        crate::evaluate(self.doc(), None, cancel, opts, self.tol)
     }
+}
+
+/// **The face's chart a profile drawn on `face` of `body` under `on`
+/// stands on** ([`crate::pose::PoseDef::FaceChart`]), as an operand: the
+/// frame [`Recording::draw_on_face`] draws on, and the one a reader that
+/// reads it before anything is drawn there reads (a trace shown before
+/// the gesture commits), so the two cannot differ. Its orientation is
+/// `on`'s, or where `on` writes none the one nearest the face read off
+/// `ev` ([`nearest_to_face`]); where the face does not read there (or no
+/// evaluation is given), the identity, which the chart's own read then
+/// refuses typed at evaluation, in that read's words.
+#[must_use]
+pub fn chart_on_face(
+    doc: &Doc<crate::ProfileProgram>,
+    ev: Option<&crate::Evaluation<f64>>,
+    body: crate::BodyRead<Formula>,
+    face: crate::StableName,
+    on: &OnFace,
+) -> crate::Operand {
+    let orient = on.orient.unwrap_or_else(|| {
+        ev.and_then(|ev| nearest_to_face(doc, ev, &body, &face).ok())
+            .unwrap_or(crate::Orientation::IDENTITY)
+    });
+    crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
+        face: crate::Operand::select(body, vec![face]),
+        orient,
+        spin: on.spin.clone(),
+        slides: on.slides.clone(),
+    }))
+}
+
+/// **Why no orientation reads off a face** ([`nearest_to_face`]).
+#[derive(Debug)]
+pub enum FaceUnread {
+    /// The body is read through no node or variable.
+    NoBody,
+    /// The body is one member of a family, and the evaluation holds no
+    /// face of that member under the name.
+    NoMember,
+    /// The face's own read refused.
+    Face(crate::InterrogateError),
+}
+
+impl core::fmt::Display for FaceUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoBody => f.write_str("the face is read through no node of the document"),
+            Self::NoMember => f.write_str("the family has no such face at the member read"),
+            Self::Face(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl core::error::Error for FaceUnread {}
+
+/// **The orientation nearest where a profile on `face` of `body`
+/// stands**: the profile's `z` along the face's outward normal, read off
+/// the face in `ev`, an evaluation of `doc`. The one home of a
+/// drawn-on-face gesture's orientation ([`chart_on_face`]).
+///
+/// # Errors
+///
+/// [`FaceUnread`] where the face does not read in `ev`.
+pub fn nearest_to_face(
+    doc: &Doc<crate::ProfileProgram>,
+    ev: &crate::Evaluation<f64>,
+    body: &crate::BodyRead<Formula>,
+    face: &crate::StableName,
+) -> Result<crate::Orientation, FaceUnread> {
+    let at = match &body.read {
+        crate::Operand::Output { node, port } => doc
+            .output(*node, *port)
+            .map_or(crate::At::Node(*node), crate::At::Read),
+        crate::Operand::Node(node) => crate::At::Node(*node),
+        crate::Operand::Var(var) => crate::At::Read(*var),
+        _ => return Err(FaceUnread::NoBody),
+    };
+    // A member's face is named by the member's own name: the family's
+    // table names it otherwise.
+    let family_name;
+    let face = if body.is_indexed() {
+        family_name = body
+            .written_member(doc)
+            .and_then(|member| crate::names::family_entity(ev, at, &member, face))
+            .ok_or(FaceUnread::NoMember)?;
+        &family_name
+    } else {
+        face
+    };
+    let pose = crate::names::interrogate::face_frame(ev, at, face).map_err(FaceUnread::Face)?;
+    let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+    Ok(crate::Orientation::IDENTITY.toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward))
 }
 
 /// [`fn@sketch_on_face`]'s outcome: the action applied, and what it
@@ -7766,6 +7740,89 @@ pub fn sketch_on_face(
         edits,
         maintenance,
         sketched,
+    })
+}
+
+/// **Where a profile drawn on a face stands on it**
+/// ([`Recording::draw_on_face`]): its chart's orientation (`None` the
+/// one nearest the face), its spin about the face's outward normal and
+/// its two slides ([`crate::pose::PoseDef::FaceChart`]), and the faces
+/// of the face's body's space it traces ([`crate::DrawnOn::faces`]).
+#[derive(Debug, Clone)]
+pub struct OnFace {
+    /// The orientation, `None` for the one nearest the face.
+    pub orient: Option<crate::Orientation>,
+    /// The spin (Angle).
+    pub spin: Formula,
+    /// The two slides (Length), along the target axes the orientation
+    /// leaves ([`crate::mate::face_chart_slides`]).
+    pub slides: [Formula; 2],
+    /// The traced faces: `Face` selections of the face's body's space.
+    pub traced: Vec<crate::Operand>,
+}
+
+impl OnFace {
+    /// **At the face's chart's zero**: the nearest orientation, every
+    /// value the constant `0`, tracing nothing.
+    #[must_use]
+    pub fn nearest() -> Self {
+        Self {
+            orient: None,
+            spin: Formula::zero(crate::expr::Dimension::Angle),
+            slides: [
+                Formula::zero(crate::expr::Dimension::Length),
+                Formula::zero(crate::expr::Dimension::Length),
+            ],
+            traced: Vec::new(),
+        }
+    }
+}
+
+/// [`fn@draw_on_face`]'s outcome: the action applied, and the profile
+/// it inserted.
+#[derive(Debug)]
+pub struct DrawnOnFace {
+    /// The document the action produced.
+    pub doc: Doc<crate::ProfileProgram>,
+    /// The edits that produce `doc` from the start.
+    pub edits: Vec<DocEdit<crate::ProfileProgram>>,
+    /// The maintenance they reported.
+    pub maintenance: Vec<Maintenance>,
+    /// The profile, drawn on the face's chart.
+    pub profile: RecipeNodeId,
+}
+
+/// **A profile drawn on a face, as one action**
+/// ([`Recording::draw_on_face`]): the door the library and the viewer
+/// both draw on a face through.
+///
+/// # Errors
+///
+/// The insert door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture and its document
+pub fn draw_on_face(
+    doc: &Doc<crate::ProfileProgram>,
+    body: crate::BodyRead<Formula>,
+    face: crate::StableName,
+    loops: Vec<crate::LoopProgram<Formula>>,
+    on: OnFace,
+    opts: &crate::EvalOptions,
+    cancel: &crate::CancelToken,
+    tol: Tol,
+) -> Result<DrawnOnFace, EditError> {
+    let mut action = Recording::start(doc, tol);
+    let profile = action.draw_on_face(body, face, loops, on, (opts, cancel))?;
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = action.finish()?;
+    Ok(DrawnOnFace {
+        doc,
+        edits,
+        maintenance,
+        profile,
     })
 }
 
@@ -7888,9 +7945,9 @@ pub(crate) fn walk_readers<P: crate::ProfilePayload>(
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
-    tol: Tol,
+    _tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    apply_with(doc, edit, tol)
+    apply_with(doc, edit)
 }
 
 /// **Replay one edit**: the edit through every door [`apply`] has —
@@ -7903,18 +7960,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
 pub fn apply_replayed<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
-    tol: Tol,
+    _tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    apply_with(doc, edit, tol)
+    apply_with(doc, edit)
 }
 
 /// [`apply`] and [`apply_replayed`]: one door.
 fn apply_with<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
-    tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    apply_spaced(doc, edit, tol, repointed(edit))
+    apply_spaced(doc, edit, repointed(edit))
 }
 
 /// **The node `edit` re-points**, whose reads it rewrites in place:
@@ -7942,11 +7998,10 @@ fn repointed<P: crate::ProfilePayload>(edit: &DocEdit<P>) -> Option<RecipeNodeId
 fn apply_spaced<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
-    tol: Tol,
     held: Option<RecipeNodeId>,
 ) -> Result<Applied<P>, EditError> {
     let (doc, record, maintenance) = door(doc, held, |new, reported| {
-        write_edit(doc, new, reported, edit, tol)
+        write_edit(doc, new, reported, edit)
     })?;
     Ok(Applied {
         doc,
@@ -7961,10 +8016,8 @@ fn apply_spaced<P: Clone + crate::ProfilePayload>(
 pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     node: &Node<P::Authored, Formula>,
-    tol: Tol,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, minted, maintenance) =
-        door(doc, None, |new, _| insert_into(doc, new, node, &[], tol))?;
+    let (doc, minted, maintenance) = door(doc, None, |new, _| insert_into(doc, new, node, &[]))?;
     let id = minted.0;
     let applied = Applied {
         doc,
@@ -8130,7 +8183,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     authored: &Node<P::Authored, Formula>,
     fresh: &[FreshEntry],
-    tol: Tol,
 ) -> Result<Inserted, EditError> {
     // A refusal speaks the node by the id drawn from it with every name
     // the document holds lowered, so a node authored by name and the
@@ -8157,7 +8209,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // leaves the document's untouched.
     let mut mint = new.mint.clone();
     let id = mint.insert(node);
-    check_written_node(doc, new, id, node, Writes::Node, tol)?;
+    check_written_node(doc, new, id, node, Writes::Node)?;
     let entering = SpokenNode::entering(id, node);
     let mut node = node.clone();
     if let Node::Profile(p) = &mut node {
@@ -8314,11 +8366,10 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     added: Option<crate::mate::Mate<Formula>>,
     removed: &[crate::node::ConstraintId],
     fresh: &[FreshEntry],
-    tol: Tol,
 ) -> Result<(Vec<crate::node::ConstraintId>, Vec<VarId>), EditError> {
     let bundle = held_bundle(doc, new, placement)?;
     let whole = rebundled(doc, new, reported, placement, added, removed, None)?;
-    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh, tol)?;
+    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh)?;
     // The ids it minted: the added mate's first, then each `0`'s.
     let minted = ids
         .into_iter()
@@ -8503,7 +8554,6 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     constraints: Vec<crate::mate::Constraint<Formula>>,
     replace: bool,
     fresh: &[FreshEntry],
-    tol: Tol,
 ) -> Result<(Vec<crate::node::ConstraintId>, Vec<VarId>), EditError> {
     match new.nodes.get(&placement) {
         Some(node) if crate::mate::solve::bundle_of(node).is_some() => {}
@@ -8561,7 +8611,7 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     let Some(written) = new.nodes.get(&placement).cloned() else {
         unreachable!("the placement was checked above")
     };
-    check_written_node(doc, new, placement, &written, Writes::Node, tol)?;
+    check_written_node(doc, new, placement, &written, Writes::Node)?;
     let fresh = lowering.finish(new)?;
     // Each constraint's own admission speaks before the cycle check: a
     // mate whose `on` reads a copy through its own placement is no
@@ -8619,10 +8669,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
     edit: &DocEdit<P>,
-    tol: Tol,
 ) -> Result<EditRecord, EditError> {
     Ok(match edit {
-        DocEdit::InsertNode { node, fresh } => inserted(insert_into(doc, new, node, fresh, tol)?),
+        DocEdit::InsertNode { node, fresh } => inserted(insert_into(doc, new, node, fresh)?),
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
                 return Err(EditError::UnknownNode {
@@ -8726,7 +8775,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     return Err(EditError::SetMembersOnNonList { node: spoken() });
                 }
             }
-            write_reads(doc, new, reported, *node, rewritten, tol)?
+            write_reads(doc, new, reported, *node, rewritten)?
         }
         DocEdit::SetLoftSections {
             node,
@@ -8767,7 +8816,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 lower_authored(new, &authored, fresh, || doc.spoken(*node))?;
             let minted = new.mint.set_loft_sections(*node, &rewritten);
             rewritten.set_loft_section_ids(minted);
-            let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
+            let record = write_reads(doc, new, reported, *node, rewritten)?;
             EditRecord {
                 fresh: lowering.finish(new)?,
                 ..record
@@ -8817,7 +8866,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 slot_admits(slot, formula)?;
             }
             // The ids FIRST: ids the door could not honour make the
-            // replay below moot, and the caller mends the field named
+            // lattice below moot, and the caller mends the field named
             // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
@@ -8837,14 +8886,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let Node::Profile(rewritten) = &probe else {
                 unreachable!("the probe was built as a profile node two lines above")
             };
-            // Then the VQ9 door the insert door runs.
+            // Then the lattice the insert door asks.
             rewritten
-                .check(&new.var_env::<f64>(), tol)
+                .lattice()
                 .map_err(|refusal| EditError::ProfileProgramRefused {
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
-            let undrawn = undrawn_kept_pieces(doc, new, *node, payload, rewritten, &dropped, tol)?;
+            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
             let fresh = lowering.finish(new)?;
@@ -8878,7 +8927,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    let record = set_operand(doc, new, reported, *node, *operand, read, tol)?;
+                    let record = set_operand(doc, new, reported, *node, *operand, read)?;
                     // A mate's pose re-pointed is a mate written: its
                     // two kinds must still agree. A value's direction
                     // re-pointed is a value written.
@@ -8906,7 +8955,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 }
             };
             let fresh = set_slot(new, doc, *node, *slot, &formula, fresh)?;
-            check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -8972,7 +9020,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
             set_slot(new, doc, path.node, path.slot, &rebuilt, &[])?;
-            check_profile_after_slot_edit(new, doc, path.node, path.slot, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -9004,7 +9051,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
             new.vars.insert(id, Var::written(def.clone()));
             new.var_names.insert(id, name.clone());
-            check_definition(new, id, tol)?;
+            check_definition(new, id)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -9042,7 +9089,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
-                    check_definition(new, id, tol)?;
+                    check_definition(new, id)?;
                     EditRecord {
                         minted: None,
                         minted_constraints: Vec::new(),
@@ -9479,7 +9526,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 Some((**mate).clone()),
                 &[],
                 fresh,
-                tol,
             )?;
             EditRecord {
                 minted: None,
@@ -9496,7 +9542,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             fresh,
         } => {
             let (ids, fresh) =
-                add_constraints(doc, new, *placement, constraints.clone(), true, fresh, tol)?;
+                add_constraints(doc, new, *placement, constraints.clone(), true, fresh)?;
             EditRecord {
                 minted: None,
                 minted_constraints: ids,
@@ -9517,7 +9563,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             None,
             &[*constraint],
             &[],
-            tol,
         )?),
         DocEdit::RemoveConstraints {
             placement,
@@ -9530,13 +9575,13 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             None,
             constraints,
             &[],
-            tol,
         )?),
         DocEdit::SetProduct { product } => {
-            new.product = product
+            let read = product
                 .as_ref()
                 .map(|read| product_read(new, read))
                 .transpose()?;
+            new.product = read;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -9756,29 +9801,6 @@ fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError
     }
 }
 
-/// The VQ9 door after a slot edit landed in a profile program
-/// (LIB-SWITCH §4d): re-run resolve + replay + validate under the
-/// CURRENT param env; refuse typed. Non-profile slots pass through.
-fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
-    new: &Doc<P>,
-    before: &Doc<P>,
-    id: RecipeNodeId,
-    slot: SlotId,
-    tol: Tol,
-) -> Result<(), EditError> {
-    if matches!(slot, SlotId::Profile { .. })
-        && let Some(Node::Profile(p)) = new.nodes.get(&id)
-    {
-        p.check(&new.var_env::<f64>(), tol).map_err(|refusal| {
-            EditError::ProfileProgramRefused {
-                node: before.spoken(id),
-                refusal: Box::new(refusal),
-            }
-        })?;
-    }
-    Ok(())
-}
-
 /// **One index of an indexed read as the door writes it**
 /// ([`SlotId::Index`]): a `Count` formula, lowered as a slot's is and
 /// held to the reads a slot's are.
@@ -9850,12 +9872,6 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
         return Err(EditError::UnknownSlot { id: spoken, slot });
     };
     *target = var;
-    if let Some(node) = new.nodes.get(&id) {
-        check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
-            node: spoken.clone(),
-            fault,
-        })?;
-    }
     lowering.finish(new)
 }
 
@@ -10025,6 +10041,25 @@ mod tests {
     }
 }
 
+/// **The sentence a pick that picks no piece is refused in**
+/// ([`pick_fault`]'s answer), its subject the read refused: the edit
+/// door's seat, the product slot's read, the load door's variable.
+pub(crate) struct PicksNoPiece<S>(pub(crate) S, pub(crate) Option<usize>);
+
+impl<S: core::fmt::Display> core::fmt::Display for PicksNoPiece<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} picks no piece: ", self.0)?;
+        match self.1 {
+            Some(at) => write!(
+                f,
+                "step {} of its path names no one operand of the assemble the walk reaches",
+                at + 1
+            ),
+            None => f.write_str("it reads no placement's copy, or its path is empty"),
+        }
+    }
+}
+
 /// **Why a read is no product** ([`EditError::ProductRead`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProductReadFault {
@@ -10040,6 +10075,18 @@ pub enum ProductReadFault {
         /// The space it is in.
         space: Box<crate::spoken::SpokenSpace>,
     },
+    /// The slot reads one member of a family, through a source. A member
+    /// is a body (D10 `[repetition]`), and a placement or a `⊔` reads
+    /// one; the product's gather does not, so the slot refuses it rather
+    /// than gather the family whole.
+    Member,
+    /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
+    /// rule).
+    Path {
+        /// The step that names no piece, `None` where the read is no
+        /// copy or the path is empty.
+        at: Option<usize>,
+    },
 }
 
 impl core::fmt::Display for ProductReadFault {
@@ -10052,40 +10099,58 @@ impl core::fmt::Display for ProductReadFault {
                 crate::sentence::article(&found.to_string())
             ),
             Self::Space { space } => write!(f, "its body is in {space}, not the world"),
+            Self::Member => f.write_str(
+                "it reads one member of a family, which the product's gather does not read",
+            ),
+            Self::Path { at } => write!(f, "{}", PicksNoPiece("it", *at)),
         }
     }
 }
 
 /// **The body a `SetProduct` read names**, held to be a `Body` in the
-/// world ([`EditError::ProductRead`]).
+/// world ([`EditError::ProductRead`]). The slot reads its body as a
+/// node's body seat does ([`lower_read`]): a node, a port or a variable
+/// by id or name is itself, and a pick or a source written in place is
+/// minted as an anonymous variable the slot alone reads (VR2). A read the
+/// seat lowering refuses is refused in the slot's words where it names
+/// the read (it resolves to nothing, to another kind, or picks no
+/// piece); any other refusal (an index formula of a source written in
+/// place) is the lowering's own.
 fn product_read<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
+    doc: &mut Doc<P>,
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
     let refused = |fault| EditError::ProductRead {
         read: Box::new(read.clone()),
         fault,
     };
-    let var = match read {
-        crate::Operand::Node(id) => match doc.seat_outputs(*id, false).as_slice() {
-            [one] => Some(*one),
-            _ => None,
-        },
-        crate::Operand::Output { node, port } => doc.output(*node, *port),
-        crate::Operand::Var(var) => doc.var(*var).map(|_| *var),
-        crate::Operand::Name(name) => doc.var_named(name.as_str()),
-        crate::Operand::Select { .. }
-        | crate::Operand::Pose(_)
-        | crate::Operand::Pick { .. }
-        | crate::Operand::Source(_) => None,
+    // A selection or a pose is no body: refused before it is minted.
+    if matches!(
+        read,
+        crate::Operand::Select { .. } | crate::Operand::Pose(_)
+    ) {
+        return Err(refused(ProductReadFault::Unresolved));
     }
-    .filter(|&var| doc.unresolved_read(var).is_none())
-    .ok_or_else(|| refused(ProductReadFault::Unresolved))?;
-    let kind = doc.var(var).map(crate::Var::kind);
-    if kind != Some(VarKind::Body) {
-        return Err(refused(ProductReadFault::Kind {
-            found: kind.unwrap_or(VarKind::Body),
-        }));
+    let body = crate::SlotKind::Is(VarKind::Body);
+    let var = lower_read(
+        doc,
+        &|| SpokenNode::absent(RecipeNodeId::WORLD),
+        SlotId::Operand(crate::OperandSlot::Source),
+        read,
+        body,
+        Reader::of(body),
+    )
+    .map_err(|error| match error {
+        EditError::UnresolvedInput { .. }
+        | EditError::DefinesNothing { .. }
+        | EditError::AmbiguousOutput { .. }
+        | EditError::OperandUnresolved { .. } => refused(ProductReadFault::Unresolved),
+        EditError::SlotVarKind { found, .. } => refused(ProductReadFault::Kind { found }),
+        EditError::PickPath { at, .. } => refused(ProductReadFault::Path { at }),
+        other => other,
+    })?;
+    if doc.unresolved_read(var).is_some() {
+        return Err(refused(ProductReadFault::Unresolved));
     }
     match product_fault(doc, var) {
         None => Ok(var),
@@ -10105,6 +10170,9 @@ pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    if doc.through_sources(var).is_indexed() {
+        return Some(ProductReadFault::Member);
     }
     match doc.space_of(var) {
         Some(VarId::WORLD) | None => None,

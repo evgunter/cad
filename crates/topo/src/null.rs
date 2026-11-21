@@ -206,9 +206,10 @@ pub(crate) enum Scaffolding {
 
 /// **Whether `edge` is a placeholder**: null scaffolding
 /// ([`CurveGeom::NullScaffold`]) whose two ends sit on one point. The
-/// one predicate every boundary reader that skips one reads
-/// ([`Scaffolding::Skipped`]); a null edge whose ends have parted is
-/// a gap in the boundary, not a placeholder.
+/// one predicate every boundary reader that skips one reads (the region
+/// gather, `region::boundary`, always; the loop lift under
+/// [`Scaffolding::Skipped`]); a null edge whose ends have parted is a
+/// gap in the boundary, not a placeholder.
 ///
 /// # Panics
 ///
@@ -1118,18 +1119,10 @@ mod tests {
             .edges()
             .find_map(|(e, data)| {
                 let c = body.get_curve_geom(data.curve)?.certified()?;
-                let geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    ..
-                }) = *c.carrier()
-                else {
+                let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
                     return None;
                 };
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 if center.z != z {
                     return None;
                 }

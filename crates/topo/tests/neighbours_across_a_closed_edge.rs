@@ -236,10 +236,8 @@ fn hemispheres() -> Body<f64> {
         seed.face,
         topo::construction::FaceSurface::New {
             surface: geom::Surface::Sphere {
-                center: origin,
+                frame: geom::Frame::new(origin, z, x),
                 radius: 1.0,
-                axis: z,
-                u_ref: x,
             },
             sense: true,
         },

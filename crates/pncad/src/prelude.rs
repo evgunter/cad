@@ -653,13 +653,19 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `StructureNormalization` is the re-minted boundary graph (its
 // `NormalizationKind` and the `FaceCensus` pair it maps between),
 // `CurvePromotion` the analytic carrier a NURBS one certified as (its
-// `PromotedCurveKind`), and `PlacedInstance` the A7 assembly record.
+// `PromotedCurveKind`), read off that ledger, and `PlacedInstance` the
+// A7 assembly record.
+// `SnapRelation` is `NormalizationKind::Snapped`'s discriminant: which
+// catalogue construction moved a surface.
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
-// The `Wireframe` arm's payload needs nothing new: its carriers are
-// `Curve3`, on this list at group 2's `topo` re-export, and its
-// promotions are the same `CurvePromotion`.
+// The `Wireframe` arm's payload is `step_import::WireframeCurve`, a
+// `Curve3` (on this list at group 2's `topo` re-export) and the span of
+// it the file states; no Python door reads the arm (it is the import
+// door's typed refusal there), so it is reached at `pncad::step_import`
+// rather than named here. Its ledger is the same
+// `StructureNormalization`.
 //
 // The Python half follows the carrier rule again, and lands on the
 // opposite side from `ImportOptions`. `StepImport::Solid` crosses as
@@ -713,7 +719,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation, StepImport, StepImportError,
     StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};

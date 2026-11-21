@@ -55,21 +55,15 @@ impl Ruled {
     fn surface<T: Real>(self) -> Surface<T> {
         let s = match self {
             Self::Plane => Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Self::Cylinder => Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Self::Cone => Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: ALPHA,
-                u_ref: Vec3::unit_x(),
             },
         };
         s.map_scalar(T::from_f64)
@@ -527,18 +521,14 @@ impl Round {
     fn surface(&self) -> Surface<f64> {
         if self.torus {
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: BIG,
                 minor_radius: SMALL,
-                u_ref: Vec3::unit_x(),
             }
         } else {
             Surface::Sphere {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: BIG,
-                u_ref: Vec3::unit_x(),
             }
         }
     }

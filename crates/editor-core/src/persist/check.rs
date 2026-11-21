@@ -40,7 +40,6 @@ use crate::program::{ProfileDoc, ProgramRefusal};
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
-use geom_core::Tol;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
 #[derive(Debug, Clone, PartialEq)]
@@ -214,13 +213,13 @@ pub(crate) enum Walk {
     /// [`first_unnamed_reader_fault`] over the variable table: a
     /// variable with no name has exactly one reader (VR2, VR9).
     UnnamedReader,
-    /// [`first_program_fault`] over the profile programs' replay: a
-    /// REPLAY PROBE under the document's params whose LATTICE
-    /// violations refuse (the corrupt-file class — no authoring surface
-    /// produces them). Resolve failures and geometry refusals PASS this
-    /// door (V1 class 2: refusing programs may exist at rest — they
-    /// surface as typed node errors at evaluation). A step argument's
-    /// kind is [`Walk::SlotRead`]'s, not a second spelling here.
+    /// [`first_program_fault`] over the profile programs' lattice of
+    /// verbs, the one question the edit door asks a program too
+    /// (`[recipe.doors]`): a violation is the corrupt-file class, which
+    /// no authoring surface produces. No value is read, so a program
+    /// whose values refuse loads (V1 class 2: legal at rest) and is
+    /// refused typed at evaluation. A step argument's kind is
+    /// [`Walk::SlotRead`]'s, not a second spelling here.
     Program,
     /// [`validate_snapshot`] over the document's structural invariants
     /// — the ones `apply` maintains, re-checked because a parsed
@@ -271,7 +270,7 @@ impl Walk {
     /// missing from [`Walk::ORDER`] never executes — which
     /// `tests::every_snapshot_error_arm_names_the_walk_that_produces_it`
     /// reds on.
-    fn run(self, snapshot: &ProfileDoc, tol: Tol) -> Option<super::PersistError> {
+    fn run(self, snapshot: &ProfileDoc) -> Option<super::PersistError> {
         match self {
             Walk::NonFinite => {
                 first_non_finite(snapshot).map(|site| super::PersistError::NonFinite { site })
@@ -321,10 +320,10 @@ impl Walk {
             Walk::UnnamedReader => {
                 first_unnamed_reader_fault(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::Program => first_program_fault(snapshot, tol).map(|(node, fault)| {
+            Walk::Program => first_program_fault(snapshot).map(|(node, refusal)| {
                 super::PersistError::ProfileProgram {
                     node: snapshot.spoken(node),
-                    fault,
+                    refusal: Box::new(refusal),
                 }
             }),
             Walk::Snapshot => validate_snapshot(snapshot)
@@ -369,10 +368,9 @@ impl Walk {
 /// (`rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`).
 ///
 /// The slot walks before [`Walk::Program`] is a contract of the same
-/// kind with a different reason: the program walk PROBES the replay, so
-/// a step whose argument is an angle where the role fixes a length is
-/// not a walk worth probing, and "your loop is not a legal lattice
-/// walk" is the wrong sentence for it.
+/// kind with a different reason: a step whose argument is an angle
+/// where the role fixes a length is a slot fault, and "your loop is not
+/// a legal lattice walk" is the wrong sentence for it.
 ///
 /// The rest are FREE, and no row pins them: [`Walk::NonFinite`],
 /// [`Walk::Distribution`] and [`Walk::DisplayUnit`] read the param
@@ -380,12 +378,9 @@ impl Walk {
 /// of them is a file this door refuses either way. Reordering those
 /// three changes which sentence such a file gets and breaks no stated
 /// contract.
-pub(crate) fn validate_document(
-    snapshot: &ProfileDoc,
-    tol: Tol,
-) -> Result<(), super::PersistError> {
+pub(crate) fn validate_document(snapshot: &ProfileDoc) -> Result<(), super::PersistError> {
     for walk in Walk::ORDER {
-        if let Some(refusal) = walk.run(snapshot, tol) {
+        if let Some(refusal) = walk.run(snapshot) {
             return Err(refusal);
         }
     }
@@ -1846,16 +1841,9 @@ impl core::fmt::Display for SnapshotError {
                 "the name {name} is held by two variables, {a} and {b}, and a name is unique \
                  within a document"
             ),
-            Self::PickPath { var, at: Some(at) } => write!(
-                f,
-                "{var} picks no piece: step {} of its path names no one operand of the \
-                 assemble the walk reaches",
-                at + 1
-            ),
-            Self::PickPath { var, at: None } => write!(
-                f,
-                "{var} picks no piece: it reads no placement's copy, or its path is empty"
-            ),
+            Self::PickPath { var, at } => {
+                write!(f, "{}", crate::edit::PicksNoPiece(var, *at))
+            }
             Self::ProductRead { read, fault } => {
                 write!(f, "the product slot reads {read}, and {fault}")
             }
@@ -2252,90 +2240,17 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-/// A profile PROGRAM structure fault (the retired stored-joint walk's
-/// successor at the program layer): a lattice-violating step order.
-/// It is the corrupt-file class — the payload is `pub`, so an in-crate
-/// bug can also build one; both doors refuse with the same
-/// diagnostics.
-///
-/// A wrong-kind ARGUMENT is not here. A program slot is a slot like
-/// any other, so it is decided by the document-wide slot read walk
-/// ([`SnapshotError::SlotVarKind`]) that the edit doors ask too, rather
-/// than by a second spelling that reached profile nodes alone.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ProgramFault {
-    /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
-    /// replay PROBE under the document's params refused with the
-    /// Transition class — no authoring surface can record this).
-    /// Geometry refusals, resolve failures and validate refusals
-    /// ([`crate::ProgramRefusal::Validate`] — a bowtie loop, even one
-    /// drawn in literals the insert door refuses) deliberately PASS
-    /// this door: they are V1 class 2, legal at rest, surfaced as
-    /// typed node errors at evaluation (the validate class as
-    /// [`crate::NodeErrorKind::Profile`]).
-    Lattice {
-        /// The offending loop.
-        loop_: u32,
-        /// The offending step (one past the end for an unclosed
-        /// chain).
-        step: u32,
-        /// The tip's lattice state.
-        state: profile::TipState,
-        /// The ill-typed verb (`None` for end-of-program).
-        verb: Option<profile::Verb>,
-    },
-}
-
-// The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
-// renders — that refusal is what the probe raised. The typed variant
-// remains the machine contract.
-impl core::fmt::Display for ProgramFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Lattice {
-                loop_,
-                step,
-                state,
-                verb,
-            } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
-        }
-    }
-}
-
 /// The first program fault in the document's profile nodes (module
-/// docs).
-///
-/// A program whose Exprs fail to RESOLVE under the document's params
-/// (dangling ref, dimension drift) cannot be probed here and PASSES
-/// this walk — deliberately: resolution failures are the same
-/// binding-dependent class as geometry refusals (V1 class 2) and
-/// surface as the node's typed evaluation error; no silent acceptance
-/// exists (review NOTE-1).
-fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId, ProgramFault)> {
-    let env = snapshot.var_env::<f64>();
-    for (&id, node) in &snapshot.nodes {
+/// docs): a step order the program's shape refuses at every value,
+/// read off the program alone
+/// ([`ProfileProgram::lattice`](crate::ProfileProgram::lattice)).
+fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramRefusal)> {
+    snapshot.nodes.iter().find_map(|(&id, node)| {
         let Node::Profile(program) = node else {
-            continue;
+            return None;
         };
-        if let Err(ProgramRefusal::Transition {
-            loop_,
-            step,
-            state,
-            verb,
-        }) = program.check(&env, tol)
-        {
-            return Some((
-                id,
-                ProgramFault::Lattice {
-                    loop_,
-                    step,
-                    state,
-                    verb,
-                },
-            ));
-        }
-    }
-    None
+        program.lattice().err().map(|refusal| (id, refusal))
+    })
 }
 
 #[cfg(test)]

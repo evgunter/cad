@@ -92,14 +92,15 @@ fn verdict_of<T: Decide>(
     read: &EdgeRead<'_, T>,
     reach: geom_core::Lever<T>,
     band: Band,
-    names: geom_brep::FoldNames,
+    side: geom_core::k_stats::Role,
 ) -> geom_brep::WedgeVerdict {
     one_surface_seam(body, read.sides)
-        .unwrap_or_else(|| geom_brep::edge_wedge_over_as(&read.walk, reach, band, names))
+        .unwrap_or_else(|| geom_brep::edge_wedge_over_as(&read.walk, reach, band, side))
 }
 
 /// **An edge's wedge** (module docs), levered at its faces' extent
-/// ([`crate::edge_wedge_reach`]). `None` where the edge carries no
+/// ([`crate::edge_wedge_reach`]), read by a reader that reads its side
+/// (its sign and end recorded as choices). `None` where the edge carries no
 /// certified curve or a record on the way does not resolve.
 #[must_use]
 pub fn edge_wedge<T: Decide>(
@@ -107,23 +108,15 @@ pub fn edge_wedge<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
-    edge_wedge_as(body, edge, band, geom_brep::FoldNames::SHAPE)
-}
-
-/// [`edge_wedge`], each corner's sign and each tangency's end decided
-/// under `names`: the door for a reader whose side decides which body it
-/// builds, which records those decisions under names of its own
-/// (`geom_brep::DIHEDRAL_SIGN`'s docs).
-#[must_use]
-pub fn edge_wedge_as<T: Decide>(
-    body: &Body<T>,
-    edge: EdgeKey,
-    band: Band,
-    names: geom_brep::FoldNames,
-) -> Option<geom_brep::WedgeVerdict> {
     let read = walk_of(body, edge)?;
     let reach = crate::edge_wedge_reach(body, edge)?;
-    Some(verdict_of(body, &read, reach, band, names))
+    Some(verdict_of(
+        body,
+        &read,
+        reach,
+        band,
+        geom_core::k_stats::Role::Choice,
+    ))
 }
 
 /// [`edge_wedge`] levered at a `reach` the caller has read for the edge
@@ -140,7 +133,7 @@ pub(crate) fn edge_wedge_at<T: Decide>(
         &read,
         reach,
         band,
-        geom_brep::FoldNames::SHAPE,
+        geom_core::k_stats::Role::Choice,
     ))
 }
 
@@ -159,13 +152,16 @@ pub fn edge_wedge_description<T: Decide>(
 }
 
 /// [`edge_wedge`] with what it demands the edge store
-/// ([`edge_wedge_description`]), both off one walk.
+/// ([`edge_wedge_description`]), both off one walk. What an edge stores
+/// is its class's, the same for a crease of either turn and an end of
+/// either side, so this reader records its sign and end as checks and
+/// hands back the class alone ([`geom_brep::WedgeClass`]).
 pub(crate) fn edge_wedge_read<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     band: Band,
 ) -> Option<(
-    geom_brep::WedgeVerdict,
+    geom_brep::WedgeClass,
     Result<geom_brep::MustCarryDescription<T>, geom_brep::WedgeRefusal>,
 )> {
     let read = walk_of(body, edge)?;
@@ -174,8 +170,9 @@ pub(crate) fn edge_wedge_read<T: Decide>(
         &read,
         crate::edge_wedge_reach(body, edge)?,
         band,
-        geom_brep::FoldNames::SHAPE,
+        geom_core::k_stats::Role::Check,
     );
     let pair = geom_brep::SurfacePair::new(read.sides.plus.surface, read.sides.minus.surface);
-    Some((verdict, read.walk.description(verdict, pair)))
+    let class = geom_brep::WedgeClass::from(verdict);
+    Some((class, read.walk.description(class, pair)))
 }

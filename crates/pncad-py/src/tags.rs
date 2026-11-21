@@ -130,9 +130,9 @@ use pncad::document::{
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
-    PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
+    PersistError, PinRefusal, ProductReadFault, ProgramRefusal, ReachRefusal, RecordedProgramError,
+    ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -147,7 +147,8 @@ use pncad::select::{
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{
-    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
+    StepImportError,
 };
 use pncad::sweep::blend::{BlendError, UnbuiltEnd};
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
@@ -227,7 +228,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 /// caller branches on the reason without parsing the sentence. Over
 /// `CornerReason`'s arms rather than `..`, so a new one stops this
 /// build instead of acquiring a silent tag.
-pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
+pub fn corner_reason_tag(reason: &CornerReason) -> &'static str {
     match reason {
         CornerReason::OutsideAnchors(window) => match window {
             CornerWindow::BehindIncomingRay => "behind_incoming_ray",
@@ -1097,6 +1098,12 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::Through => "through",
             pncad::document::pose::PoseConstruction::Meet => "meet",
             pncad::document::pose::PoseConstruction::Chart => "chart",
+            pncad::document::pose::PoseConstruction::FaceChartBackwards { .. } => {
+                "face_chart_backwards"
+            }
+            pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
+                "face_chart_unleverable"
+            }
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,
@@ -1660,8 +1667,6 @@ pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
     match fault {
         LoftFault::TooFewSections { .. } => "too_few_sections",
         LoftFault::EmptyStation { .. } => "empty_station",
-        LoftFault::StationInFirstPlane { .. } => "station_in_first_plane",
-        LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
 
@@ -1873,6 +1878,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
     match err {
         ProgramRefusal::Resolve { .. } => "resolve",
         ProgramRefusal::Transition { .. } => "transition",
+        ProgramRefusal::Order { .. } => "order",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
@@ -1987,8 +1993,6 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
-        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
-        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2035,18 +2039,6 @@ pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str 
         R::PinMismatch => "part_pin_mismatch",
         R::EpsilonSeam => "part_epsilon_seam",
         R::Unresolved => "part_unresolved",
-    }
-}
-
-/// The stable tag for a PROFILE-PROGRAM structure fault — the inner
-/// arm of [`PersistError::ProfileProgram`].
-///
-/// The fault's own payload (the slot, the two dimensions, the loop and
-/// step counters) is the profile layer's surface and stays in the
-/// message; what crosses here is the word a caller branches on.
-pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
-    match fault {
-        ProgramFault::Lattice { .. } => "lattice",
     }
 }
 
@@ -2200,20 +2192,24 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::UnbandedUncertainty { .. } => "unbanded_uncertainty",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
-        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
         StepImportError::SingularityUndecided { .. } => "singularity_undecided",
         StepImportError::SingularitySideUndecided { .. } => "singularity_side_undecided",
+        StepImportError::SingularityMeetUnread { .. } => "singularity_meet_unread",
+        StepImportError::Interpretation { .. } => "interpretation",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
+        StepImportError::NotYetSupported { .. } => "not_yet_supported",
+        StepImportError::BuildEscalated { .. } => "build_escalated",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2232,15 +2228,18 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
 /// certify is a flatness question at ε_in, a cylinder that will not is
 /// an ill-conditioned axis and wants more of the patch.
 ///
-/// The match is exhaustive, so a third promotable kind recognised
+/// The match is exhaustive, so a new promotable kind recognised
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these two words. The face and surface entity ids and the
+/// one of these words. The face and surface entity ids and the
 /// conditioning margin stay in the kernel's own `Display`, which is
 /// where they already were.
 pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+        PromotedKind::Cone => "cone",
+        PromotedKind::Sphere => "sphere",
+        PromotedKind::Torus => "torus",
     }
 }
 
@@ -2276,6 +2275,25 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
+        NormalizationKind::OneRecord { .. } => "one_record",
+        NormalizationKind::Snapped { .. } => "snapped",
+        NormalizationKind::CurvePromoted { .. } => "curve_promoted",
+        NormalizationKind::VertexBuilt { .. } => "vertex_built",
+        NormalizationKind::CarrierBuilt { .. } => "carrier_built",
+    }
+}
+
+/// The stable tag for the snap catalogue's relation whose construction
+/// moved a surface — `NormalizationKind::Snapped`'s payload, at
+/// `relation` beside the record's `kind` word.
+///
+/// The match is exhaustive, so a fourth relation stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn snap_relation_tag(relation: &SnapRelation) -> &'static str {
+    match relation {
+        SnapRelation::Coaxial => "coaxial",
+        SnapRelation::Tangent => "tangent",
+        SnapRelation::AxisNormal => "axis_normal",
     }
 }
 
@@ -2298,10 +2316,10 @@ pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
 /// to — `CurvePromotion::kind`.
 ///
 /// The exhaustive match is why it is a map rather than a literal:
-/// the recognizer's kinds (the line's #388 follow-up landed; the
-/// named exclusions — ellipse, helix, open arcs — are still to come)
-/// each land here when their follow-up does, and each stops this
-/// crate compiling until it has a word of its own.
+/// the recognizer's kinds (the line's #388 follow-up landed, and open
+/// arcs promote as `circle`; the named exclusions — ellipse, helix —
+/// are still to come) each land here when their follow-up does, and
+/// each stops this crate compiling until it has a word of its own.
 pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
     match kind {
         PromotedCurveKind::Circle => "circle",
@@ -2500,6 +2518,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
+        TessellateError::BoundaryBoundsNoRegion { .. } => "boundary_bounds_no_region",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
@@ -2508,8 +2527,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
-        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::UnclearedSharedSide { .. } => "uncleared_shared_side",
+        TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
+        TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
 }
 
@@ -2576,6 +2597,8 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
+        SplitError::ProductReadSevered { .. } => "product_read_severed",
+        SplitError::NamedReadUncarried { .. } => "named_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
@@ -3465,6 +3488,8 @@ pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
         ProductReadFault::Unresolved => "unresolved",
         ProductReadFault::Kind { .. } => "kind",
         ProductReadFault::Space { .. } => "space",
+        ProductReadFault::Member => "member_at_product",
+        ProductReadFault::Path { .. } => "pick_path",
     }
 }
 

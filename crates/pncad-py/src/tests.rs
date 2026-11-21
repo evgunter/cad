@@ -1855,8 +1855,8 @@ fn persist_error_tags_are_stable() {
 /// Constructed rather than driven through `load`, and the reason is
 /// per arm:
 ///
-/// * `profile_program` — a `ProgramFault` is a profile-program
-///   structure fault. A file carrying one is reachable, but building
+/// * `profile_program` — the edit door's own `ProgramRefusal` for a
+///   profile-program structure fault. A file carrying one is reachable, but building
 ///   the tampered bytes means hand-assembling a lattice-violating
 ///   step order, which pins the WIRE shape rather than the tag.
 /// * `distribution` — the same fault the edit door refuses, so a
@@ -1871,18 +1871,18 @@ fn persist_error_tags_are_stable() {
 /// a compile error, not a missing test.
 #[test]
 fn the_persist_doors_nested_arms_carry_their_own_word() {
-    use crate::tags::{distribution_fault_tag, program_fault_tag, snapshot_error_tag};
+    use crate::tags::{distribution_fault_tag, program_refusal_tag, snapshot_error_tag};
     use pncad::document::{
-        DistributionFault, DistributionField, ProgramFault, RecipeNodeId, SnapshotError,
+        DistributionFault, DistributionField, ProgramRefusal, RecipeNodeId, SnapshotError,
     };
 
-    let program = ProgramFault::Lattice {
+    let program = ProgramRefusal::Transition {
         loop_: 0,
         step: 1,
         state: pncad::profile::TipState::Entry,
         verb: None,
     };
-    assert_eq!(program_fault_tag(&program), "lattice");
+    assert_eq!(program_refusal_tag(&program), "transition");
 
     let distribution = DistributionFault::NonFinite {
         field: DistributionField::Sigma,
@@ -2331,23 +2331,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::LoftFault::EmptyStation { section: 1 },
         },
         &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::StationInFirstPlane { section: 1 },
-        },
-        &["node", "index"],
-    );
-    carries(
-        &E::LoftShape {
-            node: sp(1),
-            fault: pncad::document::LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
-        },
-        &["node", "count", "given"],
     );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
@@ -2941,6 +2924,9 @@ fn promoted_kind_tags_are_stable() {
     for (kind, word) in [
         (pncad::step_import::PromotedKind::Plane, "plane"),
         (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+        (pncad::step_import::PromotedKind::Cone, "cone"),
+        (pncad::step_import::PromotedKind::Sphere, "sphere"),
+        (pncad::step_import::PromotedKind::Torus, "torus"),
     ] {
         assert_eq!(promoted_kind_tag(&kind), word);
         assert_eq!(
@@ -2966,8 +2952,18 @@ fn promoted_kind_tags_are_stable() {
 #[test]
 fn import_report_row_tags_are_stable() {
     use pncad::step_import::{
-        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound,
+        NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
     };
+    // The snap relation's word is the kernel's own name for it, one
+    // spelling in both languages (the table keeps the literals the tag
+    // inventory reads).
+    for relation in [
+        SnapRelation::Coaxial,
+        SnapRelation::Tangent,
+        SnapRelation::AxisNormal,
+    ] {
+        assert_eq!(crate::tags::snap_relation_tag(&relation), relation.name());
+    }
     for (kind, word) in [
         (NormalizationKind::EdgeFreeSphere, "edge_free_sphere"),
         (
@@ -2990,10 +2986,47 @@ fn import_report_row_tags_are_stable() {
             },
             "placement_re_minted",
         ),
+        (
+            NormalizationKind::OneRecord {
+                kept: 10,
+                joined: 20,
+                moved_by: 1e-12,
+            },
+            "one_record",
+        ),
+        (
+            NormalizationKind::Snapped {
+                surface: 30,
+                relation: pncad::step_import::SnapRelation::Tangent,
+                moved_by: 2e-6,
+            },
+            "snapped",
+        ),
+        (
+            NormalizationKind::VertexBuilt { moved_by: 2.4e-16 },
+            "vertex_built",
+        ),
+        (
+            NormalizationKind::CarrierBuilt { moved_by: 1.2e-16 },
+            "carrier_built",
+        ),
+        (
+            NormalizationKind::CurvePromoted {
+                kind: pncad::step_import::PromotedCurveKind::Circle,
+                residual: 1e-17,
+            },
+            "curve_promoted",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
-    for kind in [PromotedKind::Plane, PromotedKind::Cylinder] {
+    for kind in [
+        PromotedKind::Plane,
+        PromotedKind::Cylinder,
+        PromotedKind::Cone,
+        PromotedKind::Sphere,
+        PromotedKind::Torus,
+    ] {
         assert_eq!(
             normalization_kind_tag(&NormalizationKind::SurfacePromotion {
                 to: kind,
@@ -5085,12 +5118,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "loft_fault_tag",
-        values: &[
-            "degree_out_of_range",
-            "empty_station",
-            "station_in_first_plane",
-            "too_few_sections",
-        ],
+        values: &["empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5302,7 +5330,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &["chart", "meet", "through"],
+        values: &[
+            "chart",
+            "face_chart_backwards",
+            "face_chart_unleverable",
+            "meet",
+            "through",
+        ],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",
@@ -5345,14 +5379,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "normalization_kind_tag",
         values: &[
+            "carrier_built",
             "chart_singularity_vertex",
+            "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
             "face_split_at_c0_knot",
             "joined_edges",
+            "one_record",
             "placement_re_minted",
             "seamless_periodic_band",
+            "snapped",
             "surface_promotion",
+            "vertex_built",
         ],
         delegates: &[],
     },
@@ -5482,11 +5521,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
-            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
-            "pin_unwritten_index",
         ],
         delegates: &[],
     },
@@ -5528,7 +5565,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "product_read_fault_tag",
-        values: &["kind", "space", "unresolved"],
+        values: &[
+            "kind",
+            "member_at_product",
+            "pick_path",
+            "space",
+            "unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5558,14 +5601,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "program_fault_tag",
-        values: &["lattice"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "program_refusal_tag",
         values: &[
             "geometry",
+            "order",
             "resolve",
             "step_ids",
             "trace",
@@ -5582,7 +5621,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_kind_tag",
-        values: &["cylinder", "plane"],
+        values: &["cone", "cylinder", "plane", "sphere", "torus"],
         delegates: &[],
     },
     TagEntry {
@@ -5880,6 +5919,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["operand_slot_tag"],
     },
     TagEntry {
+        function: "snap_relation_tag",
+        values: &["axis_normal", "coaxial", "tangent"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "snapshot_error_tag",
         values: &[
             "anonymous_var_unread",
@@ -5943,10 +5987,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
+            "named_read_uncarried",
             "no_material",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
+            "product_read_severed",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6003,25 +6049,29 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "build_escalated",
             "c0_knot_unsplit",
             "dangling_reference",
             "instance",
+            "interpretation",
             "invalid_eps_override",
             "join",
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
+            "not_yet_supported",
             "nothing_to_import",
             "pcurves",
             "placement",
             "recognition_ambiguous",
-            "rim_off_wall_boundary",
+            "singularity_meet_unread",
             "singularity_side_undecided",
             "singularity_undecided",
             "structure",
             "syntax",
             "tier_invalid",
             "topology",
+            "unbanded_uncertainty",
             "unsupported_entity",
             "unsupported_unit",
             "wall_column_structure",
@@ -6056,7 +6106,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
-            "boundary_ear",
+            "boundary_bounds_no_region",
             "certificate_exceeded",
             "domain_unread",
             "empty_loop",
@@ -6065,6 +6115,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
+            "overused_side",
             "pinch_wedge",
             "resolution_overflow",
             "rounding_unresolved",
@@ -6075,12 +6126,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_band_unformable",
             "triangulation",
             "trim_loop_orientation",
+            "uncleared_shared_side",
             "unresolved_winding",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+            "wrap_strip_turn",
         ],
         delegates: &[],
     },
@@ -6372,6 +6425,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
+    // Two vocabularies naming one geometric relation: a document's
+    // declared coincidence (`coincidence_relation_tag`) and the import's
+    // snap catalogue (`snap_relation_tag`). Neither is read against the
+    // other, so no pin is owed.
+    ("coaxial", 2),
     ("containment", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
@@ -6499,9 +6557,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact at the edit and load doors: a pick whose path names no
-    // one piece of its copy (`editor_core::edit::pick_fault`).
-    ("pick_path", 2),
+    // One fact at the edit and load doors and the product slot: a pick
+    // whose path names no one piece of its copy
+    // (`editor_core::edit::pick_fault`).
+    ("pick_path", 3),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
@@ -6568,10 +6627,15 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
     ("stopped", 2),
     ("structure", 3),
+    // As `coaxial`: the coincidence relation and the snap relation.
+    ("tangent", 2),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // A coincidence: the kind a NURBS patch was promoted to, and a trace
+    // step's fault on a torus carrier.
+    ("torus", 2),
     // One fact at two doors: a step reading a face's trace refused
     // (`TraceRefusal`), carried by the evaluation's node error and by
     // the program's own check alike.
@@ -8071,7 +8135,7 @@ enum Holder {
 /// 2026-09-15 over every literal passed to the two `&'static str` door
 /// parameters under `src/py/`), every one minted at a call site and
 /// read by no instrument —
-/// `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
+/// `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
 /// is that row, and it is not this one. A SECOND such field arrives
 /// with this census silent, which
 /// `the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
@@ -8116,7 +8180,7 @@ enum Holder {
 /// answers less well. They stay because `crates/test-utils/*` is
 /// another program's territory and widening its grammar is a filed row
 /// rather than one taken here —
-/// `work/census/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
+/// `work/bind/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
 ///
 /// What is about THIS census and nothing else is the
 /// `(self type, trait, item name)` key, the attribution of a literal
@@ -8178,7 +8242,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         held_by: &[Holder::Outside(
             "nothing: its `op` parameter's twelve words are minted at call sites \
              under `src/py/` and no instrument reads them, which is \
-             `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
+             `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
         )],
     },
     MintingItem {
@@ -9680,7 +9744,7 @@ fn tracker_row_exists(id: &str) -> bool {
 /// (`rg ': Final$' crates/pncad-py/pncad.pyi` is empty, 2026-09-15),
 /// so the divergence was latent and the fixture below now holds one.
 /// That is the instance closed and not the class:
-/// `work/census/one-stub-convention-has-two-readers-in-two-languages.md`
+/// `work/bind/one-stub-convention-has-two-readers-in-two-languages.md`
 /// carries the pair. This check stays in Rust because its other half
 /// is `crate::errors::EvalReason::ATTRIBUTES` — a Rust const read as a
 /// const, which a Python copy would have to re-spell, and re-spelling
@@ -10140,7 +10204,7 @@ fn the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal() {
 /// and interpolated into the class's message. Twelve words arrive that
 /// way today, every one of them minted at a call site under `src/py/`
 /// and read by no instrument
-/// (`work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
+/// (`work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
 /// measured 2026-09-15). A SECOND such field would arrive with this
 /// census silent, and that is what this executes.
 ///

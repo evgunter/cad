@@ -101,7 +101,9 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// tip mints a copy for the side its pieces meet on, whichever side of
 /// the plane that is.
 fn both_sided_pinch_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     for (profile, shells) in [
         (BUMP_ONLY, [1, 2]),
@@ -175,7 +177,9 @@ fn r1_both_sided_pinch_f64() {
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
 fn mirror_identity_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
@@ -243,10 +247,10 @@ fn mirror_identity_scenario<
         ] {
             let mut found = 0;
             for (fk, _) in part.faces() {
-                let Some(topo::Surface::Plane { origin, normal, .. }) = part.face_surface(fk)
-                else {
+                let Some(topo::Surface::Plane { frame, .. }) = part.face_surface(fk) else {
                     continue;
                 };
+                let (origin, normal) = (frame.origin(), frame.axis());
                 let on_plane = (origin.y - T::from_f64(1.0)).abs().hi() < 1e-9;
                 if on_plane && normal.y.lo().abs().max(normal.y.hi().abs()) > 0.99 {
                     found += 1;
@@ -586,7 +590,9 @@ fn r4_extended_sweep_volume_identities() {
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
 fn straddle_scenario<
-    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     delta: f64,
 ) {

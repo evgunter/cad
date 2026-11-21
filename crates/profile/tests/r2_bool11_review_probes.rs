@@ -67,7 +67,8 @@ fn r2_probe_band_edges_at_one_ulp() {
     assert!(
         matches!(
             attempt(-keps),
-            Err(PathError::ContinuationTargetOffRay { across, .. }) if across < 0.0
+            Err(PathError::ContinuationTargetOffRay { across, .. })
+                if crate::common::told(&across) < 0.0
         ),
         "-K*eps refuses with the signed miss"
     );

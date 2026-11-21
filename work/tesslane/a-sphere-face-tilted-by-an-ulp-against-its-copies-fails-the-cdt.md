@@ -52,4 +52,4 @@ The refusal was spade's own: a nonzero coordinate below its 2⁻¹⁴² floor, h
 
 Not reproduced: the `die_tool` body this row was first filed on, which no longer composes. The ulp-tilted slab cut built in its place meshed before the change too, so it is pinned as the row asked but is no evidence about the original.
 
-Left for others, each in its own row: the seam column is read from a carrier point where the stored image has it exactly (`rectangle-faces-move-to-the-chart-lane`, which records the measurement); `TessellateError::Triangulation` names nine raising sites with one sentence (`work/tessword/triangulation-names-nine-raising-sites-with-one-sentence`).
+Left for others, each in its own row: the seam column is read from a carrier point where the stored image has it exactly (`rectangle-faces-move-to-the-chart-lane`, which records the measurement); `TessellateError::Triangulation` names nine raising sites with one sentence (`work/tesslie/triangulation-names-nine-raising-sites-with-one-sentence`).

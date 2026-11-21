@@ -871,12 +871,12 @@ BOUND_AS = {
     # arrives BESIDE it rather than in place of it, `None` on every
     # other arm.
     #
-    # Two values, and they are two different next moves: `plane`
-    # declining is a flatness question at the file's tolerance,
+    # One word per promotable kind, and the kinds lead different places:
+    # `plane` declining is a flatness question at the file's tolerance,
     # `cylinder` declining is an ill-conditioned axis and wants more
-    # of the patch. The match that mints them is exhaustive, so a
-    # third promotable kind stops the bindings compiling instead of
-    # joining one of these.
+    # of the patch. The match that mints them is exhaustive, so a new
+    # promotable kind stops the bindings compiling instead of joining
+    # one of these.
     #
     # No Python test row: firing the arm needs a file with a
     # multi-bound curved face on an ill-conditioned NURBS surface,
@@ -923,7 +923,7 @@ BOUND_AS = {
     # value side's spelling: the carrier projects every field as an
     # attribute, so its discriminant is one of those fields — a word at
     # `kind`, with the one arm's payload beside it at `promoted_to`
-    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # (which analytic kind certified, `PromotedKind`'s own words)
     # and `residual`, `None` on the other four arms. The word does NOT
     # fold the kind in: a caller reading "a patch was promoted" reads
     # `surface_promotion` whichever kind it was, and branches on the
@@ -936,6 +936,11 @@ BOUND_AS = {
     # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
+    # `NormalizationKind::Snapped`'s payload, at the same spelling: which
+    # catalogue construction moved the surface, as `relation` beside the
+    # `kind` word (`coaxial`, `tangent`, `axis_normal`; `None` on every
+    # other arm).
+    "SnapRelation": "StructureNormalization.relation",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -1074,7 +1079,8 @@ BOUND_AS = {
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
     # shape to point at. There is one now. `SnapshotError`'s arms and
-    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # the profile door's `ProgramRefusal` (whose own mapping is the edit
+    # door's) mint a word apiece from an exhaustive match,
     # so a kernel arm added without one stops the bindings compiling,
     # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
@@ -1087,7 +1093,6 @@ BOUND_AS = {
     # snapshot refusal's node ids and counts are the snapshot door's
     # surface, not the persistence door's. A mapping here claims the
     # discriminant crosses, and nothing more.
-    "ProgramFault": "PersistError.inner_variant",
     "SnapshotError": "PersistError.inner_variant",
     "NonFiniteSite": "PersistError.site",
     # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
@@ -1663,6 +1668,19 @@ FAMILIES: dict[str, str] = {
         "siting), then the method with its typed refusal, a `pncad.pyi` "
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
+    ),
+    # A PROFILE DRAWN ON A FACE arrived with its door: DOCTAIL's
+    # `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` landed
+    # `editor_core::draw_on_face` and the face's chart it draws on, and
+    # the binding is
+    # `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
+    "B-DRAW-ON-FACE": (
+        "the drawn-on-face door — `draw_on_face`, its `OnFace` "
+        "(orientation, spin, two slides, traced faces) and its "
+        "`DrawnOnFace` outcome. Closing it needs a `Doc` method taking "
+        "the face, the loops and those four, a `pncad.pyi` entry, and "
+        "one Python row drawing on a bottom cap and extruding a boss "
+        "and a pocket."
     ),
     # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
     # PYTHON half is the measurement. EDIT's
@@ -2330,6 +2348,7 @@ NOT_BOUND = {
     # slots share is a `Var` it names first (`DocEdit.rename_var`).
     "FreshEntry": SHAPE,
     "Uncarried": SHAPE,
+    "NamedUncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -2997,6 +3016,16 @@ NOT_BOUND = {
     "ArcShape": INTERIOR,
     "StepShape": INTERIOR,
     "TargetShape": INTERIOR,
+    # The same shape's readings, and the value-free pen-order judgement
+    # the doors and the editor ask over it: a Python caller meets their
+    # answer as a door's refusal (`EditError`/`PersistError`'s `trace`
+    # word), never the shape itself.
+    "PenRun": INTERIOR,
+    "PenStep": INTERIOR,
+    "pen_fault": INTERIOR,
+    "pen_run": INTERIOR,
+    "shape_of_recorded": INTERIOR,
+    "step_kernel": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     # The loop the lattice constructed, carrying that provenance into
@@ -3389,6 +3418,16 @@ NOT_BOUND = {
     # kernel-side: the door exists, succeeds, and answers a closed
     # four-variant tag.
     "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
+    # --- gap: a profile drawn on a face -----------------------------
+    # The editor-core door landed with DOCTAIL's face-chart unit; its
+    # Python binding is the pydoor unit that retires `Doc.sketch_on_face`
+    # for it.
+    "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
+    "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
+    "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
+    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
+    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
+    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3922,6 +3961,8 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
+    "SplitError::ProductReadSevered": "SplitError.variant",
+    "SplitError::NamedReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::SpaceStraddlesCut": "SplitError.variant",
@@ -3947,20 +3988,24 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
+    "StepImportError::UnbandedUncertainty": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
-    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
+    "StepImportError::SingularityMeetUnread": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
+    "StepImportError::NotYetSupported": "StepImportError.variant",
+    "StepImportError::BuildEscalated": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",
@@ -3981,6 +4026,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
+    "TessellateError::BoundaryBoundsNoRegion": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
@@ -3989,8 +4035,10 @@ MEMBERS_BOUND_AS = {
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
     "TessellateError::UnresolvedWinding": "TessellateError.variant",
-    "TessellateError::BoundaryEar": "TessellateError.variant",
+    "TessellateError::UnclearedSharedSide": "TessellateError.variant",
+    "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
+    "TessellateError::WrapStripTurn": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides

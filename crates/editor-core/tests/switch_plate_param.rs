@@ -6,8 +6,9 @@
 //! §V8 asks for — "one scene gains a REAL parameter and demonstrates:
 //! edit param → re-evaluate → new geometry; drive it into a refusal →
 //! typed error names the step" — plus the two doors §7 adds: the
-//! validate ladder as a SECOND refusal class, and the §4d
-//! authoring-time door.
+//! validate ladder as a SECOND refusal class, and the doors, which
+//! read no value (`[recipe.doors]`): a zero radius written at the slot
+//! and one reached through the parameter refuse alike, at evaluation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -94,11 +95,20 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     .doc
 }
 
-/// The failure a node reported, if it failed.
-fn node_error(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> Option<String> {
+/// `id`'s replay refusal in `doc`: its loop, its step and its class.
+fn replay_refusal(
+    doc: &editor_core::ProfileDoc,
+    id: RecipeNodeId,
+) -> Option<(u32, usize, profile::PathErrorKind)> {
     let ev = eval::<f64>(doc);
     match ev.nodes.iter().find(|(n, _)| **n == id).map(|(_, r)| r) {
-        Some(NodeResult::Failed(e)) => Some(format!("{:?}", e.kind)),
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::ProfileReplay { loop_, error } => match &error.kind {
+                ReplayErrorKind::Path(path) => Some((*loop_, error.step, path.kind())),
+                ReplayErrorKind::Transition { .. } => None,
+            },
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -293,15 +303,16 @@ fn an_overlapping_radius_refuses_at_validate() {
 }
 
 // ------------------------------------------------------------------
-// Row 4 — the §4d authoring door
+// Row 4 — the doors read no value
 // ------------------------------------------------------------------
 
 /// The two doors, side by side: writing a refusing radius INTO the
-/// program is refused at the edit door, while re-pointing the document
-/// parameter to the same effective value is NOT — the asymmetry §4d
-/// states and VQ9 ratifies.
+/// program and re-pointing the document parameter to the same
+/// effective value are both admitted, and both surface at evaluation
+/// (`[recipe.doors]`: a door judges the document, never one
+/// evaluation of it).
 #[test]
-fn the_authoring_door_refuses_but_define_var_does_not() {
+fn the_slot_door_and_define_var_both_leave_a_zero_radius_to_evaluation() {
     let s = scene();
     let radius_slot = SlotId::Profile {
         loop_: 1,
@@ -309,8 +320,8 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         arg: StepArg::Radius,
     };
 
-    // (a) Writing zero into the slot: refused at the door.
-    let refused = apply(
+    // (a) Writing zero into the slot: admitted, refused at evaluation.
+    let written = apply(
         &s.doc,
         &DocEdit::SetParam {
             node: s.profile,
@@ -319,22 +330,26 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-    );
-    assert!(
-        refused.is_err(),
-        "the authoring door must refuse a zero radius"
+    )
+    .expect("the slot door reads no value");
+    let zero_radius = Some((1, 0, profile::PathErrorKind::NonpositiveCircleRadius));
+    assert_eq!(
+        replay_refusal(&written.doc, s.profile),
+        zero_radius,
+        "the zero radius refuses at evaluation, at the hole's circle step"
     );
 
     // (b) The same breakage via the document parameter: APPLIES, and
     //     surfaces later, at evaluation.
     let doc = set_hole_r(&s.doc, 0.0);
-    assert!(
-        node_error(&doc, s.profile).is_some(),
-        "the refusal surfaces at evaluation instead"
+    assert_eq!(
+        replay_refusal(&doc, s.profile),
+        zero_radius,
+        "the same refusal, at the same step"
     );
 
-    // (c) And a GOOD radius goes through the same door cleanly, so (a)
-    //     is a refusal about the value, not about the slot.
+    // (c) And a GOOD radius evaluates cleanly, so (a) is a refusal
+    //     about the value, not about the slot.
     let ok = apply(
         &s.doc,
         &DocEdit::SetParam {

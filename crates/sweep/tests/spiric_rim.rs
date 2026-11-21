@@ -128,12 +128,8 @@ fn the_edge_extent_brackets_the_sampled_diameter() {
         let step = (t1 - t0) / n as f64;
         for k in 0..n {
             let (a, b) = (t0 + step * k as f64, t0 + step * (k + 1) as f64);
-            let extent =
-                geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
-                    .length();
-            let sup =
-                geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
-                    .length();
+            let extent = geom_brep::edge_extent_inf(&carrier, a, b).length();
+            let sup = geom_brep::edge_extent_sup(&carrier, a, b).length();
             let samples: Vec<Point3<f64>> = (0..=200)
                 .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 200.0))
                 .collect();
@@ -185,10 +181,8 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
         (0.7, 2.9),
         (2.0, 5.5),
     ] {
-        let extent =
-            geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
-        let sup =
-            geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
+        let extent = geom_brep::edge_extent_inf(&carrier, a, b).length();
+        let sup = geom_brep::edge_extent_sup(&carrier, a, b).length();
         let samples: Vec<Point3<f64>> = (0..=400)
             .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
             .collect();
@@ -289,9 +283,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     assert_eq!((want.len(), got.len()), (2, 2));
     for (_, g, _) in got {
         let Curve3::Spiric {
-            center: gc,
-            axis: ga,
-            u_ref: gn,
+            frame: carrier_frame,
             major_radius: gr,
             minor_radius: gm,
             offset: gd,
@@ -299,16 +291,19 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         else {
             unreachable!()
         };
+        let (gc, ga, gn) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let i = want
             .iter()
-            .position(|(_, w, _)| matches!(w, Curve3::Spiric { center, axis, u_ref, .. }
-                if center.distance(gc) <= 1e-12 && (*axis - ga).norm() <= 1e-12 && (*u_ref - gn).norm() <= 1e-12))
+            .position(|(_, w, _)| matches!(w, Curve3::Spiric { frame, .. }
+                if frame.origin().distance(gc) <= 1e-12 && (frame.axis() - ga).norm() <= 1e-12 && (frame.u_ref() - gn).norm() <= 1e-12))
             .unwrap_or_else(|| panic!("no re-posed twin for {g:?}"));
         let (_, w, _) = want.remove(i);
         let Curve3::Spiric {
-            center: wc,
-            axis: wa,
-            u_ref: wn,
+            frame,
             major_radius: wr,
             minor_radius: wm,
             offset: wd,
@@ -316,6 +311,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         else {
             unreachable!()
         };
+        let (wc, wa, wn) = (frame.origin(), frame.axis(), frame.u_ref());
         let reach = wc.distance(Point3::origin()) + wr + wm;
         let slack = 4.0 * reach * f64::EPSILON;
         for (a, b) in [

@@ -31,3 +31,12 @@ percent of the bar reds a PR that does not touch it. One sighting.
 
 Its hosted time over a few runs; then the row moves to the slow set
 with its measurement in `.config/nextest.toml`, or is made cheaper.
+
+## A second sighting, another row (EMBED, 2026-11-18)
+
+`sweep::all join_pierce_runs_sweep::six_crossing_corners_build_every_op`
+took 1.000 s against its 1.0 s bar on the first attempt of run
+44233155772 (PR 7086's head `0b4c04bac5`, a merge of main into a
+branch that changes only `injective.rs`, which nothing in that row's
+path calls). The lane timed the row the same locally with main's
+`injective.rs` and its own, re-ran the failed job once, and it passed.
