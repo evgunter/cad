@@ -96,12 +96,13 @@ type PlaneFrame = (Point3<f64>, Vec3<f64>);
 fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
     let mut out: Vec<PlaneFrame> = Vec::new();
     for (fk, _) in body.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(fk)
-            && !out
-                .iter()
-                .any(|(o, n)| (*n - *normal).norm() < 1e-12 && (n.dot(*o - *origin)).abs() < 1e-12)
+        if let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(fk)
+            && !out.iter().any(|(o, n)| {
+                (*n - frame.axis()).norm() < 1e-12 && (n.dot(*o - frame.origin())).abs() < 1e-12
+            })
         {
-            out.push((*origin, *normal));
+            let (origin, normal) = (frame.origin(), frame.axis());
+            out.push((origin, normal));
         }
     }
     out
@@ -295,10 +296,11 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     for (vk, _) in chamfered.vertices() {
         let mut ns: Vec<Vec3<f64>> = Vec::new();
         for fk in chamfered.faces_of_vertex(vk).expect("orbit") {
-            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.face_surface(fk)
-                && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)
+            if let Some(geom::Surface::Plane { frame, .. }) = chamfered.face_surface(fk)
+                && !ns.iter().any(|n| (*n - frame.axis()).norm() < 1e-12)
             {
-                ns.push(*normal);
+                let normal = frame.axis();
+                ns.push(normal);
             }
         }
         *hist.entry(ns.len()).or_default() += 1;
@@ -727,10 +729,10 @@ fn r1h_widened_bit_identity_dump() {
             .find(|(fk, _)| {
                 matches!(
                     body.face_surface(*fk),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if (origin.z - z).abs() < 1e-9
-                            && normal.x.abs() < 1e-9
-                            && normal.y.abs() < 1e-9
+                    Some(geom::Surface::Plane { frame, .. })
+                        if (frame.origin().z - z).abs() < 1e-9
+                            && frame.axis().x.abs() < 1e-9
+                            && frame.axis().y.abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)

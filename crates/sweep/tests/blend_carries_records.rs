@@ -126,8 +126,8 @@ fn a_record_on_the_blended_edge_is_consumed() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() == 1.0 && origin.z == 2.0
+                Some(topo::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() == 1.0 && frame.origin().z == 2.0
             )
         })
         .map(|(k, _)| k)
@@ -287,8 +287,8 @@ fn a_record_on_a_support_face_is_consumed() {
             .find(|(fk, _)| {
                 matches!(
                     base.body.face_surface(*fk),
-                    Some(topo::Surface::Plane { origin, normal, .. })
-                        if normal.z.abs() == 1.0 && origin.z == z
+                    Some(topo::Surface::Plane { frame, .. })
+                        if frame.axis().z.abs() == 1.0 && frame.origin().z == z
                 )
             })
             .map(|(k, _)| k)

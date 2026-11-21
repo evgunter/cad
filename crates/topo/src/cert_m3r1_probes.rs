@@ -76,9 +76,10 @@ pub(crate) fn m7_8_cube() -> (
     // onto another face and still pass everything below.
     {
         let plane = body.proven_face(front).surface();
-        let Surface::Plane { origin, normal, .. } = plane else {
+        let Surface::Plane { frame, .. } = plane else {
             panic!("the cube's walls are planes");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         assert!(
             origin.y.abs() < 1e-12
                 && normal.y < -0.5

@@ -349,11 +349,11 @@ pub(super) fn conic_quadric_method<T: Decide>(
         .map(Roots::widen),
         Formed::Ladder => match *surface {
             geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
-            } => cone_ladder(&conic, (apex, axis, half_angle), (t0, t1), surface, band)?,
+                frame, half_angle, ..
+            } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
+                cone_ladder(&conic, (apex, axis, half_angle), (t0, t1), surface, band)?
+            }
             _ => {
                 let QuadricLadder { h, quadric, frame } = quadric_ladder(&conic, surface, (t0, t1))
                     .ok_or(DoorRefusal::Invariant(DESYNC))?;
@@ -378,7 +378,8 @@ pub(super) fn conic_quadric_method<T: Decide>(
         }
     };
     Ok(match *surface {
-        geom::Surface::Cone { apex, .. } => {
+        geom::Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
             found.and_then(|roots| off_the_apex(&conic, apex, roots, band))
         }
         _ => found,
@@ -403,19 +404,20 @@ pub(super) fn quadric_ladder<T: Decide>(
     (t0, t1): (T, T),
 ) -> Option<QuadricLadder<'static, T>> {
     let (h, quadric) = match *surface {
-        geom::Surface::Sphere { center, radius, .. } => (
-            crate::conic_sphere_harmonics(conic, center, radius),
-            (center, None, radius),
-        ),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (
-            crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
-            (origin, Some(axis), radius),
-        ),
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (
+                crate::conic_sphere_harmonics(conic, center, radius),
+                (center, None, radius),
+            )
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (
+                crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
+                (origin, Some(axis), radius),
+            )
+        }
         _ => return None,
     };
     // The harmonics' rounding, in residual metres: the term bound is in
@@ -557,7 +559,7 @@ pub(super) fn apex_spread<T: Decide>(
     let off_apex = conic.point_at(theta_a) - apex;
     let delta = off_apex.norm()
         + geom_core::running::direction_rounding(
-            (conic.frame().origin - apex).norm() + conic.speed_hi(),
+            (conic.frame().origin() - apex).norm() + conic.speed_hi(),
         );
     let (e0, e1) = (
         delta.powi(2) / h.per,
@@ -580,11 +582,12 @@ pub(super) fn through_the_apex<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, Unsettled> {
     let geom::Surface::Cone {
-        axis, half_angle, ..
+        frame, half_angle, ..
     } = *surface
     else {
         unreachable!("only a cone's apex is a singular point the pose reads");
     };
+    let axis = frame.axis();
     let conic = span
         .carrier()
         .conic()
@@ -784,28 +787,20 @@ mod tests {
         let ellipse =
             geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));
         let sphere = geom::Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            axis: z,
-            u_ref: x,
         };
         let wall = geom::Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            u_ref: x,
         };
         let plane = geom::Surface::Plane {
-            origin: o,
-            normal: z,
-            u_ref: x,
+            frame: geom::Frame::new(o, z, x),
         };
         let torus = geom::Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 1.0,
             minor_radius: 0.25,
-            u_ref: x,
         };
         for (carrier, surface) in [
             (&line, &sphere),

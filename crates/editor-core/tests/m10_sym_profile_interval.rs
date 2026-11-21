@@ -315,22 +315,30 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
+///
+/// **Moved with the carriers holding their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the walls
+/// and caps are the sketch frame turned and stored, and a surface's
+/// evaluation reads its stored frame, so the walks build fewer forms over
+/// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
+/// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
+/// their digests; `Early/Decision` does not move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -574,12 +582,21 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 11571 forms, `Door/Decision` 548 calls 11668 forms).
 ///
 /// Besides the session box's asks, every walk makes the calls it made.
+///
+/// **Then moved with the carriers holding their frames as rigid
+/// motions**: fewer forms over the same calls on every walk
+/// (`Plain/Decision` 39703 → 33086, its frozen 54 → 36; `Plain/Assertion`
+/// 14592 → 12222; `Early/Decision` 28232 → 22928; `Early/Assertion`
+/// 15162 → 12672; `Door/Decision` 15356 → 12358), with their digests. The
+/// decisions hold: under `SymRules::without_canonical_root` every recorded
+/// decision answers as on main (`sym11_exact_channel_rows`'
+/// `PAST_THE_CEILING`).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39703 frozen 54 digest 7efda4b66066a94e596eb7fa2f430a65\n\
-     Plain/Assertion calls 1047 forms 14592 frozen 0 digest e6c6e5c3cd56ef78f91f2c7626f73670\n\
-     Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1047 forms 15162 frozen 0 digest c7fd707ed0a699ee0a5d3f1d55c1fa69\n\
-     Door/Decision calls 550 forms 15356 frozen 0 digest 032cdcf5efa6396ea7a39bf7b7a8f1ab";
+     Plain/Decision calls 979 forms 33086 frozen 36 digest 407898919d7b27c5149424e9ae1e1603\n\
+     Plain/Assertion calls 1047 forms 12222 frozen 0 digest 19890dfe5402031cb310bd9f2a6ac16d\n\
+     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
+     Early/Assertion calls 1047 forms 12672 frozen 0 digest 37c36445974ccfe414ca9058f7d94032\n\
+     Door/Decision calls 550 forms 12358 frozen 0 digest 78cd10530faa7f908c9d6f8c7eef962a";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

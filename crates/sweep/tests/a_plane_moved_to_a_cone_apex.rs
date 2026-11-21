@@ -93,17 +93,19 @@ fn a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts() {
         .faces()
         .map(|(f, _)| f)
         .find(|&f| {
-            matches!(surface_of(&body, f), Surface::Plane { normal, .. } if normal.x.abs() > 0.1)
+            matches!(surface_of(&body, f), Surface::Plane { frame, .. } if frame.axis().x.abs() > 0.1)
         })
         .expect("the cut face");
-    let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+    let Surface::Plane {
+        frame: carrier_frame,
+        ..
+    } = surface_of(&body, face)
+    else {
         unreachable!("the cut face is a plane")
     };
+    let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
     let Some(Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     }) = body
         .faces()
         .map(|(f, _)| surface_of(&body, f))
@@ -111,6 +113,7 @@ fn a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts() {
     else {
         panic!("the frustum's wall is a cone");
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
 
     // The face's outward normal faces the apex, so a positive offset
     // closes the gap.
@@ -180,7 +183,7 @@ fn axial_caps(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
         .map(|(f, _)| f)
         .filter(|&f| {
-            matches!(surface_of(body, f), Surface::Plane { normal, .. } if normal.y.abs() < 0.5)
+            matches!(surface_of(body, f), Surface::Plane { frame, .. } if frame.axis().y.abs() < 0.5)
         })
         .collect()
 }
@@ -198,14 +201,12 @@ fn cone_of(body: &Body<f64>) -> Surface<f64> {
 /// ([`test_utils::cone_cut`]); it never reads the arm's bound.
 fn cut(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> ConeCut {
     let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = *cone
     else {
         unreachable!("a cone")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let p3 = |q: Point3<f64>| [q.x, q.y, q.z];
     let w3 = |v: Vec3<f64>| [v.x, v.y, v.z];
     ConeCut::new(p3(apex), w3(axis), half_angle, (p3(origin), w3(normal)))
@@ -275,14 +276,20 @@ fn a_cap_moved_off_a_needle_apex_refuses_the_hyperbola() {
     let caps = axial_caps(&body);
     assert_eq!(caps.len(), 2, "the wedge has two caps");
     for face in caps {
-        let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = surface_of(&body, face)
+        else {
             unreachable!("a cap is a plane")
         };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
         for d in [0.9 * eps, -0.9 * eps] {
             let moved = origin + normal * d;
-            let Surface::Cone { apex, .. } = cone else {
+            let Surface::Cone { frame, .. } = cone else {
                 unreachable!("a cone")
             };
+            let apex = frame.origin();
             let moved_gap = (apex - moved).dot(normal);
             let (.., far) = nappe_starts(&cone, moved, normal);
             assert!(
@@ -329,9 +336,10 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
     let caps = axial_caps(&body);
     assert_eq!(caps.len(), 2, "the wedge has two caps");
     for face in caps {
-        let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+        let Surface::Plane { frame, .. } = surface_of(&body, face) else {
             unreachable!("a cap is a plane")
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         let d = -0.3 * eps;
         let (.., far) = nappe_starts(&cone, origin + normal * d, normal);
         assert_eq!(
@@ -401,9 +409,10 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
     let points = solid_truth::grid(p(-0.002, 0.17, -0.008), p(0.008, 0.41, 0.002), 6);
     assert_eq!(caps.len(), 2, "the wedge has two caps");
     for face in caps {
-        let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+        let Surface::Plane { frame, .. } = surface_of(&body, face) else {
             unreachable!("a cap is a plane")
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         for d in [0.9 * eps, -0.9 * eps] {
             let moved = origin + normal * d;
             let label = format!("{face:?} by {d:e}");
@@ -567,11 +576,12 @@ fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union_row() {
                 let face = brick
                     .faces()
                     .map(|(f, _)| surface_of(&brick, f))
-                    .find(|s| matches!(s, Surface::Plane { origin, normal, .. } if normal.z.abs() > 0.5 && origin.z < 1.0))
+                    .find(|s| matches!(s, Surface::Plane { frame, .. } if frame.axis().z.abs() > 0.5 && frame.origin().z < 1.0))
                     .expect("the brick's face over the cap");
-                let Surface::Plane { origin, normal, .. } = face else {
+                let Surface::Plane { frame, .. } = face else {
                     unreachable!("a plane")
                 };
+                let (origin, normal) = (frame.origin(), frame.axis());
                 let cone = cone_of(&wedge);
                 let (plus, minus, far) = nappe_starts(&cone, origin, normal);
                 assert!(
@@ -692,15 +702,17 @@ fn a_box_face_through_a_virtual_apex_builds_every_op() {
     for apex_y in [-0.3, -0.17] {
         let [(frustum, sf), (boxed, sb)] = frustum_and_virtual_apex_box(apex_y, &pose);
         let cone = cone_of(&frustum);
-        let Surface::Cone { apex, axis, .. } = cone else {
+        let Surface::Cone { frame, .. } = cone else {
             unreachable!("a cone")
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         let (origin, normal) = boxed
             .faces()
             .find_map(|(f, _)| match surface_of(&boxed, f) {
-                Surface::Plane { origin, normal, .. }
-                    if (apex - origin).dot(normal).abs() < 1e-9 =>
+                Surface::Plane { frame, .. }
+                    if (apex - frame.origin()).dot(frame.axis()).abs() < 1e-9 =>
                 {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     Some((origin, normal))
                 }
                 _ => None,

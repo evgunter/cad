@@ -154,10 +154,12 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
             seed.face,
             FaceSurface::New {
                 surface: Surface::Cylinder {
-                    origin: f.p((0.0, 0.0, 0.0)),
-                    axis: f.v((0.0, 0.0, 1.0)),
+                    frame: geom::Frame::new(
+                        f.p((0.0, 0.0, 0.0)),
+                        f.v((0.0, 0.0, 1.0)),
+                        f.v((1.0, 0.0, 0.0)),
+                    ),
                     radius: T::from_f64(r),
-                    u_ref: f.v((1.0, 0.0, 0.0)),
                 },
                 sense: true,
             },
@@ -199,18 +201,18 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
         vec![
             Rechart::new(
                 Surface::Plane {
-                    origin: f.p((0.0, 0.0, z0)),
-                    normal: -f.v::<T>((0.0, 0.0, 1.0)),
-                    u_ref: f.v((1.0, 0.0, 0.0)),
+                    frame: geom::Frame::new(
+                        f.p((0.0, 0.0, z0)),
+                        -f.v::<T>((0.0, 0.0, 1.0)),
+                        f.v((1.0, 0.0, 0.0)),
+                    ),
                 },
                 cap_b.face,
                 true,
             ),
             Rechart::new(
                 Surface::Plane {
-                    origin: f.p((0.0, 0.0, z0 + h)),
-                    normal: f.v(n),
-                    u_ref: f.v(major),
+                    frame: geom::Frame::new(f.p((0.0, 0.0, z0 + h)), f.v(n), f.v(major)),
                 },
                 cap_t.face,
                 true,
@@ -594,10 +596,12 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
             seed.face,
             FaceSurface::New {
                 surface: Surface::Cylinder {
-                    origin: f.p((0.0, 0.0, 0.0)),
-                    axis: f.v((0.0, 0.0, 1.0)),
+                    frame: geom::Frame::new(
+                        f.p((0.0, 0.0, 0.0)),
+                        f.v((0.0, 0.0, 1.0)),
+                        f.v((1.0, 0.0, 0.0)),
+                    ),
                     radius: T::from_f64(r),
-                    u_ref: f.v((1.0, 0.0, 0.0)),
                 },
                 sense: true,
             },
@@ -653,10 +657,8 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
         band.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: f.p(o2),
-                axis: f.v(a2),
+                frame: geom::Frame::new(f.p(o2), f.v(a2), f.v(u2)),
                 radius: T::from_f64(r),
-                u_ref: f.v(u2),
             },
             sense: band_sense,
         },
@@ -665,9 +667,11 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
     body.set_face_surfaces_describing(
         vec![Rechart::new(
             Surface::Plane {
-                origin: f.p((0.0, 0.0, z0)),
-                normal: -f.v::<T>((0.0, 0.0, 1.0)),
-                u_ref: f.v((1.0, 0.0, 0.0)),
+                frame: geom::Frame::new(
+                    f.p((0.0, 0.0, z0)),
+                    -f.v::<T>((0.0, 0.0, 1.0)),
+                    f.v((1.0, 0.0, 0.0)),
+                ),
             },
             cap_b.face,
             true,
@@ -726,9 +730,7 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
     body.set_face_surfaces_describing(
         vec![Rechart::new(
             Surface::Plane {
-                origin: f.p(centre),
-                normal: f.v(a2),
-                u_ref: f.v(u2),
+                frame: geom::Frame::new(f.p(centre), f.v(a2), f.v(u2)),
             },
             cap_l.face,
             false,
@@ -888,9 +890,7 @@ fn across_a_rim<T: Decide + AtRestPolicy>(
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: p(0.0, 0.0, 0.0),
-                    normal: v(0.0, 0.0, 1.0),
-                    u_ref: v(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
                 },
                 sense: true,
             },
