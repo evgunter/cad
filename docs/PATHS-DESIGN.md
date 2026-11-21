@@ -1179,7 +1179,7 @@ ends exactly at the anchor, so its recourse values both levers.
    TANGENT direction refuses — ONE refusal, one recourse, for any
    sub-ε_input margin (D4's two-tolerance principle): "the turn
    at this junction is zero at tolerance — if the angle is real,
-   give the shorter leg a longer extent; if
+   lengthen the shorter leg; if
    intended as tangency onto a new carrier, use `.tangent()`
    (`.tangent().tangent_arc_to(p)` for an arc; the tangent-arc or
    seam-fillet close at the seam), which makes it exact by

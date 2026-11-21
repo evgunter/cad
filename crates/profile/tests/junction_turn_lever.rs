@@ -58,7 +58,7 @@ fn assert_names_its_factors(row: &str, turn: &LeveredTurn, shown: &str, want: [f
         "{row}: the fact asserts a tangency: {shown}"
     );
     assert!(
-        recourse.starts_with("if the angle is real, give the shorter leg a longer extent"),
+        recourse.starts_with("if the angle is real, lengthen the shorter leg"),
         "{row}: the recourse names the lever first: {shown}"
     );
 }
@@ -138,7 +138,7 @@ fn the_same_turn_escalates_at_three_eps_and_builds_at_fifty() {
         assert_eq!(*gate, Gate::PathJunctionTurn, "{spelling}");
         let shown = err.to_string();
         assert!(
-            shown.contains("if the angle is real, give the shorter leg a longer extent"),
+            shown.contains("if the angle is real, lengthen the shorter leg"),
             "{spelling}: the in-band ending names the lever: {shown}"
         );
     }
@@ -167,8 +167,8 @@ fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
     let shown = err.to_string();
     assert_names_its_factors("junction", turn, &shown, [1e-10, 1.0, 1.0]);
     assert!(
-        shown.contains("for tangency onto a new carrier use .tangent()")
-            && shown.contains("spell it line(len) off the directed point"),
+        shown.contains("if smooth, declare it: .tangent()")
+            && shown.contains("or line(len) for a straight continuation"),
         "the smooth joint's declarations are offered: {shown}"
     );
     leg.line(1.0, tol)
@@ -195,7 +195,7 @@ fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
     let shown = err.to_string();
     assert_names_its_factors("seam", turn, &shown, [0.0, 1.0, 1.0]);
     assert!(
-        shown.contains("DECLARE it on the target with Start.arrives_tangent()"),
+        shown.contains("DECLARE it with Start.arrives_tangent() on the target"),
         "the seam's declaration is offered: {shown}"
     );
     tip.line_to(Start.arrives_tangent(), tol)

@@ -2093,7 +2093,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
         match self {
             Self::JunctionTurnWithinTolerance { turn } => write!(
                 f,
-                "the turn at this junction, {turn}, is zero at tolerance. Recourse: \
+                "this junction's turn, {turn}, is zero at tolerance. Recourse: \
                  {JUNCTION_TURN_LEVER}",
             ),
             Self::CuspDoublesBackOverLeg { at } => write!(
@@ -2113,8 +2113,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::SeamTurnWithinTolerance { turn } => write!(
                 f,
-                "the turn at the SEAM, {turn}, is zero at tolerance and nothing declared \
-                 the joint. Recourse: {SEAM_TURN_RECOURSE}",
+                "the SEAM's turn, {turn}, is zero at tolerance and undeclared. Recourse: \
+                 {SEAM_TURN_RECOURSE}",
             ),
             Self::SeamArrivalOffDirection { margin, arm } => write!(
                 f,
