@@ -561,6 +561,8 @@ fn plane<T: Decide>(
 /// **A line against a plane** over the run `(t0, t1)`: the axis-parallel
 /// rung on its drift `|d·n̂|·run` ([`axis_drift`]), then its offset at the
 /// run's middle ([`axis_offset`]: lies or apart); past it, its one root.
+/// A drift in its gap answers `Apart` where the offset reads the run
+/// clear of the plane all along it, and escalates otherwise.
 pub(super) fn plane_line<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
@@ -571,11 +573,23 @@ pub(super) fn plane_line<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
     let run = (t1 - t0).abs();
-    if axis_drift(
+    let half_drift = lead.abs() * run / T::from_f64(2.0);
+    // A drift in its gap does not part a line from a plane it stands
+    // clear of all along the run: the offset rung reads it apart first.
+    let parallel = match axis_drift(
         Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
         band,
-    )? {
-        return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
+    ) {
+        Ok(parallel) => parallel,
+        Err(refusal) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(Pose::Apart),
+                _ => Err(refusal),
+            };
+        }
+    };
+    if parallel {
+        return axis_offset(at_mid, half_drift, band);
     }
     Ok(Pose::Isolated(Form(Formed::PlaneLine {
         root: mid - at_mid / lead,

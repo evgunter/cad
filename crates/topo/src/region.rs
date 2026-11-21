@@ -268,25 +268,37 @@ impl<T: Decide> QueryFoot<T> {
     }
 }
 
+/// Which curve of a pair is read across the other's plane
+/// ([`Legs::across`]).
+pub(crate) enum ReadAcross {
+    /// The edge across the leg's plane, in the edge's parameter
+    /// ([`OnSurface::across`]).
+    EdgeOverLeg,
+    /// The leg across the edge's own plane, in the leg's parameter
+    /// ([`OnSurface::under`]); the door places each meeting on the edge
+    /// ([`Legs::on_edge_plane`]).
+    LegOverEdge,
+}
+
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
-/// edge ([`Landing`]). The edge is read across the leg's plane by the
-/// curve × face crossing reading ([`OnSurface::across`]), and each
-/// meeting is a meeting of the pair where it lies on the leg's section of
-/// its plane ([`Section`](geom_brep::curve_pair::on_surface::Section)).
-/// Where along the leg each landing lies is the skeleton's to read
-/// ([`Leg::place`]). An edge in the leg's plane on the leg's own curve (a
-/// shared run) is no crossing: the leg runs along it where it reaches it
-/// ([`Leg::along`]). A plane tangent to the surface along the edge is the
-/// pose's, and escalates in band.
+/// edge ([`Landing`]). One curve is read across the other's plane by the
+/// curve × face crossing reading, the pair's direction the door's choice
+/// ([`Legs::across`]), and each meeting is a meeting of the pair where it
+/// lies on both curves: on the leg's section of its plane
+/// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where
+/// the door places it on the edge. Where along the leg each landing lies
+/// is the skeleton's to read ([`Leg::place`]). An edge in the leg's plane
+/// on the leg's own curve (a shared run) is no crossing: the leg runs
+/// along it where it reaches it ([`Leg::along`]).
 ///
-/// A stretch of the edge the reading could not read sets the path aside,
-/// but for a root in band of the edge's end that lies past the leg's own
-/// end, which is no meeting of the two however near the edge's end it
-/// lies (a first leg ends at its corner short of a vertex every edge's
-/// root lies in band of). A spiric edge has no built reading against a
-/// plane ([`geom_brep::curve_face::route`]), so the leg is read across
-/// the edge's plane instead ([`spiric_landings`]).
+/// A stretch the reading could not read is no landing: it sets the path
+/// aside on its margin, or as a graze where it has none, and a fault
+/// among the windows is a kernel fault ([`set_aside`]). The one exception
+/// is a root in band of the edge's end that lies past the leg's own end,
+/// which is no meeting of the two however near the edge's end it lies (a
+/// first leg ends at its corner short of a vertex every edge's root lies
+/// in band of).
 ///
 /// # Errors
 ///
@@ -298,155 +310,130 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     leg: &Leg<T, D::Course>,
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
-    use geom_brep::curve_face::{CrossWhy, OnSpan, PoseRefusal};
+    use geom_brep::curve_face::{CrossWhy, OnSpan};
     use geom_brep::curve_pair::MeetFault;
     let curve = leg.course.curve();
-    if let geom::Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
-        offset,
-        ..
-    } = edge.carrier
-    {
-        return spiric_landings(
-            door,
-            edge,
-            leg,
-            (center + u_ref * offset, u_ref, axis),
-            band,
-        );
-    }
     let on_leg = |y: Point3<T>| -> Result<bool, Fault> {
         on_section(curve.section_of(y, D::COMPONENT, band).map_err(in_band)?)
     };
-    let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
-    let meetings = match on.across(&curve, band) {
-        Ok(CoSurface::InPlane) => {
-            // An edge in the leg's plane: run along where it lies on the
-            // leg's own curve, read at its middle.
-            if on_leg(edge.at(geom::mid_param(edge.t0, edge.t1)))? {
-                leg.along(edge, D::AT, band)?;
-            }
-            return Ok(Vec::new());
+    // An edge in the leg's plane: run along where it lies on the leg's
+    // own curve, read at its middle.
+    let in_plane = || -> Result<Vec<Landing<T>>, Fault> {
+        if on_leg(edge.at(geom::mid_param(edge.t0, edge.t1)))? {
+            leg.along(edge, D::AT, band)?;
         }
-        Ok(CoSurface::Touch) => return Err(RayFault::Graze),
-        Ok(CoSurface::Roots(meetings)) => meetings,
-        Err(AcrossRefusal::Windows(refusal)) => {
-            for w in &refusal.windows {
-                match w.why {
-                    CrossWhy::Pose(PoseRefusal::Unbuilt(_) | PoseRefusal::Enclosed) => {
-                        unreachable!("a region door admits closed-form carriers only")
-                    }
-                    // A root in band of the edge's end, the window's
-                    // centre: no meeting past the leg's own end.
-                    CrossWhy::Method {
-                        fault: MeetFault::Escalated(diag),
-                        ..
-                    } => {
-                        let y = edge.at(geom::mid_param(w.window.0, w.window.1));
-                        if on_leg(y)? && !matches!(leg.place(y, D::AT, band), Ok(None)) {
-                            return Err(in_band(diag));
+        Ok(Vec::new())
+    };
+    let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
+    let mut out = Vec::new();
+    match door.across(leg, edge, band)? {
+        ReadAcross::EdgeOverLeg => {
+            let meetings = match across(on.across(&curve, band))? {
+                Ok(CoSurface::InPlane) => return in_plane(),
+                Ok(CoSurface::Touch) => return Err(RayFault::Graze),
+                Ok(CoSurface::Roots(meetings)) => meetings,
+                Err(refusal) => {
+                    set_aside_unless(&refusal.windows, |w| match w.why {
+                        // A root in band of the edge's end, the window's
+                        // centre: no meeting past the leg's own end.
+                        CrossWhy::Method {
+                            fault: MeetFault::Escalated(_),
+                            ..
+                        } => {
+                            let y = edge.at(geom::mid_param(w.window.0, w.window.1));
+                            Ok(on_leg(y)? && matches!(leg.place(y, D::AT, band), Ok(None)))
                         }
-                    }
-                    why => return Err(why.diag().map_or(RayFault::Graze, in_band)),
+                        _ => Ok(false),
+                    })?;
+                    refusal.found
+                }
+            };
+            for m in meetings {
+                if !on_leg(m.point)? {
+                    continue;
+                }
+                let (t, sideless) = match m.on_span {
+                    OnSpan::Inside { t } => (t, false),
+                    OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
+                    OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
+                };
+                out.push((m.point, t, sideless));
+            }
+        }
+        ReadAcross::LegOverEdge => {
+            let (params, whole) = leg.course.span(leg.end.map(|end| end.place));
+            let meetings = match across(on.under(&curve, params, whole, band))? {
+                Ok(CoSurface::InPlane) => return in_plane(),
+                Ok(CoSurface::Touch) => return Err(RayFault::Graze),
+                Ok(CoSurface::Roots(meetings)) => meetings,
+                Err(refusal) => {
+                    set_aside_unless(&refusal.windows, |_| Ok(false))?;
+                    unreachable!("a refusal holds a window")
+                }
+            };
+            for m in meetings {
+                if let Some((t, sideless)) = door.on_edge_plane(edge, m.point, band)? {
+                    out.push((m.point, t, sideless));
                 }
             }
-            refusal.found
         }
-        Err(AcrossRefusal::OffRecord { edge, curve }) => unreachable!(
-            "a region door keys its edges and charts its legs from one record: the edge's \
-             {edge:?}, the leg's {curve:?}"
-        ),
-    };
-    let mut out = Vec::new();
-    for m in meetings {
-        if !on_leg(m.point)? {
-            continue;
-        }
-        let (t, sideless) = match m.on_span {
-            OnSpan::Inside { t } => (t, false),
-            OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
-            OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
-        };
-        out.push((m.point, t, sideless));
     }
     Ok(out)
 }
 
-/// **Where `leg` meets a spiric `edge`**, read the other way: the leg's
-/// span across the edge's own plane `(o, n)` by the crossing reading, a
-/// circle against a plane ([`geom_brep::curve_face::cross()`]), each
-/// meeting placed on the edge by the door ([`Legs::on_edge_plane`]). Both
-/// lie on the door's surface, so a point of the leg on the edge's plane is
-/// a point of that plane's section of the surface: the edge's oval, which
-/// the door's placement keeps, or its mirror. A root in band of the leg's
-/// own end, the window's centre, is placed as any other: the leg's place
-/// reads it. `w` is a direction in the plane.
+/// **A crossing reading's windows, as a path's fault**: a fault among
+/// them is a kernel fault and panics, whatever else stands; otherwise
+/// every window `skip` passes is no meeting, and the first other sets the
+/// path aside on its margin, or as a graze where it has none.
 ///
 /// # Errors
 ///
-/// A reading in band, or a touch, sets the path aside.
-fn spiric_landings<T: Decide, D: Legs<T>>(
-    door: &D,
-    edge: &RegionEdge<T>,
-    leg: &Leg<T, D::Course>,
-    (o, n, w): (Point3<T>, Vec3<T>, Vec3<T>),
-    band: Band,
-) -> Result<Vec<Landing<T>>, Fault> {
-    use geom_brep::curve_face::{CrossWhy, Pose};
-    use geom_brep::curve_pair::{MeetFault, Span};
-    let carrier = leg.course.curve().carrier();
-    let (params, whole) = leg.course.span(leg.end.map(|end| end.place));
-    let span = Span::new(&carrier, params);
-    let span = if whole { span.endless() } else { span };
-    let plane = geom::Surface::Plane {
-        origin: o,
-        normal: n,
-        u_ref: w,
-    };
-    let points: Vec<Point3<T>> = match geom_brep::curve_face::cross(&span, &plane, band) {
-        Ok(read) => match read.pose {
-            Pose::Tangent(_) => return Err(RayFault::Graze),
-            // The leg in the edge's plane: run along where the edge lies
-            // on the leg's own curve, read at its middle.
-            Pose::Lies => {
-                let middle = edge.at(geom::mid_param(edge.t0, edge.t1));
-                let curve = leg.course.curve();
-                if on_section(
-                    curve
-                        .section_of(middle, D::COMPONENT, band)
-                        .map_err(in_band)?,
-                )? {
-                    leg.along(edge, D::AT, band)?;
-                }
-                return Ok(Vec::new());
-            }
-            Pose::Apart | Pose::Isolated(_) | Pose::Through(_) => {
-                read.meetings.iter().map(|m| m.point).collect()
-            }
-        },
-        Err(refusal) => {
-            let mut points: Vec<Point3<T>> = refusal.found.iter().map(|m| m.point).collect();
-            for w in &refusal.windows {
-                match w.why {
-                    CrossWhy::Method {
-                        fault: MeetFault::Escalated(_),
-                        ..
-                    } => points.push(carrier.eval(geom::mid_param(w.window.0, w.window.1))),
-                    why => return Err(why.diag().map_or(RayFault::Graze, in_band)),
-                }
-            }
-            points
-        }
-    };
-    let mut out = Vec::new();
-    for y in points {
-        if let Some((t, sideless)) = door.on_edge_plane(edge, y, band)? {
-            out.push((y, t, sideless));
+/// The first window `skip` does not pass; `skip`'s own refusal.
+///
+/// # Panics
+///
+/// On a window that is a fault ([`geom_brep::curve_face::CrossWhy::fault`]).
+fn set_aside_unless<T: Decide>(
+    windows: &[geom_brep::curve_face::Undecided<T, geom_brep::curve_face::CrossWhy>],
+    skip: impl Fn(
+        &geom_brep::curve_face::Undecided<T, geom_brep::curve_face::CrossWhy>,
+    ) -> Result<bool, Fault>,
+) -> Result<(), Fault> {
+    if let Some(fault) = windows.iter().find_map(|w| w.why.fault()) {
+        unreachable!("a region door's crossing reading is a kernel fault: {fault}");
+    }
+    for w in windows {
+        if !skip(w)? {
+            return Err(w.why.diag().map_or(RayFault::Graze, in_band));
         }
     }
-    Ok(out)
+    Ok(())
+}
+
+/// An edge's reading against a leg as the door reads it: its windows
+/// apart (`Err` inside the `Ok`).
+///
+/// # Panics
+///
+/// On a pair on two records: a door keys its edges and charts its legs
+/// from its one record ([`Legs::charted`]), so a mismatch is a fault in
+/// the door's wiring, not in the face; and on an edge in no one plane
+/// read the other way, which no door asks for.
+#[allow(clippy::type_complexity)]
+fn across<T: geom_core::Real>(
+    read: Result<CoSurface<T>, AcrossRefusal<T>>,
+) -> Result<Result<CoSurface<T>, geom_brep::curve_face::CrossRefusal<T>>, Fault> {
+    match read {
+        Ok(read) => Ok(Ok(read)),
+        Err(AcrossRefusal::Windows(refusal)) => Ok(Err(refusal)),
+        Err(AcrossRefusal::OffRecord { edge, curve }) => unreachable!(
+            "a region door keys its edges and charts its legs from one record: the edge's \
+             {edge:?}, the leg's {curve:?}"
+        ),
+        Err(AcrossRefusal::NoPlane) => {
+            unreachable!("a door reads a leg across a conic's or a spiric's plane only")
+        }
+    }
 }
 
 /// Whether a root lies on the leg's own section of its plane
@@ -822,10 +809,25 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
     /// ([`QueryFoot`]).
     fn charted(&self) -> &Charted<T>;
 
-    /// Where `y`, a meeting of `leg` with a spiric `edge`'s plane, lies
-    /// on `edge` ([`landings`]): its parameter and whether it is at an
-    /// end, or `None` off the edge (on its plane's other curve, or past
-    /// its span).
+    /// Which of `leg` and `edge` is read across the other's plane: the
+    /// edge across the leg's unless the door says otherwise.
+    ///
+    /// # Errors
+    ///
+    /// A choice in band sets the path aside.
+    fn across(
+        &self,
+        _leg: &Leg<T, Self::Course>,
+        _edge: &RegionEdge<T>,
+        _band: Band,
+    ) -> Result<ReadAcross, Fault> {
+        Ok(ReadAcross::EdgeOverLeg)
+    }
+
+    /// Where `y`, a meeting of a leg with `edge`'s plane
+    /// ([`ReadAcross::LegOverEdge`]), lies on `edge`: its parameter and
+    /// whether it is at an end, or `None` off the edge (on its plane's
+    /// other curve, or past its span).
     ///
     /// # Errors
     ///
@@ -836,7 +838,7 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
         _y: Point3<T>,
         _band: Band,
     ) -> Result<Option<(T, bool)>, Fault> {
-        unreachable!("the door admits no spiric edge")
+        unreachable!("the door reads no leg across an edge's plane")
     }
 
     /// The face's unit outward normal at `y`.

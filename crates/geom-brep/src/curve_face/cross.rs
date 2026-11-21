@@ -86,6 +86,26 @@ pub enum CrossWhy {
 }
 
 impl CrossWhy {
+    /// **The window's fault, where it is one**: readings that contradict,
+    /// or a carrier or surface an arm does not read. A kernel fault,
+    /// never a stretch the band leaves undecided: a reader fails loud on
+    /// it rather than set it aside.
+    #[must_use]
+    pub fn fault(self) -> Option<&'static str> {
+        match self {
+            Self::Pose(PoseRefusal::Fault(what)) => Some(what),
+            Self::Method {
+                fault: MeetFault::Contradiction { readings },
+                ..
+            } => Some(readings),
+            Self::Method {
+                fault: MeetFault::Desync,
+                ..
+            } => Some("a carrier read by an arm not its own"),
+            Self::Pose(_) | Self::Method { .. } => None,
+        }
+    }
+
     /// **The window's diagnostics, where it was read in the band**: a
     /// pose rung's, or the placement's or a method's escalation (a root in
     /// band of an end, two roots the band cannot order). `None` for a

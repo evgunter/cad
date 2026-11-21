@@ -680,6 +680,44 @@ mod tests {
         assert!(matches!(on, Pose::Lies), "in the plane: {on:?}");
     }
 
+    /// **A line clear of a plane is apart whatever its drift reads.** A
+    /// line a unit off the plane, tilted so its drift over the run lies in
+    /// the band's gap: the drift rung cannot call it parallel or not, but
+    /// the offset at the middle less half the drift stands past the band,
+    /// so the pose is `Apart`, never an escalation. Within the band of the
+    /// plane, the same drift escalates on the axis-parallel rung.
+    #[test]
+    fn a_line_clear_of_a_plane_is_apart_whatever_its_drift_reads() {
+        use crate::curve_face::{CrossWhy, Pose, PoseRefusal, PoseRung, cross};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let drift = 0.5 * (band.zero() + band.escalate());
+        let line = |z: f64| {
+            Curve3::line(
+                Point3::new(0.0, 0.0, z),
+                Vec3::new(1.0, 0.0, drift).normalize(),
+            )
+        };
+        let plane = plane_at((Point3::origin(), Vec3::unit_z()));
+        let clear = line(1.0);
+        let got = cross(&Span::new(&clear, (0.0, 1.0)), &plane, band);
+        assert!(
+            matches!(&got, Ok(read) if matches!(read.pose, Pose::Apart)),
+            "clear of the plane: {got:?}"
+        );
+        let near = line(0.0);
+        let got = cross(&Span::new(&near, (0.0, 1.0)), &plane, band);
+        assert!(
+            matches!(
+                &got,
+                Err(refusal) if matches!(
+                    refusal.windows[0].why,
+                    CrossWhy::Pose(PoseRefusal::InBand { rung: PoseRung::AxisParallel, .. })
+                )
+            ),
+            "within the band of the plane: {got:?}"
+        );
+    }
+
     /// **A graze just off the span's end is not a miss** (review of PR
     /// 6609, M1): a plane cutting the unit circle `z/2` deep, its true
     /// roots `δ = acos(1 − z/2)` either side of its extremum, the extremum

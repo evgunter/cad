@@ -2000,8 +2000,12 @@ fn conic_crossings<T: Decide>(
         Ok(CoSurface::Touch | CoSurface::InPlane) => return Ok(None),
         // A count needs every root: a stretch of the arc the reading
         // could not read sets the ray aside, on its margin where it was
-        // read in band, else as a graze.
+        // read in band, else as a graze. A fault among the windows is a
+        // kernel fault, whatever else stands.
         Err(AcrossRefusal::Windows(refusal)) => {
+            if let Some(fault) = refusal.windows.iter().find_map(|w| w.why.fault()) {
+                unreachable!("the ray's crossing reading is a kernel fault: {fault}");
+            }
             return refusal
                 .windows
                 .iter()
@@ -2010,6 +2014,9 @@ fn conic_crossings<T: Decide>(
         }
         Err(AcrossRefusal::OffRecord { edge, curve }) => {
             unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
+        }
+        Err(AcrossRefusal::NoPlane) => {
+            unreachable!("the walk reads its arc across the ray's plane")
         }
     };
     let mut crossings = 0;

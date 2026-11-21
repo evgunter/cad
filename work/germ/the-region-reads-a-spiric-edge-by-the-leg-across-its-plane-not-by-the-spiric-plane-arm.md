@@ -3,6 +3,7 @@ id: the-region-reads-a-spiric-edge-by-the-leg-across-its-plane-not-by-the-spiric
 kind: issue
 title: The region reads a spiric edge by its leg across the edge's plane: the (Spiric, Plane) arm is unbuilt, and refusing the edge instead reds ten plane × torus rows
 status: open
+design: true
 opened: 2026-11-21
 ---
 
@@ -45,11 +46,12 @@ operand edges, not of a torus face's own boundary mid-boolean.
 
 ## What U3b did instead
 
-`OnSurface::under` is retired. A spiric edge keeps the leg read across
-its plane, through `cross` (the leg's circle against the plane, a built
-arm), each meeting placed on the oval by the torus door
-(`region::spiric_landings`). Every circle edge is read across the leg's
-plane by `OnSurface::across`.
+A spiric edge keeps the leg read across its plane (`ReadAcross::LegOverEdge`,
+as main's torus door chose), now through `cross`: `OnSurface::under` reads
+the leg's circle against the edge's plane, a built arm, with the record
+check, and the torus door places each meeting on the oval
+(`TorusFaceRegion::on_edge_plane`). A parallel leg against a circle edge
+keeps the same direction, as on main.
 
 ## To decide
 

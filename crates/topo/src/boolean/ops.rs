@@ -7442,11 +7442,20 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     // A stretch of the arc read in band: the cut-in's own
                     // question, on its margin where it has one.
                     Err(geom_brep::curve_pair::on_surface::AcrossRefusal::Windows(refusal)) => {
+                        if refusal.windows.iter().any(|w| w.why.fault().is_some()) {
+                            return Err(corrupt(
+                                "cut-in: the crossing reading of a boundary arc against the \
+                                 cut's meridian plane is a kernel fault",
+                            ));
+                        }
                         return Err(refusal
                             .windows
                             .iter()
                             .find_map(|w| w.why.diag())
                             .map_or_else(uncertified, esc));
+                    }
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane) => {
+                        unreachable!("the cut-in reads its arcs across the meridian's plane")
                     }
                     // Every piece inherits the cut face's record (the
                     // `mef` below): a piece on another is a fault here.
