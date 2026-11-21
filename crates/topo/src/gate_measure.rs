@@ -110,6 +110,23 @@ pub fn log<T: geom_core::Real>(
             REFUSED_FIRST.with(|c| c.replace(false))
         ),
     );
+    if std::env::var_os("CV_TRACE").is_some() {
+        let geo: Vec<String> = named
+            .iter()
+            .map(|&f| format!("{f:?}={:?}", body.face_surface(f)))
+            .collect();
+        let at = match &r.verdict {
+            Embedding::Refused(R::Uncertified { shared, .. }) => match shared {
+                crate::clearance::SharedCell::Vertex(v) => format!(
+                    "{:?}",
+                    body.vertex_points().find(|(k, _)| k == v).map(|(_, p)| p)
+                ),
+                other => format!("{other:?}"),
+            },
+            _ => String::new(),
+        };
+        eprintln!("CVGATE {} GEO {geo:?} AT {at}", line.trim_end());
+    }
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
