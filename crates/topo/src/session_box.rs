@@ -299,13 +299,26 @@ pub(crate) fn in_session_box_at<T: Decide>(
 /// Whether a cover's reach decides its region in the box: anything but a
 /// definitely negative margin, and no face left uncovered.
 fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
-    cover.is_ok_and(|reach| past(SESSION_BOX_REACH, reach, band).is_none())
+    cover.is_ok_and(|reach| {
+        past(crate::validate::decide_reported(
+            SESSION_BOX_REACH,
+            box_margin(reach),
+            band,
+        ))
+        .is_none()
+    })
 }
 
-/// The margin of a reach past the box, where it is definitely past.
-fn past<T: Decide>(name: &'static str, reach: T, band: Band) -> Option<geom_core::MarginDiag> {
-    let margin = Margin::of(Lever::<T>::session_box().length() - reach);
-    match crate::validate::decide_reported(name, margin, band) {
+/// The box's margin on a reach: its extent less the reach.
+fn box_margin<T: Decide>(reach: T) -> Margin<T> {
+    Margin::of(Lever::<T>::session_box().length() - reach)
+}
+
+/// The margin of a box decision that is definitely past the box.
+fn past(
+    decided: Result<geom_core::Decided, geom_core::Indeterminate>,
+) -> Option<geom_core::MarginDiag> {
+    match decided {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
             margin,
@@ -334,7 +347,11 @@ fn past_its_carriers<T: Decide>(
         };
     }
     let unshown = match cover {
-        Ok(reach) => match past(SESSION_BOX_REACH, reach, band) {
+        Ok(reach) => match past(crate::validate::decide_reported(
+            SESSION_BOX_REACH,
+            box_margin(reach),
+            band,
+        )) {
             None => return Ok(()),
             Some(margin) => ValidationError::SessionBoxUnshown { margin },
         },
@@ -346,7 +363,11 @@ fn past_its_carriers<T: Decide>(
         .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
         .map(|q| (q - origin).norm_inf())
         .fold(points, T::max);
-    match past(SESSION_BOX_POINT, inside, band) {
+    match past(crate::validate::decide_reported(
+        SESSION_BOX_POINT,
+        box_margin(inside),
+        band,
+    )) {
         Some(margin) => Err(ValidationError::OutsideSessionBox { margin }),
         None => Err(unshown),
     }
