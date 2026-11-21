@@ -125,7 +125,7 @@ The list is from reading; it is not exhaustive for `pcurve_cache.rs`,
 
 ## What this row closes on a re-seamed ellipse
 
-`crates/geom/README.md` says of every conic that its parameter zero is
+`crates/geom-core/README.md` (on `main`, PR 7194) says of every conic that its parameter zero is
 at its anchor. After the phase
 (`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`) that holds
 for a conic as minted and not for a re-seamed one: a re-seam turns the

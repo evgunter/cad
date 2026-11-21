@@ -140,3 +140,45 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 - **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
 - **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
 
+
+## What `oneround/anchored-conic` lands, and what of the ratified text it does not (2026-11-21)
+
+The unit lands with two stored forms and the phase. After it:
+
+- **"A conic is stored anchored" is true of the kernel's cone sections
+  only.** `plane_cone_section`'s ellipse is stored anchored at its near
+  vertex. A conic built by a door that is handed a centre
+  (`Circle::new`, `Ellipse::new`, and the doors over them: every circle
+  mint, the cylinder's section, an import, an authored arc) is still
+  stored with its centre and evaluated from it, bit for bit as before.
+- **"Its parameter zero at the anchor" is true of a conic as minted and
+  false of a re-seamed one.** A re-seam turns the seam under the anchor:
+  parameter zero is then at the turned seam's vertex and the anchor a
+  quarter or a half turn from it. Such an ellipse holds a point near its
+  anchor to 1.5 to 3.6 `u·a`, not to the arc's scale
+  (`a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`, "What
+  this row closes on a re-seamed ellipse").
+
+**Why one form did not land here.** It was built
+(`oneround/anchored-conic-one-form`, `e04a87227`: nothing records how a
+conic was made, a door handed a centre sums the anchor once, the centre
+is derived on each read) and measured: 45 of 17,465 rows move at the
+default ε. About thirty are bits, digests and names. The rest are three
+costs that are not a re-baseline:
+
+1. At `Interval` a conic built from a centre is wider, because every
+   reader of the centre gets `(c + u·a) − u·a`: ten rows, among them
+   four builds on the certified lane that become refusals.
+2. At `f64` a reader of the centre and the evaluator are a rounding of
+   the semi-axis apart: an arc's cover stops holding the arc's own point
+   at a far centre (4.2e-10 m at `a = 1e7`), an extent bound falls an ulp
+   short.
+3. An arc away from the anchor's vertex on a long ellipse is summed
+   across a semi-axis (6.5e-13 where a row holds 1e-14), since a door
+   handed a centre has no arc to anchor on.
+
+The rows and their numbers are on `analysis/oneround/conic-vertex-probes`
+under `analysis/oneround/conic-vertex/step-b-one-form/`. One form waits
+for `work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md`
+and for a door that can anchor on the arc
+(`a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`).
