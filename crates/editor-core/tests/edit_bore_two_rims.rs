@@ -301,3 +301,54 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         );
     }
 }
+
+/// **A plate's hole with its bottom rim filleted meshes**, at the
+/// suite's radius and at one a hundred times smaller: the rim is one
+/// full-turn edge at one vertex, so its band is one ring of torus with
+/// one slit, and the tessellator reads it whole.
+#[test]
+fn a_plate_holes_bottom_rim_filleted_meshes() {
+    for radius in [R, R / 100.0] {
+        let doc = ProfileDoc::empty_derived("edit_bore_two_rims_mesh", tol());
+        let (doc, profile) = fixture::insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![
+                    LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
+                    LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),
+                ],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, block) = fixture::insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let ev = fixture::run(&doc, &EvalOptions::default());
+        let (t, body) = (table(&ev, block), corpus::body_of(&ev, block));
+        let selection = rim_names(t, &body, 0.0);
+        let (doc, fillet) = fixture::insert(
+            doc,
+            Node::Fillet {
+                radius: len(radius),
+                selection: editor_core::Operand::select(block, selection),
+            },
+        );
+        let ev = fixture::run(&doc, &EvalOptions::default());
+        assert!(
+            matches!(ev.nodes.get(&fillet), Some(NodeResult::Ok(_))),
+            "r = {radius}: the fillet evaluates, got {:?}",
+            ev.nodes.get(&fillet)
+        );
+        let filleted = corpus::body_of(&ev, fillet);
+        for delta in [1e-2, 1e-3] {
+            mesh::tessellate(&filleted, delta, tol()).unwrap_or_else(|e| {
+                panic!("r = {radius}, δ = {delta}: the filleted plate meshes: {e:?}")
+            });
+        }
+    }
+}
