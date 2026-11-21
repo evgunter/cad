@@ -247,10 +247,9 @@ pass 2.
   (`sweep::loft_profiles`). At a projective scalar the walls are computed
   from the section values themselves, so a seed on a parameter a section
   reads rides to the walls. At `Interval` the loft encloses the family its
-  sections stand for: sections and planes whose values are points loft as the
-  `f64` skin of that value channel, enclosed, and wider ones (a box over the
-  section, or values a few ulps wide with no box at all, as a station
-  turned by an angle the lane rounds) are skinned at the lane scalar. An
+  sections stand for: the sections are skinned at the lane scalar, whether
+  their values are points, a box over the section, or a few ulps wide with
+  no box at all (a station turned by an angle the lane rounds). An
   arc's weight is no point at `Interval`, so an arc section there refuses
   typed at the carrier's door (`SplineError::CarrierWeightNotAPoint`, until
   C6's S4/S5) rather than standing for the nominal over its box.
