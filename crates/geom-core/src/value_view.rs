@@ -94,11 +94,7 @@ mod tests {
     #[test]
     fn a_place_is_the_number_itself_at_f64_interval_and_the_probe() {
         for x in EDGES {
-            assert_eq!(
-                place::<f64>(x).to_bits(),
-                f64::from_computed(x).to_bits(),
-                "f64 at {x}"
-            );
+            assert_eq!(place::<f64>(x).to_bits(), x.to_bits(), "f64 at {x}");
             let (p, c) = (place::<Interval>(x), Interval::from_f64(x));
             assert_eq!(
                 (p.lo().to_bits(), p.hi().to_bits(), p.is_poison()),
