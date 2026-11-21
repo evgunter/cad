@@ -380,6 +380,11 @@ struct Graze<T: Real> {
     /// a wall's or a sphere's radius, the touch's distance from a cone's
     /// apex.
     scale: T,
+    /// Whether the form is exactly `value + bend·(1 − cos(t − at))` in the
+    /// carrier's angle, a first harmonic with no error term (a conic's
+    /// height above a plane): its in-band arc is read in closed form
+    /// ([`arc`]).
+    harmonic: bool,
     /// Whether the root is the residual's, where the arm's form is not
     /// the residual (a cone's `F`, read through its floor). Read only
     /// once the root is known to reach the span ([`Reaching::confirmed`]):
@@ -408,9 +413,17 @@ impl<T: Real> Reaching<T> {
 /// `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the extreme's
 /// own reading. A form that falls from its extreme no faster than a first
 /// harmonic of that curvature leaves the band no nearer than that
-/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there.
+/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. A form that
+/// is exactly that first harmonic ([`Graze::harmonic`]) leaves the band at
+/// `acos(1 − z/bend)`, read in closed form.
 fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
     let z = width + g.value.abs() + g.noise;
+    if g.harmonic {
+        return (T::one() - z / g.bend.abs())
+            .max(T::zero() - T::one())
+            .min(T::one())
+            .acos();
+    }
     (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
         .min(T::pi())
 }
@@ -644,6 +657,7 @@ pub(super) fn plane_conic<T: Decide>(
                 speed: conic.speed_at(at),
                 // The conic's diameter at the touch.
                 scale: T::from_f64(2.0) * conic.speed_at(at),
+                harmonic: true,
                 confirm: Ok(()),
             };
             kappa(span, graze, band)
@@ -754,6 +768,7 @@ impl<T: Decide> LineQuadric<T> {
                     speed: span.speeds().1.get(),
                     // The wall's or the sphere's radius.
                     scale: radius,
+                    harmonic: false,
                     confirm: Ok(()),
                 },
                 band,
@@ -1125,6 +1140,7 @@ fn line_cone<T: Decide>(
                 speed: line.dir.norm(),
                 // The vertex's distance from the apex.
                 scale,
+                harmonic: false,
                 confirm,
             };
             return kappa(span, graze, band);
@@ -1365,6 +1381,7 @@ fn first_harmonic<T: Decide>(
             speed: conic.speed_at(at),
             // The conic's diameter at the touch.
             scale: T::from_f64(2.0) * conic.speed_at(at),
+            harmonic: false,
             confirm,
         };
         kappa(span, g, band)

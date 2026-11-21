@@ -293,7 +293,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 }
 
 /// **Crossing insertion**: every edge's carrier read against the plane
-/// by the curve × face crossing reading ([`cross`]), independent of the
+/// by the curve × face crossing reading ([`cross()`]), independent of the
 /// vertex sides:
 ///
 /// - `Lies` and `Apart` insert nothing: an edge in the plane has its
@@ -303,11 +303,13 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   with `[t₀, tₐ]` and mints the trailing child `[tₐ, t₁]`, on which
 ///   the next lies. A touch leaves a same-side ON contact for the sector
 ///   classification (the graze net).
-/// - A vertex whose offset from the plane is decided zero is a record
-///   ([`classify_vertices`]), read ahead of the crossing reading: it holds
-///   the carrier's root at that end, a meeting there or a root the
-///   placement reads in band of it, and nothing is inserted there. A
-///   line's residual is affine, so its one root is the record's.
+/// - The vertex sides are a record ([`classify_vertices`]), read ahead of
+///   the crossing reading. A line's residual is affine, so a line whose
+///   ends are not recorded on opposite sides (one ON, or both on one side)
+///   has no root between them, and is read only with its ends on opposite
+///   sides. A vertex whose offset from the plane is decided zero holds
+///   the carrier's root at that end: a meeting there, or a window the
+///   placement reads at it, and nothing is inserted there.
 /// - Vertex sides decided opposite past the band, while the reading
 ///   finds no meeting inside the span and none at an end, contradict
 ///   each other ([`MeetFault::Contradiction`]): a kernel fault, never a
@@ -374,9 +376,14 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             fault,
         };
         let recorded = on_plane.contains_key(u) || on_plane.contains_key(v);
-        // A line's residual is affine: an end recorded on the plane is its
-        // one root.
-        if recorded && matches!(curve.carrier(), geom::Curve3::Line(_)) {
+        let opposite_sides = matches!(
+            (sides[u], sides[v]),
+            (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above)
+        );
+        // A line's residual is affine: ends not recorded on opposite sides
+        // (one on the plane, or both on one side) hold no root between
+        // them.
+        if matches!(curve.carrier(), geom::Curve3::Line(_)) && !opposite_sides {
             continue;
         }
         let (roots, at_end) = match edge_roots(curve.carrier(), params, &surface, recorded, band) {
@@ -386,11 +393,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         };
         // Sides decided opposite past the band: both offsets read off the
         // plane, not a section's side of a vertex on it.
-        let opposite = !recorded
-            && matches!(
-                (sides[u], sides[v]),
-                (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above)
-            );
+        let opposite = !recorded && opposite_sides;
         if opposite && roots.is_empty() && !at_end {
             return Err(refused(CrossWhy::Method {
                 door: geom_brep::curve_face::Door::PlaneCrossing,
@@ -426,10 +429,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
 /// **An edge's meetings with the split plane** ([`insert_crossings`]):
 /// `None` where the carrier lies in the plane or is apart from it; else
 /// the parameters strictly inside the span, ascending, and whether a
-/// meeting sits at an end. With an end `recorded` on the plane, a root
-/// the placement reads in band of an end ([`MeetFault::Escalated`]) is
-/// that vertex's, read by its record, and the meetings outside the
-/// windows stand. A spline span is read by the ring composite at this
+/// meeting sits at an end. With an end `recorded` on the plane, a
+/// placement window at an end (a root in band of it, or two roots in band
+/// of each other there: the window's centre the span reads at an end or
+/// in band of one) is that vertex's, read by its record, and the
+/// meetings outside the windows stand. A spline span is read by the ring composite at this
 /// scalar, whose meetings are interior by its own placement.
 fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
@@ -457,23 +461,31 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
             }
         },
         Err(refusal) => {
-            let at_an_end = |why: CrossWhy| {
+            // A placement window, a root in band of an end or two roots in
+            // band of each other, whose centre the span reads at an end or
+            // in band of one: the recorded vertex's.
+            let span = Span::new(carrier, params);
+            let at_an_end = |w: &geom_brep::curve_face::Undecided<T, CrossWhy>| {
                 matches!(
-                    why,
+                    w.why,
                     CrossWhy::Method {
-                        fault: MeetFault::Escalated(_),
+                        fault: MeetFault::Escalated(_)
+                            | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
                         door: geom_brep::curve_face::Door::PlaneCrossing,
                     }
+                ) && !matches!(
+                    span.place_param(geom::mid_param(w.window.0, w.window.1), band),
+                    Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::Past)
                 )
             };
-            if recorded && refusal.windows.iter().all(|w| at_an_end(w.why)) {
+            if recorded && refusal.windows.iter().all(&at_an_end) {
                 return Ok(read(refusal.found, true));
             }
             let Some(why) = refusal
                 .windows
                 .iter()
+                .find(|w| !(recorded && at_an_end(w)))
                 .map(|w| w.why)
-                .find(|&why| !(recorded && at_an_end(why)))
             else {
                 unreachable!("a crossing refusal holds a window")
             };
