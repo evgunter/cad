@@ -29,7 +29,11 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's m
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
+crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's reach about a root in band of an end
 crates/geom-brep/src/curve_face/plane_crossing.rs	1	constant	band.zero()	the band's zero width, a tolerance: a graze's root spread
+crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
+crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose/window.rs	4	constant	band.zero()	the band's zero width, a tolerance
@@ -118,11 +122,11 @@ crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
 crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
 crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
-crates/geom/src/curves/nurbs.rs	1	constant	j as f64 / per as f64	a speed piece's end as a fraction of its knot span, a fixed schedule (length_upper_bound)
 crates/geom/src/curves/nurbs.rs	1	constant	<fn>	the placeholder's unit knots (Knots::lift)
-crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
-crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/curves/nurbs.rs	1	constant	at	derivative_at's parameter, a point its caller states at f64 (a station's sample site, as `span_at`'s)
+crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
+crates/geom/src/curves/nurbs.rs	1	constant	j as f64 / per as f64	a speed piece's end as a fraction of its knot span, a fixed schedule (length_upper_bound)
+crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/surfaces/nurbs.rs	1	constant	u	a removal's reinsertion of the removed knot where the surface does not hold it: the caller's f64 parameter (unreachable: the removal took it from the surface)
 crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a value other than the removed knot: the caller's f64 parameter (unreachable: a reinsertion brings in the removed knot alone)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
@@ -143,28 +147,20 @@ crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft/stacking.rs	1	constant	count as f64	a count
+crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
+crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
-crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
-crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
-crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
-crates/topo/src/region.rs	1	constant	share	a fixed split fraction
-crates/topo/src/rim_wedge.rs	1	constant	k	a fixed wrap count
-crates/topo/src/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
-crates/topo/src/solid_contain.rs	1	constant	<block> if plus	a fixed fraction of a circle arc's span, as the half-edge walks it: a sample point of the arc whose turn is read
-crates/topo/src/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
-crates/topo/src/solid_contain.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
-crates/topo/src/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/census.rs	1	constant	band.escalate() - band.zero()	the band's room (K - 1)·ε, a tolerance
 crates/topo/src/census.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance
@@ -179,9 +175,12 @@ crates/topo/src/cover.rs	1	constant	tolerance	the band's sweep pad a caller hand
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves/decision.rs	1	constant	1.0 / f64::from(n)	the step of an orbit, a period over its steps (1 or 2)
 crates/topo/src/pcurves/decision.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
+crates/topo/src/region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/replace_face.rs	1	constant	geom::mid_param(u0, u1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
 crates/topo/src/replace_face.rs	1	constant	geom::mid_param(v0, v1)	mid_domain_normal: the domain's centre, a sample point where the chart normal is read
 crates/topo/src/replace_face.rs	1	constant	tol.eps()	the run's tolerance
+crates/topo/src/rim_wedge.rs	1	constant	k	a fixed wrap count
+crates/topo/src/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
 crates/topo/src/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation width, a tolerance
@@ -192,6 +191,10 @@ crates/topo/src/side_reader.rs	1	constant	across	the aimed ray's fixed incidence
 crates/topo/src/side_reader.rs	1	constant	along	the aimed ray's fixed incidence (AIM_INCIDENCE, 60° to the face): it only steers a ray whose start lies beyond every face
 crates/topo/src/side_reader.rs	1	constant	turn_cos	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
 crates/topo/src/side_reader.rs	1	constant	turn_sin	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
+crates/topo/src/solid_contain.rs	1	constant	<block> if plus	a fixed fraction of a circle arc's span, as the half-edge walks it: a sample point of the arc whose turn is read
+crates/topo/src/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/solid_contain.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
+crates/topo/src/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/classify.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule

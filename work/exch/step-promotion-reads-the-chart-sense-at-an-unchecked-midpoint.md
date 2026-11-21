@@ -36,3 +36,5 @@ chart is regular there:
 The readings to reuse are `geom_brep::regular_jet` and
 `geom_brep::chart_normal_at`. Or read the sense at a sample the chart
 is known regular at, and refuse the promotion where none is found.
+
+- 2026-11-20 — **Widened (EXCH, whole-patch promotion):** the hazard is every promoted kind's, not the plane's and cylinder's alone. Cone, sphere and torus carriers are composed into `same_sense` through the same `chart_flipped` midpoint read, and the curved estimators sample the chart's jet at fixed fractions (`curvature_at`, `seam_reference`), which an irregular or C⁰ sample misreads the same way; there the certificate refutes a wrong carrier, but a wrong SENSE has no certificate behind it. (EXCH lane A)

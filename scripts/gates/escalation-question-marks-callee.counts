@@ -19,6 +19,10 @@
 # editor-core trace: resolve_chain's steps, each read from the pen the
 # step before left: NOT A SEARCH.
 crates/editor-core/src/trace.rs 4
+# curve_face pose: line_cone_read's apex end (1): WHICH, the end the apex
+# is decided at is the root whose spread is read next, so an end in band
+# ahead of it refuses (the `place_off` ruling; the site says so).
+crates/geom-brep/src/curve_face/pose.rs 1
 # props curved: pole_turning (1) sums every arc's turning: NOT A SEARCH.
 # (sphere_region_material_sign and pole_side climb their arcs; pose's
 # one_line reads one identity.)

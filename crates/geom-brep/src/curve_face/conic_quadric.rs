@@ -469,6 +469,12 @@ pub(super) fn cone_harmonics<T: Decide>(
     )
 }
 
+/// The rounding of a cone's form `F = Q/R` as the door evaluates it, in
+/// `F`'s units: the term bound's charge, over `R`.
+pub(super) fn cone_noise<T: Decide>(h: &crate::ConicHarmonics<T>) -> T {
+    rounding_charge(h.terms) / h.per
+}
+
 /// The ladder against a CONE (module docs, "Against a cone"): the
 /// wall's ladder on `F = Q/R`, every root's slack metered on the cone's
 /// residual.
@@ -480,7 +486,7 @@ fn cone_ladder<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let h = cone_harmonics(conic, (apex, axis, half_angle));
-    let noise = rounding_charge(h.terms) / h.per;
+    let noise = cone_noise(&h);
     let placed = |theta: T| {
         crate::conic_cone_residual(
             conic,
@@ -513,8 +519,9 @@ const CONE_DEFLATED_SIDE: &str = "conic_quadric_cone_deflated_side";
 const CONE_DEFLATED_CLEAR: &str = "conic_quadric_cone_deflated_clear";
 
 /// The deflated form about the apex's anomaly `θ_a` (module docs,
-/// "Through the apex"): `G = k + R cos(φ − β)`, as `(k, R, β, G(0))`.
-fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, T, T) {
+/// "Through the apex"): `G = k + R cos(φ − β)`, as `(k, R, (R cos β,
+/// R sin β), G(0))`.
+fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, (T, T), T) {
     let two = T::from_f64(2.0);
     let (sa, ca) = theta_a.sin_cos();
     let (s2a, c2a) = (two * theta_a).sin_cos();
@@ -523,7 +530,7 @@ fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, T, T)
     let k = c1 + two * c2;
     let (rc, rs) = (two * c2, two * s2);
     let r = (rc.powi(2) + rs.powi(2)).sqrt();
-    (k, r, rs.atan2(rc), k + rc)
+    (k, r, (rc, rs), k + rc)
 }
 
 /// **The apex's spread** (module docs, "Through the apex"), in radians
@@ -577,7 +584,7 @@ pub(super) fn through_the_apex<T: Decide>(
     let conic = &conic;
     let (t0, t1) = span.params();
     let h = cone_harmonics(conic, (apex.point, axis, half_angle));
-    let noise = rounding_charge(h.terms) / h.per;
+    let noise = cone_noise(&h);
     let two = T::from_f64(2.0);
     let mid = geom::mid_param(t0, t1);
     let near_mid = |theta: T| geom::conic_period().near(theta, mid);
@@ -585,7 +592,8 @@ pub(super) fn through_the_apex<T: Decide>(
     let unbounded = T::from_f64(f64::INFINITY);
     let theta_a = apex.at;
     let spread_phi = apex.spread.1 - theta_a;
-    let (k, r, beta, _) = deflated(&h, theta_a);
+    let (k, r, (rc, rs), _) = deflated(&h, theta_a);
+    let beta = rs.atan2(rc);
     // `G`'s own roots: none where `|k| − R` is definite, two where it is
     // definitely negative, a tangency between.
     let depth = k.abs() - r;

@@ -318,7 +318,9 @@ fn kappa<T: Decide>(
     let length = span.speeds().0.get() * (t1 - t0).abs();
     let decided = geom_core::k_stats::decide_reported(
         "curve_face_pose_kappa",
-        Margin::sagitta(bend / speed.powi(2), length),
+        // Unsourced lever: the span's own length at its least speed, the
+        // run the reading reads, as the axis-parallel rung's drift is.
+        Margin::sagitta(bend / speed.powi(2), geom_core::Lever::unsourced(length)),
         band,
     )
     .map_err(PoseRefusal::in_band(PoseRung::Kappa))?;
@@ -451,14 +453,7 @@ pub(super) fn plane_conic<T: Decide>(
             };
             let at = geom_core::period::Period::angle().near(at, near);
             let extreme = r - d0.abs();
-            kappa(
-                span,
-                at,
-                (extreme, geom_core::rounding_charge(d0.abs() + r)),
-                r,
-                conic.speed_at(at),
-                band,
-            )
+            kappa(span, at, (extreme, T::zero()), r, conic.speed_at(at), band)
         }
     }
 }
@@ -593,7 +588,7 @@ pub(super) fn line_wall_read<T: Decide>(
     let dp = d - wall.dir * d.dot(wall.dir);
     let run = (t1 - t0).abs();
     let mid = geom::mid_param(t0, t1);
-    let at_mid = wall.offset(line.origin + d * mid).norm() - radius;
+    let at_mid = wall.distance(line.origin + d * mid) - radius;
     let speed = dp.norm();
     if axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band)? {
         return Ok(LineQuadric::Parallel {
@@ -881,7 +876,7 @@ fn conic_quadric<T: Decide>(
             },
         ) => {
             let h = door::cone_harmonics(&conic, (apex, axis, half_angle));
-            let noise = geom_core::rounding_charge(h.terms) / h.per;
+            let noise = door::cone_noise(&h);
             if let Some(through) = conic_apex(span, &conic, (apex, axis, half_angle), &h, band)? {
                 return Ok(through);
             }

@@ -6,4 +6,3 @@
 crates/geom-brep/src/nurbs_iso.rs	iso_boundary_row	1	sup
 crates/geom-brep/src/pcurve_cache.rs	side_of	2	chart-domain
 crates/topo/src/chord_join.rs	chord_spec	1	exact-rate
-crates/topo/src/boolean/trace.rs	circle_crossings	1	exact-rate

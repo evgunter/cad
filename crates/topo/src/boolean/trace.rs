@@ -395,7 +395,7 @@ pub fn plane_misses<T: Decide>(
             ..
         } => match sign_as(
             TRACE_PLANE_LEAD,
-            Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
+            Margin::levered(axis.dot(normal), geom_brep::uniform_curvature_arm(surface)),
             band,
         )? {
             Sign::Zero => off(origin, radius),

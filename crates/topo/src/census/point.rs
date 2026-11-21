@@ -34,8 +34,16 @@ use crate::entity::{EdgeKey, EntityId, FaceKey};
 /// A face carrier these lanes read.
 #[derive(Clone, Copy)]
 enum Surface<T: Real> {
-    Plane { origin: Point3<T>, normal: Vec3<T> },
-    Sphere { center: Point3<T>, radius: T },
+    Plane {
+        origin: Point3<T>,
+        normal: Vec3<T>,
+    },
+    Sphere {
+        center: Point3<T>,
+        radius: T,
+        /// The sphere's curvature arm, read off the face's carrier.
+        arm: geom_core::Lever<T>,
+    },
 }
 
 /// What a point-touch reading answers.
@@ -57,9 +65,14 @@ enum Touch<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    match *body.face(f)?.surface() {
+    let carrier = body.face(f)?.surface();
+    match *carrier {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
-        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
+        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere {
+            center,
+            radius,
+            arm: geom_brep::uniform_curvature_arm(carrier),
+        }),
         _ => None,
     }
 }
@@ -68,7 +81,7 @@ fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
 /// `None` escalated (pushed).
 fn separates<T: Decide>(
     kappa: T,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
@@ -103,12 +116,12 @@ fn coincident<T: Decide>(
 /// A sphere `(c, r)` against a line or a plane whose nearest point to
 /// `c` is `foot` (`κ_rel = 1/r`).
 fn on_sphere<T: Decide>(
-    (c, r): (Point3<T>, T),
+    (c, r, arm): (Point3<T>, T, geom_core::Lever<T>),
     foot: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
-    if !separates(T::one() / r, r, band, errors)? {
+    if !separates(T::one() / r, arm, band, errors)? {
         return Some(Touch::Apart);
     }
     let w = foot - c;
@@ -125,8 +138,8 @@ fn on_sphere<T: Decide>(
 /// (`κ_rel = 1/r₁ + 1/r₂`), or one inside the other at
 /// `|c₂ − c₁| = |r₁ − r₂|` (`κ_rel = 1/r_small − 1/r_big`).
 fn sphere_sphere<T: Decide>(
-    (c1, r1): (Point3<T>, T),
-    (c2, r2): (Point3<T>, T),
+    (c1, r1, arm1): (Point3<T>, T, geom_core::Lever<T>),
+    (c2, r2, arm2): (Point3<T>, T, geom_core::Lever<T>),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
@@ -143,7 +156,7 @@ fn sphere_sphere<T: Decide>(
         errors,
     )? {
         Sign::Zero => {
-            if !separates(T::one() / r1 + T::one() / r2, small, band, errors)? {
+            if !separates(T::one() / r1 + T::one() / r2, arm1.min(arm2), band, errors)? {
                 return Some(Touch::Apart);
             }
             return Some(Touch::At(c1 + u * r1));
@@ -152,7 +165,12 @@ fn sphere_sphere<T: Decide>(
         Sign::Negative => {}
     }
     let big = r1.max(r2);
-    if !separates(T::one() / small - T::one() / big, small, band, errors)? {
+    if !separates(
+        T::one() / small - T::one() / big,
+        arm1.min(arm2),
+        band,
+        errors,
+    )? {
         return Some(Touch::Apart);
     }
     // The point is on the big sphere away from the small one's centre.
@@ -311,21 +329,37 @@ pub(super) fn face_face<T: Decide>(
 ) -> Option<Read> {
     use Surface::{Plane, Sphere};
     let touch = match surface(body, a).zip(surface(body, b))? {
-        (Plane { origin, normal }, Sphere { center, radius })
-        | (Sphere { center, radius }, Plane { origin, normal }) => {
+        (
+            Plane { origin, normal },
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+        )
+        | (
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+            Plane { origin, normal },
+        ) => {
             let foot = center - normal * geom::plane_offset(origin, normal, center);
-            on_sphere((center, radius), foot, band, errors)
+            on_sphere((center, radius, arm), foot, band, errors)
         }
         (
             Sphere {
                 center: c1,
                 radius: r1,
+                arm: arm1,
             },
             Sphere {
                 center: c2,
                 radius: r2,
+                arm: arm2,
             },
-        ) => sphere_sphere((c1, r1), (c2, r2), band, errors),
+        ) => sphere_sphere((c1, r1, arm1), (c2, r2, arm2), band, errors),
         (Plane { .. }, Plane { .. }) => return None,
     };
     Some(read(

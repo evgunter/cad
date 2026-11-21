@@ -272,7 +272,7 @@ fn a_span_through_a_cones_apex_is_through() {
             panic!("{label}: {:?}", found.pose);
         };
         assert!(
-            (apex.point - Point3::origin()).norm() == 0.0,
+            apex.point.equals_exactly(Point3::origin()),
             "{label}: the apex"
         );
         assert!(
@@ -309,6 +309,9 @@ fn a_higher_order_contact_escalates_on_kappa() {
     }
 }
 
+/// A true distance from a surface.
+type Distance = fn(&geom::Surface<f64>, Point3<f64>) -> f64;
+
 /// **A touch's arc holds every span point within the band of the
 /// surface**: a circle grazing a plane, a line grazing a sphere and a
 /// wall, each read at the true
@@ -317,12 +320,7 @@ fn a_higher_order_contact_escalates_on_kappa() {
 fn a_touchs_arc_holds_the_in_band_arc() {
     let sin = 1e-3_f64;
     let axis = Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt());
-    let cases: [(
-        &str,
-        Curve3<f64>,
-        geom::Surface<f64>,
-        fn(&geom::Surface<f64>, Point3<f64>) -> f64,
-    ); 3] = [
+    let cases: [(&str, Curve3<f64>, geom::Surface<f64>, Distance); 3] = [
         (
             "a circle on a plane",
             Curve3::circle(Point3::new(0.0, 0.0, sin), axis, 1.0, Vec3::unit_x()),

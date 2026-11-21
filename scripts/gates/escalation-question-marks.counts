@@ -25,9 +25,6 @@ crates/topo/src/splitting/containment.rs 1
 # join: conic_pairs's first cut: WHICH, the cut rotates the pairing
 # (PR 6553's place_off ruling; the site says so).
 crates/topo/src/splitting/join.rs 1
-# line_quadric: the line-cone apex end: WHICH, the end is the root whose
-# spread is read next (place_off ruling; the site says so).
-crates/geom-brep/src/curve_face/line_quadric.rs 1
 # edge_join: joinable's chart-class read over the two surfaces: WHICH,
 # the carrying surface is in the locus compared (place_off ruling; the
 # site says so).

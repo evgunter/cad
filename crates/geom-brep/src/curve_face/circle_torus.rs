@@ -238,16 +238,8 @@ pub(super) fn torus_method<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     use super::pose::Formed;
-    let geom::Surface::Torus {
-        center: t_center,
-        axis: t_axis,
-        major_radius,
-        minor_radius,
-        ..
-    } = *torus
-    else {
-        return Err(DoorRefusal::Invariant(DESYNC));
-    };
+    let (t_center, t_axis, major_radius, minor_radius) =
+        torus_data(torus).ok_or(DoorRefusal::Invariant(DESYNC))?;
     let (t0, t1) = span.params();
     match (span.carrier(), form) {
         (&geom::Curve3::Circle(circle), Formed::TorusParallel { far, near }) => {
@@ -287,6 +279,20 @@ pub(super) fn torus_method<T: Decide>(
         _ => Err(DoorRefusal::Invariant(
             "the conic × torus method was handed a form of another arm",
         )),
+    }
+}
+
+/// A torus's centre, axis and radii, or `None` for another kind.
+fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, Vec3<T>, T, T)> {
+    match *torus {
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some((center, axis, major_radius, minor_radius)),
+        _ => None,
     }
 }
 
