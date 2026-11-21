@@ -509,7 +509,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // vessel has no axis of its own, and reading the seed or the
     // extent off it would answer a question about the vessel with the
     // box's geometry.
-    let frame = axial_frame(body, &scope)?;
+    let frame = axial_frame(body, &scope, band)?;
     let mut charts: Vec<(FaceKey, MovedChart<T>)> = Vec::new();
     for m in moves {
         // **The cone's mirror nappe is a CONSUMER obligation, and this
@@ -988,7 +988,7 @@ pub(crate) fn is_axial_in<T: Decide>(
     scope: &crate::offset_together::Scope,
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
-    let frame = match axial_frame(body, scope) {
+    let frame = match axial_frame(body, scope, band) {
         Ok(frame) => frame,
         // No curved chart, or no face at all: nothing revolves.
         Err(ReplaceFaceError::TogetherAxialUnsupported { .. } | ReplaceFaceError::EmptyGroup) => {
@@ -1014,14 +1014,16 @@ pub(crate) fn is_axial_in<T: Decide>(
     Ok(true)
 }
 
-/// The revolution axis of the solids `scope` names, and their radial
-/// extent, read off the first curved chart in scope. An all-planar
+/// The revolution axis of the solids `scope` names, read off the first
+/// curved chart in scope, and the scope's faces' farthest distance from
+/// it. An all-planar
 /// scope has no axis and is not this door's; a scope holding no face
 /// (an empty move set, a faceless body) names nothing to revolve and
 /// answers [`ReplaceFaceError::EmptyGroup`].
-fn axial_frame<T: Real>(
+fn axial_frame<T: Decide>(
     body: &Body<T>,
     scope: &crate::offset_together::Scope,
+    band: Band,
 ) -> Result<Frame<T>, ReplaceFaceError<T>> {
     let first = body
         .faces()
@@ -1069,33 +1071,26 @@ fn axial_frame<T: Real>(
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
     let (origin, dir) = (seed.foot(Point3::origin()), seed.dir);
-    // The extent is the SCOPE's own furthest vertex from the axis
-    // point: the length a direction error would move a corner by, which
-    // is the geometry every alignment verdict here is about. A box
+    // The extent is the SCOPE's own faces' farthest distance from the
+    // axis point, read off each face's cover from above
+    // ([`crate::cover::face_reach_from`]): the length a direction error
+    // would move a point of the scope by. The alignment verdicts it
+    // levers act on Zero (a sine decided Zero names the chart aligned),
+    // so the extent is read from above, which holds what bulges past
+    // the boundary and is never zero on a face. A face with no cover
+    // reads poison, which every margin levered at it escalates. A box
     // standing beside a vessel would lever the vessel's margins by its
     // own distance away, which is a fact about the assembly and not
     // about the vessel's charts.
-    //
-    // **The scoping of THIS walk is unpinnable, and that is stated
-    // rather than left to be discovered.** `extent` feeds only
-    // `Margin::levered(x, extent)`, and every margin that reads it is
-    // EXACTLY zero on any body of revolution this workspace builds —
-    // the caps' normals, the wall's axis and the frame's direction are
-    // minted from one `AxisFrame`, so the sines and dot products are
-    // exact zeros rather than small numbers. A zero margin decides the
-    // same at every lever, so deleting the guard below leaves the whole
-    // suite green. What would pin it is an operand whose own alignment
-    // margin is NON-zero and small enough that the lever decides the
-    // verdict — a tilted revolve, which `revolve` refuses to build (its
-    // 2-D axis must be `±x`/`±y`) — or a hand-built body of that shape.
-    // The same posture the axis gate's third outcome is documented
-    // under: written for correctness rather than pinned by a fixture.
-    let extent = body
-        .vertices()
-        .filter(|&(k, _)| scope.holds_vertex(k))
-        .fold(ExtentBall::point(origin).lever(), |far, (key, vertex)| {
-            far.max(ExtentBall::point(origin).lever_from(body.point_of(key, vertex)))
-        });
+    let extent = scope
+        .faces_in_scope()
+        .into_iter()
+        .map(|face| {
+            crate::cover::face_reach_from(body, face, origin, band)
+                .unwrap_or_else(|_| ExtentBall::of_cover_from(None, origin).lever_from(origin))
+        })
+        .reduce(Lever::max)
+        .ok_or(ReplaceFaceError::EmptyGroup)?;
     Ok(Frame {
         axis: geom::Line { origin, dir },
         extent,
@@ -4047,6 +4042,37 @@ mod keep_turn_rows {
                 Err(ReplaceFaceError::Escalated { .. })
             ),
             "a read in the band of the half-turn mark escalates"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod frame_extent_rows {
+    use super::*;
+
+    /// **The frame's extent holds what bulges past the scope's
+    /// vertices.** The outer quarter of the ring torus `R = 2`, `r = 0.5`
+    /// about `z`, bounded by the parallels at `±π/4`
+    /// (`torus_sheet`): its corners stand
+    /// `√((R + r·cos π/4)² + (r·sin π/4)²) ≈ 2.380` from the centre, its
+    /// outer equator `R + r = 2.5`. The alignment verdicts act on Zero,
+    /// so the frame levers them at the equator's reach, not the
+    /// corners'.
+    #[test]
+    fn the_axial_frame_reaches_past_its_scopes_vertices() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let a = core::f64::consts::FRAC_PI_4;
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let (body, _) = crate::boolean::section_cert::section_cert_rows::torus_sheet(
+            (2.0, 0.5),
+            &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
+        );
+        let scope = crate::offset_together::Scope::whole(&body);
+        let extent = axial_frame(&body, &scope, band).unwrap().extent.length();
+        assert!(
+            (2.5..=2.5 + 1e-9).contains(&extent),
+            "the frame reads the torus band's outer equator, 2.5 from the centre, got {extent}"
         );
     }
 }
