@@ -242,7 +242,23 @@ impl<T: SpanLocate> Curve3<T> {
     /// than a point, a derivative, a symbol) answers no.
     #[must_use]
     pub fn same_content(&self, other: &Self) -> bool {
-        let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+        self.same_content_by(other, |a: T, b: T| {
+            matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y)
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **Whether `other` is this carrier by content, each value read by
+    /// `same`**: one kind, and every value that states it one by `same`
+    /// (a spline's knots, control points and weights by
+    /// [`NurbsCurve3::same_content`], a periodic loop's data and sense by
+    /// [`PeriodicNurbs3::same_content`]). The one home of the walk;
+    /// [`Self::same_content`] reads it with plain constants, and a
+    /// certificate's support compare reads it with
+    /// [`geom_core::Real::same_value`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
         let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
         let frame = |f: &Frame<T>, g: &Frame<T>| {
@@ -295,8 +311,8 @@ impl<T: SpanLocate> Curve3<T> {
                     && same(*minor_radius, *small)
                     && same(*offset, *off)
             }
-            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
-            (Self::Periodic(n), Self::Periodic(m)) => n.same_content(m, same),
+            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, &same),
+            (Self::Periodic(n), Self::Periodic(m)) => n.same_content(m, &same),
             (
                 Self::Line(_)
                 | Self::Circle(_)

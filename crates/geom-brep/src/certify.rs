@@ -7,8 +7,10 @@
 //! either returns a certified [`EdgeCurve`] — whose fields are private,
 //! so **an uncertified carrier is unrepresentable** — or fails with a
 //! typed [`CertifyError`] (operation-time enforcement, D4 ¶3). The
-//! tier-3 validator re-runs the same checks at rest
-//! ([`EdgeCurve::recertify`]).
+//! tier-3 validator runs the same checks at rest
+//! ([`EdgeCurve::recertify`]), reading check 6's locus certificate where
+//! its support is the edge's as it stands
+//! ([`crate::LocusCertificate`]).
 //!
 //! # The deterministic sampling schedule (D9)
 //!
@@ -73,6 +75,7 @@ use crate::dihedral::{
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
+use crate::locus_certificate::LocusCertificate;
 use crate::pcurve_cache::IncidenceDoor as _;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, StatedDoor, chart_pcurve_over};
 use crate::recourse::{
@@ -2277,6 +2280,10 @@ pub struct EdgeCurve<T: Real> {
     /// Check 2's turn: the interval's extent against one period.
     turn: Option<CertifiedTurn<T>>,
     certificate: T::Carries<Certificate<T>>,
+    /// The locus part of the certificate with its support
+    /// ([`LocusCertificate`]), where check 6 ran: `None` on every other
+    /// description and at a scalar that does not certify.
+    locus: Option<LocusCertificate<T>>,
 }
 
 /// The edge as it is stored. The reading is a function of the carrier
@@ -2292,6 +2299,7 @@ impl<T: Real> core::fmt::Debug for EdgeCurve<T> {
             param_end,
             turn,
             certificate,
+            locus: _,
         } = self;
         f.debug_struct("EdgeCurve")
             .field("description", description)
@@ -2367,6 +2375,7 @@ impl<T: geom_core::TangentTransport> EdgeCurve<T> {
             param_end: minted.param_end,
             turn: minted.turn,
             certificate: T::uncertified(),
+            locus: None,
         }
     }
 }
@@ -2528,9 +2537,40 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical, turn, reading) =
-            run_checks(&spec, start, end, &surfaces, reach, lane, stated, band)
-                .map_err(StatedSpan::at_a_door)?;
+        Self::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, &[])
+    }
+
+    /// [`EdgeCurve::certify_stated`] for a door that keeps an edge's
+    /// locus: `kept` are the locus certificates the door holds for it
+    /// ([`EdgeCurve::locus_certificate`]), of which check 6 reads one
+    /// whose support is this spec's carrier, interval, surface pair and
+    /// band, and derives again where none is. Every other check runs.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify`].
+    #[allow(clippy::too_many_arguments)] // `certify_stated`'s, plus the kept locus
+    pub fn certify_carrying(
+        spec: EdgeCurveSpec<T>,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        reach: geom_core::Lever<T>,
+        band: Band,
+        lane: NurbsLane<T>,
+        stated: Option<&StatedImage<T>>,
+        kept: &[&LocusCertificate<T>],
+    ) -> Result<Self, CertifyError> {
+        let Checked {
+            certificate,
+            canonical,
+            turn,
+            reading,
+            locus,
+        } = run_checks(
+            &spec, start, end, &surfaces, reach, lane, stated, band, kept,
+        )
+        .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
@@ -2540,6 +2580,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             param_end: spec.param_end,
             turn,
             certificate: T::carried(certificate),
+            locus,
         })
     }
 
@@ -2549,8 +2590,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// certainly on its refused side refuses as
     /// [`CertifyError::StatedInterval`] — an arc minted at a coarser band,
     /// whose headroom to a full turn that band read as zero, reads past
-    /// one at a finer band. The stored certificate is not consulted
-    /// (re-certification re-derives, it does not trust).
+    /// one at a finer band. Check 6 reads the edge's own
+    /// [`EdgeCurve::locus_certificate`] where its support is the edge's as it stands
+    /// at `band`, and derives it again otherwise; every other check runs.
     ///
     /// # Errors
     ///
@@ -2598,8 +2640,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             lane,
             stated,
             band,
+            self.locus.as_ref().as_slice(),
         )
-        .map(|(cert, _, _, _)| cert)
+        .map(|checked| checked.certificate)
         .map_err(StatedSpan::at_a_door)
     }
 }
@@ -3131,6 +3174,14 @@ impl<T: Real> EdgeCurve<T> {
         &self.certificate
     }
 
+    /// The locus part of the certificate with the support it was
+    /// derived over ([`LocusCertificate`]), where check 6 ran. A door
+    /// that keeps this edge's carrier, interval and surfaces hands it to
+    /// [`EdgeCurve::certify_carrying`].
+    pub fn locus_certificate(&self) -> Option<&LocusCertificate<T>> {
+        self.locus.as_ref()
+    }
+
     /// Where the edge's extent stands against one period of its
     /// stored carrier, as check 2 decided it at the mint: `None` on a
     /// carrier with no period (a line, a clamped spline). An edge on a
@@ -3220,6 +3271,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: self.locus.clone(),
         })
     }
 
@@ -3276,6 +3328,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: self.locus.clone(),
         })
     }
 
@@ -3316,6 +3369,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: None,
         }
     }
 
@@ -4895,14 +4949,15 @@ type Minted<T> = (
 );
 
 /// What the certification engine derives: the certificate, the
-/// canonical description, check 2's turn and a periodic carrier's
-/// reading.
-type Checked<T> = (
-    Certificate<T>,
-    EdgeDescription<T>,
-    Option<CertifiedTurn<T>>,
-    Option<Curve3<T>>,
-);
+/// canonical description, check 2's turn, a periodic carrier's reading,
+/// and check 6's locus certificate where it ran.
+struct Checked<T: Real> {
+    certificate: Certificate<T>,
+    canonical: EdgeDescription<T>,
+    turn: Option<CertifiedTurn<T>>,
+    reading: Option<Curve3<T>>,
+    locus: Option<LocusCertificate<T>>,
+}
 
 /// **A periodic carrier's clamped view over `span`**, as the carrier a
 /// reader reads ([`geom::PeriodicNurbs3::clamped_view`]); `None` for
@@ -4999,7 +5054,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
     band: Band,
+    kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
+    let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
     let resolved = resolve_spec(spec, surfaces)?;
@@ -5584,14 +5641,58 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // kind, and the uniqueness tube over it for a spline. A spline
     // operand's pair is the NURBS pairs' lane above, whose limbs are
     // its own. ----
-    if let Resolved::Intersection {
-        surfs: [(_, surf1), (_, surf2)],
-        ..
-    } = &resolved
-    {
-        lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+    let locus = match &resolved {
+        Resolved::Intersection {
+            surfs: [(_, surf1), (_, surf2)],
+            ..
+        } => {
+            // The limbs read the pair in one order whatever order a door
+            // names it in, so that every door asks one question and a
+            // certificate's support (its order included: the limbs
+            // decide operand by operand) is the same at each: by kind,
+            // and as named between two of one kind. That last order is
+            // the edge's `SurfacePair`'s, so a partner copy naming a
+            // same-kind pair the other way misses and derives (time,
+            // never a wrong read): SECT's row
+            // `a-same-kind-pairs-canonical-order-reads-arena-keys`.
+            let (surf1, surf2) = if surf2.kind() < surf1.kind() {
+                (surf2, surf1)
+            } else {
+                (surf1, surf2)
+            };
+            let pair = [surf1, surf2];
+            let held = kept
+                .iter()
+                .find(|c| c.reads(stored, (t0, t1), pair, band))
+                .map(|&c| (c.clone(), c.recorded()));
+            let derive = || {
+                lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+                    .map(|()| {
+                        LocusCertificate::derived(stored, (t0, t1), pair, band, Default::default())
+                    })
+            };
+            // The limbs return no number: a certificate derived again
+            // agrees by holding on the same support (and, the pin's other
+            // half, by recording the same decisions).
+            let agree = |_: &LocusCertificate<T>, again: &LocusCertificate<T>| {
+                again.reads(stored, (t0, t1), pair, band)
+            };
+            let got = crate::locus_certificate::read_or_derive(
+                crate::locus_certificate::Certified::Locus,
+                held,
+                derive,
+                agree,
+            )
             .map_err(CertifyError::AnalyticRung3)?;
-    }
+            Some(match got {
+                crate::locus_certificate::Got::Read(held) => held,
+                crate::locus_certificate::Got::Derived(_, recorded) => {
+                    LocusCertificate::derived(stored, (t0, t1), pair, band, recorded)
+                }
+            })
+        }
+        _ => None,
+    };
 
     // ---- Check 5: witness residuals + mid-parameter pin
     // (Intersection and TangentIntersection; see the check-sequence
@@ -5682,15 +5783,16 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         )?;
     }
 
-    Ok((
-        Certificate {
+    Ok(Checked {
+        certificate: Certificate {
             samples: CERT_SAMPLES,
             max_residual,
         },
         canonical,
         turn,
         reading,
-    ))
+        locus,
+    })
 }
 
 // The pair's two surfaces resolved, in key order: the checks run
