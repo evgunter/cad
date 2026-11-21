@@ -12759,7 +12759,7 @@ fn torus_oblique_circle<T: Decide>(
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
-        dir: frame.axis(),
+        dir: axis,
     }
     .offset(c);
     let gates = [
