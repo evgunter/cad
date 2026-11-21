@@ -203,20 +203,19 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 
 /// **A node on an operand's edge is not this lane's** (U2): where a cap
 /// stands at the axes' meeting point, its rim circle passes through
-/// both nodes, tangent there to the partner wall. With one operand
-/// capped there that touch reads in the band's gap and the circle ×
-/// wall roots escalate, at the rim and the wall; with both, the rims
-/// meet at the nodes, which lie on both
-/// walls' boundaries, and the node pass refuses them. Every operation,
-/// both poses.
+/// both nodes, tangent there to the partner wall. That touch reads in
+/// the band's gap and the circle × wall roots escalate, at the rim and
+/// the wall, with one operand capped there or both: each rim is one
+/// closed edge, read whole against the partner wall before the node
+/// pass meets the rims at the nodes. Every operation, both poses.
 #[test]
 fn a_rim_through_the_nodes_refuses_typed() {
     let tol = Tol::witness();
     let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
-    for (what, a, b, at_node) in [
-        ("B's cap", rod(-2.0, 2.0), across(&rod(0.0, 2.0)), false),
-        ("A's cap", rod(0.0, 2.0), across(&rod(-2.0, 2.0)), false),
-        ("both caps", rod(0.0, 2.0), across(&rod(0.0, 2.0)), true),
+    for (what, a, b) in [
+        ("B's cap", rod(-2.0, 2.0), across(&rod(0.0, 2.0))),
+        ("A's cap", rod(0.0, 2.0), across(&rod(-2.0, 2.0))),
+        ("both caps", rod(0.0, 2.0), across(&rod(0.0, 2.0))),
     ] {
         for (pose, a, b) in [
             ("direct", a.clone(), b.clone()),
@@ -229,29 +228,16 @@ fn a_rim_through_the_nodes_refuses_typed() {
                 ("A∖B", topo::subtract(&a, &b, tol)),
                 ("B∖A", topo::subtract(&b, &a, tol)),
             ] {
-                if at_node {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(topo::BooleanError::NodeUnbuilt {
-                                why: topo::NodeWhy::OnBoundary(_),
-                                ..
-                            })
-                        ),
-                        "{what}, {pose}, {op}: the node on both rims, got {r:?}"
-                    );
-                } else {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(topo::BooleanError::CurvedPierceEscalated {
-                                decision: topo::BooleanDecision::ArcCylinderRoots,
-                                ..
-                            })
-                        ),
-                        "{what}, {pose}, {op}: the rim's touch of the wall escalates, got {r:?}"
-                    );
-                }
+                assert!(
+                    matches!(
+                        r,
+                        Err(topo::BooleanError::CurvedPierceEscalated {
+                            decision: topo::BooleanDecision::ArcCylinderRoots,
+                            ..
+                        })
+                    ),
+                    "{what}, {pose}, {op}: the rim's touch of the wall escalates, got {r:?}"
+                );
             }
         }
     }
