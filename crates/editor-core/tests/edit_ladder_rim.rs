@@ -74,9 +74,9 @@
 //! a name.
 //!
 //! The two holes stand at different CENTRES, which is what every row
-//! here tells one rim from the other by ([`HOLES`] says how), and each
-//! hole's two profile vertices sit at opposite azimuths, so no row can
-//! pass by confusing a rim's two ends.
+//! here tells one rim from the other by ([`HOLES`] says how); each
+//! hole's rim is one full-turn edge at one profile vertex
+//! ([`RIM_VERTICES`]).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -187,7 +187,12 @@ const NEAR: f64 = CLOSEST * 1e-7;
 /// measured over the whole document and pinned by
 /// [`the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians`],
 /// the same way [`CLOSEST`] is.
-const APART: f64 = 0.35;
+const APART: f64 = 0.95;
+
+/// **How many vertices each hole's rim has**: a `circle` is one
+/// full-turn segment at one vertex, so each rim is one edge, one
+/// vertex and one meridian.
+const RIM_VERTICES: u32 = profile::CIRCLE_PIECES;
 
 // ---------------------------------------------------------------- //
 // The document
@@ -198,9 +203,9 @@ const APART: f64 = 0.35;
 /// cap's two hole rims filleted in ONE `Node::Fillet`.
 ///
 /// Each hole rim is a LADDER rim: it is a RING of the cap plane — the
-/// planar support, and therefore the host — and each of the two wall
-/// faces the extrude mints for a circular loop carries exactly one of
-/// its arcs. One node carries both rims, which is what puts two rows in
+/// planar support, and therefore the host — and the one wall face the
+/// extrude mints for a circular loop carries its one rim edge. One node
+/// carries both rims, which is what puts two rows in
 /// every one of the record channels the mutants permute.
 fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("edit_ladder_rim", tol());
@@ -245,7 +250,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let at = &doc;
     let mut selection: Vec<StableName> = rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |s| rim_edge(at, block, r, s)))
+        .flat_map(|r| (0..RIM_VERTICES).map(move |s| rim_edge(at, block, r, s)))
         .collect();
     selection.sort();
     let (doc, fillet) = fixture::insert(
@@ -281,7 +286,9 @@ fn rim_edge(
 /// the sorted set a [`RoleSeg::BandFace`] argument is, and the `band`
 /// a [`RoleSeg::BandCross`] or [`RoleSeg::BandSlit`] carries.
 fn band_of(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim) -> Vec<StableName> {
-    let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(doc, block, rim, s)).collect();
+    let mut set: Vec<StableName> = (0..RIM_VERTICES)
+        .map(|s| rim_edge(doc, block, rim, s))
+        .collect();
     set.sort();
     set
 }
@@ -397,7 +404,7 @@ fn all_rim_vertices(
 ) -> Vec<(u32, Point3<f64>)> {
     rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |j| (r.loop_index, cap_vertex(doc, block, r, j))))
+        .flat_map(|r| (0..RIM_VERTICES).map(move |j| (r.loop_index, cap_vertex(doc, block, r, j))))
         .map(|(l, n)| (l, point(sbody, vertex_of(src, "a source rim vertex", &n))))
         .collect()
 }
@@ -441,7 +448,7 @@ fn all_meridians(
 ) -> Vec<(u32, u32, [Point3<f64>; 2])> {
     rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |j| (r.loop_index, j, meridian(doc, block, r, j))))
+        .flat_map(|r| (0..RIM_VERTICES).map(move |j| (r.loop_index, j, meridian(doc, block, r, j))))
         .map(|(l, j, n)| {
             let [a, b] = ends(sbody, edge_of(src, "a source meridian", &n));
             (l, j, [point(sbody, a), point(sbody, b)])
@@ -465,9 +472,7 @@ fn all_meridians(
 ///
 /// The runtime values that make it false: the foot's own coordinates,
 /// and the vertex list of the host support face. A `BandFoot` carrying
-/// the other end of its own rim lands at the opposite azimuth, a
-/// diameter away; one carrying the other hole's vertex lands on the
-/// wrong circle entirely.
+/// the other hole's vertex lands on the wrong circle entirely.
 ///
 /// **The extent check is not what tells the rims apart** — both
 /// standing feet are vertices of the ONE cap face here, and the retraction is
@@ -484,10 +489,8 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
     let cap = face_of(t, "the host support", &host_support(&doc, block, fillet));
     let extent = face_vertices(&body, cap);
     for rim in rims() {
-        // The blend's closing join (`docs/DESIGN.md`, maximal edges)
-        // takes the host foot the band's slit does not reach, between two
-        // host trimlines of one circle, and its name with it: one of the
-        // rim's two feet stands, and is read whole.
+        // The rim's one vertex has one host foot, the one its band's
+        // slit reaches, and it stands.
         let named = |j| {
             let source = cap_vertex(&doc, block, rim, j);
             let name = minted(
@@ -497,11 +500,11 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
             );
             t.lookup(&name).is_some().then_some((j, source, name))
         };
-        let standing: Vec<_> = (0..2).filter_map(named).collect();
+        let standing: Vec<_> = (0..RIM_VERTICES).filter_map(named).collect();
         assert_eq!(
             standing.len(),
             1,
-            "hole {}: one host foot stands, the other joined away",
+            "hole {}: the one host foot stands",
             rim.loop_index
         );
         for (j, source, name) in standing {
@@ -541,9 +544,8 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
 /// every OTHER meridian of the document.
 ///
 /// The runtime values that make it false: the crossing's own
-/// coordinates. A `BandCross` carrying its own hole's other meridian
-/// lands a diameter away; one carrying the other hole's lands on the
-/// wrong circle.
+/// coordinates. A `BandCross` carrying the other hole's meridian lands
+/// on the wrong circle.
 ///
 /// **The two arms are asserted against different numbers, because they
 /// are different measurements.** Lying ON the named meridian is a
@@ -560,7 +562,7 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let all = all_meridians(&doc, src, &sbody, block);
     for rim in rims() {
-        for j in 0..2 {
+        for j in 0..RIM_VERTICES {
             let what = format!("hole {}, meridian {j}", rim.loop_index);
             let source = meridian(&doc, block, rim, j);
             let cross = vertex_of(
@@ -646,7 +648,9 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
     let population = all_rim_vertices(&doc, src, &sbody, block);
     for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
-        let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(&doc, block, rim, s)).collect();
+        let mut set: Vec<StableName> = (0..RIM_VERTICES)
+            .map(|s| rim_edge(&doc, block, rim, s))
+            .collect();
         set.sort();
         let want: BTreeSet<StableName> = set.iter().cloned().collect();
         let band = face_of(
@@ -706,8 +710,8 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
 ///
 /// The runtime values that make it false: the slit edge's two end
 /// vertices and their coordinates. A `BandSlit` carrying the other
-/// meridian of its own hole names a real slit, whose ends are the other
-/// crossing and the other foot, a diameter away.
+/// hole's meridian names a real slit, whose ends are that hole's
+/// crossing and foot, on the other circle.
 ///
 /// **Which crossing closes the ring is the walk's own choice** and no
 /// claim of this row's: it iterates the slits the table carries and
@@ -850,15 +854,16 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         })
         .filter(|s| matches!(s, RoleSeg::BandTrim { .. }))
         .count();
+    let arcs = RIM_VERTICES as usize * n;
     assert_eq!(
         trim_names,
-        4 * n,
+        2 * arcs,
         "one trimline name per (rim arc, support)"
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::Merged(_))),
-        n,
-        "each band's two host trimlines, joined"
+        0,
+        "each band's one host trimline stands alone"
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandFoot(_))),
@@ -867,12 +872,12 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandCross { .. })),
-        2 * n,
+        arcs,
         "one mate-side crossing per rim vertex"
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandCut(_))),
-        2 * n,
+        arcs,
         "one surviving meridian piece per rim vertex"
     );
     assert_eq!(
@@ -913,7 +918,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let mut min = f64::INFINITY;
     for rim in rims() {
-        for j in 0..2 {
+        for j in 0..RIM_VERTICES {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
             let v = cap_vertex(&doc, block, rim, j);
             let s = point(&sbody, vertex_of(src, &what, &v));
@@ -967,15 +972,14 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
 /// every meridian but the one its subject's name carries, and what
 /// licenses that is how far the closest two of them stand: a crossing
 /// within [`NEAR`] of its own meridian cannot also be within
-/// `APART - NEAR` of another. The minimum is over the four meridians
-/// this plate has — two per hole, and it is the two INNER ones, one
-/// from each hole, that are closest rather than either hole's own pair.
+/// `APART - NEAR` of another. The minimum is over the two meridians
+/// this plate has, one per hole at its `+x` vertex.
 /// Like [`CLOSEST`] it is a fact about this document, so it is measured
 /// rather than chosen: move a hole and this row says what the margin
 /// became.
 ///
 /// The runtime value that makes it false: the minimum footprint
-/// separation over the six distinct pairs of meridians.
+/// separation over the one pair of meridians.
 #[test]
 fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
     let (doc, block, _fillet) = plate();
@@ -1016,7 +1020,7 @@ fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
-        for s in 0..2 {
+        for s in 0..RIM_VERTICES {
             let edge = rim_edge(&doc, block, rim, s);
             let got = editor_core::rebind_suggestions(&ev, &edge);
             let roles: Vec<&RoleSeg> = got.iter().map(|n| &n.path[0]).collect();
