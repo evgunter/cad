@@ -669,7 +669,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
 }
 
 /// **A crossing beside the apex is never read as the apex's double
-/// root** (the spread rung, `conic_quadric_cone_apex_spread`). Three
+/// root** (the spread rung, `curve_face_pose_conic_apex_spread`). Three
 /// carriers a few zero bands from a cone's apex, found by a reviewer's
 /// counterexample search (PR 6424), at the ε each was found at: each
 /// genuinely crosses the cone within some tens of zero bands of the
@@ -929,7 +929,7 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
-    let slack = crate::rows::CONIC_QUADRIC_FIRST.root_slack();
+    let slack = "conic_quadric_first_root_slack";
     assert!(
         matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
         "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \

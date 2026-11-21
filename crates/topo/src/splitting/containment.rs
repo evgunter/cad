@@ -120,8 +120,9 @@
 //!   reading of its ends (`curve_pair_span_end_*`).
 //! - **A ray's crossing of a conic arc** ([`conic_crossings`]) is a
 //!   co-surface pair's (C5): the arc across the ray's square plane through
-//!   `geom_brep`'s co-surface arm, on the plane door's rows
-//!   (`plane_crossing_*`, the root's place on the arc's span included),
+//!   `geom_brep`'s co-surface arm, on the curve × face pose's and
+//!   crossing's rows (`curve_face_pose_*`, `curve_face_cross_*`, the
+//!   root's place on the arc's span included),
 //!   then **`point_in_arc_loop_conic_advance`**, the root's distance
 //!   along the ray in metres, and **`point_in_arc_loop_conic_in_plane`**,
 //!   an arc's offset from the ray's square plane it is parallel to (only
@@ -797,7 +798,8 @@ fn walk_schedule<T: Decide>(
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
 /// (a spiric piece's ball's clearance from a ray), and the
 /// conic arm's `point_in_arc_loop_conic_{span,advance,in_plane}` beside
-/// the plane door's own (`plane_crossing_*`, [`conic_crossings`]).
+/// the curve × face pose's and crossing's (`curve_face_pose_*`,
+/// `curve_face_cross_*`, [`conic_crossings`]).
 const ARC_LOOP_ROWS: ParityRows = crate::rows::ARC_LOOP;
 
 pub(crate) use crate::rows::ConicRows;

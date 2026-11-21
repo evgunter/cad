@@ -1,7 +1,7 @@
 //! [`meet`] read in either order: `meet(a, b)` and `meet(b, a)` give one
 //! answer with the roles swapped, and the two-conic pairs whose answer
 //! the conic read across the other's plane decided
-//! ([`super::pose`]'s docs, "Two conics").
+//! ([`super::pose()`]'s docs, "Two conics").
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 

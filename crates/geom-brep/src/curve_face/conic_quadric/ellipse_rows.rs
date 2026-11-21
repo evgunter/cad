@@ -168,7 +168,8 @@ fn a_wall_s_own_tilted_section_is_on_it() {
 /// - crossing (`|r − ρ| < offset < r + ρ`): two certified roots, at the
 ///   oracle's crossings;
 /// - tangent inside (`offset = r − ρ`): not a crossing at any order the
-///   door sees, and neither a `Miss` nor certified roots;
+///   door sees, and neither a `Miss` nor certified roots over the whole
+///   turn; over an arc clear of the touch, the arc's `Miss`;
 /// - coaxial (`offset = 0`): its own wall `On` (a constant zero
 ///   residual, which the ladder cannot read), a wider one a `Miss`.
 #[test]
@@ -215,9 +216,22 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
                 "{label}: inside a coaxial wider wall"
             );
         } else {
+            // Over the whole turn the touch is on the span; over
+            // `[-0.5, 0.5]` the span stands clear of it, its distance
+            // one-signed past the band's escalation, and is apart.
+            let whole = conic_quadric_roots(&section, 0.0, TAU, &w, band);
             assert!(
-                matches!(got, Ok(Err(Unsettled::Tangency))),
-                "{label}: a tangency is no certified answer, got {got:?}"
+                matches!(whole, Ok(Err(Unsettled::Tangency))),
+                "{label}: a tangency is no certified answer, got {whole:?}"
+            );
+            let (_, near) = conic_oracle::extremes(|t| distance(&w, section.eval(t)), -0.5, 0.5);
+            assert!(
+                near < -band.escalate(),
+                "{label}: the span clears the wall, {near:e}"
+            );
+            assert!(
+                matches!(got, Ok(Ok(CircleRoots::Miss))),
+                "{label}: the span clear of the touch is apart, got {got:?}"
             );
         }
     }

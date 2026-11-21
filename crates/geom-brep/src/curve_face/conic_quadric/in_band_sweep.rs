@@ -8,8 +8,10 @@
 //!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
 //!   distance `d`, `crate::implicit_residual`), at any tilt, is
 //!   escalated or `Unsettled`, never a `Miss` or a certified count (D1's
-//!   trilean), and `On` only where it lies on the wall to within
-//!   the band all round;
+//!   trilean), unless the span read stands clear of its touch (its
+//!   residual over the span one-signed past `Kε`, a `Miss` of the span),
+//!   and `On` only where it lies on the wall to within the band all
+//!   round;
 //! - a circle within the band of square to the wall's axis, which the
 //!   first-harmonic arm takes, whose extreme is aimed at the zero band's
 //!   or the gap's edge, is answered only where its residual clears `Kε`,
@@ -108,15 +110,26 @@ fn permitted(
     got: &Result<Result<CircleRoots<f64>, Unsettled>, ConicQuadricRefusal>,
     truth: &exact::Truth,
     c: &geom::Curve3<f64>,
-    r: f64,
+    (r, span): (f64, (f64, f64)),
     eps: f64,
 ) -> bool {
     let clear = truth.residual_depth >= 10.0 * eps;
+    // A graze past the span leaves the span itself apart (the pose's
+    // `kappa`): its residual over the span one-signed past `Kε`, read
+    // only for a `Miss`.
+    let span_clear = || {
+        let (lo, hi) = crate::curve_face::conic_oracle::extremes(
+            |t| crate::implicit_residual(&wall(r), c.eval(t)),
+            span.0,
+            span.1,
+        );
+        lo >= 10.0 * eps || hi <= -10.0 * eps
+    };
     match got {
         Ok(Err(Unsettled::AtApex)) => false,
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
-        Ok(Ok(CircleRoots::Miss)) => clear && truth.roots.is_empty(),
+        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear(),
         Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
     }
 }
@@ -153,7 +166,7 @@ fn no_pose_inside_the_band_is_answered() {
                 continue;
             }
             let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
-            if permitted(&got, &truth, &c, r, eps) {
+            if permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
                 continue;
             }
             wrong.push(format!(
@@ -344,7 +357,7 @@ fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
         past += usize::from(!in_band);
         for (t0, t1) in [(-1.0, 1.0), (-3.0, 3.0), (2.0, 4.0)] {
             let got = conic_quadric_roots(&c, t0, t1, &wall(r), band);
-            if !permitted(&got, &truth, &c, r, eps) {
+            if !permitted(&got, &truth, &c, (r, (t0, t1)), eps) {
                 wrong.push(format!(
                     "witness {i} on [{t0}, {t1}], residual {:e}: {got:?}",
                     truth.residual_depth
@@ -412,7 +425,7 @@ fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all()
                 let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
                 posed += 1;
                 answered += usize::from(!matches!(got, Ok(Err(_)) | Err(_)));
-                if !permitted(&got, &truth, &c, r, eps) {
+                if !permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
                     wrong.push(format!(
                         "ε {eps:e}, aimed {target:e}, A₂ {a2:e} (residual {:.6e}, {} true \
                          roots): {got:?}\n  {c:?} wall r {r}",

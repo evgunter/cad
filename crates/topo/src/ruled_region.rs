@@ -93,7 +93,9 @@
 //! - `bool_ruled_region_component`: which of a ruling leg's plane's
 //!   curves a root lies on, and an edge's offset from a leg's plane it is
 //!   parallel to.
-//! - `plane_crossing_*`: the roots, the plane door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: the roots, the
+//!   plane door's class and their places (the curve × face pose's and
+//!   crossing's rows).
 //! - `bool_ruled_region_arc_*` and `bool_ruled_region_edge{,_length}`:
 //!   the boundary readings' rows.
 //!

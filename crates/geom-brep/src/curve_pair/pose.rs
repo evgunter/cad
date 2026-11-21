@@ -621,15 +621,30 @@
 //! root comes from a square root whose rounding is about `√ulp` of the
 //! radius, and its gap from its twin escalates where the found meeting
 //! decides it exactly. The arms whose equation is the meeting's are the
-//! in-plane ones: a circle's or an
-//! ellipse's signed distance from a line in its plane, and a circle's
-//! distance from a circle in its plane. Their first harmonics,
-//! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
-//! so the other root is `2θ_hi − θ_J`, linear in the found one's angle
-//! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
-//! and the reflection of a meeting of two circles in one plane across
-//! their line of centres. Two found meetings leave a first harmonic
-//! none. Two lines' crossing is solved linearly, with no square root to
+//! in-plane ones: a circle's or an ellipse's signed distance from a line
+//! in its plane, and a circle's distance from a circle in its plane.
+//! Their first harmonics, `c₀ + A·cos(θ − θ_hi)`, have their two roots
+//! symmetric about `θ_hi`, so the other root is `2θ_hi − θ_J`, linear in
+//! the found one's angle `θ_J`: the line's second meeting with a conic in
+//! its plane (Vieta), and the reflection of a meeting of two circles in
+//! one plane across their line of centres. Two found meetings leave a
+//! first harmonic none.
+//!
+//! **A found meeting need not be a root.** A meeting the ends find is a
+//! span's end within the zero band of the other span, which need not lie
+//! at a root of the residual. On a thin ellipse near its vertex, an end
+//! on one branch is in the zero band; its reflection lands on the other
+//! branch beside it, while the second root lies farther along. So a line
+//! and a conic in its plane offer the reflection of one found meeting
+//! only where it is not shown to be no root ([`reflected`]): where it
+//! rings onto the found meeting's point in metres while its angle from
+//! `θ_J` is decided past that meeting's ring in angle, the reflection is
+//! the other branch's, and the arm reads both roots, `θ_hi ± φ₀`. A root
+//! within the band of the found meeting's point then rings onto it
+//! (`curve_pair_meet_same`). Two that land apart, neither ringing, are
+//! read as two candidates, and `stretches` reads the point between them.
+//!
+//! Two lines' crossing is solved linearly, with no square root to
 //! condition, so it lands inside a found joint's ring and is not read
 //! again: that form divides nothing out.
 //!
@@ -825,6 +840,7 @@ mod row {
     pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
     pub(super) const WINDOW_PIECE: &str = "curve_pair_pose_window_piece";
     pub(super) const WINDOW_HALF: &str = "curve_pair_pose_window_half";
+    pub(super) const REFLECTION_FAR: &str = "curve_pair_pose_reflection_far";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -1680,8 +1696,24 @@ fn line_conic<T: Decide>(
             }),
         }))
     };
-    let found: Vec<T> = known.iter().map(|c| c.tb).collect();
-    Ok(match owed(&k, &range, &found, band)? {
+    // One found meeting is deflated, its reflection offered, unless the
+    // reflection is shown no root (module docs, "The spans' ends, and
+    // deflation"): then both roots are read (`Slant::roots`, which
+    // decides no gap between them), and ringing drops the one within the
+    // band of the found meeting's point.
+    let harmonic = match known {
+        [j] if !reflected(&k, &range, j, e, band) => {
+            let (lo, hi) = level.roots();
+            Harmonic::Cross(vec![lo, hi])
+        }
+        _ => owed(
+            &k,
+            &range,
+            &known.iter().map(|c| c.tb).collect::<Vec<_>>(),
+            band,
+        )?,
+    };
+    Ok(match harmonic {
         Harmonic::Apart => Pose::Apart,
         // A touch whose extreme is within the zero is one run, read at the
         // extreme; otherwise the zero set may part about the two roots,
@@ -2499,6 +2531,40 @@ enum Harmonic<T> {
     /// Crossings: two, or those left once the found meetings' roots are
     /// divided out (module docs, "deflation").
     Cross(Vec<T>),
+}
+
+/// **Whether a found meeting's reflection is its harmonic's other root**
+/// (module docs, "The spans' ends, and deflation"). The reflection
+/// `2θ_hi − θ_J` is that root where `θ_J` is one. It is not where it
+/// rings onto the found meeting's point in metres
+/// (`curve_pair_meet_same`) while its angle from `θ_J`, the least way
+/// round, is past the found meeting's ring in angle
+/// (`curve_pair_pose_reflection_far`): the point lies within the zero of
+/// the found one, but on the conic's other branch. An angle not decided
+/// within the ring is read past it, so both roots are read.
+///
+/// The ring in angle is `e/|C′|max`, `e` the band's escalation: an
+/// angle within it of `θ_J` runs at most `e` of arc, so its point is
+/// within `e` of the found one, a chord no longer than that arc.
+fn reflected<T: Decide>(
+    k: &dyn Conic<T>,
+    r: &Range<T>,
+    j: &Candidate<T>,
+    e: T,
+    band: Band,
+) -> bool {
+    let mirror = r.at_hi + r.at_hi - j.tb;
+    if !super::ringed_by([j.point], k.point_at(mirror), band) {
+        return true;
+    }
+    let tau = T::pi() + T::pi();
+    let turn = mirror - j.tb;
+    let least = (turn - tau * (turn / tau + T::from_f64(0.5)).floor()).abs();
+    let ring = e / k.speed_hi();
+    matches!(
+        geom_core::k_stats::param_order(row::REFLECTION_FAR, least, ring),
+        Ok(Sign::Negative | Sign::Zero)
+    )
 }
 
 /// **A first harmonic's roots along `k` still owed**, `found` the angles

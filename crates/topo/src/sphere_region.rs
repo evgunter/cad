@@ -123,8 +123,8 @@
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_component`: an arc's offset from a leg's plane
 //!   it is parallel to: on the leg's circle, or apart from it.
-//! - `plane_crossing_*`: where an arc crosses a leg's plane, the plane
-//!   door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: where an arc crosses
+//!   a leg's plane, the curve × face pose's and crossing's rows.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`

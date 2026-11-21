@@ -230,7 +230,8 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
 /// trough stands antipodal to the middle, where `cos h` and the
 /// crest's cosine against the middle tie: both doors must read
 /// `c ± A`, the f64 door to rounding and the certified door as an
-/// enclosure no wider than rounding.
+/// enclosure no wider than rounding (twice the f64 door's bar: its
+/// harmonic takes twice the roundings).
 #[test]
 fn past_a_full_turn_both_doors_read_both_crests() {
     let mut rng = fuzz::start("arc_window::past_a_turn");
@@ -266,8 +267,13 @@ fn past_a_full_turn_both_doors_read_both_crests() {
         );
         let (blo, bhi) =
             conic_arc_extent_along_bracketed(&arc, t0, t1, Point3::origin(), n).unwrap();
+        // The harmonic is read through `Conic::along`'s cancellation-free
+        // form, about twice the roundings of a plain dot, each widening
+        // the enclosure: its width is held to twice the f64 door's bar,
+        // its containment to the bar itself.
+        let wide = 2.0 * tol;
         assert!(
-            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - tol && bhi <= c + a + tol,
+            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - wide && bhi <= c + a + wide,
             "{arc:?} along {n:?} over [{t0}, {t1}]: certified door [{blo}, {bhi}] vs \
              [{}, {}] — {}",
             c - a,

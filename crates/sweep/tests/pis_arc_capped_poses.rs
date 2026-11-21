@@ -272,7 +272,7 @@ fn probes(case: &Case) -> Vec<(Point3<f64>, bool)> {
 /// twenty per cell. Where they arise, as at ε = 1e-6 on the torus barrel
 /// at the (1,2,3) pose, it is an in-face ray passing within a band's
 /// width of tangent to the 3/64 m cap circle, on the plane door's
-/// `plane_crossing_belly_graze`. (The count measured there was taken on
+/// `curve_face_pose_belly_graze`. (The count measured there was taken on
 /// the unit-circle chord's margin, before the ray's crossing moved onto
 /// the door, so it is not restated.)
 #[test]
