@@ -673,4 +673,96 @@ mod tests {
             "corners at 1.2 km are past the box"
         );
     }
+
+    /// **A seamless frustum band does not hold its apex, wherever the
+    /// apex stands**: a cone face bounded by its two full rims, each one
+    /// circle winding the axis, with no seam edge (as a file states a
+    /// frustum wall). A wall of radius 1 m tapered 1 mm over 10 m, at the
+    /// origin, has its apex 10 km off; a band of the unit cone, its apex
+    /// 0.2 m and 0.4 m past the box, every rim point inside it. Both are in
+    /// the box, at the gate's ask and through a motion. *Breaks if* a face
+    /// with two winding loops on one nappe is read as holding its apex
+    /// (then the slender wall refuses as a limit 9 km past the box).
+    #[test]
+    fn a_seamless_frustum_band_does_not_hold_its_apex() {
+        use crate::boolean::section_cert::section_cert_cone_rows::{
+            seamless_cone_band, seamless_cone_band_on,
+        };
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let (slender, _) = seamless_cone_band_on((-1.0e4, 1.0e-4), 0.0, 10.0);
+        assert_eq!(
+            in_session_box(&slender, band),
+            Ok(()),
+            "the slender wall at the origin"
+        );
+        let still =
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(
+            in_session_box_at(&slender, &still, band).is_ok(),
+            "placed where it stands"
+        );
+        let (unit, _) = seamless_cone_band(0.5, 1.5);
+        for dz in [-1000.2, -1000.4] {
+            let at =
+                geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 0.0, dz)).unwrap();
+            let image =
+                crate::transform::map_isometry(&unit, &crate::Isometry::Proper(at)).unwrap();
+            assert_eq!(
+                in_session_box(&image, band),
+                Ok(()),
+                "the unit band, apex at {dz}"
+            );
+            assert!(
+                in_session_box_at(&unit, &at, band).is_ok(),
+                "placed, apex at {dz}"
+            );
+        }
+    }
+
+    /// **A cone cap whose apex alone is past the box is refused past it**:
+    /// the cap of the cone of half-angle 0.5 bounded by its rim at height
+    /// 1, which holds its apex with no vertex there ([`cone_cap`]), moved
+    /// so the apex stands 0.5 m and 1 m past the box and the rim inside
+    /// it. Refused past the box by exactly that, at the gate's ask and
+    /// at the placing door; with the apex 0.5 m inside, it is in the box.
+    /// *Breaks if* the cone's unproven region drops its apex (stage 1 then
+    /// admits the cap), or the inside read drops the apex candidate (then
+    /// it refuses as a limit).
+    ///
+    /// [`cone_cap`]: crate::test_support_fixtures::cone_cap
+    #[test]
+    fn a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let (cap, _) = crate::test_support_fixtures::cone_cap(0.5, 1.0, tol);
+        for (dz, past) in [(-1000.5, Some(0.5)), (-1001.0, Some(1.0)), (-999.5, None)] {
+            let at =
+                geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 0.0, dz)).unwrap();
+            let image = crate::transform::map_isometry(&cap, &crate::Isometry::Proper(at)).unwrap();
+            let gate = in_session_box(&image, band);
+            let door = in_session_box_at(&cap, &at, band).err().map(|e| match e {
+                crate::MoveError::NotFinished(found) => found.into_findings(),
+                other => panic!("the door maps the cap: {other:?}"),
+            });
+            match past {
+                Some(past) => {
+                    for (what, got) in [
+                        ("gate", gate.err()),
+                        ("door", door.and_then(|f| f.into_iter().next())),
+                    ] {
+                        let Some(ValidationError::OutsideSessionBox { margin }) = got else {
+                            panic!("{what}: the apex is {past} m past: {got:?}");
+                        };
+                        let said = margin.readable_below_zero().to_string();
+                        assert!(
+                            said.parse::<f64>().is_ok_and(|m| (m - past).abs() < 1e-9),
+                            "{what}: {said}"
+                        );
+                    }
+                }
+                None => assert!(gate.is_ok() && door.is_none(), "the apex 0.5 m inside"),
+            }
+        }
+    }
 }

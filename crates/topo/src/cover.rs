@@ -640,18 +640,26 @@ pub(crate) fn cone_face_reach<T: Decide>(
 }
 
 /// **Whether a face on `cone` may hold its apex**: unless every loop's
-/// lift closes in the chart
-/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
-/// every vertex of it is decided off the apex. The lift is decided
-/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
-/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
-/// pole, and a bounded face holding it has a loop that winds round it a
-/// whole turn, or one that passes through it, where a loop that closes
-/// in the chart clear of it leaves it outside. Every loop, not the
-/// outer alone: a file's designated outer bound can be a hole, and the
-/// loop enclosing the apex then a ring. A loop whose lift is not
-/// decided, or a vertex whose incidence on the apex is undecided, may
-/// hold it.
+/// lift is decided ([`crate::pcurves::Lift::decided`], at the band: the
+/// cover is read mid-operation too, of faces whose rows are not all
+/// written), every vertex of it is decided off the apex, and either
+/// every lift closes in the chart ([`crate::pcurves::Lift::closes_in_chart`])
+/// or exactly two wind the axis once each and the face's corners decide
+/// one nappe ([`crate::offset_nappe::face_nappe_reading`]).
+///
+/// The apex is the chart's pole, and on one nappe the chart is an
+/// annulus about it. A bounded face holding the apex has a loop through
+/// it, or exactly one loop that winds round it a whole turn (a cap,
+/// whose rim is that loop). A loop that closes in the chart clear of the
+/// apex leaves it outside; a face whose boundary holds two loops that
+/// each wind once is the band between them (a connected region of an
+/// annulus has at most two boundary curves that wind it), which reaches
+/// the apex only through a loop that does, or across to the other nappe.
+/// Every loop, not the outer alone: a file's designated outer bound can
+/// be a hole, and the loop enclosing the apex then a ring. A loop whose
+/// lift is not decided, one that winds otherwise, a vertex whose
+/// incidence on the apex is undecided, and a band whose nappe is not
+/// decided may hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -664,19 +672,42 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     let Some(view) = body.face(face) else {
         return true;
     };
-    view.cycles().any(|(_, cycle)| {
-        let closes =
+    let mut winding_once = 0;
+    for (_, cycle) in view.cycles() {
+        let Some(lift) =
             constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
-                .is_some_and(|lift| lift.closes_in_chart());
-        !closes
-            || cycle.iter().any(|&he| {
-                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
-                constraint(|| {
-                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
-                }) != Some(false)
-            })
-    })
+        else {
+            return true;
+        };
+        let at_apex = cycle.iter().any(|&he| {
+            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+            constraint(|| {
+                geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+            }) != Some(false)
+        });
+        if at_apex {
+            return true;
+        }
+        match lift.winding().map(|w| w.deck) {
+            Some(crate::joint::Deck {
+                u: 0,
+                v: 0,
+                twin: false,
+            }) => {}
+            Some(crate::joint::Deck {
+                u: -1 | 1,
+                v: 0,
+                twin: false,
+            }) => winding_once += 1,
+            _ => return true,
+        }
+    }
+    match winding_once {
+        0 => false,
+        2 => constraint(|| crate::offset_nappe::face_nappe_reading(body, face, band)).is_none(),
+        _ => true,
+    }
 }
 
 /// **The boundary's cover**: each boundary edge's cover

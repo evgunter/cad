@@ -2135,7 +2135,7 @@ mod section_cert_axis_pose_rows;
 mod section_cert_cone_pair_rows;
 #[cfg(test)]
 #[path = "section_cert_cone_rows.rs"]
-mod section_cert_cone_rows;
+pub(crate) mod section_cert_cone_rows;
 #[cfg(test)]
 #[path = "section_cert_parallel_tori_rows.rs"]
 mod section_cert_parallel_tori_rows;
