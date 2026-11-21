@@ -5,6 +5,13 @@ with a temporary probe beside
 `in_band_sweep::the_near_gap_families_certify_by_their_stored_form`
 (`crates/topo/src/boolean/conic_quadric/in_band_sweep.rs`). Facts only.
 
+**Correction (2026-11-21).** The "reader-chord" cells below were judged
+against the curve through the rounded vertex `fl(centre + u_ref·ρ)` (the
+oracle run on the anchored conic built there), not against the stored
+centre's curve. Judged against the stored centre's curve the column is
+0 wrong up to ρ = 1500 and 86 wrong of 200 at ρ = 1e4 (ε = 1e-9):
+`../exact-vertex-chord/README.md`. The centre and anchored columns stand.
+
 ## The poses
 
 The row's own: a conic of semi-axis ρ grazing the wall of radius 1 at
