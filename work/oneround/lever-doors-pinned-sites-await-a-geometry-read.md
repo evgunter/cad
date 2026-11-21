@@ -36,28 +36,28 @@ step-import and sweep:
 - `sweep::blend::battery::extent_of` — `points_diameter`. `carrier: &Curve3` and `(t0, t1)`, which are `edge_extent_inf`'s arguments.
 
 topo:
-- `boolean::fate::leaving` — `ExtentBall::point`. `body` and the half-edge; the `Line` arm reads the two end points.
-- `boolean::fate::piece_beside` — `ExtentBall::point`. `body`, the `(face, edge)` sides and `p`.
-- `boolean::join::bool_connect` (2) — `ExtentBall::point`. The reduction and both bodies. One site mirrors `p` through a loop record's axis origin where the record holds no ball; one maps a half-edge's start point.
-- `boolean::join::frame_reading` — `ExtentBall::point`. A `Surface` and two point lists (its caller's `witnesses` of two faces).
-- `boolean::join::surface_pair_reach` (2) — `ExtentBall::point` over the face pairs' witnesses, then `Reach::of_face` of the maxima of the faces' `Reach::Face` fields. Both bodies, the face pairs and the cone.
-- `boolean::overlap::half_plane` — `ExtentBall::point`. `body`, the half-edge and its carrier; the `Line` arm reads `carrier.eval(tb)` from `p`.
-- `boolean::section_cert::cone_plane` — `lever_from_point_and_plane`. The `Cone` pose, the plane's `p0` and `n`, and the `Reach`.
-- `chord_join::wall_face_section` — `Reach::of_face`. The wall `Surface` and a `WallReach` of scalars.
-- `cover::meet_within` — `of_cover_within`. Both faces' covers; the number is `tolerance: f64`.
-- `cover::cone_face_reach` — `Reach::of_face`. `body`, `face`, the cone and the face's cover; the point `at` is its caller's.
+- `boolean::fate::leaving` — `ExtentBall::point`. `body` and the half-edge; the `Line` arm reads the two end points. **Converted** (`oneround/lever-sites-topo`): `cover::edge_reach_bounds` from the half-edge's start, as every other kind already read.
+- `boolean::fate::piece_beside` — `ExtentBall::point`. `body`, the `(face, edge)` sides and `p`. **Converted** (`oneround/lever-sites-topo`): `cover::piece_reach_bounds` over the line's sub-span from `p`.
+- `boolean::join::bool_connect` (2) — `ExtentBall::point`. The reduction and both bodies. One site mirrors `p` through a loop record's axis origin where the record holds no ball; one maps a half-edge's start point. **Left** (`oneround/lever-sites-topo`): the antipode is a point of the section loop, and reading the loop needs `SectionLoop` to hold its conic, a record change. Its germ normal is levered from the plane's stored origin: `a-germ-planes-normal-is-levered-from-its-stored-origin`.
+- `boolean::join::frame_reading` — `ExtentBall::point`. A `Surface` and two point lists (its caller's `witnesses` of two faces). **Converted** (`oneround/lever-sites-topo`): the centre of the curved face's cover's ball, the datum read at its foot.
+- `boolean::join::surface_pair_reach` (2) — `ExtentBall::point` over the face pairs' witnesses, then `Reach::of_face` of the maxima of the faces' `Reach::Face` fields. Both bodies, the face pairs and the cone. **Converted** (`oneround/lever-sites-topo`): the point, the centre of the cone faces' covers' hull's ball. **Left** (`oneround/lever-sites-topo`): the `Reach::of_face` of maxima, with the `Reach::Face` family below.
+- `boolean::overlap::half_plane` — `ExtentBall::point`. `body`, the half-edge and its carrier; the `Line` arm reads `carrier.eval(tb)` from `p`. **Converted** (`oneround/lever-sites-topo`): `cover::piece_reach_bounds`, as every other kind already read.
+- `boolean::section_cert::cone_plane` — `lever_from_point_and_plane`. The `Cone` pose, the plane's `p0` and `n`, and the `Reach`. **Left** (`oneround/lever-sites-topo`): the cone×cone arm computes its plane (`w.normalize()`), and no door takes a plane carrier; which one it should take is a choice.
+- `chord_join::wall_face_section` — `Reach::of_face`. The wall `Surface` and a `WallReach` of scalars. **Left** (`oneround/lever-sites-topo`): a face reach built from geometry is `Reach::Face` holding its region, which changes what the variant holds (`boxes/reach-readme-says-no-vouched-length-but-two-variants-are-one`).
+- `cover::meet_within` — `of_cover_within`. Both faces' covers; the number is `tolerance: f64`. **Left** (`oneround/lever-sites-topo`): its number is a tolerance (the band's sweep pad), not a lever, so `of_cover_within`, a lever door, is the wrong door for it. A ball widened by a band is a region read within a tolerance, and wants a door that takes the band and says which multiple of it.
+- `cover::cone_face_reach` — `Reach::of_face`. `body`, `face`, the cone and the face's cover; the point `at` is its caller's. **Left** (`oneround/lever-sites-topo`): as `chord_join::wall_face_section`: `Reach::Face` holding its region.
 - `link::Link::of` (2, one zero) and `Link::of_tangent` (zero) — `ExtentBall::point`. `p` and the sectors or pieces, whose `FaceSector`s hold a `LinkFace` with its `Surface`; `of` folds the sectors' wedge points, `of_tangent` reads a point's own reach.
-- `offset_axial::axial_frame` (2, one zero) — `ExtentBall::point`. `body` and the scope; folds the body's vertices from `origin`.
-- `offset_axial::corner_arms` — `ExtentBall::point`. `body`, the vertex and each curve's carrier and span; the fallback arm reads `other.eval(t1)` from `other.eval(t0)`. Its `Line` and `Circle` arms are `Lever::unsourced`.
-- `offset_together::corner_arms` — `ExtentBall::point`. `body`, the vertex and each outgoing half-edge's far vertex.
-- `pcurves::decision::edge_reach` — `points_lever_from`. The carrier and span, plus points its caller hands.
-- `ring_path` `Quadric::ruled_paths` — `ExtentBall::point`. The wall as the local `Quadric` and the ruling `Line`; on a cone, the apex read from a point of the ruling.
-- `ring_path::spline_crossings` — `ExtentBall::point`. The `SplineArc`'s carrier and span and the piece's two ends.
-- `ring_path::spline_wall::IsoPiece::travel` — `ExtentBall::point`. `self`'s curve and span; reads the chord of its ends.
-- `separating::planar_axis` — `ExtentBall::box_diagonal`. `body` and `face`; the box is a closure's `(lo, hi)`, its caller's.
-- `solid_contain::selection_reach` (zero) — `ExtentBall::point`. `body` and the faces; the fold's seed.
-- `splitting::containment::extent_from` (2, one zero) — `ExtentBall::point`. `covers: &[Cover<T>]`, read in the same fold beside `verts`.
-- `wedge_reach::WedgeReach::reach` — `points_lever_from`. The carrier, the span and the two face keys.
+- `offset_axial::axial_frame` (2, one zero) — `ExtentBall::point`. `body` and the scope; folds the body's vertices from `origin`. **Converted** (`oneround/lever-sites-topo`): the scope's faces' covers' farthest distance from the axis point, from above: its alignment verdicts act on Zero. No seed.
+- `offset_axial::corner_arms` — `ExtentBall::point`. `body`, the vertex and each curve's carrier and span; the fallback arm reads `other.eval(t1)` from `other.eval(t0)`. Its `Line` and `Circle` arms are `Lever::unsourced`. **Converted** (`oneround/lever-sites-topo`): the fallback arm, `geom_brep::edge_extent_inf`.
+- `offset_together::corner_arms` — `ExtentBall::point`. `body`, the vertex and each outgoing half-edge's far vertex. **Converted** (`oneround/lever-sites-topo`): `cover::edge_reach_bounds(..).below()` from the vertex's own point.
+- `pcurves::decision::edge_reach` — `points_lever_from`. The carrier and span, plus points its caller hands. **Left** (`oneround/lever-sites-topo`): one door for about 35 callers cannot choose one bound for all of them; filed as `a-turns-lever-is-read-from-below-for-every-caller`.
+- `ring_path` `Quadric::ruled_paths` — `ExtentBall::point`. The wall as the local `Quadric` and the ruling `Line`; on a cone, the apex read from a point of the ruling. **Left** (`oneround/lever-sites-topo`): `Piece::Segment` stores its lever (a record), and its points are computed corners.
+- `ring_path::spline_crossings` — `ExtentBall::point`. The `SplineArc`'s carrier and span and the piece's two ends. **Converted** (`oneround/lever-sites-topo`): `edge_extent_inf` of the line the arm builds.
+- `ring_path::spline_wall::IsoPiece::travel` — `ExtentBall::point`. `self`'s curve and span; reads the chord of its ends. **Converted** (`oneround/lever-sites-topo`): `edge_extent_inf(carrier, span)`.
+- `separating::planar_axis` — `ExtentBall::box_diagonal`. `body` and `face`; the box is a closure's `(lo, hi)`, its caller's. **Converted** (`oneround/lever-sites-topo`): the face's own `face_cover`, levered at `ExtentBall::diameter`; the closure is gone.
+- `solid_contain::selection_reach` (zero) — `ExtentBall::point`. `body` and the faces; the fold's seed. **Converted** (`oneround/lever-sites-topo`): no seed; an empty selection refuses `ZeroVolumeBody`.
+- `splitting::containment::extent_from` (2, one zero) — `ExtentBall::point`. `covers: &[Cover<T>]`, read in the same fold beside `verts`. **Converted** (`oneround/lever-sites-topo`): the vertices' `Cover::points` and the edges' covers, no seed.
+- `wedge_reach::WedgeReach::reach` — `points_lever_from`. The carrier, the span and the two face keys. **Left** (`oneround/lever-sites-topo`): as `pcurves::decision::edge_reach`.
 
 ## Points or scalars only (11)
 
