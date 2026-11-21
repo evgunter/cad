@@ -326,7 +326,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_held_carrier_datum" => {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
-        "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
+        "curve_face_pose_plane_offset" | "curve_face_pose_plane_parallel" => {
+            Coincide::EdgeOnPlane.subject()
+        }
         "bool_line_cylinder_clearance"
         | "bool_line_face_carrier_offset"
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
@@ -406,8 +408,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "plane_crossing_root_order"
-        | "plane_crossing_roots_apart"
+        "curve_face_cross_order"
+        | "curve_face_cross_apart"
         | "spline_composite_roots_apart"
         | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"
