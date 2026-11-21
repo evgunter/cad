@@ -107,7 +107,11 @@ fn a_pen_drawn_and_a_cornered_rectangle_certify_over_a_boxed_width() {
                 reasons.is_empty(),
                 "{form:?}, half {half:e}: refused leaves {reasons:#?}"
             );
-            assert!(v.receipt().holds(), "{form:?}, half {half:e}: {:?}", v.receipt());
+            assert!(
+                v.receipt().holds(),
+                "{form:?}, half {half:e}: {:?}",
+                v.receipt()
+            );
             let certified = v.accounting().certified.clone().expect("a measure");
             assert!(
                 (certified - 1.0).abs() < 1e-12,
