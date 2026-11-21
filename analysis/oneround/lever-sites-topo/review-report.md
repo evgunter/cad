@@ -19,8 +19,10 @@ differential, and the rim row's re-baseline is a right answer. Two things stop i
   measured 2.04×, and the comment, the reader line and the PR body all say the opposite.
 - **M2.** Two of the fifteen pins fell by respelling the same caller's points through a door the
   gate cannot see, which is the one thing claim C1 says did not happen.
+- **M3.** A slow-set row the author lists as "not this change's" is red on the head for a third
+  line that is this unit's own new test.
 
-Both have bounded fixes; neither is a redesign. M1 needs a ruling first, because the conversion
+All three have bounded fixes; none is a redesign. M1 needs a ruling first, because the conversion
 was made on one.
 
 ## What I executed, and what I only read
@@ -76,7 +78,7 @@ the alignment sines act on Zero. `Frame.extent` arms every one of these:
 |---|---|---|---|---|
 | `:1121` `classify`'s `sine` | `offset_axial_alignment`, `offset_axial_axis_parallel` | Zero (names a chart aligned) | above | above ✓ |
 | `:2684-2688` `latitude_posture` | `offset_axial_latitude_tilt` | Zero (`Ok(None)`, the posture holds) | above | above ✓ |
-| `:1491-1505` | `offset_axial_pole_station` | **Positive**, then `c / n.1` at `:1506`; Zero refuses | below | **above ✗** |
+| `:1491-1505` | `offset_axial_pole_station` | **Positive**, then `c / n.1` at `:1505`; Zero refuses | below | **above ✗** |
 | `:2348-2360` | `offset_axial_generator_sense` | **Positive / Negative** choose the line's sense; Zero refuses | below | **above ✗** |
 | `:2471-2484` | `offset_axial_rim_sense` | **Positive / Negative** choose the rim's sense; Zero refuses | below | **above ✗** |
 | `:2406` | `geom_brep::plane_torus_section(.., frame.extent, ..)` | a served class on its definite side | both | **above only ✗** |
@@ -145,6 +147,30 @@ reads the body's edge from the body's own vertex point (the dropped `here` was t
 `offset_together.rs:269`); `planar_axis`, `axial_frame`, `frame_reading` and `surface_pair_reach`
 read `face_cover`; the three seeds are gone.
 
+### M3. `recourse_roster` is red on the head for a line that is this unit's own — DEMONSTRATED, sure
+
+The PR body lists `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` among
+four reds that "are not this change's. They fail on the base as on the head". Run alone on each
+side:
+
+```
+base 71068072:
+  an indirect site not listed: chain_parity.rs: decide: name
+  an indirect site not listed: spline_trim.rs: decide: name
+head ad1b9352:
+  an indirect site not listed: chain_parity.rs: decide: name
+  an indirect site not listed: ring_path/spline_wall_rows.rs: an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not: 
+  an indirect site not listed: spline_trim.rs: decide: name
+```
+
+The third line on the head is the row this unit adds. It calls `piece.travel()`, which shares the
+declared `travel` carrier's token, and the roster lists every such site
+(`crates/topo/tests/recourse_roster.rs:866-868`, `SAME_NAMED_TRAVEL`); the new one is not listed.
+The row is in the slow set, so hosted CI did not run it, and it was already red, so the new line
+hid behind the old two. When main's two are fixed this one keeps the nightly red.
+
+(`SAME_NAMED_TRAVEL`'s text, `:485-487`, is a fourth place that still says "its chord": m3.)
+
 ## MINOR
 
 ### m1. `planar_axis` levers a definite-sign verdict at a bound from above — BY-INSPECTION, sure of the facts, likely of the reading
@@ -170,7 +196,7 @@ The PR table gives `axial_frame`'s pivot as "the axis point; the axis datum is r
 lever is measured from `origin`, the foot of the *world origin* on the seed axis
 (`offset_axial.rs:1073`). The datum each chart is aligned by is read somewhere else:
 `centre_on_axis` (`:2648-2661`) reads the chart's own stored `origin`, `apex` or `center`, and a
-plane's `Station` reads the plane's stored `origin` (`:1136`). A tilt pinned at a point `c` moves a
+plane's `Station` reads the plane's stored `origin` (`:1135`). A tilt pinned at a point `c` moves a
 scope point `x` by `θ·|x − c|`, and `|x − c|` is not bounded by the far distance from `origin`.
 
 Probe `review_probe_the_alignment_datum_is_read_at_the_charts_stored_origin` (passes, in the probe
@@ -376,7 +402,69 @@ and the faces' boundary vertices from the span's middle (`wedge_reach.rs:111-129
 
 ### C8 — mutants
 
-MUTANT_PLACEHOLDER
+One build of the frozen head carries every mutant behind `REVIEW_MUT` / `REVIEW_K`
+(`probes/mutant-switches-and-probe-rows.patch`); each ran over the per-PR topo suite,
+`cargo nextest run -p topo --profile ci`, 4022 tests. The slow set is **not** in these runs. The
+unmutated build fails one test, `shell_tolerance_chain::the_chain_reads_epsilon_at_one_site`, a
+source census that counts `.eps()` in `offset_axial.rs` and counted my probe row's; it is in every
+run below and is not counted.
+
+**The author's named mutants: each red, as claimed.**
+
+| Mutant | Red rows |
+|---|---|
+| `planar_axis` at the ball's radius | `separating::tests::a_planar_faces_normal_is_levered_at_its_diameter` |
+| `planar_axis` at twice the diameter | the same row |
+| `IsoPiece::travel` at the old chord | `an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not` |
+| `IsoPiece::travel` at `edge_extent_sup` | that row, and `a_wall_paths_lean_is_levered_within_its_arriving_pieces_chord_and_turn` |
+| `axial_frame`'s extent halved (mine, the same row) | `offset_axial::frame_extent_rows::the_axial_frame_reaches_past_its_scopes_vertices` |
+| `frame_reading` reads the *other* face's cover (mine) | `frame_dispatch_tests::the_germ_frame_reads_at_the_wall_not_the_table` |
+
+I did not re-plant the old box diagonal, the old witness-point pivot, or the apex as reading point.
+
+**My mutants at the conversions with no named row.** "Survives" means 4021 of 4022 pass, the
+unmutated build's count.
+
+| Site | Mutant | Result |
+|---|---|---|
+| `fate::leaving`, line arm | reach × 0.5 | red: 1 row (`shell_role_reader::a_boolean_leaving_a_turned_needle_builds_it_in_every_pose`) |
+| | reach × 2 | **survives** |
+| `fate::piece_beside` | reach × 0.5 | **survives** |
+| | reach × 2 | **survives** |
+| | `to_end` and `to_start` swapped (each bound read over the other bound's span) | **survives** |
+| `overlap::half_plane`, line arm | reach × 0.5 | **survives** |
+| | reach × 2 | **survives** |
+| `offset_together::corner_arms` | arm × 0.5 | **survives** |
+| | arm × 2 | **survives** |
+| | arm × 0 | red: 18 rows |
+| `solid_contain::selection_reach` | the fold takes the *least* face reach | red: 12 rows |
+| | reach × 0.5 | **survives** |
+| | reach × 2 | **survives** |
+| `containment::extent_from` | the vertices' cover dropped (the first edge cover seeds) | **survives** |
+| | every edge cover dropped (vertices only) | **survives** |
+| | extent × 0.5 | **survives** |
+| | extent × 2 | **survives** |
+| `ring_path::spline_crossings`, segment | length × 0.5 | **survives** |
+| | length × 2 | **survives** |
+| `offset_axial::axial_frame` | every face of the body, not the scope's | **survives** |
+| | a face with no cover skipped, not poison | **survives** |
+| `offset_axial::corner_arms`, fallback | a panic in the arm | **survives**: no per-PR topo row reaches it, as the author says |
+
+Nineteen survivors. Read with care: on bodies whose margins are exact zeros or far from the band a
+factor of two moves nothing, so a surviving ×2 says "no row holds this lever within a factor of
+two", not "the lever is wrong". The four that are not scalings say more:
+
+- `extent_from` with the vertices dropped survives, and so does `extent_from` with every edge cover
+  dropped. The PR's correction to the row ("the vertices are not redundant … a scaffold edge has no
+  cover and a lone-vertex loop has no edge") is an argument with no row under it, and neither term
+  of the fold is held by the per-PR suite.
+- `piece_beside` with its two spans swapped survives. The `(t, far)` pairing this unit introduced
+  (`fate.rs:1313-1320`) is held by nothing.
+- `axial_frame` reading the whole body survives. The comment this unit deleted said exactly that
+  ("deleting the guard below leaves the whole suite green"). It is still true, and no longer
+  written down.
+- `axial_frame` skipping an uncovered face survives. "A face with no cover reads poison, which
+  every margin levered at it escalates" (`offset_axial.rs:1080`) is held by nothing.
 
 ### C9 — the counts
 
