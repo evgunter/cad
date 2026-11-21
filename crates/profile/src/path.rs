@@ -4053,7 +4053,7 @@ fn junction_check<T: Decide>(
     let band = linear_band(tol)?;
     let u_in = inc.ang.unit;
     let u_dep = dep.unit;
-    let arm = leaving_arm;
+    let arm = inc.arm.min(leaving_arm);
     let escalate = |source: Escalation| {
         if seam {
             PathError::at_seam(source)
