@@ -2932,7 +2932,7 @@ mod tests {
     /// vertices or the edge's own length for the reach (the `1e-5` fold
     /// then refuses as parallel planes), against one face's boundary for
     /// both (a gap of `2e-7`), and against the region's box diagonal, a
-    /// bound from above (`4.47e-7`).
+    /// bound from above, for the gap (`4.47e-7`) or for the decision.
     #[test]
     fn a_crease_is_read_over_its_faces_run() {
         let read = |fold: f64| {
@@ -2977,6 +2977,19 @@ mod tests {
                 other.map(|c| c.carrier)
             ),
         }
+        // Folded by `2.4e-7` the planes read one within the file's band
+        // over the run from below (`9.6e-7`), where the region's box
+        // diagonal would read them in the band (`1.07e-6`).
+        assert!(
+            matches!(
+                read(2.4e-7),
+                Err(StepImportError::Interpretation {
+                    refusal: crate::interpret::Refusal::Touching { .. },
+                    ..
+                })
+            ),
+            "decided at the run from below"
+        );
     }
 
     /// **A pair of faces with no region refuses naming the edge at
