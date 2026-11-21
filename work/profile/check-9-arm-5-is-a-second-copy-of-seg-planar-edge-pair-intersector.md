@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: H
 refs: [3217]
+design: true
 ---
 
 
@@ -81,3 +82,45 @@ home should take the certificates with their charges.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Weighed (2026-11-21)
+
+Three designers, two rounds, agreed (fork log row 299, the three-designer
+table). This row's framing is corrected:
+
+- **The home is already ruled.** `[one-way.readings]` puts carrier-pair
+  readings in `geom-brep`, and C5 (`crates/geom-brep/README.md`) is the
+  rule for how two spans meet. `topo` reads it elsewhere (the census,
+  the boolean). So the copies are not "profile against topo, pick a
+  home": `seg`'s reader and check 9's are private readings beside a
+  ratified one. `profile` is not below `topo`; neither depends on the
+  other.
+- **Why the copies exist.** PR 6567 rules that two curves on one surface
+  record never go to `meet` and meet where one crosses the other's
+  plane. On a plane record two arcs both lie in the plane, so nothing
+  ratified reads them, and each planar consumer wrote its own.
+- **Stale in the body above.** Drift 4: check 9's arc trim is now
+  `curve_pair::Span::place`. The circle-pair margins all read
+  `geom_core::Circles`; what is spelled several times is the
+  classifier. On the B-rep side the ray against a conic arc already
+  reads the co-surface arm (`containment::conic_crossings`), so only
+  `profile::seg::ray_crossings` is outside it. Profiles have full
+  turns (`ArcSpan::FullTurn`).
+- **Measured on main (699a1d2a8b)**, `meet` on planar pairs lifted to
+  z = 0: a carrier clearance inside the band's gap escalates on
+  `curve_pair_pose_extreme` whatever the spans, on five span-clear
+  pairs profile validation accepts today; a tangent touch returns as a
+  plain interior meeting; `curve_pair::Meeting` carries no kind.
+
+The agreed final state: one planar meeting reader in `geom-brep`, a
+plane instance of C5's co-surface arm entered through the table's
+in-plane arms with coplanarity given by a type; a span keeps its ends
+as given points; a span-clearance stage in the pose (a method on the
+span's cover) proves "apart" before an in-band carrier reading
+escalates; a meeting carries its kind. Profile's pair pass (with a new
+`geom-brep` dependency), check 9's contact reading, the census's
+plane-record pairs and both ray walks read it. `seg`'s pair and ray
+readers and check 9's arms 4 and 5 are deleted once a differential of
+`seg`, kept as the test oracle, agrees over profile's rejection rows,
+pair-contact rows and reach fuzz. Not part of it: profile's joint pass;
+the two fillet constructions' placement (LB4 and their own rows).
