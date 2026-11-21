@@ -1,0 +1,5 @@
+fork: a-loop-repeats-inside-a-profile (PROFILE, work/profile/a-loop-cannot-repeat-inside-a-profile.md, P1)
+drawn: 2026-11-21T05:12:56Z, python3 os.urandom(1)
+arm byte: 164 (>= 86): two designers
+label byte: 189 (odd): A = Fable designer, B = Opus designer
+protocol: ddd201f411
