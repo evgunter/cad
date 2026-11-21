@@ -83,25 +83,19 @@
 //! now carries at every site that names `check_mesh` as a backstop.
 //!
 //! **Invariant (ratified via PR #32, and the memo-key contract): per-face
-//! tessellation is a pure function of (face surface, loops — each
-//! edge's carrier, interval, direction and lineage identity, and the
-//! identity of the face across it — per-edge chord points and
-//! parameters, the stored pcurves, δ, and the ambient ε and k).** A face whose inputs are unchanged
+//! tessellation is a pure function of the inputs its lane reads.** The
+//! one list of those inputs, per lane, is [`memo`]'s docs (*The key, per
+//! lane*), and [`memo::PatchMemo`]'s key folds exactly that list; this
+//! page does not restate it. A face whose inputs are unchanged
 //! re-tessellates identically and its patch can be reused across
-//! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
-//! keys each face by the bits its lane reads (stated per lane in
-//! [`memo`]'s docs) and places a stored patch through the same fold the
-//! lane's fresh one takes, so its mesh is byte-identical to
-//! [`fn@tessellate`]'s. The chord points themselves are a pure function of
-//! (edge carrier + interval, endpoint vertex points, each adjacent
-//! face's lattice and the half-edge's image on it, δ). Adjacent faces
-//! enter a face's tessellation in two ways and no other: through the
-//! chord points, by their target and the one chord rule in [`chords`],
-//! which that module states; and on the trimmed lane through WHICH face
-//! lies across each edge, which its shared-side rule reads (the chord
-//! pass's holders, `trimmed::faces_across`) and the memo key folds as an
-//! identity, never as the face's own geometry.
-//!
+//! rebuilds. [`fn@tessellate_with`] is that consumer: it keys each face by
+//! those bits and places a stored patch through the same fold the lane's
+//! fresh one takes, so its mesh is byte-identical to [`fn@tessellate`]'s.
+//! A neighbour enters a face's inputs only as that list says: through
+//! the shared chord points, which the one chord rule in [`chords`] sizes
+//! from both faces, and on the trimmed lane as the identity of the face
+//! across each edge, never as the neighbour's own geometry.
+
 //! # Structure kept, structure dropped
 //!
 //! - **Per-face patch separability** (ratified): [`Mesh`] keeps one

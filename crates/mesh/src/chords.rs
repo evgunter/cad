@@ -88,7 +88,7 @@ pub(crate) struct ChordPass {
     /// trimmed lane's shared-side rule reads it
     /// (`trimmed::faces_across`), and so the memo key folds it
     /// (`memo::EdgeInputs::across`), off this one copy.
-    pub holders: HashMap<EdgeKey, [FaceKey; 2]>,
+    holders: HashMap<EdgeKey, [FaceKey; 2]>,
 }
 
 impl ChordPass {
@@ -242,7 +242,7 @@ fn edge_holders(body: &Body<f64>, ek: EdgeKey) -> Result<[FaceKey; 2], Tessellat
     let face = |he| {
         body.face_of_half_edge(he)
             .ok_or(TessellateError::MissingEntity {
-                what: "the face across an edge",
+                what: "the faces holding an edge",
             })
     };
     Ok([face(edge.he_plus)?, face(edge.he_minus)?])

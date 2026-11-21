@@ -939,3 +939,37 @@ fn the_trimmed_lane_misses_when_only_the_face_across_an_edge_changes() {
         "the wall misses: only its faces across moved (missed {missed:?})"
     );
 }
+
+/// **The trimmed lane reads the face's sense**, so a flipped sense
+/// misses (`memo`'s docs, the trimmed lane's list): the lane checks its
+/// polygon's orientation against it (`trimmed::trim_orientation`). The
+/// flip is the one change, so a fresh run refuses `TrimLoopOrientation`;
+/// through a memo warmed on the unflipped body the wall misses, runs its
+/// lane, and refuses the same way, where a key without the sense
+/// replayed the stored patch and answered a wrong `Ok`.
+#[test]
+fn the_trimmed_lane_misses_when_only_the_sense_flips() {
+    let base = shallow_segment();
+    let wall = face_where(&base, |s| matches!(s, Surface::Cylinder { .. }));
+    let mut flipped = base.clone();
+    let sense = flipped.face(wall).unwrap().sense();
+    flipped.set_face_sense(wall, !sense).unwrap();
+
+    let fresh = tessellate(&flipped, DELTA, Tol::witness());
+    assert!(
+        matches!(
+            fresh,
+            Err(mesh::TessellateError::TrimLoopOrientation { .. })
+        ),
+        "the flipped wall's polygon contradicts its sense: {fresh:?}"
+    );
+    let mut memo = PatchMemo::new();
+    through(&mut memo, &base, DELTA);
+    memo.end_picture();
+    let replayed = tessellate_with(&flipped, DELTA, Tol::witness(), &mut memo);
+    assert_eq!(
+        format!("{:?}", replayed.as_ref().map(|t| digest(&t.mesh))),
+        format!("{:?}", fresh.as_ref().map(digest)),
+        "the memo-assisted answer is the fresh one"
+    );
+}

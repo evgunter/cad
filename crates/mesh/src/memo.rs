@@ -48,7 +48,9 @@
 //!
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
-//! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
+//! meshes), the face's `sense` (its polygon's orientation check,
+//! `trimmed::trim_orientation`, and its outward normal), each edge's
+//! chord PARAMETERS (it evaluates pcurves on that
 //! schedule), each half-edge's image where the face's domain places it
 //! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
 //! outer loop's sheet), and the face across each edge (the chord pass's
@@ -894,7 +896,10 @@ impl FaceInputs {
         if curved || trimmed {
             w.surface(&self.surface);
         }
-        if curved {
+        // The curved lane reads the sense for its pole band's azimuth;
+        // the trimmed lane for its polygon's orientation check
+        // (`trimmed::trim_orientation`) and its outward normal.
+        if curved || trimmed {
             w.bool(self.sense);
         }
         // The identity relabeling over the whole face's sequence.
@@ -1455,7 +1460,7 @@ mod tests {
         (
             "the face's sense",
             |f| f.sense = !f.sense,
-            [false, true, false],
+            [false, true, true],
         ),
         (
             "an edge's direction",
