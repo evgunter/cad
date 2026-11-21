@@ -16,8 +16,8 @@ use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, ConstructedLoop, CornerReason, CornerRefusal, FilletLeg,
-    FilletLegCarrier, LegFit, LeverValue, Open, OverrunLegs, PathError, Profile, ProfileLoop,
-    Segment, SketchPlane, Start, test_support::bulge_loop,
+    FilletLegCarrier, LegFit, Open, OverrunLegs, PathError, Profile, ProfileLoop, Segment,
+    SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
@@ -82,12 +82,52 @@ pub fn assert_corners(err: &PathError<f64>, want: &[(f64, f64)], what: &str) {
 }
 
 /// Whether ANY entry of the envelope refused for the named shape.
-pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason) -> bool) -> bool {
     corners(err).iter().any(|c| pred(&c.reason))
 }
 
+pub use geom_core::test_support::told;
+
+/// One leg of an anchor-fit entry as the numbers its payload was built
+/// from ([`told`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LegNumbers {
+    pub carrier: FilletLegCarrier,
+    pub setback: f64,
+    pub available: f64,
+}
+
+impl From<&LegFit> for LegNumbers {
+    fn from(leg: &LegFit) -> Self {
+        Self {
+            carrier: leg.carrier.clone(),
+            setback: told(&leg.setback),
+            available: told(&leg.available),
+        }
+    }
+}
+
+/// A radius lever as the numbers it was built from: the largest radius
+/// that fits, and the far edge of the radii that end at the anchor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LeverNumbers {
+    pub boundary: f64,
+    pub exact_fit_edge: f64,
+}
+
+impl From<&geom_core::Told> for LeverNumbers {
+    fn from(lever: &geom_core::Told) -> Self {
+        Self {
+            boundary: told(lever),
+            exact_fit_edge: lever.pinned_edge().unwrap_or(f64::NAN),
+        }
+    }
+}
+
 /// The first entry refusing with the enclosing class, as its payload.
-pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
+pub fn enclosing<T: Real>(
+    err: &PathError<T>,
+) -> Option<(Option<FilletLeg>, f64, f64, Option<f64>)> {
     corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::EnclosesLegCarrier {
             side,
@@ -96,9 +136,9 @@ pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T
             largest_tangent_radius,
         } => Some((
             *side,
-            *carrier_radius,
-            *offset_radius,
-            *largest_tangent_radius,
+            told(carrier_radius),
+            told(offset_radius),
+            largest_tangent_radius.as_ref().map(told),
         )),
         _ => None,
     })
@@ -109,23 +149,23 @@ pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T
 /// payload carries both legs; this is the one a single-leg sentence
 /// would have named, and the census suites that measure that number
 /// read it here.
-pub fn worse_leg<T: Real + PartialOrd>(
-    legs: &[LegFit<T>; 2],
-    overrun: OverrunLegs,
-) -> (FilletLeg, LegFit<T>) {
-    let margin = |l: &LegFit<T>| l.available - l.setback;
+pub fn worse_leg(legs: &[LegFit; 2], overrun: OverrunLegs) -> (FilletLeg, LegNumbers) {
+    let legs = [LegNumbers::from(&legs[0]), LegNumbers::from(&legs[1])];
+    let margin = |l: &LegNumbers| l.available - l.setback;
     match overrun {
-        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1]),
-        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => (FilletLeg::Outgoing, legs[1]),
-        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => (FilletLeg::Incoming, legs[0]),
+        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1].clone()),
+        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => {
+            (FilletLeg::Outgoing, legs[1].clone())
+        }
+        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => {
+            (FilletLeg::Incoming, legs[0].clone())
+        }
     }
 }
 
 /// The first entry refusing on the anchor fit, as its worse leg's
 /// numbers ([`worse_leg`]).
-pub fn anchor_fit<T: Real + PartialOrd>(
-    err: &PathError<T>,
-) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, f64, f64)> {
     corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
             let (side, leg) = worse_leg(legs, *overrun);
@@ -137,18 +177,29 @@ pub fn anchor_fit<T: Real + PartialOrd>(
 
 /// An anchor-fit entry's payload: both legs, which of them overrun, and
 /// the radius lever.
-pub type AnchorFitPayload<T> = ([LegFit<T>; 2], OverrunLegs, Option<LeverValue<T>>);
+pub type AnchorFitPayload = ([LegNumbers; 2], OverrunLegs, Option<LeverNumbers>);
+
+fn payload(
+    legs: &[LegFit; 2],
+    overrun: OverrunLegs,
+    lever: Option<&geom_core::Told>,
+) -> AnchorFitPayload {
+    (
+        [LegNumbers::from(&legs[0]), LegNumbers::from(&legs[1])],
+        overrun,
+        lever.map(LeverNumbers::from),
+    )
+}
 
 /// The first anchor-fit entry's whole payload: both legs and the radius
 /// at the anchor.
-pub fn anchor_fit_payload<T: Real>(err: &PathError<T>) -> Option<AnchorFitPayload<T>> {
+pub fn anchor_fit_payload<T: Real>(err: &PathError<T>) -> Option<AnchorFitPayload> {
     corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::AnchorOutsideTrimmedExtent {
             legs,
             overrun,
             radius_at_anchor,
-            ..
-        } => Some((*legs, *overrun, *radius_at_anchor)),
+        } => Some(payload(legs, *overrun, radius_at_anchor.as_ref())),
         _ => None,
     })
 }
@@ -1457,7 +1508,7 @@ pub fn anchor_fit_at(
 
 /// The anchor-fit entry at the corner `at` (to 1e-9), as its whole
 /// payload: both legs and the radius at the anchor.
-pub fn anchor_fit_payload_at(err: &PathError<f64>, at: (f64, f64)) -> AnchorFitPayload<f64> {
+pub fn anchor_fit_payload_at(err: &PathError<f64>, at: (f64, f64)) -> AnchorFitPayload {
     corners(err)
         .iter()
         .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
@@ -1466,8 +1517,7 @@ pub fn anchor_fit_payload_at(err: &PathError<f64>, at: (f64, f64)) -> AnchorFitP
                 legs,
                 overrun,
                 radius_at_anchor,
-                ..
-            } => Some((*legs, *overrun, *radius_at_anchor)),
+            } => Some(payload(legs, *overrun, radius_at_anchor.as_ref())),
             _ => None,
         })
         .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))

@@ -4,6 +4,7 @@ kind: issue
 title: dm1's bolts and nuts touch the l-bracket, and the assembled body's at-rest gate refuses their shared vertices as unrecorded contacts, naming no solid
 status: open
 opened: 2026-11-04
+priority: P3
 ---
 
 
@@ -56,3 +57,5 @@ on the bracket.
 Reproduce:
 
     cargo nextest run -p step-import -E 'test(r1_dm1_probe)'
+
+- 2026-11-20 — **Note (EXCH, whole-patch promotion):** the l-bracket's two walls are exact rational cylinders, which import now promotes whole, so the C⁰-knot split no longer mints vertices along their rims. The unrecorded contacts the aggregate gate reads are now `VertexOnEdge` (a bolt's or nut's vertex on a bracket rim edge), where they were `VertexVertex` against split vertices; `r1_dm1_probe::dm1_no_longer_refuses_at_the_instancing_gate` pins the new kind. The l-bracket alone imports with the file's census, `(1, 1, 5, 6, 4)`. (EXCH lane A)

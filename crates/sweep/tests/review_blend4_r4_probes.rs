@@ -59,7 +59,7 @@ fn seeds_radius_only(body: &Body<f64>, r: f64, win: f64) -> Vec<EdgeKey> {
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                Curve3::Circle(geom::Circle { radius, .. }) if (radius - r).abs() < win => Some(k),
+                Curve3::Circle(circle) if (circle.radius() - r).abs() < win => Some(k),
                 _ => None,
             }
         })
@@ -77,10 +77,12 @@ fn hits_station_radius(body: &Body<f64>, y: f64, r: f64, win: f64) -> Vec<EdgeKe
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
-                Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    radius,
-                }) if (center.y - y).abs() < win && (radius - r).abs() < win => Some(k),
+                Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame: geom::Frame { origin: center, .. },
+                        ..
+                    },
+                ) if (center.y - y).abs() < win && (circle.radius() - r).abs() < win => Some(k),
                 _ => None,
             }
         })

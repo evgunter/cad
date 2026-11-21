@@ -410,6 +410,8 @@ fn the_offset_lever_gate_aborts_the_resolve_at_every_band() {
         profile::FilletLeg::Outgoing,
         "the gate measures the outgoing leg's offset lever"
     );
+    let [carrier_radius, offset_radius, least_lever, margin] =
+        [carrier_radius, offset_radius, least_lever, margin].map(|x| crate::common::told(&x));
     assert!(
         (carrier_radius - 1.0).abs() < 0.1,
         "the exposed carrier is the unit one, got {carrier_radius}"
@@ -448,15 +450,16 @@ fn anchors_of() -> (Point2<f64>, Point2<f64>, Point2<f64>) {
 /// Red if the pair names the narrower lever, or names one per corner.
 #[test]
 fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
+    use geom_core::{Dimension, Told};
     use profile::{
-        FilletLeg, FilletLegCarrier, LegFit, LeverValue, NoCornerReason, OverrunLegs,
-        path::CornerRefusal,
+        FilletLeg, FilletLegCarrier, LegFit, NoCornerReason, OverrunLegs, path::CornerRefusal,
     };
-    let leg = |setback: f64, available: f64| LegFit {
-        carrier: FilletLegCarrier::Line,
-        setback,
-        available,
+    let leg = |setback: f64, available: f64| {
+        LegFit::new(FilletLegCarrier::Line, setback, available, 5e-10)
     };
+    let length = |x: f64| Told::given(&x, Dimension::Length);
+    let radius_lever =
+        Told::at_most_within(&0.225, &(0.3 * (0.3 - 5e-10) / 0.4), Dimension::Length);
     // The straight pair's numbers at the default row's exact-fit reach
     // of 5·10⁻¹⁰ m: the outgoing anchor fits exactly from 0.4 m to
     // 0.4 + 5·10⁻¹⁰ m, and the radius from 0.3·(0.3 − 5·10⁻¹⁰)/0.4 to
@@ -466,24 +469,21 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         reason: CornerReason::AnchorOutsideTrimmedExtent {
             legs: [leg(0.4, 1.0), leg(0.4, 0.3)],
             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-            fit_reach: 5e-10,
-            radius_at_anchor: Some(LeverValue {
-                boundary: 0.225,
-                exact_fit_edge: 0.3 * (0.3 - 5e-10) / 0.4,
-            }),
+            radius_at_anchor: Some(radius_lever),
         },
     };
     let radius = CornerRefusal {
         at: Point2::new(-1.0, 0.0),
         reason: CornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
     };
-    for (corners, which) in [
-        (vec![anchor.clone(), radius.clone()], "the first corner"),
-        (vec![radius.clone(), anchor.clone()], "the second"),
+    for (corners, at, which) in [
+        (vec![anchor.clone(), radius.clone()], 0, "the first corner"),
+        (vec![radius.clone(), anchor.clone()], 1, "the second"),
     ] {
         let said = PathError::NoCornerOfPair {
-            radius: 0.3,
+            radius: length(0.3),
             corners,
+            radius_lever_of: Some(at),
         }
         .to_string();
         assert!(
@@ -495,8 +495,9 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         );
     }
     let said = PathError::NoCornerOfPair {
-        radius: 0.3,
+        radius: length(0.3),
         corners: vec![radius.clone(), radius],
+        radius_lever_of: None,
     }
     .to_string();
     assert!(

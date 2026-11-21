@@ -173,7 +173,7 @@ fn a_rim_arc_at_an_undecided_offset_refuses_typed() {
     match sweep(&a, &b) {
         Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
             diag.predicate,
-            Some("bool_conic_face_plane_offset"),
+            Some("curve_face_pose_plane_offset"),
             "the refusal names the offset: {diag:?}"
         ),
         other => panic!("expected the offset's escalation, got {other:?}"),

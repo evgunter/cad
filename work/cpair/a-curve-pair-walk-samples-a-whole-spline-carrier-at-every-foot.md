@@ -2,8 +2,9 @@
 id: a-curve-pair-walk-samples-a-whole-spline-carrier-at-every-foot
 kind: issue
 title: The curve-pair walk samples a spline arc's whole carrier at every foot it polishes, so a meeting on a 6365-span carrier costs its leaves times its spans
-status: open
+status: closed
 opened: 2026-11-11
+closed: 2026-11-17
 priority: P2
 cost: M
 refs: [cylinder-sphere-frame-rows-take-twenty-minutes-a-boolean-at-1e-12]
@@ -51,3 +52,8 @@ reader's argument that no caller rests on the far branch; the second
 changes how many `curve_foot_polish` choices reach the K sink. Either
 is this program's call (`on_carrier.rs` is ONECOPY's ground, the callers
 are this program's).
+
+
+## Closed (ONEHOME, fork 275 step 3b, 2026-11-17)
+
+The sampled whole-carrier search is retired (`crates/geom/src/curves/on_carrier.rs`): a spline's foot is Gauss–Newton from the caller's seed clamped into the interval it is read over (`Curve3::foot_within`; `Curve3::foot` is that over the whole domain), so one foot costs its polish steps, not the carrier's span count. No sample and no `spline_starts` choice is left. Where the seed's gap does not decide zero, the polish restarts once from the first piece the Off's own certified walk keeps, a walk the Off already ran. That is the first of this item's two ways, "a foot whose cost follows the span the caller reads". The reader's argument it asked for is fork 275's: no caller rests on which stationary point a foot lands on (`On` rests on the gap and `Off` on the whole-carrier walk), and `pair_section`'s site, the one reader that did, now reads its foot over its tube pieces.

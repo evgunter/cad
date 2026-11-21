@@ -336,8 +336,7 @@ impl Unsized {
 
     /// The ending a residual's refusal carries on `arm` at the import
     /// door (D4 ¶1): a miss within the file's declared coincidence
-    /// distance but beyond ε names setting ε to ε_in as a stopgap, beside
-    /// re-exporting the file more precisely
+    /// distance but beyond ε names re-exporting the file more precisely
     /// ([`FileCoincidence::miss_recourse_in_file`]); any other reading
     /// ends as the door ends it ([`Unsized::recourse`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
@@ -551,9 +550,9 @@ pub enum RefusedSide {
     Lever,
     /// A contradiction between what the edge states and the geometry
     /// it is read against: a stored description and its stored geometry,
-    /// or, at the import door, what adoption derived from the file (a
-    /// chart image, the ladder's candidate description, the parameters
-    /// it samples at). At a build it is the user's geometry, which the lever
+    /// or, at the import door, what the import built from the file (a
+    /// chart image, the description the build chose, the parameters it
+    /// samples at). At a build it is the user's geometry, which the lever
     /// moves: the lever and the note. Past a build it ends in the defect
     /// ending naming the door's culprit ([`ReadAt::culprit`]): over a
     /// body at rest [`geom_core::KERNEL_OR_FILE_DEFECT_ENDING`], and at
@@ -1122,14 +1121,14 @@ mod tests {
     /// the tolerance to tighten below, in metres, and ends there; the
     /// margin is on a side the decision passes on (both ends of an
     /// enclosure), so a smaller tolerance does decide it passing; and
-    /// the value is its nearer end's `|m|/K`. A Negative verdict never
+    /// the value is its nearer end's `|m|/K` told as a bound. A Negative verdict never
     /// offers one (no smaller tolerance passes it).
     #[test]
     fn no_tighten_offer_is_unvalued_and_a_negative_verdict_offers_none() {
         let band = band();
         let k = band.escalate() / band.zero();
         // The tolerance a smaller one than which decides `margin`
-        // passing, read through the door this test may use.
+        // passing, `|m|/K`, which the sentence tells as a bound.
         let passing_below = |passes: SizedPass, margin: MarginDiag| {
             let on = |v: f64| match passes {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
@@ -1153,7 +1152,9 @@ mod tests {
                 .and_then(|v| v.strip_suffix(" m"))
                 .and_then(|v| v.parse::<f64>().ok())
                 .is_some_and(|v| {
-                    passing_below(passes, margin).is_some_and(|want| v == want && v > 0.0)
+                    passing_below(passes, margin).is_some_and(|want| {
+                        geom_core::test_support::is_told_offer_of(v, want) && v > 0.0
+                    })
                 }),
         };
         for passes in [

@@ -46,7 +46,7 @@ use editor_core::{
 };
 use geom_core::{Point2, Tol};
 
-pub use editor_core::{TraceMark, TraceMarks, TracedFrameFault, traced_frame};
+pub use editor_core::{TraceMark, TraceMarks};
 
 /// **A word that names no passage or sense** ([`passage`], [`sense`]):
 /// the word, and the words that would.
@@ -249,10 +249,26 @@ pub fn drawn_profile(
     faces: Vec<Operand>,
     loops: Vec<Chain>,
 ) -> Result<AuthoredNode, EditError> {
+    Ok(Node::Profile(ProfileProgram {
+        loops: chain_loops(loops)?,
+        ids: Vec::new(),
+        on: Some(DrawnOn { frame, faces }),
+    }))
+}
+
+/// **`loops` as a profile's loop programs**, outer first, each argument
+/// checked against its slot's dimension as [`drawn_profile`] checks it:
+/// the loops a profile drawn on a face takes
+/// ([`crate::document::draw_on_face`]), tracing its faces.
+///
+/// # Errors
+///
+/// As [`drawn_profile`]'s.
+pub fn chain_loops(loops: Vec<Chain>) -> Result<Vec<LoopProgram<Formula>>, EditError> {
     let mut program = ProfileProgram {
         loops: loops.into_iter().map(Chain::into_loop).collect(),
         ids: Vec::new(),
-        on: Some(DrawnOn { frame, faces }),
+        on: None,
     };
     for ((loop_, step, arg), formula) in program.rows_mut() {
         let slot = SlotId::Profile { loop_, step, arg };
@@ -270,7 +286,7 @@ pub fn drawn_profile(
         }
         *formula = Formula::zero(expected);
     }
-    Ok(Node::Profile(program))
+    Ok(program.loops)
 }
 
 /// **Why a face's trace in a frame's plane could not be drawn**

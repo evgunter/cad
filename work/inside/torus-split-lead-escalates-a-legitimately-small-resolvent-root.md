@@ -1,7 +1,7 @@
 ---
 id: torus-split-lead-escalates-a-legitimately-small-resolvent-root
 kind: issue
-title: line_torus_roots' rung 3 (bool_ray_torus_split_lead) escalates every ray whose odd coefficient is small but decided nonzero, not only a rounding-scale contradiction
+title: line_torus_roots' rung 3 (line_quadric_torus_split_lead) escalates every ray whose odd coefficient is small but decided nonzero, not only a rounding-scale contradiction
 status: open
 opened: 2026-09-25
 priority: P2
@@ -15,11 +15,11 @@ Found by GERM while fixing the resolvent's one-real-root cancellation
 ## The finding
 
 `line_torus_roots` (`crates/topo/src/solid_contain.rs`) decides
-`bool_ray_torus_split_lead` on the resolvent's largest root `z` over
+`line_quadric_torus_split_lead` on the resolvent's largest root `z` over
 `ext`, and its ladder doc (rung 3) says a non-Positive answer is "a
 rounding-scale contradiction" of the constant term `−q̂² < 0`. That is
 not what reaches it. In the one-real-root branch `z ≈ q̂²/c1`, so a ray
-whose `q̂` clears `bool_ray_torus_odd` (`|q̂|/ext² > K·ε`) can still have
+whose `q̂` clears `line_quadric_torus_odd` (`|q̂|/ext² > K·ε`) can still have
 `z/ext ≈ q̂²/(c1·ext)` far inside the band. Every such ray escalates
 `Uncertain` through rung 3, although its count is certified and its
 roots are well defined.

@@ -4,6 +4,8 @@ kind: issue
 title: Main red, pinned: #5542's segment_gap reading moved five editor-core slow-set receipts (m10_6 planted flip, m10_sym_profile ×2, sym_9 ×2) and the containment row; pinned at main's reading 2026-10-28
 status: open
 opened: 2026-10-28
+priority: P3
+cost: M
 ---
 
 

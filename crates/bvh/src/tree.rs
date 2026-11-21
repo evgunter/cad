@@ -193,6 +193,7 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a
         // permutation sort, never a dedup.
         out.sort_unstable();
+        geom_core::k_stats::mark_candidates(OVERLAPPING, out.iter().copied());
         out
     }
 
@@ -261,6 +262,7 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a permutation
         // sort, never a dedup.
         out.sort_unstable();
+        geom_core::k_stats::mark_candidates(WITHIN, out.iter().copied());
         out
     }
 
@@ -347,9 +349,20 @@ impl Bvh {
             }
         }
         out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.item.cmp(&b.item)));
+        geom_core::k_stats::mark_candidates(RAY, out.iter().map(|c| c.item));
         out
     }
 }
+
+/// The names the queries mark their candidates under
+/// ([`geom_core::k_stats::mark_candidates`]): a query prunes what its
+/// caller decides next and decides nothing itself, so a reader of a
+/// verdict log can see two runs' pruning part only through these marks.
+const OVERLAPPING: &str = "bvh_overlapping";
+/// [`Bvh::within`]'s marks.
+const WITHIN: &str = "bvh_within";
+/// [`Bvh::ray`]'s marks.
+const RAY: &str = "bvh_ray";
 
 /// Recursive build over `items[..]` (a contiguous range of the final
 /// permutation starting at absolute offset `base`); returns the

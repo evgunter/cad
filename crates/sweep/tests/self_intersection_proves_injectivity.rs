@@ -2049,7 +2049,7 @@ fn the_corpus_pot_holds_at_both_scalars() {
 
 /// The faces of `body` shelled to `t` on its cavity's shell, with the
 /// shelled body: the clone the cavity gate asks.
-fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
+fn cavity_of<T: Scalar + topo::CertifiedPolicy>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
     let hollow = topo::shell(
         &sweep::test_support::finished("the operand", body, tol()),
         T::from_f64(t),
@@ -2117,7 +2117,7 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
 #[test]
 fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
-    fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
         let spiric: Vec<(FaceKey, FaceKey)> = spiric_pairs(&hollow)
             .into_iter()
@@ -2410,7 +2410,7 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
             within(what, report);
         }
     }
-    fn cavity_at<T: Scalar>(what: &str) -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>(what: &str) -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
         let report = injective(&hollow, Some(faces), BUDGET);
         println!("[selfx] {what}: {:?} {:?}", report.verdict, report.receipt);
@@ -3119,9 +3119,10 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         .get_curve_geom(curve)
         .and_then(|g| g.certified())
         .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = carrier else {
+    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
         panic!("the refusing edge is a meridian circle: {carrier:?}");
     };
+    let radius = conic_k.radius();
     assert!(
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"

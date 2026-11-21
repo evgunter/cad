@@ -225,7 +225,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<SplitContacts, CarryRefusal> {
         self.carried(records, band, region, None)
     }
@@ -246,7 +246,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<(SplitContacts, Vec<u32>), CarryRefusal> {
         let mut parted = Vec::new();
         let carried = self.carried(records, band, region, Some(&mut parted))?;
@@ -304,7 +304,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
         parted: Option<&mut Vec<crate::boolean::Parting>>,
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides = self.sides();
@@ -2043,19 +2043,19 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         unreachable!("{edge:?} has a certified carrier and two live faces")
                     });
                 match verdict {
-                    geom_brep::WedgeVerdict::InBand(escalation) => {
+                    geom_brep::WedgeClass::InBand(escalation) => {
                         return Err(SplitFinishError::WedgeEscalated { edge, escalation });
                     }
-                    geom_brep::WedgeVerdict::Mixed(stations) => {
+                    geom_brep::WedgeClass::Mixed(stations) => {
                         return Err(SplitFinishError::SmoothJoinRefuted {
                             edge,
                             mixed: Some(stations),
                         });
                     }
-                    geom_brep::WedgeVerdict::Crease { .. } => {
+                    geom_brep::WedgeClass::Crease => {
                         return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
                     }
-                    geom_brep::WedgeVerdict::End { .. } | geom_brep::WedgeVerdict::Lamina
+                    geom_brep::WedgeClass::End | geom_brep::WedgeClass::Lamina
                         if !matches!(surf_other, Surface::Plane { .. }) =>
                     {
                         return Err(SplitFinishError::KnifeEdge(KnifeEdge {
@@ -2063,9 +2063,9 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             at: KnifeEdgeSite::Edge(edge),
                         }));
                     }
-                    geom_brep::WedgeVerdict::Seam { .. }
-                    | geom_brep::WedgeVerdict::End { .. }
-                    | geom_brep::WedgeVerdict::Lamina => {}
+                    geom_brep::WedgeClass::Seam { .. }
+                    | geom_brep::WedgeClass::End
+                    | geom_brep::WedgeClass::Lamina => {}
                 }
                 // What the join stores is what its wedge demands, and
                 // a settled tangency demands a description.

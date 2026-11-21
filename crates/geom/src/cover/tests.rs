@@ -577,10 +577,18 @@ fn a_curves_cover_over_a_span_holds_it() {
             }
             ts
         };
-        let r = scale * rng.range(0.2, 1.0) * if rng.unit() < 0.2 { -1.0 } else { 1.0 };
+        let radius = scale * rng.range(0.2, 1.0);
+        // One in five seamed a half turn on, at `−u_ref`: the points a
+        // signed radius `−radius` would place, at the same parameters.
+        let turned = rng.unit() < 0.2;
+        let (r, seam) = if turned {
+            (-radius, -u_ref)
+        } else {
+            (radius, u_ref)
+        };
         let circle = Curve3::Circle(crate::Circle::new(
-            crate::Frame::new(center, axis, u_ref),
-            r,
+            crate::Frame::new(center, axis, seam),
+            radius,
         ));
         run("circle", circle, conic_extremes(r, r));
         let (a, b) = (scale, scale * rng.range(0.1, 1.0));
@@ -1247,7 +1255,10 @@ fn a_non_finite_datum_builds_no_cover() {
     );
     for (curve, kind) in [
         (
-            Curve3::Circle(crate::Circle::new(crate::Frame::new(o, z, x), nan)),
+            Curve3::Circle(crate::Circle::new(
+                crate::Frame::new(Point3::new(nan, 0.0, 0.0), z, x),
+                1.0,
+            )),
             crate::CurveKind::Circle,
         ),
         (
@@ -2195,7 +2206,7 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         let site = Site::Point(centre);
         let got = Cover::arc(
             &ellipse.frame,
-            (ellipse.semi_u, ellipse.semi_v),
+            ellipse.semi_axes(),
             ParamWindow::new(t0, t1),
         )
         .unwrap()
@@ -2203,8 +2214,8 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         .1;
         let whole = Cover::piece(super::Piece::Arc(super::Arc {
             frame: ellipse.frame,
-            semi_u: ellipse.semi_u,
-            semi_v: ellipse.semi_v,
+            semi_u: ellipse.semi_u(),
+            semi_v: ellipse.semi_v(),
             window: ParamWindow::new(0.0, TAU),
         }))
         .distance_range(&site)

@@ -318,14 +318,8 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
     let back = -(by - Point3::origin());
     Some(match curve.clone() {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: c.frame.translated(back),
-            ..c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: e.frame.translated(back),
-            ..e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(back))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(back))),
         Curve3::Spiric {
             center,
             axis,
@@ -1545,8 +1539,9 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
         // An ARC cap rim on a rational wall (M8-3): the metric
         // length is exactly `r·Δθ` — the carrier's own parameter
         // IS the angle, so no bound is needed.
-        Curve3::Circle(geom::Circle { radius, .. }) => {
-            (Interval::from_certified(*radius) * Interval::from_certified(t1 - t0)).mag()
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            (Interval::from_certified(radius) * Interval::from_certified(t1 - t0)).mag()
         }
         _ => {
             return Err(PropsError::QuadratureUnsupported {

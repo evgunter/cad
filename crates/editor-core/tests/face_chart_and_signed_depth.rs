@@ -738,3 +738,46 @@ fn a_pocket_on_a_bottom_cap_lies_inside_the_body() {
         "the pocket is half a unit deep"
     );
 }
+
+/// **A sweep lifted past the session box refuses at its lift**
+/// (`[placement.frame]`: a door that stands a body somewhere asks where
+/// it stands). The block's copy 700 m up `z`, a disc drawn on its bottom
+/// cap and extruded by a `−400` depth, the pocket's tool through the
+/// block and on up: the sweep builds 400 m long in its own coordinates,
+/// inside the box, and the negative depth lifts it
+/// (`ProfileValue::lifted`) to stand from 700 m to 1100 m. The extrude
+/// refuses with the session box's finding alone; the copy it is drawn
+/// on stands inside the box.
+///
+/// *Breaks if* the lifted door keeps its frame without asking: the
+/// extrude then builds past the box.
+#[test]
+fn a_sweep_lifted_past_the_box_refuses_at_its_lift() {
+    let (doc, body) = block(2.0, 1.0);
+    let (doc, copy) = editor_core::test_support::in_world(
+        doc,
+        body,
+        &editor_core::Frame::translation([0.0, 0.0, 700.0]),
+        Tol::witness(),
+    );
+    let (doc, profile) = drawn(&doc, copy, cap(body, CapEnd::Start), OnFace::nearest());
+    let (doc, tool) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(-400.0),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(ev.value(copy).is_some(), "the copy stands inside the box");
+    let refused = ev.node_error(tool).expect("the lifted extrude refuses");
+    assert!(
+        refused.node == tool
+            && matches!(
+                &refused.kind,
+                NodeErrorKind::NotFinished { findings }
+                    if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+        "at its lift, with the session box's finding alone: {refused:?}"
+    );
+}

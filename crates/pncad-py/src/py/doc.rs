@@ -317,8 +317,8 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
-        E::ProfileProgram { node: n, fault } => (
-            word(crate::tags::program_fault_tag(fault)),
+        E::ProfileProgram { node: n, refusal } => (
+            word(crate::tags::program_refusal_tag(refusal)),
             none(),
             node(n.id()),
             none(),

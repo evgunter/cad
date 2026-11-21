@@ -22,7 +22,7 @@ the apex vertex has an orbit of two half-edges and two faces. Those meridians ar
 and the cone is C¹ across them. They are why a cone's apex has two half-turn sectors, and they
 shape every split and Boolean that meets a revolved wall.
 
-Related: `work/tcost/germ-cone-doc-claims-one-merged-face-where-two-half-bands-stay.md`.
+Related: `work/green/germ-cone-doc-claims-one-merged-face-where-two-half-bands-stay.md`.
 
 ## Open
 

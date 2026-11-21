@@ -464,6 +464,11 @@ impl Window {
     pub fn centre<T: Real>(self) -> T {
         T::pi() + self.start()
     }
+
+    /// The window's closed end, a whole turn past its start.
+    pub fn end<T: Real>(self) -> T {
+        self.centre::<T>() + T::pi()
+    }
 }
 
 /// The angle of `(x, y)` (M5 S13, shared by every chart's derivation

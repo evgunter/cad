@@ -109,6 +109,7 @@ test_utils::f6_variants! {
         Triangulation,
         SelfTouchingTrimLoop,
         PinchWedge,
+        BoundaryBoundsNoRegion,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
@@ -117,8 +118,10 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         UnresolvedWinding,
-        BoundaryEar,
+        UnclearedSharedSide,
+        OverusedSide,
         SphereTrimShape,
+        WrapStripTurn,
     ];
 }
 
@@ -155,6 +158,9 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "unresolved:",
     "corners:",
     "height:",
+    "faces:",
+    "uses:",
+    "turn:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -271,6 +277,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["one point", "sector", "single pass", "ring"],
         ),
         (
+            TessellateError::BoundaryBoundsNoRegion { face },
+            vec!["no region", "odd number", "even-odd"],
+        ),
+        (
             TessellateError::UnsupportedCurvedDomain {
                 face,
                 off_bbox: 3,
@@ -341,8 +351,15 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            TessellateError::BoundaryEar { face },
-            vec!["consecutive boundary chord points", "four"],
+            TessellateError::UnclearedSharedSide { face },
+            vec!["boundary chord points", "four"],
+        ),
+        (
+            TessellateError::OverusedSide {
+                faces: vec![face, face],
+                uses: 4,
+            },
+            vec!["4 triangles", "2 faces", "not a closed manifold"],
         ),
         (
             TessellateError::SphereTrimShape {
@@ -351,6 +368,17 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 cause: mesh::types::SphereTrimCause::PastPole,
             },
             vec!["trimmed lane", "past a chart pole or apex mid-edge"],
+        ),
+        (
+            TessellateError::WrapStripTurn {
+                face,
+                turn: Some(topo::Deck {
+                    u: 2,
+                    v: 0,
+                    twin: false,
+                }),
+            },
+            vec!["one whole turn", "far half 2 whole turns", "re-mint"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

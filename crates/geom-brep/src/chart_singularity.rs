@@ -786,7 +786,14 @@ impl<'a, T: Decide> Sides<'a, T> {
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
         if let Surface::Sphere { center, radius, .. } = *self.surface {
-            match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
+            match sphere_pole_left(
+                center,
+                radius,
+                crate::uniform_curvature_arm(self.surface),
+                x,
+                self.loops[l],
+                self.band,
+            ) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
                 PoleLeft::Banded(cause) => return Err(side(SideUnread::Banded(cause))),
@@ -1019,7 +1026,7 @@ pub fn walk_loop<T: Decide>(
     // Bisect the steps carrying the most error until the area clears
     // its bound.
     loop {
-        if area_clears(&reading) {
+        if area_clears(&reading.walk()) {
             break;
         }
         let total = reading.error;
@@ -1041,11 +1048,11 @@ pub fn walk_loop<T: Decide>(
 
 /// Whether a winding-free walk's area clears its error bound, its
 /// reading wholly on one side of zero (`chart_singularity_loop_side`).
-fn area_clears<T: Decide>(reading: &WalkSum<T>) -> bool {
+fn area_clears<T: Decide>(walk: &LoopWalk<T>) -> bool {
     matches!(
         decide(
             "chart_singularity_loop_side",
-            Margin::sign_of(reading.area.abs() - reading.error),
+            Margin::sign_of(walk.area.abs() - walk.error),
             Band::enclosure_sign()
         ),
         Ok(Sign::Positive)
@@ -1185,14 +1192,19 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                radius,
-            }) => Self {
-                speed,
-                line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
-            },
+            Curve3::Circle(
+                circle @ geom::Circle {
+                    frame: geom::Frame { axis: n, .. },
+                    ..
+                },
+            ) => {
+                let radius = circle.radius();
+                Self {
+                    speed,
+                    line: false,
+                    height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
+                }
+            }
             _ => Self {
                 speed,
                 line: false,
@@ -1290,7 +1302,10 @@ fn step_bound<T: Decide>(
 }
 
 /// A walk's sums: its winding, its area, its bound, and each step's
-/// share of the bound.
+/// share of the bound. No [`geom_core::Rounded`]: the bound is each
+/// step's certified distance from the loop's own area, which the
+/// bisection reweighs by step, not only the rounding of the sum's
+/// expression.
 struct WalkSum<T> {
     winding: i8,
     area: T,
@@ -1403,14 +1418,7 @@ pub fn loop_holds_on_left<T: Decide>(
 ) -> Result<bool, SideUnread> {
     match walk.winding {
         0 => {
-            let reading = WalkSum {
-                winding: 0,
-                area: walk.area,
-                error: walk.error,
-                errors: Vec::new(),
-                nappe_v: walk.nappe_v,
-            };
-            if !area_clears(&reading) {
+            if !area_clears(walk) {
                 return Err(SideUnread::Straddle);
             }
             Ok(matches!(

@@ -421,7 +421,7 @@ pub enum ExtrudeError {
     /// which the direction gate decides past `K·ε`
     /// (`review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
     /// pin the worst admitted tilt on the shortest admitted rim). Kept
-    /// or retired by `work/lever/the-arms-the-faces-lever-left-without-a-row.md`.
+    /// or retired by `work/hone/the-arms-the-faces-lever-left-without-a-row.md`.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -1468,7 +1468,7 @@ fn side_surface<T: Real>(
 //
 // The must-carry arm: no admitted input is known to reach a smooth rim
 // (kept or retired by
-// `work/lever/the-arms-the-faces-lever-left-without-a-row.md`). The
+// `work/hone/the-arms-the-faces-lever-left-without-a-row.md`). The
 // direction gates admit a tilt of `w` off the sketch normal of up to
 // `1/K`; a LINE leg's wall is the plane through the quad swept along
 // `w`, so it leans against the cap's `±n` by that tilt, and the wedge is

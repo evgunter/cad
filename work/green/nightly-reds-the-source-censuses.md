@@ -26,7 +26,7 @@ All three ε rows:
 
 Job `gate self-tests`: `breakpoints-by-hand.sh --selftest` (the copy fixture names `to_owned`, which its array lacks) and `reporting-margin-door.sh --selftest` (`crates/topo/src/validate.rs`: 0 mints, the entry pins 1).
 
-Rows that may already own a cause (unchecked): `work/sectarms/main-red-recourse-roster-misses-two-ring-path-in…`, `work/spiricarm/main-red-pcurve-cache-gained-two-endpoint-reads-…`, `work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand`, `work/tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-…`, `work/census/main-red-inert-deny-on-the-qualifier-enums`, `work/doors/node-standing-census-goes-red-on-main-between-ni…`, and this slate's `main-red-slow-rows-uncovered-at-b2337e9e` and `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+Rows that may already own a cause (unchecked): `work/sectarms/main-red-recourse-roster-misses-two-ring-path-in…`, `work/spiricarm/main-red-pcurve-cache-gained-two-endpoint-reads-…`, `work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand`, `work/tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-…`, `work/bind/main-red-inert-deny-on-the-qualifier-enums`, `work/doors/node-standing-census-goes-red-on-main-between-ni…`, and this slate's `main-red-slow-rows-uncovered-at-b2337e9e` and `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
 
 ## Closed (2026-11-14, PR 6921)
 

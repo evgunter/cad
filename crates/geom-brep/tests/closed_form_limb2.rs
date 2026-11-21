@@ -303,19 +303,21 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 #[test]
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = ellipse
+    let Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = ellipse
     else {
         unreachable!("built as an ellipse")
     };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let moved = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, axis, u_ref),
         semi_u + 1e-4,
@@ -455,8 +457,10 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
 
 /// **A long edge's own rounding is the limit**: a 12 km ruling of a
 /// skew cylinder, where a plane through its axis cuts it, at the gate's
-/// finest band, rounds at about `ulp(12000)` in the cylinder's frame, so
-/// limb 2's bound cannot clear `1e-12` m. It refuses as the kernel's
+/// finest band, rounds at about `ulp(12000)` in each operand's frame, so
+/// limb 2's bound cannot clear `1e-12` m against either; the limbs read
+/// the pair by kind, the plane first, so the refusal names the plane. It
+/// refuses as the kernel's
 /// approximation limit, never as a miss, with a bound within
 /// [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`] of the net's own width,
 /// and its story names shorter edges.
@@ -482,7 +486,7 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
     let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");
     };
-    assert_eq!(operand, geom::SurfaceKind::Cylinder);
+    assert_eq!(operand, geom::SurfaceKind::Plane);
     assert!(
         bound > 1e-12,
         "the bound does not clear the band: {bound:e}"
@@ -568,10 +572,10 @@ fn lemon_and_its_meridian_plane() -> (Surface<f64>, Surface<f64>) {
 
 /// The unit circle about `(c, 0, 0)` in `y = 0`, from `+x` toward `+z`.
 fn meridian(c: f64) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
-        radius: 1.0,
-    })
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
+        1.0,
+    ))
 }
 
 /// **Limb 2 against a sheet reads that sheet up to its apexes.** The

@@ -190,9 +190,8 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
             panic!("at eps {eps:e} the pole's reading lands in the band and refuses: {imported:?}");
         };
         assert!(
-            e.render().ends_with(
-                "if this distance is intended, tighten the tolerance below 1.0000000011961913e-10 m"
-            ),
+            e.render()
+                .ends_with("if this distance is intended, tighten the tolerance below 1e-10 m"),
             "the refusal names the tolerance that decides it: {e_at}",
             e_at = e.render()
         );
@@ -206,6 +205,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     else {
         panic!("halfcap_eps7 must import at eps {eps:e}");
     };
+    let normalizations = crate::common::structural(normalizations);
     // The file's own geometry, asserted band-independently: its
     // sphere face's undeclared north pole.
     let (mut pole, mut radius) = (None, 0.0f64);

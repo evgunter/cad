@@ -803,7 +803,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
-        | SessionOp::AddDrawnProfile { .. }
+        | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }

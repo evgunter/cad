@@ -34,3 +34,20 @@ circle on the plane face's boundary meets the face nowhere else.
 Split out of `rounded-stack-subtract-and-intersect-refuse-fallback-extent`.
 That row listed this pose with the aligned continuations, and those now
 build.
+
+## 2026-11-20 — the same tangency where the torus also crosses the puck's wall (SECT)
+
+Measured on `sect/closed-edge-on-torus` (main `d44f46d3`), at the
+default ε, 1e-6 and 1e-12, every op in both orders: the torus `R = 2,
+r = 1` revolved about `y` from two semicircles, against the puck
+`r = 2`, `y ∈ [0, 1]` (its top's plane tangent to the torus along the
+top parallel, which is the top's rim; its wall crosses the tube), and
+against the puck `r = 2`, `y ∈ [1, 2]` resting on the torus along that
+parallel. Both refuse `CurvedBooleanUnsupported { kind: Torus }` on the
+torus face. It is raised in `boolean/vtxfac.rs` `unglued_flat_sector`,
+in the arm where the pierced face is not a plane. This is a different
+raising site from the puck-and-ring pose above, because here a crossing
+layer does see events. The cause is the same: the glue door has no
+witness for a plane tangent to a torus along a circle, so the flat
+sector arrives unglued. The closed forms are `∩ = 2π(π/2 − 1/3)` under,
+and empty on top.

@@ -137,9 +137,10 @@
 //!   `PolygonOrientation::of_face` and refuses one wound against its face,
 //!   and reads each triangle against the face's outward normal
 //!   (`geom_brep::implicit_outward_normal`);
-//! - `walk::wrap_strip` places a wrap strip's far side by
-//!   `PolygonOrientation::of_face`, its loop walking one edge both ways and
-//!   so having no order to read;
+//! - `walk::wrap_strip` places a wrap strip's far side by the loop's
+//!   stored lift (`topo::Body::loop_lift`), whose joint at the far tip is
+//!   the turn topo read off the bit there, its loop walking one edge both
+//!   ways and so having no order to read;
 //! - the pole-to-pole band's azimuth below reads the loop's area
 //!   vector, which is on the outward side, against the chart's frame
 //!   turned to that side (`geom_brep::OutwardNormal::from_chart`).
@@ -174,12 +175,15 @@
 //! patch whose walk IDENTIFIES a vertex — a pole corner or a wrap
 //! edge's double traversal, one set rather than two cases
 //! (`curved::identified_ids`, issue 897) — and a second re-derivation
-//! at the end of `tessellate` counts each chord segment's uses across
-//! the whole mesh, which is the CROSS-FACE half no per-patch census
-//! can see. **That makes the WRAP half of the pole-fan argument
-//! mechanical**, on the same footing as the pole half: the two entries
-//! of a wrap edge never share one interior column.
-//! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
+//! where `tessellate` joins the patches (`tessellate::joined`) counts
+//! the uses of every side between two shared ids across the whole mesh,
+//! which is the CROSS-FACE half no per-patch census can see. **That makes
+//! the WRAP half of the pole-fan argument mechanical**, on the same
+//! footing as the pole half: the two entries of a wrap edge never share
+//! one interior column. A side used past two triangles per chord carrying
+//! it refuses there, typed, in every profile
+//! ([`TessellateError::OverusedSide`]); a chord segment used fewer times,
+//! and the per-patch census, are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than
 //! the floor is a manifest setting, and the root `Cargo.toml`
 //! currently sets `debug-assertions = true` for `[profile.release]` (a
@@ -333,6 +337,7 @@ mod nurbs_cert;
 #[cfg(test)]
 mod nurbs_cert_fuzz;
 mod planar;
+mod region;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate
