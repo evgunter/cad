@@ -1,0 +1,19 @@
+r4-ruled-turn-dropped: 6 red;      Summary [  90.705s] 6444 tests run: 6441 passed, 3 failed, 894 skipped
+     geom-brep::all section_reads_at_the_reach::a_tilts_turn_across_the_wall_is_levered_at_the_faces_reach_across
+     topo boolean::join::frame_dispatch_tests::a_face_at_one_station_is_cut_across_the_axis_in_the_rims_frame
+     topo chord_join::tests::a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic
+r5-ruled-shift-sign: 2 red;      Summary [  89.700s] 6444 tests run: 6443 passed, 1 failed, 894 skipped
+     topo chord_join::tests::a_one_sided_face_is_levered_from_the_hinge_station_either_way
+r6-ruled-hinge-at-foot: 2 red;      Summary [  90.913s] 6444 tests run: 6443 passed, 1 failed, 894 skipped
+     geom-brep::all section_reads_at_the_reach::a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot
+r11-chart-arm-ignores-p: 0 red;      Summary [  90.398s] 6444 tests run: 6444 passed, 894 skipped
+r12-chart-arm-doubles-reach: 0 red;      Summary [  92.140s] 6444 tests run: 6444 passed, 894 skipped
+r13-chart-arm-refusal-is-reach: 0 red;      Summary [  93.335s] 6444 tests run: 6444 passed, 894 skipped
+r15-holds-always-straddles: 4 red;      Summary [  95.502s] 6444 tests run: 6442 passed, 2 failed, 894 skipped
+     geom-brep::all cylinder_pair_section::a_node_the_region_does_not_hold_is_not_listed
+     geom-brep::all cylinder_pair_section::a_region_clear_of_the_pair_lists_nothing
+r16-region-span-never-outside: 4 red;      Summary [  93.582s] 6444 tests run: 6442 passed, 2 failed, 894 skipped
+     geom-brep::all cylinder_pair_section::a_region_clear_of_the_pair_lists_nothing
+     geom-brep::all cylinder_pair_section::a_ruling_the_region_misses_is_not_listed
+r17-cone-boundary-arm-session-box: 0 red;      Summary [  95.467s] 6444 tests run: 6444 passed, 894 skipped
+SURVIVORS DONE
