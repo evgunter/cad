@@ -260,6 +260,31 @@ That is a point for the PR.
 above.** BY-INSPECTION, `likely`; pre-existing, and this PR makes it
 less so (see C2).
 
+**n8. Ten slow-set rows are red on the merge base and on the head alike
+in this container, with no seed and no ε set.** DEMONSTRATED here,
+`unsure` what it means for `main`. The brief names one red on `main`. Run
+on the base tree's binaries with neither `CAD_FUZZ_SEED` nor
+`CAD_TOLERANCE_EPS`: `step-import snap::tests::nist09s_five_cylinders_snap_…`
+(also red on a build of the head with no logger), `step-import::all
+tier_gate::every_corpus_import_passes_the_shared_gate` and
+`wild::wild_refusals_are_typed_and_name_their_class` (all three on
+`nist_ftc_09_asme1_rd.stp`: it refuses at entity #5130,
+`step_snap_relation`, where its table records #4950,
+`step_edge_on_description`), `sweep offer_rows::every_sphere_offer_passes_just_below_it`,
+`sweep::all cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim`,
+`topo boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it`,
+`topo::all a_corner_reads_only_its_own_sectors::{an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt, the_corners_offer_executes}`,
+`editor-core::all m10_sym_drive_memo_interval::every_leaf_reports_one_column_…`
+and `m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned`.
+None is this unit's: each is red on `b5c3fb4b` with the same message.
+Per-PR CI does not run the slow set, so its green says nothing about
+them. My builds differ from the nightly's in two ways I know of (the
+logger patch, and `--workspace` feature unification), so I do not claim
+they are red there. Seven more reds on both sides are source censuses
+tripped by my own patch (`k_stats.rs`, and `unsafe_code` allowed for the
+logger's `atexit`), and `sweep::all germ_tilted_rod::other_spins_…` is red on both
+under the fixed seed (I did not re-run it without).
+
 ## The claims
 
 **C1.** Falsified in part: M1 (two doors), with the table above. The
@@ -283,7 +308,56 @@ folds two feet's levers with **min** for two lines' tilt, and
 right (one bounds a section's travel from either foot, one bounds a
 displacement from both sides), but neither doc names the other (style S3).
 
-**C3. No verdict moves.** <<C3>>
+**C3. No verdict moves.** Holds at ε = 1e-9 over the whole
+workspace suite, base against head. DEMONSTRATED. <<C3-12>>
+
+How it was taken (`klog.patch.py`, `differential.sh`, `compare.py`): the
+same logger patched into `geom_core::k_stats::classify` on `b5c3fb4b` and
+on `37da28e8`, which tallies every decision the funnel classifies by
+(scalar, predicate, outcome) per test and sums a hash of each decision's
+reporting margin. Both trees built with `ci.yml`'s test-job profile, run
+with `--profile ci --workspace --ignore-default-filter` (so the **whole
+slow set is in**), `CAD_FUZZ_SEED=0x5eed0000c0ffee01`, ε set explicitly.
+
+ε = 1e-9, 19 808 tests a side (48 minutes each):
+
+| scalar | decisions, base | decisions, head |
+|---|---|---|
+| `f64` | 4 351 528 876 | 4 351 522 309 |
+| `Interval` | 56 213 774 | 56 213 774 |
+| `Sym<f64>` | 13 809 792 | 13 809 792 |
+| `Sym<Interval>` | 8 541 680 | 8 541 680 |
+| `Dual<f64>` | 12 021 810 | 12 021 810 |
+| `Dual<Interval>` | 133 906 | 133 906 |
+
+- 14 520 tests log a decision on both sides. **In 14 511 of them every
+  (scalar, predicate, outcome) count is the same.**
+- The other 9 (which carry the whole `f64` difference above) are tests
+  whose generator does not read `CAD_FUZZ_SEED`: four in `profile::all`
+  (`canonical_invariance`, `path_property`) and five in topo
+  (`seqgen::random_op_sequences`, four of `validate::tests`). Each differs
+  between **two runs of the same head binary** (`rerun_same_binary.sh`),
+  so they say nothing about the diff. They are a hole in any differential
+  taken this way, the author's included.
+- 99 tests have equal counts and a different margin hash: the values that
+  moved, with no verdict moving. By predicate: `offset_section_planes_parallel`
+  (61 tests), `carrier_cyl_reach` (17 at `f64`, 5 at `Interval`), the
+  cone-coaxial and tangent readings step-import levers at its `extent`
+  (`coc_*`, `kos_*`, `pt_axis_in_plane`: 12, 7, 12), `carrier_cone_*` (3),
+  two `ssi_*`. No hash differs at `pn_apex_pair_reach`, `pc_parallel_gap`,
+  the `cc_*` rows or the seam predicates, which is the "same bits" claim
+  for the cone, ruled, crossing and seam doors, confirmed across the
+  suite.
+- Test outcomes: the same 19 reds on both sides with the same messages
+  (n8), and the PR's 10 new rows pass on the head.
+
+Coverage, as the author warns and a little worse: on the head at 1e-9
+the cone coincidence sum (`carrier_cone_reach`) is decided 1 042 times at
+`f64` in 14 tests and **never at `Interval`**; the cone ladder's only
+`Interval` decisions are 2 at `carrier_cone_apex` in one test; and
+`pn_apex_pair_reach` (the cone generator lever's row) is decided 34 831
+times at `f64` and never at `Interval`. "No verdict moves on the
+`Interval` lane" is true of the cones because nothing asks.
 
 **C4.** The build is exact: the 1e-5 fold's carrier is the line through
 `(0.9999499987499375, 0, 0)` along `(0, 1, 0)`, which is `x = c₀, z = 0`

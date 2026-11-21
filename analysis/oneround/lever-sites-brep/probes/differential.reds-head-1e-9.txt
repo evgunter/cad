@@ -1,0 +1,38 @@
+== editor-core::all m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials 
+     thread 'm10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials' (15292) panicked at crates/editor-core/tests/m10_sym_drive_memo_interval.rs:539:9: | assertion `left == right` failed: race: the row's certified arm is vacuous unless this drive certifies: Receipt
+== editor-core::all m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned 
+     thread 'm10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned' (15304) panicked at crates/editor-core/tests/m10_sym_profile_interval.rs:622:5: | assertion `left == right` failed: plate at eps 1e-9: the walks built different forms (counts SymCounts { symbolic: 979, registrations_refus
+== geom-core::all bounds_census::every_sole_bracket_bound_door_is_in_the_roster 
+     thread 'bounds_census::every_sole_bracket_bound_door_is_in_the_roster' (29362) panicked at crates/geom-core/tests/bounds_census.rs:837:5: | the sole-bracket-bound roster no longer matches the tree. arrived or moved (owe a roster line WITH its disposition): [ (
+== geom-core::all certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned 
+     thread 'certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned' (29419) panicked at crates/geom-core/tests/certified_endpoint_census.rs:1097:5: | assertion `left == right` failed: the certification endpoint-read census moved. This is not a number to silence. A certifi
+== pncad-py prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason 
+     thread 'prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason' (624) panicked at crates/pncad-py/src/prose_census.rs:2457:9: | assertion `left == right` failed: the blind spot is a CENSUS, not a silence: a site this cannot decide either gets its line here, with the reaso
+== pncad-py tests::crate_lints_match_the_workspace_minus_unsafe_code 
+     thread 'tests::crate_lints_match_the_workspace_minus_unsafe_code' (690) panicked at crates/pncad-py/src/tests.rs:3287:13: | assertion `left == right` failed: the workspace is expected to FORBID unsafe_code; if that changed, this crate's exemption needs rethinking left: Some("allow") right: Some("for
+== step-import snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them 
+     thread 'snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them' (3135) panicked at crates/step-import/src/snap.rs:1176:66: | called `Result::unwrap()` on an `Err` value: Interpretation { id: 5130, refusal: Ambiguous { reading: "step_snap_relation", gap: 5.6844521718
+== step-import::all tier_gate::every_corpus_import_passes_the_shared_gate 
+     thread 'tier_gate::every_corpus_import_passes_the_shared_gate' (4531) panicked at crates/step-import/tests/tier_gate.rs:1141:21: | tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp @ eps file: refused for a DIFFERENT reason than the table records (want a message containing "entity #4950: the file's 
+== step-import::all wild::wild_refusals_are_typed_and_name_their_class 
+     thread 'wild::wild_refusals_are_typed_and_name_their_class' (4631) panicked at crates/step-import/tests/wild.rs:603:9: | nist/nist_ftc_09_asme1_rd.stp: refusal must name "(step_edge_on_description), in the band", got: step import: entity #5130: the distance 5.6844521718398856e-5 m (step_snap_relatio
+== sweep offer_rows::every_sphere_offer_passes_just_below_it 
+     thread 'offer_rows::every_sphere_offer_passes_just_below_it' (4892) panicked at crates/sweep/src/offer_rows.rs:333:5: | false offers: nested_off_axis_in_the_zero_band_union: quotes None and offers Some(4.999e-11), computed margin 5e-10: the two solids' spheres touch within the tolerance, the smaller
+== sweep::all cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim 
+     thread 'cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim' (12304) panicked at crates/sweep/tests/cylinder_sphere_frame.rs:513:5: | [ "the row's ball r 0.1 across the rim, B ∖ A: refused at None: EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }", ]
+== sweep::all germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs 
+     thread 'germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs' (4473) panicked at crates/sweep/tests/germ_tilted_rod.rs:369:5: | at ε 1e-9: β 0.5, spin 0.5: ["Euler(RebasedCarrier { edge: EdgeKey(15v1), error: PeriodicView(Span { asked: (-0.45617739171656774, 0.5438226082834323), wind
+== test-utils::all hand_written_impl_census::every_hand_written_walk_is_held_to_its_declaration 
+     thread 'hand_written_impl_census::every_hand_written_walk_is_held_to_its_declaration' (26418) panicked at crates/test-utils/tests/hand_written_impl_census.rs:742:5: | a hand-written `Debug`/`PartialEq` that reads a field by name has no compile-time tie to the declaration: a field added to the struct
+== test-utils::all hand_written_impl_census::the_walk_still_sees_every_file_holding_one 
+     thread 'hand_written_impl_census::the_walk_still_sees_every_file_holding_one' (26429) panicked at crates/test-utils/tests/hand_written_impl_census.rs:765:5: | assertion `left == right` failed: the set of files holding a hand-written `Debug`/`PartialEq` has moved away from IMPL_FILES_TODAY. A file AD
+== test-utils::all predicate_name_coverage::every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided 
+     thread 'predicate_name_coverage::every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided' (26430) panicked at crates/test-utils/tests/predicate_name_coverage.rs:212:5: | `step-import` decides predicate names and runs no roster — give it `tests/recourse_roster.rs` on `test_utils::sour
+== topo boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it 
+     thread 'boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it' (27544) panicked at crates/topo/src/boolean/offer_rows.rs:2030:5: | false offers: lever_arm_sector_side_in_the_zero_band: offers Some(3.535e-11), its margin gives Some(3.535533905932738e-11): whether an edge a
+== topo::all a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt 
+     thread 'a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt' (1555) panicked at crates/topo/tests/a_corner_reads_only_its_own_sectors.rs:122:38: | generic, θ = 300ε, B ∩ A: offers the arm's tilt over K, 2.999e-11: whether a face of each solid crosses the
+== topo::all a_corner_reads_only_its_own_sectors::the_corners_offer_executes 
+     thread 'a_corner_reads_only_its_own_sectors::the_corners_offer_executes' (1561) panicked at crates/topo/tests/a_corner_reads_only_its_own_sectors.rs:263:9: | generic_corner_six_runs: offers 9.999999999999951e-12, quoted 9.999e-12 stack backtrace: 0: __rustc::rust_begin_unwind
+== topo::all recourse_roster::every_decided_name_has_its_door_and_every_site_is_read 
+     thread 'recourse_roster::every_decided_name_has_its_door_and_every_site_is_read' (5139) panicked at crates/topo/tests/recourse_roster.rs:983:5: | an indirect site not listed: surface_group.rs: read_identity#1(coaxial_margins(self.axis, circle).map(|margin| (BOOL_WRAP_RIM, margin))) a listed indirect
