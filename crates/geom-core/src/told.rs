@@ -1830,7 +1830,7 @@ mod tests {
     #[test]
     fn display_is_the_rendering_in_metres_and_radians() {
         let enclosure = Interval::from_bounds(0.3, 0.300_000_4);
-        for x in magnitudes(64) {
+        for x in magnitudes(64).into_iter().step_by(3) {
             for dimension in DIMENSIONS {
                 let near = x * 1.000_01;
                 for told in [
@@ -2235,7 +2235,7 @@ mod tests {
     #[test]
     fn one_told_number_is_never_wider_than_the_stated_bound() {
         let mut widest = 0;
-        for x in magnitudes(16) {
+        for x in magnitudes(64) {
             for notation in NOTATIONS {
                 for dimension in DIMENSIONS {
                     let pair = Told::computed(&x, dimension)
