@@ -866,7 +866,7 @@ mod kernel {
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
-            StackingEscalated, NotFinished,
+            StackingEscalated, NotFinished, SelfIntersecting,
         ];
     }
 
@@ -3692,6 +3692,36 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
                         solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
+        (
+            "SelfIntersecting",
+            E::SelfIntersecting {
+                meeting: Box::new([
+                    sweep::LoftedMeeting {
+                        face: sweep::LoftedFace::Top,
+                        sections: 8..=8,
+                        station: (0.0, 0.0),
+                    },
+                    sweep::LoftedMeeting {
+                        face: sweep::LoftedFace::Wall {
+                            loop_index: 0,
+                            segment: 3,
+                            slab: 0,
+                        },
+                        sections: 0..=8,
+                        station: (0.5, 0.25),
+                    },
+                ]),
+                witness: "(3.0, 0.0, 0.0) and (3.0, 0.0, 0.0), at most 0 m apart".to_owned(),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::BoundaryMeetsItself {
+                        faces: [topo::FaceKey::default(); 2],
+                        stations: [(0.0, 0.0), (0.5, 0.25)],
+                        witness: "(3.0, 0.0, 0.0) and (3.0, 0.0, 0.0), at most 0 m apart"
+                            .to_owned(),
                     },
                 ]),
             },
