@@ -102,10 +102,11 @@ struct Row {
 /// - the DEPARTING leg short (a line);
 /// - the seam with the FIRST leg short (the run continues straight on
 ///   from it, so that leg's own end is no junction) and a metre-long
-///   closing leg;
-/// - the seam with the CLOSING leg short: a tangent arc of chord `k·ε`
-///   (its arm is the chord) declared off a metre-long leg, into a long
-///   first leg.
+///   closing leg.
+///
+/// The seam with a short CLOSING leg is its own row
+/// ([`the_seam_reads_a_short_closing_arc_at_its_arm`]): an arc's chord
+/// under ε is refused as a degenerate chord first.
 fn rows(k: f64, tol: Tol) -> Vec<Row> {
     let eps = tol.eps();
     let phi = 64.0_f64.to_radians();
@@ -144,16 +145,12 @@ fn rows(k: f64, tol: Tol) -> Vec<Row> {
         ),
         junction(
             "line_to after a short leg",
-            short
-                .clone()
-                .line_to(Point2::new(lever + c, s), tol)
-                .map(|_| ()),
+            short.line_to(Point2::new(lever + c, s), tol).map(|_| ()),
             bend,
         ),
         junction(
             "a short line_to after a long leg",
-            long.clone()
-                .line_to(Point2::new(1.0 + lever * c, lever * s), tol)
+            long.line_to(Point2::new(1.0 + lever * c, lever * s), tol)
                 .map(|_| ()),
             bend,
         ),
@@ -174,28 +171,6 @@ fn rows(k: f64, tol: Tol) -> Vec<Row> {
             .line_to(Start, tol)
             .map(|_| ()),
         // Arriving at 64°, leaving along +x: a clockwise turn.
-        want: [-s, c, lever],
-    });
-    // The closing chord runs at 54°, the tangent arc leaves it 10° below
-    // (along 44°) and so arrives 10° above, at 64°.
-    let (chord, depart) = (54.0_f64.to_radians(), 44.0_f64.to_radians());
-    let before = Point2::new(-lever * chord.cos(), -lever * chord.sin());
-    rows.push(Row {
-        spelling: "the seam after a short closing arc",
-        seam: true,
-        outcome: long
-            .line_to(Point2::new(1.0, -2.0), tol)
-            .expect("a real corner")
-            .line_to(
-                Point2::new(before.x - depart.cos(), before.y - depart.sin()),
-                tol,
-            )
-            .expect("a real corner")
-            .line_to(before, tol)
-            .expect("a metre-long leg along 44°")
-            .tangent()
-            .tangent_arc_to(Start, tol)
-            .map(|_| ()),
         want: [-s, c, lever],
     });
     rows
@@ -294,8 +269,8 @@ fn the_same_turn_escalates_at_three_eps_and_builds_at_fifty() {
 }
 
 /// **An arc's arm can be its radius.** A half-turn arc of radius 20ε
-/// departing 3° off a metre-long leg: its chord is 40ε, so its arm is
-/// the radius, and `sin 3° · 20ε` is zero at tolerance. The payload's
+/// departing 2.5° off a metre-long leg: its chord is 40ε, so its arm is
+/// the radius, and `sin 2.5° · 20ε` is zero at tolerance. The payload's
 /// lever is the radius, the sentence calls it the shorter leg's arm (not
 /// its length), and the recourse's "grow an arc's radius" is the lever
 /// that moves it: the same turn on a radius of 2000ε builds, though the
@@ -304,7 +279,7 @@ fn the_same_turn_escalates_at_three_eps_and_builds_at_fifty() {
 fn an_arcs_arm_is_its_radius_when_the_radius_is_the_shorter() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let phi = 3.0_f64.to_radians();
+    let phi = 2.5_f64.to_radians();
     let (c, s) = (phi.cos(), phi.sin());
     let half_turn = |r: f64| {
         Open.at(Point2::new(0.0, 0.0))
@@ -321,7 +296,7 @@ fn an_arcs_arm_is_its_radius_when_the_radius_is_the_shorter() {
             .map(|_| ())
     };
     let r = 20.0 * eps;
-    let err = half_turn(r).expect_err("sin 3° over a 20ε radius is zero at tolerance");
+    let err = half_turn(r).expect_err("sin 2.5° over a 20ε radius is zero at tolerance");
     let PathError::JunctionTurnWithinTolerance { turn } = &err else {
         panic!("expected the turn-within-tolerance refusal, got {err:?}")
     };
@@ -384,4 +359,47 @@ fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
     );
     tip.line_to(Start.arrives_tangent(), tol)
         .expect("the declared seam closes");
+}
+
+/// **The seam reads the shorter of its two legs, the closing one here.**
+/// A tangent arc of chord 20ε (radius about 58ε, so its arm is the chord)
+/// declared off a metre-long leg closes into a metre-long first leg,
+/// arriving 2.5° off it: `sin 2.5° · 20ε` is zero at tolerance at the
+/// closing arc's arm, though it is decided at the first leg's.
+#[test]
+fn the_seam_reads_a_short_closing_arc_at_its_arm() {
+    let tol = Tol::witness();
+    let lever = 20.0 * tol.eps();
+    // The closing chord runs at −7.5°; the tangent arc leaves it 10°
+    // below (along −17.5°) and so arrives 10° above, at 2.5°.
+    let [chord, depart, arrive] = [-7.5_f64, -17.5, 2.5].map(f64::to_radians);
+    let before = Point2::new(-lever * chord.cos(), -lever * chord.sin());
+    let err = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(1.0, 0.0), tol)
+        .expect("a metre east")
+        .line_to(Point2::new(1.0, -2.0), tol)
+        .expect("a real corner")
+        .line_to(
+            Point2::new(before.x - depart.cos(), before.y - depart.sin()),
+            tol,
+        )
+        .expect("a real corner")
+        .line_to(before, tol)
+        .expect("a metre-long leg along −17.5°")
+        .tangent()
+        .tangent_arc_to(Start, tol)
+        .expect_err("the seam's turn is zero at the closing arc's arm");
+    let PathError::SeamTurnWithinTolerance { turn } = &err else {
+        panic!("expected the seam's turn-within-tolerance refusal, got {err:?}")
+    };
+    let shown = err.to_string();
+    // Arriving at 2.5°, leaving along +x: a clockwise turn.
+    assert_names_its_factors(
+        "closing arc",
+        turn,
+        &shown,
+        [-arrive.sin(), arrive.cos(), lever],
+        1e-3,
+    );
 }

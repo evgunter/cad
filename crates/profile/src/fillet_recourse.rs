@@ -37,8 +37,8 @@
     )
 )]
 pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, lengthen the shorter leg (or \
-     grow an arc's radius); if the legs continue smoothly, construct the tangency (.tangent()); if they exactly double back, the \
-     cusp is refused; otherwise move the geometry";
+     grow an arc's radius); if smooth, construct the tangency (.tangent()); if they exactly double \
+     back, the cusp is refused; otherwise move the geometry";
 
 /// The lever of a straight pair's corner turn (`path_corner_turn`),
 /// undecided or zero at tolerance
