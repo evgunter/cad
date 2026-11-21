@@ -484,11 +484,11 @@ impl<T: Real> Coset<T> {
 ///
 /// Every levered predicate in this module multiplies the arm by a pure
 /// number of magnitude at most 1 — a sine or a cosine of two unit
-/// witnesses — and [`parallel`] hands that product to the direction
-/// door, which squares it. An arm whose
-/// sixteenfold square is finite keeps every one of those finite, so
-/// such a margin is never infinite for want of range, which `Decide`
-/// would read as maximally definite.
+/// witnesses — and [`parallel`]'s direction door
+/// ([`UnitVec3::new_scaled`]) refuses an arm whose square overflows. An
+/// arm whose sixteenfold square is finite keeps every one of those
+/// finite, so such a margin is never infinite for want of range, which
+/// `Decide` would read as maximally definite.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Arm(f64);
 
@@ -516,12 +516,14 @@ impl Arm {
         self.0
     }
 
-    /// **The arm in `T`**: a bound read off the resolved origins, so it
-    /// enters as a computed value ([`Real::from_computed`]), at `Sym`
-    /// an unknown of its own. Each predicate mints it once and its levered
-    /// product multiplies by that one value.
-    pub fn lever<T: Real>(self) -> T {
-        T::from_computed(self.0)
+    /// **The arm as a lever**: a bound read off the resolved origins, so
+    /// it stays `f64` and a margin levered at it carries it as its
+    /// allowance ([`geom_core::Margin::levered_at`]); it never becomes a
+    /// `T`. Unsourced: an `f64` sum no extent read spells.
+    pub fn lever(self) -> geom_core::Lever<f64> {
+        // Unsourced lever: the copy's reach plus the poses' distances from their
+        // origins, an `f64` sum no extent read spells.
+        geom_core::Lever::unsourced(self.0)
     }
 
     /// The longer of two arms, which is one of them.
@@ -563,7 +565,7 @@ impl Arm {
 /// not — `line` the unit direction of `u × v`, the line two planes with
 /// these normals meet in. It does not carry the arm, so a map built
 /// along it is a function of its poses alone at every scalar, and the
-/// arm stays opaque to the decision it levers.
+/// arm stays the decision's `f64` allowance.
 ///
 /// The direction door's arms in this predicate's vocabulary: a
 /// decided-zero length is the parallel verdict, and so is a levered
@@ -573,20 +575,20 @@ impl Arm {
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
 ///
-/// `lever` is that arm in `T` ([`Arm::lever`]), the decision's alone.
+/// `lever` is that arm ([`Arm::lever`]), the decision's alone.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
-    lever: T,
+    lever: geom_core::Lever<f64>,
 ) -> Result<Option<UnitVec3<T>>, Indeterminate> {
     match UnitVec3::new_scaled(u.get().cross(v.get()), lever, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some(line)),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
-            "a sine of two unit witnesses levered by an `Arm` has a finite squared length: \
-             `Arm::of` admits no arm whose sixteenfold square overflows"
+            "the cross product of two unit witnesses is finite, and `Arm::of` admits no arm \
+             whose sixteenfold square overflows"
         ),
     }
 }
@@ -600,15 +602,13 @@ fn perpendicular<T: SolveScalar>(
     u: UnitVec3<T>,
     n: UnitVec3<T>,
     band: Band,
-    lever: T,
+    lever: geom_core::Lever<f64>,
 ) -> Result<Option<T>, Indeterminate> {
     let cosine = u.get().dot(n.get());
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            // Unsourced lever: the mate bundle's [`Arm`], the copy's reach plus the poses'
-            // distances from their origins, an `f64` sum no extent read spells.
-            Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
+            Margin::levered_at(cosine, lever),
             band,
         )? {
             Sign::Zero => None,
