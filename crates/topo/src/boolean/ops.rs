@@ -6001,8 +6001,8 @@ struct SphereRecut<T: Real> {
     representative: FaceKey,
     /// The sphere's center — the rotation's fixed point.
     center: Point3<T>,
-    /// Its radius (the alignment trilean's lever arm).
-    radius: T,
+    /// Its curvature arm (the alignment trilean's lever arm).
+    arm: geom_core::Lever<T>,
     /// The stored polar axis (rotation source direction).
     axis: Vec3<T>,
     /// The escape plane's normal, or the escape circle's axis (rotation
@@ -6522,7 +6522,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         "bool_sphere_escape_parallel",
                         Margin::levered(
                             align.cross(n).norm(),
-                            geom_core::Lever::curvature_radius(radius),
+                            geom_brep::uniform_curvature_arm(x_surface),
                         ),
                         band,
                     )
@@ -6569,7 +6569,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     operand: x_is,
                     representative,
                     center,
-                    radius,
+                    arm: geom_brep::uniform_curvature_arm(x_surface),
                     axis,
                     align,
                     u_ref,
@@ -6777,15 +6777,12 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub(super) fn recut_lean<T: Decide>(
     axis: Vec3<T>,
     align: Vec3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(
-            axis.cross(align).norm(),
-            geom_core::Lever::curvature_radius(radius),
-        ),
+        Margin::levered(axis.cross(align).norm(), arm),
         band,
     )
     .map(|_| ())
@@ -6807,36 +6804,29 @@ fn recut_turn<T: Decide>(
     a: geom_core::UnitVec3<T>,
     b: geom_core::UnitVec3<T>,
     center: Point3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     tol: Tol,
     operand: Operand,
     representative: FaceKey,
 ) -> Result<geom_core::RigidMotion<T>, BooleanError> {
-    geom_core::RigidMotion::least_turn(
-        a,
-        b,
-        center,
-        geom_core::Lever::curvature_radius(radius),
-        RECUT_TURN,
-        band,
-        tol,
-    )
-    .map_err(|e| match e {
-        geom_core::TurnError::IllConditioned { .. }
-        | geom_core::TurnError::ConditioningUndecided(_) => {
-            BooleanError::FallbackExtentUnsupported {
-                operand,
-                face: representative,
-                what: "a sphere group whose stored polar axis stands so near opposed to its \
+    geom_core::RigidMotion::least_turn(a, b, center, arm, RECUT_TURN, band, tol).map_err(
+        |e| match e {
+            geom_core::TurnError::IllConditioned { .. }
+            | geom_core::TurnError::ConditioningUndecided(_) => {
+                BooleanError::FallbackExtentUnsupported {
+                    operand,
+                    face: representative,
+                    what: "a sphere group whose stored polar axis stands so near opposed to its \
                        escape normal that the re-chart's turn, levered at the radius, passes \
                        the run's rounding reach: the turn is not determined at ε",
+                }
             }
-        }
-        _ => BooleanError::ClassificationInvariant {
-            what: "re-cut rotation does not mint a turn",
+            _ => BooleanError::ClassificationInvariant {
+                what: "re-cut rotation does not mint a turn",
+            },
         },
-    })
+    )
 }
 
 /// The decision name of a re-cut's turn ([`recut_turn`]).
@@ -6890,7 +6880,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .clone();
             let ball = carve(src, solid, &[shell])
                 .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-            recut_lean(r.axis, r.align, r.radius, band)?;
+            recut_lean(r.axis, r.align, r.arm, band)?;
             // The alignment turn and the seam spin, each MINTED as the
             // turn between two unit witnesses (`RigidMotion::least_turn`,
             // the quaternion of `(1 + a·b, a × b)`: algebraic, no
@@ -6910,18 +6900,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            let turn = |a, b| {
-                recut_turn(
-                    a,
-                    b,
-                    r.center,
-                    r.radius,
-                    band,
-                    tol,
-                    operand,
-                    r.representative,
-                )
-            };
+            let turn =
+                |a, b| recut_turn(a, b, r.center, r.arm, band, tol, operand, r.representative);
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
             // `seam`; the sign that keeps the turn at most a quarter is
@@ -8394,7 +8374,7 @@ mod tests {
             a,
             b,
             geom_core::Point3::new(zero, zero, zero),
-            d(1.0, 0.0),
+            geom_core::test_support::fixture_lever(d(1.0, 0.0)),
             band,
             geom_core::Tol::witness(),
             crate::boolean::Operand::A,

@@ -772,8 +772,9 @@ impl Band {
 ///   payload `ExtentBall`, its `lever_from` and the two-sided
 ///   `LeverBounds`), the one place a length taken from consumed geometry
 ///   becomes an arm;
-/// - a curvature arm, [`Lever::curvature`] or
-///   [`Lever::curvature_radius`];
+/// - a curvature arm, read off the carrier it bends with
+///   (`geom_brep::curvature_arm`'s readers, which take the surface, the
+///   circle or the curve);
 /// - the session box, [`Lever::session_box`], where no geometry is in
 ///   hand.
 ///
@@ -781,41 +782,57 @@ impl Band {
 /// [`Margin::metered`] or [`Margin::metered_sup`], and a reciprocal arm
 /// through [`Margin::levered_inv`].
 ///
-/// **What holds this, and what does not.** The type has no constructor
-/// that takes a bare length without naming a source, and
-/// `scripts/gates/lever-sources.sh` holds the doors that do take one:
-/// the extent's own door ([`Lever::of_consumed_extent`]) is read only in
-/// the extent's home, and the escape hatch for an arm that fits no
-/// source ([`Lever::unsourced`]) and a test's fixture length
-/// (`test_support::fixture_lever`) are counted per file with their
-/// reasons. A geometric constructor takes its geometry's numbers (a
-/// sphere's radius, a box's corners, a curvature), so the type cannot
-/// tell a caller's honest radius from a length it calls one: that a
-/// named source is the true source of the arm is review's to hold.
+/// **What holds this, and what does not.** The field is private to
+/// this module, so a lever is built only through the doors here. Two
+/// gates hold the doors that take a bare length, by name.
+/// `scripts/gates/lever-sources.sh`: the extent's own door
+/// ([`Lever::of_consumed_extent`]) is read only in the extent's home,
+/// and the escape hatch for an arm that fits no source
+/// ([`Lever::unsourced`]) and a test's fixture length
+/// ([`fixture_lever`]) are counted with their reasons.
+/// `scripts/gates/lever-doors.sh`: the bare curvature doors
+/// ([`Lever::curvature_radius`], [`Lever::within_curvature`]) are read
+/// only in the curvature home, and with the extent's named doors that
+/// take a caller's point or number they stand elsewhere at pins, per
+/// file and door, that only fall.
+///
+/// That is a ratchet on those doors' names, not the rule itself. A
+/// function that wraps a pinned site, geometry a caller builds by hand
+/// (a carrier, a span, a cover) and the point a lever is read from all
+/// carry a caller's length to an arm with no gate seeing it; review
+/// holds those.
 ///
 /// Reading the arm back as a length ([`Lever::length`]) is the exit, not
 /// an entrance. [`Lever::max`] folds two reads into a read of their
 /// union; [`Lever::min`] keeps the shorter of two arms.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct Lever<T>(pub(crate) T);
+pub struct Lever<T>(T);
+
+/// **A fixture's length as a lever arm**: a test's arm with no geometry
+/// behind it (a hand-stated row, a probe at a stated scale). The one
+/// door for it, read as `test_support::fixture_lever` and counted by
+/// `scripts/gates/lever-sources.sh`; production code builds its levers
+/// from their sources. It stands here because [`Lever`]'s field is
+/// private to this module.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn fixture_lever<T: crate::real::Real>(length: T) -> Lever<T> {
+    Lever(length)
+}
 
 impl<T: crate::real::Real> Lever<T> {
-    /// **A curvature arm**: `1 / κ_rel`, the reach at which a relative
-    /// curvature `κ_rel` (1/m) turns a direction through the angle it
-    /// levers (D4 ¶1's tangency lever). One operation, bit-identical to
-    /// the bare quotient.
-    #[must_use]
-    pub fn curvature(kappa_rel: T) -> Self {
-        Self(T::one() / kappa_rel)
-    }
-
     /// **A curvature arm read as its radius**: a principal radius of
     /// curvature `1/κ` the carrier states in closed form (a sphere's or a
     /// cylinder's radius, a torus tube's — its meridians' — radius, a
     /// cone's radial distance, `f64::MAX` for a plane). It is the arm of a
     /// turn along that principal section, not a bound on every curvature
-    /// (a fat torus bends harder along its inner equator).
+    /// (a fat torus bends harder along its inner equator). The curvature
+    /// home's door (`geom_brep::curvature_arm`), whose readers take the
+    /// carrier: `scripts/gates/lever-doors.sh` holds every other
+    /// reference. Public because that home is in another crate;
+    /// `doc(hidden)` keeps it off the rendered page and is no privacy.
+    #[doc(hidden)]
     #[must_use]
     pub fn curvature_radius(radius: T) -> Self {
         Self(radius)
@@ -823,7 +840,10 @@ impl<T: crate::real::Real> Lever<T> {
 
     /// **This arm, no longer than the curvature arm `1/κ`**: the lesser
     /// of the two, spelled `arm / max(1, κ·arm)` so a flat pair (`κ = 0`)
-    /// reads the arm and poison stays poison.
+    /// reads the arm and poison stays poison. Held as
+    /// [`Self::curvature_radius`] is: a caller reaches it through
+    /// `geom_brep::within_carrier_bend`.
+    #[doc(hidden)]
     #[must_use]
     pub fn within_curvature(self, kappa: T) -> Self {
         Self(self.0 / T::one().max(kappa * self.0))
@@ -863,7 +883,9 @@ impl<T: crate::real::Real> Lever<T> {
         self.0
     }
 
-    /// The larger of two arms: a read of the union of their extents.
+    /// The larger of two arms: a read of the union of their extents
+    /// where both are read from one pivot. Read each from its own point
+    /// and the union's reach is across both, which this does not bound.
     /// Poison propagates ([`Real::max`](crate::real::Real::max)).
     #[must_use]
     pub fn max(self, other: Self) -> Self {
@@ -954,8 +976,8 @@ impl<T: crate::real::Real> Margin<T> {
     /// the half last) is the kernel's canonical osculation shape — the
     /// interval-square rule requires `powi(2)` — so wrapping the
     /// shipped sites is bit-identical.
-    pub fn sagitta(curvature_rel: T, arm: T) -> Self {
-        Self(curvature_rel * arm.powi(2) * T::from_f64(0.5))
+    pub fn sagitta(curvature_rel: T, arm: Lever<T>) -> Self {
+        Self(curvature_rel * arm.0.powi(2) * T::from_f64(0.5))
     }
 
     /// Levered door, reciprocal form: a quantity levered by the

@@ -39,7 +39,8 @@
 //!   alike; and a boss whose rim touches a bead's wrap edge without
 //!   winding round it, which escalates before the join;
 //! - two equal coaxial cylinders stacked end to end;
-//! - a tube whose rim lies inside one face of a ball;
+//! - a tube whose rim lies inside one face of a ball, and a tube through
+//!   a ball across its wrap edge;
 //! - a puck and the quarter-disc ring revolved round it.
 //!
 //! Every row runs ∪, ∩ and both differences in both operand orders, and
@@ -2175,18 +2176,22 @@ fn coaxial_equal_cylinders_build_every_op() {
 /// two from where its rim lies on the ball `√2` about the origin, tilted
 /// 1.2 rad about `x` so its rim crosses neither of the ball's seam
 /// meridians, and turned besides. The ball keeps of the tube the cap
-/// above the rim's plane. Read without a mesh: a sphere face bounded by
-/// a circle off its chart's latitudes has no tessellation lane
+/// above the rim's plane. The rim's vertex at azimuth 0, and at `±π/2`,
+/// where the great circle from the ball face's pole to the rim's
+/// midpoint runs through the vertex: the path from that reference reads
+/// in band, and the side is read from another. Read without a mesh: a
+/// sphere face bounded by a circle off its chart's latitudes has no
+/// tessellation lane
 /// (`work/tesslane/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
 #[test]
 fn a_rim_inside_a_ball_face() {
     let z0 = 1.0f64;
     let ball = fin("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()));
     let o = Point3::origin();
-    for turn in [0.0, 0.4] {
+    for (turn, az) in [(0.0, 0.0), (0.4, 0.0), (0.0, FRAC_PI_2), (0.0, -FRAC_PI_2)] {
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), 1.2);
-        let tube = moved(&extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], z0, 2.0), &place);
+        let tube = moved(&extruded(vec![circle(0.0, 0.0, 1.0, az)], z0, 2.0), &place);
         let tube = fin("the tube", tube);
         let v = (
             2.0 * PI,
@@ -2195,9 +2200,151 @@ fn a_rim_inside_a_ball_face() {
         );
         for (op, r, want) in every_op_both_orders(&tube, &ball, v, tol()) {
             let line = outcome(r, want, tol());
-            assert!(line.starts_with("OK SOUND"), "turned {turn}, {op}: {line}");
+            assert!(
+                line.starts_with("OK SOUND"),
+                "turned {turn}, vertex at {az}, {op}: {line}"
+            );
         }
     }
+}
+
+/// **A tube through a ball's centre across its wrap edge**: the tube
+/// `r = 1` over `z ∈ [−3, 3]`, tilted 1.2 rad about `x`, its vertex at
+/// azimuth 2, through the ball `√2` about the origin poled along `z`. Its
+/// two sections are circles, read on the pair's frame, each inside one
+/// ball face clear of its seams and crossing the tube's wrap edge once:
+/// a wrap edge piercing a sphere face. The tube `6π`, holding the ball's
+/// middle `2π` and the two caps beyond `|z| = 1`.
+#[test]
+fn a_tube_through_a_balls_centre_closes_both_sections_at_its_wrap_edge() {
+    let ball = fin("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()));
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 1.2);
+    let tube = fin(
+        "the tube",
+        moved(
+            &extruded(vec![circle(0.0, 0.0, 1.0, 2.0)], -3.0, 6.0),
+            &tilt,
+        ),
+    );
+    let v = (
+        6.0 * PI,
+        ball_volume(SQRT_2),
+        2.0 * PI + 2.0 * cap_volume(SQRT_2, SQRT_2 - 1.0),
+    );
+    for (op, r, want) in every_op_both_orders(&tube, &ball, v, tol()) {
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{op}: {line}");
+    }
+}
+
+/// **A tube through a ball, its one wrap edge across both sections**: the
+/// tube `r = 0.5` extruded from a one-segment circle, its axis along `y`
+/// through `(0.3, ·, 0.2)`, through the ball `R = 1.5` about the origin
+/// poled along `z`. Each of the two section loops is no plane section,
+/// lies inside one face of the ball clear of its seam meridians and
+/// poles, and crosses the tube's wrap edge once: a one-site loop on the
+/// pair's carried section, read on its component and sided in the ball's
+/// face by the island paths. The tube's vertex at azimuth 1.
+///
+/// Every op in both orders builds to the gates it reaches
+/// (`cylinder_sphere_frame::at_its_volume`): tiers 2 and 3′, the
+/// certificate and the volume, against [`disc_through_ball`]. The result
+/// is no legal operand yet: its far union refuses
+/// `Containment(PartialSphereFace)` and `tube ∖ ball` refuses at the
+/// piece sort on the same face
+/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
+/// Both refusals are pinned exactly, so the row reds when that row lands
+/// and is flipped to SOUND then.
+#[test]
+fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
+    use crate::cylinder_sphere_frame::{Ends, Operand, at_its_volume, far_union, pad_ceiling};
+    let (big, (cx, cz), r, len) = (1.5, (0.3, 0.2), 0.5, 6.0);
+    let ball = fin("the ball", ball_poled_z(big, Vec3::zero(), tol()));
+    let along_y = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -FRAC_PI_2);
+    let (va, vb) = (PI * r * r * len, 4.0 / 3.0 * PI * big.powi(3));
+    let vi = disc_through_ball((cx, cz), r, big);
+    let ceiling = pad_ceiling(TAU * r * len + TAU * r * r + 4.0 * PI * big * big);
+    let mut off = Vec::new();
+    for az in [1.0] {
+        let tube = topo::transform_rigid(
+            &extruded(vec![circle(cx, -cz, r, az)], -len / 2.0, len),
+            &geom_core::test_support::rigid(&along_y, tol()),
+        )
+        .unwrap();
+        let tube = fin("the tube", tube);
+        for (op, got, want) in every_op_both_orders(&tube, &ball, (va, vb, vi), tol()) {
+            if let Some(built) = got.as_ref().ok().and_then(BooleanResult::body) {
+                let operand = far_union(&built.body);
+                assert!(
+                    matches!(operand, Operand::AtTheSphere),
+                    "azimuth {az}: {op}: the far union reads {operand:?}, pinned at \
+                     Containment(PartialSphereFace)"
+                );
+            }
+            let ends = if op == "A ∖ B" {
+                Ends::Pieces
+            } else {
+                Ends::Builds
+            };
+            off.extend(at_its_volume(
+                &format!("azimuth {az}: {op}"),
+                got,
+                want,
+                ends,
+                ceiling,
+                &[],
+            ));
+        }
+    }
+    assert!(off.is_empty(), "{off:#?}");
+}
+
+/// The volume of the ball `R = big` about the origin inside the cylinder
+/// of radius `r` about the line through `(c.0, ·, c.1)` along `y`, which
+/// the ball holds across: `∫ 2√(R² − x² − z²)` over the disc, by
+/// Gauss–Legendre in the radius and the trapezoid rule round the disc,
+/// both exponentially convergent on this analytic integrand.
+fn disc_through_ball(c: (f64, f64), r: f64, big: f64) -> f64 {
+    let (nodes, weights) = gauss_legendre(48);
+    let turns = 512;
+    let mut sum = 0.0;
+    for (x, w) in nodes.into_iter().zip(weights) {
+        let rho = 0.5 * r * (x + 1.0);
+        let ring: f64 = (0..turns)
+            .map(|j| {
+                let t = TAU * f64::from(j) / f64::from(turns);
+                let (px, pz) = (c.0 + rho * t.cos(), c.1 + rho * t.sin());
+                2.0 * (big * big - px * px - pz * pz).sqrt()
+            })
+            .sum();
+        sum += 0.5 * r * w * rho * ring * TAU / f64::from(turns);
+    }
+    sum
+}
+
+/// The `n`-point Gauss–Legendre nodes and weights on `[−1, 1]`, each node
+/// polished by Newton's method on `Pₙ`.
+fn gauss_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
+    (1..=n)
+        .map(|i| {
+            let mut x = (PI * (i as f64 - 0.25) / (n as f64 + 0.5)).cos();
+            let mut dp = 0.0;
+            for _ in 0..100 {
+                let (mut p0, mut p1) = (1.0, x);
+                for k in 2..=n {
+                    let k = k as f64;
+                    (p0, p1) = (p1, ((2.0 * k - 1.0) * x * p1 - (k - 1.0) * p0) / k);
+                }
+                dp = n as f64 * (x * p1 - p0) / (x * x - 1.0);
+                let step = p1 / dp;
+                x -= step;
+                if step.abs() < 1e-16 {
+                    break;
+                }
+            }
+            (x, 2.0 / ((1.0 - x * x) * dp * dp))
+        })
+        .unzip()
 }
 
 /// **A puck and its rounding ring unite**: the puck `r = 1`, `z ∈ [0,
