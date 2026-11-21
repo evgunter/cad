@@ -104,12 +104,12 @@ impl ConicRootFault {
 
 /// **The lane that finds where a carrier's span crosses a plane**
 /// ([`PlaneCrossingLane`]): the sweep's, `slit`'s, `factored_crossing`'s
-/// and classify's reading until they read [`super::cross`]. On a conic it
-/// is a wrapper: the pose ([`super::pose`]'s plane arm, which reads the
+/// and classify's reading until they read [`super::cross()`]. On a conic it
+/// is a wrapper: the pose ([`super::pose()`]'s plane arm, which reads the
 /// conic's height above the plane `d₀ + R cos(θ − φ)` by its belly, its
 /// parallel gate and offset, and a graze's side and curvature), then the
 /// method's closed-form roots placed against the span
-/// ([`super::cross`]'s placement), mapped back:
+/// ([`super::cross()`]'s placement), mapped back:
 ///
 /// - `Lies` is [`ConicPlaneMeet::InPlane`]; `Apart` is
 ///   [`ConicPlaneMeet::Miss`];

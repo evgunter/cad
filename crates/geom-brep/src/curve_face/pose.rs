@@ -1,4 +1,4 @@
-//! **The curve × face pose** ([`super::pose`]): how a span sits against a
+//! **The curve × face pose** ([`super::pose()`]): how a span sits against a
 //! surface before any root is found, decided once, here, for every door
 //! (C5's curve × face paragraph, `crates/geom-brep/README.md`).
 //!
@@ -35,7 +35,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, 
 use super::{Door, Route, route};
 use crate::curve_pair::Span;
 
-/// **How a span sits against a surface** ([`super::pose`]; module docs).
+/// **How a span sits against a surface** ([`super::pose()`]; module docs).
 #[derive(Clone, Copy, Debug)]
 pub enum Pose<T: Real> {
     /// The span lies on the surface over its whole length: a reading of
@@ -150,8 +150,8 @@ pub enum PoseRung {
     NotLies,
 }
 
-/// **Why [`super::pose`] gave no class.** Each is one window over the
-/// whole span ([`super::cross`]).
+/// **Why [`super::pose()`] gave no class.** Each is one window over the
+/// whole span ([`super::cross()`]).
 #[derive(Clone, Copy, Debug)]
 pub enum PoseRefusal {
     /// A rung's reading fell in the band: in its escalation gap, or in
@@ -220,7 +220,7 @@ fn zero_band(
     }
 }
 
-/// **The pose of `span` against `surface`** ([`super::pose`]): the arm
+/// **The pose of `span` against `surface`** ([`super::pose()`]): the arm
 /// [`route`] names, read by its rungs.
 ///
 /// # Errors

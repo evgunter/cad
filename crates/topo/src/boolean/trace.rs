@@ -7,7 +7,7 @@
 //! piece of the sketch lies in that plane, so where the piece meets the
 //! trace is where it meets the carrier. This door reads the piece
 //! against the carrier itself, through the curve × face crossing
-//! reading ([`geom_brep::curve_face::cross`]): the pose first (the piece
+//! reading ([`geom_brep::curve_face::cross()`]): the pose first (the piece
 //! lies on the carrier, passes through a cone's apex, or grazes it), then
 //! its meetings, each read for its sense. It reads no face boundary: the
 //! trace is the carrier's.

@@ -53,8 +53,8 @@ impl LineQuadricRefusal {
 
 /// **The certified roots of the LINE against `surface`** over the run
 /// `(t0, t1)` of the line's parameter, in the root doors' shape: the
-/// sweep's reading until it reads [`super::cross`]. A wrapper: the pose
-/// ([`super::pose`]), then the arm's method ([`line_method`]), mapped
+/// sweep's reading until it reads [`super::cross()`]. A wrapper: the pose
+/// ([`super::pose()`]), then the arm's method ([`line_method`]), mapped
 /// back. The pose's `Lies` (a ruling of a wall, a generator of a cone) is
 /// [`CircleRoots::On`]; a line parallel to a wall's axis off it, or any
 /// other `Apart`, is [`CircleRoots::Miss`]; a graze is

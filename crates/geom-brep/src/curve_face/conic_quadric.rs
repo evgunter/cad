@@ -236,8 +236,8 @@ impl ConicQuadricRefusal {
 /// **The certified crossings of the `carrier` circle or ellipse with
 /// `surface`**, a sphere, a cylinder wall or a cone, reported within `π`
 /// of the midpoint of `[t0, t1]`, in the root doors' shape: the sweep's
-/// and the census clearance's reading until they read [`super::cross`].
-/// A wrapper: the pose ([`super::pose`]), then the method
+/// and the census clearance's reading until they read [`super::cross()`].
+/// A wrapper: the pose ([`super::pose()`]), then the method
 /// ([`conic_quadric_method`]), mapped back. `Lies` is
 /// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a graze (its
 /// curvature in band too) [`Unsettled::Tangency`], a carrier through a

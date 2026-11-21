@@ -565,7 +565,7 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 
 /// **The pose of `span` against `surface`** (C5's curve × face
 /// paragraph): `Lies`, `Apart`, `Tangent`, `Through` or `Isolated`, read
-/// by the rungs of the arm [`route`] names ([`pose::pose`]).
+/// by the rungs of the arm [`route`] names ([`pose::pose()`]).
 ///
 /// # Errors
 ///
@@ -580,7 +580,7 @@ pub fn pose<T: Decide>(
 
 /// **Where `span` meets `surface`** (C5's curve × face paragraph): the
 /// pose, then the door's one method, matched on [`route`]'s door with no
-/// wildcard ([`cross::cross`]).
+/// wildcard ([`cross::cross()`]).
 ///
 /// # Errors
 ///

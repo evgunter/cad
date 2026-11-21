@@ -3,7 +3,7 @@
 //! touching a face's carrier, a plane on a sphere, two spheres.
 //!
 //! An edge against a face is read through the curve × face crossing
-//! reading ([`geom_brep::curve_face::cross`]), every pair its table has
+//! reading ([`geom_brep::curve_face::cross()`]), every pair its table has
 //! built: the record is confirmed where the pose is a nondegenerate
 //! touch (`Tangent`, its relative curvature definitely positive) strictly
 //! inside the edge's span, and the touch point strictly inside both

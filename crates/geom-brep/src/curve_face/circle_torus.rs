@@ -167,8 +167,8 @@ const DESYNC: &str = "the circle × torus root door was handed a carrier that is
 
 /// **The certified crossings of the `carrier` circle with the `torus`**,
 /// reported within `π` of the midpoint of `[t0, t1]`, in the root doors'
-/// shape: the sweep's reading until it reads [`super::cross`]. A wrapper:
-/// the pose ([`super::pose`]), then the method ([`torus_method`]), mapped
+/// shape: the sweep's reading until it reads [`super::cross()`]. A wrapper:
+/// the pose ([`super::pose()`]), then the method ([`torus_method`]), mapped
 /// back. `Lies` (a rim of a coaxial torus, a meridian) is
 /// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a pose rung read in
 /// the zero band where it needed a definite reading

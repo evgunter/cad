@@ -1,5 +1,5 @@
-//! **The curve × face crossing reading** ([`super::cross`]): the pose
-//! ([`super::pose`]) and then the door's one method, the meetings placed
+//! **The curve × face crossing reading** ([`super::cross()`]): the pose
+//! ([`super::pose()`]) and then the door's one method, the meetings placed
 //! against the span's ends, ascending, and decided apart by their chord.
 //!
 //! The answer is one-sided: a [`Meeting`] is where the span meets the
@@ -58,7 +58,7 @@ pub struct Meeting<T: Real> {
     pub kind: MeetingKind<T>,
 }
 
-/// **The crossing reading's answer** ([`super::cross`]): the pose, and
+/// **The crossing reading's answer** ([`super::cross()`]): the pose, and
 /// the meetings, ascending along the span and decided apart by their
 /// chord. `Lies` and `Apart` hold none, `Tangent` its one touch where it
 /// is on the span, `Through` the meetings other than the singular point.
@@ -96,7 +96,7 @@ pub struct CrossRefusal<T: Real> {
     pub windows: Vec<Undecided<T, CrossWhy>>,
 }
 
-/// **The pose, then the door's one method** ([`super::cross`]).
+/// **The pose, then the door's one method** ([`super::cross()`]).
 ///
 /// # Errors
 ///

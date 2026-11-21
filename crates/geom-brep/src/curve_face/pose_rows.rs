@@ -1,5 +1,5 @@
 //! **The curve × face pose's rows** (`super::pose`): each class read
-//! through [`super::cross`] on every arm that answers it, each rung's
+//! through [`super::cross()`] on every arm that answers it, each rung's
 //! escalation pinned to its rung, and a touch's arc against the true
 //! distance. Every pose is built at the band it is read at; the cases in
 //! the band's gap are aimed at its middle.
