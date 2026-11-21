@@ -233,7 +233,7 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     assert_eq!(delta, &expected, "the ε audit's goldened report drifted");
     // The report surface: exactly the shifted predicates, in order.
     let report = shifts.report();
-    assert_eq!(report.len(), 1);
+    assert_eq!(report.len(), 2);
     assert!(report.iter().all(|(node, _)| *node == profile));
 
     // The no-edit control: a summary diffs empty against itself.

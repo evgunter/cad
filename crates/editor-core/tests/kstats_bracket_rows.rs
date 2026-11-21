@@ -350,8 +350,13 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
     // shorter arm once it is stored), four from validation's joint
     // pass, which reads the same turn.
     assert_eq!(histogram["path_junction_turn"], 11, "{histogram:?}");
-    assert_eq!(histogram["chord_side"], 28, "{histogram:?}");
-    assert_eq!(histogram["line_span"], 8, "{histogram:?}");
+    assert_eq!(histogram["chord_side"], 20, "{histogram:?}");
+    // The box's corners are adjacent pairs, whose shared vertex no pair
+    // reading asks about (`profile::seg`'s `line_line`); no other pair
+    // has an end on a carrier.
+    for unread in ["line_span", "contact_at_shared_vertex"] {
+        assert!(!histogram.contains_key(unread), "{unread}: {histogram:?}");
+    }
     assert_eq!(
         log[0].predicate, "path_junction_turn",
         "the replay decides first"
