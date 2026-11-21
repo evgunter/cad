@@ -6886,9 +6886,7 @@ class CheckKind:
 
 class CheckId:
     """Which check fired — the registry's closed set. `Connectedness`
-    counts a subject's components; `ChartCoherence` measures, in
-    metres, how far a curved face's carriers and its vertices disagree
-    about a chart coordinate they both state; `UnprovenCoincidence`
+    counts a subject's components; `UnprovenCoincidence`
     reports each coincidence a node decided from values that the
     coincidence door does not prove structural (it may still hold
     structurally by an argument the door does not yet make), an at-rest
@@ -6899,7 +6897,6 @@ class CheckId:
     named variable nothing uses, at the tip of each dead chain."""
 
     Connectedness: Final[CheckId]
-    ChartCoherence: Final[CheckId]
     UnprovenCoincidence: Final[CheckId]
     AtRest: Final[CheckId]
     Unused: Final[CheckId]
@@ -6926,9 +6923,9 @@ class Advisory:
 
     DS6's waiver rule is an *iff*: a check may offer `error` only if it
     ships a per-finding acknowledgment record with a staleness
-    direction. The chart-coherence and unproven-coincidence residents
-    ship none, so their refusing position is not merely discouraged, it
-    is UNSPELLABLE."""
+    direction. The unproven-coincidence and unused residents ship none,
+    so their refusing position is not merely discouraged, it is
+    UNSPELLABLE."""
 
     Off: Final[Advisory]
     Warn: Final[Advisory]
@@ -6944,32 +6941,23 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    Three of the knobs are `Advisory` rather than `Severity`, which is
-    DS6's waiver rule made static: none of `chart_coherence`,
-    `unproven_coincidence` and `unused` can be set to `Severity.Error`. `at_rest` is
+    Two of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: neither `unproven_coincidence` nor
+    `unused` can be set to `Severity.Error`. `at_rest` is
     a `Severity`, because an assertion quiets every interference the
     kernel can bound; at `Error`, `enforce_checks` refuses a loud
-    interference and nothing else the check reports.
-
-    `chart_coherence` is `Advisory.Off` by default — the one resident
-    not in the default pass. It reads every face of every rest body,
-    and it reports a trimmed face's loops as out of its reach, which
-    is true and is not actionable; ask for it rather than pay for it
-    on every run. `Off` is visible in `ChecksReport.skipped`."""
+    interference and nothing else the check reports."""
 
     def __init__(
         self,
         connectedness: Severity = ...,
         expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
-        chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
         at_rest: Severity = ...,
         unused: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
-    @property
-    def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
     @property
@@ -7005,18 +6993,6 @@ class CheckEvidence:
     in `ValidationError`'s vocabulary.
     `stale_expectation` (`expected`) — an
     expectation no subject consumed.
-
-    `chart_coherence` (`chart_variant`, `metres`, `gap`, `lever`,
-    `eps`) — a curved face's carriers and its vertices state one chart
-    coordinate `metres` apart, judged against the band `eps`. A
-    MEASUREMENT and never a verdict: nothing refuses on it.
-    `chart_coherence_unexamined` (`chart_variant`) — the examination
-    ran and one loop was out of its reach, which is a fact about the
-    DATA; a check a configuration turned off is `ChecksReport.skipped`
-    and carries no finding at all. `chart_coherence_unavailable` (no
-    payload) — this evaluation's decision lane has no chart-coherence
-    examination, so nothing was read; do not take the silence for a
-    clean body.
 
     `unused` (no payload) — the finding's subject is used by nothing:
     not the product, not an assertion, and nothing reads it.
@@ -7055,16 +7031,6 @@ class CheckEvidence:
     def inner_variant(self) -> Optional[str]: ...
     @property
     def at_rest_variant(self) -> Optional[str]: ...
-    @property
-    def chart_variant(self) -> Optional[str]: ...
-    @property
-    def metres(self) -> Optional[float]: ...
-    @property
-    def gap(self) -> Optional[float]: ...
-    @property
-    def lever(self) -> Optional[float]: ...
-    @property
-    def eps(self) -> Optional[float]: ...
     @property
     def relation(self) -> Optional[str]: ...
     @property

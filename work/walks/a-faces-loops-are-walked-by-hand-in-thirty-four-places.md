@@ -113,3 +113,5 @@ Both are siblings of the outer chain this row counts. A sweep that
 gives the outer walk one home should look next at
 `face.outer ==`/`rings.iter().any`/`rings.contains` for the first
 question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` walk is gone.

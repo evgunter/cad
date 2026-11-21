@@ -121,8 +121,6 @@ mod mesh11r1_probes;
 mod mesh11r2_probes;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
-#[path = "mesh8_corpus_coherence.rs"]
-mod mesh8_corpus_coherence;
 #[path = "mesh8r1_probes.rs"]
 mod mesh8r1_probes;
 #[path = "mesh8r2_probes.rs"]
@@ -265,12 +263,6 @@ test_utils::every_suite_file_is_aggregated!();
 ///   and the issue-896 guard's own `coincident(gap)`, asking whether
 ///   a junction × pole pair the classification passes over coincides.
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
-///
-///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
-///   this row walks `crates/mesh/src` alone. The two spellings are
-///   held together by `walk::tests::the_two_spellings_of_the_band_
-///   agree` instead.
 ///
 /// **Six terminal reads across the crate** — `walk.rs`'s five plus
 /// `trimmed.rs`'s `pad`, which is the whole of the read column and
