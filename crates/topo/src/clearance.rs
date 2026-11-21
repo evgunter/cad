@@ -5515,7 +5515,7 @@ mod rational_window {
             ("a wide quartic over three spans", 1.5, 2, &[0.3, 0.7][..]),
         ] {
             let (body, face, arc) = hyperbola_cap(s0, raise, insert);
-            let w = window_of(&body, face, Which::First)
+            let w = window_of(&body, face, Which::First, None)
                 .unwrap_or_else(|e| panic!("{what}: the cap has a window, got {e:?}"));
             let top = D / ALPHA.tan() * s0.cosh() + D;
             let net = arc.control().iter().map(|p| (p.y, p.z));
@@ -5584,7 +5584,7 @@ mod rational_window {
                 Point3::new(D, 0.0, top * s0.cosh() + D),
             ),
         );
-        let w = window_of(&body, face, Which::First).unwrap();
+        let w = window_of(&body, face, Which::First, None).unwrap();
         let reach = D * s0.sinh();
         assert!(
             w.u.1 < 0.5 * reach,
@@ -5610,7 +5610,7 @@ mod rational_window {
     #[test]
     fn a_half_disc_reads_its_circles_own_bounds_as_its_window() {
         let (body, face) = crate::boxes::tests::arc_sector(0.5, core::f64::consts::PI);
-        let w = window_of(&body, face, Which::First).unwrap();
+        let w = window_of(&body, face, Which::First, None).unwrap();
         assert_eq!(
             [w.u.0, w.u.1, w.v.1].map(f64::to_bits),
             [-0.5f64, 0.5, 0.5].map(f64::to_bits),
