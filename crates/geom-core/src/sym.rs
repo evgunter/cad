@@ -5281,6 +5281,17 @@ impl<F: crate::value_view::OverScalar> crate::value_view::OverScalar for SymOf<F
 }
 
 impl<T: Real> Real for Sym<T> {
+    /// **Never the same: no certificate is read by its support at the
+    /// symbolic tier.** A derivation here mints fresh unknowns (a hull
+    /// bound enters as [`Sym::opaque`]), so deriving again on the same
+    /// support does not give the same nodes, and the decision record a
+    /// derivation writes is this tier's purpose: a read would drop it.
+    /// Every certificate at `Sym` is derived where it is asked.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
