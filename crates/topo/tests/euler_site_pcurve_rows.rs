@@ -959,14 +959,14 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
     let center = p0.lerp(p1, 0.5) + frame.radial(UM) * (radius * 0.25_f64.cos());
     let u_ref = (p0 - center) / radius;
     let arc = |axis: geom_core::Vec3<f64>| {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        })
+        ))
     };
     let axis = frame.axis.cross(frame.radial(UM));
     let carrier = if arc(axis).eval(0.5).distance(p1) < 1e-12 {

@@ -4,8 +4,6 @@ kind: issue
 title: kev's fan merge re-bases carriers and no precondition can refuse it: the kill needs a re-describing door
 status: closed
 opened: 2026-09-14
-parent: S93
-refs: [S93]
 priority: P1
 cost: H
 pr: 3161

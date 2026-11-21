@@ -111,7 +111,7 @@ pub(crate) enum Shape {
     Solids(Vec<SolidRecord>),
     /// A `GEOMETRIC_CURVE_SET` wireframe (curve-only file): the
     /// reconstructed carriers, in set order.
-    Wireframe(Vec<Curve3<f64>>),
+    Wireframe(Vec<crate::WireframeCurve>),
 }
 
 /// The keywords a solid record is spelled with: a
@@ -253,6 +253,11 @@ pub(crate) struct EdgeSpec {
     /// carrier is untouched; this bit composes into the orientation of
     /// every `ORIENTED_EDGE` that uses the edge.
     pub(crate) reversed: bool,
+    /// The curve entity the file states as the carrier, for an edge the
+    /// file states or a piece of one; `None` for an edge the import
+    /// mints. It keys the curve's promotion record, which the ledger
+    /// keeps only where the body holds the promoted carrier.
+    pub(crate) curve: Option<u64>,
 }
 
 /// The resolver: the parsed file plus typed accessors that turn
@@ -275,6 +280,9 @@ pub(crate) struct Resolver<'a> {
     /// one interpretation budget, spent by every reading that decides
     /// what the file means ([`interpret`]).
     budget: interpret::FileBand,
+    /// The run's tolerance, which the snap catalogue reads an exact
+    /// relation at ([`crate::snap`]).
+    tol: geom_core::Tol,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -287,6 +295,12 @@ pub(crate) struct Resolver<'a> {
     /// so a carrier read once per incident edge records once
     /// ([`crate::CurvePromotion`]) — never silent.
     curve_promotions: std::cell::RefCell<BTreeMap<u64, CurvePromotion>>,
+    /// The promotions whose carrier covers PART of its analytic curve
+    /// (an open arc, a chord), keyed as `curve_promotions`: the
+    /// analytic curve's parameter range it covers, which bounds every
+    /// edge's trim on it ([`Self::edge`]) and is a wireframe curve's
+    /// span ([`Self::curve_set`]).
+    partial_promotions: std::cell::RefCell<BTreeMap<u64, (f64, f64)>>,
 }
 
 impl<'a> Resolver<'a> {
@@ -1233,19 +1247,21 @@ impl<'a> Resolver<'a> {
     /// `B_SPLINE_CURVE_WITH_KNOTS` arm, the `QUASI_UNIFORM_CURVE` arm,
     /// and the `RATIONAL_B_SPLINE_CURVE` complex), and each is tested
     /// for promotion to an analytic kind exactly as every NURBS
-    /// SURFACE is tested at [`Self::face`]. This is the right site for
-    /// the same reason that one is: it is upstream of everything that
-    /// asks a carrier what it IS — the adoption ladder's `MappedCurve`
-    /// rungs, `endpoint_params`' conic arm, the pcurve mint, the
-    /// re-export printer — so a promoted carrier is analytic
-    /// everywhere, with no second reading anywhere to disagree with
-    /// the first.
+    /// SURFACE is tested at [`Self::face`]: on the WHOLE carrier, before
+    /// the C⁰-knot split or any edge reads it, so every edge's printed
+    /// carrier is the promoted curve where it certifies, and an edge's
+    /// trim is read against the range it covers ([`Self::edge`]). The
+    /// build reads the printed carrier as evidence for the edge's
+    /// description, not as its carrier: where it carries the edge on a
+    /// wall's own column instead (`build::column_match`), the body holds
+    /// that spline, and the curve's promotion record is dropped from the
+    /// ledger.
     ///
     /// Promotion is verified-not-trusted ([`crate::recognize_curve`]):
-    /// it fires iff the certificate holds at ε_in, the file's own form
-    /// flag is never consulted, and a carrier that certifies nowhere
-    /// stays NURBS silently. It is reported as data through
-    /// [`crate::CurvePromotion`].
+    /// it fires iff the locus and coverage certificates hold at ε_in,
+    /// the file's own form flag is never consulted, and a carrier that
+    /// certifies nowhere stays NURBS silently. It is reported as data
+    /// through [`crate::CurvePromotion`].
     fn nurbs(
         &self,
         id: u64,
@@ -1260,7 +1276,11 @@ impl<'a> Resolver<'a> {
                         curve,
                         residual,
                         kind,
+                        covers,
                     } => {
+                        if let Some(covers) = covers {
+                            self.partial_promotions.borrow_mut().insert(id, covers);
+                        }
                         self.curve_promotions.borrow_mut().insert(
                             id,
                             CurvePromotion {
@@ -1434,8 +1454,9 @@ impl<'a> Resolver<'a> {
             // this gate only AFTER promotion was tried: rings on
             // promoted PLANES have already left through the
             // plane-guard on this branch, so what refuses is rings on
-            // genuinely curved patches — promoted cylinders included
-            // (this crate adopts a ring on no curved chart yet) — and
+            // genuinely curved patches — promoted cylinders, cones,
+            // spheres and tori included (this crate adopts a ring on no
+            // curved chart yet) — and
             // rings on NURBS that certified as
             // no implemented analytic kind. Where the face could ONLY
             // import by promotion and the recognizer's estimator was
@@ -1453,10 +1474,11 @@ impl<'a> Resolver<'a> {
                 id,
                 what: "a curved ADVANCED_FACE with more than one bound that is not a \
                        recognized periodic band — an interior ring on a curved patch \
-                       (a promoted cylinder's, or a NURBS patch's that certified as no \
+                       (a promoted curved kind's, or a NURBS patch's that certified as no \
                        implemented analytic kind at ε_in — stage-1 recognition \
-                       promotes certified planes and cylinders, and rings on promoted \
-                       planes import; this reader adopts a ring on no curved chart \
+                       promotes certified planes, cylinders, cones, spheres and tori, \
+                       and rings on promoted planes import; this reader adopts a ring \
+                       on no curved chart \
                        yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere zone stated as its two rims \
@@ -1695,6 +1717,7 @@ impl<'a> Resolver<'a> {
                     // A minted edge: the importer states its own
                     // start → end, so there is no sense to compose.
                     reversed: false,
+                    curve: None,
                 },
             );
             Ok(eid)
@@ -1931,8 +1954,17 @@ impl<'a> Resolver<'a> {
         };
         let p_start = resolve_point(start)?;
         let p_end = resolve_point(end)?;
-        let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
+        let curve_id = as_ref(id, curve_ref, expected)?;
+        let carrier = self.curve(id, curve_id)?;
         let (t0, t1) = geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
+        // A carrier promoted from a spline that covers part of its
+        // analytic curve: the edge's trim is the stated spline's only
+        // where it lies inside what the spline covers, in order.
+        let covers = self.partial_promotions.borrow().get(&curve_id).copied();
+        let (t0, t1) = match covers {
+            Some(covers) => geometry::trim_within(id, &carrier, (t0, t1), covers, self.budget)?,
+            None => (t0, t1),
+        };
         Ok(EdgeSpec {
             start,
             end,
@@ -1940,6 +1972,7 @@ impl<'a> Resolver<'a> {
             t0,
             t1,
             reversed: !same_sense,
+            curve: Some(curve_id),
         })
     }
 
@@ -2097,6 +2130,15 @@ impl<'a> Resolver<'a> {
             self.budget,
             &mut self.normalizations.borrow_mut(),
         )?;
+        // Each relation the file band reads Zero between two surfaces,
+        // made exact by the snap catalogue.
+        crate::snap::snap(
+            &mut solid,
+            &records,
+            self.budget,
+            self.tol,
+            &mut self.normalizations.borrow_mut(),
+        )?;
         // The reported structure normalizations for periodic faces the
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
@@ -2108,15 +2150,26 @@ impl<'a> Resolver<'a> {
         Ok(solid)
     }
 
-    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order.
-    fn curve_set(&self, id: u64, args: &[Value]) -> Result<Vec<Curve3<f64>>, StepImportError> {
+    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order, each with the span
+    /// of its carrier the file states.
+    fn curve_set(
+        &self,
+        id: u64,
+        args: &[Value],
+    ) -> Result<Vec<crate::WireframeCurve>, StepImportError> {
         let expected = "GEOMETRIC_CURVE_SET(name, (elements))";
         let [_, elements] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
+        // A carrier promoted to an analytic curve it covers part of
+        // carries that part: the bare curve would claim an extent the
+        // file did not state.
         let mut curves = Vec::new();
         for element in as_list(id, elements, expected)? {
-            curves.push(self.curve(id, as_ref(id, element, expected)?)?);
+            let curve_id = as_ref(id, element, expected)?;
+            let carrier = self.curve(id, curve_id)?;
+            let span = self.partial_promotions.borrow().get(&curve_id).copied();
+            curves.push(crate::WireframeCurve { carrier, span });
         }
         Ok(curves)
     }
@@ -3277,7 +3330,7 @@ fn resolve_shape(
     // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
     // order — the same one `referenced` already dedupes it to.
     let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
-    let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
+    let mut wireframe: Option<(u64, Vec<crate::WireframeCurve>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
         let [(kw, args)] = instance.records.as_slice() else {
@@ -3387,15 +3440,17 @@ fn resolve_shape(
 /// A resolver over `file` with no unit knowledge yet — the unit pass's
 /// own instrument (it reads enumerations and one uncertainty literal,
 /// never a coordinate, so a unit scale of 1 is honest there).
-fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
+fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
         length_scale: 1.0,
         angle_scale: 1.0,
         budget: interpret::FileBand::unread(),
+        tol,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
     }
 }
 
@@ -3412,7 +3467,7 @@ pub(crate) fn resolve(
     eps_override: Option<f64>,
     tol: geom_core::Tol,
 ) -> Result<Model, StepImportError> {
-    let r = unit_pass_resolver(file);
+    let r = unit_pass_resolver(file, tol);
 
     // The header must declare a schema (Part 21's FILE_SCHEMA). The
     // subset does not pin the schema NAME — the entities themselves
@@ -3443,6 +3498,7 @@ pub(crate) fn resolve(
         // nothing to import, and `MissingUncertainty` is raised after
         // it, when a body really was on the table.
         budget: interpret::FileBand::of_import(eps_in, eps_override.is_some(), tol)?,
+        tol,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data
@@ -3454,6 +3510,7 @@ pub(crate) fn resolve(
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a

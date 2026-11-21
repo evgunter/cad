@@ -2,11 +2,12 @@
 id: main-red-ringed-curved-doors-reds-four-sweep-rows
 kind: issue
 title: Main red: PR 5664's ringed curved doors reds bisector_nodes and review_4781_r1 at 1e-12, widens the meeting-axes pose to every eps, and the ray-wall twins to 62 pairs
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12, main-reds-editor-core-slow-set-and-the-k-probe-sweep]
+closed: 2026-11-20
 ---
 
 
@@ -70,7 +71,7 @@ The base six ray-wall pairs are owned by
 `work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
 since 2026-10-28 (PR 5966), which also pins the row at today's 62.
 
-**The ray-wall twins row is no longer this row's (2026-11-06).** `curve_foot_branch` scales since PR 6349 and is not recorded since PR 6482; the row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
+**The ray-wall twins row is no longer this row's (2026-11-06).** `curve_foot_branch` scales since PR 6349 and is not recorded since PR 6482; the row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/honejoin/ray-wall-twins-fire-different-predicates-at-1e-6.md`.
 
 **The slanted bores' pin no longer cites this row (GREEN `green/eps-1e-12`,
 2026-11-14).** From PR 6466 (`sectarms/cylinder-node-listing`, merge
@@ -82,3 +83,7 @@ cites NEARPOINT's
 This row's `bisector_nodes` entry is therefore not what main produces.
 Whether the probe-ray exhaustion stands behind the volume refusal is
 unreadable until the refusal goes.
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Every entry is owned elsewhere, and no pin in `crates/` cites this row. `bisector_nodes`: NEARPOINT's pin, with the probe-ray exhaustion behind it in TANG's `main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`. `review_4781_r1`: SHELL's `main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`, whose text now carries the one residue (whether the box-on-seam `RayExhausted` behind its pin is right). The meeting-axes pose is unpinned (above). Ray-wall twins: FLUSH and CPAIR.

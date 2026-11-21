@@ -34,7 +34,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3}
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
 use crate::live::BoundaryMember;
-use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
@@ -460,9 +459,9 @@ impl<T: Decide> RegionEdge<T> {
 /// (a seam, a wrap edge, a spur) is no boundary of it and the walk turns
 /// through it; none for a face that covers its surface. `None` where a
 /// carrier's kind of any edge of its loops is not one of `admits`, or
-/// where such an edge has no certified curve: an uncertified edge
-/// between two points is a gap in the boundary no reading may step
-/// over, and null scaffolding is as `scaffolding` says.
+/// where such an edge has no certified curve and is no placeholder
+/// ([`crate::null::is_placeholder`]): that is a gap in the boundary no
+/// reading may step over. A placeholder bounds nothing and is left out.
 ///
 /// # Errors
 ///
@@ -477,7 +476,6 @@ impl<T: Decide> RegionEdge<T> {
 pub(crate) fn boundary<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    scaffolding: Scaffolding,
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
@@ -496,9 +494,7 @@ pub(crate) fn boundary<T: Decide>(
                 continue;
             };
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
-                if scaffolding == Scaffolding::Skipped
-                    && crate::null::is_placeholder(body, edge_key)
-                {
+                if crate::null::is_placeholder(body, edge_key) {
                     null.push(edge_key);
                     continue;
                 }
@@ -1018,7 +1014,7 @@ impl<T: Decide> Round<T> {
         let s = self.swept(y);
         let ahead = (y - self.circle.frame.origin).dot(self.circle.frame.v_ref());
         let turn = geom::conic_period::<T>().length();
-        self.circle.radius * (T::zero() - ahead).select_le_zero(s, turn - s)
+        self.circle.radius() * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
 }
 
@@ -1029,7 +1025,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);
-        ray_walk::apart_as(at, Margin::of((self.circle.radius * s).abs()), band)
+        ray_walk::apart_as(at, Margin::of((self.circle.radius() * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
     }
@@ -1055,7 +1051,7 @@ impl<T: Decide> Course<T> for Round<T> {
     fn span(&self, end: Option<T>, _: &RegionEdge<T>) -> ((T, T), bool) {
         match end {
             None => ((T::zero(), geom::conic_period::<T>().length()), true),
-            Some(place) => ((T::zero(), place / self.circle.radius), false),
+            Some(place) => ((T::zero(), place / self.circle.radius()), false),
         }
     }
 }
@@ -1123,6 +1119,26 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
         crate::construction::NewVertexSide::Above,
     )
     .unwrap();
+}
+
+/// `body`'s one null edge with its far end (its minus half's start)
+/// moved to a new point `to`: a gap in the boundary, no placeholder.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(crate) fn part_null_edge(body: &mut Body<f64>, to: Point3<f64>) {
+    let nulls: Vec<_> = body
+        .edges()
+        .filter(|&(e, d)| body.edge_curve_linked(e, d).null_scaffold().is_some())
+        .map(|(e, _)| e)
+        .collect();
+    assert_eq!(nulls.len(), 1, "the fixture holds one null edge");
+    let null = nulls[0];
+    let far = body
+        .get_half_edge(body.get_edge(null).unwrap().he_minus)
+        .unwrap()
+        .start;
+    let moved = body.add_point(to);
+    body.get_vertex_mut(far).unwrap().point = moved;
 }
 
 /// A fixture edge's turn over `(t0, t1)`, at each scalar a fixture is

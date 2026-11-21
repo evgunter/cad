@@ -4,10 +4,8 @@
 //! arms that derive a parameter: the conic and the LINE.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{CertCheck, CertifyError};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImportError, import_step};
-use topo::EulerOpError;
 
 fn box_step() -> String {
     let path = concat!(
@@ -153,11 +151,11 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
 /// the finiteness refusal's text. If a future edit ever makes a centre
 /// vertex non-finite, this fails and that message is wrong again.
 ///
-/// The discriminating field is one level in. `Adoption` alone says
-/// nothing — the `(NaN, NaN)` path this suite's other row covers was
-/// `Adoption` too, as a `ParamSpan` escalation. `ResidualExceeded`
-/// with `EndpointStart` is the verdict that says "the vertex is not
-/// where the carrier puts it", which is the centre's actual defect.
+/// The discriminating field is the reading. The build puts the vertex
+/// where the edges through it meet, and the file's point misses that by
+/// the circle's radius: an evidence miss read on `step_vertex_built`,
+/// past the file's band, says "the vertex is not where the carriers put
+/// it", which is the centre's actual defect.
 #[test]
 fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
     let m = cylinder_step().replace(
@@ -165,27 +163,23 @@ fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
         "#23 = CARTESIAN_POINT('',(0.,0.,1.));",
     );
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, attempts, .. }) => {
-            assert_eq!(id, 21, "the rim edge is the offender");
-            assert!(!attempts.is_empty(), "an adoption refusal names its rungs");
-            for a in &attempts {
-                assert!(
-                    matches!(
-                        a.refusal,
-                        EulerOpError::Certification {
-                            error: CertifyError::ResidualExceeded {
-                                check: CertCheck::EndpointStart,
-                                ..
-                            }
-                        }
-                    ),
-                    "{:?} rung: {:?}",
-                    a.candidate,
-                    a.refusal
-                );
-            }
+        Err(StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        }) => {
+            assert_eq!(id, 22, "the centre vertex is the offender");
+            assert_eq!(
+                reading, "step_vertex_built",
+                "the vertex's own reading refuses"
+            );
+            assert!(
+                (miss - 5e-4).abs() < 1e-12,
+                "the miss is the rim's radius, the centre's distance from where the rim and \
+                 the seam meet: {miss}"
+            );
         }
-        other => panic!("a centre vertex must reach the adoption gate, got {other:?}"),
+        other => panic!("a centre vertex must refuse as a vertex miss, got {other:?}"),
     }
 }
 

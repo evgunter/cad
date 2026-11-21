@@ -58,7 +58,7 @@ use geom_core::{Band, Decide, Tol};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, SolidKey};
-use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::props::{ShellClassifyError, ShellRole};
 use crate::solid_contain::PointInSolidError;
 use crate::stands::{Insides, ShellRead, witness_insides};
 
@@ -201,7 +201,7 @@ pub(crate) fn sort_into_pieces<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     face_box: Option<FaceBox<'_, T>>,
 ) -> Result<(), PieceSortError> {
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
@@ -223,7 +223,7 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     solid: SolidKey,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     face_box: Option<FaceBox<'_, T>>,
 ) -> Result<Vec<Vec<ShellKey>>, PieceSortError> {
     let Some(shells) = body.shells_of_solid(solid) else {

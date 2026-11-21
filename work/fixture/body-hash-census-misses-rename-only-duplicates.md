@@ -62,7 +62,7 @@ Moved by `git mv` from `work/tcost/` at S-TINT's opening. Id, title and
 body are unchanged; the directory is the claim (`work/README.md`).
 
 **Why it moved.** S-TCOST's board was re-sorted on 2026-09-11 against the
-repository going public on 2026-09-03 (`work/tcost/log.md`, the
+repository going public on 2026-09-03 (`docs/doc-ledger/tcost-merges-into-green.md`, the
 2026-09-11 seam). That sort found this row is not a cost lever in either
 currency — it neither shortens the gate's critical path nor saves a
 billed minute, and it was never argued on one. It reached S-TCOST by the

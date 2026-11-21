@@ -144,7 +144,11 @@ fn flattened_refusal(err: &PathError<f64>, what: &str) -> (&'static str, f64, f6
             arc_length,
             predicate,
             margin,
-        } => (*predicate, *margin, *turn, *radius, *arc_length),
+        } => {
+            let [margin, turn, radius, arc_length] =
+                [margin, turn, radius, arc_length].map(crate::common::told);
+            (*predicate, margin, turn, radius, arc_length)
+        }
         other => panic!("{what}: expected the flattening refusal, got {other}"),
     }
 }

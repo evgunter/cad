@@ -603,11 +603,11 @@ pub enum SessionOp {
     /// (`profile::structure`), never by list position — a list
     /// written holes-first describes the same profile. An empty list
     /// inserts the empty region, a profile with no loops. Every refusal
-    /// is the edit door's own: a degenerate loop and a non-nested pair
-    /// both refuse through the authoring-time check
-    /// ([`Refusal::Edit`]), one rule for authored and hand-written
-    /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). A profile reads no frame: where it stands is
+    /// is the edit door's own ([`Refusal::Edit`]), one rule for
+    /// authored and hand-written programs alike (only a non-finite
+    /// field refuses earlier, at the literal door); a degenerate loop
+    /// or a non-nested pair is a value, admitted and refused at the
+    /// profile's evaluation. A profile reads no frame: where it stands is
     /// the placement of what is built from it.
     AddProfile {
         /// The loop programs, in description order.
@@ -638,26 +638,26 @@ pub enum SessionOp {
         /// The turn about the face's normal (`Angle`).
         spin: Formula,
     },
-    /// **A profile drawn on a frame, continuing tangent to a face's
-    /// trace** (D10, "Constructing a coincidence"): `chains` drawn on the
-    /// frame `Through` the first traced face's own axis and a vertex of
-    /// `plane`, a plane face square to that axis — its origin the
-    /// vertex's foot on the axis — tracing `traced`, by place
-    /// ([`pncad::trace::traced_frame`], [`pncad::trace::drawn_profile`]).
-    /// One `InsertNode`, in the frame's space.
+    /// **A profile drawn on a face, tracing faces of its body** (D10
+    /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
+    /// `chains` drawn on `face`'s chart at its nearest orientation, no
+    /// spin and no slide, reading the traces of `traced`, by place
+    /// (`Recording::draw_on_face`, the loops checked by
+    /// [`pncad::trace::chain_loops`]). One `InsertNode`, in the face's
+    /// body's space; with nothing traced and no chain, an empty profile
+    /// the editor fills.
     ///
-    /// What is proven: a sweep up the frame's `z` of a chain that leaves
-    /// a traced wall's trace along its tangent (`OnTrace`, then
-    /// `AlongTrace`) is tangent to that wall by construction, and the
-    /// coincidence door reports the union's row `SameConstruction`.
+    /// What is proven: an extrude of a chain that leaves a traced wall's
+    /// trace along its tangent (`OnTrace`, then `AlongTrace`), drawn on a
+    /// cap of that wall's own extrude, is tangent to the wall by
+    /// construction, and the coincidence door proves the union's row.
     ///
-    /// A traced face with no axis, or a picked face that is no plane
-    /// square to it, refuses [`Refusal::Frame`]; an argument of the
-    /// wrong dimension [`Refusal::Edit`]. A crossing the piece does not
-    /// make builds, and refuses at evaluation on the profile's badge.
-    AddDrawnProfile {
-        /// The plane face the frame's origin is stood in.
-        plane: FaceSelection,
+    /// An argument of the wrong dimension refuses [`Refusal::Edit`]. A
+    /// face that is no plane, or a crossing the piece does not make,
+    /// builds, and refuses at evaluation on the profile's badge.
+    DrawOnFace {
+        /// The face the profile is drawn on.
+        face: FaceSelection,
         /// The faces the profile traces, by place.
         traced: Vec<FaceSelection>,
         /// The loops, outer first, in the document's vocabulary.
@@ -1310,7 +1310,7 @@ impl SessionOp {
         match self {
             Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -1437,7 +1437,7 @@ impl SessionOp {
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1667,7 +1667,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1801,7 +1801,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1838,7 +1838,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
-                    | Self::AddDrawnProfile { .. }
+                    | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
                     | Self::AddSplit { .. }
@@ -1900,7 +1900,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }

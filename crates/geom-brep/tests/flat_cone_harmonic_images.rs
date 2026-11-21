@@ -85,10 +85,15 @@ fn ruling(alpha: f64, (v0, v1): (f64, f64), d: f64) -> (Curve3<f64>, f64) {
 fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
     match carrier {
         Curve3::Line(geom::Line { origin, dir }) => (*origin + *dir * t1 - Point3::origin()).norm(),
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) => (*center - Point3::origin()).norm() + radius,
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame: geom::Frame { origin: center, .. },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
+            (*center - Point3::origin()).norm() + radius
+        }
         _ => unreachable!(),
     }
 }

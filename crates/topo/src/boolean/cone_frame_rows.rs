@@ -445,12 +445,13 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
 /// off axis-normal by `θ`, the tilt margin levered at the extent four
 /// band-widths clear: the table's classifier reads a tilted ellipse,
 /// whose semi-axes differ by `O(θ²)`, far inside the band, and the frame
-/// is that ellipse's own (its centre, the cutting plane's normal). At a
-/// tilt in the band the pose's own row escalates (`pn_axis_normal`,
-/// `pc_rim_alignment`). The cone is the widening frustum, levered at
-/// the face's reach; the cylinder is a unit wall, levered at its radius.
+/// is that ellipse's own (its centre, the cutting plane's normal). A
+/// tilt in the band reads the same: the pose's row (`pn_axis_normal`,
+/// `pc_rim_alignment`) is a lane choice, so in band takes the ellipse.
+/// The cone is the widening frustum, levered at the face's reach; the
+/// cylinder is a unit wall, levered at its radius.
 #[test]
-fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
+fn a_near_circular_tilt_is_the_ellipses_frame_in_band_too() {
     let b = band();
     let tilted = |margin: f64, lever: f64| {
         let theta = (margin / lever).asin();
@@ -458,52 +459,27 @@ fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
     };
     let clear = 4.0 * b.escalate();
     let in_band = (b.zero() + b.escalate()) / 2.0;
-    let escalated = |got: &Frame| match got {
-        Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
-        _ => "another outcome",
-    };
     let cone = widening();
     let q = Point3::new(0.0, 0.5, 0.0);
-    let n = tilted(clear, wall_reach());
-    let got = frame(&plane([q.x, q.y, q.z], n), &cone, on_wall());
-    assert_conic_frame(&got, dandelin_centre(&cone, q, n), n, "the cone");
-    let got = frame(
-        &plane([q.x, q.y, q.z], tilted(in_band, wall_reach())),
-        &cone,
-        on_wall(),
-    );
-    assert_eq!(
-        escalated(&got),
-        "pn_axis_normal",
-        "the cone in band: got {}",
-        shape(&got)
-    );
+    for (label, margin) in [("the cone", clear), ("the cone in band", in_band)] {
+        let n = tilted(margin, wall_reach());
+        let got = frame(&plane([q.x, q.y, q.z], n), &cone, on_wall());
+        assert_conic_frame(&got, dandelin_centre(&cone, q, n), n, label);
+    }
     let wall = geom::Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 1.0, 0.0),
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let n = tilted(clear, 1.0);
     let at = Point3::new(1.0, 0.5, 0.0);
-    let (p, banded) = (
-        plane([q.x, q.y, q.z], n),
-        plane([q.x, q.y, q.z], tilted(in_band, 1.0)),
-    );
-    for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, label);
-    }
-    for (label, x, y) in [
-        ("plane, wall", &banded, &wall),
-        ("wall, plane", &wall, &banded),
-    ] {
-        let got = pair_section_frame(x, y, at, b);
-        assert_eq!(
-            escalated(&got),
-            "pc_rim_alignment",
-            "the cylinder in band ({label}): got {}",
-            shape(&got)
-        );
+    for margin in [clear, in_band] {
+        let n = tilted(margin, 1.0);
+        let p = plane([q.x, q.y, q.z], n);
+        for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
+            let label = format!("{label}, tilt margin {margin:e}");
+            assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, &label);
+        }
     }
 }
 

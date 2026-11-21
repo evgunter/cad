@@ -7,7 +7,7 @@ opened: 2026-11-02
 priority: P1
 cost: X
 points: 30
-refs: [the-rectangle-and-circle-templates-reopen-as-paths, a-profile-step-cannot-refer-to-its-own-earlier-points]
+refs: [the-rectangle-and-circle-templates-reopen-as-paths]
 blocked_on: [a-profile-point-argument-holds-one-point2-variable, the-prefix-replay-reports-each-drawn-pieces-start-centre-and-ray, a-profile-point-reads-an-earlier-pieces-centre-or-vertex, a-profile-director-holds-one-direction2-and-reads-a-straight-pieces-heading, python-writes-a-shared-point-and-reads-a-pieces-centre-vertex-and-heading, the-profile-editor-picks-an-earlier-piece-as-a-points-or-directors-value, a-revolves-axis-line-holds-a-point2-and-a-direction2]
 ---
 

@@ -20,3 +20,5 @@ On the conic quarter torus (`crates/step-import/tests/a_conic_quarter_torus_meas
 ## Owed
 
 Either carry the set-up across a face's windows (the round state is already per face in `topo::props`' `FaceRun`), or say why it cannot be carried. The area is a function of the face alone and does not change between windows.
+
+- 2026-11-20 — **Note (EXCH, whole-patch promotion):** the conic quarter torus now imports as two torus walls (stage-1 recognition promotes each 9 × 9-span wall before the C⁰-knot split), so the split-conic case this row measured is carried by `the_conic_quarter_elliptic_tube_answers_a_bracket_holding_pappus` in the same file: the same file with the minor profile an ellipse of semi-axes `r` and `0.75 r`, which no kind promotes, 162 one-span walls. `the_conic_quarter_torus_answers_a_bracket_holding_pappus` is gone. (EXCH lane A)

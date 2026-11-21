@@ -11,7 +11,11 @@
 //! great-circle arc between its ends; on a torus, an arc of a meridian
 //! (the tube's circle at one azimuth) and an arc of a parallel, in
 //! either order, after a segment that moves the start onto the tube
-//! through the end, so the pieces meet exactly. A loop arc is a plane
+//! through the end, so the pieces meet exactly. On a cylinder or a cone
+//! a detour is two such ruled paths composed at a turn, a point of the
+//! end's parallel or ruling at a guide point's azimuth or height
+//! ([`Carrier::detours`]): its pieces are the same kinds, so they meet
+//! a loop arc in the same closed forms. A loop arc is a plane
 //! section of the surface (a circle or an ellipse: no lane mints another
 //! conic; on a torus, also a spiric oval), a ruling of a cylinder or a
 //! cone, or a spline. So a piece meets a section arc only where it
@@ -99,6 +103,8 @@ pub(crate) enum Quadric<T: Real> {
     Sphere {
         centre: Point3<T>,
         radius: T,
+        /// The sphere's curvature arm, read off the surface.
+        arm: Lever<T>,
     },
     /// `axis` from the apex.
     Cone {
@@ -109,7 +115,6 @@ pub(crate) enum Quadric<T: Real> {
     Torus {
         axis: geom::Line<T>,
         major: T,
-        minor: T,
     },
 }
 
@@ -124,36 +129,30 @@ impl<T: Decide> Quadric<T> {
             geom::Surface::Sphere { center, radius, .. } => Some(Self::Sphere {
                 centre: center,
                 radius,
+                arm: geom_brep::uniform_curvature_arm(surface),
             }),
             geom::Surface::Cone { half_angle, .. } => Some(Self::Cone {
                 axis: surface.axis_line()?,
                 half_angle,
             }),
-            geom::Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => Some(Self::Torus {
+            geom::Surface::Torus { major_radius, .. } => Some(Self::Torus {
                 axis: surface.axis_line()?,
                 major: major_radius,
-                minor: minor_radius,
             }),
             _ => None,
         }
     }
 
-    /// The length a dimensionless reading at `p` is levered by: the
-    /// cylinder's or the sphere's radius, the radius of the cone's parallel through `p`, or
-    /// the torus's tube radius or its parallel's through `p`, whichever
-    /// is smaller.
-    pub(crate) fn lever(&self, p: Point3<T>) -> Lever<T> {
-        match *self {
-            Self::Cylinder { radius, .. } => Lever::curvature_radius(radius.abs()),
-            Self::Sphere { radius, .. } => Lever::curvature_radius(radius),
-            Self::Cone { axis, .. } => Lever::curvature_radius(axis.distance(p)),
-            Self::Torus { axis, minor, .. } => {
-                Lever::curvature_radius(minor).min(Lever::curvature_radius(axis.distance(p)))
-            }
+    /// The length a dimensionless reading at `p` on `surface`, the
+    /// surface this quadric is of, is levered by: the cylinder's or the
+    /// sphere's radius, the radius of the cone's parallel through `p`,
+    /// or the torus's tube radius or its parallel's through `p`,
+    /// whichever is smaller.
+    pub(crate) fn lever(&self, surface: &geom::Surface<T>, p: Point3<T>) -> Lever<T> {
+        let arm = geom_brep::curvature_lever_arm(surface, p);
+        match self {
+            Self::Cylinder { .. } | Self::Sphere { .. } | Self::Cone { .. } => arm,
+            Self::Torus { .. } => arm.min(geom_brep::parallel_curvature_arm(surface, p)),
         }
     }
 
@@ -165,7 +164,7 @@ impl<T: Decide> Quadric<T> {
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
             Self::Cylinder { axis, radius } => axis.offset(p) / radius,
-            Self::Sphere { centre, radius } => (p - centre) / radius,
+            Self::Sphere { centre, radius, .. } => (p - centre) / radius,
             Self::Cone {
                 axis: line @ geom::Line { dir: axis, .. },
                 half_angle,
@@ -242,7 +241,11 @@ impl<T: Decide> Quadric<T> {
             Self::Cylinder { axis, .. } => {
                 self.ruled_paths(axis, (from, to), resolution(&[from, to, axis.origin]), band)
             }
-            Self::Sphere { centre, radius } => {
+            Self::Sphere {
+                centre,
+                radius,
+                arm,
+            } => {
                 let slack = resolution(&[from, to, centre]);
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;
@@ -250,10 +253,7 @@ impl<T: Decide> Quadric<T> {
                 let (axis, sine) = m.direction_and_length();
                 if decide(
                     "split_ring_path_span",
-                    Margin::levered(
-                        charge(sine, slack / radius),
-                        Lever::curvature_radius(radius),
-                    ),
+                    Margin::levered(charge(sine, slack / radius), arm),
                     band,
                 )? != Sign::Positive
                 {
@@ -429,9 +429,7 @@ impl<T: Decide> Quadric<T> {
         let (hf, wf) = line.param_and_offset(from);
         let (ht, wt) = line.param_and_offset(to);
         let (rf, rt) = (wf.norm(), wt.norm());
-        let (uf, ut) = (wf / rf, wt / rt);
-        let turned = base + axis * ht + uf * rt;
-        let below = base + axis * hf + ut * rf;
+        let [turned, below] = ruled_corners(line, (from, to));
         // The length along `to`'s ruling from the turn to `to`, and that
         // ruling's unit direction, along which the second path arrives.
         let (rise, ruling_at_to) = match *self {
@@ -508,6 +506,66 @@ impl<T: Decide> Quadric<T> {
     }
 }
 
+impl<T: Decide> Quadric<T> {
+    /// **The turns of a detour** to `to` on a cylinder or a cone,
+    /// steered by `guide`: the corners of the ruled paths from `guide`
+    /// to `to` ([`ruled_corners`]), `to`'s parallel at `guide`'s azimuth
+    /// and `to`'s ruling at `guide`'s height. Each is a raw pick: a path
+    /// through any point has the parity of every other. None on any
+    /// other kind, nor where `guide` or `to` is decided on a cone's apex,
+    /// where a turn has no azimuth; an escalation where either is read
+    /// in band of it ([`Self::off_apex`]). Every point of a cylinder is
+    /// off its axis by the radius.
+    fn turns(
+        &self,
+        to: Point3<T>,
+        guide: Point3<T>,
+        band: Band,
+    ) -> Result<Vec<Point3<T>>, Indeterminate> {
+        match *self {
+            Self::Cylinder { axis, .. } => Ok(ruled_corners(axis, (guide, to)).to_vec()),
+            Self::Cone { axis, .. } => {
+                Ok(if self.off_apex(guide, band)? && self.off_apex(to, band)? {
+                    ruled_corners(axis, (guide, to)).to_vec()
+                } else {
+                    Vec::new()
+                })
+            }
+            Self::Sphere { .. } | Self::Torus { .. } => Ok(Vec::new()),
+        }
+    }
+}
+
+/// **The corners of the ruled paths** from `from` to `to` on the
+/// cylinder or cone about `line`: `to`'s parallel at `from`'s azimuth,
+/// where the path along `from`'s ruling turns, and `from`'s parallel at
+/// `to`'s azimuth, where the path round `from`'s parallel turns. Each
+/// lies at the radius of the end on its parallel, not at the carrier's
+/// ratio, so the pieces meet exactly ([`Quadric::ruled_paths`]). Both
+/// ends lie off the axis.
+fn ruled_corners<T: Decide>(
+    line: geom::Line<T>,
+    (from, to): (Point3<T>, Point3<T>),
+) -> [Point3<T>; 2] {
+    let (hf, wf) = line.param_and_offset(from);
+    let (ht, wt) = line.param_and_offset(to);
+    let (rf, rt) = (wf.norm(), wt.norm());
+    [
+        line.origin + line.dir * ht + (wf / rf) * rt,
+        line.origin + line.dir * hf + (wt / rt) * rf,
+    ]
+}
+
+impl<T: Real> Path<T> {
+    /// This path, then `next` from where this one arrives.
+    fn then(mut self, next: &Self) -> Self {
+        self.pieces.extend(next.pieces.iter().cloned());
+        self.arrival = next.arrival;
+        self.reach = next.reach;
+        self
+    }
+}
+
 /// The arc of the circle centred `centre` about the unit `axis`, of
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
@@ -551,7 +609,7 @@ impl<T: Real> CircleArc<T> {
 
     /// The unit direction of travel at `t`.
     fn tangent(&self, t: T) -> Vec3<T> {
-        self.circle.derivative_at(t) / self.circle.radius
+        self.circle.derivative_at(t) / self.circle.radius()
     }
 }
 
@@ -594,6 +652,7 @@ enum Piece<T: Real> {
 /// travel where it arrives, and, on a spline wall, the arm that
 /// arrival's lean is levered at ([`spline_wall::IsoPiece::reach`]): a
 /// quadric's is its own at the point arrived at ([`Quadric::lever`]).
+#[derive(Clone)]
 pub(crate) struct Path<T: Real> {
     pieces: Vec<Piece<T>>,
     pub(crate) arrival: Vec3<T>,
@@ -629,14 +688,55 @@ impl<T: Decide> Carrier<T> {
         }
     }
 
-    /// The length the lean of `path`'s arrival at `q` is levered by: the
-    /// arm the path states ([`Path::reach`], a spline wall's), else a
-    /// quadric's own at `q` ([`Quadric::lever`]). `None` for a path on a
-    /// spline wall that states none, which says nothing.
-    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Option<Lever<T>> {
+    /// **The detours from `from` to `to` steered by `guide`**, one
+    /// offer per turn of [`Quadric::turns`]: every path to the turn
+    /// followed by every path from it to `to`. A ruled path whose pieces
+    /// run through a loop's vertices, as every one does where the ends
+    /// share their azimuths and heights with them, says nothing; a turn
+    /// at the azimuth or the height of a point inside a loop edge, which
+    /// no vertex that edge joins has, leads round them. A turn whose
+    /// paths escalate is that offer's escalation alone. None on a
+    /// sphere, a torus or a spline wall.
+    pub(crate) fn detours(
+        &self,
+        (from, to): (Point3<T>, Point3<T>),
+        guide: Point3<T>,
+        band: Band,
+    ) -> Vec<Result<Vec<Path<T>>, Indeterminate>> {
+        let Self::Quadric(quadric) = self else {
+            return Vec::new();
+        };
+        let turns = match quadric.turns(to, guide, band) {
+            Ok(turns) => turns,
+            Err(diag) => return vec![Err(diag)],
+        };
+        turns
+            .into_iter()
+            .map(|turn| {
+                let onward = quadric.paths((turn, to), band)?;
+                let firsts = quadric.paths((from, turn), band)?;
+                Ok(firsts
+                    .iter()
+                    .flat_map(|first| onward.iter().map(|next| first.clone().then(next)))
+                    .collect())
+            })
+            .collect()
+    }
+
+    /// The length the lean of `path`'s arrival at `q` on `surface`, the
+    /// surface this carrier is of, is levered by: the arm the path states
+    /// ([`Path::reach`], a spline wall's), else a quadric's own at `q`
+    /// ([`Quadric::lever`]). `None` for a path on a spline wall that
+    /// states none, which says nothing.
+    pub(crate) fn lean_lever(
+        &self,
+        surface: &geom::Surface<T>,
+        q: Point3<T>,
+        path: &Path<T>,
+    ) -> Option<Lever<T>> {
         match (path.reach, self) {
             (Some(reach), _) => Some(reach),
-            (None, Self::Quadric(quadric)) => Some(quadric.lever(q)),
+            (None, Self::Quadric(quadric)) => Some(quadric.lever(surface, q)),
             (None, Self::Wall(_)) => None,
         }
     }
@@ -1115,17 +1215,22 @@ impl<T: Decide> Quadric<T> {
                 major,
                 ..
             },
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: k, axis: n, ..
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: k, axis: n, ..
+                        },
+                    ..
                 },
-                radius,
-            }),
+            ),
         ) = (*self, carrier)
         else {
             return Ok(None);
         };
-        let (k, n, radius) = (*k, *n, *radius);
+        let radius = circle.radius();
+        let (k, n, radius) = (*k, *n, radius);
+        let arm = geom_brep::circle_curvature_arm(circle);
         let Some(LoopArc::Conic(conic)) = LoopArc::of(carrier, params) else {
             return Ok(None);
         };
@@ -1146,7 +1251,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), Lever::curvature_radius(radius)),
+            Margin::levered(n.dot(axis), arm),
             band,
         )? == Sign::Zero
         {
@@ -1165,7 +1270,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), Lever::curvature_radius(radius)),
+            Margin::levered(n.cross(axis).norm(), arm),
             band,
         )? != Sign::Zero
         {
@@ -1374,7 +1479,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(None);
                     };
                     for (t, slope) in roots {
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                         let [a0, a1] = in_span(
                             &carrier(arc),
                             param(arc, p.at(t)),
@@ -1397,7 +1502,7 @@ pub(crate) fn path_parity<T: Decide>(
                 ) => {
                     if decide_m(
                         "split_ring_path_crest_graze",
-                        Margin::of(charge(p.circle.radius - major, slack)),
+                        Margin::of(charge(p.circle.radius() - major, slack)),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1426,12 +1531,12 @@ pub(crate) fn path_parity<T: Decide>(
                     };
                     for (t, slope) in roots {
                         let s = circle.param_in(p.at(t), span);
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                         let [a0, a1] = in_span(
                             &geom::Curve3::Circle(circle),
                             s,
                             span,
-                            circle.radius * slope,
+                            circle.radius() * slope,
                         );
                         readings.push([p0, p1, a0, a1, own.read(p.at(t), slack, band)]);
                     }
@@ -1480,7 +1585,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let across = p.circle.frame.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
-                        Margin::levered(across, Lever::curvature_radius(p.circle.radius)),
+                        Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1493,7 +1598,7 @@ pub(crate) fn path_parity<T: Decide>(
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
-                    let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius * slope);
+                    let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
                     let ruling = geom::Curve3::Line(geom::Line { origin, dir });
                     let [a0, a1] = in_span(&ruling, s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
@@ -1697,7 +1802,7 @@ fn spline_crossings<T: Decide>(
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
             // Unsourced lever: the arc's length, its angular span times its radius, longer
             // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            let length = Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0));
+            let length = Lever::unsourced(p.circle.radius() * (p.span.1 - p.span.0));
             (
                 geom::Curve3::Circle(p.circle),
                 p.span,
@@ -1797,10 +1902,7 @@ impl<T: Decide> ConicArc<T> {
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: *f,
-            radius: b,
-        });
+        let circle = geom::Curve3::Circle(geom::Circle::new(*f, b));
         let Some(arc) = circle.distance_within(x, self.span) else {
             unreachable!("a circle's arc distance is closed-form")
         };
@@ -1985,8 +2087,8 @@ fn misses_in_plane<T: Decide>(
     let (a, b) = conic.semi_axes();
     let apart = (p.circle.frame.origin - conic.frame().origin).norm();
     let differ = apart
-        .max((p.circle.radius - a).abs())
-        .max((p.circle.radius - b).abs());
+        .max((p.circle.radius() - a).abs())
+        .max((p.circle.radius() - b).abs());
     if decide("split_ring_path_same_circle", Margin::of(differ), band)? != Sign::Zero {
         return Ok(false);
     }
@@ -2017,7 +2119,7 @@ fn misses_in_plane<T: Decide>(
             &p.carrier(),
             p.param(conic.point_at(s)),
             p.span,
-            p.circle.radius,
+            p.circle.radius(),
         )? {
             return Ok(false);
         }
@@ -2042,9 +2144,9 @@ fn coplanar_apart<T: Decide>(
     let conic = arc.conic();
     let apart = (p.circle.frame.origin - conic.frame().origin).norm();
     let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
-    let gap = (apart - p.circle.radius - outer)
-        .max(inner - p.circle.radius - apart)
-        .max(p.circle.radius - outer - apart);
+    let gap = (apart - p.circle.radius() - outer)
+        .max(inner - p.circle.radius() - apart)
+        .max(p.circle.radius() - outer - apart);
     Ok(decide(
         "split_ring_path_coplanar_apart",
         Margin::of(charge(gap, slack)),
@@ -2077,7 +2179,7 @@ fn plane_roots<T: Decide>(
     // it is the deviation the sign rests on.
     match decide(
         "split_ring_path_meets_plane",
-        Margin::of(charge(p.circle.radius * rho - d.abs(), slack)),
+        Margin::of(charge(p.circle.radius() * rho - d.abs(), slack)),
         band,
     )? {
         Sign::Negative => return Ok(Some(Vec::new())),
@@ -2087,7 +2189,7 @@ fn plane_roots<T: Decide>(
     // Each root's direction is the phase direction `(ca, cb)` turned by
     // `±offset`, read once within half a turn of the span's middle.
     let middle = geom::mid_param(p.span.0, p.span.1);
-    let offset = (-d / (p.circle.radius * rho))
+    let offset = (-d / (p.circle.radius() * rho))
         .max(-T::one())
         .min(T::one())
         .acos();
@@ -2340,6 +2442,187 @@ mod tests {
                         path_parity(&path, core::slice::from_ref(&arc), None, band()).unwrap(),
                         Some(false),
                         "from azimuth {u} on the plane to {to:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The square `[0.5, 1] × [0.3, 0.7]` (azimuth × height) on the unit
+    /// cylinder about `z`, each edge split at its middle where `split`,
+    /// as [`super::super::chord_join`]'s aligned island is: its loop
+    /// arcs, its vertices and edge midpoints, and its membership oracle.
+    #[allow(clippy::type_complexity)]
+    fn cylinder_square(
+        split: bool,
+    ) -> (
+        Vec<LoopArc<f64>>,
+        Vec<Point3<f64>>,
+        impl Fn(Point3<f64>) -> bool,
+    ) {
+        let at = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        let cuts = |a: f64, b: f64| {
+            if split {
+                vec![(a, 0.5 * (a + b)), (0.5 * (a + b), b)]
+            } else {
+                vec![(a, b)]
+            }
+        };
+        let mut arcs = Vec::new();
+        let mut marks = Vec::new();
+        for z in [0.3, 0.7] {
+            let rim = geom::Curve3::circle(
+                Point3::new(0.0, 0.0, z),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            );
+            for (t0, t1) in cuts(0.5, 1.0) {
+                arcs.push(LoopArc::of(&rim, (t0, t1)).unwrap());
+                marks.extend([at(t0, z), at(0.5 * (t0 + t1), z)]);
+            }
+        }
+        for u in [0.5, 1.0] {
+            let ruling = geom::Curve3::Line(geom::Line {
+                origin: at(u, 0.0),
+                dir: Vec3::unit_z(),
+            });
+            for (t0, t1) in cuts(0.3, 0.7) {
+                arcs.push(LoopArc::of(&ruling, (t0, t1)).unwrap());
+                marks.extend([at(u, t0), at(u, 0.5 * (t0 + t1))]);
+            }
+        }
+        let inside = |p: Point3<f64>| {
+            let u = p.y.atan2(p.x);
+            u > 0.5 && u < 1.0 && p.z > 0.3 && p.z < 0.7
+        };
+        (arcs, marks, inside)
+    }
+
+    /// **A detour reads its whole length, its second leg included.** On
+    /// the unit cylinder about `z`, from azimuth 0.2 to azimuth 1.3 at
+    /// height 0.5, both outside the square, steered by a guide at
+    /// `(0.75, 0.6)` inside it: one turn, `(0.75, 0.5)`, lies inside the
+    /// square, so each leg through it crosses one ruling and the detour
+    /// crosses two, even. A detour that stopped at its turn would read
+    /// odd.
+    #[test]
+    fn a_detour_through_a_turn_inside_the_island_reads_both_legs() {
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = Carrier::Quadric(Quadric::of(&cylinder).unwrap());
+        let (arcs, _, inside) = cylinder_square(false);
+        let at = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        let (from, to, guide) = (at(0.2, 0.5), at(1.3, 0.5), at(0.75, 0.6));
+        assert!(inside(guide) && !inside(from) && !inside(to));
+        let mut decided = 0;
+        for offer in carrier.detours((from, to), guide, band()) {
+            for path in offer.unwrap() {
+                if let Some(odd) = path_parity(&path, &arcs, None, band()).unwrap() {
+                    assert!(!odd, "a detour between two outside points reads even");
+                    decided += 1;
+                }
+            }
+        }
+        assert!(decided > 0, "some detour decides");
+    }
+
+    /// **Every detour on a cylinder or a cone reads the parity the
+    /// islands' oracles give**: points on and off the islands' vertex
+    /// azimuths and heights taken pairwise, steered by each island
+    /// vertex and edge midpoint, and on a cone also by a point on the
+    /// other nappe, one near the apex and the apex itself (which offers
+    /// no turn). Every detour that decides agrees with the oracle, and
+    /// both parities are read.
+    #[test]
+    fn a_detour_crosses_an_island_by_the_oracle_parity() {
+        type Oracle<'a> = &'a dyn Fn(Point3<f64>) -> bool;
+        let check = |carrier: &Carrier<f64>,
+                     (points, guides): (&[Point3<f64>], &[Point3<f64>]),
+                     (arcs, inside): (&[LoopArc<f64>], Oracle<'_>),
+                     label: &str| {
+            let (mut decided, mut odd) = (0usize, 0usize);
+            for (i, &a) in points.iter().enumerate() {
+                for &b in &points[i + 1..] {
+                    let want = inside(a) != inside(b);
+                    for &g in guides {
+                        for offer in carrier.detours((a, b), g, band()) {
+                            for path in offer.unwrap() {
+                                if let Some(got) = path_parity(&path, arcs, None, band()).unwrap() {
+                                    assert_eq!(got, want, "{label}: {a:?} → {b:?} by {g:?}");
+                                    decided += 1;
+                                    odd += usize::from(got);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(
+                odd > 0 && decided > odd,
+                "{label}: {decided} detours decided, {odd} odd"
+            );
+        };
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let at = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        let points: Vec<_> = [0.2, 0.62, 0.75, 0.88, 1.3]
+            .into_iter()
+            .flat_map(|u| [0.1, 0.4, 0.5, 0.6, 0.9].map(|z| at(u, z)))
+            .collect();
+        for split in [false, true] {
+            let (arcs, marks, inside) = cylinder_square(split);
+            check(
+                &Carrier::Quadric(Quadric::of(&cylinder).unwrap()),
+                (&points, &marks),
+                (&arcs, &inside),
+                &format!("cylinder, split {split}"),
+            );
+        }
+        for f in frames() {
+            for mirror in [false, true] {
+                let cone = cone(f, mirror);
+                let carrier = Carrier::Quadric(Quadric::of(&cone).unwrap());
+                let points: Vec<_> = [0.17, 1.3, 1.6, 2.1]
+                    .into_iter()
+                    .flat_map(|h| {
+                        (0..6).map(move |k| on_nappe(f, h, -PI + (f64::from(k) + 0.5) * PI / 3.0))
+                    })
+                    .collect();
+                for (name, island) in [("lune", lune(f, &cone, 1.0)), ("sector", sector(f, &cone))]
+                {
+                    let arcs: Vec<_> = island
+                        .edges
+                        .iter()
+                        .map(|e| LoopArc::of(&e.carrier, e.params).unwrap())
+                        .collect();
+                    let mut guides = island.corners.clone();
+                    guides.extend(
+                        island
+                            .edges
+                            .iter()
+                            .map(|e| e.carrier.mid_point(e.params.0, e.params.1)),
+                    );
+                    guides.extend([on_nappe(f, -1.0, 0.4), on_nappe(f, 1e-3, 0.4), f.o]);
+                    assert!(
+                        carrier
+                            .detours((points[0], points[1]), f.o, band())
+                            .is_empty(),
+                        "the apex offers no turn"
+                    );
+                    check(
+                        &carrier,
+                        (&points, &guides),
+                        (&arcs, &*island.inside),
+                        &format!("{name}, mirror {mirror}"),
                     );
                 }
             }

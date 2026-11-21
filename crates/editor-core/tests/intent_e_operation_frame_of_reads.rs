@@ -605,3 +605,328 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
         "the frame moved with the value"
     );
 }
+
+/// **A measure between two copies moves neither body**
+/// (`[placement.frame]`: "a reading within one operand is made in its own
+/// coordinates, and only a reading between two goes through their
+/// relative motion"). One block, placed twice: once slid up, once turned
+/// a half turn about `z` and slid 3 along `x`. Each copy keeps the
+/// block's `Arc`, so the measure's two references are one body in two
+/// frames, and the distance between the first copy's `+x` wall (at
+/// `x = 1`) and the second's (turned to face `−x`, at `x = 2`) is 1. The
+/// measure reads each wall off the block as it stands and the second's
+/// carrier through the relative motion, so the evaluation maps no body.
+///
+/// *Breaks if* the measure reads its other reference by moving its body
+/// (`Framed::read_in`: one rigid map counted), or reads it without the
+/// relative motion (the second wall read where the block stands, at
+/// `x = 1`: a distance of 0).
+#[test]
+fn a_measure_between_two_copies_maps_no_body() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let doc = ProfileDoc::empty(DocumentId::derive("e-measure-seats"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, up) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::PI,
+        [3.0, 0.0, 0.0],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    let (doc, over) = in_world(doc, source, &turned);
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![SitedRef::new(up, wall.clone()), SitedRef::new(over, wall)],
+    );
+    let before = EvalCounters::on_this_thread();
+    let ev = run(&doc, None);
+    let counted = EvalCounters::on_this_thread().since(before);
+    let value = match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => *value,
+        other => panic!("the measure reads: {other:?}, {:?}", ev.node_error(measure)),
+    };
+    assert!(
+        (value - 1.0).abs() < 1e-12,
+        "the walls stand 1 apart where the copies put them: {value}"
+    );
+    assert_eq!(
+        counted.rigid_maps, 0,
+        "the measure maps neither copy's body: {counted:?}"
+    );
+    assert!(
+        Arc::ptr_eq(
+            framed(&ev, up).holding().arc(),
+            framed(&ev, over).holding().arc()
+        ),
+        "the premise: both references are the block's own Arc"
+    );
+}
+
+/// **A direction read off a turned copy is turned** (`[placement.frame]`,
+/// a reading between two operands through their relative motion). One
+/// block, placed twice: slid up, and turned a quarter turn about `z`. The
+/// angle between the two copies' end-cap rims over the profile's first
+/// segment is a right angle: the second rim's direction is read off the
+/// block as it stands and turned through the relative motion.
+///
+/// *Breaks if* a line edge's direction is read in its own coordinates
+/// and not mapped into the reader's frame (`topo::Seat::vec` as the
+/// identity: the two rims read parallel, an angle of 0).
+#[test]
+fn an_angle_to_a_turned_copys_edge_reads_the_turn() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let doc = ProfileDoc::empty(DocumentId::derive("e-angle-seats"), Tol::witness());
+    let (doc, source) = block(doc);
+    let (doc, up) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+        [3.0, 0.0, 0.0],
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+    )
+    .unwrap();
+    let (doc, over) = in_world(doc, source, &turned);
+    let rim = fixture::end_rim(&doc, source, 0);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Angle { a: 0, b: 1 },
+        vec![SitedRef::new(up, rim.clone()), SitedRef::new(over, rim)],
+    );
+    let ev = run(&doc, None);
+    let value = match ev.value(measure).map(|v| &v.payload) {
+        Some(ValuePayload::Measure { value, .. }) => *value,
+        other => panic!("the angle reads: {other:?}, {:?}", ev.node_error(measure)),
+    };
+    assert!(
+        (value - std::f64::consts::FRAC_PI_2).abs() < 1e-12,
+        "the turned copy's rim reads a quarter turn off the first's: {value}"
+    );
+}
+
+/// The one node of `doc` whose refusal every refusal reports (a node
+/// reading a refused one reports that node's refusal), and its refusal:
+/// the session box's finding alone.
+fn the_one_box_refusal(doc: &ProfileDoc, ev: &Evaluation<f64>) -> RecipeNodeId {
+    let mut refusals: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| ev.node_error(id))
+        .collect();
+    refusals.dedup_by(|a, b| a.node == b.node);
+    let [refused] = &refusals[..] else {
+        panic!("one node refuses: {refusals:?}")
+    };
+    assert!(
+        matches!(
+            &refused.kind,
+            editor_core::NodeErrorKind::NotFinished { findings }
+                if matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "with the session box's finding alone: {refused:?}"
+    );
+    refused.node
+}
+
+/// **A copy placed past the session box refuses at its placement**
+/// (`[placement.frame]`; the ruling on PR 7088): the door that places a
+/// copy asks the box of where it stands (`topo::session_box_at`, the
+/// question a move asks of its image, read off the copy's own data), and
+/// no reader asks it. One block in the world, its copy 2 km along `x`,
+/// and a measure between their `+x` walls: the far copy's placement
+/// refuses with the session box's finding alone, and the measure,
+/// poisoned by it, reads nothing. So does the same document with its
+/// copies under a `⊔`: the placement refuses before the `⊔` grafts.
+///
+/// *Breaks if* no door asks the placement: the document with no `⊔`
+/// then refuses nowhere and its measure reads 2 km, and the one with a
+/// `⊔` refuses at the `⊔`.
+#[test]
+fn a_copy_placed_past_the_box_refuses_at_its_placement() {
+    use editor_core::{MeasurePrimitive, SitedRef};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, near) = in_world(doc, source, &editor_core::Frame::translation([0.0; 3]));
+    let (doc, far) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2000.0, 0.0, 0.0]),
+    );
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![SitedRef::new(near, wall.clone()), SitedRef::new(far, wall)],
+    );
+    for doc in [doc.clone(), fixture::assemble_world_copies(doc)] {
+        let ev = run(&doc, None);
+        assert_eq!(
+            the_one_box_refusal(&doc, &ev),
+            far,
+            "the far placement refuses"
+        );
+        assert!(
+            ev.value(measure).is_none(),
+            "the measure reads nothing past a refused copy"
+        );
+    }
+}
+
+/// **A mirror of a placed copy that stands past the box refuses at the
+/// mirror** (`[placement.frame]`; the one-input operations whose result
+/// can stand past their operand ask where it stands, as a placement
+/// does). A block's copy at 998.5 m along `x` stands inside the box;
+/// mirrored across its own `+x` wall it reaches 1000.5 m. The mirror
+/// refuses with the session box's finding alone, and a measure from a
+/// block at the origin to the image reads nothing.
+///
+/// *Breaks if* the mirror keeps the copy's frame without asking: the
+/// image then builds, and the measure reads it about 999 m off.
+#[test]
+fn a_mirror_past_the_box_refuses_at_the_mirror() {
+    use editor_core::{MeasurePrimitive, Operand, SitedRef};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-mirror-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, near) = in_world(doc, source, &editor_core::Frame::translation([0.0; 3]));
+    let (doc, copy) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([998.5, 0.0, 0.0]),
+    );
+    let plane = fixture::plane_on(&doc, copy, [1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(copy, 0).into(),
+            plane,
+        },
+    );
+    let wall = fixture::fname(source, fixture::wall(&doc, source, 1));
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(near, wall.clone()),
+            SitedRef::new(mirror, wall),
+        ],
+    );
+    let ev = run(&doc, None);
+    assert!(ev.value(copy).is_some(), "the copy stands inside the box");
+    assert_eq!(the_one_box_refusal(&doc, &ev), mirror, "the mirror refuses");
+    assert!(
+        ev.value(measure).is_none(),
+        "the measure reads nothing past a refused mirror"
+    );
+}
+
+/// **Each copy is asked where it stands in its space, not relative to
+/// another**: two copies of one block at 1999 m and 2002 m along `x`,
+/// under a `⊔`, both past the 1 km box. Each placement asks the box of
+/// where its copy stands in the world (`Framed::asked_where_it_stands`,
+/// the copy's own frame into its space), and both refuse, each at its
+/// own placement, before the `⊔` reads either.
+///
+/// The `⊔`'s own ask is not this row's lever: a gather asks of each
+/// image read into its computing frame (`Framed::read_in`), a frame
+/// artefact that refuses two copies at +900 m and −900 m, a valid
+/// document (`work/onehome/a-gathers-box-ask-reads-each-image-in-its-computing-frame.md`).
+///
+/// *Breaks if* the placement asks relative to an operand's frame, or no
+/// placement asks (then no node refuses, as on main before the door).
+#[test]
+fn two_far_copies_refuse_each_at_its_placement() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-two-far-copies"), tol);
+    let (doc, source) = block(doc);
+    let (doc, a) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([1999.0, 0.0, 0.0]),
+    );
+    let (doc, b) = in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2002.0, 0.0, 0.0]),
+    );
+    let doc = fixture::assemble_world_copies(doc);
+    let ev = run(&doc, None);
+    for copy in [a, b] {
+        assert!(
+            matches!(
+                ev.node_error(copy).map(|e| (e.node, &e.kind)),
+                Some((node, editor_core::NodeErrorKind::NotFinished { findings }))
+                    if node == copy
+                        && matches!(&findings[..], [topo::ValidationError::OutsideSessionBox { .. }])
+            ),
+            "the copy refuses at its own placement: {:?}",
+            ev.node_error(copy)
+        );
+    }
+}
+
+/// **The placement's ask reads the image's own reach, an edge's arc
+/// included**: a disc of radius 10 extruded 1 m, its circular rims'
+/// vertices on its own `+x`, turned onto the world's `+y` by a quarter
+/// turn about `z` and placed 995 m along `x`. Every vertex stands inside the box (the premise, read off
+/// the copy in the world), and each rim's arc reaches 1005 m along `x`,
+/// so the placement refuses with the session box's finding, as the
+/// moved image's ask refuses it (`session_box::body_reach`: each
+/// vertex, and each edge's coordinate reach read off its cover).
+/// *Breaks if* the door's ask reads the vertices alone.
+#[test]
+fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("e-rim-past-the-box"), tol);
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 10.0).expect("a circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, disc) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let at = |x: f64| editor_core::Frame {
+        columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [x, 0.0, 0.0],
+    };
+    let (inside, copy) = in_world(doc.clone(), disc, &at(900.0));
+    let ev = run(&inside, None);
+    let Some(ValuePayload::Body(framed)) = ev.value(copy).map(|v| &v.payload) else {
+        panic!("the copy at 900 m evaluates: {:?}", ev.node_error(copy))
+    };
+    let world = fixture::in_space(framed);
+    let vertex_reach = world
+        .vertex_points()
+        .map(|(_, p)| p.x.abs().max(p.y.abs()).max(p.z.abs()))
+        .fold(0.0_f64, f64::max);
+    assert!(
+        (vertex_reach - 900.0).abs() < 1e-9,
+        "the premise: the rims' vertices stand on the copy's own +y, at 900 m along x: {vertex_reach}"
+    );
+    let (past, far) = in_world(doc, disc, &at(995.0));
+    let ev = run(&past, None);
+    assert_eq!(
+        the_one_box_refusal(&past, &ev),
+        far,
+        "the placement refuses"
+    );
+}
