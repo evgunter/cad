@@ -1345,6 +1345,58 @@ mod tests {
         }
     }
 
+    /// **A re-seamed ellipse holds a point near its anchor to the
+    /// semi-axis's rounding, not the arc's.** As minted, parameter zero
+    /// is at the anchor and a point a step `d` along the arc is the
+    /// anchor plus `P′·d` to a few roundings of its own coordinates.
+    /// Seamed a quarter turn on, the anchor has not moved but its
+    /// parameter is `−π/2`, which the parameter itself now carries: the
+    /// same step lands a rounding of the SEMI-AXIS off (measured 1.5 to
+    /// 3.6 `u·a` over anchors a quarter and a half turn from the seam).
+    ///
+    /// The second half is a pin on a known shortfall, held from both
+    /// sides: red if it gets worse than `8 u·a`, and red if it becomes
+    /// arc-scale, which is what
+    /// `work/oneround/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`
+    /// closes (parameter zero kept at the anchor through a re-seam); the
+    /// unit that does it turns this half over.
+    #[test]
+    fn a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis() {
+        use super::{Conic, Ellipse};
+        let u = geom_core::UNIT_ROUNDOFF;
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let own = (at - Point3::origin()).norm();
+        for a in [1e4, 1e5, 1e6] {
+            let e = Ellipse::anchored(at, n, toward, a, 0.37 * a);
+            let worst = |k: &Ellipse<f64>, at_param: f64| {
+                let speed = k.derivative_at(at_param);
+                [-3e-10, -1e-10, 7e-11, 2e-10, 3.3e-10]
+                    .into_iter()
+                    .map(|d: f64| (k.point_at(at_param + d) - (at + speed * d)).norm())
+                    .fold(0.0, f64::max)
+            };
+            // The step's own curvature term, `a·d²/2`, is under 1e-13.
+            let minted = worst(&e, 0.0);
+            assert!(
+                minted <= 16.0 * u * own + 1e-13,
+                "a {a:e}, as minted: {minted:e} off, past its own rounding"
+            );
+            let turned = e.seamed_near(1.4);
+            assert_eq!(turned.phase(), (0.0, -1.0));
+            let off = worst(&turned, -core::f64::consts::FRAC_PI_2);
+            assert!(
+                off <= 8.0 * u * a,
+                "a {a:e}, seamed a quarter turn on: {off:e} off, past 8 u·a"
+            );
+            assert!(
+                off >= 0.05 * u * a,
+                "a {a:e}, seamed a quarter turn on: {off:e} off is arc-scale now: turn this \
+                 half of the row over and close the general anchor's row"
+            );
+        }
+    }
+
     /// **The conic readings are the D9 evaluators**: the point, the
     /// derivatives and the jet a reader takes through [`Conic`], and
     /// [`Curve3`]'s, are [`written_out`]'s bit for bit, on either kind and

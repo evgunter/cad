@@ -122,3 +122,41 @@ parameter zero.
 
 The list is from reading; it is not exhaustive for `pcurve_cache.rs`,
 `curve_pair/pose.rs` and `implicit.rs` beyond the functions named.
+
+## What this row closes on a re-seamed ellipse
+
+`crates/geom/README.md` says of every conic that its parameter zero is
+at its anchor. After the phase
+(`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`) that holds
+for a conic as minted and not for a re-seamed one: a re-seam turns the
+seam under the anchor, so parameter zero is at the turned seam's
+principal vertex and the anchor is a quarter or a half turn from it. The
+parameter stays the eccentric anomaly from `u_ref`, and the anchor's own
+anomaly is stored as its `(cos, sin)`.
+
+What that costs, measured against exact rationals (ellipses of semi-axes
+`a` and `0.37·a`, `a` from 1 to 1e6, points within 0.9 rad of the anchor):
+
+| the anchor's anomaly from the seam | a point's worst miss |
+|---|---|
+| zero (as minted) | 0.55 to 0.75 `u` of the point's own size and its chord from the anchor |
+| a quarter turn | 1.45 to 2.7 `u·a` |
+| a half turn | 2.5 to 3.1 `u·a` |
+| a general anomaly | 2.8 to 3.6 `u·a` |
+
+So a re-seamed ellipse holds a point near its anchor to the semi-axis's
+rounding, a centre-form ellipse's resolution, because the parameter
+itself carries the quarter turn. The one production caller that re-seams
+is `SectionConic::seamed_near` (`crates/topo/src/chord_join.rs`), which
+`chord_arc` calls with the chord's middle; `Curve3::seamed_near` is the
+door under it.
+
+Closing it is this row's general form: parameter zero stays AT the
+anchor through a re-seam, a point is summed by the chord from it, and
+the sites that pair the parameter with the principal directions (about
+60) read the principal angle from the conic. The stored anchor and its
+anomaly's pair are what that form reads.
+`conic::tests::a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis`
+pins today's `u·a` from both sides and goes red when it becomes
+arc-scale; `a_re_seam_moves_parameter_zero_and_never_the_anchor` pins
+where parameter zero and the anchor are.
