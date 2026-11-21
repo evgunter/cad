@@ -133,3 +133,5 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 longer stands. Its one site went with the REST zip: `boolean/rest.rs`
 is gone from main, `patch_faces` with it. Nothing in this row waits on
 D10.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `coherence.rs` walk is gone.

@@ -2195,7 +2195,8 @@ swallowed.
   is the precedent; an uncalibrated ceiling was once off by nine
   orders). Where the measured condition is reachable by input, the
   preferred disposition is a reported value, not a tripwire
-  (`topo::coherence`).
+  (`editor_core::checks`, the advisory registry, which reports and
+  never gates).
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a

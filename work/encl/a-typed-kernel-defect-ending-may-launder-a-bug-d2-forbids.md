@@ -310,3 +310,5 @@ caller renders them (`topo/src/offset_derive.rs` prints the payload,
 ## The volume backstop left the operation path (2026-10-27)
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Its `ResultVolumeImplausible`, `VolumeCorrupt` and `refusal_routes.rs` `VolumeBackstop` sites are gone; the rest stand.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. Its `coherence.rs` constructor sites are gone.

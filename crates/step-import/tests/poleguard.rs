@@ -294,10 +294,7 @@ fn the_singularitys_file_band_ending_names_the_eps_in_that_decides_it() {
         env!("CARGO_MANIFEST_DIR")
     );
     let text = std::fs::read_to_string(&p).unwrap();
-    let options = ImportOptions {
-        eps_in: Some(1e-9),
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in: Some(1e-9) };
     let imported = import_step(&text, &options, Tol::witness());
     let Err(
         e @ step_import::StepImportError::SingularityUndecided {

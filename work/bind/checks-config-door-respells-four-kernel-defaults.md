@@ -94,3 +94,5 @@ own problem.
 (`work/lib/program.md`'s `paths`). Filed by a PORT lane under
 `work/README.md`'s rule that a finding goes on the slate of the program
 whose ground it lands on.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `chart_coherence` knob this row cites is gone from both the kernel's `ChecksConfig` and the Python door's signature; the other defaults it names stand.

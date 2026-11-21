@@ -552,10 +552,9 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `Unused` is what `Doc::unused` answers: the tips the `unused` check
 // reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
-    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
-    subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject, Unused,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of

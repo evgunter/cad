@@ -61,3 +61,5 @@ Which of these reads a period-ambiguous angle that a reader then tells
 apart by copy (each such site goes onto `Azimuth::near` with a stated
 anchor, or through the marks), and which read a quantity that is never
 ambiguous (a span in `(0, π]`, a short-way turn) and need nothing.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `coherence.rs` site this row cites is gone.

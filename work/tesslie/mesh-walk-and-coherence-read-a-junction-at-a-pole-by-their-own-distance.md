@@ -50,3 +50,5 @@ fixing it: `walk.rs` is TESS's and TESSWALK's ground, and the walk's
 Signed: (RESTCURVE implementer)
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. So the second reader this row names, coherence's pole exemption, is gone; the first, `mesh::walk::loop_polygon`'s `pole_index`, still decides a vertex at a pole by its own distance, and the row stands on it alone.

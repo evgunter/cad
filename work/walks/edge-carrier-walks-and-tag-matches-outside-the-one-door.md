@@ -92,3 +92,5 @@ names that does not resolve panics naming the edge
 (`Body::edge_curve_linked`). The `From` delegation sketched above is
 gone with them; a site that reads an edge key out of the body maps
 `Dangling` to `unreachable!` rather than to a refusal of its own.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `coherence.rs` rung (`Unexaminable`) is gone.

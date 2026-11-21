@@ -669,9 +669,7 @@ fn options_doors() -> Vec<Roster> {
         options_roster(
             "ImportOptions",
             "import_step",
-            vec![
-                ("eps_in", Bound(&["eps_in"])),
-            ],
+            vec![("eps_in", Bound(&["eps_in"]))],
         ),
         options_roster(
             "AsciiOptions",

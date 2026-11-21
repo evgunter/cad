@@ -113,3 +113,5 @@ Both are siblings of the outer chain this row counts. A sweep that
 gives the outer walk one home should look next at
 `face.outer ==`/`rings.iter().any`/`rings.contains` for the first
 question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `coherence.rs` walk is gone.

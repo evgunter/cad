@@ -37,3 +37,5 @@ for `pick.rs`.
 One walk on `Body` (a `face_loops`/`face_cycles` pair, or an iterator
 on `Face`) that every site reads, each site keeping its own answer to an
 unwalkable loop — the `loop-boundary-discards` register moves with it.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `coherence.rs` spelling is gone.

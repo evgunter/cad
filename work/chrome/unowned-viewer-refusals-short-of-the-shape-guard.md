@@ -69,3 +69,5 @@ The repair is `payload()`, a subject in plain words and a routed
 recourse, as in `sweep::blend::BlendError::Escalated`'s `Display`.
 
 Moved from `work/issues/` to `work/chrome/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The five `Check/ChartCoherence…` rows this row lists are deleted with the resident, and so are their `refusal_concision_chains` allowlist entries.
