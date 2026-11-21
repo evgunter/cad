@@ -141,8 +141,15 @@ fn surf_row(s: &Section) -> String {
     )
 }
 
-fn params(a: f64) -> Vec<f64> {
+fn params(a: f64, b: f64) -> Vec<f64> {
     let mut ts = vec![0.0];
+    for d in [1e-3, 0.1, 1.0, 10.0, 80.0, 400.0] {
+        for s in [-1.0, 1.0] {
+            if d / b < 1.2 {
+                ts.push(s * d / b);
+            }
+        }
+    }
     for d in [1e-3, 1e-2, 0.1, 1.0, 10.0, 80.0, 400.0] {
         for s in [-1.0, 1.0] {
             ts.push(s * d / a);
@@ -170,13 +177,13 @@ fn params(a: f64) -> Vec<f64> {
 fn dump_points() {
     for s in sections(0x9E37_79B9_7F4A_7C15) {
         let conic = s.curve.conic().unwrap();
-        let (a, _) = conic.semi_axes();
+        let (a, b) = conic.semi_axes();
         if (conic.center() - Point3::origin()).norm() < 1e2 {
             continue;
         }
         println!("{}", surf_row(&s));
         let lifted = s.curve.map_scalar(Interval::from_f64);
-        for t in params(a) {
+        for t in params(a, b) {
             let p = s.curve.eval(t);
             let r = conic.running_point(t);
             let e = lifted.eval(Interval::from_f64(t));

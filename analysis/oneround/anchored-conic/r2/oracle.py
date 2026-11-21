@@ -36,9 +36,10 @@ anchor = None
 stats = defaultdict(lambda: defaultdict(lambda: mpf(0)))
 counts = defaultdict(int)
 viol = []
-def zone(t, a):
-    at = abs(t) * a
-    if at <= 500: return "near(<=500m)"
+def zone(t, a, p=None):
+    if p is not None and anchor is not None and form == "anchored":
+        if norm(sub(p, anchor)) <= 500: return "near(<=500m)"
+    elif abs(t) * b <= 500 and abs(t) < 1.3: return "near(<=500m)"
     q = abs(abs(t) - math.pi/2) * a
     if q <= 5: return "quarter"
     h = abs(abs(t) - math.pi) * a
@@ -66,9 +67,9 @@ for line in open(sys.argv[1]):
         t = m(w[1]); p = v3(w[2:5]); err = v3(w[5:8])
         lo = v3(w[8:11]); hi = v3(w[11:14]); back = m(w[15])
         if float(t) == 0.0: anchor = p
-        z = zone(float(t), float(a)); key = (dec, z)
+        z = zone(float(t), float(a), p); key = (dec, z)
         dp, dc = dists(p)
-        st = stats[key]; counts[key] += 1
+        st = stats[key]; counts[key] += 1; lastz = z
         st["plane"] = max(st["plane"], abs(dp)); st["cone"] = max(st["cone"], abs(dc))
         pn = norm(p)
         st["miss/(u|p|)"] = max(st["miss/(u|p|)"], max(abs(dp), abs(dc)) / (U * (1 + pn)))
@@ -93,7 +94,7 @@ for line in open(sys.argv[1]):
         st["param back[m]"] = max(st["param back[m]"], abs(back - t) * a)
     elif w[0] == "I":
         t = m(w[1]); lo = v3(w[2:5]); hi = v3(w[5:8])
-        z = zone(float(t), float(a)); key = (dec, z); st = stats[key]
+        z = lastz; key = (dec, z); st = stats[key]
         corners = [[(lo, hi)[(k >> i) & 1][i] for i in range(3)] for k in range(8)]
         ds = [dists(c) for c in corners]
         for j, name in ((0, "plane"), (1, "cone")):
