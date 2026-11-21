@@ -113,18 +113,21 @@ fn permitted(
 ) -> bool {
     let clear = truth.residual_depth >= 10.0 * eps;
     // A graze past the span leaves the span itself apart (the pose's
-    // `kappa`): its residual over the span one-signed past `Kε`.
-    let (lo, hi) = crate::curve_face::conic_oracle::extremes(
-        |t| crate::implicit_residual(&wall(r), c.eval(t)),
-        span.0,
-        span.1,
-    );
-    let span_clear = lo >= 10.0 * eps || hi <= -10.0 * eps;
+    // `kappa`): its residual over the span one-signed past `Kε`, read
+    // only for a `Miss`.
+    let span_clear = || {
+        let (lo, hi) = crate::curve_face::conic_oracle::extremes(
+            |t| crate::implicit_residual(&wall(r), c.eval(t)),
+            span.0,
+            span.1,
+        );
+        lo >= 10.0 * eps || hi <= -10.0 * eps
+    };
     match got {
         Ok(Err(Unsettled::AtApex)) => false,
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
-        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear,
+        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear(),
         Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
     }
 }
