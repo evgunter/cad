@@ -2302,6 +2302,10 @@ fn zero_of(
                     }
                 }
             }
+            if corners.len() != 1 && std::env::var_os("CV_TRACE").is_some() {
+                for c in clips { eprintln!("CVZ clip side={:?} at={:?} edges={:?} collapsed={:?}", c.side, c.at, c.edges.iter().map(|&i| b.edges.get(i).map(|e| (e.key, e.ends, e.arc.as_ref().map(|(c, _)| c.is_curved())))).collect::<Vec<_>>(), c.collapsed); }
+                eprintln!("CVZ v={v:?} corners={} near_edges={near_edges:?} edges={:?}", corners.len(), b.edges.iter().map(|e| (e.key, e.ends, e.arc.as_ref().map(|(c, _)| c.is_curved()), e.uses.iter().map(|u| u.iso.map(|i| (i.held, i.full))).collect::<Vec<_>>())).collect::<Vec<_>>());
+            }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
                 _ => Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL zero_of {}", line!()); } Unpresented::Local }),
