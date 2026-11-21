@@ -407,7 +407,7 @@ fn a_parallel_axis_cylinder_every_class() {
 /// **A seamless frustum band** of [`unit_cone`] over `z ∈ [z0, z1]`
 /// ([`crate::test_support_fixtures::seamless_cone_band`]).
 fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    crate::test_support_fixtures::seamless_cone_band(z0, z1)
+    crate::test_support_fixtures::seamless_cone_band(z0, z1, Tol::witness())
 }
 
 /// A slab `0.2` thick and `6` wide about `z = z0`, tilted by `tilt` about

@@ -705,7 +705,7 @@ mod tests {
         use crate::test_support_fixtures::{seamless_cone_band, seamless_cone_band_on};
         let tol = Tol::witness();
         let band = geom_core::Band::linear(tol).unwrap();
-        let (slender, _) = seamless_cone_band_on((-1.0e4, 1.0e-4), 0.0, 10.0);
+        let (slender, _) = seamless_cone_band_on((-1.0e4, 1.0e-4), 0.0, 10.0, tol);
         assert_eq!(
             in_session_box(&slender, band),
             Ok(()),
@@ -717,7 +717,7 @@ mod tests {
             in_session_box_at(&slender, &still, band).is_ok(),
             "placed where it stands"
         );
-        let (unit, _) = seamless_cone_band(0.5, 1.5);
+        let (unit, _) = seamless_cone_band(0.5, 1.5, tol);
         for dz in [-1000.2, -1000.4] {
             let at =
                 geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 0.0, dz)).unwrap();

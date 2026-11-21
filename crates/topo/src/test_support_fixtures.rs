@@ -264,8 +264,8 @@ fn cone_rim(
 /// # Panics
 ///
 /// Where the fixture's own construction refuses (a kernel bug).
-pub fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    seamless_cone_band_on((0.0, 1.0), z0, z1)
+pub fn seamless_cone_band(z0: f64, z1: f64, tol: Tol) -> (Body<f64>, FaceKey) {
+    seamless_cone_band_on((0.0, 1.0), z0, z1, tol)
 }
 
 /// [`seamless_cone_band`] on the cone about `z` whose apex stands at
@@ -274,8 +274,12 @@ pub fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// # Panics
 ///
 /// Where the fixture's own construction refuses (a kernel bug).
-pub fn seamless_cone_band_on((apex, k): (f64, f64), z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    let tol = Tol::witness();
+pub fn seamless_cone_band_on(
+    (apex, k): (f64, f64),
+    z0: f64,
+    z1: f64,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let seed = body
         .mvfs(Point3::new(k * (z0 - apex), 0.0, z0), true)
