@@ -171,6 +171,13 @@ window.
 
 - At `Probe` the switch puts the cavity sweep's samples into the K
   population (audit row F41). Run the k-probe sweep with it.
+  - Since PR 7115, `face_extent` reads every vertex of a sphere or cone
+    face against its chart's singular points in each cell
+    (`singular_ends`), so a K-probe run that asks injectivity of such a
+    face gains `chart_singularity_at_vertex` samples, two per vertex
+    per cell on a sphere and one on a cone. None does today: the walk
+    runs inside `k_stats::unlogged("F41")` and the cavity gate does not
+    ask at `Probe`.
 - The valid-shell rows of `shell_cavity_embedded.rs` (`holds`, `shells`)
   lost their `gap > 0` assertions in PR 6885, so the pot, the frustum,
   the Klein elbow and the tube at `Sym<Interval>` no longer show the
@@ -178,3 +185,16 @@ window.
   crossing rows. Put "the gate ran" back on them with the switch.
 - `min_separation`'s F41 scope has no pin (no production caller reads
   it).
+
+## Measured on `embed/pole` over main `ff2319654` (EMBED, lane pole, 2026-11-18)
+
+The same switch and the same modules (222 tests, 302 cavities asked on
+main). With `face_extent` reading a sphere face's pole off its vertex
+(`a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole`),
+the six **pole** rows shell: the two-arc sphere's cavity at 526
+discharged and 516 splits, the domes at 182 / 169 and 228 / 215.
+
+**6 valid rows still refuse**, with the receipts of the table above:
+the three nested tori, the two-arc lune and the two rational windows.
+The two crossing pins fail as before. No other cavity's verdict or
+receipt moved.

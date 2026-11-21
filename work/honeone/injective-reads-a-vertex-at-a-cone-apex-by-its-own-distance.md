@@ -26,3 +26,15 @@ Found by the RESTCURVE wrap-tip unit's sweep (branch
 Signed: (RESTCURVE implementer)
 
 Moved from `work/issues/` to `work/honeone/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Done on `embed/pole` (EMBED, lane pole, PR 7115, 2026-11-18)
+
+`present_chart`'s apex block and its `self_intersection_apex` site are
+gone. A cone's apex and a sphere's poles are read in one place,
+`injective`'s `singular_ends`, by `vertex_at_singular_point` against
+the cone's apex and `sphere_poles`; `face_extent` and `present_chart`
+both read through it. The audit row and the recourse roster's entry
+went with the site. One reading serves both: the quantity was the same
+distance at the same band, under a second name. The apex is spelled
+off the `Surface::Cone` arm, not through `singular_points`, as the
+door holds a lifted `Surface` and no `ChartInverse`.

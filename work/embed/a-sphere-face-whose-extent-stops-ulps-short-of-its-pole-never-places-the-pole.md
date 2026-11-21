@@ -54,8 +54,8 @@ faces read `Err(Local)`. The cells sit at the pole: `v` up to
   finds `1v1` at the north pole (`vertex_at_singular_point` answers
   `Ok(true)`). But the rectangle has already been clipped to the face's
   sheet, whose `v` top is the stored extent's, 1.5707963267948963. That
-  is 3 ulps below `π/2`'s enclosure, whose low end is
-  1.5707963267948966.
+  is 1 ulp below `π/2`'s enclosure, whose low end is
+  1.5707963267948966, the `f64` nearest `π/2`.
 - **So the clip is skipped.** `north && y.1 < line.lo()` takes the
   `continue`: the cell is read as not reaching the pole, though the pole
   vertex is in its reach, near the shared cell.
@@ -73,7 +73,98 @@ touch"), or place the pole off the vertex rather than off the clipped
 rectangle. Either way the collapsed side becomes a zero side at the
 shared vertex, and the pair has `planes_through`'s great-circle plane.
 
-**Not traced:** where the stored lift's `v` top comes from (a meridian
-pcurve's end rounded down), and whether PR 7086's `face_extent` reads
-it. This is the same mechanism in both cavities, and pre-dates PR 7086:
-these six rows were out of pairs on 2026-11-13 too.
+**Not traced by that lane:** where the stored lift's `v` top comes
+from, and whether PR 7086's `face_extent` reads it; both are traced in
+the section below. This is the same mechanism in both cavities, and
+pre-dates PR 7086: these six rows were out of pairs on 2026-11-13 too.
+
+## Traced and fixed on `embed/pole` (EMBED, lane pole, 2026-11-18)
+
+Main `ff2319654`, f64, the cavity asked through the trace lane's
+switch (`origin/embed/cavity-trace-measure`).
+
+**Where the short top comes from.** Nothing rounds it down on the way
+to the certificate. It is the meridian's stored pcurve, read exactly:
+- the two-arc sphere's cavity stores each northern meridian as
+  `Harmonic { u: Angle { phase: 2π or π or 0, winding: 0 }, v: Angle {
+  phase: 1.5707963267948963, winding: -1 } }` over
+  `t ∈ [±2.9e-18, 0.7853981633974484]`;
+- the phase is the polar angle of the edge circle's own frame vector,
+  an `atan2` (`geom_brep::pcurve_cache`, the `SphereMeridian` arm). The
+  offset's circle starts `2.9e-18` of parameter off the pole, and the
+  angle rounds to the `f64` under `π/2`;
+- `boundary_of` (`topo::clearance`) lifts each row's two ends as point
+  intervals and `extent_of` takes their hull, so the extent's `v` top
+  is that phase. `face_extent` returned it unchanged, and
+  `present_chart` clipped the cell to it before the pole was read.
+- **The south pole was placed all along**, by the same rounding going
+  the other way: the row's end there is `phase − π =
+  -1.5707963267948968`, the low end of `-π/2`'s enclosure.
+
+So no source has the pole's latitude to the ulp: a meridian's end at a
+pole is a rounded value on either side of it. The fact that the face
+reaches the pole is the body's, the vertex decided at the pole.
+
+**What landed.** `face_extent`, the one reader of a face's extent,
+returns a sphere face's extent reaching the latitude of each pole the
+face holds a vertex at (`reaching_its_poles`, by
+`vertex_at_singular_point`, the reading the pole's collapsed side
+already used). That is the face's fact, read in every cell from the
+face's own vertices, and the extent it returns is a superset of the
+stored one. No ε concession is added: nothing is dropped, and no bound
+is read as the pole for being near it.
+
+**Measured, before and after** (222 tests of the cavity rows' modules,
+302 cavities asked before, the same switch):
+- **The six rows shell.** The two-arc sphere's cavity reads `Embedded`
+  at 526 discharged, 0 refused, 516 splits (it was 45,928 / 19,608 /
+  65,526). The domes read 182 / 0 / 169 (tangent, and opening it) and
+  228 / 0 / 215 (short of tangent).
+- **Nothing else moves:** every other cavity's verdict and receipt is
+  identical, the other six valid rows refuse as they did and the two
+  crossing pins fail as they did.
+- **The tour walk** (`embed_walk`, release, all 85 bodies, main
+  against the branch): identical line for line. 82 hold and the three
+  bench assemblies cross at their recorded contacts; 6,929 candidates,
+  479,866 discharged, 0 refused and 473,162 splits on both.
+- **`self_intersection_proves_injectivity` and
+  `shell_cavity_embedded`:** 57 of 57 on both, every receipt identical,
+  at the default ε, 1e-6 and 1e-12.
+- **The endpoint census:** `injective.rs` reads 179 / 79 (177 / 79 on
+  main); the two added reads are `reaching_its_poles`' ends of the
+  polar latitude.
+
+## The fix pass after review (EMBED, lane pole, 2026-11-18)
+
+The review of PR 7115 reached the cone's apex with a plain built body,
+so the reading became one for both kinds, and its premise is checked:
+
+- **One reading of a vertex at a singular point** (`singular_ends`):
+  a sphere's poles and a cone's apex, by `vertex_at_singular_point`.
+  The apex's own site, `self_intersection_apex`, is retired.
+- **`face_extent` checks the stored extent, then moves it.** The lines
+  and the nappe are read against the stored extent, as on main. Only
+  then is it moved to each singular latitude the face holds a vertex
+  at (`reaching_its_singular_points`).
+- **It moves only across a rounding.** A stored end farther than
+  `chart_slack` from the latitude contradicts the vertex and refuses
+  `Structural`. That leaves a vertex in band of its pole with honest
+  rows refused:
+  `a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
+- **The extent's end moves for a vertex the band reads at the point**,
+  which is one within the band's zero of it, `1e-9` m at the default
+  ε. That is the incidence's decision reused, not a concession of this
+  reader's own; the earlier section's "no bound is read as the pole
+  for being near it" is true of the extent's bound and not of the
+  vertex.
+
+**Measured on the merged tree** (main `bb54d3e4d` merged in):
+- the cavity rows at f64: the same 8 of 222 fail, and all 307
+  cavities' verdicts and receipts are those of the first head;
+- `self_intersection_proves_injectivity` and `shell_cavity_embedded`:
+  59 of 59 at the default ε, 1e-6 and 1e-12, every earlier receipt
+  unchanged; the cone pin holds at 157 discharged, 151 splits;
+- a cone sweep (six shapes, 61 apex heights, apex down and up, each
+  body and its axial-door cavity): 1,464 of 1,464 hold. On the first
+  head 113 of the first 949 refused `Budget(Pairs)`;
+- the endpoint census: `injective.rs` reads 177 / 75.

@@ -42,3 +42,50 @@ Read the apex's `v` at the scale its rows round at. Two ways:
 
 Then build the tip of a large cone that reaches the current one, and
 pin it holding.
+
+## The same end rounded the other way left the apex unplaced; fixed in PR 7115 (EMBED, lane pole, 2026-11-18)
+
+Found sweeping for the shape of
+`a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole`:
+a singular point's collapsed side skipped because the rectangle,
+clipped to the stored extent, stops a rounding short of it.
+
+`present_chart`'s apex reading skipped a face on the positive nappe
+where `y.0 > 0.0`, and `y` is the cell clipped to the extent. So an
+extent whose low end rounded ABOVE zero never placed the apex, and the
+cell at the apex vertex read `Local` at every depth.
+
+- **Reached by plain built bodies** (the review of PR 7115): the
+  triangle `(0, 2.7) (0, 1.7) (1, 2.7)` revolved a full turn about `y`
+  stores `v = (2.2e-16, 1.414…)` on both half-cones and refused
+  `Budget(Pairs)` at 41,321 / 24,215 / 65,530.
+- **How often** (this lane's sweep, f64): six cone shapes at 61 apex
+  heights `y0 = -1.0 … 5.0`, apex down and apex up, each body and its
+  axial-door cavity at `t = 0.05`. Of the first 949 cases, 113 refused
+  `Budget(Pairs)` before the fix, most of them the shape `r = 0.3`,
+  `h = 1`.
+
+**What landed.** `face_extent` reads a cone face's apex as it reads a
+sphere face's poles (`reaching_its_singular_points`): a face holding a
+vertex at its apex has an extent that reaches `v = 0`, on the end its
+nappe says. All 1,464 cases of the sweep hold, and every case that
+held before holds at the same receipt. Pinned by
+`a_unit_cone_with_its_apex_off_the_origin_holds` and
+`a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex`.
+
+**A built body now reaches this row** (the review's sweep): the
+triangle `r = 0.37`, `h = 2.3`, apex up at `y0 = 101.3`, its axial-door
+cavity at `t = 0.0185`. Both half-cones store `v` ending at
+`-1.4030466978243383e-14`, against a `chart_slack` of
+`1.1161179193627622e-14`, so `face_extent` refuses `Structural` in
+every cell and the body reads `Uncertified`, arm `Departure`
+(167 / 17 / 178). The apex sits near `y = 103.6`; that the end rounds
+at that scale is not traced. With a wider slack the same body would next meet
+`a-meridian-ending-an-ulp-of-its-far-end-off-the-apex-does-not-cover-the-apex-cells-side`.
+
+**What is still this row's.** The extent moves to the apex only across
+`chart_slack`, the same scale the nappe check above uses. An apex end
+rounded farther than that, on either side of zero, still refuses
+`Structural`: below zero by the nappe check (this row's finding), above
+it by the new one. The scale question is one decision with
+`a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
