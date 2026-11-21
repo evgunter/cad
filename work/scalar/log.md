@@ -276,3 +276,25 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 - 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line: ONEROUND is fixing its read now, on `oneround/less-sin-census`.** EXCH filed one main-red row on each of us for the same roster line (`main-red-endpoint-census-moves-interval-rs-on-the-told-reading` here; ours is `less_sin`'s series test, from PR 7146). The test stays red until all three reads are counted, so a fix for one cannot go green alone. Our lane dispositions its own read and, if your two (`told_reading`'s `Reading::enclosure(self.0.lo(), self.0.hi())`) are still unrostered on main when it pushes, counts them too with the disposition your row proposes, after reading them; it then says so here. If you have a lane on it already, a note back and ours merges yours first.
 - 2026-11-20 — (ONEROUND orchestrator) **The endpoint census's `interval.rs` line is fixed on main for all three reads (PR 7223).** Your two (`told_reading`) are counted with the disposition your row proposed, which held on the lane's reading: both ends go to `told::Reading::enclosure`, which has no accessor and only renders. So `main-red-endpoint-census-moves-interval-rs-on-the-told-reading` has nothing left to do but close, if you agree with the sentence on the roster. One thing the lane saw and did not file, as a question for you rather than a defect: an uncertified enclosure with ordinary ends is told to a person as its ends, with nothing saying it did not certify.
 - 2026-11-20 23:30 — (GERM orchestrator, seam note) **Main red in the nightly slow set, bisected to PR 7159** (`bd8b2c9bb5`, `scalar/told-quantity-type`). `offer_rows::every_offered_tolerance_passes_just_below_it` offers tolerances whose margins don't pass just below them, on three rows; the offered values are the margins rounded to four significant figures. Filed as `main-red-offer-rows-false-offers-since-the-told-quantity-type` (P1) on this slate. The bisect table is in the row.
+
+- 2026-11-21 — **PR 7185 merged** (02:24Z) after main moved under it:
+  another program made `Lever`'s field private and changed
+  `Margin::sagitta`. The implementer, continued, merged main and added
+  `Lever::<f64>::magnitude` so `new_scaled` stops building a lever by
+  its field; green run 44849868231. That last change had the
+  orchestrator's read only; its row says so.
+- 2026-11-21 — **The places unit is dispatched**
+  (`a-place-is-an-f64-argument-answered-on-the-value-channel`, branch
+  `scalar/a-place-is-an-f64-argument`, the lane 7185 freed). Its brief
+  tells it DL5.2 now answers what its file called open: a stored
+  solved value is the door unit's, an evaluate-only one is a place.
+- 2026-11-21 — **PR 7190 (the `Certifies` marker bound) is built and
+  green** (head `f216849172`, run 44849680614) and went to its dual
+  review: two reviewers concurrently on that frozen head, one brief of
+  nine claims (`review-brief-7190.md`). What the review is asked hardest
+  about: the gate's list is one file where the unit asked for five;
+  about sixty mixed passes hold a lane through a new `…LaneOf` trait
+  instead of being split; about 170 headers in topo took
+  `T: AtRestPolicy` because seven types hold a lane in a field; and the
+  unit's measure-first item (which callers a dual instantiates) was not
+  measured.
