@@ -951,6 +951,38 @@ pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
     );
 }
 
+/// **A fixture inside the session box whose cover alone reaches past it,
+/// refused as a limit** (`ValidationError::SessionBoxUnshown`): the
+/// margin is the box's extent less `cover_reach`, the reach of the cover
+/// that bounds it, and the refusal says the box's recourse.
+pub fn refused_as_a_session_box_limit<T, E: core::fmt::Display + core::fmt::Debug>(
+    what: &str,
+    cover_reach: f64,
+    got: Result<T, E>,
+) {
+    let Err(e) = got else {
+        panic!("{what}: its cover reaches past the session box, yet the door builds it");
+    };
+    let (said, debug) = (e.to_string(), format!("{e:?}"));
+    let margin = debug
+        .split_once("SessionBoxUnshown { margin: MarginDiag(Value(")
+        .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
+        .unwrap_or_else(|| panic!("{what}: the door refuses as the box's limit: {debug}"));
+    let want = geom_core::tolerance::SESSION_BOX_EXTENT - cover_reach;
+    assert!(
+        (margin - want).abs() <= 1e-9 * cover_reach,
+        "{what}: the limit's margin is the box's extent less the cover's reach {cover_reach}, \
+         {want}, got {margin}"
+    );
+    let recourse = topo::FindingFamily::SessionBox
+        .recourse()
+        .expect("the box has one recourse");
+    assert!(
+        said.contains(recourse) && said.contains("not built yet"),
+        "{what}: the limit says it and the box's recourse: {said}"
+    );
+}
+
 /// **The far end a row places its farthest fixture at**: nine tenths
 /// of the session box's extent (`[tolerance.units]`), 900 m, clear of
 /// the box's band.
