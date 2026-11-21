@@ -447,9 +447,9 @@ pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
 /// whose margin is kept (a contact's, recorded as a coincidence) goes
 /// to the same funnel's `decide_reported` or `decide_magnitude_reported`,
 /// which classify and record exactly as this does.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -465,9 +465,9 @@ pub(crate) fn definitely_positive<T: Decide>(name: &'static str, margin: T, band
 /// [`decide`] gated on a definitely positive margin
 /// ([`geom_core::k_stats::decide_positive`]): the rejection is the
 /// funnel's escalation, on the frame's log.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
@@ -7531,11 +7531,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
 pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
-    use geom_core::is_finite_length as finite;
-    let components = finite(v.x) && finite(v.y) && finite(v.z);
-    let len = v.norm();
-    let zero = finite(len) && geom_core::is_zero_length(len, v.norm_witness());
-    components && !zero
+    geom::cover::is_direction(*v)
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum

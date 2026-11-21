@@ -306,3 +306,181 @@ fn a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit() {
     );
     assert!(topo::session_box_at(&prism, &within, tol).is_ok());
 }
+
+/// The box's verdict on `errors`, by class and margin: `("Outside", m)`,
+/// `("Unshown", m)`, `("Uncovered", NaN)`, or `("Other", NaN)`.
+fn box_class(errors: &[topo::ValidationError]) -> (&'static str, f64) {
+    let read = |m: &geom_core::MarginDiag| {
+        m.readable_below_zero()
+            .to_string()
+            .parse::<f64>()
+            .unwrap_or(f64::NAN)
+    };
+    match errors {
+        [topo::ValidationError::OutsideSessionBox { margin }] => ("Outside", read(margin)),
+        [topo::ValidationError::SessionBoxUnshown { margin }] => ("Unshown", read(margin)),
+        [topo::ValidationError::SessionBoxUncovered { .. }] => ("Uncovered", f64::NAN),
+        _ => ("Other", f64::NAN),
+    }
+}
+
+/// The gate's box verdict on `body`: `("Ok", 0)` where it is finished.
+fn gate_class(body: &topo::Body<f64>, tol: Tol) -> (&'static str, f64) {
+    match topo::validate_geometric(body, tol) {
+        Ok(_) => ("Ok", 0.0),
+        Err(errors) => box_class(&errors),
+    }
+}
+
+/// The placing door's box verdict on `home` placed by `at`.
+fn door_class(
+    home: &topo::Body<f64>,
+    at: &geom_core::RigidMotion<f64>,
+    tol: Tol,
+) -> (&'static str, f64) {
+    match topo::session_box_at(home, at, tol) {
+        Ok(()) => ("Ok", 0.0),
+        Err(topo::MoveError::NotFinished(found)) => box_class(found.as_slice()),
+        Err(other) => panic!("the door maps the body: {other:?}"),
+    }
+}
+
+/// A unit direction.
+fn unit(v: Vec3<f64>, tol: Tol) -> geom_core::UnitVec3<f64> {
+    geom_core::UnitVec3::new(v, "a row's axis", geom_core::Band::linear(tol).unwrap()).unwrap()
+}
+
+/// **A torus tilted however little off a world axis is refused past the
+/// box by its face's extreme** (reviewer r1's probe). A full torus,
+/// `R = 300`, `r = 100`, its seams at the inner and outer equators, its
+/// axis turned `θ` off `+y` about `x`, stood so its true largest `y`,
+/// `r + R·sin θ`, is past the box by half of `R·sin θ` while every vertex
+/// and edge (the seam's top at `r·cos θ` and below) is inside it. Only the
+/// face's extreme reaches past, and it is read off the torus's direction
+/// off its axis, which cancels to `1 − cos²θ` if spelled `e − a(a·e)`.
+/// Refused past the box by that half, to 1e-6 of it, for `θ` from 0.3
+/// down to 1e-7; exactly axial, the top circle is the extreme and its
+/// height is the seam's, so the edges read it. *Breaks if* the direction
+/// off the axis loses its digits near the axis (then `θ ≤ 1e-6` refuses
+/// as a limit), or the inside read is dropped.
+#[test]
+fn a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme() {
+    let tol = Tol::witness();
+    let (big, r) = (300.0_f64, 100.0_f64);
+    let home = revolved_about_y(
+        vec![
+            (Point2::new(big - r, 0.0), 1.0),
+            (Point2::new(big + r, 0.0), 1.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    for theta in [0.3, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 0.0] {
+        let turn =
+            geom_core::RigidMotion::rotation(unit(Vec3::new(1.0, 0.0, 0.0), tol), theta).unwrap();
+        let top = r + big * theta.sin();
+        let past = if theta == 0.0 {
+            5.0
+        } else {
+            0.5 * big * theta.sin()
+        };
+        let at = geom_core::RigidMotion::translation(Vec3::new(0.0, 1000.0 + past - top, 0.0))
+            .unwrap()
+            .compose(turn)
+            .unwrap();
+        let image = topo::transform_rigid(&home, &at).unwrap();
+        for (door, (class, margin)) in [
+            ("gate", gate_class(&image, tol)),
+            ("placing door", door_class(&home, &at, tol)),
+        ] {
+            assert_eq!(class, "Outside", "θ = {theta:e}, {door}: past by {past:e}");
+            assert!(
+                (margin - past).abs() <= 1e-6 * past,
+                "θ = {theta:e}, {door}: past by {past:e}, read {margin:e}"
+            );
+        }
+    }
+}
+
+/// **A sphere zone whose carrier's pole alone is past the box is
+/// admitted** (reviewer r1). The barrel, a sphere zone `|y| ≤ 30` of a
+/// radius-50 sphere capped by discs, centred at `y = 965`, reaches
+/// `y = 995` (its top disc); its ball reaches 1015 m, and its `+y` pole is
+/// not on the face. So stage 1 (the ball) does not admit it, stage 2 (the
+/// zone's own cover) does, and the inside read drops the pole. At
+/// `y = 975` its disc is past by 5 m and it is refused as past the box.
+/// *Breaks if* stage 2 never admits, or a candidate the face does not hold
+/// is kept.
+#[test]
+fn a_zone_whose_pole_alone_is_past_the_box_is_admitted() {
+    let tol = Tol::witness();
+    let home = revolved_about_y(
+        vec![
+            (Point2::new(0.0, -30.0), 0.0),
+            (Point2::new(40.0, -30.0), 1.0 / 3.0),
+            (Point2::new(40.0, 30.0), 0.0),
+            (Point2::new(0.0, 30.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let at = geom_core::RigidMotion::translation(Vec3::new(0.0, 965.0, 0.0)).unwrap();
+    let image = topo::transform_rigid(&home, &at).unwrap();
+    assert_eq!(gate_class(&image, tol).0, "Ok", "the barrel at 965 m");
+    assert_eq!(door_class(&home, &at, tol).0, "Ok", "placed at 965 m");
+    let far = geom_core::RigidMotion::translation(Vec3::new(0.0, 975.0, 0.0)).unwrap();
+    let image = topo::transform_rigid(&home, &far).unwrap();
+    for (door, (class, margin)) in [
+        ("gate", gate_class(&image, tol)),
+        ("placing door", door_class(&home, &far, tol)),
+    ] {
+        assert!(
+            class == "Outside" && (margin - 5.0).abs() < 1e-6,
+            "{door}: the barrel at 975 m is 5 m past, read {class} {margin}"
+        );
+    }
+}
+
+/// **An arc edge whose interior alone is past the box refuses past it**
+/// (reviewer r1). A cylinder of radius 100 about `(cx, 0)`, its circle
+/// four quarter arcs whose ends sit on the diagonals, extruded 1 m: at
+/// `cx = 905` its `+x` arc reaches 1005 m at its middle, on no vertex (the
+/// vertices reach 975.7 m) and on no face extreme (a cylinder has none).
+/// Refused past the box by 5 m; at `cx = 895` it is admitted. *Breaks if*
+/// stage 3 drops the edges' own points.
+#[test]
+fn an_arc_whose_middle_alone_is_past_the_box_refuses_past_it() {
+    let tol = Tol::witness();
+    let b = (core::f64::consts::PI / 8.0).tan();
+    let at = |cx: f64| {
+        let d = 100.0 / 2.0_f64.sqrt();
+        let lp = profile::test_support::bulge_loop(vec![
+            (Point2::new(cx + d, -d), b),
+            (Point2::new(cx + d, d), b),
+            (Point2::new(cx - d, d), b),
+            (Point2::new(cx - d, -d), b),
+        ]);
+        let pf = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .expect("a valid circle");
+        sweep::extrude(
+            &pf,
+            sweep::Extrusion::Distance {
+                depth: 1.0,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        )
+    };
+    match at(905.0) {
+        Err(e) => {
+            let said = format!("{e:?}");
+            assert!(
+                said.contains("OutsideSessionBox { margin: MarginDiag(Value(-5"),
+                "{said}"
+            );
+        }
+        Ok(_) => panic!("the arc's middle is 5 m past the box"),
+    }
+    assert!(at(895.0).is_ok(), "inside the box");
+}

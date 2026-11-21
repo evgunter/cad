@@ -95,9 +95,15 @@ impl<T: Real> Surface<T> {
     ///
     /// As [`Surface::cover`] for a carrier whose whole region bounds its
     /// faces, and [`Unknown::NonFinite`] for a cone apex that is not a
-    /// finite point.
+    /// finite point or a cylinder axis that is no direction.
     pub fn face_region(&self, boundary: Cover<T>) -> Covered<T> {
         match self {
+            // Rulings sweep a cylinder's face only along a direction: an
+            // axis that is none bounds no face.
+            Surface::Cylinder { axis, .. } if !is_direction(*axis) => Err(Uncovered::new(
+                Entity::Surface(self.kind()),
+                Unknown::NonFinite,
+            )),
             Surface::Plane { .. } | Surface::Cylinder { .. } => Ok(boundary.convex()),
             Surface::Cone { apex, .. } => Cover::points(vec![*apex])
                 .map(|tip| boundary.hull(tip).convex())
@@ -337,4 +343,15 @@ fn net<T: Real>(entity: Entity, control: &[Point3<T>]) -> Covered<T> {
         return Err(Uncovered::new(entity, Unknown::PoisonedNet));
     }
     Cover::net(control.to_vec()).ok_or_else(|| Uncovered::new(entity, Unknown::NonFinite))
+}
+
+/// **Whether `v` is a direction**: finite, and not the zero vector at
+/// its own rounding. A carrier whose axis is none names no ruling.
+pub fn is_direction<T: Real>(v: geom_core::Vec3<T>) -> bool {
+    use geom_core::is_finite_length as finite;
+    let len = v.norm();
+    finite(v.x)
+        && finite(v.y)
+        && finite(v.z)
+        && !(finite(len) && geom_core::is_zero_length(len, v.norm_witness()))
 }

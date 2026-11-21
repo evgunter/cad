@@ -2,10 +2,12 @@
 id: step-import-circle-promotion-has-no-map-obligation
 kind: issue
 title: the circle limb certifies locus and closure, not the map: a re-timed closed carrier promotes on locus alone
-status: open
+status: closed
 opened: 2026-09-04
 priority: P1
 cost: H
+closed: 2026-11-20
+branch: exch/arc-map-obligation
 ---
 
 
@@ -28,3 +30,26 @@ the certificate needs its own derivation there.
 
 Found by the EXCH-H1 fix pass (PR #1798), from the adjudicated review
 union.
+
+## Closed
+
+Not owed (EXCH unit B, `exch/arc-map-obligation`; the decision both
+designers reached, logged on the EXCH orchestrator branch). A printed
+carrier is evidence for its edge's description, not a cache
+(`docs/DESIGN.md` `[import]`, step 2: the body is rebuilt from the
+description), and nothing reads its parameter once it is promoted. So
+a promotion owes its LOCUS (within ε_in of the analytic curve), its
+COVERAGE (exactly the arc, segment or full turn between its ends) and
+its ORIENTATION (the curve's sense), and not its timing. The re-timed
+closed carrier this row describes is a correct promotion.
+
+The map obligation is real where the kernel reads a spline it HOLDS
+as an analytic map paired with a chart image: a wall's column read as
+the straight line an affine iso image parameterizes. It lives there
+now — `recognize_curve::straight_map` (INV-C5), read by the iso
+rung's line arm (`build::column_match`), the section rung's straight
+read and `knot_split`'s straight iso — and the iso rung carries an
+edge on the column itself wherever the column does not read as that
+map. Promotion itself (`try_line`, `try_circle`) certifies locus and
+coverage only. The "refusal-safe at the arc rim" observation stands:
+an arc rim on a spline wall certifies its own map against the chart.
