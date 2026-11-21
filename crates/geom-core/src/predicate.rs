@@ -550,11 +550,14 @@ impl Band {
     fn offer_told(self, margin: f64) -> Option<Told> {
         let k = self.escalate / self.zero;
         let bound = above_floor(self.tolerance_deciding(margin), k)?;
-        Some(Told::at_most_reading(
-            told::Reading::value(bound),
-            Dimension::Length,
-            Some(eps_min(k).next_up()),
-        ))
+        Some(
+            Told::at_most_reading(
+                told::Reading::value(bound),
+                Dimension::Length,
+                Some(eps_min(k).next_up()),
+            )
+            .of_the_tolerance(),
+        )
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
@@ -2028,7 +2031,8 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
-        let eps_shown = Told::given_reading(told::Reading::value(eps_in), Dimension::Length);
+        let eps_shown =
+            Told::given_reading(told::Reading::value(eps_in), Dimension::Length).of_the_tolerance();
         let recourse = "Recourse: re-export the file more precisely";
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
@@ -2519,7 +2523,8 @@ impl MarginDiag {
             ..
         } = words;
         let eps_in = file.eps_in;
-        let eps_shown = Told::given_reading(told::Reading::value(eps_in), Dimension::Length);
+        let eps_shown =
+            Told::given_reading(told::Reading::value(eps_in), Dimension::Length).of_the_tolerance();
         let (Some((near, _)), Some(within)) = (self.magnitudes(), self.within(eps_in)) else {
             return self.sized_recourse(band, words);
         };
@@ -2538,7 +2543,8 @@ impl MarginDiag {
                 "{untold} Recourse: {lever}, or, if this {size} is intended, re-export the file \
                  with its uncertainty declared below {} and tighten the tolerance below \
                  {}",
-                Told::at_most_reading(told::Reading::value(near), Dimension::Length, None),
+                Told::at_most_reading(told::Reading::value(near), Dimension::Length, None)
+                    .of_the_tolerance(),
                 below
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
@@ -3887,12 +3893,12 @@ mod tests {
             (
                 NonZero,
                 e(2e-9, 5e-9),
-                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length).of_the_tolerance()),
             ),
             (
                 NonZero,
                 e(-5e-9, -2e-9),
-                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length).of_the_tolerance()),
             ),
             (NonZero, e(-2e-9, 3e-9), Shows::Unresolved),
             (NonZero, e(0.0, 3e-9), Shows::Unresolved),
@@ -3901,7 +3907,7 @@ mod tests {
             (
                 Positive,
                 e(2e-9, 5e-9),
-                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length).of_the_tolerance()),
             ),
             (Positive, e(-5e-9, -2e-9), Shows::NoSize),
             (Positive, e(-2e-9, 3e-9), Shows::Unresolved),
@@ -3912,7 +3918,7 @@ mod tests {
             (
                 Positive,
                 v(5e-10),
-                Shows::Offer(Told::at_most(&5e-11, Dimension::Length)),
+                Shows::Offer(Told::at_most(&5e-11, Dimension::Length).of_the_tolerance()),
             ),
             (Positive, v(1.5e-12), Shows::Floor),
             (Positive, e(1.5e-12, 3e-12), Shows::Floor),
@@ -3928,7 +3934,7 @@ mod tests {
             (
                 Negative,
                 e(-5e-9, -2e-9),
-                Shows::Offer(Told::at_most(&2e-10, Dimension::Length)),
+                Shows::Offer(Told::at_most(&2e-10, Dimension::Length).of_the_tolerance()),
             ),
             (Negative, e(2e-9, 5e-9), Shows::NoSize),
             (Negative, e(-2e-9, 0.0), Shows::Unresolved),
@@ -4028,7 +4034,7 @@ mod tests {
             assert_eq!(words(refused).sign_certain_recourse(), ending);
         }
         for class in [
-            Shows::Offer(Told::at_most(&0.0, Dimension::Length)),
+            Shows::Offer(Told::at_most(&0.0, Dimension::Length).of_the_tolerance()),
             Shows::NoSize,
             Shows::Floor,
             Shows::Unresolved,

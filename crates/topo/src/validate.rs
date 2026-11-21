@@ -213,9 +213,10 @@
 //!   decided on instead of `()`.
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
 //!   through the closed form, and at tier 3′ no chart-region door in the
-//!   census. Check 2 is the scalar's at every door: each edge re-derived
-//!   through [`crate::AtRestPolicy::reattach_edge`], the certificate in
-//!   full at a certifying scalar and the mint at a dual. Every door without it
+//!   census. Check 2 is the scalar's at every door: each edge certified
+//!   again through [`crate::AtRestPolicy::reattach_edge`], every check at
+//!   a certifying scalar (its locus read by its support) and the mint at
+//!   a dual. Every door without it
 //!   has a twin with it. At tier 3 the twin also GATES check 7
 //!   differently: it runs the battery in one call, so check 7 waits on
 //!   checks 1–6 only, where the composed door's `?` makes it wait on the
@@ -1193,9 +1194,10 @@ pub enum ValidationError {
     /// Tier 3: a face's **approximating** surface failed to
     /// re-certify against its own stored description at rest.
     ///
-    /// The stored certificate is never read (O5's never-trust
-    /// posture): the two-limb bound is re-derived per validation call
-    /// from the description and the fit, and classified against the
+    /// The stored certificate holds no record of the support it was
+    /// derived over, so it is not read (O5): the two-limb bound is
+    /// derived again per validation call from the description and the
+    /// fit, and classified against the
     /// **run's** ε_precision (O3's ratified claim is what tier 3
     /// verifies; the surface stores no tolerance). A fit that has
     /// drifted from what it claims to approximate — coarsened, edited,
@@ -6578,8 +6580,9 @@ pub fn validate_geometric_certificate<
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
 /// unbounded. **Check 2 is the scalar's**, as at every door: each edge
-/// re-derived through [`crate::AtRestPolicy::reattach_edge`], its
-/// certificate in full at a certifying scalar and its mint at a dual.
+/// certified again through [`crate::AtRestPolicy::reattach_edge`], every
+/// check at a certifying scalar (its locus read by its support) and its
+/// mint at a dual.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -7723,9 +7726,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// `None` when the check was not made or a subject could not be derived
 /// at all, which the vector then says.
 ///
-/// Check 2 re-derives every edge through the scalar's edge door
-/// ([`crate::AtRestPolicy::reattach_edge`]): the certificate in full at
-/// a certifying scalar, at every door alike, and the mint at a dual.
+/// Check 2 certifies every edge again through the scalar's edge door
+/// ([`crate::AtRestPolicy::reattach_edge`]): every check at a certifying
+/// scalar (its locus read by its support), at every door alike, and the
+/// mint at a dual.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -7951,11 +7955,11 @@ pub(crate) fn tier3_local_checks_marked<
             continue;
         };
         // Re-certification runs through the scalar's edge door
-        // (`AtRestPolicy::reattach_edge`): the certificate in full at a
-        // certifying scalar, at every door alike, and the mint at a dual.
-        // It re-derives, the wedge levered at
-        // the edge's two faces' reach; it never trusts the stored
-        // certificate. It meters the chart image the body stores where
+        // (`AtRestPolicy::reattach_edge`): every check at a certifying
+        // scalar, at every door alike, and the mint at a dual, the wedge
+        // levered at the edge's two faces' reach. The edge's locus
+        // certificate is read only where the door compares its support
+        // with the edge as it stands, and derived again elsewhere. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
         // `OnPair` rim's wall image), so rest and op read one image. The
         // body is this door's input, so a span refusal is reported.
@@ -8729,8 +8733,9 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     // Tier 3, check 8 (M5 PR 6, C4): the stored pcurve caches — the
     // certificate must be PRESENT on every half-edge of a minting
-    // chart's face, the certification must REPLAY at rest (re-derived,
-    // never trusted), and domain validity (trim containment + the
+    // chart's face, the certification must REPLAY at rest (a row's own
+    // certificate read only where its support compares the same, derived
+    // everywhere else), and domain validity (trim containment + the
     // loop's one-branch continuity) must hold. Bodies carrying no
     // stored pcurves — every all-planar body — contribute nothing.
     // The gating runs ONE way, and both directions are worth saying.
