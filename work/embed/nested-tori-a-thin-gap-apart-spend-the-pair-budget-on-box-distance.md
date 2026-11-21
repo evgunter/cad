@@ -141,3 +141,24 @@ the dearest).
 helix rows keep their receipts. A spline wall proposes no site, and a
 wall against itself has no gap
 (`the-depth-gap-is-asked-of-whole-faces-not-of-cells`).
+
+## Fix pass (lane `embed/nested-tori`, 2026-11-21)
+
+After the review of PR 7119, on the branch with main `b8ee968fa`
+merged in:
+
+- Every bound asks the depth gap, at its own site
+  (`clearance_depth_gap`); a margin of zero and a gap that does not
+  certify part nothing, each pinned.
+- Main now reads a side through a motion (`Side::windows_at`). The
+  depth gap reads each face's cover in its body's own frame, so a
+  placed window is not asked
+  (`a-side-read-through-a-motion-is-not-asked-its-depths`).
+- Re-measured on the merged tree, and identical to the section above
+  body for body and row for row: the tour walk (82 of 85 hold; 6,929
+  candidates, 311,721 discharged, 305,017 splits), the cavity rows
+  through the switch (222 tests, 11 fail: nine valid rows and the two
+  crossing pins; 303 cavities, 644,137 splits), and
+  `self_intersection_proves_injectivity` with `shell_cavity_embedded`
+  at the default ε, 1e-6 and 1e-12 (58 rows pass, same receipts).
+  `editor-core`'s 56 clearance rows pass at the three ε.
