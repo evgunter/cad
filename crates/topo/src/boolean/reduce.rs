@@ -655,7 +655,7 @@ pub(super) fn certified<T: geom_core::Real>(
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`crate::separating::planar_axis`]), and a
+/// over the face's extent ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -669,14 +669,8 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = crate::separating::planar_axis(
-            y,
-            face,
-            || crate::census::face_reach(y, face, band),
-            band,
-        )
-        .ok_or(VertexRefusal::Plane(
-            "the face's outward normal does not read as a unit direction over its reach",
+        let normal = crate::separating::planar_axis(y, face, band).ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its extent",
         ))?;
         Ok(SectionPlane {
             origin: plane.origin,

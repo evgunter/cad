@@ -586,8 +586,8 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
     let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
-    let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
-    let at = frame_reading(&surface(&torus, face), on, Vec::new()).unwrap();
+    let cover = || crate::cover::face_cover(&torus, face, b);
+    let at = frame_reading(&surface(&torus, face), cover, cover).unwrap();
     let rho = big_r + r * a.cos();
     let reach = [
         (Point3::new(0.0, 0.0, r * a.sin()), rho),

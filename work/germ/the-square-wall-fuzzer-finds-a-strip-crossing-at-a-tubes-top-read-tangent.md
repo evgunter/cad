@@ -35,3 +35,5 @@ beside whichever fix.
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
 
 **More seeds (2026-11-20, ONEROUND's `oneround/lever-doors` lane).** On a clean worktree of `origin/main`, `CAD_FUZZ_SEED=0xcd26a5f82fb7b695 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both `Tangent("section_torus_square_wall_fold_half")`. On that lane's branch (which does not touch this arm) seeds `0x1` and `0x2` fail and `0x3` passes; those three were not replayed on main. So the counterexample is not rare: three of the four seeds tried find it, and the row's fuzzer, which varies its seed, is red on most runs of the slow set.
+
+**Another seed (2026-11-20, ONEROUND's `oneround/lever-sites-topo` lane).** `CAD_FUZZ_SEED=0x7268e17b993b86d7 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both on that lane's base (`oneround/lever-doors` merged with `origin/main` at `3c300524`) and on its head; the lane does not touch this arm.
