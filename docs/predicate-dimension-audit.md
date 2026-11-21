@@ -2024,6 +2024,21 @@ Flagged, NOT fixed here (dispositions):
   sink under `curve_pair_walk_nearer_end`; the verdict log does not carry
   it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F47** (added by SCALAR's certification-interiors unit, PR 7190)
+  `pcurve_interval_meter`, `pcurve_interval_forward` and the fitted
+  schedule's sample residuals — `geom-brep/src/pcurve_cache.rs`
+  `fitted_refusal_without_lane`: checks 1–3 of the fitted lane, run for
+  a fitted or general row at a scalar that holds no fitted lane (a
+  dual, or a caller that withheld it). What keeps them off the log is
+  that **no certificate is stated there**: the row is refused whatever
+  they read, and they are run only to say which refusal, so that a
+  defective image (a backward span, a sample off its carrier) refuses as
+  its defect at every scalar and not as "no lane". The margins and
+  their dimensions are the logged checks' own (the same function,
+  `fitted_defects`, runs both ways). **Carried as
+  `k_stats::unlogged("F47", ..)`**. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

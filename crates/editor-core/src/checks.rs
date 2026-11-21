@@ -1532,7 +1532,7 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// to its member budget.
 pub fn run_checks<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1586,7 +1586,7 @@ pub fn run_checks<
 /// coincidence door.
 pub fn run_checks_on<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1617,7 +1617,7 @@ pub fn run_checks_on<
 /// As [`run_checks_on`].
 pub fn run_checks_at_rest_on<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1982,7 +1982,7 @@ fn door_findings<P: crate::ProfilePayload>(
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestPolicy>(
+fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::CertifiedPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
