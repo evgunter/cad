@@ -2,12 +2,13 @@
 id: the-lever-sites-that-hold-their-geometry-read-it-in-topo
 kind: unit
 title: The lever sites in topo whose own function holds the geometry read it, not a number or point of their own
-status: dispatched
+status: review
 opened: 2026-11-20
 priority: P1
 cost: H
 branch: oneround/lever-sites-topo
 parent: lever-doors-pinned-sites-await-a-geometry-read
+pr: 7228
 ---
 
 
