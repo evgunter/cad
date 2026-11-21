@@ -222,3 +222,7 @@ mod cusp_fillet_keeps_its_leg;
 mod fillet_radius_at_anchor;
 #[path = "fillet_run_fit.rs"]
 mod fillet_run_fit;
+#[path = "zz_rev_7264_probe.rs"]
+mod zz_rev_7264_probe;
+// Review probe for PR 7264, not for merge: spells the slow set so CI runs it.
+// every_crate_that_names_the_door_reaches_it grid_a_bounds_are_the_anchor_fit_boundary line_arc_bounds_are_the_anchor_fit_boundary line_line_bounds_are_the_anchor_fit_boundary no_production_source_writes_a_vertex_table the_census_reads_the_gate_table_as_the_type_does
