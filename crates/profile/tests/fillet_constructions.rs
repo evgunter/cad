@@ -178,7 +178,7 @@ fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize,
     }
     let reach = match &replayed {
         Ok(_) => steps.len(),
-        Err(e) => (e.step + 1).min(steps.len()),
+        Err(e) => (e.raised_at() + 1).min(steps.len()),
     };
     for c in &built {
         if c.step >= reach || !is_fillet(&steps[c.step]) {

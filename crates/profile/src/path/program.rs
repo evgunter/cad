@@ -2556,12 +2556,24 @@ pub enum ReplayErrorKind<T: Real> {
 
 impl<T: Real> ReplayError<T> {
     /// What the step at `applying` refused, at the step it is about.
-    fn raised_at(applying: usize, kind: ReplayErrorKind<T>) -> Self {
+    fn applying(applying: usize, kind: ReplayErrorKind<T>) -> Self {
         let step = match &kind {
             ReplayErrorKind::Path(source) => source.step().unwrap_or(applying),
             ReplayErrorKind::Transition { .. } => applying,
         };
         Self { step, kind }
+    }
+
+    /// The step the replay was applying when it refused: [`Self::step`],
+    /// or the later step a deferred refusal was raised at
+    /// ([`PathError::Deferred`]). The replay got through every step
+    /// before it.
+    #[must_use]
+    pub fn raised_at(&self) -> usize {
+        match &self.kind {
+            ReplayErrorKind::Path(PathError::Deferred { raised_at, .. }) => *raised_at,
+            ReplayErrorKind::Path(_) | ReplayErrorKind::Transition { .. } => self.step,
+        }
     }
 
     fn transition(step: usize, state: TipState, verb: Verb) -> Self {
@@ -3711,7 +3723,7 @@ fn walk<T: ArcCarrierScalar>(
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied =
-            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError::raised_at(i, kind))?;
+            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError::applying(i, kind))?;
         if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
             return Err(ReplayError {
                 step: 0,

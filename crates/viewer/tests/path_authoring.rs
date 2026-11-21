@@ -20,7 +20,7 @@
 use crate::common;
 
 use common::{len, session_insert, shape};
-use pncad::document::{Doc, ValuePayload};
+use pncad::document::{Doc, NodeResult, ValuePayload};
 use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
@@ -582,7 +582,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
 /// **A fillet refused steps after it is pointed at by its own step.**
 /// The fillet at step 2 is built, and its arc, half ε long, is refused
 /// where the close at step 8 re-reads its stored form: the preview and
-/// the door both name step 2, whose radius the recourse edits, and say
+/// the document's evaluation both name step 2, whose radius the recourse edits, and say
 /// that step 8 raised it.
 #[test]
 fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door() {
@@ -601,11 +601,15 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
         Step::LineTo(Target::Point(Point2::new(4.0, 3.0))),
         Step::LineTo(Target::Start),
     ];
-    let refusal = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
-        .expect_err("the flattened fillet is refused");
+    let cut = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
+        .expect("the steps before the refused close still draw");
+    let refusal = cut.loops[0]
+        .end
+        .refusal()
+        .expect("the flattened fillet is refused");
     assert!(
         matches!(
-            &refusal,
+            refusal,
             PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
                 if rendered.starts_with(
                     "not stored at step 8, the close: "
@@ -614,15 +618,24 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
         "{refusal}",
     );
 
+    // The document lands the profile and its evaluation refuses it,
+    // as the feature tree draws it.
     let mut session = session(tol);
-    let out = session.perform(SessionOp::AddProfile {
-        loops: vec![shape(&steps)],
-    });
-    let said = format!("{:?}", out.refusal);
+    let node = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![shape(&steps)],
+        },
+    );
+    session.pump();
+    let evaluation = session.evaluation().expect("a result landed");
+    let Some(NodeResult::Failed(error)) = evaluation.result(node) else {
+        panic!("the evaluation reports the profile as failed");
+    };
+    let said = error.to_string();
     assert!(
-        said.contains("Geometry { loop_: 0, step: 2,")
-            && said.contains("not stored at step 8, the close: "),
-        "the door files it at the fillet too: {said}",
+        said.contains("profile loop 0 refused at step 2: not stored at step 8, the close: "),
+        "the document files it at the fillet too: {said}",
     );
 }
 

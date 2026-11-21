@@ -1639,7 +1639,7 @@ fn preview_replayed(
             Some(Err(close)) => Some(close),
             None => None,
         };
-        let drawn = prefix_loop(steps, error.step, tol).map(|prefix| {
+        let drawn = prefix_loop(steps, error.raised_at(), tol).map(|prefix| {
             let own_close = prefix.closes && prefix.steps == steps.len();
             let said = match &close {
                 Some(
@@ -1830,9 +1830,10 @@ fn loop_start(steps: &[Step<f64>]) -> Option<Point2<f64>> {
 ///    against a carrier nobody wrote.
 ///
 /// Walked back one step at a time because the tip a refusal leaves can
-/// be one no close may leave: a fused step's arc arrival is refused AT
+/// be one no close may leave: a fused step's arc arrival is refused by
 /// the binder that completes it, and the prefix up to that binder ends
-/// on an arrival no `line_to` completes.
+/// on an arrival no `line_to` completes. `stop` is the step that raised
+/// the refusal ([`ReplayError::raised_at`]), which the replay reached.
 fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<Prefix> {
     let start = loop_start(steps);
     (1..=stop.min(steps.len())).rev().find_map(|end| {
