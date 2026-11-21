@@ -4054,20 +4054,38 @@ mod frame_extent_rows {
     /// **The frame's extent holds what bulges past the scope's
     /// vertices.** The outer quarter of the ring torus `R = 2`, `r = 0.5`
     /// about `z`, bounded by the parallels at `±π/4`
-    /// (`torus_sheet`): its corners stand
+    /// (`boxes::tests::torus_wall`): its corners stand
     /// `√((R + r·cos π/4)² + (r·sin π/4)²) ≈ 2.380` from the centre, its
     /// outer equator `R + r = 2.5`. The alignment verdicts act on Zero,
     /// so the frame levers them at the equator's reach, not the
-    /// corners'.
+    /// corners'. The patch's complement lies on the same torus.
     #[test]
     fn the_axial_frame_reaches_past_its_scopes_vertices() {
         let band = Band::linear(Tol::witness()).unwrap();
         let a = core::f64::consts::FRAC_PI_4;
-        let quarter = core::f64::consts::FRAC_PI_2;
-        let (body, _) = crate::boolean::section_cert::section_cert_rows::torus_sheet(
-            (2.0, 0.5),
-            &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
+        let (mut body, patch) = crate::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            (-a, a),
         );
+        // The patch's complement, the seed face, on the same torus.
+        let key = body.get_face(patch).unwrap().surface;
+        let rest: Vec<_> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| k != patch)
+            .collect();
+        for face in rest {
+            body.set_face_surface(
+                face,
+                crate::construction::FaceSurface::Shared { key, sense: true },
+            )
+            .unwrap();
+        }
         let scope = crate::offset_together::Scope::whole(&body);
         let extent = axial_frame(&body, &scope, band).unwrap().extent.length();
         assert!(
