@@ -218,7 +218,7 @@ impl<T: Real> Dual<T> {
 /// `pub(crate)` seals it: downstream code cannot implement it, so
 /// `Dual<T>` instantiates only at the kernel's own base scalars (nesting
 /// duals is an M6 design question, not a backdoor left ajar).
-pub(crate) trait KinkJacobian: Real {
+pub(crate) trait KinkJacobian: crate::Decide<Value = Self> {
     /// The Jacobian factor of `abs` at `self`: the value the tangent gets
     /// multiplied by, `d|x|/dx` evaluated (or enclosed) at the value.
     /// Conventions per scalar are in the [module docs](self): `f64` gives
@@ -467,6 +467,22 @@ impl<T: KinkJacobian> Real for Dual<T> {
     const WITNESS: crate::real::Witness = T::WITNESS;
 
     const NAME: &'static str = "dual";
+
+    /// The base scalar: the value part, bit-identical to the plain-`T`
+    /// computation of the same recipe.
+    type Value = T;
+
+    fn value(self) -> T {
+        self.value
+    }
+
+    /// Mapped: a dual is the one scalar that is not its own value
+    /// channel, so its view is a copy.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<T>> {
+        crate::value_view::ValueView::Stripped(F::map(x, |d: Self| d.value))
+    }
 
     /// **Nothing**: a dual never certifies (DL1), so a dual body
     /// carries no certificate (DL3).

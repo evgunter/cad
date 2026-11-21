@@ -40,6 +40,7 @@ pub mod sym;
 pub mod test_support;
 pub mod told;
 pub mod tolerance;
+pub mod value_view;
 
 /// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
 /// low-order rational multiple of a turn as an angle gets, so a direction
@@ -98,3 +99,4 @@ pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,
 };
+pub use value_view::{OverScalar, ValueView, place};

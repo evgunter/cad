@@ -1981,6 +1981,19 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    /// The probe itself: it records the decisions its value meets.
+    type Value = Self;
+
+    fn value(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }

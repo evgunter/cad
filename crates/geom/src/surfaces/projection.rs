@@ -60,7 +60,7 @@
 //! control points, where the cosine test meets a trivially-zero
 //! residual) each read a distance no smaller than the true one.
 
-use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real};
+use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real, place};
 
 use crate::projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
@@ -144,7 +144,7 @@ impl core::error::Error for SurfaceProjectionInconclusive {}
 
 /// The seeding sweep is not a certification door and keeps the sole
 /// bracket bound — `crate::projection_policy`'s `# Scalars` for why.
-impl<T: Bounds> NurbsSurface<T> {
+impl<T: Bounds<Value = T>> NurbsSurface<T> {
     /// The fixed-count seeding sweep (module docs: the seeding rule).
     /// Public for warm-start consumers (the PR 7 marcher and its
     /// subdivision seeds) and for the planted wrong-sheet fixtures.
@@ -167,12 +167,12 @@ impl<T: Bounds> NurbsSurface<T> {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                     let u = a0 + (a1 - a0) * fu;
-                    let tu = T::from_computed(u);
+                    let tu = place::<T>(u);
                     for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = win.eval_in_span(tu, T::from_computed(v)) - p;
+                        let d = win.eval_in_span(tu, place(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -275,7 +275,7 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             iterations += 1;
             // Acceptance: parameter stagnation, measured in meters
             // through the chart (domain-edge feet land here).
-            let moved = j.du * T::from_computed(un - u) + j.dv * T::from_computed(vn - v);
+            let moved = j.du * place::<T>(un - u) + j.dv * place::<T>(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
                 let Some(win) = self.window_at(un, vn) else {
                     break;

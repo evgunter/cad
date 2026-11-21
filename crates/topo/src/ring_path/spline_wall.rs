@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Real, Sign, Vec3, place};
 
 use super::{Path, Piece, charge, resolution};
 use crate::validate::decide;
@@ -125,8 +125,9 @@ impl<T: Decide> SplineWall<T> {
         let (Some(a), Some(b)) = (self.foot(from), self.foot(to)) else {
             return Ok(Vec::new());
         };
+        let on_chart = self.chart.values();
         let on_wall = |p: Point3<T>, (u, v): (f64, f64)| {
-            let off = self.chart.eval(T::from_computed(u), T::from_computed(v)) - p;
+            let off = on_chart.eval(place(u), place(v)) - p.map(Real::value);
             decide("split_ring_path_wall_foot", Margin::of(off.norm()), band)
                 .map(|sign| sign == Sign::Zero)
         };

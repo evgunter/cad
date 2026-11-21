@@ -3031,15 +3031,16 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
     }
 
     /// The carrier's parameter at schedule fraction `at`: its held ends
-    /// at `0` and `1`.
+    /// at `0` and `1`, and the fraction between them, a constant of the
+    /// schedule, at the scalar.
     fn station(&self, at: f64) -> T {
-        let (t0, t1) = self.domain;
+        let (t0, t1) = self.ends;
         if at <= 0.0 {
-            self.ends.0
+            t0
         } else if at >= 1.0 {
-            self.ends.1
+            t1
         } else {
-            T::from_computed(t0 + (t1 - t0) * at)
+            t0 + (t1 - t0) * T::from_f64(at)
         }
     }
 }
@@ -3257,7 +3258,7 @@ where
     // An image's gap at a fraction: its chart point mapped through the
     // wall, less the carrier's point there.
     let gap = |at: f64, p: Point2<f64>| {
-        let gap = wall.eval(T::from_computed(p.x), T::from_computed(p.y))
+        let gap = wall.eval(geom_core::place(p.x), geom_core::place(p.y))
             - (schedule.eval)(schedule.station(at));
         Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z))
     };

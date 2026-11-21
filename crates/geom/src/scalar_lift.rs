@@ -278,3 +278,40 @@ impl<T: Real> Surface<T> {
         }
     }
 }
+
+/// **The value-channel views** (`geom_core::value_view`): each geometry
+/// type's `values()`, the type read through [`Real::value`], borrowed
+/// wherever the scalar is its own value channel and a copy at a dual. A
+/// place is evaluated on it ([`geom_core::place`]), so what a place
+/// reads is never a scalar with a tangent.
+macro_rules! value_views {
+    ($($family:ident: $($ty:ident)::+;)*) => {$(
+        /// The family [`Real::view`] maps this type through.
+        struct $family;
+
+        impl geom_core::OverScalar for $family {
+            type At<S: Real> = $($ty)::+<S>;
+
+            fn map<S: Real, U: Real>(x: &$($ty)::+<S>, f: impl Fn(S) -> U) -> $($ty)::+<U> {
+                x.map_scalar(f)
+            }
+        }
+
+        impl<T: Real> $($ty)::+<T> {
+            /// This geometry on its value channel ([`Real::view`]): the
+            /// one a place is evaluated on.
+            #[must_use]
+            pub fn values(&self) -> geom_core::ValueView<'_, $($ty)::+<T::Value>> {
+                T::view::<$family>(self)
+            }
+        }
+    )*};
+}
+
+value_views! {
+    CurveValues: crate::curves::Curve3;
+    SurfaceValues: crate::surfaces::Surface;
+    NurbsCurve2Values: crate::curves::NurbsCurve2;
+    NurbsCurve3Values: crate::curves::NurbsCurve3;
+    NurbsSurfaceValues: crate::surfaces::NurbsSurface;
+}

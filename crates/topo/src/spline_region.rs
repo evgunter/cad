@@ -42,7 +42,7 @@
 use std::collections::VecDeque;
 
 use geom::NurbsSurface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::body::Body;
 use crate::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
@@ -154,7 +154,7 @@ pub(super) fn spline_chart_placement<T: Decide>(
     if linked.is_placeholder_chart() {
         return Ok(None);
     }
-    let Some(cells) = bezier_cells(chart) else {
+    let Some(cells) = bezier_cells(&chart.values()) else {
         return Ok(None);
     };
     let Some(trim) = Trim::of(body, face, chart, &cells, PIECE_VISITS, band) else {
@@ -218,13 +218,14 @@ fn read_capped<T: Decide>(
     if view.surface().is_placeholder_chart() {
         return Reading::Unsettled(None);
     }
-    let Some(cells) = bezier_cells(chart) else {
+    let on_chart = chart.values();
+    let Some(cells) = bezier_cells(&on_chart) else {
         return Reading::Unsettled(None);
     };
     let Some(trim) = Trim::of(body, face, chart, &cells, caps.pieces, band) else {
         return Reading::Unsettled(None);
     };
-    carrier_walk(chart, &cells, q, band, caps, |rect| {
+    carrier_walk(&on_chart, &cells, q.map(Real::value), band, caps, |rect| {
         trim.place(&cells, rect, band)
     })
 }
@@ -233,7 +234,7 @@ fn read_capped<T: Decide>(
 /// each kept cell and foot placed in the trim by `place`: the reading,
 /// every way it ends. [`read_capped`] reads exactly this with its
 /// [`Trim::place`]; a row may hand it another placement.
-fn carrier_walk<T: Decide>(
+fn carrier_walk<T: Decide<Value = T>>(
     chart: &NurbsSurface<T>,
     cells: &[Patch<T>],
     q: Point3<T>,
@@ -281,7 +282,7 @@ fn carrier_walk<T: Decide>(
             continue;
         }
         let (cu, cv) = cell.rect.centre();
-        let at = chart.eval(T::from_computed(cu), T::from_computed(cv));
+        let at = chart.eval(geom_core::place(cu), geom_core::place(cv));
         match decide(SPLINE_REGION_CARRIER, Margin::of((at - q).norm()), band) {
             Ok(Sign::Zero) => {
                 foot = true;

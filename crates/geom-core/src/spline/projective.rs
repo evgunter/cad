@@ -132,7 +132,7 @@ impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where
 {
 }
 impl<T: ProjectiveScalar> sealed::Sealed for crate::sym::Sym<T> {}
-impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
+impl<T: ProjectiveScalar + crate::Decide> ProjectiveScalar for crate::sym::Sym<T> {}
 
 /// **A computation with one half per side of the projective
 /// partition**, run by [`SpanLocate::split_projective`] at the scalar
@@ -182,7 +182,7 @@ pub(crate) struct SymArm<A>(pub(crate) A);
 
 impl<T, A> ProjectiveSplit<T> for SymArm<A>
 where
-    T: SpanLocate,
+    T: crate::Decide,
     A: ProjectiveSplit<crate::sym::Sym<T>>,
 {
     type Out = A::Out;

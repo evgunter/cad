@@ -65,7 +65,7 @@ use geom_brep::Pcurve;
 use geom_core::spline::Knots;
 use geom_core::{
     Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
-    rounding_charge,
+    place, rounding_charge,
 };
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -173,7 +173,7 @@ pub(crate) struct Patch<T: geom_core::Real> {
     pub(crate) centre: Vec3<T>,
 }
 
-impl<T: Decide> Patch<T> {
+impl<T: Decide<Value = T>> Patch<T> {
     fn at(&self, i: usize, j: usize) -> Control<T, 4> {
         self.net[i * (self.pv + 1) + j]
     }
@@ -279,7 +279,7 @@ impl<T: Decide> Patch<T> {
         };
         let mut left = self.clone();
         let mut right = self.clone();
-        let st = T::from_computed(s);
+        let st = place::<T>(s);
         // The exact half is a halving's: its product rounds nothing.
         #[allow(clippy::float_cmp)]
         let ratio = s != 0.5;
@@ -358,11 +358,7 @@ impl<T: Decide> Patch<T> {
     fn surface(&self) -> Option<Surface<T>> {
         let knots = |(a, b): (f64, f64), p: usize| {
             let ends = NonZeroUsize::new(p + 1)?;
-            Knots::new(
-                vec![(T::from_computed(a), ends), (T::from_computed(b), ends)],
-                p,
-            )
-            .ok()
+            Knots::new(vec![(place::<T>(a), ends), (place::<T>(b), ends)], p).ok()
         };
         let surface = NurbsSurface::new(
             knots(self.rect.u, self.pu)?,
@@ -458,7 +454,7 @@ fn middle<T: Decide>(x: T) -> f64 {
 /// step a [`blend`], so an enclosure holds the exact refined row and the
 /// `f64` bound follows the arithmetic. Insertion keeps the knots' breaks.
 /// `None` where a knot has no value or a plan refuses.
-fn refined<T: Decide, const N: usize>(
+fn refined<T: Decide<Value = T>, const N: usize>(
     knots: &Knots<T>,
     row: Vec<Control<T, N>>,
     add: &[f64],
@@ -472,7 +468,7 @@ fn refined<T: Decide, const N: usize>(
     let held = |v: f64| {
         runs.iter()
             .find(|(value, _)| value.value_channel() == v)
-            .map_or_else(|| T::from_computed(v), |(value, _)| *value)
+            .map_or_else(|| place::<T>(v), |(value, _)| *value)
     };
     let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
     let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, add).ok()?;
@@ -506,7 +502,7 @@ fn refined<T: Decide, const N: usize>(
 /// generic over [`Decide`]. `geom_brep`'s spline incidence test cuts the
 /// same way with the same charge
 /// (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`).
-pub(crate) fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
+pub(crate) fn bezier_cells<T: Decide<Value = T>>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
     let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
     let (pu, pv) = (ku.degree(), kv.degree());
     let (nu, nv) = chart.control_counts();
@@ -523,9 +519,9 @@ pub(crate) fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Pat
         }
     }
     let centre = Vec3::new(
-        T::from_computed(geom::bracket_mid((lo[0], hi[0]))),
-        T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
-        T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
+        place::<T>(geom::bracket_mid((lo[0], hi[0]))),
+        place::<T>(geom::bracket_mid((lo[1], hi[1]))),
+        place::<T>(geom::bracket_mid((lo[2], hi[2]))),
     );
     // Moved and out to homogeneous form: the difference and the product
     // round each coordinate by `u` of it.
@@ -919,7 +915,8 @@ pub(crate) fn ring_decks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(unread(None)(SplineTrimGap::Placeholder));
     }
-    let cells = bezier_cells(chart).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
+    let cells =
+        bezier_cells(&chart.values()).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
     let sheet = TrimChart::of(surface, chart, band).map_err(unread(None))?;
     let trim = Trim::from_pieces(
         sheet.chain(body, outer).map_err(unread(None))?,
@@ -952,7 +949,7 @@ impl Trim {
         body: &Body<T>,
         face: FaceKey,
         chart: &NurbsSurface<T>,
-        cells: &[Patch<T>],
+        cells: &[Patch<T::Value>],
         piece_visits: usize,
         band: Band,
     ) -> Option<Self> {
@@ -997,7 +994,7 @@ impl Trim {
     /// ring rule ([`crate::pcurves::place_ring`]) with this trim's own
     /// reading of a point in the cover ([`Self::place_in_cover`]); `None`
     /// where a ring has no place.
-    pub(crate) fn with_rings<T: Decide>(
+    pub(crate) fn with_rings<T: Decide<Value = T>>(
         self,
         cells: &[Patch<T>],
         rings: Vec<Vec<Piece>>,
@@ -1016,7 +1013,7 @@ impl Trim {
     /// the one shift that puts a ring whose chain starts at `at` in this
     /// trim's region, each candidate read in the cover by
     /// [`Self::place_in_cover`].
-    pub(crate) fn ring_shift<T: Decide>(
+    pub(crate) fn ring_shift<T: Decide<Value = T>>(
         &self,
         cells: &[Patch<T>],
         [u, v]: [f64; 2],
@@ -1038,18 +1035,28 @@ impl Trim {
     /// chart, past the band, in every copy of `q` a period apart on each
     /// closed channel. `cells` is the chart's Bézier decomposition, which
     /// the window's arms are read off.
-    pub(crate) fn place<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Side {
+    pub(crate) fn place<T: Decide<Value = T>>(
+        &self,
+        cells: &[Patch<T>],
+        q: Rect,
+        band: Band,
+    ) -> Side {
         self.read_window(cells, q, band, true)
     }
 
     /// [`Self::place`] of `q` alone, in the cover, with no copy.
-    fn place_in_cover<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Side {
+    fn place_in_cover<T: Decide<Value = T>>(
+        &self,
+        cells: &[Patch<T>],
+        q: Rect,
+        band: Band,
+    ) -> Side {
         self.read_window(cells, q, band, false)
     }
 
     /// The window round `q` its reading is metered over: its arms, then
     /// its way out, then the copies (`copies`) or `q` alone.
-    fn read_window<T: Decide>(
+    fn read_window<T: Decide<Value = T>>(
         &self,
         cells: &[Patch<T>],
         at: Rect,
@@ -1287,7 +1294,7 @@ pub(crate) fn image_pieces<T: Decide>(
             Some(vec![Piece::segment(end(a), end(b))])
         }
         Pcurve::Fitted(image) | Pcurve::General(image) => {
-            let mut run = bezier_pieces(image, t0.value_channel(), t1.value_channel())?;
+            let mut run = bezier_pieces(&image.values(), t0.value_channel(), t1.value_channel())?;
             if !tracks::<T>() {
                 // The span's ends are brackets, cut at their value: each
                 // end of the run is also off by the image's reach over its
@@ -1318,7 +1325,7 @@ fn half_width<T: Decide>(x: T) -> f64 {
 }
 
 /// The Bézier pieces of `image` over `[a, b]`, ascending.
-pub(crate) fn bezier_pieces<T: Decide>(
+pub(crate) fn bezier_pieces<T: Decide<Value = T>>(
     image: &NurbsCurve2<T>,
     a: f64,
     b: f64,
@@ -1401,7 +1408,7 @@ pub(crate) fn bezier_pieces<T: Decide>(
 /// Bézier cells the window overlaps, of each cell's arms restricted to
 /// the window ([`crate::chart_region::spline_chart_arms`], gated as the
 /// chart region gates its own). `Err` carries the in-band arm, if any.
-fn window_arms<T: Decide>(
+fn window_arms<T: Decide<Value = T>>(
     cells: &[Patch<T>],
     window: Rect,
     band: Band,

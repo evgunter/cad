@@ -91,7 +91,7 @@ use geom::{Curve3, NurbsSurface};
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, UNIT_ROUNDOFF, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, UNIT_ROUNDOFF, Vec3, place,
     rounding_charge,
 };
 
@@ -141,6 +141,24 @@ pub(super) fn spline_incidence_as<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
+    span_incidence_as(
+        name,
+        &chart.values(),
+        &carrier.values(),
+        (t0.value(), t1.value()),
+        band,
+    )
+}
+
+/// [`spline_incidence_as`] on the value channel: its only exit is the
+/// incidence decided, so every sample is read there.
+fn span_incidence_as<T: Decide<Value = T>>(
+    name: &'static str,
+    chart: &NurbsSurface<T>,
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
     let n = f64::from(INCIDENCE_SAMPLES);
     // Each fraction with the even schedule's index, or none where it is
     // the carrier's own, read in order so each sample's foot starts from
@@ -158,7 +176,7 @@ pub(super) fn spline_incidence_as<T: Decide>(
     let samples = fractions.into_iter().map(|(f, schedule)| {
         let f = match schedule {
             Some(i) => T::from_f64(f64::from(i) / n),
-            None => T::from_computed(f),
+            None => place(f),
         };
         carrier.eval(t0 + (t1 - t0) * f)
     });
@@ -203,13 +221,18 @@ pub(super) fn spline_point_incidence_as<T: Decide>(
     point: Point3<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    read_samples_as(name, chart, core::iter::once(point), band)
+    read_samples_as(
+        name,
+        &chart.values(),
+        core::iter::once(point.map(Real::value)),
+        band,
+    )
 }
 
 /// Each sample's walk over the chart's cells, cut once: `Off` at the
 /// first sample shown off, else unsettled at the first sample not shown
 /// on, else `On`.
-fn read_samples_as<T: Decide>(
+fn read_samples_as<T: Decide<Value = T>>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     samples: impl Iterator<Item = Point3<T>>,
@@ -379,7 +402,7 @@ fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool
     (h, e)
 }
 
-impl<'a, T: Decide> Net<'a, T> {
+impl<'a, T: Decide<Value = T>> Net<'a, T> {
     fn of(chart: &'a NurbsSurface<T>, band: Band) -> Option<Self> {
         let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
         let (pu, pv) = (ku.degree(), kv.degree());
@@ -391,9 +414,9 @@ impl<'a, T: Decide> Net<'a, T> {
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
-            T::from_computed(geom_core::bracket_mid((lo[0], hi[0]))),
-            T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
-            T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
+            place(geom_core::bracket_mid((lo[0], hi[0]))),
+            place(geom_core::bracket_mid((lo[1], hi[1]))),
+            place(geom_core::bracket_mid((lo[2], hi[2]))),
         );
         // Moved about the centre and out to homogeneous form: the
         // difference and the product round each coordinate by `u` of it.
@@ -501,11 +524,7 @@ impl<'a, T: Decide> Net<'a, T> {
                     })
             });
             if let Some(at) = start.and_then(|start| self.foot(q, start)) {
-                let distance = (self
-                    .chart
-                    .eval(T::from_computed(at.0), T::from_computed(at.1))
-                    - q)
-                    .norm();
+                let distance = (self.chart.eval(place(at.0), place(at.1)) - q).norm();
                 match decide(FOOT, Margin::of(distance), band) {
                     Ok(Sign::Zero) => {
                         *hint = Some(at);
@@ -571,8 +590,8 @@ impl<'a, T: Decide> Net<'a, T> {
             }
             let [u0, u1, v0, v1] = cell.rect;
             let centre = self.chart.eval(
-                T::from_computed(geom::bracket_mid((u0, u1))),
-                T::from_computed(geom::bracket_mid((v0, v1))),
+                place(geom::bracket_mid((u0, u1))),
+                place(geom::bracket_mid((v0, v1))),
             );
             let distance = (centre - q).norm();
 

@@ -47,7 +47,7 @@
 //! [`NurbsCurve3::project_from_seed`], the raw-Newton entry that exists
 //! for exactly such fixtures and for warm-started consumers.
 
-use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Readable, Real};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Readable, Real, place};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 use crate::projection_policy::{
@@ -128,7 +128,7 @@ macro_rules! nurbs_project {
 
         /// The seeding sweep is not a certification door and keeps the
         /// sole bracket bound — module docs' `# Scalars` for why.
-        impl<T: Bounds> $Curve<T> {
+        impl<T: Bounds<Value = T>> $Curve<T> {
             /// The fixed-count seeding sweep (module docs: the seeding
             /// rule). Public for warm-start consumers and the planted
             /// wrong-branch fixtures; `project` = this + Newton.
@@ -146,7 +146,7 @@ macro_rules! nurbs_project {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        let d = span.eval_in_span(T::from_computed(t)) - p;
+                        let d = span.eval_in_span(place(t)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {

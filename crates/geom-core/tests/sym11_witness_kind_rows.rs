@@ -47,7 +47,7 @@ const ADVERSARY_X: [f64; 6] = [1.0e8, 3.0e8, 5.0e8, 7.0e8, 1.0e9, 1.3e9];
 /// form. At `x ≈ 1e8` a point channel's first four terms are roundoff
 /// of order one and come out NEGATIVE, and the margin is then a
 /// definite `−2`.
-pub(crate) fn adversary_of<T: Real>(x: Sym<T>, y: Sym<T>) -> Sym<T> {
+pub(crate) fn adversary_of<T: Decide>(x: Sym<T>, y: Sym<T>) -> Sym<T> {
     let one = || Sym::<T>::from_f64(1.0);
     let e = (x + one()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one()
         + Sym::from_f64(1.0e-30) * (one() + y.powi(2));
@@ -56,7 +56,7 @@ pub(crate) fn adversary_of<T: Real>(x: Sym<T>, y: Sym<T>) -> Sym<T> {
 
 /// The adversary at a POINT, which is the only shape an inexact lane
 /// has.
-fn adversary<T: Real>(x0: f64) -> Sym<T> {
+fn adversary<T: Decide>(x0: f64) -> Sym<T> {
     adversary_of(
         Sym::param(
             ParamSymbol::new(test_utils::symbol_id("x")),
@@ -73,7 +73,7 @@ fn adversary<T: Real>(x0: f64) -> Sym<T> {
 /// `copysign(1, 1/(t − 1)²) − 1`, whose argument is a positive constant
 /// over a perfect square — manifestly positive to rule F, and with no
 /// value at all at `t = 1`.
-pub(crate) fn pole_of<T: Real>(t: Sym<T>) -> Sym<T> {
+pub(crate) fn pole_of<T: Decide>(t: Sym<T>) -> Sym<T> {
     let one = || Sym::<T>::from_f64(1.0);
     let x = one() / (t - one()).powi(2);
     one().copysign(x) - one()
@@ -83,7 +83,7 @@ pub(crate) fn pole_of<T: Real>(t: Sym<T>) -> Sym<T> {
 /// `copysign(1, +inf)` is `1`, so the margin is a finite `0` where the
 /// function has no value — the point channel has no clause 1 to refuse
 /// the pole with, which is what the certified lane supplies there.
-fn pole<T: Real>(t0: f64) -> Sym<T> {
+fn pole<T: Decide>(t0: f64) -> Sym<T> {
     pole_of(Sym::param(
         ParamSymbol::new(test_utils::symbol_id("t")),
         T::from_f64(t0),
@@ -93,7 +93,7 @@ fn pole<T: Real>(t0: f64) -> Sym<T> {
 /// The margin AT THE POINT, read without asking for a decision: the
 /// value channel's own number, which is what a fired assertion's
 /// message cannot show.
-fn margin_at<T: Real>(build: impl FnOnce() -> Sym<T>) -> T {
+fn margin_at<T: Decide>(build: impl FnOnce() -> Sym<T>) -> T {
     let (v, _) = with_session_rules(budget(), SymRules::shipped(), || build().value);
     v
 }
@@ -479,7 +479,7 @@ fn sym11_a_contradicted_registration_is_not_a_disputed_theorem() {
 /// what made it answer.
 ///
 /// `w` is the gap between the arms (`z + w` against `z`).
-fn rounded_decision<T: Real>(w: f64, atan: bool) -> Sym<T> {
+fn rounded_decision<T: Decide>(w: f64, atan: bool) -> Sym<T> {
     let pt = |name: &str, v: f64| {
         Sym::<T>::param_over(
             ParamSymbol::new(test_utils::symbol_id(name)),

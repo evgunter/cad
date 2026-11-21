@@ -5265,7 +5265,7 @@ impl<T: Real> Neg for Sym<T> {
     }
 }
 
-impl<T: Real> Real for Sym<T> {
+impl<T: Decide> Real for Sym<T> {
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
@@ -5278,6 +5278,20 @@ impl<T: Real> Real for Sym<T> {
     /// The lane scalar's: the tier changes how a margin decides, not
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
+    /// The symbolic scalar itself: its identity over the unknowns is
+    /// what a decision at it reads.
+    type Value = Self;
+
+    fn value(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
 
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)
@@ -5421,7 +5435,7 @@ impl<T: Real> Real for Sym<T> {
 
 /// The bracket is the value channel's, verbatim: the DAG carries no
 /// numbers of its own and is never read here.
-impl<T: Bounds> Bounds for Sym<T> {
+impl<T: Bounds + Decide> Bounds for Sym<T> {
     fn lo(self) -> f64 {
         Bounds::lo(self.value)
     }
@@ -5434,7 +5448,7 @@ impl<T: Bounds> Bounds for Sym<T> {
 /// Certification delegates: whether the computation was defined on the
 /// whole box is a question about the numeric channel, and the symbolic
 /// tier neither widens nor narrows the answer.
-impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
+impl<T: crate::real::CertifiedBounds + Decide> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
     }
@@ -5455,7 +5469,7 @@ impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
 /// Span selection is STRUCTURE selection and reads the value channel;
 /// the hull mints a `Hull` node keyed by the two operands' ids (never by
 /// their forms — see [`SymOp::Hull`]).
-impl<T: SpanLocate> SpanLocate for Sym<T> {
+impl<T: Decide> SpanLocate for Sym<T> {
     fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
         self.value.locate_spans(knots)
     }

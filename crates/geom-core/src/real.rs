@@ -324,6 +324,28 @@ pub trait Real:
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
 
+    /// **This scalar with its tangent removed**: the value channel a
+    /// place is evaluated on and a decision reads (DL5.2, the crate
+    /// README). At a dual it is the base scalar (`f64` at `Dual<f64>`,
+    /// [`crate::Interval`] at `Dual<Interval>`); at `f64`, `Interval`,
+    /// [`crate::Probe`] and [`crate::Sym`] it is the scalar itself, which
+    /// carries no tangent (a `Sym`'s symbols are an identity over the
+    /// document's unknowns, which a decision reads, not a tangent). It
+    /// is its own value channel, so a second read is the identity.
+    type Value: crate::Decide<Value = Self::Value>;
+
+    /// The read down to [`Real::Value`]: a dual's value part, bit for
+    /// bit; the scalar itself elsewhere.
+    fn value(self) -> Self::Value;
+
+    /// **`x` on its value channel**: [`Real::value`] of every scalar it
+    /// holds, through `F`'s map, borrowed where the scalar is its own
+    /// value channel, so it allocates only at a dual. A geometry type
+    /// offers it as its `values()`.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self::Value>>;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     ///
     /// **For a constant only**: a literal, a count, a tolerance, data
@@ -1915,7 +1937,11 @@ pub mod bounds_allowlist {
 /// holds the line — the only door between a dual and certified code.
 /// Reopening it would be a ratified reversal of DL1 on its own
 /// evidence, never an impl someone can add in passing.
-pub trait CertifiedEnclosure: Copy {
+///
+/// A scalar that certifies is its own value channel ([`Real::Value`]):
+/// it carries no tangent, so a place is evaluated at it directly
+/// ([`crate::place`]).
+pub trait CertifiedEnclosure: Real<Value = Self> {
     /// The bracket, or `None` if this value carries a domain violation.
     ///
     /// `Some([lo, hi])` promises both things at once: the pair brackets
@@ -2086,6 +2112,18 @@ impl Real for f64 {
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    type Value = f64;
+
+    fn value(self) -> f64 {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
