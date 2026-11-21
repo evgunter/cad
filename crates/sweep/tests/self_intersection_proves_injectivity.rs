@@ -3069,9 +3069,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// `f64` the plane built from either does. At `Interval` the small
 /// ball's centre is a bracket (its profile arc's centre rounds), and
 /// two meridians stored in one bracket need not lie in one plane for
-/// every member, so its plane lists its own meridian alone and its pole
-/// refuses `Departure` there. Red at `f64` if the meridians are stored
-/// in two planes, or if the corner is read as zero off the list.
+/// every member, so its plane lists its own meridian alone; the pole is
+/// read by the plane through it alone, each half-band presented against
+/// the pole, which vanishes there for every member, and holds. Red at
+/// `f64` if the meridians are stored in two planes, or if the corner is
+/// read as zero off the list; red at `Interval` while the departure arm
+/// reads no plane but those through the shared meridian.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3105,27 +3108,11 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         report.receipt
     );
     let twin = snowman::<Interval>();
-    let verdict = injective(&twin, None, BUDGET).verdict;
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::Departure,
-        ..
-    }) = verdict
-    else {
-        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
-    };
-    let curve = twin.get_edge(edge).expect("a live edge").curve;
-    let carrier = twin
-        .get_curve_geom(curve)
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
-        panic!("the refusing edge is a meridian circle: {carrier:?}");
-    };
-    let radius = conic_k.radius();
-    assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
-        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    let at_interval = injective(&twin, None, BUDGET);
+    assert_holds("the snowman at Interval", &at_interval, &twin);
+    println!(
+        "[snowman] f64 {:?} | Interval {:?}",
+        report.receipt, at_interval.receipt
     );
 }
 
