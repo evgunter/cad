@@ -21,7 +21,6 @@ use geom::{Curve3, Surface, SurfaceKind};
 use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
-use super::BooleanError;
 use crate::validate::decide;
 use geom_brep::curve_face::circle_roots::CircleRoots;
 use geom_brep::curve_face::line_quadric::{LineRoots, line_quadric_roots};
@@ -144,13 +143,6 @@ impl core::fmt::Display for TraceFault {
 }
 
 impl core::error::Error for TraceFault {}
-
-fn door(error: BooleanError) -> TraceFault {
-    match error {
-        BooleanError::Escalated { diag, .. } => TraceFault::Escalated(diag),
-        other => unreachable!("the trace dispatches each root door on its own kinds: {other:?}"),
-    }
-}
 
 /// A curve × face door's refusal, as the trace's: its escalation is the
 /// trace's own, carrying no decision of the Boolean's.
@@ -322,14 +314,14 @@ pub fn circle_crossings<T: Decide>(
                     band,
                 )
                 .map_err(door_refusal)?,
-                _ => super::conic_quadric::conic_quadric_roots(
+                _ => geom_brep::curve_face::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
                     tau,
                     surface,
                     band,
                 )
-                .map_err(door)?,
+                .map_err(|refusal| door_refusal(refusal.door_refusal()))?,
             };
             roots_of(found)?
                 .into_iter()
@@ -537,7 +529,7 @@ pub fn plane_misses<T: Decide>(
             let (origin, axis) = (frame.origin(), frame.axis());
             match sign_as(
                 TRACE_PLANE_LEAD,
-                Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
+                Margin::levered(axis.dot(normal), geom_brep::uniform_curvature_arm(surface)),
                 band,
             )? {
                 Sign::Zero => off(origin, radius),

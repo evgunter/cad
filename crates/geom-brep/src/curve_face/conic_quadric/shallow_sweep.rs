@@ -4,14 +4,14 @@
 //! `1e-11` to `1e-3` m, either side) at a random point, tangent there in
 //! a random direction — the poses the ladder arm answers — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` on both lanes against the exact oracle
-//! ([`geom_brep::curve_face::conic_oracle::exact`]). On every pose at least `Kε`
+//! ([`crate::curve_face::conic_oracle::exact`]). On every pose at least `Kε`
 //! deep, a certified answer has the true count and each certified root
 //! lies within `Kε` of arc of a true one and each true one within `Kε` of
 //! a certified one; a `Miss` has no true root; nothing else is
 //! certified. A refusal is always allowed.
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/conic_quadric/mod.rs",
+    "crates/geom-brep/src/curve_face/conic_quadric.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
@@ -29,7 +29,7 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{exact, unit};
+use crate::curve_face::conic_oracle::{exact, unit};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::{self, Rng};
 
@@ -201,7 +201,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
 /// The door's certified roots as `(lo, hi)` pairs (`pair` reads one), or
 /// what it answered instead.
 fn answer<T: Decide>(
-    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
+    got: Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal>,
     pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {

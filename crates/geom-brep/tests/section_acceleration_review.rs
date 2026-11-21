@@ -251,7 +251,16 @@ fn a_nearly_tangent_section_bends_without_bound_and_a_tangent_one_is_unbounded()
     let got = implicit_section_acceleration(&sphere, &flat, p, d, across);
     assert!(!got.is_finite(), "tangent: {got}");
     let band = Band::linear(Tol::witness()).unwrap();
-    assert!(tied_germ_turn(z, d, [0.0, got], 1.0, band).is_err());
+    assert!(
+        tied_germ_turn(
+            z,
+            d,
+            [0.0, got],
+            geom_core::test_support::fixture_lever(1.0),
+            band
+        )
+        .is_err()
+    );
 }
 
 /// Two germs along one tangent in a sphere: a plane's section and a
@@ -283,7 +292,14 @@ fn tied_germs_in_a_sphere_turn_as_their_traced_sections_do() {
             let across = normal.cross(t);
             let b0 = implicit_section_acceleration(&sphere, &g0, p, t, across);
             let b1 = implicit_section_acceleration(&sphere, &g1, p, t, across);
-            let sign = tied_germ_turn(normal, t, [b0, b1], 0.1, band).unwrap();
+            let sign = tied_germ_turn(
+                normal,
+                t,
+                [b0, b1],
+                geom_core::test_support::fixture_lever(0.1),
+                band,
+            )
+            .unwrap();
             // Traced: the side of germ 1's point off germ 0's, about
             // the normal, a short way along.
             let s = 1e-2;

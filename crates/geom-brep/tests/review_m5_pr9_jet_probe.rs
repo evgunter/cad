@@ -181,22 +181,43 @@ fn second_order_margin_scales_with_the_lever_arm_squared() {
     // The reference side is a split plane's normal — the convention,
     // not a face's sense.
     let n = geom_brep::ReferenceNormal::of_split_plane(Vec3::new(0.0, 1.0, 0.0));
-    let small = enters_material_order2(d2, 1.0, n, 1.0, b);
+    let small = enters_material_order2(d2, 1.0, n, geom_core::test_support::fixture_lever(1.0), b);
     assert!(
         small.is_err(),
         "margin 2*zero at arm 1 must escalate F6: {small:?}"
     );
     let big_arm = (2.0 * b.escalate() / kappa).sqrt() * 1.5;
-    let big = enters_material_order2(d2, 1.0, n, big_arm, b).unwrap();
+    let big = enters_material_order2(
+        d2,
+        1.0,
+        n,
+        geom_core::test_support::fixture_lever(big_arm),
+        b,
+    )
+    .unwrap();
     assert_eq!(
         big,
         geom_brep::EntersMaterial::Exits,
         "the same curvature at lever arm {big_arm} resolves definitely"
     );
     // Exact tie stays Tangent (typed, never guessed).
-    let tie = enters_material_order2(Vec3::new(0.0, 0.0, 0.0), 1.0, n, 1.0, b).unwrap();
+    let tie = enters_material_order2(
+        Vec3::new(0.0, 0.0, 0.0),
+        1.0,
+        n,
+        geom_core::test_support::fixture_lever(1.0),
+        b,
+    )
+    .unwrap();
     assert_eq!(tie, geom_brep::EntersMaterial::Tangent);
     // Sign convention: curving along -n enters material.
-    let enters = enters_material_order2(Vec3::new(0.0, -1.0, 0.0), 1.0, n, 1.0, b).unwrap();
+    let enters = enters_material_order2(
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        n,
+        geom_core::test_support::fixture_lever(1.0),
+        b,
+    )
+    .unwrap();
     assert_eq!(enters, geom_brep::EntersMaterial::Enters);
 }

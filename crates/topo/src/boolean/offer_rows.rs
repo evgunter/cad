@@ -1468,7 +1468,12 @@ fn recut(lean: f64) -> Result<(), BooleanError> {
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
     );
-    super::super::ops::recut_lean(axis, align, 1.0, band())
+    super::super::ops::recut_lean(
+        axis,
+        align,
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+    )
 }
 
 /// A point on a unit wall sheet's carrier well outside its trim, `D`
@@ -2536,30 +2541,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "conic_quadric/mod.rs",
-        "cone_roots",
-        "BooleanDecision::ArcConeRoots",
-        2,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "conic_quadric_roots",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "quadric_ladder",
-        "BooleanDecision::ArcCylinderRoots",
-        1,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "quadric_ladder",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::VertexOnVertex",
@@ -2648,6 +2629,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
     ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
     (
         "mod.rs",
         "of_line_quadric_refusal",

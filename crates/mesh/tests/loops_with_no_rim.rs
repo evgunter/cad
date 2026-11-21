@@ -333,18 +333,22 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
     assert_refuses_single_column("one-seam cone", &body, SurfaceKind::Cone, 0.05);
 }
 
-/// **The one-seam sphere meshes as the wrap strip**: a record of what
-/// `tessellate` does today with a body outside its contract, not a
-/// guarantee. The body is the one-face ball with its edge's description
-/// left unwritten, so it is not tier-2 valid: the edge is no wrap edge,
-/// and its two valence-1 ends are strut tips
-/// (`ScaffoldingStrutVertex`). The walk reads no description; the loop's
-/// chart image is empty and its tips are the two poles, so the walk
-/// places the edge's two traversals a period apart
-/// (`the_one_face_ball.rs`) and the body meshes as the unit ball.
+/// **The one-seam sphere is the wrap strip once its rows are minted**: a
+/// record of what `tessellate` does today with a body outside its
+/// contract, not a guarantee. The body is the one-face ball with its
+/// edge's description left unwritten, so it is not tier-2 valid: the edge
+/// is no wrap edge, and its two valence-1 ends are strut tips
+/// (`ScaffoldingStrutVertex`). Its loop's chart image is empty and its
+/// tips are the two poles, so the walk reads it as the strip, whose period
+/// is the loop's stored lift; built through the Euler doors, it stores
+/// none, and the walk refuses it as the trimmed lane refuses a loop with no
+/// lift. Minted (`topo::mint_pcurves`), the lift turns the face a whole
+/// turn round each pole, the walk places the edge's two traversals a
+/// period apart (`the_one_face_ball.rs`), and the body meshes as the unit
+/// ball.
 #[test]
-fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
-    let body = one_seam_sphere();
+fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
+    let mut body = one_seam_sphere();
     let tier_2 = topo::validate_closed(&body);
     assert!(
         tier_2.as_ref().is_err_and(|errors| errors
@@ -352,6 +356,16 @@ fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
             .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. }))),
         "the one-seam sphere's ends are strut tips at tier 2: {tier_2:?}"
     );
+    let unminted = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    assert!(
+        matches!(
+            &unminted,
+            Err(mesh::TessellateError::DomainUnread { cause, .. })
+                if matches!(**cause, topo::pcurves::RingPlacementError::Gap(_))
+        ),
+        "the unminted one-seam sphere stores no lift for the strip to read: {unminted:?}"
+    );
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the one-seam sphere's rows mint");
     common::check_mesh_acceptance(&body, 0.05, Some((4.0 * PI / 3.0, 4.0 * PI)));
 }
 

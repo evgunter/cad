@@ -488,7 +488,7 @@ impl<T: Decide> StationHook<T> for MaterialReads {
         let (end, margin) = match recorded_as(self.end, || {
             decide_nonzero_reported(
                 crate::MATERIAL_CUSP_SIDE,
-                Margin::sagitta(signed, station.arm.length()),
+                Margin::sagitta(signed, station.arm),
                 self.band,
             )
         }) {

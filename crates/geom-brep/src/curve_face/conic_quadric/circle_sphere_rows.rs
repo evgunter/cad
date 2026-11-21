@@ -353,7 +353,7 @@ struct SlackTerms {
 
 impl SlackTerms {
     fn of(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64, sc: [f64; 3], r: f64) -> Self {
-        let h = geom_brep::circle_sphere_harmonic(
+        let h = crate::circle_sphere_harmonic(
             &geom::Circle::new(
                 geom::Frame::new(
                     Point3::from_array(c),
@@ -536,7 +536,7 @@ fn the_interval_lane_encloses_the_oracle_roots() {
 /// direction's own parameter.
 #[test]
 fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
-    use geom_brep::curve_face::line_quadric::{About, WallRoots, line_sphere_roots};
+    use crate::curve_face::line_quadric::{About, WallRoots, line_sphere_roots};
     let (c, r) = (Point3::new(0.0, 0.0, -0.5), 0.3);
     let q = Point3::new(0.06, 0.0, -0.92);
     for d in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 2.5)] {

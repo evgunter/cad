@@ -2,11 +2,11 @@
 //! every root it certifies within the zero band.** Circles tilted to a
 //! cylinder wall — the poses the ladder arm takes — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` against the exact oracle
-//! ([`geom_brep::curve_face::conic_oracle::exact`]):
+//! ([`crate::curve_face::conic_oracle::exact`]):
 //!
 //! - a circle tangent to the wall, or crossing or clearing it by less
 //!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
-//!   distance `d`, `geom_brep::implicit_residual`), at any tilt, is
+//!   distance `d`, `crate::implicit_residual`), at any tilt, is
 //!   escalated or `Unsettled`, never a `Miss` or a certified count (D1's
 //!   trilean), and `On` only where it lies on the wall to within
 //!   the band all round;
@@ -18,19 +18,13 @@
 //!   reads in the band's escalation gap at the default band, has each
 //!   certified root within the zero band of a true one, and no `Miss` on
 //!   a true crossing.
-//!
-//! Circles grazing a torus ([`geom_brep::curve_face::circle_torus`], the same
-//! subdivision) are judged against the same oracle at the zero band
-//! rather than `Kε`: none within it is answered, and every answer in the
-//! gap is true.
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/conic_quadric/mod.rs",
+    "crates/geom-brep/src/curve_face/conic_quadric.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
     "crates/geom-core/src/bisect.rs",
-    "crates/geom-brep/src/curve_face/circle_torus.rs",
     "crates/geom-brep/src/curve_face/conic_oracle.rs",
     "crates/geom-brep/src/curve_face/conic_oracle/",
     "crates/topo/src/solid_contain.rs",
@@ -43,8 +37,7 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::circle_torus::circle_torus_roots;
-use geom_brep::curve_face::conic_oracle::exact;
+use crate::curve_face::conic_oracle::{exact, graze};
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
@@ -60,25 +53,6 @@ fn wall(r: f64) -> geom::Surface<f64> {
         ),
         radius: r,
     }
-}
-
-/// A circle of radius `rho` through the point `depth` off a surface at
-/// `on` along its unit `normal` there, tangent to it in the unit
-/// direction `tangent`, its centre toward `n̂ cos b + (n̂ × t̂) sin b` from
-/// that point, so `θ = 0` is that point.
-fn graze(
-    on: Point3<f64>,
-    normal: Vec3<f64>,
-    tangent: Vec3<f64>,
-    (rho, depth, b): (f64, f64, f64),
-) -> geom::Curve3<f64> {
-    let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    geom::Curve3::circle(
-        on + normal * depth - toward * rho,
-        toward.cross(tangent).normalize(),
-        rho,
-        toward,
-    )
 }
 
 /// [`graze`] against the wall of radius `r` at `(r, 0, 0)`, tangent in
@@ -131,7 +105,7 @@ fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
 /// where the circle lies within `Kε` of the wall all round, and a `Miss`
 /// or a count only on a pose clear of `Kε` in the residual, and true.
 fn permitted(
-    got: &Result<Result<CircleRoots<f64>, Unsettled>, BooleanError>,
+    got: &Result<Result<CircleRoots<f64>, Unsettled>, ConicQuadricRefusal>,
     truth: &exact::Truth,
     c: &geom::Curve3<f64>,
     r: f64,
@@ -635,83 +609,6 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
     assert!(
         wrong.is_empty(),
         "{} wrong answers ({}):\n{}",
-        wrong.len(),
-        fuzz::replay(),
-        wrong.join("\n")
-    );
-}
-
-/// **A circle grazing a torus is answered nowhere within the zero band,
-/// and truly in its gap** (module docs). Each pose crosses, grazes or
-/// clears a torus `R = 1` of tube `0.05 ≤ r < 1` at a point anywhere on
-/// the tube by a depth drawn inside the zero band, inside its gap, or
-/// zero, at any tilt. The torus door reads its clear margin through the
-/// torus's ceiling on `|F|/|res|`, so no piece reads clear short of the
-/// band; an answer it gives must be true, and none within `ε` may be
-/// given.
-#[test]
-fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
-    let mut rng = fuzz::start("conic_quadric_in_band_torus_sweep");
-    let n = fuzz::scaled(100);
-    let mut wrong = Vec::new();
-    for eps in EPS_ROWS {
-        let band = Band::new(eps, 10.0 * eps).unwrap();
-        for i in 0..3 * n {
-            let small = rng.range(0.05, 1.0);
-            let torus = geom::Surface::Torus {
-                frame: geom::Frame::new(
-                    Point3::origin(),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-                major_radius: 1.0,
-                minor_radius: small,
-            };
-            let (phi, psi) = (rng.range(0.0, TAU), rng.range(0.0, TAU));
-            let radial = Vec3::new(phi.cos(), phi.sin(), 0.0);
-            let z = Vec3::new(0.0, 0.0, 1.0);
-            let on =
-                Point3::origin() + radial * (1.0 + small * psi.cos()) + z * (small * psi.sin());
-            let normal = radial * psi.cos() + z * psi.sin();
-            let (along_phi, along_psi) = (
-                Vec3::new(-phi.sin(), phi.cos(), 0.0),
-                z * psi.cos() - radial * psi.sin(),
-            );
-            let g = rng.range(0.0, TAU);
-            let tangent = (along_phi * g.cos() + along_psi * g.sin()).normalize();
-            let rho = rng.log_uniform(0.01, 100.0);
-            let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
-            let depth = match i % 3 {
-                0 => side * rng.range(0.0, eps),
-                1 => side * rng.range(eps, 10.0 * eps),
-                _ => 0.0,
-            };
-            let c = graze(on, normal, tangent, (rho, depth, rng.range(0.0, TAU)));
-            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
-            let truth = exact::truth(&c, &torus);
-            if truth.residual_depth >= 10.0 * eps {
-                continue;
-            }
-            let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
-            let true_answer = match &got {
-                Ok(Err(_)) | Err(_) => continue,
-                Ok(Ok(CircleRoots::Miss)) => truth.roots.is_empty(),
-                Ok(Ok(CircleRoots::Certified(found))) => found.count() == truth.roots.len(),
-                Ok(Ok(CircleRoots::On(_))) => false,
-            };
-            if truth.residual_depth < eps || !true_answer {
-                wrong.push(format!(
-                    "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots): {got:?}\n  \
-                     {c:?} torus R 1 r {small}",
-                    truth.depth,
-                    truth.roots.len()
-                ));
-            }
-        }
-    }
-    assert!(
-        wrong.is_empty(),
-        "{} grazes answered wrongly or within the zero band ({}):\n{}",
         wrong.len(),
         fuzz::replay(),
         wrong.join("\n")

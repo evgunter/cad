@@ -504,7 +504,7 @@ fn spline_normal<T: Decide>(
         let other = curve.carrier().eval(if at_first { t1 } else { t0 });
         let chord = match curve.carrier() {
             geom::Curve3::Line(_) => other - at,
-            _ => geom_brep::ConicDeparture::of(curve, at_first, (other, at)).dir,
+            _ => geom_brep::ConicDeparture::of(curve, at_first).dir,
         };
         Ok(((uv.x, uv.y), pcurve.chart_box(near.0, near.1), chord))
     };

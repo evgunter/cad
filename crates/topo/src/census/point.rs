@@ -30,8 +30,16 @@ use crate::entity::{EdgeKey, EntityId, FaceKey};
 /// A face carrier these lanes read.
 #[derive(Clone, Copy)]
 enum Surface<T: Real> {
-    Plane { origin: Point3<T>, normal: Vec3<T> },
-    Sphere { center: Point3<T>, radius: T },
+    Plane {
+        origin: Point3<T>,
+        normal: Vec3<T>,
+    },
+    Sphere {
+        center: Point3<T>,
+        radius: T,
+        /// The sphere's curvature arm, read off the face's carrier.
+        arm: geom_core::Lever<T>,
+    },
 }
 
 /// What a point-touch reading answers.
@@ -60,14 +68,19 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    match *body.face(f)?.surface() {
+    let carrier = body.face(f)?.surface();
+    match *carrier {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some(Surface::Plane { origin, normal })
         }
         geom::Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
-            Some(Surface::Sphere { center, radius })
+            Some(Surface::Sphere {
+                center,
+                radius,
+                arm: geom_brep::uniform_curvature_arm(carrier),
+            })
         }
         _ => None,
     }
@@ -77,7 +90,7 @@ fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
 /// `None` escalated (pushed).
 fn separates<T: Decide>(
     kappa: T,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
@@ -112,12 +125,12 @@ fn coincident<T: Decide>(
 /// A sphere `(c, r)` against a line or a plane whose nearest point to
 /// `c` is `foot` (`κ_rel = 1/r`).
 fn on_sphere<T: Decide>(
-    (c, r): (Point3<T>, T),
+    (c, r, arm): (Point3<T>, T, geom_core::Lever<T>),
     foot: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
-    if !separates(T::one() / r, r, band, errors)? {
+    if !separates(T::one() / r, arm, band, errors)? {
         return Some(Touch::Apart);
     }
     let w = foot - c;
@@ -135,15 +148,17 @@ fn on_sphere<T: Decide>(
 /// normal across the circle's plane, and `κ_rel = |d| / r`. A circle
 /// parallel to the plane lies in it, or is apart.
 fn circle_plane<T: Decide>(
-    (c, a, r): (Point3<T>, Vec3<T>, T),
+    circle: &geom::Circle<T>,
     (o, n): (Point3<T>, Vec3<T>),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
+    let (c, a, r) = (circle.frame.origin(), circle.frame.axis(), circle.radius());
+    let arm = geom_brep::circle_curvature_arm(circle);
     let d = plane_across(a, n);
     let (toward, sin) = d.direction_and_length();
     let s = n.dot(c - o);
-    if !separates(sin / r, r, band, errors)? {
+    if !separates(sin / r, arm, band, errors)? {
         return Some(
             match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
                 Sign::Zero => Locus::Lies,
@@ -189,8 +204,8 @@ fn plane_across<T: Real>(a: Vec3<T>, n: Vec3<T>) -> Vec3<T> {
 /// (`κ_rel = 1/r₁ + 1/r₂`), or one inside the other at
 /// `|c₂ − c₁| = |r₁ − r₂|` (`κ_rel = 1/r_small − 1/r_big`).
 fn sphere_sphere<T: Decide>(
-    (c1, r1): (Point3<T>, T),
-    (c2, r2): (Point3<T>, T),
+    (c1, r1, arm1): (Point3<T>, T, geom_core::Lever<T>),
+    (c2, r2, arm2): (Point3<T>, T, geom_core::Lever<T>),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
@@ -207,7 +222,7 @@ fn sphere_sphere<T: Decide>(
         errors,
     )? {
         Sign::Zero => {
-            if !separates(T::one() / r1 + T::one() / r2, small, band, errors)? {
+            if !separates(T::one() / r1 + T::one() / r2, arm1.min(arm2), band, errors)? {
                 return Some(Touch::Apart);
             }
             return Some(Touch::At(c1 + u * r1));
@@ -216,7 +231,12 @@ fn sphere_sphere<T: Decide>(
         Sign::Negative => {}
     }
     let big = r1.max(r2);
-    if !separates(T::one() / small - T::one() / big, small, band, errors)? {
+    if !separates(
+        T::one() / small - T::one() / big,
+        arm1.min(arm2),
+        band,
+        errors,
+    )? {
         return Some(Touch::Apart);
     }
     // The point is on the big sphere away from the small one's centre.
@@ -292,13 +312,8 @@ pub(super) fn edge_face<T: Decide>(
         return Read::Pushed;
     };
     let touch = match (curve, surface(body, face)) {
-        (
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }),
-            Some(Surface::Plane { origin, normal }),
-        ) => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            let radius = circle.radius();
-            match circle_plane((center, axis, radius), (origin, normal), band, errors) {
+        (geom::Curve3::Circle(circle), Some(Surface::Plane { origin, normal })) => {
+            match circle_plane(&circle, (origin, normal), band, errors) {
                 None => None,
                 Some(Locus::Touch(touch)) => Some(touch),
                 Some(Locus::Lies) => {
@@ -311,9 +326,14 @@ pub(super) fn edge_face<T: Decide>(
                 }
             }
         }
-        (geom::Curve3::Line(line), Some(Surface::Sphere { center, radius })) => {
-            on_sphere((center, radius), line.foot(center), band, errors)
-        }
+        (
+            geom::Curve3::Line(line),
+            Some(Surface::Sphere {
+                center,
+                radius,
+                arm,
+            }),
+        ) => on_sphere((center, radius, arm), line.foot(center), band, errors),
         _ => {
             errors.push(refused(
                 subject,
@@ -347,21 +367,37 @@ pub(super) fn face_face<T: Decide>(
 ) -> Option<Read> {
     use Surface::{Plane, Sphere};
     let touch = match surface(body, a).zip(surface(body, b))? {
-        (Plane { origin, normal }, Sphere { center, radius })
-        | (Sphere { center, radius }, Plane { origin, normal }) => {
+        (
+            Plane { origin, normal },
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+        )
+        | (
+            Sphere {
+                center,
+                radius,
+                arm,
+            },
+            Plane { origin, normal },
+        ) => {
             let foot = center - normal * geom::plane_offset(origin, normal, center);
-            on_sphere((center, radius), foot, band, errors)
+            on_sphere((center, radius, arm), foot, band, errors)
         }
         (
             Sphere {
                 center: c1,
                 radius: r1,
+                arm: arm1,
             },
             Sphere {
                 center: c2,
                 radius: r2,
+                arm: arm2,
             },
-        ) => sphere_sphere((c1, r1), (c2, r2), band, errors),
+        ) => sphere_sphere((c1, r1, arm1), (c2, r2, arm2), band, errors),
         (Plane { .. }, Plane { .. }) => return None,
     };
     Some(read(
@@ -404,7 +440,12 @@ mod tests {
         let c = Point3::origin();
         let band = Band::new(1e-12, 1e-11).unwrap();
         let mut errors = Vec::new();
-        let at = match circle_plane((c, a, 1.0), (c - n * sin, n), band, &mut errors) {
+        let at = match circle_plane(
+            &geom::Circle::new(geom::Frame::new(c, a, plane_across(a, n).normalize()), 1.0),
+            (c - n * sin, n),
+            band,
+            &mut errors,
+        ) {
             Some(Locus::Touch(Touch::At(p))) => p,
             _ => panic!("no touch point read: {errors:?}"),
         };

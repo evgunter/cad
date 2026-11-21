@@ -35,9 +35,8 @@
 //! # The certificate (D9-clean by construction: no sampling, no
 //! schedule)
 //!
-//! Unlike the surface recognizer's curved-kind track — which needs a
-//! sampled grid plus a first-order envelope, and pays for it in slack
-//! — the curve case has an EXACT whole-domain certificate available:
+//! The curve case reads the one-parameter form of the surface
+//! recognizer's curved-kind certificate, an EXACT whole-domain one:
 //! [`geom_core::spline::compose`]'s ring-coefficient implicit
 //! composites. `implicit_composite(curve, f)` builds `f ∘ C` in
 //! rational Bernstein form with interval coefficients, and

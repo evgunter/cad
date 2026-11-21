@@ -3125,8 +3125,7 @@ mod tests {
         // The bore's circle through the point, leaving along `x`.
         let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
         let span = std::f64::consts::FRAC_PI_4;
-        let extent =
-            geom_brep::edge_extent_inf(&circle, 0.0, span, (circle.eval(0.0), circle.eval(span)));
+        let extent = geom_brep::edge_extent_inf(&circle, 0.0, span);
         let tangent = circle.deriv(0.0);
         let arc = (
             tangent.normalize() * extent.length(),

@@ -129,7 +129,8 @@ use geom_core::NonzeroSign;
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::curvature_arm::curvature_lever_arm;
+use crate::implicit::implicit_gradient;
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
@@ -1261,7 +1262,7 @@ fn second_order_verdict<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         TANGENT_SECOND_ORDER,
-        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     )
 }

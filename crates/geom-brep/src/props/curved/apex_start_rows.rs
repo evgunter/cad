@@ -77,13 +77,17 @@ fn a_loop_through_the_apex_reads_alike_from_every_start() {
     ];
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let mut sweeps = Vec::new();
+    let cone = geom::Surface::Cone {
+        frame: geom::Frame::new(apex, axis, Vec3::unit_x()),
+        half_angle: 30f64.to_radians(),
+    };
     for start in 0..edges.len() {
         let turned: Vec<_> = edges[start..]
             .iter()
             .chain(&edges[..start])
             .cloned()
             .collect();
-        let w = cone_loop_winding(apex, axis, &turned, AtApex::AlongGenerator, band())
+        let w = cone_loop_winding(&cone, apex, axis, &turned, AtApex::AlongGenerator, band())
             .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
         assert_eq!(
             require_cone_loop_vertices_distinct(apex, axis, &w, band()),

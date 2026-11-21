@@ -290,7 +290,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                     let raw = toward - a * a.dot(toward);
                     let arm = Margin::levered(
                         raw.norm() / toward.norm(),
-                        geom_core::Lever::curvature_radius(self.radius),
+                        geom_brep::uniform_curvature_arm(self.charted.surface()),
                     );
                     match decide("bool_sphere_region_arm", arm, band) {
                         Ok(Sign::Positive) => {
@@ -439,7 +439,10 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let (side, sin) = across.direction_and_length();
         match decide(
             "bool_sphere_region_parallel",
-            Margin::levered(sin, geom_core::Lever::curvature_radius(self.radius)),
+            Margin::levered(
+                sin,
+                geom_brep::uniform_curvature_arm(self.charted.surface()),
+            ),
             band,
         ) {
             Ok(Sign::Positive) => {}

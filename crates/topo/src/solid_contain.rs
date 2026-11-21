@@ -232,7 +232,6 @@ use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use crate::region::RegionRefusal;
-use crate::rim_wedge::Rim;
 use crate::ruled_region::{RuledFaceRegion, ruled_face_region};
 use crate::sphere_region::{SphereFaceRegion, sphere_face_region};
 use crate::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
@@ -1348,9 +1347,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
-    axis: Vec3<T>,
+    (sphere, center, radius, axis): (&geom::Surface<T>, Point3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
@@ -1358,7 +1355,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = f.surface().clone();
+    let arm = geom_brep::uniform_curvature_arm(sphere);
     let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
@@ -1461,7 +1458,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
+                        geom_brep::ExtentBall::of_covered(sphere.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )
@@ -1484,12 +1481,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     origin: center,
                     dir: axis,
                 },
-                &Rim {
-                    center: c_c,
-                    axis: n_c,
-                    radius: r_c,
-                    u_ref: u_c,
-                },
+                &conic_k,
             );
             if !zero_as("bool_sphere_iso_rim", tilt)?
                 || !zero_as("bool_sphere_iso_rim", off)?
@@ -1587,7 +1579,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             south: None,
         }));
     };
-    let Some((north, south)) = latitude_extremes(first, rest, radius, band).map_err(escalate)?
+    let Some((north, south)) =
+        latitude_extremes(first, rest, (radius, arm), band).map_err(escalate)?
     else {
         return Ok(None);
     };
@@ -1646,12 +1639,12 @@ fn latitude_sine<T: geom_core::Real>(a: (T, T), b: (T, T), r: T) -> T {
 fn latitude_after<T: Decide>(
     a: (T, T),
     b: (T, T),
-    radius: T,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, radius), Lever::curvature_radius(radius)),
+        Margin::levered(latitude_sine(a, b, radius), arm),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1684,15 +1677,15 @@ fn latitude_after<T: Decide>(
 fn latitude_extremes<T: Decide>(
     first: (T, T),
     rest: &[(T, T)],
-    radius: T,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let (mut lo, mut hi) = (first, first);
     for &e in rest {
-        if latitude_after(e, lo, radius, band)? {
+        if latitude_after(e, lo, (radius, arm), band)? {
             lo = e;
         }
-        if latitude_after(hi, e, radius, band)? {
+        if latitude_after(hi, e, (radius, arm), band)? {
             hi = e;
         }
     }
@@ -1723,10 +1716,7 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(
-                latitude_sine(lo, hi, radius),
-                Lever::curvature_radius(radius)
-            ),
+            Margin::levered(latitude_sine(lo, hi, radius), arm),
             band,
         )?,
         Sign::Zero
@@ -3606,13 +3596,12 @@ fn root_outward<T: Decide>(
             {
                 return Ok(Sign::Zero);
             }
-            let rho = (wp - axis * hp).norm();
             Ok(oriented(
                 decide(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        Lever::curvature_radius(rho),
+                        geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
                     ),
                     band,
                 )
@@ -3620,30 +3609,20 @@ fn root_outward<T: Decide>(
                 sense,
             ))
         }
-        (
-            RootSide::Torus,
-            &(FaceGeo::Torus {
-                minor_radius,
+        (RootSide::Torus, &(FaceGeo::Torus { sense, .. } | FaceGeo::TorusPatch { sense, .. })) => {
+            Ok(oriented(
+                decide(
+                    "bool_ray_torus_incidence",
+                    Margin::levered(
+                        d.dot(chart_normal(body, face, p)?),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
+                    ),
+                    band,
+                )
+                .map_err(escalate)?,
                 sense,
-                ..
-            }
-            | FaceGeo::TorusPatch {
-                minor_radius,
-                sense,
-                ..
-            }),
-        ) => Ok(oriented(
-            decide(
-                "bool_ray_torus_incidence",
-                Margin::levered(
-                    d.dot(chart_normal(body, face, p)?),
-                    Lever::curvature_radius(minor_radius),
-                ),
-                band,
-            )
-            .map_err(escalate)?,
-            sense,
-        )),
+            ))
+        }
         // A root is made only by its face's own arm.
         _ => Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
     }

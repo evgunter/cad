@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{self, distance, ellipse, oracle};
+use crate::curve_face::conic_oracle::{self, distance, ellipse, oracle};
 use geom_core::{Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -216,7 +216,7 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
             );
         } else {
             assert!(
-                matches!(got, Ok(Err(_)) | Err(BooleanError::Escalated { .. })),
+                matches!(got, Ok(Err(Unsettled::Tangency))),
                 "{label}: a tangency is no certified answer, got {got:?}"
             );
         }
@@ -414,7 +414,7 @@ mod fuzz_rows {
     use core::f64::consts::TAU;
 
     use super::*;
-    use geom_brep::curve_face::conic_oracle::{distance, exact, unit};
+    use crate::curve_face::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -557,7 +557,7 @@ mod graze_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::*;
-    use geom_brep::curve_face::conic_oracle::{distance, unit};
+    use crate::curve_face::conic_oracle::{distance, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 

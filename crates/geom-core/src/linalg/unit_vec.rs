@@ -657,7 +657,14 @@ mod tests {
     #[test]
     fn the_levered_door_decides_the_arm_then_the_levered_length() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let ask = |v: Vec3<f64>, arm: f64| UnitVec3::levered(v, "test_direction", band, Lever(arm));
+        let ask = |v: Vec3<f64>, arm: f64| {
+            UnitVec3::levered(
+                v,
+                "test_direction",
+                band,
+                crate::test_support::fixture_lever(arm),
+            )
+        };
         let z = |len: f64| Vec3::new(0.0, 0.0, len);
         let up = ask(z(1.0), 1e-3)
             .expect("a unit normal over a 1 mm reach")

@@ -133,6 +133,25 @@ fn trough(v: &[f64], k: usize) -> Option<(usize, usize)> {
     (before && after).then_some((a, b))
 }
 
+/// A circle of radius `rho` through the point `depth` off a surface at
+/// `on` along its unit `normal` there, tangent to it in the unit
+/// direction `tangent`, its centre toward `n̂ cos b + (n̂ × t̂) sin b` from
+/// that point, so `θ = 0` is that point.
+pub fn graze(
+    on: Point3<f64>,
+    normal: Vec3<f64>,
+    tangent: Vec3<f64>,
+    (rho, depth, b): (f64, f64, f64),
+) -> geom::Curve3<f64> {
+    let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
+    geom::Curve3::circle(
+        on + normal * depth - toward * rho,
+        toward.cross(tangent).normalize(),
+        rho,
+        toward,
+    )
+}
+
 /// The sign changes of `f` on `[t0, t1]`, each bisected to the bit. A
 /// pair inside one sample cell is found too, the first and last cells
 /// included: at every sampled local extremum of `|f|`, the extremum is

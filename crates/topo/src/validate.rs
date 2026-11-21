@@ -9114,11 +9114,12 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 ///   two sides do: first order cannot order them, and two coincident
 ///   lines there are the census's overlap.
 ///
-/// Corners are grouped by point key, so a loop passing one place at two
-/// keys within band is not read here either. Where that loop's two
-/// surface cycles cross, on a face tier 3's one-region reading takes, a
-/// vertex of one placed off the face's side of the other is
-/// `CycleOffFaceSide` ([`crate::one_region`], which reads every vertex).
+/// Corners are grouped by point key ([`crate::loop_points`]), so a loop
+/// passing one place at two keys within band is not read here either.
+/// Where that loop's two surface cycles cross, on a face tier 3's
+/// one-region reading takes, a vertex of one placed off the face's side
+/// of the other is `CycleOffFaceSide` ([`crate::one_region`], which reads
+/// every vertex).
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -9129,41 +9130,32 @@ fn pinch_corner_errors<T: Decide>(
     if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
-    for (cycle, group) in loop_point_groups(body, face) {
-        if let Err(error) = pinch_corners_at(body, face_key, &cycle, &group, band) {
-            errors.push(error);
-        }
-    }
-}
-
-/// **Check 9's grouping**: each loop of `face`, and each point key it
-/// passes at two or more corners, as the loop's cycle and the indices
-/// of its corners there. An empty loop has no corner.
-pub(crate) fn loop_point_groups<T: Real>(
-    body: &Body<T>,
-    face: &crate::entity::Face,
-) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
-    let mut out = Vec::new();
     for l in face.loop_keys() {
-        let Some(cycle) = loop_cycle_of(body, l) else {
-            continue;
+        // The battery runs behind the tier-1 gate, so a loop that does
+        // not resolve is that gate's finding, reported here rather than
+        // read past.
+        let corners = match crate::loop_points::loop_corners(body, l) {
+            Ok(corners) => corners,
+            Err(crate::Unresolved::Walk(_)) => {
+                errors.push(ValidationError::LoopCycleOverrun { loop_: l });
+                continue;
+            }
+            Err(unresolved) => {
+                errors.push(ValidationError::DanglingTopology {
+                    from: EntityId::Face(face_key),
+                    to: unresolved.entity(),
+                });
+                continue;
+            }
         };
-        let mut keyed: Vec<(crate::geometry::PointKey, usize)> = cycle
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &he)| {
-                let v = body.half_edges.get(he)?.start;
-                Some((body.vertices.get(v)?.point, i))
-            })
-            .collect();
-        keyed.sort_unstable();
-        for group in keyed.chunk_by(|x, y| x.0 == y.0) {
-            if group.len() >= 2 {
-                out.push((cycle.clone(), group.iter().map(|&(_, i)| i).collect()));
+        for group in corners.groups() {
+            if let Err(error) =
+                pinch_corners_at(body, face_key, corners.cycle(), group.corners(), band)
+            {
+                errors.push(error);
             }
         }
     }
-    out
 }
 
 /// One corner side: the half-edge leaving the point, its edge, and
