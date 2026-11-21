@@ -557,11 +557,10 @@ impl FaceLattice {
                     Some(geom_brep::IsoFamily::V) => (1.0, 0.0),
                     Some(geom_brep::IsoFamily::U) => (0.0, 1.0),
                     None => {
-                        return Err(refuse(
-                            "an edge a curved-lane face's lattice reads that the shape door \
-                             did not certify — neither rim nor meridian, so no grid direction \
-                             sizes its chords",
-                        ));
+                        return Err(TessellateError::MissingEntity {
+                            what: "a half-edge the shape door did not certify reached a \
+                                   curved-lane face's lattice (router defect)",
+                        });
                     }
                 };
                 return Ok(Ask { speeds, joints: 1 });

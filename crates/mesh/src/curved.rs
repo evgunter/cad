@@ -638,6 +638,13 @@ pub(crate) fn iso_rectangle_shape(
         geom_brep::props::require_one_chart_branch(surface, &outer, band).map(|()| sides)
     });
     match doors {
+        // The door answers one side per outer-loop edge, in loop order;
+        // a count that differs is a router defect, refused rather than
+        // truncated by the zip.
+        Ok(sides) if sides.len() != half_edges.len() => Err(TessellateError::MissingEntity {
+            what: "the shape door answered a side count other than the loop's half-edge count \
+                   (router defect)",
+        }),
         Ok(sides) => Ok(Shape::Rectangle(Rectangle {
             sides: half_edges.into_iter().zip(sides).collect(),
         })),

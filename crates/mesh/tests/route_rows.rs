@@ -264,7 +264,8 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// `topo::chart_iso::classify_kind` and keep only the family: the row or
 /// column coordinate that call also read (`Chart::rim_v`,
 /// `chart_iso::mid_azimuth`, each recording `pcurve_chart_cut_side` and
-/// `chart_point_on_axis`) was thrown away. Those reads are gone from the
+/// `chart_point_on_axis`, and `chart_point_on_tube_circle` on the donut
+/// (16) and `chart_point_cone_nappe` on the cone (4)) was thrown away. Those reads are gone from the
 /// run of the rounded prism, the washer, the ball, the cone and the
 /// donut — 16 decisions on the prism, at the head of its run, every
 /// other decision the same in order and sign — and they were all a memo

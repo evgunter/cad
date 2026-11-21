@@ -6331,9 +6331,9 @@ enum TorusEdge<'a, T: Real> {
 /// its meridians after the fold.
 type TorusParts<T> = (Vec<Rim<T>>, Vec<TorusMeridian<T>>);
 
-/// Classify a torus face's boundary into (rims, meridians) — the
-/// shared parse consumed by the flux closed form,
-/// [`boundary_material_sign`] and the shape door — beside each edge's
+/// Classify a torus face's boundary into (rims, meridians) — the shape
+/// door's parse, read by [`torus_parse`] (the flux and side readers
+/// take the Green form instead, [`torus_chart`]) — beside each edge's
 /// iso family in loop order. Every edge is certified rim-or-meridian in
 /// loop order first; the arcs that carry one meridian are then folded
 /// into it.

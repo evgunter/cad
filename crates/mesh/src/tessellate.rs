@@ -404,15 +404,6 @@ fn read_domain(
 }
 
 impl Route {
-    /// The lane this route runs.
-    pub(crate) fn lane(&self) -> Lane {
-        match self {
-            Self::Planar => Lane::Planar,
-            Self::Curved(_) => Lane::Curved,
-            Self::Trimmed(_) => Lane::Trimmed,
-        }
-    }
-
     /// **The route, ready to run**: a trimmed face's domain, read here
     /// where the route did not read it ([`read_domain`]).
     ///
@@ -487,10 +478,17 @@ pub(crate) struct FaceRoute {
 /// doors' and the split-side fact's where the lane runs, the domain
 /// read's on a memo hit as well ([`FaceRoute`]).
 pub(crate) struct Routes {
-    lanes: HashMap<FaceKey, Routed>,
-    /// Each curved-lane face's doors' answer, which the chord rule reads
-    /// beside the walk ([`Routes::rectangle`]).
-    rectangles: HashMap<FaceKey, crate::curved::Rectangle>,
+    faces: HashMap<FaceKey, Entry>,
+}
+
+/// One face's entry in [`Routes`]: its lane, a curved-lane face's
+/// carrying the doors' answer, which the chord rule reads beside the
+/// walk ([`Routes::rectangle`]), or the route's refusal.
+enum Entry {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed,
+    Refused,
 }
 
 impl Routes {
@@ -515,29 +513,27 @@ impl Routes {
                 }
             })
             .collect();
-        let lanes = routed
+        let faces = routed
             .iter()
             .map(|r| {
                 let entry = match &r.route {
-                    Ok(route) => Routed::To(route.lane()),
-                    Err(_) => Routed::Refused,
+                    Ok(Route::Planar) => Entry::Planar,
+                    Ok(Route::Curved(rectangle)) => Entry::Curved(rectangle.clone()),
+                    Ok(Route::Trimmed(_)) => Entry::Trimmed,
+                    Err(_) => Entry::Refused,
                 };
                 (r.face, entry)
             })
             .collect();
-        let rectangles = routed
-            .iter()
-            .filter_map(|r| match &r.route {
-                Ok(Route::Curved(rectangle)) => Some((r.face, rectangle.clone())),
-                _ => None,
-            })
-            .collect();
-        (Self { lanes, rectangles }, routed)
+        (Self { faces }, routed)
     }
 
     /// Face `fk`'s doors' answer, where it routed to the curved lane.
     pub(crate) fn rectangle(&self, fk: FaceKey) -> Option<&crate::curved::Rectangle> {
-        self.rectangles.get(&fk)
+        match self.faces.get(&fk) {
+            Some(Entry::Curved(rectangle)) => Some(rectangle),
+            _ => None,
+        }
     }
 
     /// Face `fk`'s entry.
@@ -547,10 +543,13 @@ impl Routes {
     /// [`TessellateError::MissingEntity`] for a face the table did not
     /// route: a key no live face of the body holds.
     pub(crate) fn lane(&self, fk: FaceKey) -> Result<Routed, TessellateError> {
-        self.lanes
-            .get(&fk)
-            .copied()
-            .ok_or(TessellateError::MissingEntity { what: "face" })
+        match self.faces.get(&fk) {
+            Some(Entry::Planar) => Ok(Routed::To(Lane::Planar)),
+            Some(Entry::Curved(_)) => Ok(Routed::To(Lane::Curved)),
+            Some(Entry::Trimmed) => Ok(Routed::To(Lane::Trimmed)),
+            Some(Entry::Refused) => Ok(Routed::Refused),
+            None => Err(TessellateError::MissingEntity { what: "face" }),
+        }
     }
 
     /// The table alone, at the witness tolerance's band: what a unit
@@ -570,8 +569,7 @@ impl Routes {
     /// face the route would not hand it.
     #[cfg(test)]
     pub(crate) fn with_curved(mut self, fk: FaceKey, rectangle: crate::curved::Rectangle) -> Self {
-        self.lanes.insert(fk, Routed::To(Lane::Curved));
-        self.rectangles.insert(fk, rectangle);
+        self.faces.insert(fk, Entry::Curved(rectangle));
         self
     }
 }

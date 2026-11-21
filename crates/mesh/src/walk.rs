@@ -513,23 +513,23 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
 /// chart. The walk does not decide that: it reads each edge's family
-/// from the shape door's answer ([`side_of`]). A reading by carrier kind
-/// alone would not establish it — a `Line` a meridian unconditionally, a
-/// `Circle` a rim iff `|n · axis| > 0.5`, a cone of directions, not
-/// coaxiality — which is what the door is for. So the real premise is **every boundary edge is an iso-curve of this
-/// chart, traversed on ONE branch of it**, and it is verified at
-/// props: the two halves of it by
-/// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
-/// on every kind) and `require_one_chart_branch` (the traversed ARC),
-/// both asked by the route ([`crate::curved::iso_rectangle_shape`])
-/// before this walk runs. What
-/// each kind would leak without them, which is what the door has to
-/// cover and the reason the second half needed its own predicate:
+/// from the shape door's answer ([`side_of`]), which certifies the
+/// carrier coaxial per edge rather than reading its kind. So the real
+/// premise is **every boundary edge is an iso-curve of this chart,
+/// traversed on ONE branch of it**, and it is verified at props: the
+/// two halves of it by `geom_brep::props::require_iso_rectangle` (the
+/// CARRIER, per edge, on every kind) and `require_one_chart_branch`
+/// (the traversed ARC), both asked by the route
+/// ([`crate::curved::iso_rectangle_shape`]) before this walk runs. What
+/// a reading by carrier kind and axis tilt alone would leak on each
+/// kind, which is what the door has to cover and the reason the second
+/// half needed its own predicate:
 ///
 /// - **cylinder, cone** — safe by geometry. A circle on either surface
 ///   whose axis is within 60° of the chart's IS coaxial.
-/// - **torus** — leaks harmlessly. A Villarceau circle classifies as a
-///   Rim whenever `minor/major < 0.866` and is not coaxial, but its
+/// - **torus** — would leak harmlessly. A Villarceau circle's axis is
+///   within 60° of the chart's whenever `minor/major < 0.866`, and it is
+///   not coaxial, but its
 ///   centre lies in the equatorial plane, so [`Chart::rim_v`] reads
 ///   `0.0` for every one of them and merging a pair lands on the value
 ///   they already shared.
