@@ -1692,9 +1692,6 @@ pub(crate) fn reach<T: Real>(p: Point2<T>) -> T {
 pub(crate) enum CKind {
     /// Contact at a segment endpoint (of at least one of the two).
     Touch,
-    /// An adjacent pair's shared stored vertex ([`SharedEnds`]): an end
-    /// of both, the adjacency's own contact by construction.
-    SharedVertex,
     /// Transversal contact interior to both segments.
     Crossing,
     /// Tangential carrier contact interior to both segments (touching
@@ -1724,13 +1721,13 @@ pub(crate) enum PairOutcome<T: Real> {
 /// Classifies every contact between two segments — the simplicity core.
 /// Dispatches on carrier kinds; all closed form. Errors are in-band /
 /// poisoned classifications, propagated for the caller to wrap (D4 ¶3).
-/// `shared` names the stored vertex the pair shares, an end of each (an
-/// adjacent pair, `validate::judge_pair`); only two lines read it
-/// ([`line_line`]).
+/// `shared` is a stored vertex the pair shares, an end of each (an
+/// adjacent pair, `validate::judge_pair`); only two lines read it, where
+/// their sides escalate ([`line_line`]).
 pub(crate) fn pair_contacts<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
-    shared: Option<SharedEnds>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     match (&s1.kind, &s2.kind) {
@@ -1738,36 +1735,6 @@ pub(crate) fn pair_contacts<T: Decide>(
         (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
         (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, s1, g1, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => arc_arc(s1, g1, s2, g2, band),
-    }
-}
-
-/// Which ends of a pair are the one stored vertex an adjacent pair
-/// shares: the loop stores each vertex once, and both segments' ends at
-/// it are that point.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SharedEnds {
-    /// The first segment's end is the second's start.
-    EndToStart,
-    /// The first segment's start is the second's end.
-    StartToEnd,
-}
-
-impl SharedEnds {
-    /// The shared vertex, read off the first segment.
-    pub(crate) fn point<T: Real>(self, s1: &Seg<T>) -> Point2<T> {
-        match self {
-            Self::EndToStart => s1.b,
-            Self::StartToEnd => s1.a,
-        }
-    }
-
-    /// Whether `s2.a` and `s2.b`, then `s1.a` and `s1.b`, are the shared
-    /// vertex, in [`line_line`]'s order of its four sides.
-    fn ends(self) -> [bool; 4] {
-        match self {
-            Self::EndToStart => [true, false, false, true],
-            Self::StartToEnd => [false, true, true, false],
-        }
     }
 }
 
@@ -1921,31 +1888,18 @@ fn collinear_overlap<T: Decide>(
 /// - Only then does an in-band side escalate. Strictly opposite sides
 ///   both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
 ///   configurations resolved by `line_span`.
-///
-/// The `shared` vertex is an end of both segments, so it is on the
-/// other's carrier and within its span: its two sides are Zero and its
-/// touch holds, none of them read. Read, they would recompute the
-/// vertex's offset and arc length from the chord it ends, which over a
-/// box carries the box on both factors and straddles the band.
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
-    shared: Option<SharedEnds>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     if shared.is_none() && gaps_apart(s1, s2, band) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let at_shared = shared.map_or([false; 4], SharedEnds::ends);
-    let side = |k: usize, host: &Seg<T>, q: Point2<T>| {
-        if at_shared[k] {
-            Ok(Sign::Zero)
-        } else {
-            chord_side(host, q, band).map(|(sign, _)| sign)
-        }
-    };
-    let on_1 = [side(0, s1, s2.a), side(1, s1, s2.b)];
-    let on_2 = [side(2, s2, s1.a), side(3, s2, s1.b)];
+    let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
+    let on_1 = [side(s1, s2.a), side(s1, s2.b)];
+    let on_2 = [side(s2, s1.a), side(s2, s1.b)];
     let separated = |pair: &[Result<Sign, Escalation>; 2]| {
         matches!(
             pair,
@@ -1972,12 +1926,12 @@ fn line_line<T: Decide>(
         // An in-band side of an adjacent pair whose overlap along `s1`
         // is within the band: its only contact is the shared vertex.
         Err(_)
-            if let Some(ends) = shared
+            if let Some(v) = shared
                 && touches_only_near_the_shared_end(s1, s2, band) =>
         {
             return Ok(PairOutcome::Contacts(vec![Contact {
-                point: ends.point(s1),
-                kind: CKind::SharedVertex,
+                point: v,
+                kind: CKind::Touch,
             }]));
         }
         Err(source) => return Err(source),
@@ -2005,21 +1959,13 @@ fn line_line<T: Decide>(
         // Non-collinear with some endpoint on a carrier: the carriers
         // meet exactly once, at that endpoint, read by [`touches`]' rule
         // from the side read above.
-        for (k, (host, o, q)) in [
+        for (host, o, q) in [
             (s1, o_c, s2.a),
             (s1, o_d, s2.b),
             (s2, o_a, s1.a),
             (s2, o_b, s1.b),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            if at_shared[k] {
-                contacts.push(Contact {
-                    point: q,
-                    kind: CKind::SharedVertex,
-                });
-            } else if touches_from(host, q, Ok(o), band)? {
+        ] {
+            if touches_from(host, q, Ok(o), band)? {
                 contacts.push(Contact {
                     point: q,
                     kind: CKind::Touch,
@@ -3310,11 +3256,8 @@ mod pair_contact_tests {
                 e.source().predicate
             ),
         }
-        for (host, other, ends) in [
-            (&leaving, &arriving, SharedEnds::StartToEnd),
-            (&arriving, &leaving, SharedEnds::EndToStart),
-        ] {
-            for shared in [None, Some(ends)] {
+        for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
+            for shared in [None, Some(pt(v))] {
                 match pair_contacts(host, other, shared, band) {
                     Err(e) => assert_eq!(
                         e.source().predicate,
@@ -3379,14 +3322,11 @@ mod pair_contact_tests {
             let (Ok(prev), Ok(next)) = (build(prev), build(next)) else {
                 continue;
             };
-            for (host, other, ends) in [
-                (&prev, &next, SharedEnds::EndToStart),
-                (&next, &prev, SharedEnds::StartToEnd),
-            ] {
+            for (host, other) in [(&prev, &next), (&next, &prev)] {
                 if pair_contacts(host, other, None, band).is_ok() {
                     continue;
                 }
-                if pair_contacts(host, other, Some(ends), band).is_err() {
+                if pair_contacts(host, other, Some(prev.b), band).is_err() {
                     continue;
                 }
                 rescued += 1;
