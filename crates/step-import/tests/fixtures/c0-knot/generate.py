@@ -16,7 +16,11 @@ B-spline curves on those planes, and its left and right edges are lines.
                    B-spline of two quarter-circle spans joined at a
                    double knot, smooth there; its rims are CIRCLE arcs
                    with no knot, so the split places its vertices on
-                   them.
+                   them. It is exactly a cone, so import promotes it.
+    half_elliptic_cone.step
+                   the same with its y extent scaled by 3/4: an elliptic
+                   cone no analytic kind is, its rims ELLIPSE arcs, so it
+                   keeps the split.
     seam_edge.step the top is one smooth quadratic span with no interior
                    knot; its FRONT edge states the same parabola split at
                    its midpoint, a double knot where the curve is smooth.
@@ -186,14 +190,15 @@ DATA;
     body = "\n".join("#%d = %s;" % (i + 1, t) for i, t in enumerate(s.lines))
     return head + body + "\nENDSEC;\nEND-ISO-10303-21;\n"
 
-def build_half_cone(name):
+def build_half_cone(name, k=1.0):
     """A half frustum of a cone about z, radius 1 at z = 0 and 1/2 at
-    z = 1, cut by the plane x = 0. Its wall is a rational B-spline of
-    two quarter-circle spans joined at a double knot on the +x meridian;
-    its rims are CIRCLE arcs, which carry no knot."""
+    z = 1, cut by the plane x = 0, its y extent scaled by `k`. Its wall
+    is a rational B-spline of two quarter-arc spans joined at a double
+    knot on the +x meridian; its rims are CIRCLE arcs (ELLIPSE arcs where
+    `k` is not 1), which carry no knot."""
     s = Step()
     r2 = 2 ** -0.5
-    pos = {"A": (0, -1, 0), "B": (0, 1, 0), "C": (0, 0.5, 1), "D": (0, -0.5, 1)}
+    pos = {"A": (0, -k, 0), "B": (0, k, 0), "C": (0, 0.5 * k, 1), "D": (0, -0.5 * k, 1)}
     V = {k: s.add("VERTEX_POINT('',#%d)" % s.pt(p)) for k, p in pos.items()}
     E = {}
 
@@ -204,7 +209,11 @@ def build_half_cone(name):
         E[n] = (s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V[a], V[b], c)), a, b)
 
     def arc_edge(n, a, b, z, r):
-        c = s.add("CIRCLE('',#%d,%s)" % (s.ax2((0, 0, z), (0, 0, 1), (1, 0, 0)), num(r)))
+        place = s.ax2((0, 0, z), (0, 0, 1), (1, 0, 0))
+        if k == 1.0:
+            c = s.add("CIRCLE('',#%d,%s)" % (place, num(r)))
+        else:
+            c = s.add("ELLIPSE('',#%d,%s,%s)" % (place, num(r), num(k * r)))
         E[n] = (s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V[a], V[b], c)), a, b)
 
     arc_edge("bot", "A", "B", 0.0, 1.0)
@@ -230,7 +239,7 @@ def build_half_cone(name):
         return s.add("PLANE('',#%d)" % s.ax2(origin, axis, ref))
 
     ring = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1)]
-    rows = [["#%d" % s.pt((x * r, y * r, z)) for r, z in ((1.0, 0.0), (0.5, 1.0))] for x, y in ring]
+    rows = [["#%d" % s.pt((x * r, k * y * r, z)) for r, z in ((1.0, 0.0), (0.5, 1.0))] for x, y in ring]
     w = [1.0, r2, 1.0, r2, 1.0]
     weights = ",".join("(%s)" % ",".join(num(wi) for _ in range(2)) for wi in w)
     surf = s.add(
@@ -333,6 +342,8 @@ for fname, args in (
         f.write(build(fname, *args))
 with open("%s/half_cone.step" % d, "w") as f:
     f.write(build_half_cone("half_cone"))
+with open("%s/half_elliptic_cone.step" % d, "w") as f:
+    f.write(build_half_cone("half_elliptic_cone", 0.75))
 for fname, plan in (("c_prism", C_PLAN), ("half_ridge", HALF_PLAN)):
     with open("%s/%s.step" % (d, fname), "w") as f:
         f.write(build_plan_prism(fname, plan))

@@ -816,7 +816,7 @@ pub(super) fn cone_coefficient_excess(
 /// and 600 draws of its coefficient search on PR 6485 (needle, wide and
 /// middling cones, the apex at the origin or up to `1e5` off it,
 /// sections at heights `1e-4` to `1e3` of either nappe, level or tilted
-/// up to `1e-2`; a draw tilted past a wide cone's opening is skipped). topo's `reduce::conic_clearance` and `conic_quadric`
+/// up to `1e-2`; a draw tilted past a wide cone's opening is skipped). topo's `reduce::conic_clearance` and `curve_face::conic_quadric`
 /// read these harmonics and charge, so the row is theirs too. Red under
 /// `cone-terms-unprojected`.
 #[test]

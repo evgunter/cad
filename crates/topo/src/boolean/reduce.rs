@@ -2226,7 +2226,7 @@ fn edge_covers<T: crate::props::AtRestPolicy>(
 /// same arms as a line.** A circle or an ellipse against a sphere or a
 /// cylinder wall has a degree-2 trigonometric polynomial for its
 /// residual, in its eccentric anomaly, which one door decides
-/// ([`super::conic_quadric`]): a first harmonic, with closed-form roots,
+/// ([`geom_brep::curve_face::conic_quadric`]): a first harmonic, with closed-form roots,
 /// wherever its second harmonic is in the zero band (a circle against a
 /// sphere, a circle square to a wall's axis), a quartic in the tangent
 /// half-angle otherwise. Against a cone the same door reads the cone's
@@ -2628,7 +2628,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // root lanes.** An arc the enclosures could not clear
                 // against one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
+                // [`geom_brep::curve_face::conic_quadric`] / [`geom_brep::curve_face::circle_torus`]
                 // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
@@ -5166,7 +5166,7 @@ fn wall_crossing<T: Decide + Bounds>(
         // The conic root doors ([`geom_brep::curve_face::circle_roots`]), one answer
         // shape: one door for a circle or an ellipse against a sphere, a
         // wall or a cone, whose quadric form is of degree two along it
-        // ([`super::conic_quadric`]), and one per conic against a torus.
+        // ([`geom_brep::curve_face::conic_quadric`]), and one per conic against a torus.
         // A conic against any other kind has no root lane here.
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
             let door = match (carrier, surface) {
@@ -5175,9 +5175,12 @@ fn wall_crossing<T: Decide + Bounds>(
                     geom::Surface::Sphere { .. }
                     | geom::Surface::Cylinder { .. }
                     | geom::Surface::Cone { .. },
-                ) => Some(super::conic_quadric::conic_quadric_roots(
-                    carrier, t0, t1, surface, band,
-                )),
+                ) => Some(
+                    geom_brep::curve_face::conic_quadric::conic_quadric_roots(
+                        carrier, t0, t1, surface, band,
+                    )
+                    .map_err(BooleanError::of_conic_quadric_refusal),
+                ),
                 (geom::Curve3::Circle(..), geom::Surface::Torus { .. }) => Some(
                     geom_brep::curve_face::circle_torus::circle_torus_roots(
                         carrier, t0, t1, surface, band,
@@ -9520,6 +9523,108 @@ mod line_root_lane_tests {
         assert_eq!(
             escalated_as(line, (0.0, 2.0), &cone, band),
             BooleanDecision::ConeRoots
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod conic_root_lane_tests {
+    //! Each surface arm of the conic × quadric door escalates as its own
+    //! decision ([`BooleanError::of_conic_quadric_refusal`]): a circle
+    //! coaxial with the surface, whose residual is a constant the band
+    //! reads in its gap at its extremes (`conic_quadric_first_extreme`).
+
+    use super::{BooleanDecision, BooleanError};
+    use geom_brep::curve_face::conic_quadric::conic_quadric_roots;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// The decision the circle of `radius` about the `z` axis at height
+    /// `z` escalates as against `surface`, and the row it escalated on.
+    fn escalated_as(
+        radius: f64,
+        z: f64,
+        surface: &geom::Surface<f64>,
+    ) -> (BooleanDecision, Option<&'static str>) {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("{e:?}"));
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let got = conic_quadric_roots(&circle, 0.0, 1.0, surface, band)
+            .map_err(BooleanError::of_conic_quadric_refusal);
+        let Err(BooleanError::Escalated { decision, diag }) = got else {
+            panic!("the lane escalates: {got:?}");
+        };
+        (decision, diag.predicate)
+    }
+
+    /// A residual in the witness band's gap, between its zero and its
+    /// escalation.
+    fn in_the_gap() -> f64 {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("{e:?}"));
+        (band.zero() + band.escalate()) / 2.0
+    }
+
+    /// **The sphere arm**: a circle on the unit sphere's equator plane
+    /// whose residual `(ρ² − 1)/2` is in the gap.
+    #[test]
+    fn the_sphere_arc_lane_escalates_as_its_own_decision() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
+        assert_eq!(
+            escalated_as(rho, 0.0, &sphere),
+            (
+                BooleanDecision::ArcSphereRoots,
+                Some("conic_quadric_first_extreme")
+            )
+        );
+    }
+
+    /// **The cylinder arm**: the same circle about the unit wall's axis.
+    #[test]
+    fn the_cylinder_arc_lane_escalates_as_its_own_decision() {
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
+        assert_eq!(
+            escalated_as(rho, 0.0, &wall),
+            (
+                BooleanDecision::ArcCylinderRoots,
+                Some("conic_quadric_first_extreme")
+            )
+        );
+    }
+
+    /// **The cone arm**: a circle about the axis of the right cone whose
+    /// apex is a unit below it, off the cone's rim there by a constant
+    /// `F = (ρ² − 1)/2R` (`R = √(ρ² + 1)`) in the gap.
+    #[test]
+    fn the_cone_arc_lane_escalates_as_its_own_decision() {
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -1.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let rho = 1.0 + core::f64::consts::SQRT_2 * in_the_gap();
+        assert_eq!(
+            escalated_as(rho, 0.0, &cone),
+            (
+                BooleanDecision::ArcConeRoots,
+                Some("conic_quadric_first_extreme")
+            )
         );
     }
 }
