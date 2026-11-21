@@ -9,10 +9,9 @@
 //!   `x = 0`. A cylinder (r 0.5) on the top, or buried with its top rim
 //!   in it, meets it in every op, both slots and both groupings. Its rim
 //!   lies in the block's top, and the ridge's faces split it there. The
-//!   rim's in-plane face is not carried, so every cell answers as on
-//!   the merge base: where the cylinder is met first in the block-first
-//!   grouping, ∩ and ∖ build at their closed forms, and every other
-//!   cell refuses typed.
+//!   rim's in-plane face is not carried: where the cylinder is met
+//!   first in the block-first grouping, ∩ on the top and ∖ under it
+//!   build at their closed forms, and every other cell refuses typed.
 //! - **A box's edges in the block's top, run into a wall's foot.** A
 //!   cylinder stands on the block's top, or rises through it. A box
 //!   resting on the top runs its bottom edges into the wall's foot,
@@ -124,14 +123,20 @@ fn answers(what: &str, got: Result<BooleanResult<f64>, BooleanError>, want: Answ
 }
 
 /// **A rim in the block's top beside a ridge resting on it answers in
-/// every cell as on the merge base** (module docs). It pins main's
-/// answers, the slot-asymmetric refusals among them, which
+/// every cell as pinned** (module docs). It pins the answers, the
+/// slot-asymmetric refusals among them, which
 /// `work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`
-/// files as defects: fixing that re-baselines this row.
+/// files as defects: fixing that re-baselines this row. The rim is one
+/// closed edge, so both of the ridge's splits of it mint vertices in its
+/// interior, and the cylinder-first ∖ on the top and ∩ under it refuse
+/// `ClassificationInvariant` (a fate cut leaves a slit in the dropped
+/// face), that row's conic half.
 #[test]
 fn a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before() {
     use Answer::{Body, Empty, Refuses};
-    use BooleanErrorKind::{Join, JoinDesync, PartnerAlongFace, VertexReadTwice};
+    use BooleanErrorKind::{
+        ClassificationInvariant, Join, JoinDesync, PartnerAlongFace, VertexReadTwice,
+    };
     let (b, rd) = (block(), ridge());
     let groupings = [(true, &b, &rd), (false, &rd, &b)];
     for (block_first, p, q) in groupings {
@@ -163,7 +168,11 @@ fn a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before() {
             // [∩, ∖, ∪] with the cylinder first, then with the line body first.
             let [tool_first, line_first] = match (block_first, above) {
                 (true, true) => [
-                    [Body(common), Body(solo - common), Refuses(JoinDesync)],
+                    [
+                        Body(common),
+                        Refuses(ClassificationInvariant),
+                        Refuses(JoinDesync),
+                    ],
                     [
                         Refuses(PartnerAlongFace),
                         Refuses(PartnerAlongFace),
@@ -171,7 +180,7 @@ fn a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before() {
                     ],
                 ],
                 (true, false) => [
-                    [Body(common), Empty, Refuses(Join)],
+                    [Refuses(ClassificationInvariant), Empty, Refuses(Join)],
                     [
                         Refuses(VertexReadTwice),
                         Refuses(VertexReadTwice),
@@ -318,48 +327,4 @@ fn an_edge_in_a_face_run_into_a_walls_foot_builds() {
         &[((-0.2, 2.0), (-0.1, 0.1), (1.0, 1.3))],
         &OPS[..1],
     );
-}
-
-#[test]
-fn zz_lane_probe_ridge_grid() {
-    let mut grid = Vec::new();
-    let (b, rd) = (block(), ridge());
-    for (block_first, p, q) in [(true, &b, &rd), (false, &rd, &b)] {
-        let line = match topo::union(p, q, t()).unwrap() {
-            BooleanResult::Body(r) => r.body,
-            other => panic!("{other:?}"),
-        };
-        for (c, above) in [
-            ((0.3, 0.0), true),
-            ((0.3, 0.2), true),
-            ((0.3, 0.0), false),
-            ((-0.2, 0.1), false),
-        ] {
-            let tool = if above {
-                rod(c, 1.0, 0.4)
-            } else {
-                rod(c, 0.6, 0.4)
-            };
-            for (name, op) in OPS {
-                for (slot, r) in [
-                    ("tool", op(&tool, &line, t())),
-                    ("line", op(&line, &tool, t())),
-                ] {
-                    let said = match r {
-                        Ok(BooleanResult::Body(r)) => format!(
-                            "Body {} t3 {:?}",
-                            topo::test_support::pinned_volume("m", &r.body, t()).volume,
-                            topo::validate_geometric(&r.body, t()).is_ok()
-                        ),
-                        Ok(BooleanResult::Empty) => "Empty".into(),
-                        Err(e) => format!("{:?} {e:?}", e.kind()).chars().take(160).collect(),
-                    };
-                    grid.push(format!(
-                        "GRID bf={block_first} c={c:?} above={above} {name} {slot}: {said}"
-                    ));
-                }
-            }
-        }
-    }
-    panic!("lane probe:\n{}", grid.join("\n"));
 }

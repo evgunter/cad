@@ -254,8 +254,8 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
         );
         assert_eq!(
             c,
-            (5, 8, 5, 1),
-            "{label}: two walls, two sphere faces, the floor disc"
+            (4, 6, 4, 1),
+            "{label}: the wall, two sphere faces, the floor disc"
         );
         assert_eq!(records, [0; 6], "{label}: no contact survives a union");
         let rims = tangent_intersections(&body);
@@ -438,15 +438,12 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // `apart² / 2R`, against the sweep's pad `escalate + 2·zero` on each
     // side.
     for (apart, expect) in [
-        (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
+        (0.01 * zero, Expect::Builds((4, 6, 4, 1))),
         (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
         (5.0 * escalate, Expect::RulingDoor),
         ((R * escalate).sqrt(), Expect::RulingDoor),
         (-(R * escalate).sqrt(), Expect::RulingDoor),
-        (
-            (2000.0 * R * escalate).sqrt(),
-            Expect::Builds((5, 10, 7, 1)),
-        ),
+        ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 7, 5, 1))),
     ] {
         let deg = (apart / R).to_degrees();
         let hemi = turned(&hemisphere, deg);
@@ -516,7 +513,11 @@ fn the_sphere_capped_tube_is_its_seam() {
     let (cap_t, cap_h) = (planes_at_z(&tube, H), planes_at_z(&hemi, H));
     assert_eq!((cap_t.len(), cap_h.len()), (1, 1), "one cap disc each");
 
-    assert_eq!((cyl.len(), sph.len()), (2, 2), "two wall faces each");
+    assert_eq!(
+        (cyl.len(), sph.len()),
+        (1, 2),
+        "the tube's one wall face, the half ball's two"
+    );
     seam_builds("hemisphere", &tube, &hemi);
 }
 
@@ -551,8 +552,8 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
     // Each rim's two semicircles are one seam each; turned, each runs
     // along two of the other's arcs, splitting at their seam vertices.
     for (label, tube, cap, want_census) in [
-        ("dome", &tube, &dome, (5, 8, 5, 1)),
-        ("dome turned", &tube, &turned, (5, 10, 7, 1)),
+        ("dome", &tube, &dome, (4, 6, 4, 1)),
+        ("dome turned", &tube, &turned, (4, 7, 5, 1)),
         ("revolved tube", &revolved, &dome, (5, 8, 5, 1)),
     ] {
         for (order, r) in unions_both_ways(tube, cap).into_iter().enumerate() {
@@ -773,7 +774,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 };
                 topo::validate_geometric(&b, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                assert_eq!(census(&b), (5, 8, 5, 1), "{label}: F, E, V, shells");
+                assert_eq!(census(&b), (4, 6, 4, 1), "{label}: F, E, V, shells");
                 let kept = [tube_rim, dome_rim][order];
                 assert_eq!(
                     rim_radius(&b),
@@ -863,7 +864,7 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
             (v - want).abs() <= 1e-12 * want,
             "stacked, order {order}: the two tubes: {v} vs {want}"
         );
-        assert_eq!(c, (6, 10, 6, 1), "stacked, order {order}: F, E, V, shells");
+        assert_eq!(c, (4, 5, 3, 1), "stacked, order {order}: F, E, V, shells");
     }
     let cone = frustum_on_the_cap();
     for (order, x, y) in [(0, &tube, &cone), (1, &cone, &tube)] {
@@ -1367,7 +1368,7 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the tube and the cap above it: {v} vs {want}"
             );
-            assert_eq!(c, (6, 10, 7, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (5, 8, 6, 1), "{label}: F, E, V, shells");
         }
     }
 }
@@ -1552,14 +1553,14 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             "t ∪ d",
             topo::union(&tall, &dome, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (
             "d ∪ t",
             topo::union(&dome, &tall, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (

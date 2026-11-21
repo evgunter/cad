@@ -171,7 +171,9 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
     // carrier's incidence first, at the line's span ends and its foot on
     // the axis, where the skew pose's re-posed line reads inside the zero
     // band at ε 1e-12; the mapped source then reads `[0, 1.06e-12]`, the
-    // rounding fringe.
+    // rounding fringe. Where the incidence itself reads in the band
+    // (`[0, 1.03e-12]` on the skew pose's one-segment walls) the crossing
+    // insertion refuses it undecided, under its own predicate.
     let (source, site_predicate) = match reposed {
         BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
@@ -186,8 +188,14 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
     let topo::EulerOpError::Certification { error } = source else {
         panic!("{what}: the only admitted escape is a certification refusal; got {r}");
     };
-    let geom_brep::CertifyError::Escalated { cause, .. } = error else {
-        panic!("{what}: the only admitted escape is an ESCALATION; got {r}");
+    let (cause, site_predicate) = match (error, error.incidence_read()) {
+        (geom_brep::CertifyError::Escalated { cause, .. }, _) => (cause.clone(), site_predicate),
+        (_, Some(geom_brep::IncidenceRead::Undecided(cause)))
+            if matches!(reposed, BooleanError::CrossingInsertion { .. }) =>
+        {
+            (cause, "pcurve_line_chart_incident")
+        }
+        _ => panic!("{what}: the only admitted escape is an ESCALATION; got {r}"),
     };
     assert!(
         !matches!(

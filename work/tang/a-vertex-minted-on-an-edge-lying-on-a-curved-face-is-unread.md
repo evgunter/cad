@@ -119,3 +119,7 @@ recorded. Carrying it moves the ridge grid
 `a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`),
 whose slot-asymmetric refusals this half is about. The grid did not
 move with the curved half.
+
+## 2026-11-20 — the ridge grid with one-segment rims (PROFILE)
+
+Evidence from PROFILE's `circle-lowers-to-one-segment` (branch `profile/circle-lowers-to-one-segment`). Once `circle()` lowers to one segment the cylinder's rim in the block's top is one closed edge at its `+x` vertex, and the ridge's two faces split it at two points of its interior (the two-arc rim had its `−x` vertex at `(−0.2, 0)` beside one of them). In the block-first grouping, cylinder first, two cells that built at their closed forms now refuse `ClassificationInvariant { what: "a fate cut leaves a slit in the dropped face" }` (`boolean/fate.rs`): ∖ with the cylinder on the top (both poses, `c = (0.3, 0)` and `(0.3, 0.2)`), and ∩ with it under the top (both poses). Every other cell answers as before. Not measured: whether reading the split's minted vertices against the top face (this half's subject) is what the fate cut lacks. `crates/sweep/tests/a_rim_in_a_face_beside_a_resting_ridge.rs` re-pins the four cells to the refusal, naming this row.

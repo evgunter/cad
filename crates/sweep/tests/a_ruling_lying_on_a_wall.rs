@@ -950,27 +950,18 @@ fn one_body(label: &str, op: &str, res: Result<BooleanResult<f64>, BooleanError>
 /// below the plane of slope `100`, against its cut at `100(1 + ε/2)`,
 /// whose rim lies `ε/2` from the first's: every face pair is one
 /// carrier, nothing crosses, and each operand's shell lies on the
-/// other's. `∪` and `∩` build that body and `∖` nothing, in both orders.
-/// At a coarse ε the basin meter refuses first, as in that row. Red where
-/// the coincident wall pair's section refuses the no-crossings path.
+/// other's. `∪` and `∩` build that body and `∖` nothing, in both orders,
+/// at every ε. Red where the coincident wall pair's section refuses the
+/// no-crossings path.
 #[test]
 fn a_cut_rod_and_its_band_copy_are_one_body() {
     let tol = Tol::witness();
-    let e = geom_core::Band::linear(tol).unwrap().escalate();
-    let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
     let rod = rod_of(0.01, -3.0, 6.0);
     let a = cut_below(&rod, 100.0, 0.0);
     let b = cut_below(&rod, 100.0 * (1.0 + 0.5 * tol.eps()), 0.0);
     for (op, res) in six(&a, &b) {
         let label = format!("against its band copy: {op}");
-        if meter_refuses {
-            assert!(
-                matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{label}: the basin meter refuses at this ε: {res:?}"
-            );
-        } else {
-            one_body(&label, op, res);
-        }
+        one_body(&label, op, res);
     }
 }
 
