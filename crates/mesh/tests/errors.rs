@@ -118,7 +118,8 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         UnresolvedWinding,
-        BoundaryEar,
+        UnclearedSharedSide,
+        OverusedSide,
         SphereTrimShape,
         WrapStripTurn,
     ];
@@ -157,6 +158,8 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "unresolved:",
     "corners:",
     "height:",
+    "faces:",
+    "uses:",
     "turn:",
 ];
 
@@ -348,8 +351,15 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            TessellateError::BoundaryEar { face },
-            vec!["consecutive boundary chord points", "four"],
+            TessellateError::UnclearedSharedSide { face },
+            vec!["boundary chord points", "four"],
+        ),
+        (
+            TessellateError::OverusedSide {
+                faces: vec![face, face],
+                uses: 4,
+            },
+            vec!["4 triangles", "2 faces", "not a closed manifold"],
         ),
         (
             TessellateError::SphereTrimShape {
