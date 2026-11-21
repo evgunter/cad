@@ -6578,11 +6578,18 @@ fn graph_run(
     } else {
         piece.1 - t_v
     };
-    if !matches!(
-        past.partial_cmp(&0.0),
-        Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
-    ) {
-        return None;
+    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC graph_run piece={piece:?} t_v={t_v} past={past:e}"); }
+    if past > 0.0 {
+        let (carrier, _) = e.arc.as_ref()?;
+        let stretch = if run.start { (piece.0, t_v) } else { (t_v, piece.1) };
+        let gap = arc_deriv(carrier, stretch).norm() * at(past);
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC graph_run gap={gap:?}"); }
+        if std::env::var_os("CV_STRICT").is_some() || !matches!(
+            decide(SELF_INTERSECTION_CORNER_VERTEX, Margin::of(gap), band),
+            Ok(Sign::Zero)
+        ) {
+            return None;
+        }
     }
     let reached = edge_piece(other, *other_span, false, &[image])?;
     let d = arc_deriv(other, reached);
