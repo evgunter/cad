@@ -7,3 +7,7 @@ C: after round 1, subagent_tokens 243642, 40 tool uses (cumulative), 866 s
 A: after round 2, subagent_tokens 194095, 4 tool uses, 75 s
 B: after round 2, subagent_tokens 192706, 2 tool uses, 73 s
 C: after round 2, subagent_tokens 275324, 45 tool uses (cumulative), 1114 s
+A: after round 3 (first hand-back, before the addendum reached it), subagent_tokens 217488, 6 tool uses, 163 s
+B: after round 3 (with the addendum), subagent_tokens 233915, 9 tool uses, 242 s
+A: after round 3 with the addendum, subagent_tokens 238467, 10 tool uses (cumulative for the round), 310 s
+C: after round 3 (with the addendum), subagent_tokens 334417, 11 tool uses, 418 s
