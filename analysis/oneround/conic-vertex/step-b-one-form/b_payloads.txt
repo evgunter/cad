@@ -1,0 +1,90 @@
+intent_s6_c_trace::the_traced_wall_moves_with_the_radius_at_dual_and_interval @ crates/editor-core/tests/intent_s6_c_trace.rs:357:5:
+    the boss builds over the box: Some("the replayed profile failed validation: between loop 0 segment 1 and loop 0 segment 2, whether a point falls inside a segment is undecided: enclosure [-1.4190834063398938e-9, 1.4190835173621963e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: subdivide the parameter box for a tighter enclosure, or move the geometry")
+m10_9_r2_probes_interval::r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval @ crates/editor-core/tests/m10_9_r2_probes_interval.rs:405:9:
+    assertion `left == right` failed: f64 at t = 0.7 |       left: [4563276941383001900, 13786898525716211554, 4560127705340933312] |      right: [4563276941383001901, 13786898525716211554, 4560127705340933312]
+curves::conic::tests::the_conic_readings_are_the_carriers_own @ crates/geom/src/curves/conic.rs:1364:17:
+    assertion `left == right` failed: Circle(Circle { at: Frame { origin: Point3 { x: 0.7333333333333333, y: -1.4666666666666666, z: 2.466666666666667 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, radius: 0.7 }) at -2.5 |       left: [4585028958463987168, 13825807472120228872, 4611260067884528934] |      right: [4585028958463987176, 13825807472120228870, 4611260067884528934]
+curves_same_content::a_twin_one_ulp_off_in_any_stated_value_is_another_carrier @ crates/geom/tests/curves/same_content.rs:188:13:
+    circle: a twin with centre[0] one ulp off
+carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier @ crates/geom-brep/src/carrier_resolution.rs:371:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+curve_face::circle_torus::shallow_sweep::the_exact_oracle_agrees_with_mpmath_on_the_pinned_poses @ crates/geom-brep/src/curve_face/circle_torus/shallow_sweep.rs:338:13:
+    a near-parallel circle at the tube's top, its tilt in the gap: the exact oracle's 2.6859224115623483 is 1.467e-10 m from mpmath's 2.6859224114229985
+curve_face::ellipse_torus::torus_rows::a_graze_pair_at_the_seam_is_two_crossings @ crates/geom-brep/src/curve_face/ellipse_torus.rs:823:17:
+    seam 10.39044468670754: the exact oracle reads [1.282586714636553, 1.8033526870060559, 3.507902628074385, 4.106664694714071, 4.107229547483411, 5.069940181296205]
+curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term @ crates/geom-brep/src/curve_face/ellipse_torus.rs:1021:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates @ crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000098, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) } }] })
+pcurve_cache::circle_lane_rows::a_needle_cones_far_section_is_covered_at_its_50_digit_distance @ crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs:951:5:
+    Interval envelope Interval(DInterval { lo: 1.0719167428832472e-14, hi: 1.175154261224546e-10, dec: Com }) under the 50-digit distance 2.7234227197864184e-12
+pcurve_cache::limb2_memo_rows::a_hit_is_the_fresh_compute_and_a_changed_input_misses @ crates/geom-brep/src/pcurve_cache.rs:16974:9:
+    Sym reads Interval's rounds
+pcurve_cache::limb2_quick_rows::a_span_hit_is_the_fresh_compute_and_a_window_shares_its_spans @ crates/geom-brep/src/pcurve_cache.rs:17153:9:
+    assertion `left == right` failed: Sym reads Interval's spans |       left: 14 |      right: 12
+bool5r1_probes::probe_the_coincident_plane_ladder_at_interval @ crates/geom-brep/tests/bool5r1_probes.rs:325:17:
+    k = 20: relative width 1.2058742367374607e-13
+edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight @ crates/geom-brep/tests/edge_extent_bounds.rs:392:5:
+    circle, closed: sup 4 is short of D 4.000000000000001
+foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from @ crates/geom-brep/tests/foot_and_phase_rows.rs:66:9:
+    assertion `left == right` failed: -7: on the axis |       left: Some(-6.283185307179586) |      right: Some(-7.0)
+pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus @ crates/geom-brep/tests/pcurve_villarceau.rs:538:21:
+    r/R 0.35, moved 0.9·ε along the axis: the image does not certify: pcurve certification: MapResidual at sample 0 escalated: margin 1.2503179345670444e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+r2_probes::r2_probe_sphere_seam_bit_move @ crates/geom-brep/tests/r2_probes.rs:160:5:
+    assertion `left == right` failed: R2 sphere-seam row moved: legacy 2.5000002068509275e-10 m, now 2.500002041387553e-10 m, delta 3548509910 ULP |       left: (3548509910, 2.5000002068509275e-10, 2.500002041387553e-10) |      right: (2349518964, 2.5000002068509275e-10, 2.5000014215237624e-10)
+memo::tests::the_curve_key_reads_every_scalar_the_walk_yields @ crates/mesh/src/memo.rs:1795:17:
+    Circle(Circle { at: Frame { origin: Point3 { x: 6.536381051870915, y: 2.6513389472789357, z: -1.2337031573130268 }, axis: Vec3 { x: 0.4558423058385518, y: 0.5698028822981898, z: 0.6837634587578276 }, u_ref: Vec3 { x: 0.7909115788387021, y: 0.09304842103984795, z: -0.6048147367590038 } }, radius: 7.0 }): the walk yields the builder's scalar 0, in its order
+d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest @ crates/mesh/tests/d9_mesh_goldens.rs:380:5:
+    the mesh moved for 19 of 48 body/δ pairs at eps=0.000000001: |       wedge at delta=0.05: 6162b834d72693be, committed c3cc46f2c9a9d6ce |       wedge at delta=0.15: 7f5a00fd98d70b72, committed e4e25c533441c482 |       axis_wedge at delta=0.15: 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads @ crates/mesh/tests/d9_mesh_goldens.rs:474:5:
+    the mesh is not a function of (body, delta) alone at eps=0.000000001: |       wedge at delta=0.05: 1 thread 6162b834d72693be, committed c3cc46f2c9a9d6ce |       wedge at delta=0.15: 1 thread 7f5a00fd98d70b72, committed e4e25c533441c482 |       axis_wedge at delta=0.15: 1 thread 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes @ crates/mesh/tests/route_rows.rs:235:9:
+    assertion `left == right` failed: x0 = 0.3, θ = 2e-9: main's bytes |       left: 17877698262526812332 |      right: 854441196626164579
+route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes @ crates/mesh/tests/route_rows.rs:591:5:
+    assertion `left == right` failed: main's bytes |       left: 17143703559938948321 |      right: 12396868946538390960
+route_rows::a_body_that_meshes_records_mains_k_stream @ crates/mesh/tests/route_rows.rs:332:9:
+    assertion `left == right` failed: rounded prism: main's bytes |       left: 3754135872730209029 |      right: 7449119955816324655
+the_one_face_ball::a_slit_between_the_tips_is_not_the_strip @ crates/mesh/tests/the_one_face_ball.rs:189:5:
+    assertion `left == right` failed |       left: Err(SingleColumnCurvedFace { face: FaceKey(3v1), surface: Sphere }) |      right: Err(PinchWedge { face: FaceKey(2v1) })
+the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim @ crates/mesh/tests/the_one_face_ball.rs:259:9:
+    assertion `left == right` failed: the hemisphere cap's mesh bytes |       left: 18123877241593834373 |      right: 9884659491889629567
+freecad::cross_dialect_fixed_point @ crates/step-import/tests/freecad.rs:593:9:
+    assertion `left == right` failed: box_fillet_corner: the second round trip's export must be byte-identical to the first's |       left: "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\nFILE_NAME('box_fillet_corner.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n#1 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n#2 = DIRECTION('', (1.0, 0.0, 0.0));\n#3 = DIRECTION('', (0.0, 0.0, 1.0));\n#4 = AXIS2_PLACEMENT_3D('', #1, 
+swept::tests::the_placed_rim_chains_through_the_sketch_rim_to_the_radius @ crates/sweep/src/swept.rs:1791:9:
+    assertion `left == right` failed: the placed rim: SymCounts { symbolic: 3, registrations_refused: 0, registrations_contradicted: 0, theorems_disputed: 0, checks_expanded: 8, checks_frozen: 0, numeric: 10, retried: 0, frozen: 8 } |       left: None |      right: Some(Zero)
+a_slit_tip_on_a_curved_face_reads_its_full_turn::the_slit_block_meshes @ crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs:444:51:
+    the slit block meshes: SelfTouchingTrimLoop { face: FaceKey(2v5) }
+a_sweep_keeps_the_frame_it_is_handed::a_revolved_circles_latitude_over_a_centre_box_is_exact @ crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs:338:10:
+    the boxed circle revolves a quarter turn: Op { source: Certification { error: AnalyticRung3(Stalled { operand: Torus, cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.9688531110297128e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("ssi_hull_sup") } }) } }
+band_open_mixed_chain::a_teardrops_rim_fillets_whole_at_interval @ crates/sweep/tests/band_open_mixed_chain.rs:198:19:
+    teardrop, Interval: the open mixed chain fillets whole at r = 0.1, got BlendRefusal { verb: Fillet, error: Op { site: "surgery contact edge", source: Certification { error: Escalated { check: Transversality, sample: 4294967295, cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.688364804971753e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("shared_row_touch") } } } } }
+band_open_mixed_chain_shapes::a_turned_l_plates_run_builds_at_interval @ crates/sweep/tests/band_open_mixed_chain.rs:198:19:
+    turned L-plate, Interval: the open mixed chain fillets whole at r = 0.1, got BlendRefusal { verb: Fillet, error: Op { site: "surgery contact edge", source: Certification { error: Escalated { check: Transversality, sample: 4294967295, cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 1.5199486142704588e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("shared_row_touch") } } } } }
+m5_s12_curved_ops::revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts @ crates/sweep/tests/m5_s12_curved_ops.rs:262:5:
+    assertion `left == right` failed: volume is bit-negated |       left: 13823976409769669593 |      right: 13823976409769669592
+revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification @ crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: cavity: edge EdgeKey(16v1) stores the fresh run's certificate |       left: "Certificate { samples: 9, max_residual: 8.040613248383182e-17 }" |      right: "Certificate { samples: 9, max_residual: 6.123233995736766e-17 }"
+review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule @ crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs:507:17:
+    assertion `left == right` failed: r = 0.4: the equator stands 0.5 from the bore |       left: Value(0.49999999999999994) |      right: Value(0.5)
+section_end_poses::a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds @ crates/sweep/tests/section_end_poses.rs:657:5:
+    h0 ab U: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, extent: 7.071067811882816 }) })))) |     h0 ab I: got Some(Join(BooleanJoin(Euler(Certification { error: AnalyticRung3(KernelLimit { operand: Plane, bound: 1.0000000000000034e-9, margin: MarginDiag(Value(1.0000000000000034e-9, None, ZeroWord(0))), width: 1.740840792037595e-10, exten
+snowman::the_fallback_assembly_carries_the_kept_operands_certificates @ crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: slab ∪ ball: edge EdgeKey(13v1) stores the fresh run's certificate |       left: "Certificate { samples: 9, max_residual: 2.220446049250313e-16 }" |      right: "Certificate { samples: 9, max_residual: 1.2246467991473532e-16 }"
+boolean::conic_quadric::cone_rows::a_root_the_slack_meter_cannot_place_refuses @ crates/topo/src/boolean/conic_quadric/cone_rows.rs:472:9:
+    d = 1e-5: a root charged 4.440907799480723e-11 is refused, got Ok(Ok(Certified(Found { count: 4, roots: [-1.5707963267948968, -8.240741185453117e-17, 1.4142235625699017e-5, 1.5707821845592709, 0.0, 0.0, 0.0, 0.0] })))
+boolean::conic_quadric::in_band_sweep::a_root_whose_slack_reads_in_the_gap_is_refused @ crates/topo/src/boolean/conic_quadric/in_band_sweep.rs:575:5:
+    refused, got Ok(Ok(Certified(Found { count: 2, roots: [-9.13960746084467e-7, 9.139604627265533e-7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] })))
+chord_join::seam_rows::an_arc_near_a_minor_vertex_resolves_at_its_own_scale @ crates/topo/src/chord_join/seam_rows.rs:99:13:
+    ccw true: an end misses its vertex by 6.483702463810914e-13
+ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation @ crates/topo/src/ruled_region_rows.rs:875:5:
+    assertion `left == right` failed: queries a frame answers at the escalation |       left: 36 |      right: 35
+splitting::classify::tests::a_graze_side_decided_zero_keeps_its_margin @ crates/topo/src/splitting/classify.rs:478:17:
+    assertion `left == right` failed: ε = 1e-6, centre 1·ε, normal 1·z |       left: None |      right: Some(Zero)
+splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size @ crates/topo/src/splitting/containment.rs:3321:13:
+    the arc's point at -0.00045 lies 0.5062501916684451 out, past 0.5062501912455183
+tier3_tests::the_carrier_poison_read_reads_every_scalar @ crates/topo/src/tier3_tests.rs:1103:13:
+    Circle(Circle { at: Frame { origin: Point3 { x: 6.536381051870915, y: 2.6513389472789357, z: -1.2337031573130268 }, axis: Vec3 { x: 0.4558423058385518, y: 0.5698028822981898, z: 0.6837634587578276 }, u_ref: Vec3 { x: 0.7909115788387021, y: 0.09304842103984795, z: -0.6048147367590038 } }, radius: 7.0 }): the walk yields the builder's scalar 0, in its order
+tier3_tests::the_carrier_datum_read_names_every_datum_that_describes_no_curve @ crates/topo/src/tier3_tests.rs:1039:9:
+    assertion `left == right` failed: circle, infinite center, at f64 |       left: Some(Poisoned([Anchor])) |      right: Some(Poisoned([Center]))
+torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation @ crates/topo/src/torus_region.rs:1210:9:
+    assertion `left == right` failed: queries a frame answers at the escalation |       left: 51 |      right: 33
