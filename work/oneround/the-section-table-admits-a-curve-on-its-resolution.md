@@ -1,7 +1,7 @@
 ---
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
-title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
+title: A conic stores one point and where it sits on the curve; the centre only within the box's size, a section's vertex where its mint holds it
 status: dispatched
 opened: 2026-10-12
 priority: P1
@@ -142,3 +142,44 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 - **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
 - **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
 
+
+## The stored form (2026-11-21)
+
+The rule is `crates/geom-core/README.md`, "Float rounding": a conic
+stores the point its mint holds and where that point sits on it. This
+replaces "Re-scoped" above and the one-stored-form text of PR 7194,
+which was built (step B, parked on `oneround/anchored-conic-one-form`)
+and measured before it was set aside; the measurements are in
+`work/oneround/log.md`, 2026-11-21.
+
+- **One type, one evaluator.** A conic holds a point `O` and a pair
+  `k`: `(0, 0)` where `O` is the centre, `(cos θ₀, sin θ₀)` where `O`
+  is the curve's point at θ₀. Every point is
+  `O + u·a·(cos θ − k_u) + v·b·(sin θ − k_v)`. Nothing records how a
+  conic was made.
+- **The limit is the conic's size.** The centre may be stored only
+  where no semi-axis is longer than the session box's extent. A larger
+  conic stores a point of the arc it serves, with its parameter zero
+  there. The door that takes a centre refuses a conic past the limit
+  whose handed centre is itself past the box: those digits are already
+  lost.
+- **Inside the limit a mint stores what it holds.** A circle or
+  ellipse made from a centre keeps that centre, exactly, at every
+  scalar. A section computed at its vertex keeps that vertex.
+- **Readers start from the stored point.** Covers, extents, chart
+  images and the inverse go through the conic; none restates the curve
+  as `centre + size·direction`. A reader that needs only directions
+  reads the axis and the seam, and derives no position
+  (`a-conics-points-are-restated-in-centre-form-outside-its-evaluator`).
+- **A move maps `O`; a reversal flips `k`'s second entry; a re-seam of
+  a centre-stored conic permutes its directions.** A large conic
+  stored on its arc is not re-seamed: another part of it is another
+  mint.
+
+This unit (PR 7203) is the part of that already built: the two births
+private to `conic.rs`, the pair stored, the plane-cone section stored
+at the vertex its mint computes. What remains is on two rows that PR
+files: `one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
+readers, and the centre door's limit) and
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc` (large
+conics served away from a vertex).
