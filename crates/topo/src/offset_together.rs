@@ -683,14 +683,11 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// ([`crate::cover::edge_reach_bounds`]): a corner is resolved only on a
 /// definite sign.
 ///
-/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
-/// difference is load-bearing rather than a duplication to collapse.**
-/// A line edge's reach from its end is its arc length, and this door's
-/// bodies are all-planar, so every edge is a straight segment: no closed
-/// edge exists for the reach to read zero on. The axial door's do — a
-/// chart with ONE seam closes on itself — and a zero arm makes every
-/// meter read `Zero` and call a perfectly transversal corner
-/// degenerate, which is what it measured on the revolved tube.
+/// **The axial door keeps its own copy** (`offset_axial::corner_arms`):
+/// its edges include closed ones, a chart with ONE seam closing on
+/// itself, and its line and circle arms read lengths of their own. Here
+/// every edge is a straight segment, whose reach from its end is its
+/// length, so no edge reads zero.
 ///
 /// # Errors
 ///

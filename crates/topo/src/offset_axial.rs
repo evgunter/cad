@@ -1266,16 +1266,22 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// A length for every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by. A corner resolves only on a definite
+/// sign, so each is owed the edge's extent from below.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// The planar door reads each edge's reach from the corner off its
+/// cover (`offset_together::corner_arms`), which on a straight edge is
+/// its length. Here the edges are not all straight: a full revolve's rim
+/// arc runs half a turn and a chart with ONE seam closes on itself,
+/// whose chord is exactly zero — and a zero arm makes every meter read
+/// `Zero` and calls a perfectly transversal corner degenerate, as the
+/// revolved TUBE once did. A line reads its span and a circle its arc
+/// length, each a length named for its arm alone (an arc's is longer
+/// than the arc's extent); any other carrier, a spiric rim a previous
+/// offset minted among them, reads its extent from below
+/// ([`geom_brep::edge_extent_inf`]), which a closed oval's chord would
+/// read as zero.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
