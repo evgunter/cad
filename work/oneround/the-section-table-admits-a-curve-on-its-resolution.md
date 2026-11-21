@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P1
 cost: H
 branch: oneround/anchored-conic
+refs: [4812, 7194]
 ---
 
 Part 2 of the design on
@@ -62,15 +63,14 @@ Ev's decision on PR 4812 supersedes this row's "admit only where
 ρ ≤ ε/K, refuse the rest". There is no refusal at the arm. The unit is
 now the end state. Its decided text is in GERM's row's "Decided"
 section:
-- A kernel-minted section conic is stored anchored on the arc its edge
-  uses: parameter zero there, centre derived and never stored. Its
-  resolution is then `u` times the arc distance from the anchor, not
-  `u·A`.
-- An imported ellipse keeps the file's centre form exactly as read,
-  with the anchored form as an internal cache. Export writes the
-  original and round-trips bit-exactly; export of a minted ellipse
-  writes the derived centre.
-- Evaluators read the anchored form either way. No public API changes.
+- Every conic carrier is stored anchored on the arc it serves:
+  parameter zero at the anchor, the centre derived and never stored.
+  Its resolution is then `u` times the arc distance from the anchor,
+  not `u·A`.
+- A construction handed a centre computes the anchor once; from then
+  on the anchor is the curve. Nothing records how a conic was made and
+  nothing is cached. Export writes the derived centre.
+- No public API changes.
 - Where both flanks of a two-flank cylinder cut are used, there is
   one carrier per edge. The germ frames and `Reach::Span` read a
   shared carrier today, so confirm that shape first.
