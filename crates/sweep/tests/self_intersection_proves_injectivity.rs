@@ -1795,19 +1795,18 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
 /// **The drum the cavity above is cut from holds**: its windows are read
 /// off its edges' covers, so the half-annulus's chart runs to the circle's
 /// own bound and its halvings land on the disc's half-circle, not a
-/// rounding off it. Red if the drum refuses again, or if its walk grows.
+/// rounding off it, so it holds by that alignment. Red if the drum
+/// refuses again, or if its walk takes more splits than it first did.
 #[test]
 fn the_collinear_cap_drum_holds_with_its_splits_on_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
     let report = injective(&drum, None, BUDGET);
     assert_holds("the drum", &report, &drum);
-    assert_eq!(
-        (report.receipt.refused, report.receipt.splits),
-        (0, 1012),
-        "{:?}",
-        report.receipt
-    );
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    // A ceiling, not the count: 1,012 splits when the windows first read
+    // the covers. More means the walk now pays more to hold.
+    assert!(report.receipt.splits <= 1012, "{:?}", report.receipt);
 }
 
 /// **A drum whose splits fall a rounding off its half-circle runs out of

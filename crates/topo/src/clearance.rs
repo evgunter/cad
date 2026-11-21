@@ -1499,6 +1499,9 @@ impl Sweep {
             let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
             let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
             let cloud = |c: &Cell| [c.enc];
+            // A zero pad still steps every box out an ulp
+            // (`Aabb::padded`); here that can only keep a candidate pair,
+            // never drop one, and nothing is split at these bounds.
             let tree_a = Bvh::build_bounded(root_a.iter().map(cloud), 0.0);
             let tree_b = Bvh::build_bounded(root_b.iter().map(cloud), 0.0);
             // The unordered de-duplication is the same-body case's own: two

@@ -32,8 +32,26 @@ measured a window an ulp wider turning a holding body into a refusal
 the drum family, and the tour's `budfillet` under a padded read). On the
 tour walk at f64, 89 window ends read 1–4 ulps wider than main's
 evaluation (vase, sheave, the teapot and others), the size this
-rounding gives, not traced edge by edge; no verdict moved.
+rounding gives, not traced edge by edge; no verdict moved. That is a
+one-time figure (2026-11-18, `embed/rational-window` against main
+`c5bc653ae`): main's `demos/tour/examples/embed_walk.rs` prints verdicts
+and receipts, not windows, and the count came from an uncommitted print
+of each window in `topo::clearance::window_of`, diffed run against run.
 
 **A fix to weigh.** An amplitude read exactly where one of `p`, `q` is
 zero (an axis-aligned direction, the case every world-box row is), or a
-hypot that rounds once. Neither is measured here.
+hypot that rounds once.
+- **Measured once, by PR 7120's review** (its mutant M6, on
+  `embed/rational-window-review`): `crest = √(p² + q²).min(|p| + |q|)`,
+  the meet of two sound bounds, which is exact on the world axes. The
+  `geom` cover rows stay green except the pin of this rounding
+  (`cover_box_against_the_whole_span_eval`'s
+  `at_a_crest_of_an_inexact_square_the_cover_reads_at_most_two_ulps_out`,
+  whose last assertion goes red, as it says it will), and no verdict
+  moves in the drum family: radii 1 and 2 hold, and 0.3, 0.7, 0.9, 1.1
+  and 1.3 still refuse (234 / 282 / 140 / 210 / 140 cells).
+- **Both readers compute the amplitude.** `ArcWindow::extent` (the
+  crest's value) and `ArcWindow::crest_outside` (the selector deciding
+  whether the crest is inside the span) each compute `√(p² + q²)`. A
+  fix to one alone desynchronises the selector from the value; they
+  change together.

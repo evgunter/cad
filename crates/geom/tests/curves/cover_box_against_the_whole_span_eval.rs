@@ -184,7 +184,9 @@ fn a_spline_window_with_bracket_ends_reads_its_whole_net() {
 /// the crest exactly. The cover's box holds the evaluation's and is no
 /// more than two ulps past it on any side. Red if the cover reads
 /// narrower than the evaluation, or wider by more than its amplitude's
-/// rounding.
+/// rounding. The last assertion pins the rounding itself
+/// (`work/onecopy/an-arcs-cover-reads-its-crest-a-rounding-out-where-the-radius-squared-rounds.md`):
+/// red when that row's fix lands, which is the time to drop it.
 #[test]
 fn at_a_crest_of_an_inexact_square_the_cover_reads_at_most_two_ulps_out() {
     let out =

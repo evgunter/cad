@@ -91,16 +91,22 @@ evaluation. Windows printed with an uncommitted print in `window_of`.
 - **Other radii still meet it.** The same drum built at radius `r`,
   height `h`, ring at `r/2`:
 
-  | `r`, `h` | main | branch |
-  |---|---|---|
-  | 1, 2 | `Budget(Depth)`, 282 refused | holds |
-  | 1, 1.3 | 282 | holds |
-  | 2, 3 | 282 | holds |
-  | 0.7, 2 | 282 | 280 |
-  | 0.3, 0.9 | 234 | 448 |
-  | 1.1, 2.3 | 152 | 436 |
-  | 0.9, 1.7 | 148 | 282 |
-  | 1.3, 2 | 140 | 284 |
+  | `r`, `h` | main | branch | branch, crest exact (M6) |
+  |---|---|---|---|
+  | 1, 2 | `Budget(Depth)`, 282 refused | holds | holds |
+  | 1, 1.3 | 282 | holds | holds |
+  | 2, 3 | 282 | holds | holds |
+  | 0.7, 2 | 282 | 280 | 282 |
+  | 0.3, 0.9 | 234 | 448 | 234 |
+  | 1.1, 2.3 | 152 | 436 | 210 |
+  | 0.9, 1.7 | 148 | 282 | 140 |
+  | 1.3, 2 | 140 | 284 | 140 |
+
+  The last column is PR 7120's review's mutant M6 (on
+  `embed/rational-window-review`): the arc cover's crest read as
+  `√(p² + q²).min(|p| + |q|)`, exact on the world axes
+  (`work/onecopy/an-arcs-cover-reads-its-crest-a-rounding-out-where-the-radius-squared-rounds.md`).
+  This row stands without the crest's rounding.
 
   So the drums whose windows halve onto the half-circle hold, and the
   others refuse as before: the cell this row names is still read by no
