@@ -48,7 +48,7 @@ What still refuses `C0KnotUnsplit`, each naming the face and the knot, one line 
   - a crossing within a few ε_in of tangency (`a_trim_crossing_by_twice_eps_in_is_kept_and_refuses_typed`);
   - a curved iso meeting a circle at a span's end at a coarse band, where the walk exhausts (`work/cpair/the-curve-pair-walk-exhausts-on-an-end-meeting-at-a-coarse-band.md`).
 
-  A straight iso is read as the line `recognize_curve::try_line` certifies, in closed form, which settles that case.
+  A straight iso is read as the line `recognize_curve::straight_map` certifies (the straight MAP: the crossing is carried back through the chord map), in closed form, which settles that case.
 - **a boundary edge sharing a run with the line by a closed form**, or **an edge along the line its iso pcurve does not certify** (a parameter not affine in the line's, or a line beside a rational column). The latter goes to the walk, which reads no shared run.
 - **a boundary piece between meetings that reads no side**: no chart foot within the band (`a_trim_off_its_chart_past_the_band_reads_no_side_and_refuses_typed`; the incidence premise, `import-splits-knot-lines-on-an-unchecked-incidence-premise`).
 - **a boundary edge that refused its split** where the line crosses it (`NurbsCurve3::split_at`).
@@ -64,4 +64,4 @@ Unexercised: a boundary within about ε_in of the line where the chart's speed a
 
 ## Closed
 
-2026-11-17, PR 7084. The split reads each boundary edge's meeting with the knot's iso line by `geom_brep::curve_pair::meet` at the file's chart band (a two-control equal-weight iso through `recognize_curve::try_line`), places a vertex at each crossing and parts the face, rings included, into the pieces the line cuts it into; edges along the line are certified by the iso pcurve, minted runs carry the whole iso, and an uncrossed face's chart narrows to its side's sub-patch. The three refused classes above now import. What still refuses `C0KnotUnsplit` is `the-c0-knot-split-residue-after-placement`.
+2026-11-17, PR 7084. The split reads each boundary edge's meeting with the knot's iso line by `geom_brep::curve_pair::meet` at the file's chart band (a two-control equal-weight iso through `recognize_curve::try_line`, now `recognize_curve::straight_map`), places a vertex at each crossing and parts the face, rings included, into the pieces the line cuts it into; edges along the line are certified by the iso pcurve, minted runs carry the whole iso, and an uncrossed face's chart narrows to its side's sub-patch. The three refused classes above now import. What still refuses `C0KnotUnsplit` is `the-c0-knot-split-residue-after-placement`.
