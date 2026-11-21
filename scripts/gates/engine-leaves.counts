@@ -173,7 +173,6 @@ ambiguous Sheet                          # injective.rs, row_walk_proofs.rs
 ambiguous Side                           # bound_side.rs, clearance.rs, injective.rs
 ambiguous SplineArc                      # ring_path.rs
 ambiguous Touch                          # census/point.rs
-ambiguous certify                        # policy_lane.rs
 ambiguous classify                       # offset_axial.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
