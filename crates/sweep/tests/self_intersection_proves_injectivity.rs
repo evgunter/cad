@@ -1793,21 +1793,29 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
-/// **The drum the cavity above is cut from holds**: its windows are read
-/// off its edges' covers, so the half-annulus's chart runs to the circle's
-/// own bound and its halvings land on the disc's half-circle, not a
-/// rounding off it, so it holds by that alignment. Red if the drum
-/// refuses again, or if its walk takes more splits than it first did.
+/// **The drum the cavity above is cut from refuses, out of depth**: its
+/// half-annulus cells a rounding off the disc's half-circle are read by no
+/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when the drum holds, and that row's reading has landed. The
+/// refused cells are 210: the drum's stored frames read at `Interval` by
+/// their polar enclosure summed exactly, about an ulp of each entry
+/// (282 with the enclosure's sums in interval arithmetic, and 282 read as
+/// points, as at the base).
 #[test]
-fn the_collinear_cap_drum_holds_with_its_splits_on_its_half_circle() {
+fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
     let report = injective(&drum, None, BUDGET);
-    assert_holds("the drum", &report, &drum);
-    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
-    // A ceiling, not the count: 1,012 splits when the windows first read
-    // the covers. More means the walk now pays more to hold.
-    assert!(report.receipt.splits <= 1012, "{:?}", report.receipt);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
 }
 
 /// **A drum whose splits fall a rounding off its half-circle runs out of

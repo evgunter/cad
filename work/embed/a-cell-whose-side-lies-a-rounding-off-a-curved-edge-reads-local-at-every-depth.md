@@ -50,10 +50,11 @@ cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.
 
 The at-rest gate asks every finished body, so it would refuse this
-drum at its door. Pinned now by
-`a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle` (280
-refused), which goes red when that drum holds (the radius-1 drum's
-measurement since, below).
+drum at its door. Pinned by
+`the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle`
+(282 refused; 210 since PR 7131's frames), which goes red when the drum
+holds, and by `a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle`,
+the same drum at radius 0.7 (below).
 
 The sliver fork's recommendation (PR 7095: a thin rectangle read rather
 than conceded, the departure margin metered at the faces' reach) would
@@ -70,7 +71,7 @@ question the sliver fork put to Ev (PR 7095), and by this row's own
 note that fork's reading does not reach the cell: `graph_read` refuses
 at its choice of run, before any rectangle or margin exists.
 
-## 2026-11-18 — the radius-1 drum holds once its windows are read off its edges' covers, and other radii still meet this row (EMBED, lane rational-window)
+## 2026-11-18 — the drum family, and the radius-1 drum's holding by alignment that PR 7131 then moved (EMBED, lane rational-window)
 
 Measured with `injective` at f64, the default depth and 65,536 pairs,
 main `c5bc653ae` against `embed/rational-window`, where `boundary_of`
@@ -112,3 +113,23 @@ evaluation. Windows printed with an uncommitted print in `window_of`.
   others refuse as before: the cell this row names is still read by no
   presentation, and a window reaches it whenever its halvings miss the
   curve's bound by a rounding.
+
+**Re-measured 2026-11-21**, main `45023f4e3` (with PR 7131, which reads a
+stored frame at `Interval` by its polar enclosure summed exactly)
+against `embed/rational-window` merged onto it. Every drum of the
+family refuses on both, and the radius-1 and radius-2 drums read the
+same receipt on both: 210 refused, 3,250 and 3,222 discharged. The
+frames moved the windows again, and the alignment the branch's windows
+had given at `c5bc653ae` is gone. So the holding above was alignment
+alone, and this row's cell is reached by every drum of the family now.
+
+| `r`, `h` | main `45023f4e3` | branch merged onto it |
+|---|---|---|
+| 1, 2 | 210 refused | 210 |
+| 1, 1.3 | 210 | 210 |
+| 2, 3 | 210 | 210 |
+| 0.7, 2 | 232 | 294 |
+| 0.3, 0.9 | 234 | 448 |
+| 1.1, 2.3 | 210 | 440 |
+| 0.9, 1.7 | 140 | 294 |
+| 1.3, 2 | 146 | 288 |
