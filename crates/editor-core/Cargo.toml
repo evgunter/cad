@@ -181,3 +181,7 @@ geom-core = { path = "../geom-core", features = [
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "zz_probe_elbow"
+path = "tests/zz_probe_elbow.rs"
