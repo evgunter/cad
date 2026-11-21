@@ -132,8 +132,8 @@ Rule 2's zero arm, every flag, all programs (it is silent at 1e-6 and 1e-9):
 
 Every GERM row the sweep records is the same at all three ε: the
 circle × torus parallel-axes rows, the meridian row, and
-`bool_conic_quadric_first_*`. The nearest unflagged zero tail is
-`bool_conic_quadric_first_root_slack` at 6.51e-15, 0.65 of the 1e-14
+`conic_quadric_first_*`. The nearest unflagged zero tail is
+`conic_quadric_first_root_slack` at 6.51e-15, 0.65 of the 1e-14
 threshold. **The subdivision meters record no samples at all**:
 `bool_circle_torus_sub_root_slack`, the ellipse × torus rows and the
 section-certificate cone and torus rows. The corpus and the tour never

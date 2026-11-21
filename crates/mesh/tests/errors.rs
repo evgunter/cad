@@ -121,6 +121,7 @@ test_utils::f6_variants! {
         UnclearedSharedSide,
         OverusedSide,
         SphereTrimShape,
+        WrapStripTurn,
     ];
 }
 
@@ -159,6 +160,7 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "height:",
     "faces:",
     "uses:",
+    "turn:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -366,6 +368,17 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 cause: mesh::types::SphereTrimCause::PastPole,
             },
             vec!["trimmed lane", "past a chart pole or apex mid-edge"],
+        ),
+        (
+            TessellateError::WrapStripTurn {
+                face,
+                turn: Some(topo::Deck {
+                    u: 2,
+                    v: 0,
+                    twin: false,
+                }),
+            },
+            vec!["one whole turn", "far half 2 whole turns", "re-mint"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

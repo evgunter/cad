@@ -453,15 +453,20 @@ const CORPUS: &[(&str, Disposition)] = &[
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
-    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
-    // is a vertex the closing join keeps; the C prism's top is three
-    // pieces, and the half ridge's top stays whole along its knot line
-    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    // two sub-arcs and each elliptic cone rim two arcs, and a knot on an
+    // edge alone is a vertex the closing join keeps; the C prism's top is
+    // three pieces, and the half ridge's top stays whole along its knot
+    // line; the circular half cone is promoted to a cone first, so it
+    // keeps the file's census (`a_foreign_carrier_splits_at_each_c0_knot`).
     (
         "tests/fixtures/c0-knot/c_prism.step",
         Pass(1, 1, 12, 30, 20),
     ),
-    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 4, 6, 4)),
+    (
+        "tests/fixtures/c0-knot/half_elliptic_cone.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
     (
         "tests/fixtures/c0-knot/half_ridge.step",
         Pass(1, 1, 6, 12, 8),
@@ -471,6 +476,26 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/c0-knot/seam_edge.step",
         Pass(1, 1, 6, 13, 9),
+    ),
+    // A half cylinder and a half cone frustum on rational walls, each
+    // also stated with its parameters swapped: each wall promotes whole to
+    // its own kind either way round, so each keeps the file's census
+    // (`a_promoted_kind_is_the_same_whichever_way_the_net_runs`).
+    (
+        "tests/fixtures/promotion/a_half_cone.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cone_T.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl_T.step",
+        Pass(1, 1, 4, 6, 4),
     ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (

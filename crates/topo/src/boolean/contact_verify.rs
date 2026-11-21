@@ -334,7 +334,7 @@ fn tangent_table<T: Decide>(
     // parallel reading's Zero is what verifies the contact. (The edge
     // certifier levers the same pair at its faces' extent; this table
     // has no faces.)
-    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
+    let extent = geom_brep::edge_extent_sup(carrier, t0, t1);
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
@@ -516,7 +516,7 @@ fn tangent_pass<T: Decide>(
         // second-order margin is therefore computed first and ACTED ON
         // last — computing it early must not let it refuse before the
         // first-order test (which can rule the pair out) has spoken.
-        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm.length());
+        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
         // Both readings run detached so the second-order one's
         // escalation reaches the frame's log only where the outcome
         // rests on it (`k_stats::splice_superseded`, below).
@@ -566,7 +566,7 @@ fn tangent_pass<T: Decide>(
             let (at, log) = geom_core::k_stats::detached(|| {
                 crate::validate::decide(
                     "contact_tangent_second_order_at",
-                    Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+                    Margin::sagitta(jet.kappa_rel.abs(), arm),
                     band,
                 )
             });
@@ -624,10 +624,8 @@ fn tangent_pass<T: Decide>(
                 sign: Sign::Positive,
                 ..
             }) if claim == Claim::Contact => {
-                let crescent = Margin::sagitta(
-                    geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
-                    arm.length(),
-                );
+                let crescent =
+                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
                 match crate::validate::decide_reported("contact_tangent_overlap", crescent, band) {
                     Ok(Decided {
                         sign: Sign::Negative,

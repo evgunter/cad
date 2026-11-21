@@ -643,8 +643,8 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
 /// Pappus within 1.1e-5 of it beyond the pad. The fit is the square
 /// elbow's above: stations at the rational arc's parameter, which is
 /// not its arc length (3.9e-6 when they sat at chord lengths). Acceptance 5's exact
-/// oracle is the conic quarter torus, whose walls ARE the torus
-/// (`step-import`'s
+/// oracle is the conic quarter elliptic tube, whose spline walls ARE its
+/// locus (`step-import`'s
 /// `a_conic_quarter_torus_measures_a_bracket_at_the_wall`).
 ///
 /// Through the raw door, because the subject is the measurement and not
