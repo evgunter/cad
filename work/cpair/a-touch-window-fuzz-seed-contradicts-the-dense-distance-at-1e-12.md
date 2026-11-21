@@ -128,3 +128,14 @@ of the row here drew a failing seed (only this one was captured).
 The same row drew `CAD_FUZZ_SEED=0xd5b1cddf2406ff5f` (`CAD_FUZZ_EFFORT=1`)
 in the reviewer's run and failed its 1e-12 pass, `1 readings
 contradicted`. Replayed alone it fails and reaches no `half_angle` walk.
+
+## 2026-11-21 — a third seed (GERM U3a, PR 7226's CI)
+
+The slow-set run of `each_window_reading_holds_on_a_dense_distance` on
+PR 7226 drew `CAD_FUZZ_SEED=0x1b1bbf1c5dca1efb CAD_FUZZ_EFFORT=1`:
+`ε 0.000000000001: 1 readings contradicted`, draw 54, a circle of
+radius ≈548.6 whose `Recedes` reading on
+`(5.121e-10, 5.139e-10)` contradicts the dense distance. It reproduces
+locally with `crates/geom/src/curves/conic.rs` (the one shared file
+the PR changes on that path) put back to main's, and the PR does not
+touch `curve_pair/pose/window/`: the same defect, a new seed.

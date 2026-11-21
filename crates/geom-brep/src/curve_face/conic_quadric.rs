@@ -31,8 +31,9 @@
 //!
 //! - **The first-harmonic arm — `A₂` in the zero band**: the residual is
 //!   a first harmonic to within `A₂`, which is charged to both extremes'
-//!   noise, and the shared first-harmonic door decides it on its exact
-//!   extremes under the `conic_quadric_first_*` rows. The arm is
+//!   noise, and the pose decides it on its exact extremes (the
+//!   `curve_face_pose_*` rows; the roots' slack is the method's
+//!   `conic_quadric_first_root_slack`). The arm is
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
 //!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
