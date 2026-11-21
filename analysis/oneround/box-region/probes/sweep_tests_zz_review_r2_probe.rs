@@ -352,9 +352,41 @@ fn review_r2_timing_of_the_ask() {
             topo::session_box_at(body, &id, tol).unwrap();
         });
         let gate = mean_us(20, || {
-            topo::validate_geometric_structural(body, tol).unwrap();
+            let _ = topo::validate_geometric_structural(body, tol);
         });
         println!("TIMING f64 {name}: ask {ask:.1} us, structural gate {gate:.1} us");
+    }
+    // The ask where the carriers reach past the box: a sphere wedge
+    // inside the box whose ball pokes out of it (stages 1, 2 and 3), a
+    // dome whose zone is windowed (stages 1 and 2), and the same two
+    // 300 m nearer the origin (stage 1 alone).
+    let band = geom_core::Band::linear(tol).unwrap();
+    let turn = RigidMotion::rotation(
+        UnitVec3::new(Vec3::new(0.0, 1.0, 0.0), "y", band).unwrap(),
+        core::f64::consts::PI,
+    )
+    .unwrap();
+    let wedge = try_revolved_about_y_at::<f64>(
+        vec![(p(0.0, -300.0), 1.0), (p(0.0, 300.0), 0.0)],
+        Revolution::Partial(1.1),
+        tol,
+    )
+    .unwrap();
+    let dome = sweep::test_support::dome(400.0, tol);
+    for (name, body, motion) in [
+        ("wedge near", &wedge, RigidMotion::translation(Vec3::new(600.0, 0.0, 0.0)).unwrap().compose(turn).unwrap()),
+        ("wedge at the wall", &wedge, RigidMotion::translation(Vec3::new(900.0, 0.0, 0.0)).unwrap().compose(turn).unwrap()),
+        ("dome near", &dome, RigidMotion::translation(Vec3::new(0.0, -700.0, 0.0)).unwrap()),
+        ("dome at the wall", &dome, RigidMotion::translation(Vec3::new(0.0, -990.0, 0.0)).unwrap()),
+    ] {
+        let word = match topo::session_box_at(body, &motion, tol) {
+            Ok(()) => "admitted".to_string(),
+            Err(e) => format!("{e}").chars().take(40).collect(),
+        };
+        let ask = mean_us(200, || {
+            let _ = topo::session_box_at(body, &motion, tol);
+        });
+        println!("TIMING f64 {name}: ask {ask:.1} us ({word})");
     }
     let id_iv = RigidMotion::<Interval>::identity();
     let ball = sweep::test_support::revolved_about_y_at::<Interval>(
@@ -378,7 +410,7 @@ fn review_r2_timing_of_the_ask() {
             topo::session_box_at(body, &id_iv, tol).unwrap();
         });
         let gate = mean_us(5, || {
-            topo::validate_geometric_structural(body, tol).unwrap();
+            let _ = topo::validate_geometric_structural(body, tol);
         });
         println!("TIMING Interval {name}: ask {ask:.1} us, structural gate {gate:.1} us");
     }

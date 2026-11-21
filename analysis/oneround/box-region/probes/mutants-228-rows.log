@@ -1,0 +1,65 @@
+== mutant 0
+     Summary [  34.466s] 228 tests run: 228 passed, 11818 skipped
+== mutant 1
+        FAIL [   0.327s] ( 82/228) sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+        FAIL [   0.395s] ( 23/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+        FAIL [   0.452s] ( 86/228) sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+        FAIL [   0.533s] ( 84/228) sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+        FAIL [   0.585s] ( 91/228) sweep::all tcost_k3_certificate::a_refusing_arm_returns_no_properties_through_either_door
+        FAIL [   1.232s] ( 90/228) sweep::all tcost_k3_certificate::a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement
+     Summary [  39.096s] 228 tests run: 222 passed, 6 failed, 11818 skipped
+== mutant 2
+        FAIL [   0.277s] ( 86/228) sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+        FAIL [   0.311s] ( 22/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+        FAIL [   0.317s] ( 82/228) sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+     Summary [  35.627s] 228 tests run: 225 passed, 3 failed, 11819 skipped
+== mutant 3
+        FAIL [   0.574s] ( 91/228) sweep::all tcost_k3_certificate::a_refusing_arm_returns_no_properties_through_either_door
+        FAIL [   0.623s] ( 85/228) sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+        FAIL [   1.385s] ( 90/228) sweep::all tcost_k3_certificate::a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement
+     Summary [  40.347s] 228 tests run: 225 passed, 3 failed, 11819 skipped
+== mutant 4
+        FAIL [   0.294s] ( 91/228) sweep::all tcost_k3_certificate::a_refusing_arm_returns_no_properties_through_either_door
+        FAIL [   0.758s] ( 83/228) sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+        FAIL [   0.996s] ( 90/228) sweep::all tcost_k3_certificate::a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement
+     Summary [  39.579s] 228 tests run: 225 passed, 3 failed, 11819 skipped
+== mutant 5
+        FAIL [   0.192s] (109/228) topo session_box::tests::a_placements_reach_is_its_images_to_the_bit
+        FAIL [   0.218s] ( 84/228) sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+        FAIL [   0.253s] ( 82/228) sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+        FAIL [   0.330s] ( 26/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+        FAIL [   0.362s] ( 85/228) sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+     Summary [  31.558s] 228 tests run: 223 passed, 5 failed, 11819 skipped
+== mutant 6
+     Summary [  31.471s] 228 tests run: 228 passed, 11819 skipped
+== mutant 7
+     Summary [  34.458s] 228 tests run: 228 passed, 11819 skipped
+== mutant 8
+     Summary [  36.792s] 228 tests run: 228 passed, 11819 skipped
+== mutant 10
+     Summary [  33.275s] 228 tests run: 228 passed, 11819 skipped
+== mutant 11
+     Summary [  35.820s] 228 tests run: 228 passed, 11819 skipped
+== mutant 12
+     Summary [  36.027s] 228 tests run: 228 passed, 11819 skipped
+== mutant 13
+        FAIL [   0.245s] ( 86/228) sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+        FAIL [   0.272s] ( 15/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+        FAIL [   0.282s] ( 82/228) sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+        FAIL [   0.319s] ( 83/228) sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+        FAIL [   0.337s] ( 16/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_placed_past_the_box_refuses_at_its_placement
+        FAIL [   0.358s] ( 22/228) editor-core::all intent_e_operation_frame_of_reads::a_mirror_past_the_box_refuses_at_the_mirror
+        FAIL [   0.359s] ( 18/228) editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement
+        FAIL [   0.364s] ( 24/228) editor-core::all intent_e_operation_frame_of_reads::two_far_copies_refuse_each_at_its_placement
+        FAIL [   0.365s] ( 25/228) editor-core::all product_finishes_once::a_copy_moved_past_the_box_refuses_at_the_box
+        FAIL [   0.477s] ( 13/228) editor-core::all face_chart_and_signed_depth::a_sweep_lifted_past_the_box_refuses_at_its_lift
+        FAIL [   0.480s] ( 27/228) editor-core::all product_finishes_once::a_member_past_the_box_refuses_at_its_placement_before_the_product
+        FAIL [   0.514s] ( 33/228) editor-core::all product_finishes_once::a_sub_assembly_placed_far_out_is_asked_once_where_it_stands
+     Summary [  35.927s] 228 tests run: 216 passed, 12 failed, 11819 skipped
+== mutant 14
+        FAIL [   0.231s] ( 86/228) sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+     Summary [  34.988s] 228 tests run: 227 passed, 1 failed, 11819 skipped
+== mutant 15
+     Summary [  36.495s] 228 tests run: 228 passed, 11819 skipped
+== mutant 16
+     Summary [  36.660s] 228 tests run: 228 passed, 11819 skipped
