@@ -1553,32 +1553,32 @@ pub(crate) fn loop_hull<T: Decide>(
 }
 
 /// **The radius of a ball about `from` holding a loop**, given its
-/// vertices and each edge's cover: the far distance from `from` of the
-/// vertices' cover ([`Cover::points`]) and of each edge's, folded by
-/// their maximum. A poisoned term is refused rather than folded, so no
-/// lever built on the extent carries it on.
+/// vertices and each edge's cover: `|v − from|`, and each cover's
+/// farthest distance from `from`, folded by their maximum. A poisoned term
+/// is refused rather than folded, so no lever built on the extent
+/// carries it on.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] for a poisoned term, or a loop with
-/// no finite vertex.
+/// [`PointInLoopError::CorruptLoop`] for a poisoned term.
 fn extent_from<T: Decide>(
     r#loop: LoopKey,
     from: Point3<T>,
     verts: &[Point3<T>],
     covers: &[Cover<T>],
 ) -> Result<Lever<T>, PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let far = |cover: &Cover<T>| {
-        let term = ExtentBall::of_cover_from(Some(cover), from).lever_from(from);
-        match term.length().is_poison() {
-            true => Err(corrupt()),
-            false => Ok(term),
-        }
+    let poisoned = |term: Lever<T>| match term.length().is_poison() {
+        true => Err(PointInLoopError::CorruptLoop { r#loop }),
+        false => Ok(term),
     };
-    let mut extent = far(&Cover::points(verts.to_vec()).ok_or_else(corrupt)?)?;
+    let mut extent = ExtentBall::point(from).lever();
+    for v in verts {
+        extent = extent.max(poisoned(ExtentBall::point(*v).lever_from(from))?);
+    }
     for cover in covers {
-        extent = extent.max(far(cover)?);
+        extent = extent.max(poisoned(
+            ExtentBall::of_cover_from(Some(cover), from).lever_from(from),
+        )?);
     }
     Ok(extent)
 }
