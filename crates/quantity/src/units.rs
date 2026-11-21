@@ -170,6 +170,27 @@ impl UnitDef {
         self.factor
     }
 
+    /// The number of this unit that `canonical` is, rounded to a float
+    /// (one divide by the factor); `None` where the factor carries a
+    /// finite value out of the format or a nonzero one to zero, so the
+    /// unit has no number for it. A value that is not finite divides
+    /// to itself.
+    #[must_use]
+    pub fn number_of(self, canonical: f64) -> Option<f64> {
+        let q = canonical / self.factor;
+        let lost = canonical.is_finite() && (!q.is_finite() || (q == 0.0 && canonical != 0.0));
+        (!lost).then_some(q)
+    }
+
+    /// The number that, typed in this unit, is `canonical` to the bit
+    /// (the text door's `number * factor`), choosing the one with the
+    /// shortest spelling. `None` where no number is (a multiply by the
+    /// factor can step over a float), or `canonical` is not finite.
+    #[must_use]
+    pub fn authored(self, canonical: f64) -> Option<f64> {
+        crate::fmt::authored(canonical, self.factor)
+    }
+
     /// This row as a [`LengthUnit`], or `None` when the row measures an
     /// angle — the public route from a table row to the typed view that
     /// builds a [`crate::Length`].

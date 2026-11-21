@@ -275,7 +275,7 @@ impl Bounds {
     /// not to. A headless row pins it.
     ///
     /// **Each number is rendered rather than formatted**
-    /// ([`crate::readout::number`]), and the care above is the reason
+    /// ([`crate::readout::computed`]), and the care above is the reason
     /// rather than tidiness. A fixed `{:.4}` overclaimed at both ends
     /// of this sentence: a floor at 40 nm written in millimetres read
     /// `valid from 0.0000 mm`, which promises a range down to zero that
@@ -294,8 +294,8 @@ impl Bounds {
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::reads_back`] measures how far a
-    /// text reads FROM the value). This is what stops the rule being
+    /// a distance (the told grid is of the magnitude, either sign).
+    /// This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_in`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
     ///
@@ -305,10 +305,10 @@ impl Bounds {
     /// so a bound above `f64::MAX * MILLI` has no millimetre value and
     /// `inf mm` would read as a search that reached infinity — the
     /// overclaim this whole doc comment exists to refuse, at the one
-    /// end where nothing the probe did is wrong. The conversion is
-    /// asked rather than performed
-    /// ([`crate::props::shown_text`], over [`crate::props::written`]),
-    /// which is also why the divide is no longer written out here.
+    /// end where nothing the probe did is wrong. The value is handed
+    /// over canonical ([`crate::props::shown_text`]) and such a bound
+    /// reads in metres, so one sentence can name two units
+    /// (`work/scalar/two-quantities-of-one-sentence-told-apart-can-read-in-two-units.md`).
     /// The `map_or` this line used to open with was a third
     /// hand-written spelling of [`crate::props::shown_in`] — the one
     /// that door's own doc warns about — and the door that renders it
