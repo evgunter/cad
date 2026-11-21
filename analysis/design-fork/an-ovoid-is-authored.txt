@@ -1,0 +1,5 @@
+fork: an-ovoid-is-authored (PROFILE, work/profile/an-ovoid-cannot-be-authored.md, P1)
+drawn: 2026-11-21T03:47:14Z, python3 os.urandom(1)
+arm byte: 184 (>= 86): two designers
+label byte: 170 (even): A = Opus designer, B = Fable designer
+protocol: ddd201f411
