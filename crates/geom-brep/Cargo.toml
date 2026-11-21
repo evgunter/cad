@@ -63,3 +63,8 @@ geom-brep = { path = ".", features = ["test-support"] }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# REVIEW PROBE (reviewer r2, PR 7203): not part of the suite.
+[[test]]
+name = "review_r2_common"
+path = "tests/review_r2_common.rs"
