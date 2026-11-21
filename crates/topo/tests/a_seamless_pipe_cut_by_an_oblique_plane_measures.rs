@@ -375,9 +375,8 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval(
     }
 }
 
-/// The document door's default whole-query budget
-/// (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
-const BUDGET: usize = 65_536;
+/// The at-rest gate's whole-query budget.
+const BUDGET: usize = topo::clearance::GATE_MAX_CELL_PAIRS;
 
 /// A witness: two faces, the closest pair of on-face stations, and
 /// their distance.
@@ -409,7 +408,11 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
+    let side = Side {
+        body,
+        faces,
+        excluded: topo::clearance::FacePairs::none(),
+    };
     let windows = side.windows(Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {

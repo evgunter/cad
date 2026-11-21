@@ -330,6 +330,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
         Side {
             body: body.body(),
             faces: body.body().faces().map(|(k, _)| k).collect(),
+            excluded: topo::clearance::FacePairs::none(),
         }
     };
     let mut widths = Vec::new();

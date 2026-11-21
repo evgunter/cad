@@ -173,6 +173,19 @@ pub const CLEARANCE_SUPPORT_GAP: &str = "clearance_support_gap";
 /// evaluation carries information at `f64`.
 pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 
+/// **The at-rest gate's pair budget**: how many cell pairs the
+/// body-level injectivity question examines before it refuses
+/// [`CellBudget::Pairs`]. One fixed budget for every finished body, so a
+/// verdict does not depend on who asked (PR 6102's rule).
+pub const GATE_MAX_CELL_PAIRS: usize = 65_536;
+
+/// The at-rest gate's dials: [`DEFAULT_MAX_CELL_DEPTH`] and
+/// [`GATE_MAX_CELL_PAIRS`].
+pub const GATE_BUDGETS: Budgets = Budgets {
+    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+    max_cell_pairs: GATE_MAX_CELL_PAIRS,
+};
+
 /// **How deep a touching pair read at wedge 0 or 2π splits before it
 /// refuses**, naming the second-order arm. Above it the pair splits like
 /// any uncertified one, so the cells it holds away from the edge are
@@ -384,6 +397,51 @@ pub struct Side<'b, T: Real> {
     /// the candidate order — and so which of several equally true
     /// violations is reported — is a function of the body.
     pub faces: Vec<FaceKey>,
+    /// The face pairs the engine never offers: where one body's faces
+    /// meet at its recorded contacts ([`crate::ContactRecords::face_pairs`]), so the
+    /// injectivity question asks the body off them (`[topology.tiers]`).
+    pub excluded: FacePairs,
+}
+
+/// **Unordered face pairs** a question leaves out ([`Side::excluded`]):
+/// a pair and its reverse are one pair, and a face may pair with itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FacePairs(BTreeSet<(FaceKey, FaceKey)>);
+
+impl FacePairs {
+    /// No pair.
+    #[must_use]
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// Whether `{a, b}` is one of these pairs.
+    #[must_use]
+    pub fn holds(&self, a: FaceKey, b: FaceKey) -> bool {
+        self.0.contains(&(a.min(b), a.max(b)))
+    }
+
+    /// Whether there is no pair.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The pairs, each as `(lesser, greater)`, ascending.
+    pub fn iter(&self) -> impl Iterator<Item = (FaceKey, FaceKey)> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl FromIterator<(FaceKey, FaceKey)> for FacePairs {
+    fn from_iter<I: IntoIterator<Item = (FaceKey, FaceKey)>>(pairs: I) -> Self {
+        Self(
+            pairs
+                .into_iter()
+                .map(|(a, b)| (a.min(b), a.max(b)))
+                .collect(),
+        )
+    }
 }
 
 impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
@@ -420,7 +478,10 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
             .iter()
             .map(|&k| window_of(self.body, k, which, at))
             .collect::<Result<_, _>>()?;
-        Ok(Windows { of })
+        Ok(Windows {
+            of,
+            excluded: self.excluded.clone(),
+        })
     }
 }
 
@@ -457,6 +518,7 @@ impl Which {
 #[derive(Debug, Clone)]
 pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
+    excluded: FacePairs,
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -1483,6 +1545,7 @@ impl Sweep {
             "two sides of one body are read through no motion"
         );
         k_stats::unlogged("F41", move || {
+            let excluded = &wa.excluded;
             let (wa, wb) = (&wa.of[..], &wb.of[..]);
             let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
             // **The prune threshold carries the BAND.** The tree excludes a
@@ -1511,7 +1574,9 @@ impl Sweep {
                     let (Some(x), Some(y)) = (wa.get(i), wb.get(j)) else {
                         return false;
                     };
-                    !same_body || seen.insert((x.face.min(y.face), x.face.max(y.face)))
+                    !same_body
+                        || (!excluded.holds(x.face, y.face)
+                            && seen.insert((x.face.min(y.face), x.face.max(y.face))))
                 })
                 .collect();
             // What each candidate's two faces share, in M.
@@ -1596,7 +1661,7 @@ impl Sweep {
                         _ => None,
                     };
                     if let Some(r) = readings.below.as_ref().and_then(sliver) {
-                        q.lower_refusal.get_or_insert(r);
+                        crate::gate_measure::noted(&mut q.lower_refusal, r);
                     }
                     if let Some(r) = readings.above.as_ref().and_then(sliver) {
                         q.upper_refusal.get_or_insert(r);
@@ -1634,7 +1699,8 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            q.lower_refusal.get_or_insert(r);
+                            crate::gate_measure::noted(&mut q.lower_refusal, r);
+                            crate::gate_measure::walk_event((x.face, y.face), 0, 0.0, true, 0);
                         }
                     }
                     continue;
@@ -1795,6 +1861,12 @@ fn walk<T: Real, Q: Question<T>>(
         // is started.
         let r = &w.receipt;
         if r.discharged + r.violated + r.refused + frontier.len() > budgets.max_cell_pairs {
+            crate::gate_measure::walk_overflow(
+                frontier
+                    .iter()
+                    .filter_map(|t| Some((wa.get(t.i)?.face, wb.get(t.j)?.face)))
+                    .collect(),
+            );
             q.overflow(&mut w.receipt, frontier);
             break;
         }
@@ -1809,7 +1881,21 @@ fn walk<T: Real, Q: Question<T>>(
                 continue;
             };
             deepest = deepest.max(task.pair.depth);
-            if q.pair(&mut w, task, x, y).is_break() {
+            let (m_splits, m_refused, m_depth, m_clock) = (
+                w.receipt.splits,
+                w.receipt.refused,
+                task.pair.depth,
+                std::time::Instant::now(),
+            );
+            let m_flow = q.pair(&mut w, task, x, y);
+            crate::gate_measure::walk_event(
+                (x.face, y.face),
+                w.receipt.splits - m_splits,
+                m_clock.elapsed().as_secs_f64(),
+                w.receipt.refused > m_refused,
+                m_depth,
+            );
+            if m_flow.is_break() {
                 w.receipt.abandoned += w.left + w.next.len();
                 return (w.receipt, deepest);
             }
@@ -1921,7 +2007,8 @@ impl<W, F> Bound<'_, W, F> {
     /// Whether every question the bound asks has its answer: a lower
     /// violation, or an upper bound's proof where there is no lower one.
     fn answered(&self) -> bool {
-        self.violation.is_some() || (self.sweep.bound.lower().is_none() && self.within.is_some())
+        (self.violation.is_some() && !crate::gate_measure::continuing())
+            || (self.sweep.bound.lower().is_none() && self.within.is_some())
     }
 
     /// The refusal an undecided reading is, where refinement cannot
@@ -1992,12 +2079,22 @@ impl<W, F> Bound<'_, W, F> {
         if matches!(r.below, Some(Reading::Answers)) {
             match self.offer(at, self.below()) {
                 Ok(w) => {
+                    if self.lower_refusal.is_some() {
+                        crate::gate_measure::refused_before_crossing();
+                    }
+                    crate::gate_measure::crossed_in(at.x.face, at.y.face);
+                    if crate::gate_measure::continuing() {
+                        self.violation.get_or_insert(w);
+                        return ControlFlow::Continue(Bucket::Violated);
+                    }
                     self.violation = Some(w);
                     return ControlFlow::Break(());
                 }
                 Err(what) => {
-                    self.lower_refusal
-                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                    crate::gate_measure::noted(
+                        &mut self.lower_refusal,
+                        EngineRefusal::WitnessUnverified { what },
+                    );
                 }
             }
             bucket = Bucket::Violated;
@@ -2169,6 +2266,15 @@ where
                     },
                     other => other,
                 };
+                if std::env::var_os("CV_PAIRS").is_some() {
+                    let o = match &outcome {
+                        Outcome::Certified { .. } => "cert".to_string(),
+                        Outcome::Split { arm, shared } => format!("split {arm:?} {shared:?}"),
+                        Outcome::Refuse(r) => format!("refuse {r:?}"),
+                        Outcome::Cusp { .. } => "cusp".into(),
+                    };
+                    eprintln!("CVP touch {:?} {:?} d={} {}", x.face, y.face, pair.depth, o);
+                }
                 match outcome {
                     Outcome::Certified { corner } => {
                         discharge(&mut walk.receipt, &mut self.widths);
@@ -2183,7 +2289,7 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        self.lower_refusal.get_or_insert(r);
+                        crate::gate_measure::noted(&mut self.lower_refusal, r);
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -2208,15 +2314,18 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            self.lower_refusal.get_or_insert(match stop {
-                                CellBudget::Depth { .. } => EngineRefusal::Uncertified {
-                                    a: x.face,
-                                    b: y.face,
-                                    shared,
-                                    arm,
+                            crate::gate_measure::noted(
+                                &mut self.lower_refusal,
+                                match stop {
+                                    CellBudget::Depth { .. } => EngineRefusal::Uncertified {
+                                        a: x.face,
+                                        b: y.face,
+                                        shared,
+                                        arm,
+                                    },
+                                    other => EngineRefusal::Budget(other),
                                 },
-                                other => EngineRefusal::Budget(other),
-                            });
+                            );
                         }
                     }
                 }
@@ -2309,12 +2418,20 @@ where
         if let Some(Reading::Undecided(source)) = &r.below {
             if probe_here && let Ok(w) = self.offer(&at, self.below()) {
                 walk.receipt.violated += 1;
+                if self.lower_refusal.is_some() {
+                    crate::gate_measure::refused_before_crossing();
+                }
+                crate::gate_measure::crossed_in(x.face, y.face);
+                if crate::gate_measure::continuing() {
+                    self.violation.get_or_insert(w);
+                    return ControlFlow::Continue(());
+                }
                 self.violation = Some(w);
                 return ControlFlow::Break(());
             }
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
-                    self.lower_refusal.get_or_insert(refusal);
+                    crate::gate_measure::noted(&mut self.lower_refusal, refusal);
                     bucket = Bucket::Refused;
                 }
                 None => split.below = true,
@@ -2370,11 +2487,21 @@ where
             open: split,
             ..task
         };
+        if std::env::var_os("CV_PAIRS").is_some() {
+            eprintln!(
+                "CVP dist {:?} {:?} d={} sep={:?} a={:?}",
+                x.face,
+                y.face,
+                pair.depth,
+                separation(&pair.a.enc, &pair.b.enc),
+                pair.a.enc
+            );
+        }
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
             let refusal = EngineRefusal::Budget(stop);
             if split.below {
-                self.lower_refusal.get_or_insert(refusal.clone());
+                crate::gate_measure::noted(&mut self.lower_refusal, refusal.clone());
             }
             if split.above {
                 self.upper_refusal.get_or_insert(refusal);
@@ -2393,7 +2520,7 @@ where
             max_cell_pairs: self.sweep.budgets.max_cell_pairs,
         });
         if frontier.iter().any(|t| t.open.below) {
-            self.lower_refusal.get_or_insert(refusal.clone());
+            crate::gate_measure::noted(&mut self.lower_refusal, refusal.clone());
         }
         if frontier.iter().any(|t| t.open.above) && self.within.is_none() {
             self.upper_refusal.get_or_insert(refusal);
@@ -3502,6 +3629,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Surface::Approx(_) => return unsupported(APPROXIMATED),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
+        if std::env::var_os("CV_CAVITY_F64").is_some() {
+            eprintln!("CVWIN face={face:?} u={u:?} v={v:?} bounds={bounds:?}");
+        }
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
     // Read through a motion, the window's carrier is the stored one
@@ -3875,7 +4005,21 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // The whole parameter span as ONE interval: the carrier's
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
-            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            let whole = carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi()));
+            if std::env::var_os("CV_CAVITY_F64").is_some()
+                && !(whole.x.hi().is_finite()
+                    && whole.x.lo().is_finite()
+                    && whole.y.hi().is_finite()
+                    && whole.y.lo().is_finite()
+                    && whole.z.hi().is_finite()
+                    && whole.z.lo().is_finite())
+            {
+                eprintln!(
+                    "CVEDGE face={face:?} edge={ek:?} span={span:?} carrier={:?} whole={whole:?}",
+                    curve.carrier()
+                );
+            }
+            pts.push(whole);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -4790,6 +4934,41 @@ impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
     }
 }
 
+/// **The width that blocked a refusal of the injectivity question**
+/// ([`blocking_width`]): what would answer it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockingWidth {
+    /// The family's: a stored point of the body is held wider than the
+    /// band at its scalar, so a narrower parameter box answers it.
+    Family,
+    /// The cell's: every stored point of the body reads within the band,
+    /// so a finer cell or a larger budget answers it.
+    Cell,
+}
+
+/// **Which width blocked a refusal of `body`'s injectivity question**:
+/// the family's where a vertex's coordinate, crossed into the engine
+/// ([`Interval::from_certified`]), is wider than the band's escalation
+/// threshold, and the cell's otherwise. At a point scalar every vertex is
+/// a point, so the cell's.
+pub fn blocking_width<T: CertifiedBounds>(body: &Body<T>, band: Band) -> BlockingWidth {
+    let wide = |x: T| {
+        let i = Interval::from_certified(x);
+        !matches!(
+            (i.hi() - i.lo()).partial_cmp(&band.escalate()),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        )
+    };
+    if body
+        .points()
+        .any(|(_, p)| wide(p.x) || wide(p.y) || wide(p.z))
+    {
+        BlockingWidth::Family
+    } else {
+        BlockingWidth::Cell
+    }
+}
+
 /// **What the verdict door answers** ([`embedded`]): the yes and the no
 /// of E7's self-intersection question, and the typed refusal that is
 /// neither.
@@ -4862,7 +5041,7 @@ pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     budgets: Budgets,
 ) -> EmbeddingReport {
     let lane = ClearanceLane::<T>::certified();
-    let windows = match lane.windows(side, Which::First) {
+    let windows = match k_stats::unlogged("F41", || lane.windows(side, Which::First)) {
         Ok(windows) => windows,
         Err(refusal) => {
             return EmbeddingReport {
@@ -5026,6 +5205,7 @@ mod wiring_rows {
         let side = super::Side {
             body: &cube,
             faces: cube.faces().map(|(k, _)| k).collect(),
+            excluded: crate::clearance::FacePairs::none(),
         };
         let report = super::embedded(
             &side,
@@ -5565,10 +5745,12 @@ mod trv_rows {
             &Side {
                 body: &a,
                 faces: faces(&a),
+                excluded: crate::clearance::FacePairs::none(),
             },
             &Side {
                 body: &b,
                 faces: faces(&b),
+                excluded: crate::clearance::FacePairs::none(),
             },
             false,
             Band::linear(Tol::witness()).unwrap(),
