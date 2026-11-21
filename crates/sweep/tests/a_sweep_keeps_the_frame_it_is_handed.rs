@@ -971,11 +971,14 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// decisions from the first count to the second. The full revolve reads
 /// 501 / 461, as it did with the registration; the partial reads 493 /
 /// 611 where it read 501 / 613, eight fewer decisions symbolic and two
-/// fewer numeric, the planes it no longer fits.
+/// fewer numeric, the planes it no longer fits. Validation then stopped
+/// reading the four corners' shared vertices (`profile::seg`'s
+/// `line_line`), six decisions a corner, 20 symbolic and 4 numeric: 481 /
+/// 457 and 473 / 607.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 501, 461), "the full washer");
-    assert_eq!(washer_counts(false), (true, 493, 611), "the partial washer");
+    assert_eq!(washer_counts(true), (true, 481, 457), "the full washer");
+    assert_eq!(washer_counts(false), (true, 473, 607), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world
