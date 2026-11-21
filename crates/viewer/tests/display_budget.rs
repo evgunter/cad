@@ -176,10 +176,7 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 ///
 /// **The character bound is asserted separately**
 /// ([`fits_and_reads_back_as_a_delta`]), because it is not part of the
-/// property: from `1.7975e305` up the millimetre value is in the band
-/// `readout` spells exactly rather than in four figures (its
-/// `the_top_of_the_type_is_spelled_exactly`), and that spelling is
-/// twenty-two characters.
+/// property.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_in(MM);
     // The millimetre value is formed here by a DIFFERENT operation from
