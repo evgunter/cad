@@ -2571,18 +2571,14 @@ pub fn plane_cone_section<T: Decide>(
                     // off the zero band, so the minor direction is
                     // defined.
                     let u_major = tilted_section_major(n, s_vec);
-                    // The centre is the apex's foot on the plane moved
-                    // along the major axis: in the plane by
-                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
-                    // reads a vector that cancels to K along the normal
-                    // and then divides it by K.
-                    //
-                    // The ellipse is born anchored at its vertex nearer
+                    // The ellipse is held on its arc at its vertex nearer
                     // the apex's foot, read where the plane meets that
                     // ruling (`ConeTilt::near_vertex`, finite toward the
-                    // parabola), so the arc there is stored at its own
-                    // scale however far the centre lies; the centre lies
-                    // from it along `δσ·û`.
+                    // parabola): the apex's foot on the plane moved along
+                    // the major axis, in the plane by construction. The
+                    // arc there is stored at its own scale however far
+                    // the centre lies; the centre lies from it along
+                    // `δσ·û` and is not computed here.
                     let delta_sigma = apex_gap * tilt.c.unit_sign();
                     let vertex = apex - n * apex_gap + u_major * tilt.near_vertex(delta_sigma);
                     let toward = u_major * (T::zero() - delta_sigma.unit_sign());

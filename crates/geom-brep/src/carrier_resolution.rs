@@ -408,7 +408,7 @@ mod tests {
     /// inside it, read at 17 points over ±80 m of arc about the point
     /// nearest the origin, against the exact residual of each surface.
     ///
-    /// The cone's is born anchored at its near vertex
+    /// The cone's is held on its arc at its near vertex
     /// ([`geom::Ellipse::anchored`]), and every point stands within
     /// `4u` of its own distance from the origin (and a metre), whatever
     /// the semi-axis, up to `1e6` here. The cylinder's is born with its

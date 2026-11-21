@@ -66,6 +66,34 @@ across a semi-axis (6.5e-13 where
 `seam_rows::an_arc_near_a_minor_vertex_resolves_at_its_own_scale` holds
 1e-14).
 
+## The doors that rebuild a conic through a centre constructor
+
+Each reads a conic's centre frame and builds a conic from it with
+`Circle::new` / `Curve3::circle` (or an ellipse's), so its result is
+held at a centre whatever its source was. Listed by both reviews of
+PR 7203; none meets an arc-held conic today, because every one of the
+same-locus sites takes a circle and a circle is held at its centre
+only. They are the sites that lose the placement the day a circle can
+be held on its arc.
+
+- Same locus, the placement lost: `crates/topo/src/replace_face.rs`
+  (the three doors the unit named, circle arms only),
+  `crates/topo/src/offset_axial.rs` (two), `crates/topo/src/ring_path.rs`
+  (`torus_circle_arc`), the `Rim` round trip
+  (`crates/topo/src/rim_wedge.rs`, `crates/topo/src/boolean/mod.rs`, two
+  sites), `MeetSegment::Arc` in `crates/topo/src/validate.rs`,
+  `crates/topo/src/on_surface.rs`, and `crates/sweep/src/swept.rs`
+  (`circle_at`, to evaluate).
+- Moved, or another curve: `crates/geom/src/pole_form.rs`
+  (`half_turn_curve`, which also re-squares the frame),
+  `crates/topo/src/junction.rs`, `crates/topo/src/end_face.rs`.
+- From an ellipse's derived centre frame, a different conic:
+  `crates/topo/src/ring_path.rs` (`ConicArc::distance_floor`),
+  `crates/sweep/src/blend/surgery.rs` (`piece_along`).
+
+`crates/step-export/src/writer.rs` writes the derived centre, which is
+Ev's decision on PR 4812 and not one of these.
+
 ## Not established
 
 - The exact count per family. The table names where each was seen, not

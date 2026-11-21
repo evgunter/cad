@@ -3371,7 +3371,7 @@ mod conic_tests {
                 r,
             )));
         }
-        // A conic born anchored reads its own chain, from its anchor.
+        // An ellipse held on its arc reads its own chain, from its anchor.
         let (n, toward) = (Vec3::new(0.3, -0.5, 0.8), Vec3::new(1.0, 0.4, -0.2));
         conics.push(Box::new(geom::Ellipse::anchored(
             Point3::new(0.4, -0.3, 0.2),

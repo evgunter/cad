@@ -143,7 +143,10 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 
 ## What `oneround/anchored-conic` lands, and what of the ratified text it does not (2026-11-21)
 
-The unit lands with two stored forms and the phase. After it:
+The unit lands with one private placement on an ellipse: held at its
+centre, or held on its arc with the phase of its anchor. A circle is
+held at its centre only (no door mints one on its arc, and no filed row
+will). After it:
 
 - **"A conic is stored anchored" is true of the kernel's cone sections
   only.** `plane_cone_section`'s ellipse is stored anchored at its near
@@ -183,3 +186,18 @@ under `analysis/oneround/conic-vertex/step-b-one-form/`. One form waits
 for `work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md`
 and for a door that can anchor on the arc
 (`a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`).
+
+**Two things the reviews of PR 7203 left on this row.**
+
+- `carrier_resolution::resolution`
+  (`crates/geom-brep/src/carrier_resolution.rs`) charges an ellipse held
+  on its arc `u` times its semi-axis, as it charges one held at its
+  centre, and its module doc says an ellipse resolves its arc "only to
+  about `u·A`". Near an anchor at the seam's own vertex the point holds
+  to its own coordinates' rounding, so the charge is conservative there.
+  Whether any reader should read less is not decided.
+- A seam turn decided on an `Interval` that straddles
+  (`Ellipse::quarter_turned_where`, `seamed_toward`) hulls the anchor's
+  phase to `([0, 1], [−1, 0])`, and the derived centre is then about a
+  semi-axis wide, where an ellipse held at its centre keeps its centre
+  exact through the same turn. Not probed.

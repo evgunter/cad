@@ -883,7 +883,16 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
 /// How many `u` of a flat cone's section `size` its image's envelope may
 /// read, on the `size` `flat_cone_tilted_ellipse.rs` holds the carrier
 /// itself to (16 `u`, `RESOLUTION_ULPS`): `max(larger semi-axis,
-/// |centre|, |apex|)`. Fitted to the readings below, not derived.
+/// |centre|, |apex|)`.
+///
+/// **A measured figure, not a pin**: the three envelopes read 50, 81
+/// and 95 `u`, and this is a tenth over the largest. It says the image
+/// has not got worse; it does not hold the image's construction, and
+/// was 48 while the carrier and its image were both built from one
+/// centre. The image is still built from the derived centre while the
+/// carrier is held on its arc, and the register of that is
+/// `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`,
+/// whose fix brings this back down.
 const FLAT_IMAGE_ULPS: f64 = 104.0;
 
 /// **A flat cone's section images and certifies at its own resolution**
@@ -898,13 +907,17 @@ const FLAT_IMAGE_ULPS: f64 = 104.0;
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
 /// band, decides. The envelopes read 50, 81 and 95 `u`. The section is
-/// born anchored at its near vertex, where it stands on both surfaces
+/// held on its arc at its near vertex, where it stands on both surfaces
 /// to its own coordinates' rounding, and the image is still built from
 /// the derived centre and the semi-axis, each read through the small
 /// `K`; the envelope is their disagreement
 /// (`work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`).
-/// What reds the row: the anchor moved 30 `u` of the semi-axis back
-/// along the major axis, which reads 42, 160 and 82 `u`.
+///
+/// What the row holds is that the envelope does not grow past the
+/// measured ceiling ([`FLAT_IMAGE_ULPS`]). It is a weak guard of the
+/// mint: the anchor moved 30 `u` of the semi-axis back along the major
+/// axis reads 42, 160 and 82 `u`, red at one pose of the three and
+/// under the unmoved reading at the other two.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();

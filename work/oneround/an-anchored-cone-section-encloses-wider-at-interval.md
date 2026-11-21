@@ -92,20 +92,27 @@ are.
 
 ## Closed by the phase
 
-An anchored ellipse now stores where on itself its anchor sits, and a
-re-seam turns the seam and that phase and leaves the anchor where it is
-(`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`). The centre
-is derived once from the anchor. The same rows, widths in m³, bars
-untouched:
+An ellipse held on its arc now stores where on itself its anchor sits,
+and a re-seam turns the seam and that phase and leaves the anchor where
+it is (`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`). The
+centre is read from the stored anchor at every seam. The same rows,
+widths in m³, bars untouched:
 
-| row, op | centre-born base | anchored, no phase | anchored, with the phase |
-|---|---|---|---|
-| certified scalar, cone ∪ box | 4.86e-11 | 6.26e-11 | 3.22e-11 |
-| certified scalar, box ∪ cone | 7.78e-11 | 1.06e-10 | 5.39e-11 |
-| certified scalar, cone ∖ box | 4.83e-12 | (not reached) | 2.68e-12 |
-| point maps, cone ∪ box | 2.02e-11 | 2.63e-11 | 1.15e-11 |
-| point maps, box ∪ cone | 3.00e-11 | 4.02e-11 | 1.64e-11 |
-| point maps, cone ∖ box | 2.09e-12 | 2.85e-12 | 9.31e-13 |
+| row, op | centre-held, base at `3df3b1d41` | anchored, no phase, on `3df3b1d41` | centre-held, base at `ec8749552` | anchored with the phase, on `ec8749552` |
+|---|---|---|---|---|
+| certified scalar, cone ∪ box | 4.86e-11 | 6.26e-11 | 3.79e-11 | 3.22e-11 |
+| certified scalar, box ∪ cone | 7.78e-11 | 1.06e-10 | 5.82e-11 | 5.39e-11 |
+| certified scalar, cone ∖ box | 4.83e-12 | (not reached) | 3.01e-12 | 2.68e-12 |
+| point maps, cone ∪ box | 2.02e-11 | 2.63e-11 | 1.33e-11 | 1.15e-11 |
+| point maps, box ∪ cone | 3.00e-11 | 4.02e-11 | 1.73e-11 | 1.64e-11 |
+| point maps, cone ∖ box | 2.09e-12 | 2.85e-12 | 1.03e-12 | 9.31e-13 |
+
+The first two columns are this row's own measurements on the base the
+unit then stood on; the base moved to `ec8749552` under it and narrowed
+these rows itself. The third column is the base the unit is stacked on
+now, measured by both reviews of PR 7203 (the same figures from each);
+the fourth is the unit on it. Against its own base the unit is narrower
+on all six, by 5 to 15%.
 
 Both rows pass at ε = 1e-9 and 1e-6, and the point-maps row builds
 again at ε = 1e-12. The certified-scalar row at ε = 1e-12 is red on

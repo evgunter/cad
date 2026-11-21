@@ -17,9 +17,10 @@ at a principal vertex only.
 
 ## What is not built
 
-A conic born anchored (`geom::Circle::anchored`,
-`geom::Ellipse::anchored`) stores its point at `θ = 0`, which is its
-vertex on `u_ref`. `plane_cone_section` mints its ellipse so, at the
+An ellipse held on its arc (`geom::Ellipse::anchored`; a circle is
+held at its centre only) is minted with its anchor at its point at
+`θ = 0`, its vertex on `u_ref`. `plane_cone_section` mints its ellipse
+so, at the
 near vertex, and its in-box points stand on both surfaces at their own
 coordinates' rounding (worst 6.7e-16 m at semi-axes from 1e3 to 1e6,
 against 7e-13 … 7e-10 before).

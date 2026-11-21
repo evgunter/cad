@@ -26,8 +26,10 @@ section tables only `plane_cone_section`'s ellipse is born anchored.
 Measured on the ρ = 1500 near-gap families
 (`in_band_sweep::the_near_gap_families_certify_by_their_stored_form`):
 born with their centre, 7, 7, 7, 7 and 1 of 40 certify, the meter's
-bound 3.8 `u·ρ`; born anchored at the graze point, 40 of 40 in every
-family.
+bound 3.8 `u·ρ`; held on its arc at the graze point, 40 of 40 in each of
+the four ellipse families (a circle is held at its centre only; the
+circle family anchored read 40 of 40 while the unit carried an anchored
+circle, which nothing minted).
 
 What giving such a conic an anchored reading would take, measured in
 phase 1 and in this unit:

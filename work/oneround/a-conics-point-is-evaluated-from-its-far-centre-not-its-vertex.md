@@ -95,6 +95,20 @@ root within ε of the exact oracle's. The meter's bound falls from
 6.4e-13 (3.8 u·ρ) to 1.28e-13 with the vertex summed in f64, and to
 6.7e-16 with it summed exactly.
 
+That 40 of 40 holds at ρ = 1500 and these 40 poses' depths (0.5 to 2 µm)
+only (measured 2026-11-21, `analysis/oneround/conic-vertex/exact-vertex-chord/`
+and `chord-at-f64-centre-at-interval/` on the analysis branch). With the
+vertex summed in `f64` the curve read is the one through the ROUNDED
+vertex, and a near-tangent root moves 1.5e4 to 5.6e5 m along the arc per
+metre the curve is shifted: against the stored centre's curve the
+reading certifies roots 1.1e-9 to 2.0e-9 m off at ρ = 1500 at depths of
+2e-8 to 4e-7 m (50 answers of the fuzzed row
+`a_circle_of_radius_1500_places_its_roots_within_the_zero_band`), and is
+wrong on 86 of 200 of these families' poses at ρ = 1e4. With the vertex
+summed exactly it gives no wrong answer against the stored entries'
+curve at any size to 1e4, and refuses as the centre sum does where the
+arc is away from the seam vertex.
+
 **(b) The section tables' far-centre conics.** Evaluation recovers
 nothing. Ellipses minted by `plane_cylinder_section` and
 `plane_cone_section` with centres past the box miss their own two
