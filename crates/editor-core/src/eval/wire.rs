@@ -4853,6 +4853,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     // The graft of its members is its scalar's leaf
     // (`topo::AtRestPolicy::leaf`), as they are: finished at `f64`, tier
     // 2 at the box scalars, where a taker finishes it.
+    let _site = topo::gate_measure::site("graft-disjoint-union");
     let fused = T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(

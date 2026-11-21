@@ -2458,6 +2458,32 @@ pub enum ValidationError {
         /// its recourse.
         why: crate::link::TouchUnread,
     },
+    /// **The at-rest gate: the boundary meets itself off its records.**
+    /// The body-level injectivity question
+    /// ([`crate::clearance::embedded`]) found, and its verifier
+    /// confirmed, two points of the boundary that are not one point of
+    /// it within the band of each other, on faces that share no cell
+    /// there and no recorded contact (`[topology.tiers]`).
+    BoundaryMeetsItself {
+        /// The face holding the first point, then the face holding the
+        /// second: the same face where one face folds through itself.
+        faces: [FaceKey; 2],
+        /// The two points, each as a `(u, v)` of its face's stored chart.
+        stations: [(f64, f64); 2],
+        /// The two points, as coordinates, and how far apart they are at
+        /// most.
+        witness: String,
+    },
+    /// **The at-rest gate could not certify the boundary embedded.** The
+    /// body-level injectivity question refused: a budget, a carrier it
+    /// does not read, or a touching pair no local certificate
+    /// discharged. Never read as embedded.
+    EmbeddingUncertified {
+        /// The engine's refusal, verbatim.
+        refusal: crate::clearance::EngineRefusal,
+        /// The width that blocked it: the family's or the cell's.
+        width: crate::clearance::BlockingWidth,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -5341,6 +5367,24 @@ impl ValidationError {
                 "a part touches itself at {witness}, and whether its faces there bound one \
                  material is undecided: {}",
                 why.sentence(at)
+            ),
+            Self::BoundaryMeetsItself { witness, .. } => write!(
+                f,
+                "two faces meet at {witness}, off every edge and vertex they share and every \
+                 recorded contact, so the boundary crosses itself. Recourse: change the \
+                 construction so those faces stay apart, or record the contact if it is intended"
+            ),
+            Self::EmbeddingUncertified { refusal, width } => write!(
+                f,
+                "whether the boundary meets itself off its records is undecided: {}. {}",
+                embedding_refusal_words(refusal),
+                match width {
+                    crate::clearance::BlockingWidth::Family => {
+                        "The parameter box holds the body wider than the band. Recourse: narrow \
+                         the parameter box"
+                    }
+                    crate::clearance::BlockingWidth::Cell => geom_core::KERNEL_LIMIT_RECOURSE,
+                }
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
@@ -10810,11 +10854,147 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
+        Self::embedded(&body, linear_band(tol)?)?;
         Ok(Self {
             body,
             sign,
             held: None,
         })
+    }
+
+    /// **The at-rest gate's embedding question** (`[topology.tiers]`): the
+    /// body-level injectivity question ([`crate::clearance::embedded`]) of
+    /// each solid of `body` against itself, every face of the solid against
+    /// every face and itself, at the gate's one budget
+    /// ([`crate::clearance::GATE_BUDGETS`]). Asked once tier 3 has passed.
+    /// Faces of two solids are never paired: where solids meet is the
+    /// census's.
+    ///
+    /// A crossing is read again at the body's own scalar, the gate's one
+    /// logged reading per solid: the two faces' carriers at the verifier's
+    /// two stations, their distance decided at
+    /// [`crate::clearance::SELF_INTERSECTION_GAP`]. Inside the band it is
+    /// [`ValidationError::BoundaryMeetsItself`]; clear of it, the engine's
+    /// witness does not hold at this scalar; undecided (a family whose
+    /// members straddle the band, the drive's cue), the width that blocked
+    /// it says which.
+    ///
+    /// # Errors
+    ///
+    /// Per solid that does not certify: [`ValidationError::BoundaryMeetsItself`]
+    /// for a verified crossing and [`ValidationError::EmbeddingUncertified`]
+    /// for an engine refusal.
+    fn embedded(body: &Body<T>, band: Band) -> Result<(), Vec<ValidationError>>
+    where
+        T: geom_core::CertifiedBounds,
+    {
+        let findings: Vec<ValidationError> = body
+            .solids()
+            .filter_map(|(solid, _)| {
+                let faces = body.faces_of_solid(solid).unwrap_or_default();
+                Self::solid_finding(body, faces, band)
+            })
+            .collect();
+        if findings.is_empty() {
+            Ok(())
+        } else {
+            Err(findings)
+        }
+    }
+
+    /// [`Self::embedded`] of one solid's `faces`: its finding, `None` where
+    /// it certifies.
+    fn solid_finding(body: &Body<T>, faces: Vec<FaceKey>, band: Band) -> Option<ValidationError>
+    where
+        T: geom_core::CertifiedBounds,
+    {
+        use crate::clearance::{
+            BlockingWidth, Embedding, EngineRefusal, FacePairs, GATE_BUDGETS,
+            SELF_INTERSECTION_GAP, Side, blocking_width, embedded,
+        };
+        if faces.is_empty() {
+            return None;
+        }
+        let side = Side {
+            body,
+            faces,
+            excluded: FacePairs::none(),
+        };
+        if crate::gate_measure::off() {
+            return None;
+        }
+        let measure_clock = std::time::Instant::now();
+        let measure_report = embedded(&side, band, GATE_BUDGETS);
+        let measure_secs = measure_clock.elapsed();
+        crate::gate_measure::log(body, &side.faces, &measure_report, measure_secs);
+        crate::gate_measure::decompose(
+            body,
+            &side.faces,
+            &measure_report,
+            measure_secs.as_secs_f64(),
+            band,
+        );
+        crate::gate_measure::carry(
+            body,
+            &side.faces,
+            &measure_report,
+            measure_secs.as_secs_f64(),
+            band,
+        );
+        if std::env::var_os("CAD_GATE_PASS").is_some() {
+            return None;
+        }
+        let crossing = match measure_report.verdict {
+            Embedding::Embedded => return None,
+            Embedding::Refused(refusal) => {
+                return Some(ValidationError::EmbeddingUncertified {
+                    width: blocking_width(body, band),
+                    refusal,
+                });
+            }
+            Embedding::Crosses(crossing) => crossing,
+        };
+        let (a, b) = crossing.faces;
+        let at = |f: FaceKey, (u, v): (f64, f64)| {
+            body.face_surface(f)
+                .map(|s| s.eval(T::from_computed(u), T::from_computed(v)))
+        };
+        let (Some(pa), Some(pb)) = (at(a, crossing.stations[0]), at(b, crossing.stations[1]))
+        else {
+            unreachable!("the engine names faces of the body it was asked about")
+        };
+        let unverified = |what: &str, width| ValidationError::EmbeddingUncertified {
+            refusal: EngineRefusal::WitnessUnverified {
+                what: what.to_owned(),
+            },
+            width,
+        };
+        Some(
+            match geom_core::k_stats::decide(
+                SELF_INTERSECTION_GAP,
+                Margin::of((pa - pb).norm()),
+                band,
+            ) {
+                Ok(Sign::Zero | Sign::Negative) => ValidationError::BoundaryMeetsItself {
+                    faces: [a, b],
+                    stations: crossing.stations,
+                    witness: format!(
+                        "{} and {}, at most {} m apart",
+                        crate::census::witness(pa),
+                        crate::census::witness(pb),
+                        crossing.distance
+                    ),
+                },
+                Ok(Sign::Positive) => unverified(
+                    "the crossing's two points are apart at the body's scalar",
+                    BlockingWidth::Cell,
+                ),
+                Err(_) => unverified(
+                    "the crossing's two points straddle the band at the body's scalar",
+                    blocking_width(body, band),
+                ),
+            },
+        )
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -11013,6 +11193,34 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
 
 /// `Band::linear(tol)`, its refusal as the verdict vector every door
 /// returns it in.
+/// **An injectivity refusal in words**, naming no arena key: what
+/// [`ValidationError::EmbeddingUncertified`] says the engine could not do.
+fn embedding_refusal_words(refusal: &crate::clearance::EngineRefusal) -> Cow<'static, str> {
+    use crate::clearance::{CellBudget, EngineRefusal as R};
+    match refusal {
+        R::Sliver { .. } => "a separation sits wholly inside the band".into(),
+        R::Budget(CellBudget::Depth { max_cell_depth }) => {
+            format!("a cell pair was split {max_cell_depth} times, the depth budget").into()
+        }
+        R::Budget(CellBudget::Pairs { max_cell_pairs }) => {
+            format!("the question examined {max_cell_pairs} cell pairs, its budget").into()
+        }
+        R::Budget(CellBudget::Resolution) => "a cell pair could not be bisected further".into(),
+        R::Unsupported { carrier, .. } => format!("the engine does not read {carrier}").into(),
+        R::WitnessUnverified { .. } => "a near pair was not confirmed by the verifier".into(),
+        R::PoisonEnclosure { .. } => "an enclosure between two faces did not evaluate".into(),
+        R::EmptyScope { .. } => "the body has no face to ask about".into(),
+        R::Uncertified { arm, .. } => {
+            format!("no local certificate discharged two touching faces ({arm:?} arm)").into()
+        }
+        R::CollapsedChart { .. } => {
+            "a face's chart collapses an edge to a point beside a touching pair".into()
+        }
+        R::TorusNotRing { .. } => "a torus face is not a ring torus".into(),
+        R::BoxDependent { .. } => "the parameter box does not decide a near pair".into(),
+    }
+}
+
 fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
     Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
 }
