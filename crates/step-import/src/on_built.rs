@@ -598,7 +598,15 @@ mod rev2_probes {
     use geom_core::spline::KnotVector;
 
     fn spec(carrier: Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeSpec {
-        EdgeSpec { start: 1, end: 2, carrier, t0, t1, reversed: false, curve: None }
+        EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier,
+            t0,
+            t1,
+            reversed: false,
+            curve: None,
+        }
     }
     fn dense(spec: &EdgeSpec, truth: impl Fn(Point3<f64>) -> f64) -> f64 {
         (0..=20000)
@@ -617,11 +625,24 @@ mod rev2_probes {
     fn rev2_arc_trim_crossing_an_extreme_and_wrapping() {
         let tilt = 1e-3_f64;
         let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
-        let printed = Curve3::circle(Point3::new(1e-4, 0.0, 0.0), n, 1.0 + 3e-5, Vec3::new(1.0, 0.0, 0.0));
+        let printed = Curve3::circle(
+            Point3::new(1e-4, 0.0, 0.0),
+            n,
+            1.0 + 3e-5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let built = Curve3::circle(c, z, 1.0, Vec3::new(1.0, 0.0, 0.0));
         let tp = core::f64::consts::TAU;
-        for trim in [(1.2, 2.0), (6.0, 8.0), (tp - 0.3, tp + 0.3), (3.0, 3.3), (4.5, 4.9), (1.5707963, 1.5707964), (0.1, tp + 0.05)] {
+        for trim in [
+            (1.2, 2.0),
+            (6.0, 8.0),
+            (tp - 0.3, tp + 0.3),
+            (3.0, 3.3),
+            (4.5, 4.9),
+            (1.5707963, 1.5707964),
+            (0.1, tp + 0.05),
+        ] {
             let s = spec(printed.clone(), trim);
             let b = printed_on(&s, &built).unwrap();
             let t = dense(&s, |p| off_circle(p, c, z, 1.0));
@@ -640,7 +661,9 @@ mod rev2_probes {
             Point3::new(-2.0 - push, 2.0 + push, 0.0),
             Point3::new(-2.0, 0.0, 0.0),
         ];
-        Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0]).unwrap()))
+        Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0]).unwrap(),
+        ))
     }
 
     #[test]
@@ -661,11 +684,25 @@ mod rev2_probes {
     #[test]
     fn rev2_spline_on_line_trim_off_the_knots() {
         let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
-        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
+        let knots = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0],
+            3,
+        )
+        .unwrap();
         let y = |v: f64| Point3::new(0.0, v, 0.0);
         let off = 1e-3;
-        let control = vec![y(0.0), y(1.0 / 3.0), y(2.0 / 3.0), y(1.0), Point3::new(off, 4.0 / 3.0, 0.0), Point3::new(-off, 5.0 / 3.0, 0.0), y(2.0)];
-        let printed = Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0; 7]).unwrap()));
+        let control = vec![
+            y(0.0),
+            y(1.0 / 3.0),
+            y(2.0 / 3.0),
+            y(1.0),
+            Point3::new(off, 4.0 / 3.0, 0.0),
+            Point3::new(-off, 5.0 / 3.0, 0.0),
+            y(2.0),
+        ];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0; 7]).unwrap(),
+        ));
         for trim in [(0.5, 1.5), (1.1, 1.3), (0.0, 1.0), (0.9, 1.05)] {
             let s = spec(printed.clone(), trim);
             let b = printed_on(&s, &line).unwrap();
@@ -680,11 +717,19 @@ mod rev2_probes {
     fn rev2_overshoot_along_a_line() {
         let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-        let control = vec![Point3::new(0.0, 0.0, 0.0), Point3::new(6.0, 0.0, 0.0), Point3::new(-5.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
-        let printed = Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap()));
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(6.0, 0.0, 0.0),
+            Point3::new(-5.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        ];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap(),
+        ));
         let s = spec(printed, (0.0, 1.0));
         let b = printed_on(&s, &line).unwrap();
-        let seg = printed_on_segment(&s, (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0))).unwrap();
+        let seg = printed_on_segment(&s, (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)))
+            .unwrap();
         eprintln!("REV2 overshoot: line bound {b:e}, segment bound {seg:e}");
     }
 }
