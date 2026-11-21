@@ -50,9 +50,11 @@
 //!   its parameter is charged as one large by its origin; the offset is a
 //!   local difference, read as it is.
 //!   Only where neither decides does the tilt route: levered
-//!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
-//!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
-//!   span, the pair is level where it can meet, and the offset at the
+//!   by the longer span's diameter from below (`curve_pair_pose_tilt`),
+//!   definite is a crossing; read zero levered by the shorter span's
+//!   diameter from above, which holds every point of it a meeting can
+//!   use, or zero over the longer span, the pair is level where it can
+//!   meet, and the offset at the
 //!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
 //!   definite refuses [`Unsettled::Meter`], the parallel margin having
 //!   not decided, and in the gap what the offset measures decides
@@ -944,11 +946,21 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
     c.conic().ok_or(MeetFault::Desync)
 }
 
-/// The metres a span runs at most: its parameter run at the carrier's
-/// greatest speed.
-fn reach<T: Decide>(s: &Span<'_, T>) -> T {
-    let (t0, t1) = s.params();
-    Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
+/// **The pair's two spans' diameters** ([`crate::edge_extent_inf`],
+/// [`crate::edge_extent_sup`]): the longer's from below, the lever of a
+/// tilt whose definite sign is a crossing, and the shorter's from above,
+/// which bounds where the two can meet and levers a tilt whose Zero is
+/// level there. Each is a diameter, read from no pivot.
+fn span_extents<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> (Lever<T>, Lever<T>) {
+    let read = |s: &Span<'_, T>| {
+        let (t0, t1) = s.params();
+        (
+            crate::edge_extent_inf(s.carrier(), t0, t1),
+            crate::edge_extent_sup(s.carrier(), t0, t1),
+        )
+    };
+    let ((inf_a, sup_a), (inf_b, sup_b)) = (read(a), read(b));
+    (inf_a.max(inf_b), sup_a.min(sup_b))
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -1379,8 +1391,9 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `at` the overlap ([`OnOneLine`], carrying its own rounding) and `lever`
-/// the longer span's metres.
+/// `at` the overlap ([`OnOneLine`], carrying its own rounding), `lever`
+/// the longer span's diameter from below and `over` the shorter span's
+/// from above ([`span_extents`]).
 ///
 /// The parallel argument runs first: where the offset less its most
 /// variation over the overlap and the escalation either side decides
@@ -1388,7 +1401,7 @@ enum Route {
 /// tilt reads. Then the gap: where the projections are disjoint and
 /// their gap decides positive (`curve_pair_pose_gap`), no point meets.
 /// Only otherwise does the tilt route: definite over the
-/// longer span, a crossing; zero over the overlap, or over the longer
+/// longer span, a crossing; zero over the shorter span, or over the longer
 /// span, level where the offset reads zero, and [`Unsettled::Meter`]
 /// where it does not, the parallel margin having not decided.
 ///
@@ -1401,7 +1414,7 @@ fn route<T: Decide>(
     rate: T,
     (offset, offset_is): (T, Offset),
     at: OnOneLine<T>,
-    lever: Lever<T>,
+    (lever, over): (Lever<T>, Lever<T>),
     band: Band,
 ) -> Result<Route, MeetFault> {
     let length = at.extent().max(T::zero());
@@ -1416,10 +1429,8 @@ fn route<T: Decide>(
     }
     let level = decide(
         row::TILT,
-        // Unsourced lever: the overlap's projected length widened by the
-        // band's escalation either side, a measured length and a
-        // tolerance, not a read of the extent home.
-        Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
+        // Level acts on its Zero: no longer an arm than either span.
+        Margin::levered(tilt, over),
         band,
     ) == Ok(Sign::Zero)
         || !definite_as(row::TILT, Margin::levered(tilt, lever), band)?;
@@ -1512,11 +1523,7 @@ fn line_line<T: Decide>(
         },
     );
     let off = unit2.distance(a0 + u1 * at.mid());
-    let lever = reach(a).max(reach(b));
-    // Unsourced lever: the longer span's arc length bounded through its
-    // sup speed (`reach`), a metered span; the extent home's read of the
-    // span (`edge_extent_sup`) has different bits.
-    let arm = geom_core::Lever::unsourced(lever);
+    let (arm, over) = span_extents(a, b);
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -1532,7 +1539,7 @@ fn line_line<T: Decide>(
         s / u1.dot(u2).abs(),
         (off, Offset::Distance),
         at,
-        arm,
+        (arm, over),
         band,
     )? {
         Route::Apart => Ok(Pose::Apart),
@@ -1568,11 +1575,7 @@ fn line_conic<T: Decide>(
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.frame().origin - o).dot(u);
-    let lever = reach(a).max(k.speed_hi());
-    // Unsourced lever: the line's span metered through its sup speed
-    // (`reach`), folded with the conic's size; the span's part fits no
-    // extent read with the same bits.
-    let arm = geom_core::Lever::unsourced(lever);
+    let (arm, over) = span_extents(a, b);
     let ends_a = line_ends(a)?;
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
@@ -1590,7 +1593,7 @@ fn line_conic<T: Decide>(
         den.abs(),
         (height.abs(), Offset::Height),
         at,
-        arm,
+        (arm, over),
         band,
     )? {
         Route::Apart => return Ok(Pose::Apart),

@@ -37,7 +37,7 @@
 //!   relation between the charts — `(u, v) ↦ (δ + σ·u + kτ, c + σ·v)`
 //!   — after its own carrier gates certify that the two descriptions
 //!   agree within ε everywhere the pair's trims reach (bounded from
-//!   the descriptions with the radius-pricing `hyp` lever, then
+//!   the descriptions levered at the trims' reach from the origins, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
 //!   whole number of periods decided per pair as structure
 //!   ([`geom_brep::Period::decide`]), however many periods apart. A gap
@@ -148,8 +148,8 @@ use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{
-    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
-    is_underflowed_length,
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Lever, Margin, Point2, Sign,
+    Vec2, is_underflowed_length,
 };
 
 use crate::body::Body;
@@ -1339,6 +1339,34 @@ fn pair_cover<T: Decide>(
     crate::cover::face_cover(body, face, band).map_err(ChartRegionError::FaceUncovered)
 }
 
+/// **How far `face`'s boundary reaches from `pivot`, from below**: the
+/// farthest of its edges' reaches ([`crate::cover::edge_reach_bounds`],
+/// each read from below), every one a distance to a point of the face.
+/// A lone-vertex loop, null scaffolding or a face with no edge is
+/// refused, as a face that does not resolve is.
+fn boundary_reach_below<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    pivot: geom_core::Point3<T>,
+) -> Result<Lever<T>, ChartRegionError> {
+    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
+    let reaches = view
+        .boundary()
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { ek, edge, .. } => {
+                crate::cover::edge_reach_bounds(body, ek, edge, pivot)
+                    .map(geom_brep::LeverBounds::below)
+                    .ok_or(ChartRegionError::Corrupt)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    reaches
+        .into_iter()
+        .reduce(Lever::max)
+        .ok_or(ChartRegionError::Corrupt)
+}
+
 /// Every boundary vertex of a face, outer loop then rings, cycle order
 /// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
 /// the face a link. A lone-vertex loop is refused, as a face that does
@@ -1500,22 +1528,21 @@ fn cyl_frame<T: Decide>(
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the
 /// displacement of `p` under the rigid rotation aligning the two
 /// frames. For `p` on B's cylinder, `‖p − o_b‖² = v² + r_b²`, so the
-/// rotation term is levered by **`hyp = √(reach² + r_max²)`** — the
-/// RADIUS is part of the lever (the tilt's first-order axial error is
+/// rotation term is levered by **both faces' reach from both origins**,
+/// which holds the RADIUS (the tilt's first-order axial error is
 /// `r·θ·cos u`, which no axial-reach lever prices; the review's
 /// bilateral finding):
 ///
 /// - `chart_region_cyl_radius` — `r_a − r_b`, metres at unit arm (a
 ///   length is not re-levered; enters `E` at weight one).
-/// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by `hyp`.
-///   `reach` is the largest |axial coordinate| of either face's cover
-///   about either description's own origin ([`pair_cover`]), and
-///   `r_max = max(r_a, r_b)` (both union-maxes over order-symmetric
-///   multisets — the `chart_region_carrier_tilt` construction). `hyp`
-///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach over the
-///   face's cover), which widens toward decline — the conservative
-///   direction; the second-order remainder rides the module's standing
-///   small-multiple posture.
+/// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by the farthest
+///   either face's cover ([`pair_cover`]) stands from either
+///   description's own origin (a union-max over an order-symmetric
+///   multiset — the `chart_region_carrier_tilt` construction). It acts
+///   on its Zero, so the lever is read from above: it is at least
+///   `‖p − o_b‖` for every trim point, which widens toward decline — the
+///   conservative direction; the second-order remainder rides the
+///   module's standing small-multiple posture.
 /// - `chart_region_cyl_offset` — the larger of the two perpendicular
 ///   origin-to-other-axis distances (`g⊥`), metres at unit arm
 ///   (symmetric by the same max-over-multiset construction).
@@ -1679,25 +1706,27 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     // --- Door 1's premise, CONSUMED (doc above).
     let gate_band = premise.band(band);
 
-    // --- The carrier gates, at the pair's own extent (doc above).
-    //     `reach` is the axial reach (largest |axial coordinate| of
-    //     either face's cover about either origin, a union-max over an
-    //     order-symmetric set); `hyp` is the TRANSFER
-    //     lever `√(reach² + r_max²)`: every point p of either trim
-    //     satisfies ‖p − o‖² = v² + r² ≤ reach² + r_max², so a rigid
-    //     rotation by θ between the two descriptions displaces trim
-    //     points by at most sin θ · hyp — the radius is priced.
-    let mut reach = T::zero();
+    // --- The carrier gates, at the pair's own extent (doc above). A
+    //     rigid rotation by θ between the two descriptions, pinned at
+    //     either frame's origin, displaces a trim point by at most
+    //     sin θ times its distance from there: the lever is both faces'
+    //     reach from both origins. The tilt gate acts on its Zero and
+    //     reads it from above (each face's cover); the sense row acts on
+    //     its sign and reads it from below (each face's boundary).
+    let mut above: Option<Lever<T>> = None;
+    let mut below: Option<Lever<T>> = None;
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         let cover = pair_cover(body, face, band)?;
-        for frame in [a, b] {
-            let (lo, hi) = cover.range_along(frame.axis);
-            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
-            reach = reach.max((lo - base).abs()).max((hi - base).abs());
+        for pivot in [a.origin, b.origin] {
+            let up = geom_brep::ExtentBall::of_cover_from(Some(&cover), pivot).lever();
+            let down = boundary_reach_below(body, face, pivot)?;
+            above = Some(above.map_or(up, |x| x.max(up)));
+            below = Some(below.map_or(down, |x| x.max(down)));
         }
     }
-    let r_max = a_radius.max(b_radius);
-    let hyp = (reach.powi(2) + r_max.powi(2)).sqrt();
+    let (Some(above), Some(below)) = (above, below) else {
+        unreachable!("two faces read from two origins")
+    };
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
     let signed_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
@@ -1719,33 +1748,23 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     signed_gate("chart_region_cyl_radius", Margin::of(a_radius - b_radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
-        Margin::levered(
-            a.axis.cross(b.axis).norm(),
-            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
-            // and the larger radius; no extent read computes it.
-            geom_core::Lever::unsourced(hyp),
-        ),
+        Margin::levered(a.axis.cross(b.axis).norm(), above),
     )?;
     let perp_a = a.axis_line().distance(b.origin);
     let perp_b = b.axis_line().distance(a.origin);
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
-    //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
-    //     the pair's own extent per unit axial step, so the sign read
-    //     goes through the metres door with an honest length. With unit
-    //     axes, (a·b)² + |a×b|² = 1, so `hyp` is at most
+    //     axial-direction cosine levered at the faces' reach from below:
+    //     metres of travel at the pair's own extent per unit axial step.
+    //     With unit axes, (a·b)² + |a×b|² = 1, so the reach is at most
     //     √(ε² + ε_gate²) when this row and the tilt gate both decide
-    //     Zero. Because `hyp ≥ r_max`, that happens only for a pair
-    //     smaller than the band, and the Zero it decides is honest.
+    //     Zero. A boundary point stands at least its radius from an
+    //     origin on its axis, so that happens only for a pair smaller
+    //     than the band.
     let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
-        Margin::levered(
-            a.axis.dot(b.axis),
-            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
-            // and the larger radius; no extent read computes it.
-            geom_core::Lever::unsourced(hyp),
-        ),
+        Margin::levered(a.axis.dot(b.axis), below),
         band,
     )
     .map_err(ChartRegionError::Escalated)?
@@ -4900,7 +4919,7 @@ mod tests {
     /// **A pair smaller than the band decides its axis sense Zero**,
     /// and the nonzero gate refuses that sign. Here a unit patch is
     /// read against a band wider than the patch. Every carrier gate
-    /// decides Zero, and so does the axis dot levered by `hyp`.
+    /// decides Zero, and so does the axis dot levered by the faces' reach.
     #[test]
     fn a_pair_inside_the_band_refuses_its_zero_axis_sense() {
         let twin = crate::pcurves::pole_slit_tests::cylinder_patch_below(0.0).unwrap();

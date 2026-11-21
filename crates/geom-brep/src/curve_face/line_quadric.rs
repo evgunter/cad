@@ -733,9 +733,7 @@ pub fn line_cone_roots<T: Decide>(
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, _] = centred.coeffs;
-    // Unsourced lever: a length read off the parameter run, not the
-    // run's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
     let lead = || {
         decide(
             "line_quadric_cone_lead",

@@ -1778,8 +1778,8 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's length,
-/// an iso curve's chord, and charged `slack`). The arrival on the closing
+/// (**`split_ring_path_spline_across`**, levered at the piece's extent
+/// from below, an iso curve's chord, and charged `slack`). The arrival on the closing
 /// chord, at the end of the path's last piece, is no crossing before it
 /// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
@@ -1800,14 +1800,18 @@ fn spline_crossings<T: Decide>(
     // below), and the span end it stops at.
     let (curve, params, length, extent, stop) = match piece {
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
-            // Unsourced lever: the arc's length, its angular span times its radius, longer
-            // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            let length = Lever::unsourced(p.circle.radius() * (p.span.1 - p.span.0));
+            // A crossing is a definite sign, levered at the arc's
+            // diameter from below; a piece of no length is a Zero,
+            // read at it from above.
+            let arc = geom::Curve3::Circle(p.circle);
+            let (t0, t1) = p.span;
+            let length = geom_brep::edge_extent_inf(&arc, t0, t1);
+            let extent = geom_brep::edge_extent_sup(&arc, t0, t1);
             (
-                geom::Curve3::Circle(p.circle),
+                arc,
                 p.span,
                 length,
-                Margin::of(charge(length.length(), slack)),
+                Margin::of(charge(extent.length(), slack)),
                 SpanEnd::Stop,
             )
         }

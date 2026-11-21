@@ -391,8 +391,12 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    fn len(&self) -> T {
-        self.at.1 - self.at.0
+    /// The span's extent, read off its line over `at`.
+    fn extent(&self) -> geom_core::Lever<T>
+    where
+        T: geom_core::spline::SpanLocate,
+    {
+        geom_brep::edge_extent_inf(&geom::Curve3::Line(self.line()), self.at.0, self.at.1)
     }
 
     /// The line it is a span of, `s` its parameter.
@@ -5396,12 +5400,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(
-            a.dir.cross(b.dir).norm(),
-            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
-            // line; no extent read takes a line's interval, and its chord read rounds differently.
-            geom_core::Lever::unsourced(a.len().min(b.len())),
-        ),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
         band,
         errors,
     )
