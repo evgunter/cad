@@ -1,0 +1,20 @@
+diff --git a/crates/sweep/tests/a_ring_on_a_cone_face.rs b/crates/sweep/tests/a_ring_on_a_cone_face.rs
+index 6e7501eb..3f735345 100644
+--- a/crates/sweep/tests/a_ring_on_a_cone_face.rs
++++ b/crates/sweep/tests/a_ring_on_a_cone_face.rs
+@@ -393,6 +393,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
+             v.lo(),
+             v.hi()
+         );
++        eprintln!("R1WIDTH {op} {:e}", v.hi() - v.lo());
+         widths.push(v.hi() - v.lo());
+     }
+     one_body_reads_alike_in_both_orders(&widths);
+@@ -508,6 +509,7 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
+             v.lo(),
+             v.hi()
+         );
++        eprintln!("R1WIDTH {op} {:e}", v.hi() - v.lo());
+         widths.push(v.hi() - v.lo());
+     }
+     one_body_reads_alike_in_both_orders(&widths);
