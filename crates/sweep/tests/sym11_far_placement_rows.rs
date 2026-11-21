@@ -8,12 +8,10 @@
 //! lines, two semicircles) extruded, the M10-9 washer —
 //! `sweep::revolve_washer`'s parametric annulus — revolved, and a
 //! triangle extruded. The triangle and the placement `d = 3.7e7` are
-//! ADOPTED FROM R2's review probe, which drove a body the table did not
-//! name at a magnitude between two that it did; they are what found the
-//! `(1e-9, 3.7e7)` cell below, where the bare lift refuses all three
-//! bodies and `Sym<f64>` builds the stadium and the washer with nothing
-//! disputed — the tier discharging identities the point channel could
-//! not, which no cell of the original table showed.
+//! adopted from R2's review probe. Every placement off the origin is past
+//! the session box, and the box refuses each far body at its first
+//! edge's certification, at every lane, before the mechanism is reached
+//! ([`TABLE`]).
 //!
 //! Driven at `Sym<f64>`, `Sym<Probe>` and `Sym<Interval>` inside a
 //! session so the receipt counts what the lane did, and at bare `f64`
@@ -171,84 +169,48 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 /// **THE MEASURED TABLE**, `[eps_row][placement]`, and the only copy of
 /// it in this file.
 ///
-/// Reading it across a row says what the mechanism costs as ε tightens;
-/// reading it down a column says what it costs as the body moves out.
-/// Three things in it are worth naming, because each is an assertion
-/// some earlier cut of this file left to prose:
-///
-/// - **The dispute set is exactly four cells** — `(1e-9, 1e9)` and all
-///   three non-origin placements at `1e-12` — and in every one of them
-///   the count is `3`. It is the session's count of disputed theorems,
-///   not a tally by body: each body driven alone disputes one there.
-/// - **At `(1e-9, 3.7e7)` the symbolic lanes BEAT the bare lift**: the
-///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds the
-///   stadium and the washer with zero disputes. The tier discharged
-///   identities the point channel could not certify — which is the
-///   whole point of the tier, and is why "the symbolic lane refuses
-///   wherever the bare lane does" would have been a false summary. The
-///   triangle is the exception, and an honest one: its side walls'
-///   lines are certified against their planes on the two ends' distances
-///   measured in certification arithmetic at every scalar (C2 limb 2),
-///   and at a point scalar those are the stored `f64` data, whose
-///   rounding at this placement leaves an end `1.18e-9` off its plane —
-///   inside the ambiguity band, so it escalates, and the tier's identity
-///   is read only at an exact witness.
-/// - **The certified lane's stadium claims nothing about its arcs.** It
-///   is written through the fixture door, which holds no tolerance and
-///   so registers none of the lowering's endpoint facts, and the sweep
-///   registers only rigidity. Its arc carriers' `u_ref` is the placement
-///   turning the sketch radial, so the carrier is the description's own
-///   placement of the sketch arc and builds out to `(1e-6, 1e9)` and
-///   `(1e-9, 1e6)`; from `3.7e7` out at `1e-9` and at every placement
-///   off the origin at `1e-12` it is a typed `EndpointStart`, cells where
-///   rule G (`SymRules::canonical_root`) alone builds it over the sweep's
-///   registrations. Never a contradiction, never a wrong answer
-///   (`work/profile/fixture-built-sym-rows-lose-registered-discharges.md`).
-/// - **The certified lane is not a superset or a subset of either.**
-///   It refuses the washer at `(1e-9, 3.7e7)` where `Sym<f64>` builds
-///   it (the enclosure straddles the band where the point does not),
-///   and it builds the triangle everywhere, including the cells where
-///   both point lanes refuse it.
-/// - **Every placement here but the origin is past the session box**
-///   (D4 ¶4 bounds each coordinate: `(d, d, d)` has every coordinate `d`, past 1 km from `d = 1e6`). In
-///   the bare lane a body that builds there is refused at its
-///   operation's finished-body gate as `OutsideSessionBox`; a refusal
-///   its construction makes first (a certification check) still answers
-///   as before, since the box decides only what would otherwise have
-///   built. The `Sym` lanes build a replay leaf (`AtRestPolicy::leaf`),
-///   whose finished-body gate, the box with it, runs where the leaf is
-///   taken, which no row here does. The mechanism this file measures,
-///   rounding past the band on an exact form, is what the box and the
-///   run's admission rule rule out together at a shipped run.
-/// - **The certified lane builds the stadium** wherever the point lanes
-///   do, its extrude's closing pcurve mint included: the arc walls'
-///   rows are certified over the `r` box by their closed-form envelope,
-///   every term a theorem, the loop walk's branch a literal. The washer,
-///   minted by revolve already, and the arc-free triangle do not move.
+/// **Every placement here but the origin is past the session box** (D4
+/// ¶4 bounds each coordinate: `(d, d, d)` has every coordinate `d`, past
+/// 1 km from `d = 1e6`). Each body's first edge's certification asks the
+/// box of the edge before any residual is read on it, at every scalar, so
+/// at every lane and every ε each far body refuses there, by the box,
+/// and no theorem is disputed: the mechanism this file measures (the
+/// point channel's rounding past the band on a form the tier proves
+/// zero) is not reached through a door. The cells it once measured past
+/// the box (the bare lift's `SurfaceResidual` and `MappedSource`, the
+/// `Sym<f64>` lane's rescue at `(1e-9, 3.7e7)`, the four disputing
+/// cells, the certified lane's `EndpointStart`) are each a body past the
+/// box, and each now reads the box's refusal. The origin builds at every
+/// lane.
+/// The far cells' three bodies, each refused by the session box.
+const BOXED: [&str; 3] = [
+    "OutsideSessionBox",
+    "OutsideSessionBox",
+    "OutsideSessionBox",
+];
+
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: no lane refuses anything a session builds.
+    // ε = 1e-6.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
     ],
-    // ε = 1e-9 (the shipped default): the mechanism reaches the point
-    // lanes at 1e9, and at 3.7e7 the tier rescues two of the three
-    // bodies the bare lift refuses.
+    // ε = 1e-9 (the shipped default).
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
     ],
-    // ε = 1e-12: every placement off the origin disputes.
+    // ε = 1e-12.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
+        Cell { bare: lane(BOXED, 0), inexact: lane(BOXED, 0), exact: lane(BOXED, 0) },
     ],
 ];
 

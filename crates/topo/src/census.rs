@@ -13795,7 +13795,7 @@ mod tests {
     /// ([`sweep_cross_solid_backstop`] arm 2), so both directions refuse
     /// with *"a surface kind with no cheap sound box leaves the
     /// containing instance's extent unclaimable"*. The refusal is
-    /// therefore position-independent: moving one sheet a kilometre
+    /// therefore position-independent: moving one sheet 900 m
     /// away produces the identical pair of errors, because no extent
     /// comparison happens at all. Do not read these rows as the arm
     /// measuring the sheets.
@@ -13841,8 +13841,8 @@ mod tests {
     /// geometry — which reads, in a suite, exactly like the arm
     /// measuring two overlapping sheets.
     ///
-    /// The second half is what makes that unmistakable: a sheet a
-    /// KILOMETRE away produces the byte-identical refusal. If this row
+    /// The second half is what makes that unmistakable: a sheet 900 m
+    /// away, near the session box's edge, produces the byte-identical refusal. If this row
     /// ever fails there, an extent comparison has started happening and
     /// the `face_findings` allowance above needs re-reading.
     #[test]
@@ -13896,9 +13896,9 @@ mod tests {
         );
         assert_eq!(
             near,
-            refusals(1000.3, 1000.7),
+            refusals(900.3, 900.7),
             "the refusal is about an unclaimable extent, so moving a sheet a \
-             kilometre away must not change it"
+             900 m away must not change it"
         );
     }
 
@@ -14732,7 +14732,9 @@ mod tests {
     /// `K = 1.001` and `K = 1.2` every end lies at a corner, read as the
     /// band's own parting or, where the point's chord to the end falls in
     /// the band's hair-wide gap, as the end reading's escalation, and the
-    /// census reports no defect.
+    /// census reports no defect. The radius scales with ε, so the arc
+    /// stands inside the session box only at ε = 1e-12; at the coarser
+    /// rows the row pins the box's refusal of it.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -14759,6 +14761,27 @@ mod tests {
             .map(|m| circle(98765.4 * (zero / 1e-9) * m))
             .find(|(.., parting)| parting.norm() > 0.001 * zero)
             .expect("a radius where the frame's end and eval's part past (K - 1)·zero");
+        // The radius scales with ε: at ε = 1e-12 the arc stands inside the
+        // session box; at coarser rows it reaches past it, and its rim's
+        // certification refuses it there, by the box, before any census.
+        let band = Band::linear(tol).unwrap();
+        let boxed = geom_brep::session_box::edge_in_box(
+            &carrier,
+            (0.0, t1),
+            (carrier.eval(0.0), end),
+            band,
+        );
+        if boxed.is_err() {
+            assert!(
+                matches!(boxed, Err(geom_brep::session_box::BoxRefusal::Point { .. })),
+                "the far arc is past the session box by a point of it: {boxed:?}"
+            );
+            test_utils::vacuity::stood_down(
+                "the far arc at K near one",
+                "its end reading: the arc stands past the session box at this ε",
+            );
+            return;
+        }
         let r = (end - center).norm();
         let away = parting / parting.norm();
         let parting = parting.norm();
@@ -15204,7 +15227,7 @@ mod tests {
     /// A described net carrying poison has no reach: the backstop
     /// refuses every cross-solid pair naming it, and arm 2 takes
     /// neither solid as the container, rather than either clearing on
-    /// the finite channels. The net's `z` lane sits at `2`, a kilometre
+    /// the finite channels. The net's `z` lane sits at `2`, 900 m
     /// below the other sheet, and would decide that gap on its own. Two
     /// nets: `x` poisoned at every point, and at one point only.
     #[test]
@@ -15226,7 +15249,7 @@ mod tests {
                 &mut body,
                 Some(cyl),
                 (1.0, 2.4),
-                (1000.3, 1000.7),
+                (900.3, 900.7),
                 false,
                 Tol::witness(),
             );

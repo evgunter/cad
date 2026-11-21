@@ -1126,12 +1126,34 @@ pub enum ContactMark {
 )]
 pub enum ValidationError {
     /// The body reaches definitely past the session box
-    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
-    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
-    /// Reported alone, before any check reads a margin on the geometry.
+    /// (`session_box_point`, D4 ¶4): a point known to lie on it has a
+    /// coordinate larger in magnitude than
+    /// `geom_core::tolerance::SESSION_BOX_EXTENT`, which no coordinate of
+    /// a model may exceed. Reported alone, before any of tier 3's checks
+    /// runs; the box's own reads (each face's cover and its placed
+    /// extremes) decide on the geometry first (`crate::session_box`).
     OutsideSessionBox {
-        /// The box's extent less the body's reach, metres (negative).
+        /// The box's extent less the points' reach, metres (negative).
         margin: geom_core::MarginDiag,
+    },
+    /// The body's cover reaches definitely past the session box
+    /// (`session_box_reach`) and no point known to lie on it does: the
+    /// kernel's bound on its faces' regions is too loose to show the body
+    /// in the box. A limit (`[failure.taxonomy]` row 2: a tighter bound
+    /// is not built), not a finding that the body leaves the box.
+    /// Reported alone, as [`Self::OutsideSessionBox`] is.
+    SessionBoxUnshown {
+        /// The box's extent less the cover's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
+    /// A face of the body has no cover, so the session box cannot bound
+    /// its region, and no point known to lie on the body is past the box.
+    /// A limit, as [`Self::SessionBoxUnshown`] is. Reported alone, and at
+    /// the finished-body gate only where tier 3's checks find nothing:
+    /// they name why a carrier or boundary bounds nothing.
+    SessionBoxUncovered {
+        /// The face with no cover (the first, in key order).
+        face: FaceKey,
     },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -3301,8 +3323,7 @@ pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
 /// [`crate::FindingFamily::SessionBox`]'s one recourse: the box bounds
 /// the model, not the tolerance, so the geometry moves.
-pub(crate) const SESSION_BOX: &str =
-    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+pub(crate) const SESSION_BOX: &str = geom_brep::session_box::SESSION_BOX_RECOURSE;
 
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
@@ -3527,6 +3548,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }))
             .0
         }
+        CertifyError::OutsideSessionBox { .. } => "it reaches past the session box",
+        CertifyError::SessionBoxUnshown { .. } => {
+            "the kernel cannot bound it inside the session box"
+        }
         CertifyError::StatedImageMissed { .. } => {
             "the chart image it states does not follow its carrier"
         }
@@ -3723,7 +3748,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::ChartImageUnavailable { .. }
+            CertifyError::OutsideSessionBox { .. }
+            | CertifyError::SessionBoxUnshown { .. }
+            | CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
             | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }
@@ -4667,6 +4694,20 @@ impl ValidationError {
                 "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
                  coordinate of a model may exceed (D4 ¶4)",
                 margin.readable_below_zero()
+            ),
+            Self::SessionBoxUnshown { margin } => write!(
+                f,
+                "the region the body's faces may occupy, as the kernel bounds it, reaches {} m \
+                 past the {SESSION_BOX_EXTENT:e} m session box, and no point known to lie on the \
+                 body does: the body may lie inside the box, but a tighter bound of its faces is \
+                 not built yet",
+                margin.readable_below_zero()
+            ),
+            Self::SessionBoxUncovered { .. } => write!(
+                f,
+                "a face of the body has no bound on the region it may occupy, so the kernel \
+                 cannot show the body inside the {SESSION_BOX_EXTENT:e} m session box, and no \
+                 point known to lie on the body is past it"
             ),
             Self::Band { error } => write!(
                 f,
@@ -6621,7 +6662,7 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
     let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
@@ -6630,10 +6671,10 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
         plus_v,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
-    if errors.is_empty() {
-        Ok(certificate)
-    } else {
-        Err(errors)
+    match (errors.is_empty(), uncovered) {
+        (true, None) => Ok(certificate),
+        (true, Some(uncovered)) => Err(vec![uncovered]),
+        (false, _) => Err(errors),
     }
 }
 
@@ -7488,11 +7529,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
 pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
-    use geom_core::is_finite_length as finite;
-    let components = finite(v.x) && finite(v.y) && finite(v.z);
-    let len = v.norm();
-    let zero = finite(len) && geom_core::is_zero_length(len, v.norm_witness());
-    components && !zero
+    geom::cover::is_direction(*v)
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum
@@ -10992,10 +11029,13 @@ fn pseudomanifold_certificate_via<
     // predicate ([`structural_via`]), so a body past it refuses here as
     // there, and a tier-3′ pass records the one decision a finish then a
     // census over a kept verdict records.
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
+    }
+    if let Some(uncovered) = uncovered {
+        return Err(vec![uncovered]);
     }
     census_verdict(body, contacts, band, tol, region)?;
     Ok(certificate_of_a_clean_verdict(certificate))

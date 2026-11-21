@@ -971,11 +971,13 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// decisions from the first count to the second. The full revolve reads
 /// 501 / 461, as it did with the registration; the partial reads 493 /
 /// 611 where it read 501 / 613, eight fewer decisions symbolic and two
-/// fewer numeric, the planes it no longer fits.
+/// fewer numeric, the planes it no longer fits. Each edge's
+/// certification then asks the session box of the edge first, numeric
+/// only: the full revolve 461 → 495, the partial 611 → 635.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 501, 461), "the full washer");
-    assert_eq!(washer_counts(false), (true, 493, 611), "the partial washer");
+    assert_eq!(washer_counts(true), (true, 501, 495), "the full washer");
+    assert_eq!(washer_counts(false), (true, 493, 635), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world

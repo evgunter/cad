@@ -59,3 +59,7 @@ exact arithmetic): the coordinates' own resolution at that ε, not this
 row's mechanism, and the same ending applies.
 
 Moved from GERMTAIL to GERM on 2026-11-20, by `git mv`, when GERMTAIL merged into GERM: GERMTAIL held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## Its witness is refused by the session box first (2026-11-21, ONEROUND `oneround/box-certify-ask`)
+
+`crates/sweep/tests/a_flat_frustum_revolves.rs`' `(1.55, 100)` row pinned this item's `EndpointEnd` at ε = 1e-12. Its base rim is 4.86 km across, past the session box, and certification now asks the box of each edge before any residual, so the frustum refuses by the box at every ε and the row no longer reaches the return-half rim. The item has no witness through a door until an in-box full revolve's return half misses its start past the band (its radius, `r·2·(π − fl(π))` against the band, wants about 4 km at 1e-12).

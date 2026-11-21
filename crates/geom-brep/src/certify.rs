@@ -463,6 +463,25 @@ impl core::fmt::Display for CertCheck {
     strum_discriminants(name(CertifyErrorKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum CertifyError {
+    /// **The edge reaches definitely past the session box**
+    /// (`session_box_point`, D4 ¶4): a point known to lie on it (an end,
+    /// or its carrier's own point over its span) has a coordinate larger
+    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`. Asked
+    /// before any other check ([`crate::session_box::edge_in_box`]), so
+    /// no residual is decided on an edge where no two spellings of a
+    /// point agree within ε.
+    OutsideSessionBox {
+        /// The box's extent less the points' reach, metres (negative).
+        margin: MarginDiag,
+    },
+    /// **The edge's cover reaches definitely past the session box**
+    /// (`session_box_reach`) and no point known to lie on it does: a
+    /// limit (`[failure.taxonomy]` row 2), not a finding that the edge
+    /// leaves the box.
+    SessionBoxUnshown {
+        /// The box's extent less the cover's reach, metres (negative).
+        margin: MarginDiag,
+    },
     /// The collapsed conventional description's **chart image could
     /// not be derived** for this (chart, carrier) pair (D4's mint
     /// door, `crate::chart_pcurve`).
@@ -880,6 +899,21 @@ pub fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
 impl core::fmt::Display for CertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::OutsideSessionBox { margin } => write!(
+                f,
+                "the edge reaches {} m past the {:e} m session box, which no coordinate of a \
+                 model may exceed (D4 ¶4)",
+                margin.readable_below_zero(),
+                geom_core::tolerance::SESSION_BOX_EXTENT
+            ),
+            Self::SessionBoxUnshown { margin } => write!(
+                f,
+                "the region the edge may occupy, as the kernel bounds it, reaches {} m past the \
+                 {:e} m session box, and no point known to lie on the edge does: the edge may lie \
+                 inside the box, but a tighter bound of it is not built",
+                margin.readable_below_zero(),
+                geom_core::tolerance::SESSION_BOX_EXTENT
+            ),
             Self::UnresolvedSurface { key } => {
                 write!(f, "surface key {key:?} does not resolve")
             }
@@ -1182,7 +1216,9 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => return Some(refusal.decided()),
             Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
             Self::Row { refusal, .. } => refusal.decision()?,
-            Self::UnresolvedSurface { .. }
+            Self::OutsideSessionBox { .. }
+            | Self::SessionBoxUnshown { .. }
+            | Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
@@ -1212,12 +1248,18 @@ impl CertifyError {
     }
 
     /// The ending this door reads off the refusal itself rather than off
-    /// its decision, or `None`: a door's input interval by its span, and
-    /// a carrier's incidence by what was read, through the one map every
-    /// incidence ending goes through ([`crate::IncidenceRead::ending`]).
+    /// its decision, or `None`: a door's input interval by its span, the
+    /// session box's refusal by its one recourse wherever it is read (and
+    /// its limit as a bound not built), and a carrier's incidence by what
+    /// was read, through the one map every incidence ending goes through
+    /// ([`crate::IncidenceRead::ending`]).
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            Self::OutsideSessionBox { .. } => {
+                Some(crate::session_box::SESSION_BOX_RECOURSE.to_owned())
+            }
+            Self::SessionBoxUnshown { .. } => Some(geom_core::NOT_YET_ENDING.to_owned()),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -2430,6 +2472,11 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
     ///
+    /// 0. The session box, of the carrier over the stated span with
+    ///    `start` and `end` ([`crate::session_box::edge_in_box`]):
+    ///    [`CertifyError::OutsideSessionBox`], or a limit
+    ///    ([`CertifyError::SessionBoxUnshown`]). An edge with no cover,
+    ///    whose data is not finite, is left to the checks below.
     /// 1. Implementedness: described surfaces resolve and are not
     ///    `Nurbs`, except the described NURBS wall of an `Intersection`
     ///    with a plane, sphere, cylinder or torus, the two charts of a
@@ -5164,6 +5211,31 @@ impl<T: Real> ReadSpec<T> {
     }
 }
 
+/// **Check 0**: the session box of `spec`'s carrier over its stated span
+/// with its two ends ([`crate::session_box::edge_in_box`]).
+fn in_the_box<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    ends: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<(), CertifyError> {
+    use crate::session_box::BoxRefusal;
+    let ask = || {
+        crate::session_box::edge_in_box(
+            &spec.carrier,
+            (spec.param_start, spec.param_end),
+            ends,
+            band,
+        )
+    };
+    match ask() {
+        // An edge has no cover only where its data is not finite, which
+        // the checks below refuse as their own poison.
+        Ok(()) | Err(BoxRefusal::Uncovered(())) => Ok(()),
+        Err(BoxRefusal::Point { margin }) => Err(CertifyError::OutsideSessionBox { margin }),
+        Err(BoxRefusal::Unshown { margin }) => Err(CertifyError::SessionBoxUnshown { margin }),
+    }
+}
+
 /// The certification engine (check sequence documented on
 /// [`EdgeCurve::certify`]): the mint's steps, with the endpoint pins
 /// between check 2 and the canonical description, then the sampled
@@ -5180,6 +5252,8 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     band: Band,
     kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
+    // ---- Check 0: the session box, of the edge's region with its ends.
+    in_the_box(spec, (start, end), band)?;
     let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());

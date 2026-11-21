@@ -879,7 +879,9 @@ impl ValidationError {
     pub const fn family(&self) -> FindingFamily {
         use FindingFamily as F;
         match self {
-            Self::OutsideSessionBox { .. } => F::SessionBox,
+            Self::OutsideSessionBox { .. }
+            | Self::SessionBoxUnshown { .. }
+            | Self::SessionBoxUncovered { .. } => F::SessionBox,
             Self::Band { .. } => F::Tolerance,
             Self::DanglingTopology { .. }
             | Self::DanglingGeometry { .. }

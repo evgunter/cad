@@ -349,10 +349,22 @@ fn r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit() {
             Ok(b) => b,
             Err(e) => {
                 println!("d = {d:e}: typed refusal upstream — {e}");
+                // The unit ball from 1e4 m out is past the session box,
+                // which refuses it at its first edge, never a residual.
+                assert!(
+                    d < 9e2
+                        || (e.contains("Certification { error: OutsideSessionBox")
+                            && !e.contains("ResidualExceeded")),
+                    "d = {d:e}: past the session box, refused by it: {e}"
+                );
                 refused.push(d);
                 continue;
             }
         };
+        assert!(
+            d < 9e2,
+            "d = {d:e}: past the session box, yet the ball builds"
+        );
         let m = match mesh::tessellate(&body, 0.02, geom_core::Tol::witness()) {
             Ok(m) => m,
             Err(e) => {

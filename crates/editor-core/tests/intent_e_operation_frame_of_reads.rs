@@ -930,3 +930,69 @@ fn a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement() {
         "the placement refuses"
     );
 }
+
+/// **A placed copy whose bulge alone stands past the box refuses at its
+/// placement**
+/// (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`,
+/// the third example: a one-input operation on a placed copy, which no
+/// door re-asks, would mint edges on that bulge). A ball of radius 50
+/// revolved about its own `y`, copied into the world 975 m along `z`: its
+/// top, at 1025 m, is interior to a face, on no vertex or edge, and the
+/// placement's ask reads it off the face (its sphere's pole placed on
+/// it). The copy refuses with the session box's finding alone, so no
+/// operation reads it. The same ball copied 940 m along `z` evaluates.
+/// A split of the copy itself is not this row's: a split through a
+/// sphere face is a typed frontier (`CurvedBooleanUnsupported`).
+///
+/// *Breaks if* the placing door reads the copy's vertices and edges
+/// alone: the far copy then evaluates.
+#[test]
+fn a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement() {
+    use crate::fixture::{ang, len2, revolve_about, scl};
+    use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
+    let tol = Tol::witness();
+    let r = 50.0;
+    let doc = ProfileDoc::empty(DocumentId::derive("e-bulge-past-the-box"), tol);
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At(len2([0.0, -r])),
+                ProgramStep::ArcTo(ProgramArcData::Bulge {
+                    target: ProgramTarget::Point(len2([0.0, r])),
+                    b: scl(1.0),
+                }),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, ball) = fixture::insert(
+        doc,
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
+    );
+    for (z, past) in [(975.0, true), (940.0, false)] {
+        let (doc, copy) = editor_core::test_support::in_world(
+            doc.clone(),
+            editor_core::Operand::output(ball, 0),
+            &editor_core::Frame::translation([0.0, 0.0, z]),
+            tol,
+        );
+        let ev = run(&doc, None);
+        if past {
+            assert_eq!(the_one_box_refusal(&doc, &ev), copy, "the copy refuses");
+        } else {
+            assert!(
+                ev.value(copy).is_some(),
+                "the copy at {z} m evaluates: {:?}",
+                ev.node_error(copy)
+            );
+        }
+    }
+}

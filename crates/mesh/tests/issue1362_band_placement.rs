@@ -11,7 +11,8 @@
 //! the door is an ABSOLUTE test (coordinate ulp against ε) while the
 //! defect is a RATIO test (placement over body size). A SMALL body at a
 //! MODERATE distance clears one and trips the other — `r = 1e-6` at
-//! `d = 1e3` has `ulp(1e3) ≈ 1.1e-13` yet a ratio of ~1.7e9.
+//! `d = 999` (inside the 1 km session box) has `ulp(999) ≈ 1.1e-13` yet
+//! a ratio of ~1.7e9.
 //!
 //! Tolerance posture: the ASSERTIONS consult no kernel tolerance — the
 //! measured volume is compared to `4πr³/3` with a budget argued from
@@ -78,7 +79,7 @@ fn volume_or_typed(r: f64, d: f64, label: &str) -> Option<f64> {
     Some(signed_volume(&m))
 }
 
-/// **Issue 1362, end to end.** A 1 µm ball at a 1 km placement — a
+/// **Issue 1362, end to end.** A 1 µm ball at a 999 m placement — a
 /// fixture the doors admit at the default band — must measure the same
 /// volume it measures at the origin, and must measure the sphere.
 ///
@@ -103,7 +104,7 @@ fn a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin() {
     let Some(v0) = volume_or_typed(r, 0.0, "origin") else {
         return;
     };
-    let Some(v) = volume_or_typed(r, 1.0e3, "placed 1e3") else {
+    let Some(v) = volume_or_typed(r, 9.99e2, "placed 999 m") else {
         return;
     };
     println!("origin {v0:e}, placed {v:e}, exact {exact:e}");
@@ -125,18 +126,19 @@ fn a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin() {
     );
 }
 
-/// The same corner, swept: the ratio is what matters, not the distance.
+/// The same corner, swept: the ratio is what matters, not the distance,
+/// each ball at 999 m on every axis, inside the session box.
 /// Every row whose doors admit it must agree with its own origin build.
 /// Rows the band refuses print and skip, so each ε gates the fixtures
 /// its doors let through.
 #[test]
 fn the_band_survives_every_placement_ratio_the_doors_admit() {
     for (r, d) in [
-        (1.0e-2, 1.0e4),
-        (1.0e-3, 1.0e4),
-        (1.0e-4, 1.0e4),
-        (1.0e-5, 1.0e3),
-        (1.0e-6, 1.0e3),
+        (1.0e-2, 9.99e2),
+        (1.0e-3, 9.99e2),
+        (1.0e-4, 9.99e2),
+        (1.0e-5, 9.99e2),
+        (1.0e-6, 9.99e2),
     ] {
         let ratio = d * 3.0_f64.sqrt() / r;
         let label = format!("r {r:e} d {d:e} (ratio {ratio:e})");

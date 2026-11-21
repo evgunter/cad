@@ -934,21 +934,24 @@ fn a_wrong_image_through_its_pcurve_door_ends_as_its_miss() {
 }
 
 /// **A correct image far from the origin certifies or ends in the
-/// lever**: on a tilted plane and on a cylinder's ruling, from 100 m to
-/// 10 km out, an iso line and a curve in UV stated against their own
-/// polyline (and, on the plane, against the line they are), at both
-/// scalars. The patch's corners and the composite carry the coordinates'
-/// rounding, which past some distance outgrows a fine band (as the
-/// endpoint pins' and the net's incidence read's rounding do): the stated
-/// image then reads in band, its lever, never a miss
+/// lever**: on a tilted plane and on a cylinder's ruling, 100 m and 600 m
+/// out (the edges' farthest coordinates near 150 m and 920 m), an iso
+/// line and a curve in UV stated against their own polyline (and, on the
+/// plane, against the line they are), at both scalars. The patch's
+/// corners and the composite carry the coordinates' rounding, which past
+/// some distance outgrows a fine band (as the endpoint pins' and the
+/// net's incidence read's rounding do): the stated image then reads in
+/// band, its lever, never a miss
 /// (`work/pcert/a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band.md`).
+/// At 1 km and 10 km out the edges stand past the session box, and every
+/// door refuses them there, by the box, before any image is read.
 #[test]
 fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
     let fi = Interval::from_f64;
     let n = Vec3::new(0.3, -0.5, 0.8).normalize();
     let u = (Vec3::new(1.0, 0.2, 0.0) - n * Vec3::new(1.0, 0.2, 0.0).dot(n)).normalize();
     let mut levers = 0usize;
-    for far in [1e2, 1e3, 1e4] {
+    for far in [1e2, 6e2, 1e3, 1e4] {
         let plane = Surface::Plane {
             origin: Point3::new(far, -far, 0.7 * far),
             normal: n,
@@ -996,6 +999,13 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
                 ),
             ];
             for got in got.iter().flatten() {
+                if far >= 1e3 {
+                    assert!(
+                        matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
+                        "{name} {far:e} m out stands past the session box: {got:?}"
+                    );
+                    continue;
+                }
                 // The stated image's own reading: never a miss, and in band
                 // its lever. (Far out, the endpoint pins and the net's
                 // incidence read meet their own rounding first.)

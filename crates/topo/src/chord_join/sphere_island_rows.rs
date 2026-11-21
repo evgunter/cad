@@ -4,7 +4,8 @@
 //! closing chord's plane, the shape the sphere's first reading refused.
 //! Each row is a fixed draw of islands — its seed is a fixture
 //! identifier, every draw at three frames and three scales (1, 1e-3,
-//! 1e3) — not a counterexample search.
+//! and 9e2, a sphere the session box holds about each frame's
+//! origin) — not a counterexample search.
 
 use super::*;
 use crate::construction::MevSite;
@@ -333,7 +334,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
     let (target, mut stood) = (36, 0);
     while built < target {
         let f = frames()[built % 3];
-        let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
+        let r = [1.0, 1e-3, 9e2][(built / 3) % 3];
         let s = Sph { f, r };
         let Some(island) = random_island(s, &mut rng) else {
             continue;
@@ -420,7 +421,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
     }
     if stood > 0 {
         test_utils::vacuity::stood_down(
-            "a sphere island at scale 1e-3 or 1e3",
+            "a sphere island at scale 1e-3 or 9e2",
             "its smallest feature is within ten thousand coincidence widths at this ε, or \
              its arcs, built in f64, certify their ends only to about 1e-13 of its size",
         );
@@ -442,7 +443,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
     let (target, mut stood) = (18, 0);
     while built < target {
         let f = frames()[built % 3];
-        let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
+        let r = [1.0, 1e-3, 9e2][(built / 3) % 3];
         let s = Sph { f, r };
         let Some(island) = random_island(s, &mut rng) else {
             continue;
@@ -536,7 +537,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
     }
     if stood > 0 {
         test_utils::vacuity::stood_down(
-            "a sphere island at scale 1e-3 or 1e3",
+            "a sphere island at scale 1e-3 or 9e2",
             "its smallest feature is within ten thousand coincidence widths at this ε, or \
              its arcs, built in f64, certify their ends only to about 1e-13 of its size",
         );

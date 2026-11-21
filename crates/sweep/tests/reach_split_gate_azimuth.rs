@@ -133,16 +133,13 @@ fn revolved(f: &Fixture, s: f64) -> Result<sweep::Revolved<f64>, sweep::RevolveE
 }
 
 /// **A fixture past the session box is refused by it**: the capped
-/// cylinder at ×700, its cap's crown 1050 m up. At ε = 1e-12 limb 2's
-/// kernel limit on its sphere reads first, and that is what the row
-/// asserts there.
+/// cylinder at ×700, its cap's crown 1050 m up, at every ε.
 #[test]
 fn a_fixture_past_the_session_box_is_refused_by_it() {
     let f = fixtures().remove(0);
-    crate::common::refused_by_the_box_or_limb_2(
+    crate::common::refused_by_the_session_box(
         &format!("the {} ×700", f.name),
         (CY + R) * 700.0,
-        &[1e-12],
         revolved(&f, 700.0),
     );
 }

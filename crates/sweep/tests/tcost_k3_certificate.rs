@@ -46,8 +46,9 @@
 //!
 //! The session box (1 km) bounds the window from above: the rows that
 //! pair the exhausting prism with another scale the pair and its
-//! resolution down together ([`split_unit`]), and where even that leaves
-//! the box (ε = 1e-6) assert the loft's refusal.
+//! resolution down together ([`split_unit`]) until the walls' net fits
+//! the box, and where even that leaves the box (ε = 1e-6) assert the
+//! loft's refusal.
 //!
 //! Each row then ASSERTS the arm it takes rather than branching on it.
 //! A silent `Err` arm is not a row.
@@ -185,20 +186,65 @@ const EXHAUSTING: f64 = 2.0e13;
 /// at. A prism's posture is the ratio of its size to the resolution, so
 /// scaling both by one factor keeps it. The exhausting prism at the
 /// origin reaches `√2·2e13` units (its bulge's crest, `√2` widths out),
-/// so the unit is ε where that fits the far end of the session box
-/// (ε = 1e-12), and shrunk to fit at 1e-9. Two floors hold it from
-/// below: the resolution is never finer than ε (`Settle::Resolution`),
-/// and the small prism at `1e5` units must stay over ~1e3·ε, below which
-/// its edges' meetings go unread (measured: 400·ε refuses
-/// `CensusUnsupported`). So it is never below ε/32; at 1e-6 that leaves
-/// the exhausting prism past the box, and the rows assert its loft's
-/// refusal there.
+/// and its walls' control net, the cover the session box reads, `√2`
+/// times farther ([`EXHAUSTING_NET_REACH`]); so the unit is ε where the
+/// net fits the far end of the session box (ε = 1e-12), and shrunk to fit
+/// at 1e-9. Two floors hold it from below: the resolution is never finer
+/// than ε (`Settle::Resolution`), and the small prism at `1e5` units must
+/// stay over ~1e3·ε, below which its edges' meetings go unread
+/// (measured: 400·ε refuses `CensusUnsupported`). So it is never below
+/// ε/64; at 1e-6 that leaves the exhausting prism past the box, and the
+/// rows assert its loft's refusal there.
 fn split_unit(eps: f64) -> f64 {
-    crate::common::box_unit(EXHAUSTING_REACH, crate::common::FAR_END, eps / 32.0)
+    crate::common::box_unit(EXHAUSTING_NET_REACH, crate::common::FAR_END, eps / 64.0)
 }
 
 /// The exhausting prism's largest `|coordinate|`, in [`split_unit`]s.
 const EXHAUSTING_REACH: f64 = core::f64::consts::SQRT_2 * EXHAUSTING;
+
+/// **The reach of the exhausting prism's cover**, in [`split_unit`]s:
+/// its spline walls' control net, whose bulge's middle control point
+/// stands `√2` times as far out as the crest (a rational arc's middle
+/// control point, at the corner of its end tangents).
+const EXHAUSTING_NET_REACH: f64 = core::f64::consts::SQRT_2 * EXHAUSTING_REACH;
+
+/// **Whether the exhausting prism lofts in the session box**, its loft's
+/// refusal by the box asserted where it does not (ε = 1e-6, where the
+/// unit's floor leaves it past the box).
+fn exhausting_lofts(what: &str, unit: f64, got: &Result<Body<f64>, sweep::LoftError>) -> bool {
+    if crate::common::in_the_box(EXHAUSTING_REACH, unit) {
+        return true;
+    }
+    crate::common::refused_by_the_session_box(
+        what,
+        EXHAUSTING_REACH * unit,
+        got.as_ref().map(|_| ()),
+    );
+    test_utils::vacuity::stood_down(
+        what,
+        "past the session box; the loft's refusal by the box is asserted instead",
+    );
+    false
+}
+
+/// **The exhausting prism whose crest is in the session box and whose
+/// net is not refuses as the box's limit**: scaled so its crest stands at
+/// the far end, 900 m, its walls' net reaches 1272.8 m. The body lies in
+/// the box; its cover, the net, does not, and no point of it is past, so
+/// the box refuses it as a limit
+/// (`work/boxes/a-spline-faces-cover-is-its-whole-control-net.md`). Its
+/// size is fixed, so the arm is the same at every ε row. *Breaks if* the
+/// box reads a spline face's net as points of it (then past the box) or
+/// admits a cover past it.
+#[test]
+fn the_exhausting_prism_whose_net_alone_is_past_the_box_refuses_as_a_limit() {
+    let s = crate::common::FAR_END / EXHAUSTING_REACH * EXHAUSTING;
+    crate::common::refused_as_a_session_box_limit(
+        "the exhausting prism, crest at the far end",
+        EXHAUSTING_NET_REACH / EXHAUSTING * s,
+        try_arc_prism_at(s, 0.0).map(|_| ()),
+    );
+}
 
 /// [`split_unit`]'s resolution: the pinned `1024·ε` scaled as the
 /// prisms are.
@@ -535,23 +581,17 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
     // along −x, clear of it and inside its reach.
     let exhausting = try_arc_prism_at(EXHAUSTING * unit, 0.0);
     let beside = |k: f64| arc_prism_at(k * unit, -1.2 * EXHAUSTING / k);
-    if crate::common::in_the_box(EXHAUSTING_REACH, unit) {
+    if exhausting_lofts(
+        &format!("ROUND SPLIT: the exhausting prism at ε {eps:e}"),
+        unit,
+        &exhausting,
+    ) {
         let exhausting = exhausting.expect("the exhausting prism lofts inside the box");
         subjects.push((
             "small then exhausting",
             grafted(&[beside(1.0e5), exhausting.clone()]),
         ));
         subjects.push(("fine then exhausting", grafted(&[beside(FINE), exhausting])));
-    } else {
-        crate::common::refused_by_the_session_box(
-            &format!("ROUND SPLIT: the exhausting prism at ε {eps:e}"),
-            EXHAUSTING_REACH * unit,
-            exhausting,
-        );
-        test_utils::vacuity::stood_down(
-            &format!("ROUND SPLIT's exhausting pairs at ε {eps:e}"),
-            "past the session box; the loft's refusal by the box is asserted instead",
-        );
     }
     for (label, body) in subjects {
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
@@ -775,16 +815,11 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
     //
     // Where the session box is too small for it (ε = 1e-6), its loft is
     // refused by the box instead.
-    if !crate::common::in_the_box(EXHAUSTING_REACH, unit) {
-        crate::common::refused_by_the_session_box(
-            &format!("PLANTED exhausted schedule at ε {eps:e}"),
-            EXHAUSTING_REACH * unit,
-            exhausted,
-        );
-        test_utils::vacuity::stood_down(
-            &format!("PLANTED exhausted schedule at ε {eps:e}"),
-            "past the session box; the loft's refusal by the box is asserted instead",
-        );
+    if !exhausting_lofts(
+        &format!("PLANTED exhausted schedule at ε {eps:e}"),
+        unit,
+        &exhausted,
+    ) {
         return;
     }
     let exhausted = exhausted.expect("the exhausting prism lofts inside the box");

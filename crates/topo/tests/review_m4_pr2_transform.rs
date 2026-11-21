@@ -182,19 +182,19 @@ fn long_thin_feature_transform_is_honest_either_way() {
     }
 }
 
-/// R1a escalation: at 1e9 coordinates the rotation rounding (~1e-7)
-/// exceeds the escalate threshold (1e-8). The map carries every
-/// certificate and refuses nothing, and the finished-body gate refuses
-/// the result by the session box, alone; any other finding is the
-/// falsifier.
+/// R1a escalation: at 1e9 coordinates the map's rounding (~1e-7)
+/// exceeds the escalate threshold (1e-8). A brick at the origin (one
+/// built at 1e9 m refuses at its first edge's certification, by the
+/// session box) is turned and carried to 1e9 m in one map. The map
+/// carries every certificate and refuses nothing, and the finished-body
+/// gate refuses the result by the session box, alone; any other finding
+/// is the falsifier.
 #[test]
 fn an_extreme_scale_image_is_the_session_boxs_to_refuse() {
-    let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let mut b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     describe_as_intersections(&mut b, Tol::witness());
-    let map = Affine3::from_parts(
-        Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
-        Vec3::zero(),
-    );
+    let turn = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3);
+    let map = Affine3::from_parts(turn, turn * Vec3::new(1.0e9, 0.0, 0.0));
     match transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())) {
         Ok(t) => {
             let errors = validate_geometric(&t, Tol::witness()).unwrap_err();

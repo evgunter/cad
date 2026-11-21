@@ -4046,6 +4046,8 @@ MEMBERS_BOUND_AS = {
     # failure_count`, one `variant` each (`crates/pncad-py/src/
     # validation.rs`).
     "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
+    "ValidationError::SessionBoxUnshown": "ValidationFinding.variant",
+    "ValidationError::SessionBoxUncovered": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
     "ValidationError::Unmovable": "ValidationFinding.variant",
     "ValidationError::SurfaceDatumUndecided": "ValidationFinding.variant",

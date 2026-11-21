@@ -102,8 +102,10 @@ const PRE_PASS: usize = 80;
 /// caps are the sketch frame and its walls the frame turning their
 /// segments, so it fits no plane: 26 fewer, the two caps'
 /// `cap_plane_orientation` and the six planes' four corners each of
-/// `newell_plane_residual`.
-const EXTRUDE_LOG: usize = 881;
+/// `newell_plane_residual`. Each certification of the 12 edges, at its
+/// mint and at the gate's re-certification, asks the session box of the
+/// edge first (`session_box_reach`): 24 more.
+const EXTRUDE_LOG: usize = 905;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 75;
