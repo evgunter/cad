@@ -1656,3 +1656,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Disclosed deviations: `PoseRefusal::InBand` on `gate_rejection` for a Zero that the class needs definite; a new `PoseRefusal::Meter`; the rows in `pose.rs`; spline and unbuilt arms answered with a whole-span window (filed `cross-answers-a-spline-arm-with-a-whole-span-window`).
 
   **Dual review dispatched**: two Opus reviewers, concurrently, with identical briefs (`~/.local/share/cad-work/germ-u3a-review/brief.md`, 10 claims). The lane's inherited torn-body seed is added to CHARTTAIL's row on its behalf.
+- 2026-11-21 05:50 — **U3a (PR 7226) dual review.** R1 says NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES. Held: the §a.3 gate is genuine and its forcing load-bearing; `NotLies`; the arc bound; the exhaustive `cross` match; every non-cone moved rung.
+  - **Bilateral:**
+    - `cross` drops a `Tangent` whose `at` is just past the span but whose arc reaches in, a lost meeting. Main's `graze_reaches_span` covers that case.
+    - `Kappa`, levered by the span's length, over-escalates short spans far from the touch, so the wrapper no longer maps back.
+    - A second axis-parallel spelling survives in `span_plane_meet`.
+    - `CrossRefusal.found` holds meetings inside windows.
+    - The wrappers route on row-name strings.
+  - **Unilateral, one class:** on a narrow cone, rungs decided on `F = Q/R` without the floor. R2 showed a line four bands off answered `Lies`, reaching the sweep as `ArcOnCarrier`. R1 showed a circle that misses or double-crosses answered `Tangent`. Main refused both. The gate's fuzz drew α only in [0.1, 1.4], so it could not see them.
+  - **Fix pass sent to the U3a session**, covering the class sweep over every cone rung, the fuzz extended to α ≈ 1e-3, eight MINORs and the rows that cannot fail. Both reviewers then do a delta review on the new head.
