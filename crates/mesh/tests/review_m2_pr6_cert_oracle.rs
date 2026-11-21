@@ -73,27 +73,33 @@ fn my_dist_torus(center: Point3<f64>, axis: Vec3<f64>, big_r: f64, r: f64, p: Po
 
 fn my_dist(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *surface {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => my_dist_cylinder(origin, axis, radius, p),
-        Surface::Sphere { center, radius, .. } => my_dist_sphere(center, radius, p),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal).abs()
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            my_dist_cylinder(origin, axis, radius, p)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            my_dist_sphere(center, radius, p)
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => my_dist_cone(apex, axis, half_angle, p),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            my_dist_cone(apex, axis, half_angle, p)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => my_dist_torus(center, axis, major_radius, minor_radius, p),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            my_dist_torus(center, axis, major_radius, minor_radius, p)
+        }
         // No closed-form distance oracle for a spline locus or a fit.
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }

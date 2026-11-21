@@ -81,16 +81,12 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     let tol = Tol::witness();
     let p = crate::tier3_tests::cusp_prism(tol);
     let inner = Surface::Cylinder {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 1.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let outer = Surface::Cylinder {
-        origin: Point3::new(0.0, 2.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 2.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        u_ref: Vec3::unit_x(),
     };
     // Read the two walls' senses off the body rather than assuming.
     let s_inner = sense_of(&p.body, p.face_side[2]);

@@ -1226,7 +1226,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
 /// inherits (never a coordinate-axis tie-break).
 fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     match s {
-        Surface::Plane { u_ref, .. } => *u_ref,
+        Surface::Plane { frame, .. } => frame.u_ref(),
         _ => Vec3::new(T::zero(), T::zero(), T::zero()),
     }
 }
@@ -1425,19 +1425,25 @@ fn classify_arm<T: Decide + Bounds>(
             None,
         )),
         (
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
         ) => {
-            let room = ball_room(*origin, n_a, *center, *r, senses.1)?;
+            let origin = plane_frame.origin();
+            let center = sphere_frame.origin();
+            let room = ball_room(origin, n_a, center, *r, senses.1)?;
             Ok((
                 BlendArm::PlaneSphereTorus,
                 room.plane_sphere(
-                    *origin,
+                    origin,
                     n_a,
                     plane_u(sa),
-                    *center,
+                    center,
                     *r,
                     radius,
                     senses.1,
@@ -1448,16 +1454,22 @@ fn classify_arm<T: Decide + Bounds>(
         }
         (
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            let room = ball_room(*origin, n_b, *center, *r, senses.0)?;
+            let center = sphere_frame.origin();
+            let origin = plane_frame.origin();
+            let room = ball_room(origin, n_b, center, *r, senses.0)?;
             let mut b = room.plane_sphere(
-                *origin,
+                origin,
                 n_b,
                 plane_u(sb),
-                *center,
+                center,
                 *r,
                 radius,
                 senses.0,
@@ -2820,32 +2832,42 @@ pub(crate) fn turn_reading<T: Decide>(
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
     let mitre_plane = |k: usize| match (&links[k].blend.surface, &links[1 - k].blend.surface) {
-        (Surface::Plane { origin, normal, .. }, _) => Ok((*origin, *normal)),
+        (
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+            _,
+        ) => {
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            Ok((origin, normal))
+        }
         (
             Surface::Cylinder {
-                origin: c1,
-                axis: a1,
+                frame: cylinder_frame_2,
                 ..
             },
             Surface::Cylinder {
-                origin: c2,
-                axis: a2,
+                frame: cylinder_frame,
                 ..
             },
-        ) => Ok((
-            line_meet(
-                geom::Line {
-                    origin: *c1,
-                    dir: *a1,
-                },
-                geom::Line {
-                    origin: *c2,
-                    dir: *a2,
-                },
-                a1.cross(*a2),
-            ),
-            dirs[0] - dirs[1],
-        )),
+        ) => {
+            let (c1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis());
+            let (c2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
+            Ok((
+                line_meet(
+                    geom::Line {
+                        origin: c1,
+                        dir: a1,
+                    },
+                    geom::Line {
+                        origin: c2,
+                        dir: a2,
+                    },
+                    a1.cross(a2),
+                ),
+                dirs[0] - dirs[1],
+            ))
+        }
         _ => Err(unbuilt_geometry(
             EntityId::Edge(links[k].edge),
             "a turning band is neither a plane nor a cylinder",
@@ -3080,18 +3102,24 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(cap) else {
+        let Some(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = body.face_surface(cap)
+        else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
+        let normal = carrier_frame.axis();
         // The ruling is the arm's own: a ruled arm's band is the
         // cylinder about it (`Ruling::blend`).
-        let Surface::Cylinder { axis, .. } = link.blend.surface else {
+        let Surface::Cylinder { frame, .. } = link.blend.surface else {
             return Err(invariant_broken(
                 EntityId::Edge(link.edge),
                 "a ruled link's band is not the cylinder about its ruling",
             ));
         };
-        let section = cap_transverse(vertex, *normal, axis, radius, link.arm_len, band)?;
+        let axis = frame.axis();
+        let section = cap_transverse(vertex, normal, axis, radius, link.arm_len, band)?;
         if let EndSection::Ellipse(_) = section {
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
@@ -3169,10 +3197,11 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(end) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
-        Some(*normal)
+        let normal = frame.axis();
+        Some(normal)
     } else {
         None
     };
@@ -3421,12 +3450,13 @@ fn cut_off_section<T: Decide + Bounds>(
     match kind {
         BlendKind::Chamfer => Ok(EndSection::Chord),
         BlendKind::Fillet => {
-            let Surface::Cylinder { axis, .. } = link.blend.surface else {
+            let Surface::Cylinder { frame, .. } = link.blend.surface else {
                 return Err(invariant_broken(
                     EntityId::Edge(link.edge),
                     "a plane–plane fillet link's band is not a cylinder",
                 ));
             };
+            let axis = frame.axis();
             cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
         }
     }
@@ -4000,8 +4030,7 @@ mod coaxial_spine_rows {
                     panic!("r = {r}: the rim is a wedge, not a smooth seam");
                 };
                 let Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius,
                     minor_radius,
                     ..
@@ -4009,6 +4038,7 @@ mod coaxial_spine_rows {
                 else {
                     panic!("r = {r}: the coaxial arm's band is a torus");
                 };
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 assert!(
                     major_radius > 0.0,
                     "r = {r}: the spine's radius, {major_radius}"
@@ -4045,11 +4075,9 @@ mod coaxial_spine_rows {
                 );
                 // The signed form's surface, chart for chart.
                 let signed = Surface::Torus {
-                    center,
-                    axis,
+                    frame: geom::Frame::new(center, axis, radial),
                     major_radius: s,
                     minor_radius,
-                    u_ref: radial,
                 };
                 for (i, j) in (0..6).flat_map(|i| (0..6).map(move |j| (i, j))) {
                     let (u, v) = (f64::from(i) * 1.1, f64::from(j) * 1.1);
@@ -4074,7 +4102,7 @@ mod coaxial_spine_rows {
                     );
                     // The contact: where the circle crosses the rim's
                     // sheet, at the ball's radius from its centre.
-                    let at = |x: f64| ((c.frame.origin + radial * x) - ball).norm() - r;
+                    let at = |x: f64| ((c.frame.origin() + radial * x) - ball).norm() - r;
                     let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
                         c.radius()
                     } else {
@@ -4088,9 +4116,9 @@ mod coaxial_spine_rows {
                     // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
                     // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
                     let signed = if rho > 0.0 {
-                        Curve3::circle(c.frame.origin, axis, rho, radial)
+                        Curve3::circle(c.frame.origin(), axis, rho, radial)
                     } else {
-                        Curve3::circle(c.frame.origin, axis, -rho, -radial)
+                        Curve3::circle(c.frame.origin(), axis, -rho, -radial)
                     };
                     for k in 0..8 {
                         let t = f64::from(k) * 0.8;
