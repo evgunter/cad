@@ -11523,10 +11523,7 @@ mod presentation_rows {
         assert!(
             matches!(
                 on_wall(&s, &b, &local, (&[0], &[]), cell(1.5)),
-                Err({
-                    crate::gate_measure::local_site("L", line!());
-                    Unpresented::Local
-                })
+                Err(Unpresented::Local)
             ),
             "the end is not"
         );
@@ -11546,10 +11543,7 @@ mod presentation_rows {
                 (&[0], &[]),
                 ((-3.2, 3.2), (0.95, 1.05))
             ),
-            Err({
-                crate::gate_measure::local_site("L", line!());
-                Unpresented::Local
-            })
+            Err(Unpresented::Local)
         ));
     }
 
@@ -11571,10 +11565,7 @@ mod presentation_rows {
         let cell = ((g(1.0) - 0.004, g(1.0) - 0.003), (0.995, 1.005));
         assert!(matches!(
             on_wall(&s, &b, &local, (&[0], &[]), cell),
-            Err({
-                crate::gate_measure::local_site("L", line!());
-                Unpresented::Local
-            })
+            Err(Unpresented::Local)
         ));
         let alone = spiric_face(true, true);
         assert!(
