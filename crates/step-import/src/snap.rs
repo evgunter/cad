@@ -612,11 +612,7 @@ fn tangent(
     else {
         return Err(unsolved(file, edge, "a tangency off a cylinder".to_owned()));
     };
-    let (origin, a, u_ref) = (
-        cylinder_frame.origin(),
-        cylinder_frame.axis(),
-        cylinder_frame.u_ref(),
-    );
+    let origin = cylinder_frame.origin();
     // The axis's point where its faces are.
     let q = line.foot(faces.centre());
     // Each plane's normal and level along it, and the axis's offset at its
@@ -655,7 +651,7 @@ fn tangent(
     let delta = delta - line.dir * delta.dot(line.dir);
     Ok((
         Surface::Cylinder {
-            frame: geom::Frame::new(origin + delta, a, u_ref),
+            frame: cylinder_frame.with_origin(origin + delta),
             radius: radius_to,
         },
         delta.norm() + (radius_to - radius).abs(),

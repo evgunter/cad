@@ -1904,8 +1904,10 @@ mod tests {
     /// The general arm's shallow crossings at `ε = 1e-12` that the `f64`
     /// lane once placed tens of bands from the truth, each as `[t0, t1 |
     /// centre | axis | ρ | u_ref | torus centre | torus axis | R, r]` with
-    /// its true crossings over the turn (mpmath at 70 digits on these
-    /// inputs' exact binary values, `v̂ = n̂ × û` exact).
+    /// its true crossings over the turn (mpmath at 70 digits on the polar
+    /// factor of the frames these inputs' exact binary values store,
+    /// decision 1 of PR 7131; read as reals, `v̂ = n̂ × û` exact, the
+    /// everyday pose's tangent pair moves 1.2e-10 rad).
     pub(super) const SHALLOW_POSES: [(&str, [f64; 20], &[f64]); 3] = [
         (
             "a near-parallel circle at the tube's top, its tilt in the gap",
@@ -1931,7 +1933,7 @@ mod tests {
                 1.0,
                 0.25,
             ],
-            &[2.685_922_411_422_998_5, 2.710_943_694_713_821_5],
+            &[2.685_922_411_422_938_5, 2.710_943_694_713_881],
         ),
         (
             "a ten-metre-scale torus",
@@ -1958,10 +1960,10 @@ mod tests {
                 0.302_517_561_644_429_8,
             ],
             &[
-                4.839_154_770_862_667_4e-5,
-                0.027_670_534_202_302_89,
+                4.839_154_727_764_309_6e-5,
+                0.027_670_534_202_314_266,
                 1.475_588_767_894_032_7,
-                6.283_137_001_569_704,
+                6.283_137_001_570_124,
             ],
         ),
         (
@@ -1989,10 +1991,10 @@ mod tests {
                 0.25,
             ],
             &[
-                3.126_822_588_620_022e-5,
-                0.589_305_912_820_224,
-                6.278_594_383_972_917_5,
-                6.283_153_825_613_722,
+                3.126_810_917_445_953e-5,
+                0.589_305_912_820_224_4,
+                6.278_594_383_971_298,
+                6.283_153_825_732_052,
             ],
         ),
     ];

@@ -3030,7 +3030,7 @@ mod tests {
                 panic!("a meridian is a conic");
             };
             let frame = *conic.conic().frame();
-            let (centre, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let centre = frame.origin();
             let on = |span| CircleArc {
                 circle: geom::Circle::new(frame, small),
                 span,
@@ -3038,12 +3038,12 @@ mod tests {
             // The same circle travelled the other way: its parameter
             // `t` is the arc's `−t`.
             let back = |(lo, hi): (f64, f64)| CircleArc {
-                circle: geom::Circle::new(geom::Frame::new(centre, -axis, u_ref), small),
+                circle: geom::Circle::new(frame.reversed(), small),
                 span: (-hi, -lo),
             };
             let out = centre - f.o;
             let across = CircleArc {
-                circle: geom::Circle::new(geom::Frame::new(f.o - out, axis, u_ref), small),
+                circle: geom::Circle::new(frame.with_origin(f.o - out), small),
                 span: (0.0, 6.0),
             };
             assert!((out.norm() - big).abs() < 1e-12, "the meridian's centre");

@@ -2382,13 +2382,8 @@ mod tests {
         else {
             panic!("a brick face is a plane")
         };
-        let (origin, normal, u_ref) = (
-            carrier_frame.origin(),
-            carrier_frame.axis(),
-            carrier_frame.u_ref(),
-        );
         Surface::Plane {
-            frame: geom::Frame::new(origin + by, normal, u_ref),
+            frame: carrier_frame.with_origin(carrier_frame.origin() + by),
         }
     }
 

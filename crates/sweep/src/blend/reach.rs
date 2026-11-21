@@ -999,11 +999,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            foot_on(&Curve3::circle(center, axis, major_radius, u_ref), p)
-                .map(|c| (c, minor_radius))
-        }
+        } => foot_on(&Curve3::Circle(geom::Circle::new(frame, major_radius)), p)
+            .map(|c| (c, minor_radius)),
         _ => None,
     };
     Ok(Station { p, fa, fb, c })
@@ -3488,9 +3485,8 @@ mod tests {
         let geom::Surface::Cylinder { frame, radius } = s.clone() else {
             panic!("the rod's wall is a cylinder")
         };
-        let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         geom::Surface::Cylinder {
-            frame: geom::Frame::new(origin + axis * T::from_f64(along), axis, u_ref),
+            frame: frame.with_origin(frame.origin() + frame.axis() * T::from_f64(along)),
             radius,
         }
     }

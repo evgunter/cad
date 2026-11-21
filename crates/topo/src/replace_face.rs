@@ -1273,13 +1273,11 @@ fn transport_curve<T: Decide>(
                         ..
                     },
                 ) => {
-                    let (center, ca, u_ref) = (
-                        carrier_frame_40.origin(),
-                        carrier_frame_40.axis(),
-                        carrier_frame_40.u_ref(),
-                    );
                     let radius = conic_k.radius();
-                    Some((Curve3::circle(center, ca, radius + d, u_ref), None))
+                    Some((
+                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius + d)),
+                        None,
+                    ))
                 }
                 // Neither an ellipse nor a spiric lies on a cylinder.
                 Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
@@ -1356,11 +1354,7 @@ fn transport_curve<T: Decide>(
                         ..
                     },
                 ) => {
-                    let (c, ca, u_ref) = (
-                        carrier_frame_39.origin(),
-                        carrier_frame_39.axis(),
-                        carrier_frame_39.u_ref(),
-                    );
+                    let (c, ca) = (carrier_frame_39.origin(), carrier_frame_39.axis());
                     let radius = conic_k.radius();
                     // Meridian or parallel is a question about the STORED
                     // circle's frame against the torus'; the margin is the
@@ -1384,18 +1378,19 @@ fn transport_curve<T: Decide>(
                         let sin_v = (c - center).dot(axis) / *minor_radius;
                         let r_new = *minor_radius + d;
                         Some((
-                            Curve3::circle(
-                                center + axis * (r_new * sin_v),
-                                ca,
+                            Curve3::Circle(geom::Circle::new(
+                                carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
                                 *major_radius + r_new * cos_v,
-                                u_ref,
-                            ),
+                            )),
                             None,
                         ))
                     } else {
                         // A meridian (tube) circle: the tube centre is
                         // fixed and the radius moves with the minor.
-                        Some((Curve3::circle(c, ca, *minor_radius + d, u_ref), None))
+                        Some((
+                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, *minor_radius + d)),
+                            None,
+                        ))
                     }
                 }
                 _ => None,
@@ -1445,19 +1440,12 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
             major_radius,
             minor_radius,
             offset,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Curve3::Spiric {
-                frame: geom::Frame::new(center + delta, axis, u_ref),
-                major_radius: *major_radius,
-                minor_radius: *minor_radius,
-                offset: *offset,
-            }
-        }
+        } => Curve3::Spiric {
+            frame: carrier_frame.with_origin(carrier_frame.origin() + delta),
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
         // A translation is affine: the net's image, knots and weights
         // as they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
@@ -1476,13 +1464,11 @@ fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>
                 ..
             },
         ) => {
-            let (center, axis, u_ref) = (
-                carrier_frame_38.origin(),
-                carrier_frame_38.axis(),
-                carrier_frame_38.u_ref(),
-            );
             let radius = conic_k.radius();
-            Curve3::circle(map(center), axis, radius * k, u_ref)
+            Curve3::Circle(geom::Circle::new(
+                carrier_frame_38.with_origin(map(carrier_frame_38.origin())),
+                radius * k,
+            ))
         }
         // A homothety is affine: the net's image, knots and weights as
         // they are held.
