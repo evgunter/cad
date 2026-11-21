@@ -12632,4 +12632,138 @@ mod presentation_rows {
             "the shared edge's far end"
         );
     }
+
+    /// **A wedge plane and a cone face sharing a ruling to the apex.** The
+    /// cone `Φ(u, v) = v·(cos u, sin u, 1)/√2` about `z`, its face over
+    /// `u ∈ [0, 3π/2]`, `v ∈ [0, 1]`, its apex `A` a collapsed side, its
+    /// rulings at `u = 0` (edge 1, shared) and `u = 3π/2` (edge 2). The
+    /// plane `y = 0`, charted `(z, x)`, holds the shared ruling, whose
+    /// direction there is `(1, 1)`, and a second edge from `A` along
+    /// `far`; so it holds the cone's ruling at `u = π`, along `(1, −1)`,
+    /// on the cone face. The pair is read in the plane's cell at `A` and
+    /// the cone's at `A` about `u = π`, where they share `A` and are near
+    /// the shared ruling: [`certify_pair`]'s outcome.
+    fn wedge_at_the_apex(far: (f64, f64)) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        // The plane's second edge ends at `q`, its chart point `far`.
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            apex,
+            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let plane = Surface::Plane {
+            origin: apex,
+            normal: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            u_ref: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+        };
+        let mut c = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0)),
+                rim(
+                    2,
+                    [1, 3],
+                    Axis::U,
+                    1.5 * pi,
+                    (1.5 * pi, 0.0),
+                    (1.5 * pi, 1.0),
+                ),
+                rim(3, [3, 2], Axis::V, 1.0, (1.5 * pi, 1.0), (0.0, 1.0)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([(0.0, 1.5 * pi), (0.0, 1.0)]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: true,
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let (lw, lc) = (
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let b = piece(face(2), &cone, &c, (pi - 3e-3, pi + 3e-3), (0.0, 1e-3), &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **The cone's cell about the second ruling is parted from the wedge
+    /// plane at the apex** ([`wedge_at_the_apex`], the plane's second edge
+    /// the axis): no plane through the shared ruling signs the cone there,
+    /// as the plane's carrier holds the cone's ruling at `u = π`, and the
+    /// plane through the apex alone, both faces presented against it,
+    /// does. Red while [`departure`] reads no separator but those through
+    /// the shared edge, where the pair splits.
+    #[test]
+    fn a_cone_cell_about_the_wedge_planes_second_ruling_is_parted_at_the_apex() {
+        let got = wedge_at_the_apex((1.0, 0.0));
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the plane through the apex parts the pair: {got:?}"
+        );
+    }
+
+    /// **A wedge plane holding the cone's second ruling is not parted
+    /// from it** ([`wedge_at_the_apex`], the plane's sector run on past
+    /// the axis to `(1, −2)`): the plane face holds the cone's ruling at
+    /// `u = π`, so the two faces meet along it, off the shared cell, and
+    /// no separator through the apex reads them apart. Red if the plane
+    /// through the apex certifies a pair that meets.
+    #[test]
+    fn a_wedge_plane_holding_the_cones_second_ruling_is_not_parted() {
+        let got = wedge_at_the_apex((1.0, -2.0));
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the faces meet along the ruling at u = π: {got:?}"
+        );
+    }
 }
