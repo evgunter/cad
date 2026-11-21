@@ -1,0 +1,56 @@
+== r1_ci_base_1e-9.log
+     Summary [ 758.432s] 17460 tests run: 17459 passed, 1 failed, 2728 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+== r1_ci_base_1e-12.log
+     Summary [ 810.028s] 17460 tests run: 17458 passed, 2 failed, 2728 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+== r1_ci_head_1e-9.log
+     Summary [ 511.206s] 17467 tests run: 17466 passed, 1 failed, 2731 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+== r1_ci_head_1e-12.log
+     Summary [ 550.591s] 17467 tests run: 17465 passed, 2 failed, 2731 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+== r1_ci_mut6.log
+     Summary [ 530.320s] 17467 tests run: 17453 passed, 14 failed, 2731 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+mesh trimmed::tests::a_cone_faces_window_reads_its_widest_edge
+mesh::all reach_probes::a_cone_face_through_its_apex_meshes_on_the_cone_row
+mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+mesh::all split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes
+sweep::all a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts
+sweep::all a_plane_near_a_needle_cones_apex::a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever
+sweep::all a_ring_on_a_cone_face::a_ringed_cone_faces_sense_flip_fails_tier_3
+sweep::all cone_join_lane::the_rings_island_on_the_cone_face_winds_by_the_sections_curve
+sweep::all cone_join_lane::the_tilted_planes_chords_are_its_ellipse_in_both_member_orders
+sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment
+sweep::all reach_cone_split::cuts_through_a_cap_and_the_apex_region
+sweep::all reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt
+sweep::all reach_cone_split::tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes
+== per-mutant (geom, geom-brep, mesh anchored rows)
+eval-reads-centre ::  [geom: 206 passed, 1 failed, 432 skipped FAILS: geom curves::conic::tests::a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis;] [geom-brep: 46 passed (1 slow), 3 failed, 2764 skipped FAILS: geom-brep carrier_resolution::tests::a_far_centred_section_stands_at_the_scale_its_form_is_stored_at;geom-brep implicit::conic_tests::an_anchored_points_running_bound_holds_against_its_exact_sum;geom-brep implicit::conic_tests::the_running_residuals_are_the_plain_chain;] [mesh: 20 passed, 515 skipped FAILS: ]
+quarter-wrong-way ::  [geom: 205 passed, 2 failed, 432 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;geom curves::conic::tests::a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis;] [geom-brep: 48 passed (1 slow), 1 failed, 2764 skipped FAILS: geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier;] [mesh: 20 passed, 515 skipped FAILS: ]
+same-ignores-form ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+map-scalar-drops-phase ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+data-omits-phase ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+centre-sine-sign ::  [geom: 206 passed, 1 failed, 432 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+sines-half-charged ::  [geom: 206 passed, 1 failed, 432 skipped FAILS: geom curves::conic::tests::the_anchored_offsets_bound_charges_the_squares_rounding;] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+azimuth-ignores-sine ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+azimuth-ignores-cosine ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+zero-point-is-anchor ::  [geom: 207 passed, 432 skipped FAILS: ] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+half-keeps-pair ::  [geom: 206 passed, 1 failed, 432 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;] [geom-brep: 48 passed (1 slow), 1 failed, 2764 skipped FAILS: geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier;] [mesh: 20 passed, 515 skipped FAILS: ]
+circle-azimuth-centre ::  [geom: 206 passed, 1 failed, 432 skipped FAILS: geom curves::conic::tests::an_anchored_conic_reads_from_its_anchor;] [geom-brep: 49 passed (1 slow), 2764 skipped FAILS: ] [mesh: 20 passed, 515 skipped FAILS: ]
+DONE
+== gates base
+RAISED ball crates/geom-brep/src/curve_face/line_quadric.rs: 0 -> 2
+ERROR: scripts/gates/cover-kind-match.sh failed
+ROSE names-splitting census.rs: 52 -> 53 (run engine-leaves.sh --lines census.rs to list its counted sites)
+ERROR: scripts/gates/engine-leaves.sh failed
+ERROR: scripts/gates/pin-cites-an-open-row.sh failed
+== gates head
+RAISED ball crates/geom-brep/src/curve_face/line_quadric.rs: 0 -> 2
+ERROR: scripts/gates/cover-kind-match.sh failed
+ROSE names-splitting census.rs: 52 -> 53 (run engine-leaves.sh --lines census.rs to list its counted sites)
+ERROR: scripts/gates/engine-leaves.sh failed
+ERROR: scripts/gates/pin-cites-an-open-row.sh failed
