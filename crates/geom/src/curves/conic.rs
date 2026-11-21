@@ -632,6 +632,26 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 }
 
+/// **An ellipse's stored placement as its walk reads it**
+/// ([`Ellipse::stored`]).
+pub(super) struct Stored<T: Real> {
+    /// What the stored point is: [`CurveDatum::Center`] or
+    /// [`CurveDatum::Anchor`].
+    ///
+    /// [`CurveDatum::Center`]: super::CurveDatum::Center
+    /// [`CurveDatum::Anchor`]: super::CurveDatum::Anchor
+    pub(super) datum: super::CurveDatum,
+    /// The stored point.
+    pub(super) at: Point3<T>,
+    /// The stored axis.
+    pub(super) axis: Vec3<T>,
+    /// The stored seam.
+    pub(super) u_ref: Vec3<T>,
+    /// Beside an anchor, where on the ellipse it sits: the in-plane unit
+    /// direction `(cos θ₀, sin θ₀, 0)`.
+    pub(super) phase: Option<Vec3<T>>,
+}
+
 impl<T: Real> Held<T> {
     /// This placement's kind with an arc's phase read through `f`.
     fn with_phase<U: Real>(self, f: impl FnOnce((T, T)) -> (U, U)) -> Held<U> {
@@ -748,19 +768,8 @@ impl<T: Real> Ellipse<T> {
     }
 
     /// **The stored placement, datum by datum**, for the walk of the
-    /// stored data alone ([`Curve3::data`]): the stored point under the
-    /// name of what it is, the stored axis and seam, and, held on its
-    /// arc, where the anchor sits as the in-plane unit direction
-    /// `(cos θ₀, sin θ₀, 0)`.
-    pub(super) fn stored(
-        &self,
-    ) -> (
-        super::CurveDatum,
-        Point3<T>,
-        Vec3<T>,
-        Vec3<T>,
-        Option<Vec3<T>>,
-    ) {
+    /// stored data alone ([`Curve3::data`]).
+    pub(super) fn stored(&self) -> Stored<T> {
         let (datum, phase) = match self.held {
             Held::Centre => (super::CurveDatum::Center, None),
             Held::Arc { phase: (c0, s0) } => (
@@ -768,13 +777,13 @@ impl<T: Real> Ellipse<T> {
                 Some(Vec3::new(c0, s0, T::zero())),
             ),
         };
-        (
+        Stored {
             datum,
-            self.at.origin(),
-            self.at.axis(),
-            self.at.u_ref(),
+            at: self.at.origin(),
+            axis: self.at.axis(),
+            u_ref: self.at.u_ref(),
             phase,
-        )
+        }
     }
 
     /// Whether `other` is held as this ellipse is, on a placement `same`
@@ -1392,11 +1401,11 @@ mod tests {
                 for r in [e.seamed_near(seam), e.seamed_near(seam).reversed()] {
                     let (_, phase) = anchor_of(&r).unwrap();
                     let lifted = r.map_scalar(|f| f.map_scalar(lift), lift);
-                    let super::Held::Arc {
-                        phase: lifted_phase,
-                    } = lifted.held
-                    else {
-                        panic!("the lift keeps the ellipse on its arc")
+                    let lifted_phase = match lifted.held {
+                        super::Held::Arc { phase } => phase,
+                        super::Held::Centre => {
+                            unreachable!("the lift keeps the ellipse on its arc")
+                        }
                     };
                     assert_eq!(
                         (

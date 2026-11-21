@@ -1171,7 +1171,13 @@ impl<T: Real> Curve3<T> {
             }
             // The one point an ellipse stores, named for what it is.
             Curve3::Ellipse(e) => {
-                let (datum, at, axis, u_ref, phase) = e.stored();
+                let conic::Stored {
+                    datum,
+                    at,
+                    axis,
+                    u_ref,
+                    phase,
+                } = e.stored();
                 let walk = [
                     (datum, Point(at)),
                     (D::Axis, Direction(axis)),
