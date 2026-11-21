@@ -649,7 +649,7 @@ mod tests {
     /// crosses the plane about `3.3ε` from `P` by its chord, in the band's
     /// gap, a window at the rim's start. With `P` on the plane by its
     /// offset the window is `P`'s record and nothing is inserted. With
-    /// `P`'s point moved `1e-6` off the plane (so its offset is decided
+    /// `P`'s point moved `100Kε` off the plane (so its offset is decided
     /// off it) and the carrier left where it was, the same window has no
     /// record to read it, and the split refuses on it.
     #[test]
@@ -679,7 +679,7 @@ mod tests {
                     .map(|(_, v)| v.point)
                     .find(|&k| (body.points[k] - p).norm() < 1e-9)
                     .unwrap();
-                body.points[k] = p + n * 1e-6;
+                body.points[k] = p + n * (100.0 * band.escalate());
             }
             let (mut sides, mut on, on_plane) =
                 super::classify_vertices(&body, &plane, band).unwrap();

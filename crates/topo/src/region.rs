@@ -294,11 +294,11 @@ pub(crate) enum ReadAcross {
 ///
 /// A stretch the reading could not read is no landing: it sets the path
 /// aside on its margin, or as a graze where it has none, and a fault
-/// among the windows is a kernel fault ([`set_aside`]). The one exception
-/// is a root in band of the edge's end that lies past the leg's own end,
-/// which is no meeting of the two however near the edge's end it lies (a
-/// first leg ends at its corner short of a vertex every edge's root lies
-/// in band of).
+/// among the windows is a kernel fault ([`set_aside_unless`]). The one exception
+/// is a root in band of the edge's end that lies off the leg's own section
+/// of its plane, or past the leg's own end, which is no meeting of the two
+/// however near the edge's end it lies (a first leg ends at its corner
+/// short of a vertex every edge's root lies in band of).
 ///
 /// # Errors
 ///
@@ -335,13 +335,14 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                 Err(refusal) => {
                     set_aside_unless(&refusal.windows, |w| match w.why {
                         // A root in band of the edge's end, the window's
-                        // centre: no meeting past the leg's own end.
+                        // centre: no meeting off the leg's own section of
+                        // its plane, or past the leg's own end.
                         CrossWhy::Method {
                             fault: MeetFault::Escalated(_),
                             ..
                         } => {
                             let y = edge.at(geom::mid_param(w.window.0, w.window.1));
-                            Ok(on_leg(y)? && matches!(leg.place(y, D::AT, band), Ok(None)))
+                            Ok(!on_leg(y)? || matches!(leg.place(y, D::AT, band), Ok(None)))
                         }
                         _ => Ok(false),
                     })?;
