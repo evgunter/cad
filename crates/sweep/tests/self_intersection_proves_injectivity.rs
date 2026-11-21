@@ -3685,3 +3685,448 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ------------------------------------------- review probes, second pass (PR 7113 @ 704ed655)
+
+/// Unit normal of the slab `review2_slab(.., axis_angle)`: `z` turned about `x` by `a`.
+fn review2_normal(a: f64) -> [f64; 3] {
+    [0.0, -a.sin(), a.cos()]
+}
+
+/// The half-space `p·n ≥ d` (clipped to a 6-cube), `n` = `z` turned about `x` by `a`,
+/// then the whole turned about `y` by `spin`.
+fn review2_slab(d: f64, a: f64, spin: f64) -> Body<f64> {
+    let s = lune_moved(
+        &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (d, 3.0), tol()),
+        [1.0, 0.0, 0.0],
+        a,
+        [0.0; 3],
+    );
+    lune_moved(&s, [0.0, 1.0, 0.0], spin, [0.0; 3])
+}
+
+fn review2_turn_y(v: [f64; 3], spin: f64) -> [f64; 3] {
+    let (s, c) = spin.sin_cos();
+    [c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]]
+}
+
+fn review2_ball() -> Body<f64> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
+}
+
+enum Review2Op {
+    Intersect,
+    Subtract,
+}
+
+/// The ball cut by the tool `∩ slabs` (intersected: the ball ∩ every slab;
+/// subtracted: the ball less the slabs' intersection).
+fn review2_body(op: &Review2Op, slabs: &[(f64, f64, f64)]) -> Option<Body<f64>> {
+    let fin = |b| sweep::test_support::finished("probe", b, tol());
+    let mut tool = review2_slab(slabs[0].0, slabs[0].1, slabs[0].2);
+    for &(d, a, spin) in &slabs[1..] {
+        match topo::boolean::intersect(&fin(tool), &fin(review2_slab(d, a, spin)), tol()) {
+            Ok(r) => tool = Body::clone(&r.body()?.body),
+            Err(e) => {
+                println!("[r2] tool refused: {e:?}");
+                return None;
+            }
+        }
+    }
+    let got = match op {
+        Review2Op::Intersect => topo::boolean::intersect(&fin(review2_ball()), &fin(tool), tol()),
+        Review2Op::Subtract => topo::boolean::subtract(&fin(review2_ball()), &fin(tool), tol()),
+    };
+    match got {
+        Ok(r) => Some(Body::clone(&r.body()?.body)),
+        Err(e) => {
+            println!("[r2] cut refused: {e:?}");
+            None
+        }
+    }
+}
+
+/// Every sphere-face point (analytic membership) read against every granted posed extent.
+fn review2_sample(what: &str, body: &Body<f64>, op: &Review2Op, slabs: &[(f64, f64, f64)]) {
+    let ns: Vec<([f64; 3], f64)> = slabs
+        .iter()
+        .map(|&(d, a, spin)| (review2_turn_y(review2_normal(a), spin), d))
+        .collect();
+    let in_tool = |p: [f64; 3]| {
+        ns.iter()
+            .all(|(n, d)| p[0] * n[0] + p[1] * n[1] + p[2] * n[2] >= *d)
+    };
+    let in_face = |p: [f64; 3]| match op {
+        Review2Op::Intersect => in_tool(p),
+        Review2Op::Subtract => !in_tool(p),
+    };
+    let mut points: Vec<[f64; 3]> = Vec::new();
+    let mut seed: u64 = 0x5eed_1234_abcd;
+    let mut rnd = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        #[allow(clippy::cast_precision_loss)]
+        let r = (seed >> 11) as f64 / (1u64 << 53) as f64;
+        r
+    };
+    let nu: usize = std::env::var("R2N")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10_000);
+    let nc: usize = std::env::var("R2C")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1000);
+    for _ in 0..nu {
+        let z = 2.0 * rnd() - 1.0;
+        let t = core::f64::consts::TAU * rnd();
+        let w = (1.0 - z * z).sqrt();
+        points.push([w * t.cos(), w * t.sin(), z]);
+    }
+    // Just inside each circle, at three depths.
+    for (n, d) in &ns {
+        let h = [
+            if n[0].abs() < 0.9 { 1.0 } else { 0.0 },
+            if n[0].abs() < 0.9 { 0.0 } else { 1.0 },
+            0.0,
+        ];
+        let dot = h[0] * n[0] + h[1] * n[1] + h[2] * n[2];
+        let e1 = {
+            let v = [h[0] - dot * n[0], h[1] - dot * n[1], h[2] - dot * n[2]];
+            let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        let e2 = [
+            n[1] * e1[2] - n[2] * e1[1],
+            n[2] * e1[0] - n[0] * e1[2],
+            n[0] * e1[1] - n[1] * e1[0],
+        ];
+        for k in 0..nc {
+            #[allow(clippy::cast_precision_loss)]
+            let t = core::f64::consts::TAU * (k as f64 + 0.5) / nc as f64;
+            for off in [1e-6, -1e-6, 1e-3, -1e-3, 3e-2, -3e-2] {
+                let h = d + off;
+                let r = (1.0 - h * h).sqrt();
+                points.push([
+                    n[0] * h + r * (t.cos() * e1[0] + t.sin() * e2[0]),
+                    n[1] * h + r * (t.cos() * e1[1] + t.sin() * e2[1]),
+                    n[2] * h + r * (t.cos() * e1[2] + t.sin() * e2[2]),
+                ]);
+            }
+        }
+    }
+    let spheres: Vec<FaceKey> = body
+        .faces()
+        .filter(|(k, _)| matches!(body.face_surface(*k), Some(Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    let (mut tested, mut readings, mut bad, mut homeless) = (0usize, 0usize, 0usize, 0usize);
+    let mut grants: BTreeSet<(FaceKey, usize, bool)> = BTreeSet::new();
+    for &q in &points {
+        if !in_face(q) {
+            continue;
+        }
+        let homes: Vec<FaceKey> = spheres
+            .iter()
+            .copied()
+            .filter(|&fk| {
+                matches!(
+                    topo::curved_face_containment(
+                        body,
+                        fk,
+                        geom_core::Point3::new(q[0], q[1], q[2]),
+                        band()
+                    ),
+                    Ok(Some(topo::FaceContainment::In))
+                )
+            })
+            .collect();
+        if homes.len() != 1 {
+            homeless += 1;
+            continue;
+        }
+        let fk = homes[0];
+        let holds = topo::test_support::posed_extents_holding(body, fk, q).expect("the face lifts");
+        tested += 1;
+        for (j, h) in holds.into_iter().enumerate() {
+            grants.insert((fk, j, h.is_some()));
+            match h {
+                Some(true) => readings += 1,
+                Some(false) => {
+                    bad += 1;
+                    if bad <= 3 {
+                        println!("[r2] {what}: face {fk:?} pose {j} LEAVES OUT {q:?}");
+                    }
+                }
+                None => {}
+            }
+        }
+    }
+    println!(
+        "[r2] {what}: sphere faces {} poses (face, pose, granted) {grants:?} points {tested} readings {readings} left out {bad} in no one face {homeless}",
+        spheres.len()
+    );
+    assert_eq!(
+        bad, 0,
+        "{what}: a granted posed extent leaves out a face point"
+    );
+}
+
+fn review2_case(what: &str, op: Review2Op, slabs: &[(f64, f64, f64)]) {
+    let Some(body) = review2_body(&op, slabs) else {
+        return;
+    };
+    review2_sample(what, &body, &op, slabs);
+    let t = std::time::Instant::now();
+    let r = injective(&body, None, BUDGET);
+    println!(
+        "[r2] {what}: faces {} {:?} {:?} {:.2}s",
+        body.faces().count(),
+        r.verdict,
+        r.receipt,
+        t.elapsed().as_secs_f64()
+    );
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_posed_extents_on_new_shapes() {
+    review2_case(
+        "lens",
+        Review2Op::Intersect,
+        &[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)],
+    );
+    review2_case(
+        "thin lens",
+        Review2Op::Intersect,
+        &[(0.3, 1.25, 0.0), (0.3, -1.25, 0.0)],
+    );
+    review2_case(
+        "sphere less a lens",
+        Review2Op::Subtract,
+        &[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)],
+    );
+    review2_case(
+        "triangle",
+        Review2Op::Intersect,
+        &[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)],
+    );
+    review2_case(
+        "sphere less a triangle",
+        Review2Op::Subtract,
+        &[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)],
+    );
+    review2_case(
+        "lens turned",
+        Review2Op::Intersect,
+        &[(0.3, 0.9, 0.7), (0.3, -0.9, 0.7)],
+    );
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_triangle_diagnosis() {
+    let slabs = [(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)];
+    let body = review2_body(&Review2Op::Intersect, &slabs).unwrap();
+    for (fk, _) in body.faces() {
+        let s = body.face_surface(fk).unwrap();
+        let loops = body.loops().filter(|(_, l)| l.face == fk).count();
+        println!("[r2d] face {fk:?} {:?} loops {loops}", s.kind());
+    }
+    for q in [
+        [
+            -0.5094579774156219,
+            -0.790920856177879,
+            -0.33896425845571776,
+        ],
+        [
+            0.6601504762252806,
+            -0.7452734627661046,
+            -0.09364194805830817,
+        ],
+    ] {
+        for (fk, _) in body.faces() {
+            if !matches!(body.face_surface(fk), Some(Surface::Sphere { .. })) {
+                continue;
+            }
+            let c = topo::curved_face_containment(
+                &body,
+                fk,
+                geom_core::Point3::new(q[0], q[1], q[2]),
+                band(),
+            );
+            let h = topo::test_support::posed_extents_holding(&body, fk, q);
+            println!("[r2d] point {q:?} face {fk:?} containment {c:?} posed {h:?}");
+        }
+    }
+}
+
+fn review2_union_of_balls(balls: &[(f64, [f64; 3])]) -> Option<Body<f64>> {
+    let ball = |r: f64, c: [f64; 3]| {
+        let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+        let b = revolved_about_y_at::<f64>(vec![p(-r, 1.0), p(r, 0.0)], Revolution::Full, tol());
+        topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::translation(geom_core::Vec3::new(c[0], c[1], c[2])).unwrap(),
+        )
+        .unwrap()
+    };
+    let fin = |b| sweep::test_support::finished("probe", b, tol());
+    let mut cur = ball(balls[0].0, balls[0].1);
+    for &(r, c) in &balls[1..] {
+        match topo::boolean::union(&fin(cur), &fin(ball(r, c)), tol()) {
+            Ok(u) => cur = Body::clone(&u.body()?.body),
+            Err(e) => {
+                println!("[r2s] union refused: {e:?}");
+                return None;
+            }
+        }
+    }
+    Some(cur)
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_off_axis_snowmen_cost() {
+    let cases: [(&str, Vec<(f64, [f64; 3])>); 6] = [
+        ("head x 0.1", vec![(1.0, [0.0; 3]), (0.8, [0.1, 1.4, 0.0])]),
+        ("head x 0.5", vec![(1.0, [0.0; 3]), (0.8, [0.5, 1.3, 0.0])]),
+        (
+            "head (0.2, 0.15)",
+            vec![(1.0, [0.0; 3]), (0.8, [0.2, 1.4, 0.15])],
+        ),
+        (
+            "head small x 0.3",
+            vec![(1.0, [0.0; 3]), (0.4, [0.3, 1.1, 0.0])],
+        ),
+        (
+            "three balls",
+            vec![
+                (1.0, [0.0; 3]),
+                (0.8, [0.3, 1.4, 0.0]),
+                (0.5, [0.5, 2.3, 0.1]),
+            ],
+        ),
+        (
+            "side by side",
+            vec![(1.0, [0.0; 3]), (0.9, [1.5, 0.2, 0.1])],
+        ),
+    ];
+    for (what, balls) in cases {
+        let Some(body) = review2_union_of_balls(&balls) else {
+            continue;
+        };
+        let t = std::time::Instant::now();
+        let r = injective(&body, None, BUDGET);
+        println!(
+            "[r2s] {what}: faces {} {:?} {:?} {:.2}s",
+            body.faces().count(),
+            r.verdict,
+            r.receipt,
+            t.elapsed().as_secs_f64()
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_general_lune_on_main() {
+    for phi in [0.4, -0.3] {
+        let hollow = two_arc_lune::<f64>(phi, Some(0.05));
+        let t = std::time::Instant::now();
+        let r = injective(&hollow, None, BUDGET);
+        println!(
+            "[r2g] general lune hollow {phi}: {:?} {:?} {:.2}s",
+            r.verdict,
+            r.receipt,
+            t.elapsed().as_secs_f64()
+        );
+        let solid = two_arc_lune::<f64>(phi, None);
+        let r = injective(&solid, None, BUDGET);
+        println!(
+            "[r2g] general lune solid {phi}: {:?} {:?}",
+            r.verdict, r.receipt
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_mirrored_hollow() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    for (what, n) in [
+        ("across x", [1.0, 0.0, 0.0]),
+        ("across (1,2,3)", [1.0, 2.0, 3.0]),
+    ] {
+        let refl = topo::Reflection::across(
+            geom_core::Point3::new(0.1, -0.05, 0.02),
+            geom_core::Vec3::new(n[0], n[1], n[2]),
+            tol(),
+        )
+        .unwrap();
+        let image = topo::mirror_body(&hollow, &refl, tol()).unwrap();
+        let read = posed_extents_hold_its_points(what, &image);
+        let t = std::time::Instant::now();
+        let r = injective(&image, None, BUDGET);
+        println!(
+            "[r2m] mirrored {what}: extent readings {read} {:?} {:?} {:.2}s",
+            r.verdict,
+            r.receipt,
+            t.elapsed().as_secs_f64()
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_lens_through_a_poses_pole() {
+    // Circle B (plane p·n_B = 0.3) passes through cap A's centre n_A: n_A·n_B = 0.3.
+    let half = 0.3_f64.acos() / 2.0;
+    review2_case(
+        "lens through A's pole",
+        Review2Op::Intersect,
+        &[(0.3, half, 0.0), (0.3, -half, 0.0)],
+    );
+    // A small circle through the pole, off the mid-plane: turned about y as well.
+    let tilt = 0.25;
+    let a = [0.0, -(half).sin(), (half).cos()];
+    let _ = a;
+    review2_case(
+        "lens through A's pole, spun",
+        Review2Op::Intersect,
+        &[(0.3, half, tilt), (0.3, -half, tilt)],
+    );
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_new_turns() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    for (axis, angle, by) in [
+        ([0.3, -1.0, 0.5], 2.5, [0.0; 3]),
+        ([1.0, 0.0, 1.0], -0.8, [0.2, -0.1, 0.05]),
+        ([-1.0, 2.0, 0.7], 0.05, [0.0; 3]),
+        ([0.0, 0.0, 1.0], core::f64::consts::FRAC_PI_2, [0.0; 3]),
+        ([1.0, 0.0, 0.0], core::f64::consts::PI, [0.0; 3]),
+    ] {
+        let body = lune_moved(&hollow, axis, angle, by);
+        let t = std::time::Instant::now();
+        let r = injective(&body, None, BUDGET);
+        println!(
+            "[r2t] turned {axis:?} {angle} by {by:?}: {:?} {:?} {:.2}s",
+            r.verdict,
+            r.receipt,
+            t.elapsed().as_secs_f64()
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe (PR 7113, second pass)"]
+fn review2_plain_hollow_for_the_miss_trace() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    let r = injective(&hollow, None, BUDGET);
+    println!("[r2t] plain: {:?} {:?}", r.verdict, r.receipt);
+}
