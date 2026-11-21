@@ -5477,15 +5477,11 @@ mod rational_window {
         .refine_knots(insert)
         .unwrap();
         let plane = Surface::Plane {
-            origin: Point3::new(D, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(D, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         };
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: ALPHA,
-            u_ref: Vec3::unit_x(),
         };
         let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
         let (body, face) = crate::boxes::tests::conic_sector(
@@ -5567,15 +5563,11 @@ mod rational_window {
         let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
         let (body, face) = crate::boxes::tests::conic_sector(
             Surface::Plane {
-                origin: Point3::new(D, 0.0, 0.0),
-                normal: Vec3::unit_x(),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::new(D, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
             },
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: ALPHA,
-                u_ref: Vec3::unit_x(),
             },
             carrier.clone(),
             (0.0, 0.5),
