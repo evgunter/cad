@@ -1332,25 +1332,35 @@ fn held_gap(built: &Curve3<f64>, spec: &EdgeSpec) -> f64 {
         .fold(0.0_f64, f64::max)
 }
 
-/// **D7 step 2's verification**: the printed carrier's ends and middle lie
-/// on the built one within the file's band, else the file's statements
-/// are no description there.
+/// **D7 step 2's verification**: the printed carrier lies on the built one
+/// within the file's band, else the file's statements are no description
+/// there. The gap read is [`description_gap`].
 fn on_description(
     id: u64,
     spec: &EdgeSpec,
     built: &Curve3<f64>,
     file: FileBand,
 ) -> Result<(), StepImportError> {
+    file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, description_gap(spec, built))
+}
+
+/// **How far the printed carrier stands off `built` over its trim**: the
+/// whole-trim certificate ([`crate::on_built::printed_on`]) where an arm
+/// serves the pair, else the farthest of the printed carrier's ends and
+/// middle from it.
+fn description_gap(spec: &EdgeSpec, built: &Curve3<f64>) -> f64 {
+    if let Some(bound) = crate::on_built::printed_on(spec, built) {
+        return bound;
+    }
     let c = &spec.carrier;
-    let gap = [
+    [
         c.eval(spec.t0),
         c.mid_point(spec.t0, spec.t1),
         c.eval(spec.t1),
     ]
     .into_iter()
     .map(|p| gap_to(built, p))
-    .fold(0.0_f64, f64::max);
-    file.agree_at(id, STEP_EDGE_ON_DESCRIPTION, gap)
+    .fold(0.0_f64, f64::max)
 }
 
 /// **A spline wall's own boundary column or row the printed carrier
@@ -1416,7 +1426,7 @@ fn iso_of_wall(
                 if !(column || both) {
                     continue;
                 }
-                match column_match(&spec.carrier, &iso, (p_start, p_end), file) {
+                match column_match(spec, &iso, (p_start, p_end), file) {
                     Some(ColumnMatch::Column) => {
                         if let Some((carrier, running)) =
                             column_carrier(id, net, (column, end), iso, spec, file)?
@@ -1532,15 +1542,18 @@ fn cap_row(
                 // cap plane takes that section, which refuses it
                 // (`work/exch/a-retimed-straight-row-in-a-cap-plane-refuses-at-the-section.md`),
                 // so no committed file reaches the arm with one.
+                let straight = line_on_column(&iso, (p_start, p_end), file);
                 if let Some(LineOnColumn::Chord {
                     origin,
                     chord,
                     forward,
-                }) = line_on_column(&iso, (p_start, p_end), file)
+                }) = straight
                 {
                     let (dir, len) = chord.direction_and_length();
                     let line = Curve3::line(origin, dir);
-                    if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
+                    if file.read(STEP_EDGE_ON_DESCRIPTION, description_gap(spec, &line))
+                        != Read::Zero
+                    {
                         continue;
                     }
                     let (r0, r1) = running_domain;
@@ -1552,15 +1565,15 @@ fn cap_row(
                     };
                     return Ok(Some(chosen(wall, line, map)));
                 }
-                let c = &spec.carrier;
-                let held = [
-                    c.eval(spec.t0),
-                    c.mid_point(spec.t0, spec.t1),
-                    c.eval(spec.t1),
-                ]
-                .into_iter()
-                .map(|p| spline_foot(&iso, p).map_or(f64::INFINITY, |(_, d)| d))
-                .fold(0.0_f64, f64::max);
+                // A row straight as a locus is certified as the segment it
+                // covers; any other is read by the one gap, against itself.
+                let held = match straight {
+                    Some(LineOnColumn::Locus) => segment_gap(spec, &iso, (p_start, p_end), file),
+                    _ => None,
+                }
+                .unwrap_or_else(|| {
+                    description_gap(spec, &Curve3::Nurbs(std::sync::Arc::new(iso.clone())))
+                });
                 if file.read(STEP_EDGE_ON_DESCRIPTION, held) != Read::Zero {
                     continue;
                 }
@@ -1663,49 +1676,90 @@ enum ColumnMatch {
     },
 }
 
-/// **The iso rung's one LOCUS match** of an edge's printed carrier to a
-/// wall's column, and what the edge is then carried on. The match
-/// compares the printed carrier with the column, never an estimate of
-/// one with an estimate of the other; the carrier the edge gets reads
-/// only the column, which the body holds:
+/// **The iso rung's one LOCUS match** of an edge to a wall's column, and
+/// what the edge is then carried on. The column's own law chooses the
+/// carrier, and the printed carrier, of whatever kind, has only to lie on
+/// that carrier over its trim, certified ([`crate::on_built`]) and read
+/// Zero at the file's band; the printed carrier's kind chooses nothing:
 ///
-/// - a printed SPLINE matches a column it repeats bit for bit;
-/// - a printed CIRCLE (a promoted arc or full circle) matches a column
-///   whose locus and coverage are certified against THAT circle
-///   ([`circle_column_match`]), its ends the edge's vertices;
-/// - a printed LINE matches a straight column whose ends are its
-///   vertices ([`line_on_column`]).
+/// - a printed spline the column repeats bit for bit is the column;
+/// - a column whose ends are the edge's vertices and that reads as the
+///   straight MAP ([`line_on_column`], INV-C5) carries the edge on its
+///   line, with the affine chart image that map certifies;
+/// - one straight at the band but re-timed along it is the segment as a
+///   locus, carried on itself ([`segment_gap`]);
+/// - a curved one is matched against the printed curve where that is a
+///   circle whose arc the column's locus and coverage are certified on
+///   ([`circle_column_match`]): the circle is the only frame there is to
+///   certify a curved column against.
 ///
-/// The edge is carried on the column itself ([`column_carrier`]), except
-/// a line whose column reads as the straight MAP
-/// ([`crate::recognize_curve::straight_map`], INV-C5), which is carried
-/// on the line with the affine chart image that map certifies. `None`
-/// withholds the column.
+/// The edge is carried on the column itself ([`column_carrier`]) but for
+/// the straight map. `None` withholds the column.
 fn column_match(
-    printed: &Curve3<f64>,
+    spec: &EdgeSpec,
     iso: &geom::NurbsCurve3<f64>,
     ends: (Point3<f64>, Point3<f64>),
     file: FileBand,
 ) -> Option<ColumnMatch> {
-    match printed {
-        Curve3::Nurbs(n) => bitwise_iso_match(n, iso).then_some(ColumnMatch::Column),
-        Curve3::Circle(circle) => {
-            circle_column_match(iso, circle, ends, file).then_some(ColumnMatch::Column)
-        }
-        Curve3::Line(_) => match line_on_column(iso, ends, file)? {
-            LineOnColumn::Chord {
-                origin,
-                chord,
-                forward,
-            } => Some(ColumnMatch::Line {
-                origin,
-                chord,
-                forward,
-            }),
-            LineOnColumn::Locus => Some(ColumnMatch::Column),
-        },
-        _ => None,
+    if let Curve3::Nurbs(n) = &spec.carrier
+        && crate::on_built::bitwise_twin(n, iso)
+    {
+        return Some(ColumnMatch::Column);
     }
+    let on = |gap: Option<f64>| {
+        gap.is_some_and(|gap| file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero)
+    };
+    match line_on_column(iso, ends, file) {
+        Some(LineOnColumn::Chord {
+            origin,
+            chord,
+            forward,
+        }) => {
+            let line = Curve3::line(origin, chord.direction_and_length().0);
+            on(crate::on_built::printed_on(spec, &line)).then_some(ColumnMatch::Line {
+                origin,
+                chord,
+                forward,
+            })
+        }
+        Some(LineOnColumn::Locus) => {
+            on(segment_gap(spec, iso, ends, file)).then_some(ColumnMatch::Column)
+        }
+        None => match &spec.carrier {
+            Curve3::Circle(circle) => {
+                circle_column_match(iso, circle, ends, file).then_some(ColumnMatch::Column)
+            }
+            _ => None,
+        },
+    }
+}
+
+/// **How far the printed carrier stands off a straight column it would be
+/// carried on as a locus** ([`LineOnColumn::Locus`]), a certified bound.
+/// The column covers the segment between its ends within the farthest of
+/// its controls from that segment, `δ`: each column point lies in its
+/// controls' hull, and its projection on the segment's line runs
+/// continuously from one end to the other, so every segment point has a
+/// column point within `δ`. The printed carrier lies within its own bound
+/// of that segment ([`crate::on_built::printed_on_segment`]), so within
+/// the sum of the two of the column. `None` where the column's ends are
+/// not the edge's vertices or no bound certifies.
+fn segment_gap(
+    spec: &EdgeSpec,
+    iso: &geom::NurbsCurve3<f64>,
+    ends: (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Option<f64> {
+    let control = iso.control();
+    let (first, last) = (*control.first()?, *control.last()?);
+    ends_order((first, last), ends, file)?;
+    let spread = control
+        .iter()
+        .map(|&p| crate::on_built::point_segment_sup(p, (first, last)))
+        .fold(0.0_f64, geom_core::interval::max_bound);
+    let printed = crate::on_built::printed_on_segment(spec, (first, last))?;
+    let bound = geom_core::interval::add_up(printed, spread);
+    bound.is_finite().then_some(bound)
 }
 
 /// What a straight column is to the edge whose ends it spans
@@ -1867,31 +1921,6 @@ struct EndsOrder {
 /// [`crate::recognize_curve::arc_residual`] against that circle's frame,
 /// in metres, read at the file's band.
 pub(crate) const STEP_ISO_CIRCLE: &str = "step_iso_circle";
-
-/// The bitwise iso match: the carrier's knots, controls and weights are
-/// the iso's, bit for bit.
-fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f64>) -> bool {
-    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    carrier.knots_f64_interim().degree() == iso.knots_f64_interim().degree()
-        && carrier.knots_f64_interim().knots().len() == iso.knots_f64_interim().knots().len()
-        && carrier
-            .knots_f64_interim()
-            .knots()
-            .iter()
-            .zip(iso.knots_f64_interim().knots())
-            .all(|(a, b)| a.to_bits() == b.to_bits())
-        && carrier.control().len() == iso.control().len()
-        && carrier
-            .control()
-            .iter()
-            .zip(iso.control())
-            .all(|(a, b)| bits3(a) == bits3(b))
-        && carrier
-            .weights()
-            .iter()
-            .zip(iso.weights())
-            .all(|(a, b)| a.to_bits() == b.to_bits())
-}
 
 /// **A surface's exact structural signature**: variant tag and field bits,
 /// the key that restores writer-side surface sharing (bitwise identity, no
