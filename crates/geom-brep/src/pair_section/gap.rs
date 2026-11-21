@@ -629,6 +629,7 @@ pub(crate) fn critical_gap<T: Decide>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -659,6 +660,46 @@ mod tests {
             "the least gap is the reach below zero: {lower}"
         );
         assert!((upper - 0.16).abs() < 1e-12, "the most gap: {upper}");
+    }
+
+    /// **A floor cell whose gap lies within its rounding of a level
+    /// escalates as the straddle it is.** `D = 1 + 6·10⁻⁹` within
+    /// `9·10⁻⁹`, by the level `1`, over a cell of reach `10⁻¹²`, at
+    /// ε = 10⁻⁹: the gap's least is zero (a magnitude is never negative)
+    /// and its most, `1.5·10⁻⁸`, is past the band, so the floor refuses on
+    /// the straddle row. Read unclamped, the least is `−3·10⁻⁹`, in the
+    /// band's gap, and the floor refuses on the gap row as if a negative
+    /// distance were undecided.
+    #[test]
+    fn a_floor_gap_within_its_rounding_escalates_as_a_straddle() {
+        let core = Core::of(
+            &geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            2.0,
+        );
+        let sweep = Sweep {
+            core,
+            core_lever: geom_core::test_support::fixture_lever(2.0),
+            spine: Spine::Line(geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            }),
+            levels: [3.0, 1.0],
+            rows: &crate::rows::CT_GAP,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+        };
+        let at = |value: f64, error: f64| Rounded { value, error };
+        let mut r = reading();
+        r.d = at(1.0 + 6e-9, 9e-9);
+        let got = sweep.floor_refusal(r, 1e-12);
+        assert_eq!(
+            got.predicate,
+            Some("ct_critical_gap_straddle"),
+            "{got:?}: a gap within its rounding of a level refused off the straddle"
+        );
     }
 
     /// **A turn reads no sign on a slope within its bound.** `G′ = −0.3`
