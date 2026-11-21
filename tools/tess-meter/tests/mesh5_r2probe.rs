@@ -116,14 +116,12 @@ fn cone_patch_report(body: &Body<f64>, mesh: &mesh::Mesh) -> (usize, f64) {
     let mut max_dev = 0.0_f64;
     for patch in &mesh.patches {
         let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = *body.face_surface(patch.face).unwrap()
         else {
             continue;
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         tris += patch.triangles.len();
         for t in &patch.triangles {
             let [a, b, c] = [

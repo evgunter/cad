@@ -53,7 +53,10 @@
 //! result always carries `Trv` — `DInterval::intersection` — would be
 //! refused on every result if this scalar ever exposed it. It does not;
 //! its one caller, `Certification::clamped_to`, reads its endpoints and
-//! keeps the enclosure's own decoration.
+//! keeps the enclosure's own decoration. The other meet in this file,
+//! [`Real::meet_readings`], does not call it: it takes the intersection
+//! from the two readings' endpoints and keeps the weaker one's
+//! decoration, so it is decorated as its readings are.
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
@@ -633,6 +636,216 @@ impl Real for Interval {
     /// reads the entire line and not poison.
     ///
     /// [`is_finite_length`]: crate::real::is_finite_length
+    /// **The polar enclosure, to second order.** For a stated frame `M`
+    /// (columns `u`, `v`, `w`) the rotation it names is its polar factor
+    /// `R = M(MᵀM)^(−1/2)`, the rotation nearest it. With `G = MᵀM − I`
+    /// (symmetric) and `η` an upper bound of `‖G‖_F`, which is at least
+    /// `‖G‖₂` and at least `‖|G|‖₂` (`|·|` entry by entry):
+    ///
+    /// - `(1 + x)^(−1/2) = Σₖ cₖ·xᵏ` with `cₖ = binom(−1/2, k)`, so
+    ///   `R = M − ½·M·G + M·Σₖ₌₂ cₖ·Gᵏ` wherever `‖G‖₂ < 1` (`G` is
+    ///   symmetric, so the series converges as its scalar does on the
+    ///   eigenvalues), and `|cₖ| ≤ 3/8` for `k ≥ 2`;
+    /// - entry by entry, for `k ≥ 2`, `|Gᵏ| ≤ |G|ᵏ = |G|·|G|ᵏ⁻²·|G|`, and an
+    ///   entry of `|G|ᵏ⁻²` is at most its spectral norm
+    ///   (`|aᵢⱼ| = |eᵢᵀAeⱼ| ≤ ‖A‖₂`), at most `‖|G|‖₂ᵏ⁻² ≤ ηᵏ⁻²` (and
+    ///   `|G|⁰ = I ≤ J`); so `|Σₖ₌₂ cₖGᵏ| ≤ (3/8)/(1 − η)·|G|·J·|G|`, `J`
+    ///   the all-ones matrix, whose `(l, j)` entry is `rₗ·cⱼ`, the row and
+    ///   column sums of `|G|`;
+    /// - so `|R − (M − ½·M·G)|ᵢⱼ ≤ ρᵢⱼ = (3/8)/(1 − η)·aᵢ·cⱼ`, with
+    ///   `aᵢ = Σₗ |Mᵢₗ|·rₗ`.
+    ///
+    /// Each entry is answered `(M − ½·M·G)ᵢⱼ ± ρᵢⱼ`, all of it in this
+    /// outward rounded arithmetic, so it encloses `Rᵢⱼ`. For a rounded
+    /// rigid frame `aᵢ` and `cⱼ` are each a few `u`, so `ρᵢⱼ` is of order
+    /// `u²` and the width is the rounding of `M − ½·M·G` itself; and a
+    /// column whose column of `G` vanishes (a column square to the others
+    /// and unit as stated) keeps its values exactly, as the polar factor
+    /// does (a frame block-diagonal in the world axes is so in `R`).
+    ///
+    /// `R` is a rotation and not a reflection where `det M > 0` with every
+    /// singular value positive (`η < 1`), since `det M = det U · det Vᵀ
+    /// · Πσᵢ` and `det R = det U · det Vᵀ` for `M = UΣVᵀ`. The determinant
+    /// is enclosed here too, and a frame whose determinant is not
+    /// certified positive, or whose `η` is not below one half, is
+    /// answered poisoned (every entry NaI): it names no rotation this
+    /// lift encloses.
+    ///
+    /// **Stated as points, the first-order term is exact.** Where every
+    /// entry of `m` is a finite point (a frame lifted from `f64`), `G` and
+    /// each entry's `M − ½·M·G` are formed as exact expansions
+    /// ([`crate::exact::Expansion`]) and enclosed once, so an entry's
+    /// width is the one rounding of an exact real plus `ρ`, not the
+    /// interval arithmetic's: about an ulp, where `G` read through
+    /// interval products is a few ulps of one wide and `M·G` carries that
+    /// width into every entry. Exactness needs no product below the
+    /// normal range; a stated entry under `2⁻⁴⁰⁰` in magnitude (zero
+    /// excepted) takes the interval path, which encloses too.
+    fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
+        let dot = |a: [Self; 3], b: [Self; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let exact = stated_points(&m);
+        let gram: Option<[[crate::exact::Expansion; 3]; 3]> = exact.map(|a| {
+            core::array::from_fn(|i| {
+                core::array::from_fn(|j| {
+                    let mut e = crate::exact::Expansion::default();
+                    for (x, y) in a[i].iter().zip(&a[j]) {
+                        e.add_expansion(&crate::exact::Expansion::product(*x, *y));
+                    }
+                    if i == j {
+                        e.add(-1.0);
+                    }
+                    e
+                })
+            })
+        });
+        let g: [[Self; 3]; 3] = core::array::from_fn(|i| {
+            core::array::from_fn(|j| match &gram {
+                Some(gram) => enclose_expansion(&gram[i][j], 0.0),
+                None => {
+                    let d = dot(m[i], m[j]);
+                    if i == j { d - Self::one() } else { d }
+                }
+            })
+        });
+        let frobenius = g
+            .iter()
+            .flatten()
+            .fold(Self::zero(), |acc, &x| acc + x.powi(2));
+        let eta = Real::sqrt(frobenius).hi();
+        let [u, v, w] = m;
+        let cross = [
+            u[1] * v[2] - u[2] * v[1],
+            u[2] * v[0] - u[0] * v[2],
+            u[0] * v[1] - u[1] * v[0],
+        ];
+        let det = dot(cross, w);
+        if !(eta < 0.5 && det.lo() > 0.0) {
+            let poison = Self::from_bounds(f64::NAN, f64::NAN);
+            return Some([[poison; 3]; 3]);
+        }
+        let e = Self::from_bounds(eta, eta);
+        let lever = Self::from_f64(0.375) / (Self::one() - e);
+        // `rₗ`, the row sums of `|G|` (`G` is symmetric, so they are its
+        // column sums `cⱼ` too), `l` a column of `M`.
+        let abs = |x: Self| Real::abs(x);
+        let sums: [Self; 3] = core::array::from_fn(|l| abs(g[l][0]) + abs(g[l][1]) + abs(g[l][2]));
+        // `aᵣ`, in world row `r`.
+        let reach: [Self; 3] = core::array::from_fn(|r| {
+            abs(m[0][r]) * sums[0] + abs(m[1][r]) * sums[1] + abs(m[2][r]) * sums[2]
+        });
+        let half = Self::from_f64(0.5);
+        // `(M·G)` column `j` is `Σₗ M_l · G_lj`, `M_l` column `l`.
+        Some(core::array::from_fn(|j| {
+            core::array::from_fn(|r| {
+                let rho = (lever * reach[r] * sums[j]).hi();
+                match (&gram, exact) {
+                    // `m[j][r] − ½ Σₗ m[l][r]·g[l][j]`, exact: `−½·m` is
+                    // exact (a power of two), and every product and sum an
+                    // expansion's.
+                    (Some(gram), Some(a)) => {
+                        let mut v = crate::exact::Expansion::default();
+                        v.add(a[j][r]);
+                        for l in 0..3 {
+                            v.add_expansion(&gram[l][j].scaled(-0.5 * a[l][r]));
+                        }
+                        enclose_expansion(&v, rho)
+                    }
+                    _ => {
+                        let mg = m[0][r] * g[0][j] + m[1][r] * g[1][j] + m[2][r] * g[2][j];
+                        m[j][r] - half * mg + Self::from_bounds(-rho, rho)
+                    }
+                }
+            })
+        }))
+    }
+
+    /// A certified point's `f64`: its two ends one bit pattern.
+    fn stated_point(self) -> Option<f64> {
+        stated_point(self)
+    }
+
+    /// **The unit's enclosure**, the one-column case of
+    /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
+    /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·Σₖ₌₂ cₖgᵏ`,
+    /// so each component `vᵢ` lies within `ρᵢ = |vᵢ|·(3/8)·η²/(1 − η)` of
+    /// `(v − ½·g·v)ᵢ`, answered so with outward rounding (a zero component
+    /// stays zero); poisoned where `η` is not below one half.
+    ///
+    /// Stated as points (a direction lifted from `f64`), `g` and each
+    /// `vᵢ − ½·g·vᵢ` are exact expansions enclosed once, as in
+    /// [`Interval::enclose_rotation`]'s exact arm.
+    fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
+        let exact = stated_points(&[v, v, v]).map(|a| a[0]);
+        let gram = exact.map(|a| {
+            let mut e = crate::exact::Expansion::default();
+            for c in a {
+                e.add_expansion(&crate::exact::Expansion::product(c, c));
+            }
+            e.add(-1.0);
+            e
+        });
+        let g = match &gram {
+            Some(gram) => enclose_expansion(gram, 0.0),
+            None => v[0].powi(2) + v[1].powi(2) + v[2].powi(2) - Self::one(),
+        };
+        let eta = Real::abs(g).hi();
+        if eta.is_nan() || eta >= 0.5 {
+            return Some([Self::from_bounds(f64::NAN, f64::NAN); 3]);
+        }
+        let e = Self::from_bounds(eta, eta);
+        let lever = Self::from_f64(0.375) * e.powi(2) / (Self::one() - e);
+        let half = Self::from_f64(0.5);
+        Some(core::array::from_fn(|i| {
+            let x = v[i];
+            let rho = (Real::abs(x) * lever).hi();
+            match (&gram, exact) {
+                (Some(gram), Some(a)) => {
+                    let mut w = crate::exact::Expansion::default();
+                    w.add(a[i]);
+                    w.add_expansion(&gram.scaled(-0.5 * a[i]));
+                    enclose_expansion(&w, rho)
+                }
+                _ => x - half * g * x + Self::from_bounds(-rho, rho),
+            }
+        }))
+    }
+
+    /// The intersection of the two enclosures, as
+    /// `Certification::meet` reads one: a refused reading refuses the
+    /// meet, and the decoration is the weaker reading's.
+    ///
+    /// **A disjoint meet is a kernel defect, loud.** Two sound
+    /// enclosures of one real cannot be disjoint, so an empty meet says
+    /// one of the two spellings is wrong: it fails a debug assertion, and
+    /// a release build answers NaI, poison every consumer refuses, never
+    /// an empty or arbitrary interval
+    /// (`meet_readings_of_two_disjoint_enclosures_is_a_defect`).
+    fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
+        let second = second();
+        if !first.is_certified() || !second.is_certified() {
+            return Self(DInterval::nai());
+        }
+        let (lo, hi) = (
+            first.0.lo().max(second.0.lo()),
+            first.0.hi().min(second.0.hi()),
+        );
+        if lo.is_nan() || hi.is_nan() || lo > hi {
+            debug_assert!(
+                false,
+                "meet_readings: two readings of one real are disjoint, [{}, {}] and [{}, {}]: \
+                 one spelling is wrong",
+                first.0.lo(),
+                first.0.hi(),
+                second.0.lo(),
+                second.0.hi()
+            );
+            return Self(DInterval::nai());
+        }
+        let (a, b) = (first.0.decoration(), second.0.decoration());
+        let weaker = if b < a { b } else { a };
+        Self(DInterval::from_bounds(lo, hi).with_dec_capped(weaker))
+    }
+
     fn is_bounded(self) -> bool {
         !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
     }
@@ -1370,6 +1583,50 @@ impl KinkJacobian for Interval {
     }
 }
 
+/// The stated entries of `m` as `f64`s, where every one is a certified
+/// finite point no product of two of which leaves the normal range
+/// ([`Interval::enclose_rotation`]'s exact arm); `None` otherwise.
+fn stated_points(m: &[[Interval; 3]; 3]) -> Option<[[f64; 3]; 3]> {
+    let tiny = 2f64.powi(-400);
+    let mut out = [[0.0; 3]; 3];
+    for (j, col) in m.iter().enumerate() {
+        for (r, x) in col.iter().enumerate() {
+            let at = stated_point(*x)?;
+            if at != 0.0 && at.abs() < tiny {
+                return None;
+            }
+            out[j][r] = at;
+        }
+    }
+    Some(out)
+}
+
+/// `x` as the `f64` it states, where it is a certified finite point (its
+/// two ends one bit pattern); `None` otherwise ([`Real::stated_point`]).
+fn stated_point(x: Interval) -> Option<f64> {
+    let (lo, hi) = (x.0.lo(), x.0.hi());
+    (x.is_certified() && lo.to_bits() == hi.to_bits() && lo.is_finite()).then_some(lo)
+}
+
+/// An exact expansion's value, widened by `±slack`, enclosed: every
+/// component but the largest, and the slack, summed outward first at
+/// their own small scale, then the largest added once, so the one
+/// rounding at the value's scale is the last (about an ulp wide).
+fn enclose_expansion(e: &crate::exact::Expansion, slack: f64) -> Interval {
+    let from = <Interval as Real>::from_f64;
+    // No slack is the exact zero, not `[−0, 0]`: an exact frame's zero
+    // entry reads as the zero a mint at the scalar writes.
+    let small = if slack > 0.0 {
+        Interval::from_bounds(-slack, slack)
+    } else {
+        <Interval as Real>::zero()
+    };
+    match e.components().split_last() {
+        None => small,
+        Some((&head, rest)) => rest.iter().fold(small, |acc, &c| acc + from(c)) + from(head),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1403,6 +1660,61 @@ mod tests {
     /// would pad one step. So `x · ½`, `½ · x`, `x · (−½)` and
     /// `scale_pow2` all read the exact half here, and a halving by `·½`
     /// pads nothing.
+    /// **Two disjoint readings of one real are a kernel defect, loud**
+    /// (`Real::meet_readings`): `[1, 2]` and `[3, 4]` cannot both enclose
+    /// one real, so a debug build fails its assertion and a release build
+    /// answers NaI, never an empty or arbitrary interval.
+    /// **The polar enclosure's poison arm, at its threshold**: a frame
+    /// stretched along `x̂` so that `G = MᵀM − I` is `diag(g, 0, 0)`, its
+    /// determinant positive. Just under `g = ½` the read encloses a
+    /// rotation; just over it, where the remainder bound no longer holds,
+    /// it answers poison rather than a box that may miss the polar factor.
+    #[test]
+    fn a_frame_stretched_past_half_its_gram_defect_reads_poison() {
+        let read = |g: f64| {
+            let s = (1.0 + g).sqrt();
+            let col = |k: usize, x: f64| -> [Interval; 3] {
+                core::array::from_fn(|i| Interval::from_f64(if i == k { x } else { 0.0 }))
+            };
+            <Interval as Real>::enclose_rotation([col(0, s), col(1, 1.0), col(2, 1.0)])
+                .expect("Interval encloses")
+        };
+        let below = read(0.49);
+        assert!(
+            !Real::is_poison(below[0][0]) && below[0][0].lo() <= 1.0 && 1.0 <= below[0][0].hi(),
+            "η 0.49 encloses the identity: {:?}",
+            below[0][0]
+        );
+        let over = read(0.501);
+        assert!(
+            over.iter().flatten().all(|x| Real::is_poison(*x)),
+            "η past ½ reads poison: {over:?}"
+        );
+    }
+
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "two readings of one real are disjoint")
+    )]
+    fn meet_readings_of_two_disjoint_enclosures_is_a_defect() {
+        let got = <Interval as Real>::meet_readings(Interval::from_bounds(1.0, 2.0), || {
+            Interval::from_bounds(3.0, 4.0)
+        });
+        assert!(Real::is_poison(got), "a disjoint meet poisons: {got:?}");
+    }
+
+    /// Two overlapping readings meet at their intersection, the tighter
+    /// enclosure of the real both enclose.
+    #[test]
+    fn meet_readings_of_two_overlapping_enclosures_is_their_intersection() {
+        let got = <Interval as Real>::meet_readings(Interval::from_bounds(1.0, 3.0), || {
+            Interval::from_bounds(2.0, 4.0)
+        });
+        assert_eq!((got.lo(), got.hi()), (2.0, 3.0));
+        assert!(got.is_certified());
+    }
+
     #[test]
     fn a_halving_is_exact_below_the_two_prod_floor() {
         let least = f64::MIN_POSITIVE;

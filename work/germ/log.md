@@ -1682,3 +1682,30 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-21, 07:18Z — (ONEROUND orchestrator) A note from another program: `demos/tour` does not build under `--features probe` on main: `bodies.rs` destructures `Circle { radius, .. }` and PR 7183 made a conic's sizes private. The nightly's k-probe sweep needs that build. The row is `work/green/main-red-the-tours-probe-build-destructures-a-circles-private-radius.md`; the fix (read through the accessor) is yours.
 - 2026-11-21 13:28 — **U3b dispatched**, stacked on U3a's branch, as cloud session `session_01BJC3B56pNrGKigN6ME68bY` (branch `germ/crossing-consumers`). It follows spec §U3b: the ring path, classify, `on_surface` and region move onto `pose`/`cross`. Tier **single, FULL**. It goes ahead of U3a's merge because U3a's final round is over-refusal and contract fixes that do not reshape the reading. The U3a reviews' lessons are carried into the brief.
 - 2026-11-21 14:06 — **PR 7226 (U3a) merged** (`194acb6efb`). Its final round sizes a past touch's window by its Kε reach and places an endless span without ends. I read the delta diff. The U3a session is archived. U3b, stacked, is told to merge main and target it. State PR 7295 merged. The kind-pair row gains a progress note: U0, U1, U1b, U2 and U3a are done; U3b is in flight; U4 and U5 remain.
+- 2026-11-21 18:45 — **U3b reported** (PR 7299, frozen at `444bc41373`, `gate ok` green, base main). Ten mutants red. `under` is retired, but a spiric edge is still read by its leg across its plane, routed through `cross`. The ring-path move is parked on `germ/crossing-consumers-ring-path-parked`. Two blocker rows are filed:
+  - the plane pose's offset loses digits at far frames, so the ring path can't drop its charge: 22 to 376 wrong of 2000 at far 1e4 to 1e6;
+  - the region's spiric fork: refusing the edge reds ten plane × torus rows.
+
+  **Dispatched in parallel:**
+  - U3b's FULL review, including whether the kept leg reading is one method through `cross` or `under` renamed;
+  - **two designers on the spiric fork** (problem at `~/.local/share/cad-work/germ-spiric-fork/problem.md`). Two Opus designers under the Fable outage; no design-fork log row.
+
+  The far-frame re-pose unit is next, after U3b merges.
+- 2026-11-21 19:30 — **PR 7299 (U3b) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Confirmed, with the designers:**
+    - U3b collapsed main's per-family co-surface direction, regressing a near-crest parallel leg: it grazes or escalates inside about √(Kε/r) of the crest, where main landed.
+    - Commit 3e748d3791 narrowed the C5 co-surface sentence Ev ratified in PR 6567 and deleted PR 6624's "whichever way" clause, without sign-off, and the spiric path skips `same_record`.
+  - **MINORs:**
+    - classify lets an `Apart` carrier with its ends on opposite sides pass;
+    - a mutant row doesn't reproduce;
+    - an escalated spiric window becomes a landing;
+    - faults are set aside rather than failing loud.
+
+  **Fix pass sent** (U3b session unarchived): restore main's direction and the C5 text and record check; the MINORs; retitle (the ring path is parked).
+
+  **Spiric fork: two Opus designers converged in one round on R.** S1 moved from A after probing S2's crest counterexample numerically. R is:
+  - the region's question is D3's co-surface outcome, so `curve_pair::on_surface` owns one direction table per curve-family pair on the transversality rule (cut with the plane transversal to the surface all along its curve), and the edge's section becomes one geom-brep reading;
+  - separately, build the `(Spiric, Plane)` arm by the section reduction (`P ∩ Q` against the torus through the built line × torus door), for the slit, the plane split and the planar walk.
+
+  It adds ratified text (the table rule), so it goes to Ev as an `[ev]` PR. No design-fork log row (two Opus designers, Fable outage).
+- 2026-11-21 19:50 — **The spiric fork went to Ev as `[ev]` PR 7301**: C5 gains the co-surface direction table (the transversality rule) and the `spiric_plane` door (the section reduction). Ev's PR 6567 and PR 6624 phrases are kept word for word. The co-surface sentence's "through the plane door" becomes "through the curve × face arm (`curve_face::cross`)", a change to ratified words that the PR names. Both designers' revised For Ev sections are in the body as A and B. The orchestrator subscribed to the PR.

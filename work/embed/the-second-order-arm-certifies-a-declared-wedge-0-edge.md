@@ -75,3 +75,22 @@ depth 40. The fixtures are tangent poses, so the two walls share a
 tangent plane at the vertex; that they do is read off the fixtures,
 unchecked, and so is whether `the-vertex-alone-plane-leans-along-a-cells-long-metric-side-so-an-anisotropic-pair-splits`
 is the nearer cause for any of them.
+
+## Instances in the per-solid census (EMBED trace lane, 2026-11-21)
+
+**19 tests refuse `Uncertified { SecondOrder }` at an edge** in the
+census's small buckets (main `c2a0c41f40`, the at-rest gate): cusp
+bodies the suite holds legal at rest (`a_swept_cusp_is_legal_at_rest`,
+`a_knife_edge_fillet_builds_where_its_ball_is_defined`,
+`a_minted_vertex_on_a_curved_face`, `an_arc_tangent_at_a_boolean_vertex`,
+`a_box_along_a_fillets_line_arc_junction`, `pi_seam_and_kiss_through_the_boolean`,
+`m10_2_measure`'s cusp documents), over plane/cylinder, cylinder/plane,
+sphere/cone, cone/sphere and NURBS pairs. One traced:
+`a_knife_edge_fillet_builds_where_its_ball_is_defined::a_crescent_whose_arc_is_shorter_than_its_foot_refuses`
+refuses `SecondOrder` on its cusp edge `6v1` in 0.03 s, the fixture's
+extrude finished body refused at the gate. The rest are assigned by the
+refusal's arm, unchecked. Two more of that arm are not cusps and are
+not counted here: `review_r1_tier_gate_probes::r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner`
+(in band by its own construction) and
+`spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth`
+(untraced).

@@ -77,9 +77,10 @@ fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
 fn z_chart(body: &Body<f64>, at: f64) -> Vec<FaceKey> {
     let mut found: Vec<FaceKey> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
+        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(k) else {
             continue;
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9 && (origin.z - at).abs() < 1e-9 {
             found.push(k);
         }
@@ -290,10 +291,12 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
         victim,
         topo::construction::FaceSurface::New {
             surface: geom::Surface::Cylinder {
-                origin: Point3::new(10.5, 1.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(10.5, 1.5, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

@@ -125,7 +125,10 @@ pub(crate) fn arch_joints() -> (Point3<f64>, Point3<f64>) {
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
     body.faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(&geom::Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
+            Some(&geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((k, origin, normal))
+            }
             _ => None,
         })
         .collect()
@@ -504,11 +507,9 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
 fn the_lilys_tori_exhaust_the_doors_cell_budget() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let ring = |center, big, small| geom::Surface::Torus {
-        center,
-        axis: Vec3::new(0.0, -1.0, 0.0),
+        frame: geom::Frame::new(center, Vec3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
         major_radius: big,
         minor_radius: small,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let stem = ring(Point3::new(-STEM_RING, 0.0, 0.0), STEM_RING, STEM_TUBE);
     let arch = ring(arch_frame().center, ARCH_RING, ARCH_TUBE);
