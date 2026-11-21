@@ -9,8 +9,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, GlueVerdict,
-    ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
-    split,
+    ShellDoorOf, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -494,7 +494,7 @@ impl<T: DoorScalar> Shell<T> {
     /// validation is a certified claim, so a
     /// [`topo::ShellDoor`] has one constructor
     /// ([`topo::ShellDoor::certified`]) and it is bounded on
-    /// `Decide + CertifiedBounds + AtRestPolicy`: holding the value IS
+    /// `CertifiedPolicy + CertifiedBounds`: holding the value IS
     /// the right, and passing it here is how this door asks for more
     /// of the scalar than the rest of the vocabulary does without
     /// asking it of every other door on this block. The one seam that
@@ -523,7 +523,7 @@ impl<T: DoorScalar> Shell<T> {
         &self,
         operand: &T::Finished,
         tol: Tol,
-        door: ShellDoor<T>,
+        door: T::ShellDoor,
     ) -> Result<VerbOut<T>, VerbError<T>> {
         let Self { thickness, open } = self;
         // Exhaustive destructure, deliberately: a field grown onto

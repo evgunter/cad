@@ -64,7 +64,7 @@ use crate::OffsetFitError;
 /// and there is no third outcome: a pass holding `None` refuses typed.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct OffsetFitLane<T: Real> {
+pub struct OffsetFitLane<T: geom_core::Certifies> {
     /// [`OffsetFitLane::mint`]'s body.
     mint: fn(
         std::sync::Arc<NurbsSurface<T>>,
@@ -123,7 +123,7 @@ impl OffsetFitLane<f64> {
     }
 }
 
-impl<T: Real> OffsetFitLane<T> {
+impl<T: geom_core::Certifies> OffsetFitLane<T> {
     /// Re-derives an approximating surface's certificate against its
     /// own stored description and fit, classified against `tol` — the
     /// tier-3 never-trust posture (O5), one dimension up from
@@ -202,6 +202,135 @@ impl<T: Real> OffsetFitLane<T> {
         tol: Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
         (self.certify)(description, fit, window, tol)
+    }
+}
+
+/// **An [`OffsetFitLane`] as a pass that runs at every scalar holds
+/// it**: the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed (`crate::NurbsLaneOf`'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use std::sync::Arc;
+/// use geom::{ApproxSurface, ApproxWindow, NurbsSurface, OffsetCertificate, SurfaceDescription};
+/// use geom_brep::OffsetFitError;
+/// use geom_core::Tol;
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::OffsetFitLaneOf<f64> for Mine {
+///     fn recertify(self, _a: &ApproxSurface<f64>, _t: Tol) -> Result<OffsetCertificate, OffsetFitError> {
+///         unimplemented!()
+///     }
+///     fn mint(
+///         self,
+///         _base: Arc<NurbsSurface<f64>>,
+///         _d: f64,
+///         _t: Tol,
+///     ) -> Result<Arc<ApproxSurface<f64>>, OffsetFitError> {
+///         unimplemented!()
+///     }
+///     fn remap(
+///         self,
+///         _d: &SurfaceDescription<f64>,
+///         _f: &NurbsSurface<f64>,
+///         _w: ApproxWindow,
+///         _t: Tol,
+///     ) -> Result<OffsetCertificate, OffsetFitError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait OffsetFitLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`OffsetFitLane::recertify`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn recertify(
+        self,
+        approx: &geom::ApproxSurface<T>,
+        tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError>;
+
+    /// [`OffsetFitLane::mint`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn mint(
+        self,
+        base: std::sync::Arc<NurbsSurface<T>>,
+        d: T,
+        tol: Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError>;
+
+    /// [`OffsetFitLane::remap`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn remap(
+        self,
+        description: &geom::SurfaceDescription<T>,
+        fit: &NurbsSurface<T>,
+        window: geom::ApproxWindow,
+        tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError>;
+}
+
+impl<T: geom_core::Certifies> OffsetFitLaneOf<T> for OffsetFitLane<T> {
+    fn recertify(
+        self,
+        approx: &geom::ApproxSurface<T>,
+        tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError> {
+        (self.certify)(approx.description(), approx.fit(), approx.window(), tol)
+    }
+
+    fn mint(
+        self,
+        base: std::sync::Arc<NurbsSurface<T>>,
+        d: T,
+        tol: Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
+        (self.mint)(base, d, tol)
+    }
+
+    fn remap(
+        self,
+        description: &geom::SurfaceDescription<T>,
+        fit: &NurbsSurface<T>,
+        window: geom::ApproxWindow,
+        tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError> {
+        (self.certify)(description, fit, window, tol)
+    }
+}
+
+impl<T: Real> OffsetFitLaneOf<T> for geom_core::NoLane {
+    fn recertify(
+        self,
+        _approx: &geom::ApproxSurface<T>,
+        _tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError> {
+        match self {}
+    }
+
+    fn mint(
+        self,
+        _base: std::sync::Arc<NurbsSurface<T>>,
+        _d: T,
+        _tol: Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
+        match self {}
+    }
+
+    fn remap(
+        self,
+        _description: &geom::SurfaceDescription<T>,
+        _fit: &NurbsSurface<T>,
+        _window: geom::ApproxWindow,
+        _tol: Tol,
+    ) -> Result<geom::OffsetCertificate, OffsetFitError> {
+        match self {}
     }
 }
 

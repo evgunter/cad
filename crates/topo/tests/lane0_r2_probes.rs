@@ -152,7 +152,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
 }
 
 /// The certified doors, for the scalars that may form them at all.
-fn certified_doors_at<T: geom_core::CertifiedBounds + topo::AtRestPolicy>(label: &str) {
+fn certified_doors_at<T: geom_core::CertifiedBounds + topo::CertifiedPolicy>(label: &str) {
     let (body, _) = approx_seed::<T>();
     for (door, r) in [
         ("validate_geometric", topo::validate_geometric(&body, tol())),
