@@ -5,7 +5,7 @@ title: profile: the four levered-turn recourses repeat one skeleton by hand, and
 status: open
 opened: 2026-11-21
 priority: P3
-cost: S
+cost: E
 refs: [a-real-junction-on-a-short-leg-refuses-as-tangent]
 ---
 
