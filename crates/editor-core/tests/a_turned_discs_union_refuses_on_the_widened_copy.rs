@@ -16,7 +16,7 @@
 //! turned frame, and its cylinder's datum, read through the turn,
 //! refused at the member's take (`UnfinishedLeaf`). The refusal no longer
 //! names the member
-//! (`work/onehome/a-boolean-refusing-on-a-boxed-members-widened-data-does-not-name-the-member.md`).
+//! (`work/partframes/a-boolean-refusing-on-a-boxed-members-widened-data-does-not-name-the-member.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

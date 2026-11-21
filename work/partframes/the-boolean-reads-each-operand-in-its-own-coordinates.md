@@ -45,3 +45,7 @@ derived on, so the later finish can carry them.
 No fold moves a body through `moved_by` to read it, cross-operand
 readings take the relative motion at the reading, and a Boolean's
 untouched operand keeps its facts.
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged (Ev, PR 7282: stage 2 split off). Its stage-1 part is done: every kernel door over two bodies takes placed operands (PRs 7088, 7099, 7206). What remains is the "Done when" above, which needs stage 2: the placed door still moves the operand up front, inside itself, so a fold still reaches `moved_by`. Built with or after `a-body-records-its-parts-in-their-frames`. Band unchanged.
