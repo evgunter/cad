@@ -11,7 +11,7 @@ use core::f64::consts::{PI, TAU};
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 
-use super::pose::{Pose, PoseRefusal, PoseRung, Touch};
+use super::pose::{Pose, PoseRefusal, PoseRung};
 use super::{CrossWhy, Crossings, cross, pose};
 use crate::curve_pair::Span;
 
@@ -287,29 +287,21 @@ fn a_span_through_a_cones_apex_is_through() {
 }
 
 /// **A higher-order contact escalates on `Kappa`, whatever the span**:
-/// `κ` is levered by the carrier's own scale at the touch (a unit
-/// circle's radius), its sagitta `R/2` for a swing `R` across the plane.
-/// A swing of `1.5Kε` grazes the plane, a belly in the zero band and a
-/// swing past it, its sagitta `0.75Kε` in the gap: it escalates over the
-/// whole turn and over `0.6` rad about the touch alike. A swing of `3Kε`
-/// is a definite touch over both.
+/// `κ` is levered by the carrier's own scale at the touch, never the
+/// span's length. A line tangent to a unit wall at a slope `s` off its
+/// axis has `κ = s²/r`, its sagitta over the wall's radius `s²r/2`: at
+/// `s = 1e-4` that is `5e-9`, in the gap, and it escalates over the
+/// whole run and over `0.6` about the touch alike (levered by the run of
+/// `6`, it would read definite); at `s = 1e-3` it is a definite touch
+/// over both. A conic against a plane is never so: past the parallel
+/// gate its sagitta over its diameter is its whole swing `2R`, past `Kε`.
 #[test]
 fn a_higher_order_contact_escalates_on_kappa() {
-    let tilted = |swing: f64| {
-        let axis = Vec3::new(0.0, swing, (1.0 - swing * swing).sqrt());
-        Curve3::circle(Point3::new(0.0, 0.0, swing), axis, 1.0, Vec3::unit_x())
-    };
-    // The touch: the circle's lowest point, where the definite one reads
-    // it over the whole turn (both tilts share it).
-    let definite = tilted(3.0 * band().escalate());
-    let Ok(Pose::Tangent(Touch { at, .. })) = pose(&whole(&definite), &plane(0.0), band()) else {
-        panic!("the whole turn of a 3Kε swing touches");
-    };
-    for (swing, touches) in [(1.5, false), (3.0, true)] {
-        let c = tilted(swing * band().escalate());
-        for span in [whole(&c), Span::new(&c, (at - 0.3, at + 0.3))] {
-            let got = pose(&span, &plane(0.0), band());
-            let label = format!("swing {swing}Kε over {:?}", span.params());
+    for (slope, touches) in [(1e-4_f64, false), (1e-3, true)] {
+        let c = line([1.0, 0.0, 0.0], [0.0, slope, (1.0 - slope * slope).sqrt()]);
+        for span in [whole(&c), Span::new(&c, (-0.3, 0.3))] {
+            let got = pose(&span, &wall(1.0), band());
+            let label = format!("slope {slope} over {:?}", span.params());
             if touches {
                 assert!(matches!(got, Ok(Pose::Tangent(_))), "{label}: {got:?}");
             } else {

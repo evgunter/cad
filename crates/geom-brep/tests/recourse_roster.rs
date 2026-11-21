@@ -119,6 +119,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("spline_point_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("harmonic_roots_as"),
+    NameCarrier::Call("constant_residual_as"),
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
     NameCarrier::Const("AT_THE_END"),
@@ -296,6 +297,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "curve_face/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
         ROW_FIELD,
     ),
+    ("curve_face/pose.rs: constant_residual_as: name", FORWARDS),
     ("description.rs: harmonic_row: name", CLOSURE_FORWARDS),
     (
         "row_contact.rs: row_clear_of_singularities: name",

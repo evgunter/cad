@@ -304,7 +304,7 @@ pub(super) fn axis_drift<T: Decide>(drift: Margin<T>, band: Band) -> Result<bool
 ///
 /// [`PoseRung::AxisParallel`] in band, the two ends' straddle.
 fn axis_offset<T: Decide>(at_mid: T, half_drift: T, band: Band) -> Result<Pose<T>, PoseRefusal> {
-    constant(
+    constant_residual_as(
         "curve_face_pose_axis_offset",
         PoseRung::AxisParallel,
         (at_mid, half_drift),
@@ -325,9 +325,9 @@ enum Constant {
     Straddle(Indeterminate),
 }
 
-/// The one reading of a constant residual ([`Constant`]), the spread's
-/// gap refusing on `rung`.
-fn constant<T: Decide>(
+/// The one reading of a constant residual ([`Constant`]) decided as
+/// `name`, the spread's gap refusing on `rung`.
+fn constant_residual_as<T: Decide>(
     name: &'static str,
     rung: PoseRung,
     (value, spread): (T, T),
@@ -368,8 +368,10 @@ struct Graze<T: Real> {
     /// The carrier's speed there.
     speed: T,
     /// The carrier's own scale at the touch, the lever the curvature is
-    /// read over: a conic's largest semi-axis, a wall's or a sphere's
-    /// radius, the touch's distance from a cone's apex.
+    /// read over: a conic's diameter there (twice its speed, over which
+    /// the sagitta is the residual's whole swing `2A₁` above the touch),
+    /// a wall's or a sphere's radius, the touch's distance from a cone's
+    /// apex.
     scale: T,
     /// Whether the root is the residual's, where the arm's form is not
     /// the residual (a cone's `F`, read through its floor): its refusal
@@ -379,7 +381,7 @@ struct Graze<T: Real> {
 }
 
 /// **The relative-curvature rung** at a double root `g` the arm read in
-/// the zero band, its form along the carrier `form`.
+/// the zero band.
 ///
 /// - **Where the root is.** Its arc `(π/2)·√(2z/bend)` about `at` in the
 ///   parameter, `z` the band's zero plus `|value|` plus `noise`, holds
@@ -406,20 +408,20 @@ struct Graze<T: Real> {
 /// gap, or the curvature in the gap or in the zero band.
 fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<T>, PoseRefusal> {
     let in_band = PoseRefusal::in_band(PoseRung::Kappa);
-    let z = T::from_f64(band.zero()) + g.value.abs() + g.noise;
-    let half = (T::from_f64(core::f64::consts::FRAC_PI_2)
-        * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
-    .min(T::pi());
+    // The arc about `at` holding every parameter whose form is within
+    // `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the
+    // extreme's own reading.
+    let arc = |width: T| {
+        let z = width + g.value.abs() + g.noise;
+        (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
+            .min(T::pi())
+    };
     if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
         // Clear of either end widened by the reach at the band's
-        // escalation (the arc's formula at `Kε`), read at the inf over the
-        // gap (only a definite `Negative`, outside, is acted on): every
-        // span point is definitely past the band.
-        let reach = (T::from_f64(core::f64::consts::FRAC_PI_2)
-            * (T::from_f64(2.0) * (T::from_f64(band.escalate()) + g.value.abs() + g.noise)
-                / g.bend.abs())
-            .sqrt())
-        .min(T::pi());
+        // escalation (the arc at `Kε`), read at the inf over the gap
+        // (only a definite `Negative`, outside, is acted on): every span
+        // point is definitely past the band.
+        let reach = arc(T::from_f64(band.escalate()));
         let gap = |end| span.end_gap_widened(g.at, end, reach, crate::curve_pair::GapMeter::Clear);
         let clear = [
             crate::curve_pair::SpanEnd::Start,
@@ -456,6 +458,7 @@ fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<
             band,
         ));
     }
+    let half = arc(T::from_f64(band.zero()));
     Ok(Pose::Tangent(Touch {
         at: g.at,
         point: span.carrier().eval(g.at),
@@ -544,7 +547,7 @@ pub(super) fn plane_conic<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::PlaneParallel))?
     {
         Sign::Zero => {
-            return constant(
+            return constant_residual_as(
                 "curve_face_pose_plane_offset",
                 PoseRung::PlaneParallel,
                 (d0, r),
@@ -584,8 +587,8 @@ pub(super) fn plane_conic<T: Decide>(
                 noise: T::zero(),
                 bend: r,
                 speed: conic.speed_at(at),
-                // The conic's largest semi-axis.
-                scale: conic.speed_hi(),
+                // The conic's diameter at the touch.
+                scale: T::from_f64(2.0) * conic.speed_at(at),
                 confirm: Ok(()),
             };
             kappa(span, graze, band)
@@ -1221,7 +1224,7 @@ fn first_harmonic<T: Decide>(
     }
     let (c0, a1) = ((h.lo + h.hi) / two, (h.hi - h.lo) / two);
     if let Ok(Sign::Zero) = decide("curve_face_pose_coaxial", Margin::of(a1), band) {
-        match constant(
+        match constant_residual_as(
             "curve_face_pose_constant",
             PoseRung::Coaxial,
             (c0, a1 + noise),
@@ -1305,8 +1308,8 @@ fn first_harmonic<T: Decide>(
             noise,
             bend: a1,
             speed: conic.speed_at(at),
-            // The conic's largest semi-axis.
-            scale: conic.speed_hi(),
+            // The conic's diameter at the touch.
+            scale: T::from_f64(2.0) * conic.speed_at(at),
             confirm,
         };
         kappa(span, g, band)
@@ -1504,7 +1507,7 @@ fn conic_torus<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::Coaxial))?
         {
             Sign::Zero => {
-                return constant(
+                return constant_residual_as(
                     "curve_face_pose_torus_constant",
                     PoseRung::Coaxial,
                     door::coaxial(&circle, surface, minor_radius, &axes),
@@ -1566,7 +1569,12 @@ fn torus_parallel<T: Decide>(
         super::circle_torus::contours(circle, (major_radius, minor_radius), axes, span.params());
     let in_band = PoseRefusal::in_band(PoseRung::Contour);
     let height = "curve_face_pose_torus_plane_height";
-    let graze = match crate::roots::spread_readings(height, c.depth, c.charge_h, band) {
+    let graze = match crate::roots::spread_readings(
+        "curve_face_pose_torus_plane_height",
+        c.depth,
+        c.charge_h,
+        band,
+    ) {
         Ok((below, _)) if below.sign == Sign::Positive => None,
         Ok((_, above)) if above.sign == Sign::Negative => return Ok(Pose::Apart),
         // A reading in the zero band is its gate's rejection; a definite
@@ -1577,7 +1585,12 @@ fn torus_parallel<T: Decide>(
         Ok((_, above)) if above.sign == Sign::Zero => {
             Some(zero_band(PoseRung::Contour, height, above, band))
         }
-        Ok((below, above)) => Some(in_band(straddle(height, below, above, band))),
+        Ok((below, above)) => Some(in_band(straddle(
+            "curve_face_pose_torus_plane_height",
+            below,
+            above,
+            band,
+        ))),
         Err(diag) => Some(in_band(diag)),
     };
     let residual = "curve_face_pose_contour_residual";
@@ -1594,7 +1607,12 @@ fn torus_parallel<T: Decide>(
             (_, Sign::Zero) => return Err(zero_band(PoseRung::Contour, residual, above, band)),
             // A definite straddle of the extreme's value and its charge.
             (Sign::Negative, Sign::Positive) => {
-                return Err(in_band(straddle(residual, below, above, band)));
+                return Err(in_band(straddle(
+                    "curve_face_pose_contour_residual",
+                    below,
+                    above,
+                    band,
+                )));
             }
         }
         let read = geom_core::k_stats::decide_reported(
