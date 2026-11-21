@@ -2,7 +2,7 @@
 id: profile
 kind: program
 title: PROFILE — the profile lattice after PATHS, its goal: the lowering epic's tail, the planar-primitive dedupe and the validation pair pass
-status: ready
+status: active
 opened: 2026-10-21
 group: kernel/sketch
 prefix: profile/
