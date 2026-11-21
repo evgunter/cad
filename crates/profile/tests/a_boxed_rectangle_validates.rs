@@ -15,7 +15,7 @@ use geom_core::sym::with_session_rules;
 use geom_core::{Decide, Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Tol};
 use profile::{
     ConstructedLoop, ConstructedProfile, ContactKind, EscalationSite, Gate, Open, Profile,
-    ProfileError, ProfileLoop, SketchPlane, Start, ValidatedProfile,
+    ProfileError, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile,
 };
 
 type Lane = Sym<Interval>;
