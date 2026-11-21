@@ -2,10 +2,9 @@
 //! and the lever arms that convert a chart-coordinate discrepancy into
 //! metres.
 //!
-//! Two consumers read it: `mesh`'s boundary walk, which inverts
-//! every junction and every chord point of a curved face's loop to
-//! build its UV polygon; and `shell`'s rim nesting, generic over its
-//! scalar. The
+//! `mesh`'s boundary walk reads it, inverting every junction and every
+//! chord point of a curved face's loop to build its UV polygon, and so
+//! does `shell`'s rim nesting, generic over its scalar. The
 //! CLASSIFICATION built on top of it — which boundary edge is a rim and
 //! which a meridian, which of them carry one iso side — is next door in
 //! [`crate::chart_iso`].
@@ -373,5 +372,39 @@ mod tests {
                 "rim v {rim} against its point's {point}"
             );
         }
+    }
+
+    /// The lever arms are the chart's own, and the two axes take
+    /// different ones for a reason the type carries: u's varies over a
+    /// cone and a sphere because it is the point's distance from the
+    /// axis, and v's does not.
+    #[test]
+    fn the_two_axes_take_the_levers_their_charts_state() {
+        let sphere = z_chart(|center, axis, u_ref| Surface::Sphere {
+            frame: geom::Frame::new(center, axis, u_ref),
+            radius: 3.0,
+        });
+        assert!((sphere.v_lever() - 3.0).abs() < 1e-15);
+        assert!((sphere.radial(Point3::new(3.0, 0.0, 0.0)) - 3.0).abs() < 1e-15);
+        assert!(
+            sphere.radial(Point3::new(0.0, 0.0, 3.0)).abs() < 1e-15,
+            "a pole"
+        );
+    }
+
+    /// A plane is out of the chart's domain: it carries no chart, so
+    /// [`Chart::of`] answers `None` for it.
+    #[test]
+    fn a_plane_has_no_chart() {
+        assert!(
+            Chart::of(&Surface::Plane {
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+            })
+            .is_none()
+        );
     }
 }

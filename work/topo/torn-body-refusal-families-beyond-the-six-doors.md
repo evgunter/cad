@@ -224,4 +224,4 @@ now refuses at append (`lineage::Substitutions`, as
 
 - 2026-11-02 — moved from TOPOTAIL to TOPO by `git mv` when TOPOTAIL merged into TOPO, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and TOPOTAIL had fallen far under it).
 
-- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. The `Unexaminable::Corrupt` family's row is gone with its file.
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `Unexaminable::Corrupt` family's row is gone with its file.

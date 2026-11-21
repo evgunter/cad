@@ -1,7 +1,7 @@
 ---
 id: mesh-walk-and-coherence-read-a-junction-at-a-pole-by-their-own-distance
 kind: issue
-title: The mesh walk's pole_index and coherence's pole exemption each decide a vertex at a pole by their own distance, kept equal by hand, apart from the kernel's one incidence reading
+title: The mesh walk's pole_index decides a vertex at a pole by its own distance, apart from the kernel's one incidence reading
 status: open
 opened: 2026-10-31
 priority: P2
@@ -51,4 +51,4 @@ Signed: (RESTCURVE implementer)
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
 
-- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. So the second reader this row names, coherence's pole exemption, is gone; the first, `mesh::walk::loop_polygon`'s `pole_index`, still decides a vertex at a pole by its own distance, and the row stands on it alone.
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. So the second reader this row names, coherence's pole exemption, is gone; the first, `mesh::walk::loop_polygon`'s `pole_index`, still decides a vertex at a pole by its own distance, and the row stands on it alone.

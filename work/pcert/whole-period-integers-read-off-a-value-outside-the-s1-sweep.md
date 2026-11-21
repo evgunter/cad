@@ -133,4 +133,4 @@ reduced by hand. A second set it matched and did not classify, all
 `ellipse_torus`, `section_cert_rows`, `curve_pair::meet_oracle`, and
 `step-import`'s `entities.rs:2070` and `normalize.rs:688`.
 
-- 2026-11-21 (TESSLIE, `tesslie/retire-coherence`) — **the chart-coherence examination is retired** (Ev's ruling on PR 7224): `crates/topo/src/coherence.rs`, `topo::examine_chart_coherence` and its report types (`CoherenceReport`, `CoherenceFinding`, `CoherenceCondition`, `Unexamined`, `Unexaminable`, `StructureRead`), `CheckId::ChartCoherence` and `ChecksConfig::chart_coherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`, and `topo::chart_iso::classify_kind` are gone. `topo::coherence::wrapped` is gone; `mesh::walk` remains.
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. `topo::coherence::wrapped` is gone; `mesh::walk` remains.

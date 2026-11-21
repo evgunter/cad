@@ -444,8 +444,10 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// A gap between two of a BODY's own accounts of one chart coordinate
 /// — a carrier's midpoint azimuth against its own endpoint vertex's,
 /// two sub-edges of one iso side against each other — is measured
-/// nowhere in this crate. It is a fact about the body, it cannot move a
-/// mesh byte, and a tessellator is not a lint for other people's data.
+/// nowhere, in this crate or any other. It cannot move a mesh byte,
+/// and the examination that once measured it is retired: with each
+/// edge's family read exactly at the shape door, all it had left to
+/// report on a tier-3 body was the ε–2ε fringe.
 ///
 /// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
