@@ -109,6 +109,33 @@ CERT_FILES=(
   # The spline x analytic-face crossings `NurbsLane::surface_crossings`
   # runs: an isolation in certification arithmetic and its settle.
   crates/geom-brep/src/curve_face/composite.rs
+  # Importers of the `Interval` certification doors
+  # (`certification-doors.sh`'s list) whose every generic item already
+  # names a bound that keeps a dual out, or that declare none: held so
+  # the next helper written there is.
+  crates/geom-brep/src/krawczyk.rs
+  crates/geom-brep/src/pair_section/spline_implicit/curved.rs
+  crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs
+  crates/geom-brep/src/patch_carrier.rs
+  crates/geom-brep/src/pcurve_cache/speed.rs
+  crates/geom-brep/src/props/bracket.rs
+  crates/geom-brep/src/props/quad/cells.rs
+  crates/geom-brep/src/props/quad/green.rs
+  crates/geom-brep/src/props/rational_rim.rs
+  crates/geom-brep/src/props/trig.rs
+  crates/geom-brep/src/ssi/four.rs
+  crates/geom-brep/src/ssi/node.rs
+  crates/geom-brep/src/ssi/residual.rs
+  crates/geom-core/src/spline/blossom.rs
+  crates/geom-core/src/spline/compose.rs
+  crates/geom-core/src/spline/compose/patch.rs
+  crates/geom-core/src/spline/compose/tensor.rs
+  crates/geom-core/src/spline/net.rs
+  crates/geom-core/src/sym/signed.rs
+  crates/geom/src/curves/second_derivative.rs
+  crates/mesh/src/chords.rs
+  crates/mesh/src/nurbs_cert.rs
+  crates/step-import/src/recognize_curve.rs
 )
 
 # One function of a file that is not listed whole: `PATH FN`.
