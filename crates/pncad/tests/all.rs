@@ -791,7 +791,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     match PathNoCornerReason::<f64>::CarriersTangent {
         PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
         PathNoCornerReason::TurnWithinTolerance {
-            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            turn:
+                LeveredTurn {
+                    lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+                    ..
+                },
             ..
         } => {}
     }
@@ -1126,8 +1130,8 @@ fn the_polygon_door_authors_through_the_lattice() {
     // CORNER. A raw vertex table would have accepted this and left it
     // for validate.
     match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
-        Err(PathError::JunctionTangent { .. }) => {}
-        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+        Err(PathError::JunctionTurnWithinTolerance { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTurnWithinTolerance: {other:?}"),
     }
 }
 
