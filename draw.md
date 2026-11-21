@@ -19,3 +19,7 @@ Each designer saw only the problem statement (`problem.md`). Both reports were d
 Harness token counts (first report):
 - A (Opus): 176,815
 - B (Fable): 265,287
+
+## Round 2 (2026-11-21, dispatched 21:08Z)
+
+Not a reconciliation of a disagreement: the first reports agree. Both named one measurement as what would decide the seconds, and it came back cutting against the recommended option on the dearest asks, so each designer was shown the measurement (`round2/measurement.md`) and the other's first report, and asked what it moves, whether its own argument is answered, what the dearest asks' deep-refusing pairs are evidence of, and what M3 says about settling a pair by its first finding. Both were also pointed at `docs/prompts/designer.md`'s two paragraphs added on 2026-11-20. Same agents, resumed.
