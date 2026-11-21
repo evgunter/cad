@@ -1,0 +1,27 @@
+diff --git a/crates/topo/src/separating.rs b/crates/topo/src/separating.rs
+index 7c120675..aa52069d 100644
+--- a/crates/topo/src/separating.rs
++++ b/crates/topo/src/separating.rs
+@@ -453,3 +453,22 @@ mod tests {
+         );
+     }
+ }
++
++/// PLANT (review probe): each door this unit newly uses, handed a number
++/// or a point this function made up.
++pub(crate) fn planted_levers(a: Point3<f64>, b: Point3<f64>, made_up: f64) -> Vec<geom_core::Lever<f64>> {
++    let far = Point3::new(a.x + made_up, a.y, a.z);
++    let line = geom::Curve3::line(a, far - a);
++    vec![
++        // 1. the new door, off a cover of the caller's own points
++        geom_brep::ExtentBall::of_cover(&geom::cover::Cover::points(vec![a, far]).unwrap()).diameter(),
++        // 2. edge_extent_inf of a line built from the caller's points
++        geom_brep::edge_extent_inf(&line, 0.0, 1.0),
++        // 3. a points cover levered from a caller's pivot (extent_from's new spelling)
++        geom_brep::ExtentBall::of_cover_from(geom::cover::Cover::points(vec![far]).as_ref(), a).lever_from(a),
++        // 4. piece_reach_bounds, whose `ends` are hulled into the cover
++        crate::cover::piece_reach_bounds(&line, (0.0, 0.0), (a, far), a).below(),
++        // 5. edge_extent_inf over a span the caller made up
++        geom_brep::edge_extent_inf(&geom::Curve3::line(a, b - a), 0.0, made_up),
++    ]
++}
