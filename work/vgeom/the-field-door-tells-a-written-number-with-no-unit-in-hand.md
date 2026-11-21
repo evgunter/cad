@@ -40,3 +40,12 @@ back) is the same question and this row's to settle.
 
 Filed by the SCALAR notation unit
 (`work/scalar/a-refusal-is-told-in-the-readers-notation.md`).
+
+**The δ field is the same question from the other side.** Its draft
+is seeded from `DisplayTolerance::render_in`
+(`crates/viewer/src/pane/view.rs`), which is told text, and told text
+is scientific below 1e-4 of its unit: the default δ of 0.05 mm seeds
+`5e-5` in a metre notation, and a digit typed after it lands in the
+exponent (`pane::view::tests::the_field_reads_and_commits_in_the_working_unit`
+was moved to a δ whose render is a decimal for that reason). An
+editable seed wants the exact, positional spelling.
