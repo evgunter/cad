@@ -2,10 +2,11 @@
 id: a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build
 kind: issue
 title: A ball's boolean with a cylinder spends 3–9 s per operation at the default ε and 19–69 s at 1e-12 in an optimized build with debug assertions off, before it refuses at the volume gate
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
+blocked_on: [a-chords-locus-certificate-is-not-its-section-components-cut-to-its-span, a-ball-and-cylinder-results-volume-is-a-fifth-of-the-boolean, a-fitted-rows-first-projected-certificate-costs-a-quarter-of-a-ball-cylinder-boolean, check-twos-turn-reads-first-speed-meters-at-a-tenth-of-a-ball-cylinder-boolean]
 ---
 
 
