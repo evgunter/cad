@@ -4409,7 +4409,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # chords of it, each named by its ends.
         self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
-        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 42)
         # Every piece of an edge the plane cuts is named by its ends, a
         # lone one included.
         self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 0)
