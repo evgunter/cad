@@ -93,6 +93,7 @@
 //! within that tolerance, over `ψ`'s lean across the partner, of the
 //! vertex: the stored vertex's own tolerance, not a new one.
 
+macro_rules! cvs { () => {{ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVS structural {}", line!()); } Unpresented::Structural }} }
 macro_rules! cvl { () => {{ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL local {}", line!()); } Unpresented::Local }} }
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1365,17 +1366,21 @@ fn present<'a>(
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
         | Surface::Torus { .. } => present_chart(piece, near_edges, near_vertices, band),
-        Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
+        Surface::Spindle { .. } | Surface::Approx(_) => Err(cvs!()),
     }
 }
 
 /// The failure for an edge no presentation reads: structural when the
 /// edge is a shared one.
+#[track_caller]
 fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
+    let at = std::panic::Location::caller().line();
     if near_edges.contains(&edge) {
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVS unread {at}"); }
         Unpresented::Structural
     } else {
-        cvl!()
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL unread {at}"); }
+        Unpresented::Local
     }
 }
 
@@ -1498,7 +1503,7 @@ fn face_extent(
     if lines && on_nappe {
         Ok(Extent::Known(extent))
     } else {
-        Err(Unpresented::Structural)
+        Err(cvs!())
     }
 }
 
@@ -1578,7 +1583,7 @@ fn sheets(
         }
         let (k0, k1) = (((clo - hi) / TURN).floor(), ((chi - lo) / TURN).ceil());
         if !(k0.is_finite() && k1.is_finite()) {
-            return Err(Unpresented::Structural);
+            return Err(cvs!());
         }
         let copies: Vec<(f64, f64)> = core::iter::successors(Some(k0), |k| Some(k + 1.0))
             .take_while(|&k| k <= k1)
@@ -1696,13 +1701,28 @@ fn sides_are_the_faces(
     let other_axis = |c: &Clip, d: &Clip| {
         c.side.axis() != d.side.axis() && c.collapsed.is_none() && d.collapsed.is_none()
     };
-    merged.iter().all(|c| c.collapsed.is_some() || covers(c))
+    let ok = merged.iter().all(|c| c.collapsed.is_some() || covers(c))
         && merged.iter().enumerate().all(|(i, c)| {
             merged
                 .iter()
                 .skip(i + 1)
                 .all(|d| !other_axis(c, d) || convex(b, c, d))
-        })
+        });
+    if !ok && std::env::var_os("CV_TRACE").is_some() {
+        for c in merged {
+            let axis = c.side.axis().other();
+            let r = run_on(b, c, merged, periodic(axis));
+            eprintln!("CVF clip side={:?} at={:?} edges={:?} collapsed={:?} covers={} want={:?} ranges={:?}", c.side, c.at, c.edges.iter().map(|&i| b.edges.get(i).map(|e| (e.key, e.ends, e.arc.as_ref().map(|(c, _)| c.is_curved())))).collect::<Vec<_>>(), c.collapsed, c.collapsed.is_some() || covers(c), axis.of(rect), r);
+        }
+        for (i, c) in merged.iter().enumerate() {
+            for d in merged.iter().skip(i + 1) {
+                if other_axis(c, d) {
+                    eprintln!("CVF convex {:?}/{:?} corners={:?} ok={}", c.side, d.side, corners(b, c, d), convex(b, c, d));
+                }
+            }
+        }
+    }
+    ok
 }
 
 /// **The vertices two clips' edges share**: the corners they make, one
@@ -1903,7 +1923,7 @@ fn present_chart<'a>(
             // A line on a periodic axis whose sheet is unknown has no
             // place, at any depth.
             let Some(line) = placed(piece.surface, iso, sheet, (lo, hi)) else {
-                return Err(Unpresented::Structural);
+                return Err(cvs!());
             };
             // Every read below, and the merge's folds, see only a
             // certified line.
@@ -1997,7 +2017,7 @@ fn present_chart<'a>(
             // presented in any cell that holds that vertex; a cell away
             // from the apex reads it as any face.
             let Some(lo) = nappe(b, *apex, *axis, band) else {
-                return Err(Unpresented::Structural);
+                return Err(cvs!());
             };
             // The cell on the other nappe holds only the apex of the
             // face. This is read only where the face's extent wraps or is
@@ -2399,7 +2419,7 @@ fn present_plane<'a>(
         u_ref,
     } = *piece.surface
     else {
-        return Err(Unpresented::Structural);
+        return Err(cvs!());
     };
     let v_ref = normal.cross(u_ref);
     let chart = |p: Point3<Interval>| {
@@ -2950,7 +2970,7 @@ fn beside_curve(
             && vertex_corner(piece, &at_v, near_edges, near_vertices).is_none()
     });
     if unread_corner {
-        return Unpresented::Structural;
+        return cvs!();
     }
     match curved.iter().find(|&&i| {
         b.edges.get(i).is_none_or(|e| {
@@ -3109,7 +3129,7 @@ fn present_curved<'a>(
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
-        return Err(Unpresented::Structural);
+        return Err(cvs!());
     }
     // The curve continues through the join where the edge is closed, its
     // span a whole period, and the period moves the image by whole
@@ -3395,7 +3415,7 @@ fn present_wall<'a>(
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
-        return Err(Unpresented::Structural);
+        return Err(cvs!());
     }
     let shared = sharing(ei, near_edges, near_vertices)?;
     let closed = e.ends[0] == e.ends[1] && whole_turn(t0, t1);
@@ -4079,7 +4099,7 @@ fn leaves_graph(
     let rate = (db * tau_a - da * tau_b) * at(side * scale);
     match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band) {
         Ok(Sign::Positive) => Some(Ok(())),
-        Ok(Sign::Negative) => Some(Err(Unpresented::Structural)),
+        Ok(Sign::Negative) => Some(Err(cvs!())),
         _ => None,
     }
 }
@@ -4113,7 +4133,7 @@ fn present_line_corner<'a>(
     }
     let cell = (piece.u, piece.v);
     let (held, moving) = (iso.held, iso.held.other());
-    let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
+    let line = placed(surface, iso, sheet, held.of(cell)).ok_or(cvs!())?;
     let sigma = face_side(ue, iso, b.orientation()).ok_or_else(|| cvl!())?;
     let [i0, i1] = ue.image.ok_or_else(|| cvl!())?;
     let (mlo, mhi) = moving.of(cell);
@@ -4459,7 +4479,7 @@ fn present_vertex_corner<'a>(
     let lean = (n[0] * bv[0] + n[1] * bv[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt();
     match interval_sign_as(lean, SELF_INTERSECTION_CORNER, band) {
         Some(Sign::Positive) => {}
-        Some(Sign::Negative) => return Err(Unpresented::Structural),
+        Some(Sign::Negative) => return Err(cvs!()),
         _ => return Err(cvl!()),
     }
     let det = a[0] * bv[1] - a[1] * bv[0];
@@ -4697,7 +4717,7 @@ fn leaves_line(
             match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rise), band) {
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) if (if from_start { a } else { z }) == t_v => {
-                    return Err(Unpresented::Structural);
+                    return Err(cvs!());
                 }
                 // Off the vertex a decided `Negative` is refused outright.
                 // It is not reached otherwise — the rate is continuous, so
@@ -4708,6 +4728,7 @@ fn leaves_line(
                 Ok(Sign::Negative) => return Err(cvl!()),
                 _ => {
                     if !split(&mut todo) {
+                        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVLL t=({a},{z}) t_v={t_v} depth={depth} rate={:?} rise={:?} lever={lever} sigma={sigma} held={held:?}", h.rate(held, t), rise); }
                         return Err(cvl!());
                     }
                 }
@@ -5659,9 +5680,12 @@ fn sign_on(
         ),
         Zero::Side(s, a) => {
             if !zero_on(*s, a, false) {
+                if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG side {s:?} zero_on=false on={}", on.is_some()); }
                 return None;
             }
-            departs(*s)
+            let d = departs(*s);
+            if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG side {s:?} across={:?} span={} departs={d:?}", across(s.axis()), p.span(s.axis())); }
+            d
         }
         Zero::Past(s, a) => {
             if !(past_read(p, against) && zero_on(*s, a, true)) {
@@ -5819,6 +5843,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         });
     }
     let px = present(x, &ex, &near.vertices, band);
+    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVM"); }
     let py = present(y, &ey, &near.vertices, band);
     if std::env::var_os("CV_TRACE").is_some() {
         let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
@@ -5863,10 +5888,12 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
         return split;
     };
-    let opposite = |(psi, on): (Psi, On)| match (
-        sign_on(&psi, Some(&on), qx, Some(qy), band),
-        sign_on(&psi, Some(&on), qy, Some(qx), band),
-    ) {
+    let opposite = |(psi, on): (Psi, On)| match ({
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG psi {}", match &psi { Psi::Graph{..}=>"graph", Psi::Carrier(_)=>"carrier", _=>"plane" }); }
+        let r = (sign_on(&psi, Some(&on), qx, Some(qy), band), sign_on(&psi, Some(&on), qy, Some(qx), band));
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG got {r:?}"); }
+        r
+    }) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
@@ -11213,7 +11240,7 @@ mod presentation_rows {
         assert!(
             matches!(
                 on_wall(&s, &b, &local, (&[0], &[]), cell(1.5)),
-                Err(cvl!())
+                Err(Unpresented::Local)
             ),
             "the end is not"
         );
@@ -11233,7 +11260,7 @@ mod presentation_rows {
                 (&[0], &[]),
                 ((-3.2, 3.2), (0.95, 1.05))
             ),
-            Err(cvl!())
+            Err(Unpresented::Local)
         ));
     }
 
@@ -11255,7 +11282,7 @@ mod presentation_rows {
         let cell = ((g(1.0) - 0.004, g(1.0) - 0.003), (0.995, 1.005));
         assert!(matches!(
             on_wall(&s, &b, &local, (&[0], &[]), cell),
-            Err(cvl!())
+            Err(Unpresented::Local)
         ));
         let alone = spiric_face(true, true);
         assert!(
