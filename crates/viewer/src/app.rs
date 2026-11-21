@@ -8062,10 +8062,16 @@ mod properties_pane_tests {
             .on_face
             .as_ref()
             .map(|h| format!("{:?}", h.face()));
+        let undrawn: Vec<String> = driven
+            .on_screen()
+            .undrawn()
+            .iter()
+            .map(|u| format!("{:?}: {:?}", u.node(), u.error()))
+            .collect();
         assert_ne!(
             held,
             crate::pickindex::IdMap::NOTHING,
-            "the re-pointed copy still draws the held face: {held_pick:?}"
+            "the re-pointed copy still draws the held face: {held_pick:?}; undrawn {undrawn:?}"
         );
         assert_eq!(
             driven.marks().highlight().selected,
