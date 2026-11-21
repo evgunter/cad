@@ -14695,17 +14695,25 @@ mod tests {
         );
     }
 
-    /// **A far arc at `K` near one stands past the session box** (the
-    /// review's witness). A cap on a circle of radius `98765.4` at
-    /// ε = 1e-9 (scaled with ε), centre and axis generic, over `[0, 2.5]`,
-    /// is where the conic's own frame and `Curve3::eval` part by rounding
-    /// past `(K − 1)·zero` at `K = 1.001`, so a boundary pass reading the
-    /// frame's end would read the end off its corner. That parting needs a
-    /// radius near 1e5 m at ε = 1e-9: the arc reaches far past the box, and
-    /// certification refuses the cap's rim there, by the box, before any
-    /// census reads it.
+    /// **A far arc at `K` near one reads its end where certification
+    /// pinned it** (the review's witness). A cap on a circle of radius
+    /// `98765.4` at ε = 1e-9 (scaled with ε), centre and axis generic,
+    /// over `[0, 2.5]`, its end corner certified `0.9905·zero` off the
+    /// carrier's end, along the direction from the end the conic's own
+    /// frame computes to the one `Curve3::eval` computes; the point
+    /// `0.95·zero` back along the arc from the end and `0.3·zero` off it.
+    /// The two ends part by rounding past `(K − 1)·zero` at `K = 1.001`,
+    /// so a boundary pass reading the frame's end read the end off its
+    /// corner. It reads `eval`'s, the point certification pinned: at
+    /// `K = 1.001` and `K = 1.2` every end lies at a corner, read as the
+    /// band's own parting or, where the point's chord to the end falls in
+    /// the band's hair-wide gap, as the end reading's escalation, and the
+    /// census reports no defect. The radius scales with ε, so the arc
+    /// stands inside the session box only at ε = 1e-12; at the coarser
+    /// rows the row pins the box's refusal of it.
     #[test]
-    fn a_far_arc_at_k_near_one_stands_past_the_session_box() {
+    fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
+        use crate::test_support_fixtures::arc_cap;
         use geom::Curve3;
         let tol = Tol::witness();
         let zero = Band::linear(tol).unwrap().zero();
@@ -14724,20 +14732,61 @@ mod tests {
             let frame_end = center + u_ref * (r * c) + v_ref * (r * s);
             (carrier, center, end, end - frame_end)
         };
-        let (carrier, _, end, _) = [1.0, 1.07, 1.13, 0.91, 0.83, 1.29]
+        let (carrier, center, end, parting) = [1.0, 1.07, 1.13, 0.91, 0.83, 1.29]
             .into_iter()
             .map(|m| circle(98765.4 * (zero / 1e-9) * m))
             .find(|(.., parting)| parting.norm() > 0.001 * zero)
             .expect("a radius where the frame's end and eval's part past (K - 1)·zero");
+        // The radius scales with ε: at ε = 1e-12 the arc stands inside the
+        // session box; at coarser rows it reaches past it, and its rim's
+        // certification refuses it there, by the box, before any census.
         let band = Band::linear(tol).unwrap();
-        let start = carrier.eval(0.0);
-        assert!(
-            matches!(
-                geom_brep::session_box::edge_in_box(&carrier, (0.0, t1), (start, end), band),
-                Err(geom_brep::session_box::BoxRefusal::Point { .. })
-            ),
-            "the far arc is past the session box"
+        let boxed = geom_brep::session_box::edge_in_box(
+            &carrier,
+            (0.0, t1),
+            (carrier.eval(0.0), end),
+            band,
         );
+        if boxed.is_err() {
+            assert!(
+                matches!(boxed, Err(geom_brep::session_box::BoxRefusal::Point { .. })),
+                "the far arc is past the session box by a point of it: {boxed:?}"
+            );
+            test_utils::vacuity::stood_down(
+                "the far arc at K near one",
+                "its end reading: the arc stands past the session box at this ε",
+            );
+            return;
+        }
+        let r = (end - center).norm();
+        let away = parting / parting.norm();
+        let parting = parting.norm();
+        let (body, cap) = arc_cap(carrier, (0.0, t1), away * (0.9905 * zero), tol);
+        let tangent = u_ref * (-s) + v_ref * c;
+        let radial = (end - center) / r;
+        let q = end - tangent * (0.95 * zero) + radial * (0.3 * zero);
+        for k in [1.001, 1.2] {
+            let band = Band::new(zero, k * zero).unwrap();
+            let read = crate::contain::contfp(&body, cap, axis, q, band);
+            // The point's chord to the end sits within a hair of the zero
+            // band, which a band this narrow reads either way as the
+            // rounding falls: the finding with every end at a corner, or
+            // the end reading's escalation. Never an end off its corner.
+            assert!(
+                matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
+                    || matches!(&read, Err(ContainError::Escalated { .. })),
+                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
+                 and eval part by {parting:e}): {read:?}"
+            );
+            let mut errors = Vec::new();
+            read_containment(cap, read, &mut errors);
+            assert!(
+                !errors
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::ArcEndOffCorner { .. })),
+                "K {k}: the census reports no defect: {errors:?}"
+            );
+        }
     }
 
     // ================= R1 review probes (m9-2b-r1) =================

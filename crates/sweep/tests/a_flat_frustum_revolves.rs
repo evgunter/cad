@@ -8,16 +8,12 @@
 //!
 //! Three rows reach past the 1 km session box — `(1.5, 100)`,
 //! `(1.55, 30)` and `(1.55, 100)`, their base rims at about 1.46, 1.46
-//! and 4.86 km — and assert its refusal (`OutsideSessionBox`) wherever
-//! their construction builds.
-//!
-//! One row is not this door's: at `(1.55, 100)` the far cap rim is 4858
-//! across, and its return half ends `r·2·(π − fl(π))` from its start
-//! vertex, past the band at ε = 1e-12
-//! (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`).
-//! Below its least ε the row asserts that refusal, the rim's
-//! `EndpointEnd` escalation, so it goes red when that item lands.
-
+//! and 4.86 km — and assert its refusal (`OutsideSessionBox`) at every ε:
+//! their edges' certification asks the box before any residual is read,
+//! so `(1.55, 100)`'s return-half rim, which misses its start vertex past
+//! the band at ε = 1e-12
+//! (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`),
+//! is refused by the box first.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common::{axis_y, validated};
@@ -29,16 +25,15 @@ use topo::{validate, validate_closed};
 #[test]
 fn a_flat_frustum_revolves_at_every_eps() {
     let tol = Tol::witness();
-    let eps = tol.get().eps;
     let mut wrong = Vec::new();
-    // (α, S, the least ε the operand revolves at)
-    for (alpha, scale, builds_from) in [
-        (1.45, 100.0, 0.0),
-        (1.5, 30.0, 0.0),
-        (1.5, 100.0, 0.0),
-        (1.55, 10.0, 0.0),
-        (1.55, 30.0, 0.0),
-        (1.55, 100.0, 1e-9),
+    // (α, S)
+    for (alpha, scale) in [
+        (1.45, 100.0),
+        (1.5, 30.0),
+        (1.5, 100.0),
+        (1.55, 10.0),
+        (1.55, 30.0),
+        (1.55, 100.0),
     ] {
         let what = format!("alpha {alpha}, S {scale}");
         let r1 = 0.5 * scale;
@@ -49,22 +44,10 @@ fn a_flat_frustum_revolves_at_every_eps() {
                 .map(|(x, y)| Point2::new(x, y)),
         );
         let got = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol);
-        if eps < builds_from {
-            // The return-half rim's own refusal, and no other.
-            match got {
-                Err(e) if format!("{e:?}").contains("EndpointEnd") => {}
-                Err(e) => wrong.push(format!(
-                    "{what}: at ε {eps:e} refuses other than its return-half rim: {e:?}"
-                )),
-                Ok(_) => wrong.push(format!(
-                    "{what}: revolves at ε {eps:e}, below {builds_from:e}: lower its least ε"
-                )),
-            }
-            continue;
-        }
         // A frustum whose largest coordinate, `max(r0, S)` about `+y`, is
         // past the 1 km session box is refused there, by the box and
-        // nothing else (D4 ¶4).
+        // nothing else (D4 ¶4), at every ε: its edges' certification asks
+        // the box before any residual is read.
         if r0.max(scale) > geom_core::tolerance::SESSION_BOX_EXTENT {
             match got {
                 Err(e) if format!("{e:?}").contains("OutsideSessionBox") => {}
