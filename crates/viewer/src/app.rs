@@ -8056,10 +8056,16 @@ mod properties_pane_tests {
             .and_then(|eval| eval.node_error(filleted).map(|e| format!("{e:?}")));
         assert!(failed.is_none(), "the fillet evaluates: {failed:?}");
         let [held, ..] = driven.held();
+        let held_pick = driven
+            .app
+            .drafts
+            .on_face
+            .as_ref()
+            .map(|h| format!("{:?}", h.face()));
         assert_ne!(
             held,
             crate::pickindex::IdMap::NOTHING,
-            "the re-pointed copy still draws the held face"
+            "the re-pointed copy still draws the held face: {held_pick:?}"
         );
         assert_eq!(
             driven.marks().highlight().selected,
