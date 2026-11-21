@@ -4289,14 +4289,15 @@ mod frame_extent_rows {
     }
 
     /// **A pole station is divided by only where it is decided from
-    /// below.** A profile line whose axial component is `0.5·ε`: levered
+    /// below.** A profile line whose axial component is half the band's
+    /// zero: levered
     /// at the vertices' 1 m it reads Zero and refuses, where the cover's
     /// 100 m would read it Positive and divide by it.
     #[test]
     fn a_pole_station_is_decided_at_the_scopes_reach_from_below() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let got = pole_station(0.5 * tol.eps(), &short_vertices_long_cover(), band).unwrap();
+        let got = pole_station(0.5 * band.zero(), &short_vertices_long_cover(), band).unwrap();
         assert_eq!(
             got,
             Sign::Zero,
@@ -4312,7 +4313,7 @@ mod frame_extent_rows {
     fn an_alignment_is_decided_at_the_scopes_reach_from_above() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let theta = 0.5 * tol.eps();
+        let theta = 0.5 * band.zero();
         let wall = Surface::Cylinder {
             origin: Point3::origin(),
             axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
@@ -4342,7 +4343,7 @@ mod frame_extent_rows {
     fn a_charts_alignment_is_levered_about_its_datum() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let theta = 0.5 * tol.eps();
+        let theta = 0.5 * band.zero();
         let frame = Frame {
             axis: geom::Line {
                 origin: Point3::origin(),
