@@ -62,6 +62,7 @@ pub mod certify;
 pub mod chart_image;
 pub mod chart_singularity;
 pub mod conic_bend;
+pub mod curvature_arm;
 pub mod curve_face;
 pub mod curve_pair;
 pub(crate) mod descent;
@@ -93,6 +94,7 @@ pub mod ladder {
     pub use geom_core::ladder::*;
 }
 pub mod locus;
+pub mod locus_certificate;
 pub mod mapped;
 pub(crate) mod memo;
 #[cfg(any(test, feature = "test-support"))]
@@ -105,6 +107,7 @@ pub mod offset_meters;
 pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
+pub mod patch_carrier;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod plane_eq;
@@ -138,6 +141,10 @@ pub use certify::{
     schedule_param, side_row_certifies,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
+pub use curvature_arm::{
+    circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm, uniform_curvature_arm,
+    within_carrier_bend,
+};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,
@@ -191,11 +198,10 @@ pub use implicit::{
     circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
     conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
     conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
-    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
-    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
-    ring_floor,
+    conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
+    implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
+    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
@@ -212,6 +218,7 @@ pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
+pub use locus_certificate::{Certified, LocusCertificate};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 #[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};
@@ -246,6 +253,7 @@ pub use pair_section::{
 /// roster that samples every arm.
 #[cfg(any(test, feature = "test-support"))]
 pub use pair_section::{CarryErrorKind, CarryRefusalKind};
+pub use patch_carrier::patch_distance_sup;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

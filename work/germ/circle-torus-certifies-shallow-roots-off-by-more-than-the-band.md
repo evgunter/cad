@@ -185,7 +185,7 @@ Measured with the exact oracle on 3,000 shallow poses (graze depth
 (35 circle × wall, 39 ellipse × sphere, 49 ellipse × wall), all `f64`,
 all at `ε = 1e-12`, all root placements, the worst 7.4e-10 m (74
 `Kε`); `1e-9` and `1e-6` were clean (worst 2.7e-11 m). It now meters each
-root (`bool_conic_quadric_sub_root_slack`, the residual read by
+root (`conic_quadric_sub_root_slack`, the residual read by
 `geom_brep::conic_quadric_residual`, ceiling `1` since `F` is the
 residual): **0 wrong**. It newly refuses 747 of 2,831 correct `f64`
 answers at `1e-12` (none at `1e-9` or `1e-6`), and on the `Interval`

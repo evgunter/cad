@@ -58,7 +58,7 @@ fn a_cone_and_a_coaxial_sphere_derive_their_circle() {
     let c = derived(&cone, &sphere, &seed);
     on_both(&c, &cone, &sphere);
     assert!(
-        matches!(&c, Curve3::Circle(k) if (k.radius - 1.0).abs() < 1e-12),
+        matches!(&c, Curve3::Circle(k) if (k.radius() - 1.0).abs() < 1e-12),
         "the circle at the sphere's equator, away from the apex: {c:?}"
     );
 }
@@ -84,7 +84,7 @@ fn a_cone_and_a_coaxial_torus_derive_their_circle() {
     let c = derived(&cone, &torus, &seed);
     on_both(&c, &cone, &torus);
     assert!(
-        matches!(&c, Curve3::Circle(k) if (k.radius - 0.140625).abs() < 1e-12
+        matches!(&c, Curve3::Circle(k) if (k.radius() - 0.140625).abs() < 1e-12
             && (k.frame.origin.y - 0.1875).abs() < 1e-12),
         "the torus's top parallel, which the cone passes through: {c:?}"
     );

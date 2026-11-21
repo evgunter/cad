@@ -38,13 +38,16 @@
 //!   every speed and curvature bound is stated at, so a non-unit `u_ref`
 //!   rescales the curve without rescaling the bound. A caller
 //!   synthesising a frame owes the normalization.
-//! - **Positive sizes.** A radius and both semi-axes are positive
-//!   lengths, in metres. [`Curve3::ellipse`] refuses a non-positive
-//!   semi-axis, certification's span meter refuses one ([`speed_floor`]),
-//!   and tier 3 certifies each at rest. A struct literal that bypasses the
-//!   doors owns the consequences: evaluators consume the fields as given
-//!   (well-defined garbage, never poison), and the readings below assume
-//!   the sizes positive, reading no magnitudes.
+//! - **Non-negative sizes.** A radius and both semi-axes are lengths,
+//!   in metres, and a negative one is unrepresentable: the fields are
+//!   private and the constructors ([`Circle::new`], [`Ellipse::new`])
+//!   panic on a size that is not finite or is definitely negative
+//!   ([`stored_size`]). The other orientation is the frame's, never a
+//!   size's sign. An enclosure across zero is representable, and the
+//!   speed readers read it soundly; a zero size is a collapsed length,
+//!   which certification's span meter refuses ([`speed_floor`]). A door
+//!   taking a caller's sizes ([`Curve3::ellipse`]) decides their sign
+//!   before it builds and refuses typed.
 //! - **Equal semi-axes are an ellipse.** Whether a configuration is a
 //!   circle or an ellipse is decided once by its pose (a section table's
 //!   tilt reading), never by comparing the semi-axes.
@@ -66,15 +69,16 @@ use crate::frame::Frame;
 
 /// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
 ///
-/// Its invariants: the axis is unit, the radius positive, and the seam
-/// (`u_ref`) is carried whether or not a reader reads it.
+/// Its invariants: the axis is unit, the radius never definitely
+/// negative ([`Circle::new`]), and the seam (`u_ref`) is carried whether
+/// or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement: `origin` the centre, `axis` the unit plane normal
     /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives.
     pub frame: Frame<T>,
-    /// The radius in metres (positive).
-    pub radius: T,
+    /// The radius in metres, never definitely negative ([`Circle::new`]).
+    radius: T,
 }
 
 /// **A full ellipse**,
@@ -86,10 +90,11 @@ pub struct Ellipse<T: Real> {
     /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives, and
     /// a principal direction along either semi-axis.
     pub frame: Frame<T>,
-    /// The semi-axis along `u_ref`, in metres (positive).
-    pub semi_u: T,
-    /// The semi-axis along `axis × u_ref`, in metres (positive).
-    pub semi_v: T,
+    /// The semi-axis along `u_ref`, in metres, never definitely negative
+    /// ([`Ellipse::new`]).
+    semi_u: T,
+    /// The semi-axis along `axis × u_ref`, likewise.
+    semi_v: T,
 }
 
 /// An ellipse's principal frame with a chosen principal direction first
@@ -122,13 +127,9 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn frame(&self) -> &Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
-    /// twice. Both are finite and positive: every door builds them so,
-    /// and the edge certificate refuses a record that stores one that is
-    /// not a finite number (`geom_brep::CertifyError::SemiAxisNotFinite`)
-    /// or is definitely negative
-    /// (`geom_brep::CertifyError::SemiAxisNegative`), and a zero one as
-    /// the span it leaves no length to, so the speed readers below read
-    /// them as lengths, unsigned.
+    /// twice. Both are finite and never definitely negative (the
+    /// constructors' [`stored_size`]); an enclosure may reach below zero,
+    /// and the speed readers below read it soundly.
     fn semi_axes(&self) -> (T, T);
 
     /// The point at `theta`.
@@ -152,17 +153,19 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// centre's ray (scaled per axis on an ellipse) otherwise.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T>;
 
-    /// The least speed `|P′|` over the carrier: the smaller semi-axis
-    /// (positive, [`Self::semi_axes`]).
+    /// The least speed `|P′|` over the carrier: the smaller semi-axis,
+    /// floored at zero, which a speed never falls below.
     fn speed_lo(&self) -> T;
 
     /// The greatest speed `|P′|` over the carrier, and a bound on `|P″|`:
-    /// the larger semi-axis (positive, [`Self::semi_axes`]).
+    /// the larger semi-axis, held above the smaller's negation so the
+    /// bound holds over an enclosure that reaches below zero.
     fn speed_hi(&self) -> T;
 
     /// The speed `|P′(θ)|` at `theta`, held to
     /// `[`[`Self::speed_lo`]`, `[`Self::speed_hi`]`]`: a circle's is its
-    /// radius exactly at every scalar.
+    /// radius's magnitude at every scalar, the radius itself wherever it
+    /// is a point.
     fn speed_at(&self, theta: T) -> T;
 
     /// The principal frame with the larger semi-axis first, whichever the
@@ -315,11 +318,60 @@ fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
 /// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
 type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
+/// **A conic's size as it may be stored**: `x` itself, where it is a
+/// finite length that is not definitely negative.
+///
+/// `−x` decides above zero ([`Real::select_le_zero`] picks its second
+/// candidate) exactly where `x` is negative at every point it carries;
+/// an enclosure across zero hulls both candidates, so the second read,
+/// with the poison first, tells a decided negative from a straddle,
+/// which is representable. At `f64` it is `x < 0`.
+///
+/// # Panics
+///
+/// Where `x` is not bounded ([`Real::is_bounded`]) or is definitely
+/// negative, naming `door` and `name`. Only kernel code constructs a
+/// conic; a door taking a caller's size decides it first.
+fn stored_size<T: Real>(x: T, door: &str, name: &str) -> T {
+    let poison = T::from_f64(f64::NAN);
+    let minus = T::zero() - x;
+    let negative = minus.select_le_zero(T::zero(), poison).is_poison()
+        && !minus.select_le_zero(poison, T::zero()).is_poison();
+    assert!(
+        x.is_bounded() && !negative,
+        "{door}: {name} {x:?} is not a finite non-negative length \
+         (the other placement is the frame's)"
+    );
+    x
+}
+
 impl<T: Real> Circle<T> {
     /// The circle of `radius` placed by `frame`.
+    ///
+    /// # Panics
+    ///
+    /// Where `radius` is not a finite length or is definitely negative
+    /// ([`stored_size`]): a door taking a caller's radius decides its
+    /// sign before it builds one.
     #[must_use]
     pub fn new(frame: Frame<T>, radius: T) -> Self {
-        Self { frame, radius }
+        Self {
+            frame,
+            radius: stored_size(radius, "Circle::new", "radius"),
+        }
+    }
+
+    /// The radius.
+    #[must_use]
+    pub fn radius(&self) -> T {
+        self.radius
+    }
+
+    /// The same circle placed by `frame`: the radius kept, so already
+    /// a stored one.
+    #[must_use]
+    pub fn with_frame(&self, frame: Frame<T>) -> Self {
+        Self { frame, ..*self }
     }
 
     /// **The circle's period**: its parameter is an angle
@@ -372,22 +424,21 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
-    /// reads its own: a circle of negative radius, traversed through the
-    /// seam's antipode, reads the parameter that reproduces the point.
+    /// reads its own.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
         self.frame.azimuth(p).scaled(self.radius, self.radius)
     }
 
     fn speed_lo(&self) -> T {
-        self.radius
+        self.radius.max(T::zero())
     }
 
     fn speed_hi(&self) -> T {
-        self.radius
+        self.radius.abs()
     }
 
     fn speed_at(&self, _theta: T) -> T {
-        self.radius
+        self.radius.abs()
     }
 
     fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
@@ -416,15 +467,45 @@ impl<T: Real> Ellipse<T> {
     }
 
     /// The ellipse placed by `frame` with `semi_u` along its `u_ref` and
-    /// `semi_v` along its `v_ref`, unchecked; [`Curve3::ellipse`] is the
-    /// deciding door.
+    /// `semi_v` along its `v_ref`.
+    ///
+    /// # Panics
+    ///
+    /// Where either semi-axis is not a finite length or is definitely
+    /// negative ([`stored_size`]): a door taking a caller's semi-axes
+    /// ([`Curve3::ellipse`]) decides their sign before it builds one.
     #[must_use]
     pub fn new(frame: Frame<T>, semi_u: T, semi_v: T) -> Self {
         Self {
             frame,
-            semi_u,
-            semi_v,
+            semi_u: stored_size(semi_u, "Ellipse::new", "semi_u"),
+            semi_v: stored_size(semi_v, "Ellipse::new", "semi_v"),
         }
+    }
+
+    /// `(semi_u, semi_v)` in stored order.
+    #[must_use]
+    pub fn semi_axes(&self) -> (T, T) {
+        (self.semi_u, self.semi_v)
+    }
+
+    /// The semi-axis along `u_ref`: one stored size, no region.
+    #[must_use]
+    pub fn semi_u(&self) -> T {
+        self.semi_u
+    }
+
+    /// The semi-axis along `axis × u_ref`: one stored size, no region.
+    #[must_use]
+    pub fn semi_v(&self) -> T {
+        self.semi_v
+    }
+
+    /// The same ellipse placed by `frame`: the semi-axes kept, so
+    /// already stored ones.
+    #[must_use]
+    pub fn with_frame(&self, frame: Frame<T>) -> Self {
+        Self { frame, ..*self }
     }
 
     /// **The semi-axes by size**: the larger and the smaller, in that
@@ -466,18 +547,20 @@ impl<T: Real> Ellipse<T> {
     /// stored where `turn ≤ 0`, read without a branch. `θ = s + π/2` reads
     /// `center + v·(semi_v·cos s) − u_ref·(semi_u·sin s)` with
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
-    /// adds no length to the frame, and the semi-axes swap.
+    /// adds no length to the frame, and the semi-axes swap. Built through
+    /// [`Self::new`], so a poison `turn`, which hulls the two sizes to
+    /// poison, panics there rather than storing it.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
-        Self {
-            frame: Frame {
+        Self::new(
+            Frame {
                 u_ref: Vec3::select(turn, f.u_ref, f.v_ref().normalize()),
                 ..f
             },
-            semi_u: turn.select_le_zero(self.semi_u, self.semi_v),
-            semi_v: turn.select_le_zero(self.semi_v, self.semi_u),
-        }
+            turn.select_le_zero(self.semi_u, self.semi_v),
+            turn.select_le_zero(self.semi_v, self.semi_u),
+        )
     }
 
     /// **The same ellipse seamed at the principal vertex nearest the
@@ -502,13 +585,10 @@ impl<T: Real> Ellipse<T> {
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
         let e = self.quarter_turned_where(turn);
-        Self {
-            frame: Frame {
-                u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
-                ..e.frame
-            },
-            ..e
-        }
+        e.with_frame(Frame {
+            u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
+            ..e.frame
+        })
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
@@ -522,7 +602,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn semi_axes(&self) -> (T, T) {
-        (self.semi_u, self.semi_v)
+        Ellipse::semi_axes(self)
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
@@ -556,11 +636,12 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn speed_lo(&self) -> T {
-        self.semi_axes_by_size().1
+        self.semi_axes_by_size().1.max(T::zero())
     }
 
     fn speed_hi(&self) -> T {
-        self.semi_axes_by_size().0
+        let (larger, smaller) = self.semi_axes_by_size();
+        larger.max(-smaller)
     }
 
     fn speed_at(&self, theta: T) -> T {
@@ -632,7 +713,7 @@ mod tests {
         let o = Point3::origin();
         match carrier {
             Curve3::Circle(k) => {
-                let (u, r) = (k.frame.u_ref, k.radius);
+                let (u, r) = (k.frame.u_ref, k.radius());
                 let v = k.frame.axis.cross(u);
                 [
                     (k.frame.origin + (u * c + v * s) * r) - o,
@@ -641,7 +722,7 @@ mod tests {
                 ]
             }
             Curve3::Ellipse(k) => {
-                let (u, a, b) = (k.frame.u_ref, k.semi_u, k.semi_v);
+                let (u, (a, b)) = (k.frame.u_ref, k.semi_axes());
                 let v = k.frame.axis.cross(u);
                 [
                     (k.frame.origin + (u * (a * c) + v * (b * s))) - o,
@@ -691,5 +772,92 @@ mod tests {
                 assert!(lo > 0.0 && lo <= k.semi_axes().0.min(k.semi_axes().1));
             }
         }
+    }
+
+    /// **A reflected carrier is unrepresentable**: a negative semi-axis
+    /// is the other sense of traversal, which is the frame's (`−axis`,
+    /// and `−u_ref` for `semi_u`), so the constructor refuses it loudly.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_u -0.9 is not a finite non-negative length")]
+    fn an_ellipse_with_a_negative_semi_axis_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Ellipse::new(f, -0.9, 0.4);
+    }
+
+    /// The circle's constructor refuses a negative radius as the
+    /// ellipse's does.
+    #[test]
+    #[should_panic(expected = "Circle::new: radius -0.7 is not a finite non-negative length")]
+    fn a_circle_with_a_negative_radius_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Circle::new(f, -0.7);
+    }
+
+    /// An enclosure entirely below zero is a definite negative.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_v")]
+    fn an_interval_semi_axis_definitely_negative_panics_at_construction() {
+        use geom_core::Interval;
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let _ = super::Ellipse::new(
+            f,
+            Interval::from_f64(0.9),
+            Interval::from_bounds(-0.8, -1e-20),
+        );
+    }
+
+    /// **An enclosure across zero is representable, and the speed
+    /// readers bound it**: `semi_u ∈ [−2, 1]`, `semi_v = 0.5` constructs
+    /// (its sign is undecided, which a reader takes in band), the least
+    /// speed is floored at zero, and the greatest reaches `2`, the
+    /// magnitude the enclosure's negative end carries: read as the
+    /// larger signed semi-axis it would be `1`, under the speed at
+    /// `θ = π/2`. A `−0.0` radius is no negative length.
+    #[test]
+    fn an_enclosure_across_zero_constructs_and_its_speeds_bound_it() {
+        use geom_core::{Bounds, Interval};
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let e = super::Ellipse::new(f, Interval::from_bounds(-2.0, 1.0), Interval::from_f64(0.5));
+        let k: &dyn super::Conic<Interval> = &e;
+        let (lo, hi) = (k.speed_lo(), k.speed_hi());
+        assert!(lo.lo() >= 0.0 && lo.hi() >= 0.5, "speed_lo {lo:?}");
+        assert!(hi.hi() >= 2.0, "speed_hi {hi:?} under |semi_u| = 2");
+        let at = k.speed_at(Interval::from_f64(core::f64::consts::FRAC_PI_2));
+        assert!(at.hi() >= 2.0 - 1e-12, "speed_at(π/2) {at:?}");
+        let flat = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        assert_eq!(
+            super::Circle::new(flat, -0.0).radius().to_bits(),
+            (-0.0f64).to_bits()
+        );
+    }
+
+    /// **A circle whose radius straddles zero has sound speeds**:
+    /// `radius ∈ [−2, 1]` constructs, its least speed is floored at zero
+    /// and its greatest, and its speed at any `θ`, reach `2`, the
+    /// magnitude the enclosure's negative end carries. Read as the signed
+    /// radius, the greatest would stop at `1`.
+    #[test]
+    fn a_circle_radius_across_zero_constructs_and_its_speeds_bound_it() {
+        use geom_core::{Bounds, Interval};
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+            .map_scalar(Interval::from_f64);
+        let c = super::Circle::new(f, Interval::from_bounds(-2.0, 1.0));
+        let k: &dyn super::Conic<Interval> = &c;
+        let (lo, hi) = (k.speed_lo(), k.speed_hi());
+        assert!(lo.lo() >= 0.0 && lo.hi() >= 1.0, "speed_lo {lo:?}");
+        assert!(hi.hi() >= 2.0, "speed_hi {hi:?} under |radius| = 2");
+        let at = k.speed_at(Interval::from_f64(0.3));
+        assert!(at.lo() >= 0.0 && at.hi() >= 2.0, "speed_at {at:?}");
+    }
+
+    /// A poison turn reads poison sizes, which the checked constructor
+    /// refuses rather than store.
+    #[test]
+    #[should_panic(expected = "Ellipse::new: semi_u NaN")]
+    fn a_poison_seam_turn_panics_at_construction() {
+        let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let _ = super::Ellipse::new(f, 0.9, 0.4).seamed_near(f64::NAN);
     }
 }

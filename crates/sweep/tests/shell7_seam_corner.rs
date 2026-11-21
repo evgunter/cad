@@ -143,18 +143,21 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            radius,
-        }) = c
+        let Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        ..
+                    },
+                ..
+            },
+        ) = c
         else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
+        let radius = conic_k.radius();
         let (rho_c, h_c) = axial(center);
         if rho_c <= 1e-15 {
             // An equator seam: centred on the axis, normal along it,

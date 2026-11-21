@@ -520,10 +520,13 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
         .carrier()
         .clone();
     match carrier {
-        Curve3::Circle(geom::Circle { radius, .. }) => assert!(
-            (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
-            "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
-        ),
+        Curve3::Circle(conic_k) => {
+            let radius = conic_k.radius();
+            assert!(
+                (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
+                "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
+            )
+        }
         ref ellipse @ Curve3::Ellipse(..) => {
             let Some(geom::MajorFrame {
                 major: got_major,

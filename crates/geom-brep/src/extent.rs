@@ -43,9 +43,9 @@
 //! middle of its window along the axis read ([`Reach::foot_on`]), a
 //! pivot derived from the region and never chosen per kind; a face is
 //! levered at its own cover (`topo`'s `face_cover`), which holds what
-//! bulges past its boundary. The cylinder pair's frame ([`Reach::of_frame`]) is levered at its walls'
-//! span or its larger radius, and only that pair floors it
-//! ([`Reach::lever_between`]).
+//! bulges past its boundary. A germ frame handed without its faces
+//! ([`Reach::of_frame`]) is levered at its wall's radius, which a pair
+//! of lines floors ([`Reach::lever_between`]).
 //! A plane×cylinder face's caller ([`Reach::Face`]) hands what it
 //! measured of the face from `at`: how far it reaches either way along
 //! the axis ([`Reach::range_along`] of each boundary span) and how far
@@ -148,7 +148,7 @@ impl<T: Real> ExtentBall<T> {
     /// The ball of `radius` about `center`, `radius` read off the
     /// geometry it encloses by the constructors here.
     #[must_use]
-    pub(crate) fn new(center: Point3<T>, radius: T) -> Self {
+    fn new(center: Point3<T>, radius: T) -> Self {
         Self { center, radius }
     }
 
@@ -227,7 +227,7 @@ impl<T: Real> ExtentBall<T> {
     /// pivot is known only to stand within `apart` of `pivot` (a second
     /// carrier's apex, the other axis's offset) levers here.
     #[must_use]
-    pub fn lever_from_within(self, pivot: Point3<T>, apart: T) -> Lever<T> {
+    pub(crate) fn lever_from_within(self, pivot: Point3<T>, apart: T) -> Lever<T> {
         Lever::of_consumed_extent(self.reach_from(pivot) + apart)
     }
 
@@ -246,27 +246,6 @@ impl<T: Real> ExtentBall<T> {
                 + (self.center - p0).dot(n).abs()
                 + self.radius
                 + self.radius,
-        )
-    }
-
-    /// **The ball about the overlap of two boxes** `(lo, hi)`, given as
-    /// computed `f64` corners (a face walk's hulls): its centre, out to
-    /// its half-diagonal, entering as computed values.
-    #[must_use]
-    pub fn of_overlap(a: &bvh::Aabb, b: &bvh::Aabb) -> Self {
-        let corners = |x: &bvh::Aabb| ([x.min_x, x.min_y, x.min_z], [x.max_x, x.max_y, x.max_z]);
-        let (a, b) = (corners(a), corners(b));
-        let lo: [f64; 3] = core::array::from_fn(|i| a.0[i].max(b.0[i]));
-        let hi: [f64; 3] = core::array::from_fn(|i| a.1[i].min(b.1[i]));
-        let mid: [f64; 3] = core::array::from_fn(|i| geom::mid_param(lo[i], hi[i]));
-        let half = Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).norm() * 0.5;
-        Self::new(
-            Point3::new(
-                T::from_computed(mid[0]),
-                T::from_computed(mid[1]),
-                T::from_computed(mid[2]),
-            ),
-            T::from_computed(half),
         )
     }
 
@@ -379,7 +358,7 @@ impl<T: Real> ExtentBall<T> {
     /// `(r₁ + r₂)/sin` of the perpendicular's midpoint across it, and
     /// within `min r + |gap|/2` along it.
     #[must_use]
-    pub fn of_crossing_cylinders(
+    pub(crate) fn of_crossing_cylinders(
         (foot, normal): (Point3<T>, Vec3<T>),
         sin: T,
         gap: T,
@@ -501,8 +480,8 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// every sign reads at both bounds and acts only where they agree
 /// ([`LeverBounds`]; from a point of the edge, [`edge_reach_bounds`]).
 ///
-/// Per carrier kind, the max of the chord `|end − start|` between the
-/// edge's two end points, which the caller hands as points, and:
+/// Per carrier kind, the max of the chord between the carrier's points
+/// at the span's two ends and:
 ///
 /// - **Line** — nothing more: the chord is `D`.
 /// - **Circle** (radius r, span Δt = t₁ − t₀): `|r|·(1 − cos(Δt/2))`,
@@ -534,13 +513,13 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// the ends.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
-pub fn edge_extent_inf<T: SpanLocate>(
-    carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
-    (start, end): (Point3<T>, Point3<T>),
-) -> Lever<T> {
-    Lever::of_consumed_extent(extent_inf(carrier, t0, t1, start.distance(end)))
+pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
+    Lever::of_consumed_extent(extent_inf(carrier, t0, t1, chord(carrier, t0, t1)))
+}
+
+/// The chord between the carrier's points at the span's two ends.
+fn chord<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    carrier.eval(t0).distance(carrier.eval(t1))
 }
 
 fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
@@ -549,7 +528,10 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(fold(*radius)),
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            chord.max(fold(radius))
+        }
         Curve3::Ellipse(e) => chord.max(fold(e.speed_lo())).max(pairs()),
         Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
         Curve3::Nurbs(_) | Curve3::Periodic(_) => chord.max(pairs()),
@@ -609,13 +591,8 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
 /// operations, which propagate poison: a spline whose speed bound or
 /// control net is poison reads poison here, and the reading levered at
 /// it escalates).
-pub fn edge_extent_sup<T: SpanLocate>(
-    carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
-    (start, end): (Point3<T>, Point3<T>),
-) -> Lever<T> {
-    Lever::of_consumed_extent(extent_sup(carrier, t0, t1, start.distance(end)))
+pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
+    Lever::of_consumed_extent(extent_sup(carrier, t0, t1, chord(carrier, t0, t1)))
 }
 
 fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
@@ -630,7 +607,10 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     };
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(two * *radius * fold),
+        Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            chord.max(two * radius * fold)
+        }
         Curve3::Ellipse(e) => {
             let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
@@ -808,8 +788,8 @@ pub enum Reach<T: Real> {
     /// ([`ExtentBall::lever_from`]): the tangent-locus witness's reading,
     /// the ball its callers (the carrier doors) hand it.
     Ball(ExtentBall<T>),
-    /// A length measured from `at` (the germ frame's walls' span or the
-    /// larger radius, [`Self::of_frame`]), read at the foot of `at`. Its lever
+    /// A length measured from `at` (the germ frame's wall's radius,
+    /// [`Self::of_frame`]), read at the foot of `at`. Its lever
     /// is that length ([`Self::lever_from`]), floored for the cylinder
     /// pair at the foot's distance from `at` ([`Self::lever_between`]).
     /// Built only by [`Self::of_frame`].
@@ -846,16 +826,17 @@ pub enum Reach<T: Real> {
 }
 
 impl<T: Real> Reach<T> {
-    /// **A germ frame's reach, read at `at`** ([`Self::Measured`]): the
-    /// longer of the carriers' larger radius `max(r1, r2)` and the
-    /// diameter of `walls`, the ball holding both walls' boundary
-    /// points, where the walls are in hand.
+    /// **A plane×cylinder germ frame's reach, read at `at`**
+    /// ([`Self::Measured`]): the cylinder wall's radius, for a pair
+    /// handed without its faces. Any other surface has no frame here and reads poison,
+    /// which a reading levered at it escalates.
     #[must_use]
-    pub fn of_frame(at: Point3<T>, (r1, r2): (T, T)) -> Self {
-        Self::Measured {
-            at,
-            lever: r1.max(r2),
-        }
+    pub fn of_frame(at: Point3<T>, wall: &geom::Surface<T>) -> Self {
+        let lever = match wall {
+            geom::Surface::Cylinder { radius, .. } => *radius,
+            _ => poison(),
+        };
+        Self::Measured { at, lever }
     }
 
     /// **A face measured from `at`** ([`Self::Face`]): its window along
@@ -974,7 +955,7 @@ impl<T: Real> Reach<T> {
     /// `max(|above − shift|, |below + shift|)`; every other reach adds
     /// `|shift|` to its lever from the foot.
     #[must_use]
-    pub fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
+    pub(crate) fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { below, above, .. } => (*above - shift).abs().max((*below + shift).abs()),
             Self::Ball(_) | Self::Measured { .. } | Self::Region(_) => {
@@ -995,7 +976,7 @@ impl<T: Real> Reach<T> {
     /// where `cos` read from `c` is not). Returned as a lever,
     /// `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
-    pub fn turn_lever(
+    pub(crate) fn turn_lever(
         &self,
         hinge: Point3<T>,
         (n, a): (Vec3<T>, Vec3<T>),
@@ -1024,7 +1005,7 @@ impl<T: Real> Reach<T> {
     /// rulings' hinge ([`Self::hinge_lever`]) plus the tilt's turn across
     /// the wall ([`Self::turn_lever`]), each read as there.
     #[must_use]
-    pub fn ruled_lever(
+    pub(crate) fn ruled_lever(
         &self,
         (foot, shift): (Point3<T>, T),
         hinge: Point3<T>,
@@ -1042,7 +1023,7 @@ impl<T: Real> Reach<T> {
     /// from `apex` ([`Self::range_along`]), its larger end over the
     /// half-angle's cosine `cos_a`.
     #[must_use]
-    pub fn generator_lever(&self, apex: Point3<T>, a: Vec3<T>, cos_a: T) -> Lever<T> {
+    pub(crate) fn generator_lever(&self, apex: Point3<T>, a: Vec3<T>, cos_a: T) -> Lever<T> {
         let (lo, hi) = self.range_along(apex, a);
         Lever::of_consumed_extent(lo.abs().max(hi.abs()) / cos_a)
     }
@@ -1220,7 +1201,7 @@ mod tests {
                     let w = pivot - c.frame.origin;
                     let h = w.dot(c.frame.axis);
                     let rho = (w - c.frame.axis * h).norm();
-                    let exact = (h * h + (rho + c.radius).powi(2)).sqrt();
+                    let exact = (h * h + (rho + c.radius()).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
                         "{carrier:?}: {lever} is not the circle's farthest point {exact}"
@@ -1274,8 +1255,14 @@ mod tests {
             ];
             for carrier in carriers {
                 let (a, b) = match carrier {
-                    Curve3::Circle(geom::Circle { radius, .. }) => (radius, radius),
-                    Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u, semi_v),
+                    Curve3::Circle(circle) => {
+                        let radius = circle.radius();
+                        (radius, radius)
+                    }
+                    Curve3::Ellipse(ellipse) => {
+                        let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                        (semi_u, semi_v)
+                    }
                     _ => unreachable!(),
                 };
                 let big = a.max(b);
@@ -1565,7 +1552,7 @@ mod tests {
             lever >= want * (1.0 - 1e-12),
             "a normal on the axis to rounding: lever {lever}, the point's turn {want}"
         );
-        let measured = Reach::of_frame(at, (1.0, 1.0));
+        let measured = Reach::fixture(at, 1.0);
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured

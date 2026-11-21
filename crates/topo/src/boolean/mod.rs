@@ -133,7 +133,6 @@ fn pierces_refused(
 
 #[cfg(test)]
 mod cone_frame_rows;
-mod conic_quadric;
 pub mod contact_verify;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
@@ -238,13 +237,15 @@ pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken, nary_boolean,
+    nary_boolean_apart, nary_placed,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
-    SettleError, Settler, boolean_op_with, intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
+    PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
+    subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -4838,6 +4839,31 @@ impl BooleanError {
                 decision: BooleanDecision::ConeRoots,
                 diag,
             },
+        }
+    }
+
+    /// The conic × quadric door's refusal
+    /// ([`geom_brep::curve_face::conic_quadric::ConicQuadricRefusal`]),
+    /// its in-band sign an escalation as the refusing arm's decision: an
+    /// arc's roots on a sphere, a cylinder wall or a cone.
+    pub(in crate::boolean) fn of_conic_quadric_refusal(
+        refusal: geom_brep::curve_face::conic_quadric::ConicQuadricRefusal,
+    ) -> Self {
+        use geom_brep::curve_face::conic_quadric::ConicQuadricRefusal;
+        match refusal {
+            ConicQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcSphereRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cylinder(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcCylinderRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcConeRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Invariant(what) => Self::ClassificationInvariant { what },
         }
     }
 

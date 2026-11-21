@@ -96,7 +96,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
         BooleanError::CurvedPierceEscalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
-                Some("bool_conic_quadric_first_extreme"),
+                Some("conic_quadric_first_extreme"),
                 "the escalation names the roots' predicate: {diag:?}"
             );
         }

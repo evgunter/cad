@@ -467,9 +467,18 @@ fn a_posts_top_past_its_radius_refuses_at_the_screen() {
         1,
         -ring(s, r - s / 3.0),
     );
+    // The post's top: the planar face beside its rim.
+    let (a, b) = topo::readback::edge_sides(&post, top[0]).unwrap().faces();
+    let plane = |f| {
+        post.face_surface(f)
+            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane)
+    };
+    let cap = if plane(a) { a } else { b };
+    assert!(plane(cap), "the rim's other face is the post's planar top");
     for s in [r, 0.6] {
         match chamfer(&post, &top, s) {
-            Err(BlendError::FaceClearanceUncertified { margin, .. }) => {
+            Err(BlendError::FaceClearanceUncertified { face, margin, .. }) => {
+                assert_eq!(face, cap, "s = {s}: the screen names the post's top");
                 let reading = margin
                     .reading
                     .diagnostic_f64_for_error_text()

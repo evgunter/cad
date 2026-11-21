@@ -995,7 +995,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     match geom_brep::parting_side(
         n_ref * (graph_accel(sector_surface) - graph_accel(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
-        arm.length(),
+        arm,
         band,
     ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
@@ -2012,7 +2012,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = geom_brep::parting(k - kb, u, l.min(lb).length());
+        let entered = geom_brep::parting(k - kb, u, l.min(lb));
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2231,7 +2231,7 @@ fn crescent<T: Decide>(
         let along = || parallel_same_as(da, db, l, BOUNDS_PARALLEL, band);
         let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
         let opened = || {
-            let opened = geom_brep::parting(kb - ka, u, l.length());
+            let opened = geom_brep::parting(kb - ka, u, l);
             decide("bool_sector_crescent", opened, band)
                 .map_err(escalate)
                 .map(|s| s == Sign::Positive)
@@ -3659,12 +3659,7 @@ mod tests {
             1.0,
             -bend,
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(0.0), carrier.eval(span)),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -3900,8 +3895,7 @@ mod tests {
                         assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
-                        let extent_lever =
-                            geom_brep::edge_extent_inf(&flat, 0.0, span, (flat.eval(span), base));
+                        let extent_lever = geom_brep::edge_extent_inf(&flat, 0.0, span);
                         let extent = extent_lever.length();
                         // The witness the derivation names, found
                         // independently: the sample at arc length
@@ -4042,12 +4036,7 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(span), geom_core::Point3::origin()),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent.length();
         assert_eq!(
@@ -4507,12 +4496,13 @@ mod tests {
             text.starts_with(
                 "whether an edge at a corner is long enough to read which side of a face it \
                  leaves on is undecided: "
-            ) && text.ends_with(&format!(
+            ) && text.contains(
                 "Recourse: make the edges at the corner where the two faces meet span clearly \
                  more than the tolerance, or, if this edge's length or rise is intended, tighten \
-                 the tolerance below {:e} m",
-                departure(mid) / (e / z)
-            )) && !text.contains("declare"),
+                 the tolerance below "
+            ) && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                geom_core::test_support::is_told_offer_of(offered, departure(mid) / (e / z))
+            }) && !text.contains("declare"),
             "{text}"
         );
         // The decided-zero arm: an extent inside the zero band.
@@ -4579,11 +4569,12 @@ mod tests {
             BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("margin {mid:e} lies inside the ambiguity band"))
-                && text.ends_with(&format!(
-                    "if this edge's length or rise is intended, tighten the \
-                     tolerance below {:e} m",
-                    mid / (e / z)
-                )),
+                && text.contains(
+                    "if this edge's length or rise is intended, tighten the tolerance below "
+                )
+                && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                    geom_core::test_support::is_told_offer_of(offered, mid / (e / z))
+                }),
             "{text}"
         );
         // The reading's own escalation, over a clear extent: a direction

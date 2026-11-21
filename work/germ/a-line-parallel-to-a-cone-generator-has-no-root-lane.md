@@ -85,3 +85,9 @@ the shells' sides answer it
 (`cone_operand_rows::a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifies`).
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: one rule set (`germ/line-cone-one-rule-set`)
+
+The ray's own generator-parallel row (`bool_ray_cone_lead`) is retired:
+both callers read `line_quadric_cone_lead`'s `Unsettled::Degenerate`,
+which an edge refuses and a ray grazes. Neither pose is answered yet.

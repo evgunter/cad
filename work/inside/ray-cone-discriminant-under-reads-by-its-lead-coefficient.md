@@ -2,8 +2,9 @@
 id: ray-cone-discriminant-under-reads-by-its-lead-coefficient
 kind: issue
 title: The ray x cone discriminant (bool_ray_cone_disc) is metered over the reach without dividing by the lead coefficient, so a ray definitely clear of the cone or definitely crossing it grazes
-status: open
+status: closed
 opened: 2026-10-25
+closed: 2026-11-20
 priority: P2
 cost: M
 ---
@@ -49,3 +50,16 @@ Meter the discriminant as a point deviation: divide by `|a₂|` and by
 the cone's implicit gradient at the tangency (`ρ·sin 2α`, with `ρ`
 bounded by the reach), or decide the roots' separation itself. Either
 moves k-lint margins and wants re-baselining.
+
+## Closed (2026-11-20): the ray reads the line × cone door
+
+GERM's one line × cone rule set (branch `germ/line-cone-one-rule-set`)
+retires `bool_ray_cone_lead` and `bool_ray_cone_disc`: both ray arms read
+`geom_brep::curve_face::line_quadric::line_cone_roots` over the run of the
+ray's line inside the ball holding the face, so the ray's crossing count
+is decided by `line_quadric_cone_depth`, `disc/(|A|·R)`, which divides by
+the lead coefficient. The measured witness above (`α = π/4`, a line
+0.01 rad off the generator and `10⁻⁶` m off the cone) decides a miss
+outward and two crossings inward at ε 1e-9:
+`line_cone_rows::a_line_near_a_generator_and_just_off_the_cone_is_decided`
+(geom-brep).

@@ -70,9 +70,19 @@ impl OrderFault {
 }
 
 impl core::fmt::Display for OrderFault {
-    /// The replay's own sentence for it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        PathError::<f64>::from(*self).fmt(f)
+        geom_core::Tell::tell(self, geom_core::Notation::CANONICAL, f)
+    }
+}
+
+impl geom_core::Tell for OrderFault {
+    /// The replay's own sentence for it.
+    fn tell(
+        &self,
+        notation: geom_core::Notation,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        PathError::<f64>::from(*self).tell(notation, f)
     }
 }
 
@@ -86,7 +96,9 @@ impl<T: Real> From<OrderFault> for PathError<T> {
             OrderFault::NoFirstLeg => PathError::UnderdeterminedLeg {
                 site: "a seam junction on a chain with no first leg",
             },
-            OrderFault::ClosesOnItsEntry => PathError::DegenerateArcChord { chord: T::zero() },
+            OrderFault::ClosesOnItsEntry => PathError::DegenerateArcChord {
+                chord: super::length(T::zero()),
+            },
         }
     }
 }

@@ -2,11 +2,13 @@
 id: the-walk-panics-on-a-slit-in-a-curved-face
 kind: issue
 title: The chart walk panics on a cylinder face carrying a slit, its parted end two declared vertices on one point
-status: dispatched
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
 branch: tesslie/walk-slit
+closed: 2026-11-20
+pr: 7195
 ---
 
 
@@ -58,3 +60,7 @@ row's consumer, with
 ruling, with only one rim's vertex on that ruling. That operand's wrap
 edge lies along the other's wall, and the op keeping both walls refuses
 `EdgeInFace { gap: CurvedFace }`; the pin goes red when the gap retires.
+
+## Closed (TESSLIE, PR 7195, 2026-11-20)
+
+The slit's parted end is two vertices on ONE point record. `tessellate::route_of`'s pinch fact (`walk::pinches`, point-key identity only) now sends a curved face whose outer loop passes one point record at two vertices to the trimmed lane, which places each vertex by its own stored chart image. The curved lane refuses such a face typed, as a routing defect, beside its ring check, and the walk's guard keeps its original subject. Pinned by `the_slit_block_meshes` and `a_full_height_slit_in_a_full_bore_meshes` (sweep), and by `curved::tests::a_pinched_face_here_refuses_as_a_routing_defect`. The consumer (`EdgeInFaceGap::CurvedFace` in `topo::boolean::slit`) is not lifted; see the nearpoint row. Follow-ups: `a-loop-passing-one-point-key-twice-is-read-four-ways` (P1) and `pinches-on-sphere-cone-and-torus-faces-are-unmeasured` (P3).

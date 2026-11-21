@@ -277,25 +277,34 @@ pub struct Truth {
 #[allow(clippy::panic)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
     let (center, axis, (a, b), u_ref) = match *carrier {
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, (radius, radius), u_ref),
-        geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => (center, axis, (semi_u, semi_v), u_ref),
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
+            (center, axis, (radius, radius), u_ref)
+        }
+        geom::Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            (center, axis, (semi_u, semi_v), u_ref)
+        }
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {

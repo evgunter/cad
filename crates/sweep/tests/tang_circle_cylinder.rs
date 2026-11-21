@@ -1,5 +1,5 @@
 //! **A rim circle crossing a cylinder wall**, end to end: the poses the
-//! conic × quadric root door (`topo::boolean::conic_quadric`)
+//! conic × quadric root door (`geom_brep::curve_face::conic_quadric`)
 //! settles, and the door each one reaches next.
 //!
 //! - **A crossing of the CARRIER outside the wall's trim builds.** A

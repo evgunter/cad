@@ -280,7 +280,7 @@ fn is_strut(c: &Curve3<f64>) -> bool {
 /// The bored ring's smooth latitude join: the one circle at the bore
 /// radius. Every other latitude circle of the fixture is wider.
 fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
-    move |c| matches!(c, Curve3::Circle(geom::Circle { radius, .. }) if (radius - r_bore).abs() < r_bore * 1e-9)
+    move |c| matches!(c, Curve3::Circle(circle) if (circle.radius() - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name

@@ -26,13 +26,21 @@ crates/geom 212
 # moves from mesh::chords to geom_brep (pcurve_cache::speed), its one
 # reader with it; mesh's rows of it move too and read the held values
 # (TESSLANE, the one chord rule).
-crates/geom-brep 221
+# geom-brep 221 -> 224: patch_carrier's patch × analytic surface
+# certificate reads the patch's knots and weights for SurfaceCertData, as
+# composite_rows does for CurveCertData (EXCH, whole-patch promotion).
+crates/geom-brep 224
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9
 # step-import 39 -> 37: recognize.rs's chart_flipped reads the patch's
 # midpoint jet through patch_jet_mid, the plane arm's one reader (EXCH).
-crates/step-import 37
+# step-import 37 -> 35: the cylinder's envelope is gone; the curved
+# certificates read the held knot values (EXCH, whole-patch promotion).
+# 35 -> 33: recognize_curve's line limb split into locus (try_line) and
+# the straight map reading (straight_map), which alone reads the knots
+# (EXCH).
+crates/step-import 33
 crates/sweep 139
 crates/topo 36
 demos/tour 2

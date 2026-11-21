@@ -27,3 +27,12 @@ without its roster line. Not traced to the PR that added it.
 
 **What closes it:** `crossing`'s roster line with its disposition, or
 the door routed through a named bound.
+
+**Traced (EXCH triage, 2026-11-20).** `crossing` arrived with PR 7078
+(`band/mixed-corner-reach`, merge `36c7cb2b66`). The bounds census
+passes on `36c7cb2b66^1` and reports `("crates/sweep/src/blend/reach.rs",
+"crossing")` on `36c7cb2b66`. Still red on main `bd8b2c9bb5`, together
+with `sure_below` (DOCTAIL's
+`main-red-bounds-census-misses-reach-rs-crossing-and-sure-below`, PR
+7114). Reproduce:
+`cargo nextest run -p geom-core --ignore-default-filter -E 'test(every_sole_bracket_bound_door)'`.

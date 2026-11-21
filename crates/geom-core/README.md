@@ -13,7 +13,7 @@ did not ask it to.
 |---|---|
 | The ring and its instantiations | `src/real.rs`, `src/dual.rs`, `src/interval.rs`, `src/sym.rs`, `src/k_stats.rs` (the `Probe` recorder) |
 | Decisions and tolerance | `src/predicate.rs`, `src/tolerance.rs`, `src/bit_identity.rs` |
-| Refusal text | `src/readable.rs` (`Readable`, the one rendering of an `f64` a refusal message interpolates) |
+| Refusal text | `src/told.rs` (`Told`, the told quantity a refusal's payload holds and a sentence quotes, and `Compared`, two of them told in their order: "A number told to a person" below), `src/readable.rs` (`Readable`, an `f64` spelled exactly, for text that must read back) |
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
 | The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |
@@ -406,14 +406,33 @@ An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
 that is not an `f64` reads as its value or its enclosure, and a zero of
 either sign reads `0`. Text that must be exact (an editable field, a
 serialized form a content key hashes, a dump) is not told text and is
-spelled exactly.
+spelled exactly. An editable field over a written value shows that
+value's exact spelling in the unit it was written in, positionally and
+never in exponent form, because it is edited one character at a time;
+a driven value is a readout and is told text.
 
-**A refusal is said in the notation of whoever reads it.** Its
-rendering takes a notation, and `Display` is that rendering in metres
-and radians; the GUI passes the working notation, so a person working
+Two told quantities are equal when their role, dimension and reading
+are equal, and a dump shows the reading exactly. A test that means "the
+person reads this" compares the telling in a named notation.
+
+**A refusal is said in the notation of whoever reads it.** A sentence
+is written through a teller that carries the notation, and a told
+quantity has no `Display` of its own, so a number cannot be said
+without its notation; a refusal's `Display` is its telling in metres
+and radians. The GUI passes the working notation, so a person working
 in millimetres reads a refusal in millimetres beside fields that show
-millimetres. The tolerance is set in metres, and a recourse that names
-it says it in metres.
+millimetres.
+
+**A unit says every quantity.** The number written in a unit is a
+decimal, and it reads back as the exact decimal times the unit's exact
+factor (1/1000 for mm, 254/10000 for in, π/180 for deg, with true π),
+rounded once. That is the reading of every door that takes a number in
+a unit: the text door, and the Rust and Python doors, which read a
+float by its shortest decimal. So the unit a number is told in depends
+only on the reader's notation and the number's dimension, never on its
+value. The tolerance is the one quantity told in metres whatever the
+notation: it is set in metres, and a recourse that names it says it in
+metres.
 
 ## Float rounding
 
@@ -445,9 +464,10 @@ This section is where that rule's parts live.
   where `R` is at least the box). `R` is read through one `Tolerance`
   door, never a site's own constant. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
-  (as a distance). A stored form that loses digits (a conic whose centre
-  lies far from the arc it serves) is re-minted in a well-conditioned
-  form. No `Margin` door takes hand-written slack. The backstop is a
+  (as a distance). A stored form that loses digits is re-minted in a
+  well-conditioned form: a conic is stored anchored on the arc it
+  serves, its parameter zero at the anchor and its centre derived,
+  never stored. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
   site is a listed entry with its reason: in production, a formula or a

@@ -1,5 +1,6 @@
 //! **The ellipse × torus root door**: the certified crossings of an
-//! ELLIPSE carrier with a torus. Like `topo`'s conic × quadric door it
+//! ELLIPSE carrier with a torus. Like the conic × quadric door
+//! ([`super::conic_quadric`]) it
 //! owns no root machinery: it reads the
 //! residual's harmonics from their one home and hands them to the shared
 //! certified subdivision ([`super::circle_roots`]), whose answer it gives.
@@ -1043,16 +1044,17 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse(geom::Ellipse {
-                            frame:
-                                geom::Frame {
-                                    origin: center,
-                                    axis,
-                                    u_ref,
-                                },
-                            semi_u,
-                            semi_v,
-                        }),
+                        geom::Curve3::Ellipse(
+                            ellipse @ geom::Ellipse {
+                                frame:
+                                    geom::Frame {
+                                        origin: center,
+                                        axis,
+                                        u_ref,
+                                    },
+                                ..
+                            },
+                        ),
                         geom::Surface::Torus {
                             center: hub,
                             axis: t_axis,
@@ -1064,6 +1066,7 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
+                    let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
                         Ok(Ok(CircleRoots::Certified(found))) => {
                             ("certified", found.roots().to_vec())

@@ -39,3 +39,13 @@ arm carries its own. Then state the start form's disc margin's rounding,
 or charge it as `Centred::charged` does for the nearest form.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: the cone arm reads about the nearest (`germ/line-cone-one-rule-set`)
+
+The edge door's cone arm now poses its quadratic `About::Nearest`, as
+the ray did, and meters each root with `Centred::roots`' slack. The
+witness above does not move: `verbs_germarms2_interval`'s skew pair at
+1e-12 answers the same before and after (direct `GermSectionUnbuilt …
+NoLane`, re-posed twin `CrossingInsertion … carrier_matches_mapped_source`
+at `[0, 1.06e-12]`), since its operands have no cone face. The wall and
+sphere arms are unchanged and still owe what this row says.

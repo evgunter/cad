@@ -37,3 +37,11 @@ row `line_cone_rows::roots_beside_the_apex_are_placed_along_the_edge`
 is the place-along-the-edge oracle to extend).
 
 Moved from APEX to GERM on 2026-11-02, by `git mv`, when APEX merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: the ray reads this rung too (`germ/line-cone-one-rule-set`)
+
+`bool_ray_cone_disc` is retired: the ray reads `line_quadric_cone_depth`
+over its line's run inside the ball holding the face. The rung now reads
+the quadratic about the line's closest approach to the apex with `disc`
+held to the shift's rounding (`Centred::charged`); `R` is still the
+largest of the three reaches, so the near-apex refusal zone is unmoved.

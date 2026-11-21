@@ -248,10 +248,9 @@ fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     };
     let [ka, kb] = pair.keys();
     let (ca, cb) = (cache(ka), cache(kb));
-    let ends = (row.carrier.eval(t0), row.carrier.eval(t1));
     geom_brep::analytic_row_contact(
         [(ka, &surfaces[ka], &ca), (kb, &surfaces[kb], &cb)],
-        geom_brep::edge_extent_inf(&row.carrier, t0, t1, ends),
+        geom_brep::edge_extent_inf(&row.carrier, t0, t1),
         band(),
     )
 }

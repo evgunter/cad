@@ -36,3 +36,12 @@ speaks (a length the roots move by), not the edge's length, with a row
 of short edges at scale 1e-3 that answer and stay right.
 
 Moved from APEX to GERM on 2026-11-02, by `git mv`, when APEX merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: the ray reads this rung too (`germ/line-cone-one-rule-set`)
+
+`bool_ray_cone_lead` is retired: the point-in-solid ray reads
+`line_cone_roots` over its line's run inside the ball holding the face,
+so this rung is now both callers', levered by the run's length (an
+edge's span; twice the face's reach for a ray). An edge's lever is
+unchanged, so the short-edge refusal stands; a fix here now moves the
+ray's grazes too.

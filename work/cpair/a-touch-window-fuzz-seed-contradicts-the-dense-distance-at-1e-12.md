@@ -111,3 +111,20 @@ PR 7137's head. Each red is an unringed `Recedes` on a conic of radius
 280–930 m. Three seeds replayed red on the merge base `3bddaf8a60` too:
 `0xf0018fd9fa4abc02`, `0x9fc6cc9735038399`, `0xc1ab1587225e7a95`.
 PR 7137 changes only a comment in `curve_pair/pose/window.rs`.
+
+## 2026-11-19 — a third seed (ONEROUND, `oneround/rounded-room` lane)
+
+`each_window_reading_holds_on_a_dense_distance` at the default ε drew
+`CAD_FUZZ_SEED=0x089b1926d015d5b1` (`CAD_FUZZ_EFFORT=1`) and failed its
+1e-12 pass: `1 readings contradicted`, draw 54, a circle of radius
+≈523.1 whose `Recedes` reading on `(-2.742e-8, -2.562e-8)`, ring `None`,
+contradicts the dense distance. Replayed on `origin/main` at `b80352cd`
+with the same seed it fails the same way, so the lane's diff
+(`half_angle`, `chart_singularity`) is not its cause. Two of five runs
+of the row here drew a failing seed (only this one was captured).
+
+## 2026-11-20 — a fourth seed (ONEROUND, the review of PR 7145)
+
+The same row drew `CAD_FUZZ_SEED=0xd5b1cddf2406ff5f` (`CAD_FUZZ_EFFORT=1`)
+in the reviewer's run and failed its 1e-12 pass, `1 readings
+contradicted`. Replayed alone it fails and reaches no `half_angle` walk.

@@ -4235,27 +4235,47 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
 /// the path refusal it carries; every `PathError` arm is a sketch edit
 /// the person made.
 fn profile_replay() -> Vec<(String, NodeErrorKind)> {
+    fn l(x: f64) -> geom_core::Told {
+        geom_core::Told::computed(&x, geom_core::Dimension::Length)
+    }
+    fn gl(x: f64) -> geom_core::Told {
+        geom_core::Told::given(&x, geom_core::Dimension::Length)
+    }
+    fn a(x: f64) -> geom_core::Told {
+        geom_core::Told::computed(&x, geom_core::Dimension::Angle)
+    }
+    fn ga(x: f64) -> geom_core::Told {
+        geom_core::Told::given(&x, geom_core::Dimension::Angle)
+    }
+    fn r(x: f64) -> geom_core::Told {
+        geom_core::Told::computed(&x, geom_core::Dimension::Dimensionless)
+    }
+    fn gr(x: f64) -> geom_core::Told {
+        geom_core::Told::given(&x, geom_core::Dimension::Dimensionless)
+    }
+    fn radius_lever(boundary: f64, exact_fit_edge: f64) -> geom_core::Told {
+        geom_core::Told::at_most_within(&boundary, &exact_fit_edge, geom_core::Dimension::Length)
+    }
     use geom_core::Point2;
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
     use profile::{
-        CornerReason, CornerRefusal, FilletLegCarrier, LegFit, LeverValue, NoCornerReason,
-        OverrunLegs,
+        CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason, OverrunLegs,
     };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
             "JunctionTangent",
             P::JunctionTangent {
-                margin: 1e-12,
-                arm: 0.5,
+                margin: l(1e-12),
+                arm: l(0.5),
             },
         ),
         (
             "JunctionCusp",
             P::JunctionCusp {
-                margin: 1e-12,
-                arm: 0.5,
+                margin: l(1e-12),
+                arm: l(0.5),
             },
         ),
         (
@@ -4264,68 +4284,69 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 at: Point2::new(2.0, 0.0),
             },
         ),
-        ("SeamTangent", P::SeamTangent { margin: 1e-12 }),
+        ("SeamTangent", P::SeamTangent { margin: l(1e-12) }),
         (
             "SeamArrivalOffDirection",
             P::SeamArrivalOffDirection {
-                margin: 1e-3,
-                arm: 0.5,
+                margin: l(1e-3),
+                arm: l(0.5),
             },
         ),
         (
             "SeamArrivalLeverTooShort",
-            P::SeamArrivalLeverTooShort { arm: 1e-12 },
+            P::SeamArrivalLeverTooShort { arm: l(1e-12) },
         ),
         (
             "ContinuationTargetOffRay",
             P::ContinuationTargetOffRay {
-                across: 1e-3,
-                along: 0.5,
+                across: l(1e-3),
+                along: l(0.5),
             },
         ),
         (
             "NoCornerForFillet",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersTangent,
-                radius: 0.1,
+                radius: gl(0.1),
             },
         ),
         (
             "NoCornerOfPair",
             P::NoCornerOfPair {
-                radius: 0.1,
+                radius: gl(0.1),
                 corners: Vec::new(),
+                radius_lever_of: None,
             },
         ),
         (
             "FilletOffsetLeverTooShort",
             P::FilletOffsetLeverTooShort {
                 side: FilletLeg::Incoming,
-                carrier_radius: 0.2,
-                offset_radius: 0.3,
-                least_lever: 1e-12,
-                margin: 1e-3,
+                carrier_radius: l(0.2),
+                offset_radius: l(0.3),
+                least_lever: l(1e-12),
+                margin: l(1e-3),
             },
         ),
         (
             "FilletArcFlattenedInStorage",
             P::FilletArcFlattenedInStorage {
-                turn: 1e-9,
-                radius: 0.1,
-                arc_length: 1e-10,
+                turn: a(1e-9),
+                radius: gl(0.1),
+                arc_length: l(1e-10),
                 predicate: "fillet_arc_storage",
-                margin: 1e-12,
+                margin: l(1e-12),
             },
         ),
         (
             "FilletCarrierBelowSceneResolution",
             P::FilletCarrierBelowSceneResolution {
-                turn: 0.5,
-                radius: 1e-9,
-                scale: 10.0,
-                resolution: 1e-8,
+                turn: a(0.5),
+                radius: gl(1e-9),
+                scale: l(10.0),
+                resolution: l(1e-8),
                 predicate: "fillet_scene_resolution",
-                margin: 1e-12,
+                margin: l(1e-12),
             },
         ),
         (
@@ -4333,59 +4354,68 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::ArcLegOnOpenFillet { site: "line_to" },
         ),
         ("SeamRetrimsArcFirstSide", P::SeamRetrimsArcFirstSide),
-        ("NonpositiveLeg", P::NonpositiveLeg { length: -0.1 }),
+        ("NonpositiveLeg", P::NonpositiveLeg { length: gl(-0.1) }),
         (
             "NonpositiveFilletRadius",
-            P::NonpositiveFilletRadius { radius: -0.1 },
+            P::NonpositiveFilletRadius { radius: gl(-0.1) },
         ),
         (
             "NonpositiveCircleRadius",
-            P::NonpositiveCircleRadius { radius: -0.1 },
+            P::NonpositiveCircleRadius { radius: gl(-0.1) },
         ),
         (
             "NonpositiveRectangleSide",
             P::NonpositiveRectangleSide {
                 side: "width",
-                length: -0.1,
+                length: gl(-0.1),
             },
         ),
-        ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
+        ("DegenerateArcSpec", P::DegenerateArcSpec { value: gr(0.0) }),
         (
             "ArcSweepNotShortOfFullTurn",
-            P::ArcSweepNotShortOfFullTurn { angle: 7.0 },
+            P::ArcSweepNotShortOfFullTurn { angle: ga(7.0) },
         ),
         ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
         (
             "PolygonTooFewVertices",
             P::PolygonTooFewVertices { given: 2 },
         ),
-        ("ZeroDirection", P::ZeroDirection { dx: 0.0, dy: 0.0 }),
+        (
+            "ZeroDirection",
+            P::ZeroDirection {
+                dx: gr(0.0),
+                dy: gr(0.0),
+            },
+        ),
         (
             "NonFiniteDirection",
             P::NonFiniteDirection {
-                dx: f64::INFINITY,
-                dy: 0.0,
+                dx: gr(f64::INFINITY),
+                dy: gr(0.0),
             },
         ),
         (
             "UnderflowedDirection",
             P::UnderflowedDirection {
-                dx: 1e-300,
-                dy: 0.0,
+                dx: gr(1e-300),
+                dy: gr(0.0),
             },
         ),
-        ("ArcViaCollinear", P::ArcViaCollinear { offset: 1e-12 }),
-        ("DegenerateArcChord", P::DegenerateArcChord { chord: 1e-12 }),
+        ("ArcViaCollinear", P::ArcViaCollinear { offset: l(1e-12) }),
+        (
+            "DegenerateArcChord",
+            P::DegenerateArcChord { chord: l(1e-12) },
+        ),
         (
             "ArcCenterNotEquidistant",
             P::ArcCenterNotEquidistant {
-                tip_radius: 0.5,
-                end_radius: 0.6,
+                tip_radius: l(0.5),
+                end_radius: l(0.6),
             },
         ),
         (
             "DegenerateArcCenter",
-            P::DegenerateArcCenter { radius: 1e-12 },
+            P::DegenerateArcCenter { radius: gl(1e-12) },
         ),
         (
             "ArcMissesAuthoredPoint",
@@ -4397,10 +4427,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 verb: profile::Verb::TangentArcTo,
                 read: profile::ArcRead::Landing,
                 point: Point2::new(-2.7, 2.7e-4),
-                miss: 3.4e-8,
-                scale: 1.36e4,
-                resolution: 4.8e-11,
-                turn: 6.2,
+                miss: l(3.4e-8),
+                scale: l(1.36e4),
+                resolution: l(4.8e-11),
+                turn: a(6.2),
                 authored: None,
             },
         ),
@@ -4414,10 +4444,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 verb: profile::Verb::ArcTo,
                 read: profile::ArcRead::ThroughPoint,
                 point: Point2::new(0.0, 2.74e8),
-                miss: 3.0e-8,
-                scale: 2.74e8,
-                resolution: 4.9e-7,
-                turn: 6.2,
+                miss: l(3.0e-8),
+                scale: l(2.74e8),
+                resolution: l(4.9e-7),
+                turn: a(6.2),
                 authored: None,
             },
         ),
@@ -4434,76 +4464,68 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(disjoint)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersDoNotMeet,
-                radius: 0.1,
+                radius: gl(0.1),
             },
         ),
         (
             "NoCornerForFillet(turn, leg)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: 0.01,
-                    align: -0.99995,
-                    lever: 5e-8,
+                    sin_turn: r(0.01),
+                    align: r(-0.99995),
+                    lever: l(5e-8),
                     lever_of: TurnLever::ShorterLeg,
                     corner: Some(Point2::new(0.25, -0.5)),
                 },
-                radius: 0.05,
+                radius: gl(0.05),
             },
         ),
         (
             "NoCornerForFillet(turn, anchors)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: 0.9,
-                    align: 0.44,
-                    lever: 6e-10,
+                    sin_turn: r(0.9),
+                    align: r(0.44),
+                    lever: l(6e-10),
                     lever_of: TurnLever::AnchorSeparation,
                     corner: None,
                 },
-                radius: 0.05,
+                radius: gl(0.05),
             },
         ),
         (
             "NoCornerOfPair(swallows)",
             P::NoCornerOfPair {
-                radius: 0.3,
+                radius: gl(0.3),
                 corners: vec![CornerRefusal {
                     at: Point2::new(0.25, -0.5),
                     reason: CornerReason::EnclosesLegCarrier {
                         side: Some(FilletLeg::Incoming),
-                        carrier_radius: 0.2,
-                        offset_radius: -0.1,
-                        largest_tangent_radius: Some(0.15),
+                        carrier_radius: l(0.2),
+                        offset_radius: l(-0.1),
+                        largest_tangent_radius: Some(geom_core::Told::at_most(
+                            &0.15,
+                            geom_core::Dimension::Length,
+                        )),
                     },
                 }],
+                radius_lever_of: None,
             },
         ),
         (
             "NoCornerOfPair(two)",
             P::NoCornerOfPair {
-                radius: 0.3,
+                radius: gl(0.3),
                 corners: vec![
                     CornerRefusal {
                         at: Point2::new(0.25, -0.5),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
                             legs: [
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.4,
-                                    available: 1.0,
-                                },
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.4,
-                                    available: 0.3,
-                                },
+                                LegFit::new(FilletLegCarrier::Line, 0.4, 1.0, 5e-10),
+                                LegFit::new(FilletLegCarrier::Line, 0.4, 0.3, 5e-10),
                             ],
                             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-                            fit_reach: 5e-10,
-                            radius_at_anchor: Some(LeverValue {
-                                boundary: 0.225,
-                                exact_fit_edge: 0.225 - 3.75e-10,
-                            }),
+                            radius_at_anchor: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
                         },
                     },
                     CornerRefusal {
@@ -4513,45 +4535,53 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         ),
                     },
                 ],
+                radius_lever_of: Some(0),
             },
         ),
         (
             "NoCornerOfPair(two swallows, bounded)",
             P::NoCornerOfPair {
-                radius: 0.312_345_678,
+                radius: gl(0.312_345_678),
                 corners: vec![
                     CornerRefusal {
                         at: Point2::new(-1.234_567, 0.987_654),
                         reason: CornerReason::EnclosesLegCarrier {
                             side: Some(FilletLeg::Incoming),
-                            carrier_radius: 0.123_456_789,
-                            offset_radius: -0.176_543_21,
-                            largest_tangent_radius: Some(0.151_234_567),
+                            carrier_radius: l(0.123_456_789),
+                            offset_radius: l(-0.176_543_21),
+                            largest_tangent_radius: Some(geom_core::Told::at_most(
+                                &0.151_234_567,
+                                geom_core::Dimension::Length,
+                            )),
                         },
                     },
                     CornerRefusal {
                         at: Point2::new(1.234_567, -0.987_654),
                         reason: CornerReason::EnclosesLegCarrier {
                             side: None,
-                            carrier_radius: 0.123_456_789,
-                            offset_radius: -0.176_543_21,
-                            largest_tangent_radius: Some(0.141_234_567),
+                            carrier_radius: l(0.123_456_789),
+                            offset_radius: l(-0.176_543_21),
+                            largest_tangent_radius: Some(geom_core::Told::at_most(
+                                &0.141_234_567,
+                                geom_core::Dimension::Length,
+                            )),
                         },
                     },
                 ],
+                radius_lever_of: None,
             },
         ),
         (
             "NoCornerOfPair(two swallows, unbounded)",
             P::NoCornerOfPair {
-                radius: 0.312_345_678,
+                radius: gl(0.312_345_678),
                 corners: vec![
                     CornerRefusal {
                         at: Point2::new(-1.234_567, 0.987_654),
                         reason: CornerReason::EnclosesLegCarrier {
                             side: Some(FilletLeg::Outgoing),
-                            carrier_radius: 0.123_456_789,
-                            offset_radius: -0.176_543_21,
+                            carrier_radius: l(0.123_456_789),
+                            offset_radius: l(-0.176_543_21),
                             largest_tangent_radius: None,
                         },
                     },
@@ -4559,68 +4589,67 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         at: Point2::new(1.234_567, -0.987_654),
                         reason: CornerReason::EnclosesLegCarrier {
                             side: Some(FilletLeg::Incoming),
-                            carrier_radius: 0.123_456_789,
-                            offset_radius: -0.176_543_21,
+                            carrier_radius: l(0.123_456_789),
+                            offset_radius: l(-0.176_543_21),
                             largest_tangent_radius: None,
                         },
                     },
                 ],
+                radius_lever_of: None,
             },
         ),
         (
             "NoCornerOfPair(swallow and anchor)",
             P::NoCornerOfPair {
-                radius: 0.312_345_678,
+                radius: gl(0.312_345_678),
                 corners: vec![
                     CornerRefusal {
                         at: Point2::new(1.234_567, -0.987_654),
                         reason: CornerReason::EnclosesLegCarrier {
                             side: None,
-                            carrier_radius: 0.123_456_789,
-                            offset_radius: -0.176_543_21,
-                            largest_tangent_radius: Some(0.151_234_567),
+                            carrier_radius: l(0.123_456_789),
+                            offset_radius: l(-0.176_543_21),
+                            largest_tangent_radius: Some(geom_core::Told::at_most(
+                                &0.151_234_567,
+                                geom_core::Dimension::Length,
+                            )),
                         },
                     },
                     CornerRefusal {
                         at: Point2::new(-1.234_567, 0.987_654),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
                             legs: [
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.412_345_678,
-                                    available: 1.0,
-                                },
-                                LegFit {
-                                    carrier: FilletLegCarrier::Line,
-                                    setback: 0.412_345_678,
-                                    available: 0.301_234_567,
-                                },
+                                LegFit::new(FilletLegCarrier::Line, 0.412_345_678, 1.0, 5e-10),
+                                LegFit::new(
+                                    FilletLegCarrier::Line,
+                                    0.412_345_678,
+                                    0.301_234_567,
+                                    5e-10,
+                                ),
                             ],
                             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-                            fit_reach: 5e-10,
-                            radius_at_anchor: Some(LeverValue {
-                                boundary: 0.225,
-                                exact_fit_edge: 0.225 - 3.75e-10,
-                            }),
+                            radius_at_anchor: Some(radius_lever(0.225, 0.225 - 3.75e-10)),
                         },
                     },
                 ],
+                radius_lever_of: Some(1),
             },
         ),
         (
             "NoCornerOfPair(behind the incoming ray)",
             P::NoCornerOfPair {
-                radius: 0.312_345_678,
+                radius: gl(0.312_345_678),
                 corners: vec![CornerRefusal {
                     at: Point2::new(-1.234_567, 0.987_654),
                     reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                 }],
+                radius_lever_of: None,
             },
         ),
         (
             "NoCornerOfPair(both windows)",
             P::NoCornerOfPair {
-                radius: 0.312_345_678,
+                radius: gl(0.312_345_678),
                 corners: vec![
                     CornerRefusal {
                         at: Point2::new(1.234_567, -0.987_654),
@@ -4631,6 +4660,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         reason: CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
                     },
                 ],
+                radius_lever_of: None,
             },
         ),
         ("Band", P::Band(band_error())),

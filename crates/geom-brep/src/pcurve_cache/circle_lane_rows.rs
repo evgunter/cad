@@ -87,6 +87,16 @@ pub(super) fn cylinder(radius: f64) -> Surface<f64> {
 /// semi-axes. At `tau = 0` the rim at `h`; tilted, it leaves the cone to
 /// second order in `tau`.
 fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Curve3<f64> {
+    let Some(circle) = section_circle(surface, alpha, h, tau) else {
+        panic!("the plane cuts the cone in an ellipse")
+    };
+    circle
+}
+
+/// [`cone_section_circle`], or `None` where the plane cuts no ellipse
+/// (a wide cone tilted past its opening cuts a hyperbola, whose minor
+/// semi-axis reads NaN).
+fn section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> Option<Curve3<f64>> {
     let (sa, ca) = alpha.sin_cos();
     let (st, ct) = tau.sin_cos();
     let n = Vec3::new(0.0, -st, ct);
@@ -103,7 +113,8 @@ fn cone_section_circle(surface: &Surface<f64>, alpha: f64, h: f64, tau: f64) -> 
     let semi_minor = ((m.z * sa / ca).powi(2) - m.y.powi(2)).sqrt();
     let u = Vec3::unit_x();
     let v = (p - q).normalize();
-    framed_circle(surface, m, u, v, 0.5 * (semi_major + semi_minor))
+    let r = 0.5 * (semi_major + semi_minor);
+    r.is_finite().then(|| framed_circle(surface, m, u, v, r))
 }
 
 /// The cone's frame distance `|ρ cos α − σ z sin α|` of a world point.
@@ -805,7 +816,7 @@ pub(super) fn cone_coefficient_excess(
 /// and 600 draws of its coefficient search on PR 6485 (needle, wide and
 /// middling cones, the apex at the origin or up to `1e5` off it,
 /// sections at heights `1e-4` to `1e3` of either nappe, level or tilted
-/// up to `1e-2`; a draw tilted past a wide cone's opening is skipped). topo's `reduce::conic_clearance` and `conic_quadric`
+/// up to `1e-2`; a draw tilted past a wide cone's opening is skipped). topo's `reduce::conic_clearance` and `curve_face::conic_quadric`
 /// read these harmonics and charge, so the row is theirs too. Red under
 /// `cone-terms-unprojected`.
 #[test]
@@ -846,10 +857,7 @@ fn a_cone_sections_coefficients_stay_within_their_charge() {
         } else {
             s.log_uniform(1e-9, 1e-2)
         };
-        let carrier = cone_section_circle(&surface, alpha, h, tau);
-        // A wide cone tilted past its opening cuts a hyperbola: no
-        // section circle.
-        if carrier.conic().is_some_and(|c| c.semi_axes().0.is_finite()) {
+        if let Some(carrier) = section_circle(&surface, alpha, h, tau) {
             rows.push((
                 format!("draw {i}: α {alpha:e}, far {far:e}, h {h:e}, τ {tau:e}"),
                 surface,
@@ -1176,15 +1184,18 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: n,
-                        u_ref: x,
-                    },
-                radius,
-            }) => {
+            Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis: n,
+                            u_ref: x,
+                        },
+                    ..
+                },
+            ) => {
+                let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
                 let t1 = t0
                     + if s.below(4) == 0 {
@@ -1473,15 +1484,20 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: centre,
-                    axis: n,
-                    u_ref: x,
-                },
-            radius,
-        }) => Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x)),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: centre,
+                        axis: n,
+                        u_ref: x,
+                    },
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
+        }
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }
