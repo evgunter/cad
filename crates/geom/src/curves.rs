@@ -2474,44 +2474,79 @@ mod tests {
     /// renormalized: a frame whose `axis × u_ref` reads 4 ulp long turns
     /// to a seam unit to within one.
     /// **A quarter turn of an ellipse's seam keeps the merge base's
-    /// bits**: the turned seam is `v_ref` renormalized, squared to the kept
-    /// axis with nothing decided (`Ellipse::quarter_turned_where`,
-    /// `Frame::turned_to`),
-    /// not the frame's own `v` carried over as an exact permutation. The
-    /// two part by a rounding wherever `axis × u_ref` is not unit to the
-    /// bit, and a section end read a rounding over the band (sweep's
-    /// `a_section_end_reads_the_same_wherever_the_part_sits`) moves with
-    /// it. Red under `Frame::quarter_turned()`.
+    /// bits**: the turned seam is the merge base's own formula,
+    /// `axis × u_ref` normalized with no re-projection onto the plane
+    /// square to the axis (`f7f9c07ad`'s `quarter_turned_where`:
+    /// `u_ref = v_ref().normalize()`, `v_ref = axis × u_ref`), spelled
+    /// here off the stored axis and seam with the plain vector cross and
+    /// `Vec3::normalize`, neither of which this change touched. The axis
+    /// is kept bit for bit. Over 4096 random poses and 512 near-axis ones
+    /// (an axis a few ulps to `1e-3` off a world axis, a seam nearly along
+    /// it), and a pose where the re-squared spelling and the frame's own
+    /// `v` each part from it. Red under `Frame::quarter_turned()` (the
+    /// exact permutation) and under the seam re-squared to the axis
+    /// (`RigidMotion::squared_about` of `v_ref.normalize()`, the arm this
+    /// row replaced).
     #[test]
-    fn a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit() {
+    fn a_quarter_turned_seam_is_the_base_formula_bit_for_bit() {
         let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
-        let mut parted = 0;
-        for k in 0..64_u32 {
-            let t = f64::from(k) * 0.173 + 0.05;
-            let axis = Vec3::new(t.sin() * 0.31, t.cos() * 0.47, 1.0);
-            let u_ref = Vec3::new(1.0, 0.2 * t.cos(), -0.3 * t.sin());
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut unit = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut poses = Vec::new();
+        for _ in 0..4096 {
+            let mut v = || Vec3::new(2.0 * unit() - 1.0, 2.0 * unit() - 1.0, 2.0 * unit() - 1.0);
+            poses.push((v(), v()));
+        }
+        for k in 0..512 {
+            let tilt = 10f64.powf(-3.0 - 12.0 * unit());
+            let world = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()][k % 3];
+            let off = Vec3::new(unit() - 0.5, unit() - 0.5, unit() - 0.5) * tilt;
+            let seam = Vec3::new(unit() - 0.5, unit() - 0.5, unit() - 0.5);
+            poses.push((world + off, seam + world * (10.0 * unit())));
+        }
+        let (mut parted_squared, mut parted_exact) = (0, 0);
+        for (k, &(axis, u_ref)) in poses.iter().enumerate() {
             let e = crate::Ellipse::new(
                 crate::Frame::new(Point3::new(1.0, -2.0, 0.5), axis, u_ref),
                 5.0,
                 2.0,
             );
-            let f = e.frame;
-            let base = f.turned_to(f.v_ref().normalize());
+            let (a, u) = (e.frame.axis(), e.frame.u_ref());
+            let base = Vec3::new(
+                a.y * u.z - a.z * u.y,
+                a.z * u.x - a.x * u.z,
+                a.x * u.y - a.y * u.x,
+            )
+            .normalize();
             let turned = e.quarter_turned_where(1.0);
-            assert_eq!(bits(turned.frame.u_ref()), bits(base.u_ref()), "k {k}");
+            assert_eq!(bits(turned.frame.u_ref()), bits(base), "pose {k}");
             assert_eq!(
                 bits(turned.frame.axis()),
-                bits(f.axis()),
-                "k {k}: the axis is kept"
+                bits(a),
+                "pose {k}: the axis is kept"
             );
-            assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "k {k}");
-            if bits(base.u_ref()) != bits(f.v_ref()) {
-                parted += 1;
+            assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
+            if bits(
+                geom_core::RigidMotion::squared_about(e.frame.origin(), e.frame.axis_unit(), base)
+                    .u()
+                    .get(),
+            ) != bits(base)
+            {
+                parted_squared += 1;
+            }
+            if bits(e.frame.v_ref()) != bits(base) {
+                parted_exact += 1;
             }
         }
         assert!(
-            parted > 0,
-            "no pose parts the two spellings: the row pins nothing"
+            parted_squared > 0 && parted_exact > 0,
+            "no pose parts the base formula from the re-squared seam ({parted_squared}) or \
+             from the frame's own v ({parted_exact}): the row pins nothing"
         );
     }
 

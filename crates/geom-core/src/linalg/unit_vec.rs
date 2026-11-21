@@ -52,7 +52,8 @@
 //! nearest the stored one, `v/|v|`, enclosed component by component with
 //! no decision ([`Real::enclose_unit`], which
 //! normalizes the one column directly, not through a frame). No read
-//! targets `Dual` or `Sym`: [`UnitVec3::map_scalar`] across witness
+//! carries a direction into `Dual` or `Sym` from another scalar's lane:
+//! [`UnitVec3::map_scalar`] across witness
 //! kinds into any target but `Interval` fails a debug assertion, and a
 //! release build answers the direction poisoned.
 //!

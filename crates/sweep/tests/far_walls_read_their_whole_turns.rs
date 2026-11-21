@@ -10,11 +10,11 @@
 //!   side is an arc of radius [`R`], extruded `0.7`, measures
 //!   `0.7·(1 + segment)` at ε 1e-9 and 1e-6. At ε 1e-12 it escalates
 //!   `props_meridian_on_surface`, margin in `(1.0e-12, 1.15e-12]`
-//!   (measured 1.080e-12): a stored frame read as its polar enclosure
-//!   (decision 1, #7131). The sketch's frame is a rounding off rigid,
-//!   so its walls' frames read an ulp wide per entry at `Interval`, at
-//!   the block's distance from the origin; with the entries read as
-//!   points (mutation A) it measures.
+//!   (measured 1.080e-12). Cause: both jointly: a stored frame read as
+//!   its polar enclosure (decision 1, #7131) and frames built at
+//!   Interval from bracket inputs, a rigid-motion claim (fork 274);
+//!   either alone stays under the band, so mutant A alone and mutant
+//!   F1X alone each build it and turn this pin red.
 //! - **A tilted hollow tube** (axis `(1, 1, 1)/√3`, outer radius `2.5`,
 //!   wall `1 mm`, a full period) measures its shell at every major at
 //!   ε 1e-9 and 1e-6, and at major 300 at ε 1e-12. At ε 1e-12 major 600
@@ -23,10 +23,11 @@
 //!   its ends' enclosure width, and a rim its axis's, each growing with
 //!   the distance from the origin
 //!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`),
-//!   and that width is a stored frame read as its polar enclosure
-//!   (decision 1, #7131): with the entries read as points (mutation A)
-//!   every major builds. That arm is pinned, typed, with each major's
-//!   margin band, and turns red when either moves.
+//!   and that width has both causes, jointly: a stored frame read as
+//!   its polar enclosure (decision 1, #7131) and frames built at
+//!   Interval from bracket inputs (fork 274); mutant A alone and mutant
+//!   F1X alone each build every major. That arm is pinned, typed, with
+//!   each major's margin band, and turns red when either moves.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -79,7 +80,7 @@ fn an_arc_topped_block_on_a_tilted_sketch_measures() {
         tol,
     );
     if crate::common::frame_cost::at_the_least_band() {
-        // A stored frame read as its polar enclosure (decision 1, #7131).
+        // Both causes, jointly (decision 1, #7131; fork 274).
         let pinned = matches!(
             &e,
             Err(sweep::ExtrudeError::NotFinished { findings })
@@ -120,7 +121,7 @@ fn a_tilted_hollow_tube_measures() {
         let got = tube_along_arc_hollow::<f64>(frame, major, TubeWindow::Full, outer, wall, tol);
         // Each major's refusal and margin band at ε 1e-12 (measured
         // 1.598e-12 at 600, 1.424e-12 at 990, 1.583e-12 at 1100): a
-        // stored frame read as its polar enclosure (decision 1, #7131).
+        // polar read and the bracket frames, jointly (#7131; fork 274).
         let pin = match major {
             600.0 => Some(("props_chart_loop_whole", (1.5e-12, 1.7e-12))),
             990.0 => Some(("props_rim_axis_parallel", (1.35e-12, 1.5e-12))),

@@ -482,7 +482,7 @@ pub(crate) mod tests {
     /// (mutation A) every one of these builds, which turns this pin red.
     /// At ε 1e-9 and 1e-6 every sector builds.
     fn sector_at_its_band(r: f64, span: f64, phi_deg: f64) -> Option<(Body<f64>, FaceKey)> {
-        let pinned = Tol::witness().eps() <= 1e-12
+        let pinned = geom_core::test_support::at_the_frame_cost_band()
             && r >= 250.0
             && phi_deg != 0.0
             && span >= 90.0_f64.to_radians();

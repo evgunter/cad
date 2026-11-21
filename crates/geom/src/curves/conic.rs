@@ -549,11 +549,11 @@ impl<T: Real> Ellipse<T> {
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
     /// adds no length to the frame, and the semi-axes swap. The turned
     /// frame keeps its axis bit for bit. At an `Inexact` witness kind
-    /// (`f64`, `Probe` and the duals and forms over them) it takes that
-    /// renormalized seam squared to the axis ([`Frame::turned_to`], which
-    /// decides nothing): the merge base's bits, a rounding apart from the
-    /// frame's own `v`
-    /// (`a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit`). At
+    /// (`f64`, `Probe` and the duals and forms over them) its seam is
+    /// `v_ref().normalize()` as given, not re-squared to the axis
+    /// ([`Frame::quarter_turned_renormalized`], which decides nothing):
+    /// the merge base's bits, a rounding apart from the frame's own `v`
+    /// (`a_quarter_turned_seam_is_the_base_formula_bit_for_bit`). At
     /// an `Exact` kind (`Interval` and the duals and forms over it) it
     /// takes the exact turn ([`Frame::quarter_turned`], a permutation of
     /// the frame's axes), which encloses the same turned rotation and adds
@@ -569,7 +569,7 @@ impl<T: Real> Ellipse<T> {
                 turn,
                 f,
                 if T::WITNESS == geom_core::Witness::Inexact {
-                    f.turned_to(f.v_ref().normalize())
+                    f.quarter_turned_renormalized()
                 } else {
                     f.quarter_turned()
                 },
@@ -685,15 +685,6 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn circle(center: Point3<T>, axis: Vec3<T>, radius: T, u_ref: Vec3<T>) -> Self {
         Self::Circle(Circle::new(Frame::new(center, axis, u_ref), radius))
-    }
-
-    /// The circle of `radius` on `frame`: centred at its origin, normal
-    /// along its axis, seam along its `u_ref`, the frame kept as it is
-    /// handed, so a caller holding a rigid frame by construction stores
-    /// it without the re-squaring [`Curve3::circle`]'s three vectors take.
-    #[must_use]
-    pub fn circle_on(frame: Frame<T>, radius: T) -> Self {
-        Self::Circle(Circle::new(frame, radius))
     }
 
     /// **The carrier read as a conic**: a circle or an ellipse as the

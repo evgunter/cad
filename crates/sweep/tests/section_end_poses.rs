@@ -335,15 +335,23 @@ const AXIAL_PAST: [(f64, u8, f64, f64); 8] = [
 ];
 
 /// The two [`AXIAL`] poses whose ends join at ε = 1e-12, so the cut is
-/// made and its result is read instead. A frame built at Interval from
-/// bracket inputs, a rigid-motion claim (fork 274): the section pieces'
-/// frames are squared over their brackets, where main stored them raw,
-/// and the result's face escalates `props_chart_junction_open` at margin
-/// exactly 0 (a junction the band can call neither closed nor open).
-/// With the bracket squaring storing the stated vectors raw (mutation F1
-/// on the bracket path) they refuse at their ends as the other [`AXIAL`]
-/// poses do, and this pin goes red.
+/// made and its result is read instead: the result's face escalates
+/// `props_chart_junction_open` at margin exactly 0 (a junction the band
+/// can call neither closed nor open). Cause: a frame squared at `f64`
+/// from stated directions, a rigid-motion claim (fork 274): the section
+/// pieces' frames are squared at `f64`, where main stored them raw.
+/// Mutant F1F (squaring at `f64` stores the stated vectors raw) refuses
+/// them at their ends as the other [`AXIAL`] poses do, and turns this
+/// pin red; mutants A and F1X do not.
 const JUNCTION_OPEN: [(f64, u8, f64, f64); 2] = [(0.7, 3, 3e-4, 0.3), (0.95, 3, 3e-4, 0.5)];
+
+/// The [`AXIAL`] pose whose cut is made at ε = 1e-12 and whose section
+/// pcurve then escalates `pcurve_map_residual`, margin in `(3.5e-12,
+/// 3.8e-12]` (measured 3.638e-12). Cause, as [`JUNCTION_OPEN`]'s: a frame
+/// squared at `f64` from stated directions (fork 274); mutant F1F turns
+/// this pin red, and A and F1X do not. It shows with the section ellipse's
+/// quarter turn on the merge base's bits (`quarter_turned_where`).
+const MAP_RESIDUAL: [(f64, u8, f64, f64); 1] = [(0.7, 2, 3e-5, 0.3)];
 
 /// The cause an in-band end pin on an unresolved carrier states, then
 /// D4 ¶1 (i)'s last resort, and no lever.
@@ -359,7 +367,8 @@ const WITHIN: &str = "The section curve's own rounding over this edge can accoun
 /// and each [`AXIAL_PAST`] pose with a definite end miss the carrier's
 /// rounding covers: each a kernel limitation, in exactly its words. The
 /// two [`JUNCTION_OPEN`] poses are cut there instead, and their result
-/// refuses on its junction (the frame cost, PR 7131).
+/// refuses on its junction, and the [`MAP_RESIDUAL`] pose's section
+/// pcurve escalates (the frame cost, PR 7131).
 #[test]
 fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     let tol = Tol::witness();
@@ -375,9 +384,26 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             continue;
         }
         let past = AXIAL_PAST.contains(&pose);
+        if MAP_RESIDUAL.contains(&pose) {
+            // A frame squared at f64 from stated directions (fork 274).
+            let pinned = matches!(
+                &got,
+                Err(SplitError::Pcurves(topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::MapResidual, cause, .. },
+                    ..
+                })) if crate::common::frame_cost::escalated(cause, "pcurve_map_residual", (3.5e-12, 3.8e-12))
+            );
+            if !pinned {
+                wrong.push(format!(
+                    "{pose:?}: pinned to escalate pcurve_map_residual in (3.5e-12, 3.8e-12] at the \
+                     pcurve pass: {:?}",
+                    got.as_ref().err()
+                ));
+            }
+            continue;
+        }
         if JUNCTION_OPEN.contains(&pose) {
-            // A frame built at Interval from bracket inputs, a
-            // rigid-motion claim (fork 274).
+            // A frame squared at f64 from stated directions (fork 274).
             let pinned = matches!(
                 &got,
                 Err(SplitError::Finish(topo::splitting::SplitFinishError::ResultNotAtRest {

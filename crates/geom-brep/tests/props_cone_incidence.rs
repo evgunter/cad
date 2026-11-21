@@ -385,28 +385,11 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
 /// The section's major semi-axis stretched until its farthest point is
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
-    let Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_8,
-            ..
-        },
-    ) = section(c)
-    else {
+    let Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) = section(c) else {
         unreachable!()
     };
-    let (center, axis, u_ref) = (
-        carrier_frame_8.origin(),
-        carrier_frame_8.axis(),
-        carrier_frame_8.u_ref(),
-    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
-    let stretched = |k: f64| {
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(center, axis, u_ref),
-            semi_u * (1.0 + k),
-            semi_v,
-        ))
-    };
+    let stretched = |k: f64| Curve3::Ellipse(geom::Ellipse::new(frame, semi_u * (1.0 + k), semi_v));
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;
     let k = k0 * d / max_elevation(c, &stretched(k0), 0.0, TAU);

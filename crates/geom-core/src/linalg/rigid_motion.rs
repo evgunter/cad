@@ -106,6 +106,8 @@
 //!   — a frame's own axes negated and permuted;
 //! - [`RigidMotion::spun_toward`] — a frame turned in its own `uv`
 //!   plane toward a sketch direction, normalized once;
+//! - [`RigidMotion::quarter_turned_renormalized`] — a quarter turn whose
+//!   new `u` is `w × u` normalized, a conic seam's base arithmetic;
 //! - [`RigidMotion::select_le_zero`] — one of two frames by a sign.
 //!
 //! **An axis-aligned frame is a written turn.** An exact axis
@@ -192,9 +194,10 @@
 //!   of each entry on a stated frame, a frame whose entries are exactly
 //!   orthonormal a point.
 //!
-//! **No read targets `Dual` or `Sym`.** A frame at a scalar that carries
-//! derivatives or forms holds the rotation in those channels, and no
-//! read of another lane's frame supplies them; a computation there
+//! **No read carries a frame into `Dual` or `Sym` from another
+//! scalar's lane.** A frame at a scalar that carries derivatives or
+//! forms holds the rotation in those channels, and no read of another
+//! lane's frame supplies them; a computation there
 //! mints its frames there. `map_scalar` across witness kinds into any
 //! target but `Interval` is a kernel defect: it fails a debug
 //! assertion, and a release build answers the frame poisoned. Within
@@ -1101,7 +1104,7 @@ impl<T: Real> RigidMotion<T> {
     /// **A frame squared with no decision**: the third axis `w` over its
     /// own length, the first the part of `u` square to it, `u − a(a·u)`
     /// over its own length, and the second their cross product. For a `u`
-    /// already square to rounding (the re-mint of a frame across scalars)
+    /// already square to rounding (a frame's own stated axes)
     /// `a·u` is at the rounding's scale, so the subtraction moves `u` by
     /// far less than its own width at an enclosure scalar. Each is
     /// unit, and the three orthonormal and right-handed, over the reals
@@ -1252,6 +1255,26 @@ impl<T: Real> RigidMotion<T> {
         Self {
             u: self.v,
             v: -self.u,
+            ..self
+        }
+    }
+
+    /// **This frame turned a quarter turn about its own `w`, its new `u`
+    /// the normalized `w × u`**: the merge base's arithmetic for a conic's
+    /// quarter-turned seam (`v_ref().normalize()`, `v_ref = axis ×
+    /// u_ref`), bit for bit. `w` and the origin are kept, and `v` is
+    /// `w × u` of the new `u`. The cross of two orthonormal witnesses is
+    /// unit and square to both over the reals, so its normalization is a
+    /// rounding of a unit vector square to `w`: nothing is decided, and
+    /// the axes are not re-squared (no `u − w(w·u)` step, which the base
+    /// never took). [`RigidMotion::quarter_turned`] is the same turn with
+    /// no arithmetic, a rounding apart.
+    #[must_use]
+    pub fn quarter_turned_renormalized(self) -> Self {
+        let u = UnitVec3::by_construction(self.w.get().cross(self.u.get()).normalize());
+        Self {
+            u,
+            v: UnitVec3::cross_of_orthonormal(self.w, u),
             ..self
         }
     }

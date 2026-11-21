@@ -268,9 +268,12 @@ fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
 /// At ε 1e-12 a draw's `Interval` certificate may escalate
 /// `pcurve_envelope` with its margin in `(1.0e-12, 2.0e-12]` (measured
 /// 1.237e-12, a torus spline at seed `0xe36d1e24280147a5`; a ceiling
-/// across seeds). Cause: a
-/// stored frame read as its polar enclosure (decision 1, #7131). Such a
-/// draw is counted, not certified; any other refusal is a failure.
+/// across seeds). Cause: both jointly: a stored frame read as its polar
+/// enclosure (decision 1, #7131) and frames built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274); either alone stays
+/// under the band, so mutant A alone and mutant F1X alone each build it
+/// in the companion row. Such a draw is counted, not certified; any
+/// other refusal is a failure.
 /// [`a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses`]
 /// replays the seed that draws one.
 #[test]
@@ -284,10 +287,12 @@ const EXACTNESS_FRAME_COST_SEED: u64 = 0xe36d_1e24_2801_47a5;
 
 /// **The exactness sweep at the seed that draws the frame cost**: at
 /// ε 1e-12 at least one draw's `Interval` certificate escalates
-/// `pcurve_envelope` in `(1.0e-12, 2.0e-12]`, a stored frame read as its
-/// polar enclosure (decision 1, #7131); with the stored entries read as
-/// points (mutation A) none does and this row goes red. At ε 1e-9 and
-/// 1e-6 every draw certifies.
+/// `pcurve_envelope` in `(1.0e-12, 2.0e-12]`. Cause: both jointly: a
+/// stored frame read as its polar enclosure (decision 1, #7131) and
+/// frames built at Interval from bracket inputs, a rigid-motion claim
+/// (fork 274); either alone stays under the band, so mutant A alone and
+/// mutant F1X alone each certify every draw and turn this pin red. At ε
+/// 1e-9 and 1e-6 every draw certifies.
 #[test]
 fn a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses() {
     let escalated = exactness_sweep(fuzz::pinned_sweep(
@@ -303,7 +308,7 @@ fn a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses() {
 /// The exactness sweep's body over the stream `s`: the count of draws
 /// whose `Interval` certificate escalated as the frame cost at ε 1e-12.
 fn exactness_sweep(mut s: fuzz::Rng) -> usize {
-    let mut escalated = 0;
+    let (mut escalated, mut reached) = (0, 0);
     let b = band();
     let lane64 = crate::FittedLane::<f64>::certified();
     let lane_iv = crate::FittedLane::<Interval>::certified();
@@ -414,6 +419,7 @@ fn exactness_sweep(mut s: fuzz::Rng) -> usize {
                     "{what}: the row lifted ({du}, {dv}) certified at Interval"
                 );
             }
+            reached += 1;
             let cache = match PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv))
             {
                 Ok(cache) => cache,
@@ -441,6 +447,14 @@ fn exactness_sweep(mut s: fuzz::Rng) -> usize {
             }
         }
     }
+    // The skip is capped: the frame cost is a few far or long-levered
+    // draws, so a sweep where most certificates escalate is a regression
+    // the count would otherwise hide.
+    assert!(
+        4 * escalated <= reached,
+        "{escalated} of {reached} Interval certificates escalated as the frame cost: \
+         more than a quarter"
+    );
     escalated
 }
 
@@ -1476,9 +1490,13 @@ fn an_off_chart_spline_refuses_by_incidence() {
 ///
 /// At ε 1e-12 a draw's `Interval` certificate may escalate
 /// `pcurve_envelope` with its margin in `(1.0e-12, 2.0e-12]` (measured
-/// 1.070e-12 and 1.514e-12 on two draws, a ceiling across seeds). Cause: a frame built at
-/// Interval from bracket inputs, a rigid-motion claim (fork 274). Such a
-/// draw is counted, not certified; any other refusal is a failure.
+/// 1.070e-12 and 1.514e-12 on two draws, a ceiling across seeds).
+/// Cause: both jointly: a stored frame read as its polar enclosure
+/// (decision 1, #7131) and frames built at Interval from bracket
+/// inputs, a rigid-motion claim (fork 274); either alone stays under
+/// the band, so mutant A alone and mutant F1X alone each build it in
+/// the companion row. Such a draw is counted, not certified; any other
+/// refusal is a failure.
 /// [`a_line_near_a_ruling_pinned_where_the_frame_cost_refuses`] replays
 /// the seed that draws one.
 #[test]
@@ -1492,11 +1510,12 @@ const LINE_FRAME_COST_SEED: u64 = 0x2464_932a_c03c_aa76;
 
 /// **The line-near-a-ruling sweep at the seed that draws the frame
 /// cost**: at ε 1e-12 at least one draw's `Interval` certificate
-/// escalates `pcurve_envelope` in `(1.0e-12, 2.0e-12]`, a frame built at
-/// Interval from bracket inputs, a rigid-motion claim (fork 274); with
-/// the bracket squaring storing the stated vectors raw (mutation F1 on
-/// the bracket path) none does and this row goes red. At ε 1e-9 and 1e-6
-/// every draw certifies.
+/// escalates `pcurve_envelope` in `(1.0e-12, 2.0e-12]`. Cause: both
+/// jointly: a stored frame read as its polar enclosure (decision 1,
+/// #7131) and frames built at Interval from bracket inputs, a rigid-
+/// motion claim (fork 274); either alone stays under the band, so
+/// mutant A alone and mutant F1X alone each certify every draw and turn
+/// this pin red. At ε 1e-9 and 1e-6 every draw certifies.
 #[test]
 fn a_line_near_a_ruling_pinned_where_the_frame_cost_refuses() {
     let escalated = line_near_a_ruling_sweep(fuzz::pinned_sweep(
@@ -1513,7 +1532,7 @@ fn a_line_near_a_ruling_pinned_where_the_frame_cost_refuses() {
 /// draws whose `Interval` certificate escalated as the frame cost at
 /// ε 1e-12.
 fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
-    let mut escalated = 0;
+    let (mut escalated, mut reached) = (0, 0);
     let b = band();
     let f = Interval::from_f64;
     let slack = 1e-13;
@@ -1560,6 +1579,7 @@ fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
         let (ci, si) = (lift(&carrier), surf.map_scalar(f));
         let image_i = super::super::chart_pcurve_over(&ci, f(t0), f(t1), &si, b)
             .unwrap_or_else(|e| panic!("{what}: interval derivation refused: {e:?}"));
+        reached += 1;
         let env_i = match PcurveCache::certify(image_i, f(t0), f(t1), &ci, &si, b) {
             Ok(cache) => cache.certificate().envelope.hi(),
             Err(e)
@@ -1624,6 +1644,14 @@ fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
             );
         }
     }
+    // The skip is capped: the frame cost is a few far or long-levered
+    // draws, so a sweep where most certificates escalate is a regression
+    // the count would otherwise hide.
+    assert!(
+        4 * escalated <= reached,
+        "{escalated} of {reached} Interval certificates escalated as the frame cost: \
+         more than a quarter"
+    );
     escalated
 }
 

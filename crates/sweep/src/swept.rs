@@ -890,10 +890,10 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                     } else {
                         turned
                     };
-                    Curve3::circle_on(
+                    Curve3::Circle(geom::Circle::new(
                         geom::Frame::of_motion(&signed.with_origin(c_world)),
                         arc.radius,
-                    )
+                    ))
                 }
                 Some(radial) => {
                     let turned = radial.frame_toward(sketch_vector(seg));
@@ -902,12 +902,12 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                     } else {
                         turned
                     };
-                    Curve3::circle_on(
+                    Curve3::Circle(geom::Circle::new(
                         geom::Frame::of_motion(
                             &fixed.reversed_as_difference().with_origin(c_world),
                         ),
                         arc.radius,
-                    )
+                    ))
                 }
             };
             let param_end = arc_span(turn, arc);

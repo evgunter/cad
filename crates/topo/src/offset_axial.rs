@@ -2162,12 +2162,11 @@ fn mint_carrier<T: Decide>(
     // certifies its own posture.
     if ca.old_key == cb.old_key {
         if let Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
+            frame: seam_frame, ..
         }) = old
-            && latitude_posture(frame, circle.axis_line(), band)?.is_none()
+            && latitude_posture(frame, seam_frame.axis_line(), band)?.is_none()
         {
-            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+            let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
             return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
         return match (&ca.old, old) {
@@ -2208,21 +2207,19 @@ fn mint_carrier<T: Decide>(
                 },
                 Curve3::Circle(
                     circle @ geom::Circle {
-                        frame: carrier_frame_30,
-                        ..
+                        frame: seam_frame, ..
                     },
                 ),
             ) => {
-                let (cc, axis, u_ref) = (
-                    carrier_frame_30.origin(),
-                    carrier_frame_30.axis(),
-                    carrier_frame_30.u_ref(),
-                );
+                let cc = seam_frame.origin();
                 let center = sphere_frame.origin();
                 let radius = circle.radius();
                 let off = cc.distance(center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(cc, axis, radius + ca.distance, u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2246,21 +2243,19 @@ fn mint_carrier<T: Decide>(
                 },
                 Curve3::Circle(
                     circle @ geom::Circle {
-                        frame: carrier_frame_29,
-                        ..
+                        frame: seam_frame, ..
                     },
                 ),
             ) => {
-                let (cc, axis, u_ref) = (
-                    carrier_frame_29.origin(),
-                    carrier_frame_29.axis(),
-                    carrier_frame_29.u_ref(),
-                );
+                let cc = seam_frame.origin();
                 let center = torus_frame.origin();
                 let radius = circle.radius();
                 let off = tube_centre_offset(frame, cc, center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(cc, axis, radius + ca.distance, u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",

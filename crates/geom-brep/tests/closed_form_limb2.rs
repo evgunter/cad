@@ -281,26 +281,11 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 #[test]
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
-    let Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_1,
-            ..
-        },
-    ) = ellipse
-    else {
+    let Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) = ellipse else {
         unreachable!("built as an ellipse")
     };
-    let (center, axis, u_ref) = (
-        carrier_frame_1.origin(),
-        carrier_frame_1.axis(),
-        carrier_frame_1.u_ref(),
-    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
-    let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(center, axis, u_ref),
-        semi_u + 1e-4,
-        semi_v,
-    ));
+    let moved = Curve3::Ellipse(geom::Ellipse::new(frame, semi_u + 1e-4, semi_v));
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
     let got = certify(&cylinder, &plane, &moved, SPAN, teeth_band(sampled, peak));

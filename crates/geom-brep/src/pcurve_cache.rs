@@ -16926,11 +16926,7 @@ mod limb2_memo_rows {
             let (c, s) = rim(1.25);
             let c = match c.map_scalar(lift) {
                 Curve3::Circle(geom::Circle { frame, .. }) => {
-                    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                    Curve3::Circle(geom::Circle::new(
-                        geom::Frame::new(center, axis, u_ref),
-                        radius,
-                    ))
+                    Curve3::Circle(geom::Circle::new(frame, radius))
                 }
                 _ => unreachable!(),
             };
@@ -17110,11 +17106,7 @@ mod limb2_quick_rows {
             let Curve3::Circle(geom::Circle { frame, .. }) = c.map_scalar(lift) else {
                 unreachable!()
             };
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-            let c = Curve3::Circle(geom::Circle::new(
-                geom::Frame::new(center, axis, u_ref),
-                radius,
-            ));
+            let c = Curve3::Circle(geom::Circle::new(frame, radius));
             bits(&limb2_offset_sup(
                 &c,
                 (lift(0.2), lift(2.9)),

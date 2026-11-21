@@ -92,10 +92,12 @@ const POLARS: [f64; 4] = [0.2, 0.6, 1.6, 2.9];
 ///
 /// At ε 1e-12 the tilted bead at scale 100 does not build: its volume
 /// escalates `props_cylinder_circle_off_axis`, margin in `(1.25e-12,
-/// 1.4e-12]` (measured 1.320e-12). Cause: a stored frame read as its
-/// polar enclosure (decision 1, #7131); with the stored entries read as
-/// points (mutation A) it builds and this pin goes red. It builds, and
-/// every door answers, at ε 1e-9 and 1e-6.
+/// 1.4e-12]` (measured 1.320e-12). Cause: both jointly: a stored frame
+/// read as its polar enclosure (decision 1, #7131) and frames built at
+/// Interval from bracket inputs, a rigid-motion claim (fork 274);
+/// either alone stays under the band, so mutant A alone and mutant F1X
+/// alone each build it and turn this pin red. It builds, and every door
+/// answers, at ε 1e-9 and 1e-6.
 #[test]
 fn both_doors_answer_the_bead_by_its_height_window() {
     let b = band();

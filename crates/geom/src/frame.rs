@@ -189,17 +189,13 @@ impl<T: Real> Frame<T> {
         Self::of_motion(&self.motion.reversed())
     }
 
-    /// **The same placement with its seam turned to `u_ref`**, about its
-    /// own axis: the axis kept bit for bit and `u_ref`'s part square to it
-    /// normalized ([`RigidMotion::squared_about`]), nothing decided. The
-    /// door a seam computed in the frame's own plane re-enters through.
+    /// **The same placement turned a quarter turn, its seam the
+    /// normalized `v_ref`** ([`RigidMotion::quarter_turned_renormalized`]):
+    /// the axis kept bit for bit and `u_ref` set to `v_ref().normalize()`
+    /// as given, nothing decided and nothing re-squared.
     #[must_use]
-    pub fn turned_to(&self, u_ref: Vec3<T>) -> Self {
-        Self::of_motion(&RigidMotion::squared_about(
-            self.origin(),
-            self.motion.w(),
-            u_ref,
-        ))
+    pub fn quarter_turned_renormalized(&self) -> Self {
+        Self::of_motion(&self.motion.quarter_turned_renormalized())
     }
 
     /// The same placement turned a quarter turn about its axis: `u_ref`
@@ -241,9 +237,11 @@ impl<T: Real> Frame<T> {
         Self::of_motion(&self.motion.carried_by(*motion))
     }
 
-    /// **The same placement at another scalar**, re-minted there
-    /// ([`RigidMotion::map_scalar`]): the frame is built from the mapped
-    /// entries at the target scalar rather than carried across.
+    /// **The same placement at another scalar** ([`RigidMotion::map_scalar`]):
+    /// within one witness kind its entries carried through `f` as they
+    /// are; from `f64` to `Interval` read as the enclosure of its polar
+    /// factor. No read carries a frame into `Dual` or `Sym` from another
+    /// scalar.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Frame<U> {
         Frame::of_motion(&self.motion.map_scalar(f))
