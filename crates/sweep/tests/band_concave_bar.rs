@@ -241,7 +241,10 @@ pub(crate) fn rings<T: Real>(body: &Body<T>) -> usize {
 /// build.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
 fn assert_absorbed<
-    T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>> + geom_core::CertifiedBounds,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + AtRestPolicy<Finished = topo::AtRestBody<T>>
+        + geom_core::CertifiedBounds,
 >(
     verb: Verb,
     body: &Body<T>,
