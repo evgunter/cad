@@ -51,7 +51,9 @@
 //! `Interval` build does not reach: the lune's hollow, whose shell
 //! refuses at `Interval`, so its rows read `f64` alone, and
 //! [`a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval`] pins
-//! the refusal.
+//! the refusal. The body that reaches a sphere's pose at both scalars is
+//! the lens of two spheres
+//! ([`a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
@@ -90,11 +92,20 @@ fn band() -> Band {
 
 /// The scalars a row builds its body at.
 trait Scalar:
-    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
+    Decide
+    + Bounds
+    + CertifiedBounds
+    + topo::CertifiedPolicy
+    + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
 {
 }
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>
-    Scalar for T
+impl<
+    T: Decide
+        + Bounds
+        + CertifiedBounds
+        + topo::CertifiedPolicy
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+> Scalar for T
 {
 }
 
@@ -1206,7 +1217,7 @@ fn a_ball_less_two_tilted_half_spaces_holds_its_larger_cap_read_in_a_pose() {
         .find(|(k, _)| matches!(body.face_surface(*k), Some(Surface::Sphere { .. })))
         .expect("the sphere face")
         .0;
-    let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0])
+    let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0], band())
         .expect("the face lifts");
     assert!(
         !poses.is_empty() && poses.iter().all(Option::is_none),
@@ -1233,6 +1244,117 @@ fn a_lunes_cap_pushed_through_anothers_reads_violated() {
         "the caps cross: {:?}",
         report.verdict
     );
+}
+
+/// **A sphere face's poses are built once per ask**: the walk over the
+/// two-arc lune's hollow reads thousands of cells of its cavity's sphere
+/// halves in their caps' poses, and each face builds each pose's lifted
+/// boundary, its extent included, once (`Windows::posed_builds`): no more
+/// than the two cap circles' poses per face, whatever the cells. Red if
+/// a pose is rebuilt per cell, as it was when a cell's store held it.
+#[test]
+fn a_sphere_faces_poses_are_built_once_per_ask() {
+    let body = two_arc_lune::<f64>(0.0, Some(0.05));
+    let side = Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let windows = side.windows(Which::First).expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    };
+    let report = sweep.run(
+        &windows,
+        &windows,
+        true,
+        verify(&body, ClearanceBound::StrictlyPositive),
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "{:?}",
+        report.verdict
+    );
+    let builds = windows.posed_builds();
+    assert!(
+        builds.iter().all(|&(_, n)| n <= 2),
+        "each face builds each pose once: {builds:?} over {} cells discharged",
+        report.receipt.discharged
+    );
+    assert!(
+        builds.iter().filter(|&&(_, n)| n > 0).count() >= 2,
+        "the cavity's sphere halves are posed: {builds:?}"
+    );
+}
+
+/// Two unit balls `dx` apart along `x`, intersected: a lens of two
+/// spheres meeting in a circle about the `x` axis, off both spheres'
+/// stored axis `y`.
+fn two_ball_lens<T: Scalar>(dx: f64) -> Body<T> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(bulge));
+    let ball =
+        || revolved_about_y_at::<T>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    let moved = topo::transform_rigid(
+        &ball(),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
+            T::from_f64(dx),
+            T::zero(),
+            T::zero(),
+        ))
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    let fin = |b| sweep::test_support::finished("the ball", b, tol());
+    let lens = topo::boolean::intersect(&fin(ball()), &fin(moved), tol()).expect("the balls meet");
+    Body::clone(&lens.body().expect("a body").body)
+}
+
+/// **A lens of two spheres holds at both scalars, read in its circle's
+/// poses**: [`two_ball_lens`] at `dx` 0.7, 1 and 1.3. Each sphere face is
+/// bounded by the circle about `x`, which neither sphere's stored chart
+/// reads as a line, so its cells beside the circle are read in the
+/// circle's pose, at `Interval` too (the walk's windows build the poses:
+/// `Windows::posed_builds`). The one body of these rows that reaches a
+/// pose at the `Interval` scalar. Red if either scalar refuses, they
+/// differ in class, or the `Interval` walk reads no pose.
+#[test]
+fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
+    for dx in [0.7, 1.0, 1.3] {
+        holds_at_both(
+            &format!("the lens {dx} apart"),
+            two_ball_lens(dx),
+            two_ball_lens(dx),
+        );
+        let body = two_ball_lens::<Interval>(dx);
+        let side = Side {
+            body: &body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let windows = side.windows(Which::First).expect("every face has a window");
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let _ = sweep.run(
+            &windows,
+            &windows,
+            true,
+            verify(&body, ClearanceBound::StrictlyPositive),
+        );
+        let built: usize = windows.posed_builds().iter().map(|&(_, n)| n).sum();
+        assert!(
+            built > 0,
+            "the lens {dx} apart: the Interval walk reads a pose"
+        );
+    }
 }
 
 /// The six turns the two-arc lune's hollow was refused under before a
@@ -1278,9 +1400,10 @@ fn lune_moved(body: &Body<f64>, axis: [f64; 3], angle: f64, by: [f64; 3]) -> Bod
 fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
     let mut read = 0;
     for (fk, _) in body.faces() {
-        let Some(Surface::Sphere { center, radius, .. }) = body.face_surface(fk) else {
+        let Some(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
             continue;
         };
+        let center = frame.origin();
         let n = 2000;
         for i in 0..n {
             #[allow(clippy::cast_precision_loss)]
@@ -1303,7 +1426,7 @@ fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
             if !matches!(inside, Ok(Some(topo::FaceContainment::In))) {
                 continue;
             }
-            let holds = topo::test_support::posed_extents_holding(body, fk, q)
+            let holds = topo::test_support::posed_extents_holding(body, fk, q, band())
                 .unwrap_or_else(|| panic!("{what}: face {fk:?} lifts"));
             for (j, h) in holds.into_iter().enumerate() {
                 match h {
@@ -1406,50 +1529,160 @@ fn a_two_arc_lunes_hollow_holds_moved_at_random() {
     }
 }
 
-/// **A snowman whose head stands off the axis refuses at its waist,
-/// within a bounded walk**: the two balls of
-/// [`a_two_ball_union_holds_with_its_poles_read`], the head moved 0.3
-/// across the axis, so the waist is a circle off both spheres' axes.
-/// Each ball's faces are read beside the waist in the waist's pose, where
-/// it is a parallel, and the pair still refuses `Departure` across an
-/// edge it shares beside the waist (so, too, with the head moved along
-/// `z`, or along `x` and `z`). It measured 1,978 splits on this tree; the
-/// bound is 4,096, a sixteenth of the walk's budget [`BUDGET`], so the
-/// row says the refusal comes within a bounded walk, not at the depth
-/// cap. Red if the waist reads `Holds` or another arm, or the walk runs
-/// past the bound (a pose read on the stored chart's sheets does).
-#[test]
-fn a_snowman_with_its_head_off_the_axis_refuses_at_its_waist() {
-    let ball = |r: f64, y: f64| {
+/// Balls of radius `r` about `c`, united in turn.
+fn balls_united(balls: &[(f64, [f64; 3])]) -> Body<f64> {
+    let ball = |r: f64, c: [f64; 3]| {
         let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
-        revolved_about_y_at::<f64>(vec![p(y - r, 1.0), p(y + r, 0.0)], Revolution::Full, tol())
+        let b = revolved_about_y_at::<f64>(vec![p(-r, 1.0), p(r, 0.0)], Revolution::Full, tol());
+        topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::translation(geom_core::Vec3::new(c[0], c[1], c[2]))
+                .expect("a translation"),
+        )
+        .expect("the ball moves")
     };
-    let head = topo::transform_rigid(
-        &ball(0.8, 0.0),
-        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.3, 1.4, 0.0))
-            .expect("a translation"),
-    )
-    .expect("the head moves");
-    let finished = |b| sweep::test_support::finished("the ball", b, tol());
-    let union = topo::boolean::union(&finished(ball(1.0, 0.0)), &finished(head), tol())
-        .expect("the balls unite");
-    let body = Body::clone(&union.body().expect("a body").body);
-    let report = injective(&body, None, BUDGET);
-    assert!(
+    let fin = |b| sweep::test_support::finished("the ball", b, tol());
+    balls[1..]
+        .iter()
+        .fold(ball(balls[0].0, balls[0].1), |cur, &(r, c)| {
+            Body::clone(
+                &topo::boolean::union(&fin(cur), &fin(ball(r, c)), tol())
+                    .expect("the balls unite")
+                    .body()
+                    .expect("a body")
+                    .body,
+            )
+        })
+}
+
+/// The unit ball meeting every half-space `p·n ≥ d`, `n` the `z` axis
+/// turned about `x` by `a` and then about `y` by `spin`, for each
+/// `(d, a, spin)`.
+fn ball_in_half_spaces(slabs: &[(f64, f64, f64)]) -> Body<f64> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let fin = |b| sweep::test_support::finished("the cut", b, tol());
+    let ball = revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    slabs.iter().fold(ball, |cur, &(d, a, spin)| {
+        let slab = lune_moved(
+            &lune_moved(
+                &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (d, 3.0), tol()),
+                [1.0, 0.0, 0.0],
+                a,
+                [0.0; 3],
+            ),
+            [0.0, 1.0, 0.0],
+            spin,
+            [0.0; 3],
+        );
+        Body::clone(
+            &topo::boolean::intersect(&fin(cur), &fin(slab), tol())
+                .expect("the ball is cut")
+                .body()
+                .expect("a body")
+                .body,
+        )
+    })
+}
+
+/// **Sphere bodies off each other's axes cost what main's walk costs**:
+/// five unions of balls whose waists are circles off both spheres' axes,
+/// and a spherical triangle and a lens cut from the unit ball by tilted
+/// half-spaces, each read with its main verdict and within a ceiling of
+/// main's own split count (main + 25% + 8; main's counts are the PR 7113
+/// re-review's, at `704ed655`'s merge base). Each union refuses
+/// `Departure` at once, as on main: where a ball's cell holds a line of
+/// its stored chart that has no place at any depth, its face's extent
+/// being unknown ([`topo`]'s `unplaced_line`), no pose is tried, and the
+/// stored chart's answer stands. Red if a pose's `Local` stands in for
+/// that answer (the walk then splits two thousand times or more to
+/// refuse the same), or the poses cost a body read alike more splits.
+#[test]
+fn off_axis_sphere_bodies_cost_what_mains_walk_costs() {
+    let departs = |r: &BoundReport<Witness>| {
         matches!(
-            report.verdict,
+            r.verdict,
             BoundVerdict::Refused(EngineRefusal::Uncertified {
                 arm: CertificateArm::Departure,
                 ..
             })
+        )
+    };
+    type Balls = Vec<(f64, [f64; 3])>;
+    let unions: [(&str, Balls, usize); 5] = [
+        (
+            "head x 0.1",
+            vec![(1.0, [0.0; 3]), (0.8, [0.1, 1.4, 0.0])],
+            0,
         ),
-        "the waist refuses Departure: {:?}",
-        report.verdict
+        (
+            "head (0.2, 0.15)",
+            vec![(1.0, [0.0; 3]), (0.8, [0.2, 1.4, 0.15])],
+            253,
+        ),
+        (
+            "small head x 0.3",
+            vec![(1.0, [0.0; 3]), (0.4, [0.3, 1.1, 0.0])],
+            0,
+        ),
+        (
+            "three balls",
+            vec![
+                (1.0, [0.0; 3]),
+                (0.8, [0.3, 1.4, 0.0]),
+                (0.5, [0.5, 2.3, 0.1]),
+            ],
+            259,
+        ),
+        (
+            "side by side",
+            vec![(1.0, [0.0; 3]), (0.9, [1.5, 0.2, 0.1])],
+            275,
+        ),
+    ];
+    let ceiling = |main: usize| main + main / 4 + 8;
+    for (what, balls, main) in unions {
+        let r = injective(&balls_united(&balls), None, BUDGET);
+        assert!(
+            departs(&r),
+            "{what}: refuses Departure, as on main: {:?}",
+            r.verdict
+        );
+        assert!(
+            r.receipt.splits <= ceiling(main),
+            "{what}: {} splits, main's {main}: {:?}",
+            r.receipt.splits,
+            r.receipt
+        );
+    }
+    let triangle = injective(
+        &ball_in_half_spaces(&[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)]),
+        None,
+        BUDGET,
     );
     assert!(
-        report.receipt.splits < BUDGET / 16,
-        "within the bound, not to the depth: {:?}",
-        report.receipt
+        departs(&triangle),
+        "the triangle, as on main: {:?}",
+        triangle.verdict
+    );
+    assert!(
+        triangle.receipt.splits <= ceiling(536),
+        "the triangle: {:?}",
+        triangle.receipt
+    );
+    let lens = injective(
+        &ball_in_half_spaces(&[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)]),
+        None,
+        BUDGET,
+    );
+    assert!(
+        matches!(lens.verdict, BoundVerdict::Holds),
+        "the lens: {:?}",
+        lens.verdict
+    );
+    assert!(
+        lens.receipt.splits <= ceiling(115),
+        "the lens: {:?}",
+        lens.receipt
     );
 }
 

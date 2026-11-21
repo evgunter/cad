@@ -461,6 +461,14 @@ pub struct Windows<'b, T: Real> {
 
 #[cfg(any(test, feature = "test-support"))]
 impl<T: Real> Windows<'_, T> {
+    /// **How many posed boundaries each face built in this ask**
+    /// ([`injective::FacePoses`]), by face: a sphere face builds one per
+    /// pose, once, however many cells are read in it.
+    #[doc(hidden)]
+    pub fn posed_builds(&self) -> Vec<(FaceKey, usize)> {
+        self.of.iter().map(|w| (w.face, w.poses.builds())).collect()
+    }
+
     /// **How many readings each spline chart's and spline edge's memo
     /// holds** ([`geom::NurbsSurface::memo_entries`],
     /// [`geom::NurbsCurve3::memo_entries`]): the charts', then the
@@ -2147,9 +2155,9 @@ where
                 } else if let Some((near, la, lb)) = &near {
                     let (px, py) = (piece_of(x, pair.a, la), piece_of(y, pair.b, lb));
                     if same {
-                        injective::certify_self(&px, &py, near, band)
+                        injective::certify_self(&px, &py, near, band, &x.poses)
                     } else {
-                        injective::certify_pair(&px, &py, near, band)
+                        injective::certify_pair_in(&px, &py, near, band, (&x.poses, &y.poses))
                     }
                 } else {
                     unreachable!("a touching pair meets or is near")
@@ -3241,6 +3249,9 @@ struct Window<'b, T: Real> {
     /// The face's boundary, lifted: what the injectivity question reads
     /// two faces' shared cells and a cell's local boundary off.
     boundary: Boundary,
+    /// The face's poses, built once in the ask, when a cell is first read
+    /// in one ([`injective::FacePoses`]).
+    poses: injective::FacePoses,
 }
 
 /// **What a window is of its face.**
@@ -3538,6 +3549,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         v,
         body,
         boundary,
+        poses: injective::FacePoses::default(),
     })
 }
 
@@ -3791,6 +3803,7 @@ pub(crate) fn posed_extents_holding(
     body: &Body<f64>,
     face: FaceKey,
     point: [f64; 3],
+    band: Band,
 ) -> Option<Vec<Option<bool>>> {
     let stored = body.face(face)?.surface();
     let (_, boundary) = boundary_of(body, face)?;
@@ -3800,6 +3813,7 @@ pub(crate) fn posed_extents_holding(
         &surface,
         &boundary,
         Point3::new(p[0], p[1], p[2]),
+        band,
     ))
 }
 
@@ -3836,6 +3850,9 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
+        // The outer loop's half-edges in the walk's order; `None` once a
+        // ring has edges.
+        let mut outer: Option<Vec<HalfEdgeKey>> = Some(Vec::new());
         for (lk, members, role) in f.boundary_by_loop() {
             let mut cycle = false;
             for member in &members {
@@ -3845,6 +3862,13 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 if let BoundaryMember::Edge { he, ek, .. } = *member {
                     halves.entry(ek).or_default().push(he);
                     cycle = true;
+                    if role.is_outer() {
+                        if let Some(o) = outer.as_mut() {
+                            o.push(he);
+                        }
+                    } else {
+                        outer = None;
+                    }
                 }
             }
             if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
@@ -3887,6 +3911,10 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
             }
         }
+        let edge_of: BTreeMap<HalfEdgeKey, EdgeKey> = halves
+            .iter()
+            .flat_map(|(&ek, hes)| hes.iter().map(move |&he| (he, ek)))
+            .collect();
         for (ek, hes) in halves {
             let e = proven(&body.edges, ek, EntityId::Edge);
             let curve = body.edge_curve_linked(ek, e).certified()?;
@@ -3926,6 +3954,16 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 uses,
             });
         }
+        out.outer = outer.filter(|o| !o.is_empty()).and_then(|o| {
+            o.iter()
+                .map(|&he| {
+                    let ek = *edge_of.get(&he)?;
+                    let i = out.edges.iter().position(|r| r.key == ek)?;
+                    let e = proven(&body.edges, ek, EntityId::Edge);
+                    Some((i, e.he_plus == he))
+                })
+                .collect()
+        });
         Aabb::from_points(pts).map(|b| (b, out))
     })
     .flatten()

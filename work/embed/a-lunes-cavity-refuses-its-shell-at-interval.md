@@ -4,10 +4,17 @@ kind: issue
 title: A lune's cavity refuses its shell at Interval, at Departure, where f64 holds
 status: open
 opened: 2026-11-18
-priority: P2
+priority: P0
 cost: M
 ---
 
+
+**The cause is a trace as far as `one_conic`, not measured**: the
+reading the refused cell lacks has not been confirmed (below).
+
+**Banded P0** (EMBED orchestrator, 2026-11-21): a valid hollow that its
+own door refuses at a certifying scalar is a valid body refused at its
+door, the rule every other row of this track is banded by.
 
 ## Finding
 

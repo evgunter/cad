@@ -444,10 +444,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache/speed.rs",
-        38,
+        41,
         4,
-        "not yet dispositioned: the 34 that do not ask are \
-         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
+        "not yet dispositioned: the 37 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`, the \
+         three the carrier-frames merge added among them \
+         `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
     ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -718,6 +720,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
+        "crates/step-import/src/recognize_curve.rs",
+        5,
+        0,
+        "not yet dispositioned: the 5 reads arrived with the carrier-frames merge into \
+         main and are `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
+    ),
+    (
         "crates/topo/src/clearance.rs",
         56,
         16,
@@ -737,10 +746,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        190,
-        92,
-        "the 92 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), the pose's three (13, below), \
+        194,
+        96,
+        "the 96 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), the pose's four (17, below), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -778,7 +787,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
          `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`. \
-         The pose's three each read behind their own ask: `pose_frame` a norm's low end (1), \
+         The pose's four each read behind their own ask: `on_sphere` its residuals' ends \
+         against their rounding (2), only where they certify, and the radius's upper end and \
+         its square's (2), the scale those are read at; `pose_frame` a norm's low end (1), \
          taken positive only where it certifies; `posed_cell` the box's `Z/r` (2), behind its \
          ask and clamped to `[-1, 1]`, where every point of the sphere has it, and the placed \
          rectangle's latitude and azimuth (4), each certified; and `posed_extent` each row's \

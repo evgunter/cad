@@ -349,8 +349,9 @@ pub mod test_support {
         body: &Body<f64>,
         face: crate::FaceKey,
         point: [f64; 3],
+        band: geom_core::Band,
     ) -> Option<Vec<Option<bool>>> {
-        crate::clearance::posed_extents_holding(body, face, point)
+        crate::clearance::posed_extents_holding(body, face, point, band)
     }
 
     /// The at-rest window's reasons for an incidence refusal, one per

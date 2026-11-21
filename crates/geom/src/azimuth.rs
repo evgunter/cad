@@ -291,7 +291,10 @@ impl Azimuth<geom_core::Interval> {
     /// `θ` plus the turned pair's angle. The sector is decided here: the
     /// turned pair's along component must be certified positive, so the
     /// read is in the open half-plane `θ` faces, within a quarter turn of
-    /// `θ`, and so narrower than half a turn. `None` otherwise: a box
+    /// `θ` up to its own rounding, and so under a turn wide (at rounding
+    /// it may pass half a turn by ulps: a read `π + 1.2e-15` wide was
+    /// measured). Under a turn is what a reader of it needs: a read under
+    /// a turn wide holds at most one copy of each angle. `None` otherwise: a box
     /// that reaches the origin, or one wider than that half-plane.
     /// Interval `atan2` reads a box straddling its cut as a certified
     /// full-turn hull (decorated `Def`), and one holding the origin as an
@@ -300,7 +303,7 @@ impl Azimuth<geom_core::Interval> {
     /// cut reaches the origin too, and the closing certification ask
     /// refuses it; the positive-side ask says so first, and is what bounds
     /// the read within a quarter turn. Neither the full-turn hull nor a
-    /// read wider than half a turn is ever returned.
+    /// read a turn wide is ever returned.
     ///
     /// [`Azimuth::about`] reads about a whole number of quarter turns,
     /// exactly, with its branch decided by the caller; this reads about
