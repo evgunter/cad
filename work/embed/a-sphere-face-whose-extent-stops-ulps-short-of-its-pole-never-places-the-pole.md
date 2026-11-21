@@ -202,3 +202,35 @@ branch, their subjects closed here before they reached main:
 **What still refuses**, on its own row: cones in turned frames,
 `two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`
 (P0).
+
+**Measured on the merged tree.** Main moved twice during the pass; each
+pair below is one main with and without PR 7115's `injective.rs`.
+
+| | main `dc7059c445` | with PR 7115 | main `94b6b284e` | with PR 7115 |
+|---|---|---|---|---|
+| cavity rows at f64, failing of 222 | 14 | 8 | 15 | 9 |
+| tour walk, holding of 85 | 82 | 82 | 78 | 78 |
+
+- **Cavity rows:** on each main only the six pole rows differ; every
+  other cavity's verdict and receipt is the same with and without the
+  PR. The fifteenth and ninth failure is main's own
+  (`shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively`,
+  since the carrier frames landed).
+- **Tour walk:** identical line for line on each main. The four bodies
+  lost between the two mains (three die bodies and the lily lantern)
+  refuse with main's own code.
+- **The injectivity suite** at the default ε, 1e-6 and 1e-12: on
+  `dc7059c445`, 62 of 62 with the PR and 58 without, the four new
+  holding rows red and every other receipt identical.
+- **The review's 120 cone tips and cavities** (plain frame, apex
+  heights to 101.3, sizes 0.013 to 50): 120 of 120 hold, on both mains.
+  Twelve refused on the first head and three on the second.
+- **The review's turned frames** (20 cones, 12 ice-cream cones, each as
+  a body and a cavity): eight cones refuse on `dc7059c445`, on
+  `two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`;
+  on `94b6b284e` the turned ice-creams' sphere caps refuse as well, on
+  `a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval`.
+- **This lane's sweep** (six shapes, 61 apex heights, apex up and down,
+  body and cavity, plain frame, within six units of the origin): 1,464
+  of 1,464, at the receipts of the first fix pass.
+- **The endpoint census:** `injective.rs` reads 180 / 78.
