@@ -132,9 +132,9 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let surface = body.face_surface(sphere_face.0).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
-        geom_brep::props::require_iso_rectangle(surface, &outer, band),
-        Ok(()),
-        "a rimless lune is a chart rectangle"
+        geom_brep::props::iso_rectangle_sides(surface, &outer, band),
+        Ok(vec![geom_brep::IsoFamily::U; outer.len()]),
+        "a rimless lune is a chart rectangle, every side of it a meridian"
     );
     let volume = topo::test_support::pinned_volume(
         "the flux lane measures the lune by its meridian pair",

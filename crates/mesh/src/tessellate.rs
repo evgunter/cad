@@ -488,6 +488,9 @@ pub(crate) struct FaceRoute {
 /// read's on a memo hit as well ([`FaceRoute`]).
 pub(crate) struct Routes {
     lanes: HashMap<FaceKey, Routed>,
+    /// Each curved-lane face's doors' answer, which the chord rule reads
+    /// beside the walk ([`Routes::rectangle`]).
+    rectangles: HashMap<FaceKey, crate::curved::Rectangle>,
 }
 
 impl Routes {
@@ -522,7 +525,19 @@ impl Routes {
                 (r.face, entry)
             })
             .collect();
-        (Self { lanes }, routed)
+        let rectangles = routed
+            .iter()
+            .filter_map(|r| match &r.route {
+                Ok(Route::Curved(rectangle)) => Some((r.face, rectangle.clone())),
+                _ => None,
+            })
+            .collect();
+        (Self { lanes, rectangles }, routed)
+    }
+
+    /// Face `fk`'s doors' answer, where it routed to the curved lane.
+    pub(crate) fn rectangle(&self, fk: FaceKey) -> Option<&crate::curved::Rectangle> {
+        self.rectangles.get(&fk)
     }
 
     /// Face `fk`'s entry.
@@ -550,12 +565,13 @@ impl Routes {
         .0
     }
 
-    /// This table with face `fk` routed to `lane`, for a row whose
-    /// subject is what a lane does with a face the route would not hand
-    /// it.
+    /// This table with face `fk` routed to the curved lane on
+    /// `rectangle`, for a row whose subject is what that lane does with a
+    /// face the route would not hand it.
     #[cfg(test)]
-    pub(crate) fn with(mut self, fk: FaceKey, lane: Lane) -> Self {
-        self.lanes.insert(fk, Routed::To(lane));
+    pub(crate) fn with_curved(mut self, fk: FaceKey, rectangle: crate::curved::Rectangle) -> Self {
+        self.lanes.insert(fk, Routed::To(Lane::Curved));
+        self.rectangles.insert(fk, rectangle);
         self
     }
 }
@@ -775,7 +791,7 @@ fn tessellate_impl(
                             body,
                             fk,
                             surface,
-                            *rectangle,
+                            rectangle,
                             &chords.ids,
                             shared,
                             &tol,
