@@ -399,10 +399,13 @@ fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
 /// are continuations, the loop opens one iso side, and the guard refuses
 /// it. The residue is the sphere's and the cone's.
 ///
-/// The two edges' chord points land on one point of the chart, two mesh
-/// ids on one CDT handle, and the curved lane refuses that typed
-/// ([`mesh::TessellateError::PinchWedge`]) in every profile, before the
-/// zero-width walk can mesh as a hole or panic at the census.
+/// The walk's band reads its columns off the loop's lift, and this body,
+/// built through the Euler doors, stores none: it refuses
+/// [`mesh::TessellateError::DomainUnread`] (a lift gap) in every profile,
+/// before the zero-width walk can mesh as a hole or panic at the census.
+/// Nor can it be minted: the mint's turn at each pole between two edges
+/// leaving along one direction has no decided width
+/// (`SingularMiss::EdgesCoincide`), so no lift exists for any lane to read.
 #[test]
 fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
     let tol = Tol::witness();
@@ -416,29 +419,45 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
         (true, true),
         "both doors admit, as they do for every member of this class"
     );
-    let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mesh::tessellate(&body, 0.05, tol)
-    }));
-    let said = match &answered {
-        Err(payload) => {
-            let text = payload
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
-                .unwrap_or_default();
-            format!("panic: {}", text.chars().take(13).collect::<String>())
+    let answer = |body: &Body<f64>| {
+        let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mesh::tessellate(body, 0.05, tol)
+        }));
+        match &answered {
+            Err(payload) => {
+                let text = payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_default();
+                format!("panic: {}", text.chars().take(13).collect::<String>())
+            }
+            Ok(Err(e)) => format!("refused: {e:?}"),
+            Ok(Ok(m)) => format!(
+                "Ok: patches {:?}, check_mesh {:?}",
+                m.patches
+                    .iter()
+                    .map(|p| p.triangles.len())
+                    .collect::<Vec<_>>(),
+                mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
+            ),
         }
-        Ok(Err(e)) => format!("refused: {e:?}"),
-        Ok(Ok(m)) => format!(
-            "Ok: patches {:?}, check_mesh {:?}",
-            m.patches
-                .iter()
-                .map(|p| p.triangles.len())
-                .collect::<Vec<_>>(),
-            mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
-        ),
     };
-    assert!(said.starts_with("refused: PinchWedge"), "{said}");
+    let said = answer(&body);
+    assert!(said.starts_with("refused: DomainUnread"), "{said}");
+    assert!(said.contains("Gap(LiftGap"), "{said}");
+    let mut minted = body.clone();
+    let mint = topo::mint_pcurves(&mut minted, tol);
+    assert!(
+        matches!(
+            mint,
+            Err(topo::pcurves::PcurveMintError::SingularTurn {
+                miss: topo::pcurves::SingularMiss::EdgesCoincide,
+                ..
+            })
+        ),
+        "the mint has no decided width for the two coincident edges: {mint:?}"
+    );
 }
 
 /// Whether `body` fails tier 3 on something other than check 11: a

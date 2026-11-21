@@ -276,7 +276,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball",
             0x5172_8b12_4ed0_a3c1,
             0x6958_59e5_b31e_fdcd,
-            0x5812_1400_df62_e576,
+            0x8403_8e18_2870_7107,
         ),
         (
             "cone",

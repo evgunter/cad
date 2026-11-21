@@ -1837,6 +1837,49 @@ mod tests {
     /// out here is an edge the row above never covers, and a helper
     /// that swallows them lets a fixture stop contributing without any
     /// row going red. The caller asserts the skip list is empty.
+    /// A fixture's volume and area, measured by props on the body as built
+    /// (a revolve, which tier 3 is not asked to pass here).
+    fn enclosed(body: &Body<f64>) -> (f64, f64) {
+        let m = topo::test_support::measure_unvalidated(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("the fixture measures")
+        .enclosure;
+        (m.volume, m.surface_area)
+    }
+
+    /// **A band wider than a half turn meshes its own volume wherever it is
+    /// placed.** A sphere wedge revolved most of the way round, its meridians
+    /// split and the body rigidly placed: its rimless band's columns are the
+    /// lift's, the face's own branches. Read off the loop's area direction,
+    /// a placed 2π − 0.08 band took the 0.08 sliver instead, which meshes
+    /// watertight and encloses a negative volume.
+    #[test]
+    fn a_placed_band_wider_than_a_half_turn_meshes_its_own_volume() {
+        use core::f64::consts::TAU;
+        for theta in [TAU - 0.08, TAU - 0.02, 1.5 * core::f64::consts::PI] {
+            let body = sphere_band(theta);
+            let (volume, area) = enclosed(&body);
+            for fracs in [&[0.5][..], &[0.312_9, 0.156_45][..]] {
+                let (placed, skipped) = split_each_edge_then_place(&body, fracs);
+                assert!(skipped.is_empty(), "θ {theta} @{fracs:?}: {skipped:?}");
+                for (i, placed) in placed {
+                    let mesh =
+                        crate::tessellate(&placed, 0.1, Tol::witness()).unwrap_or_else(|e| {
+                            panic!("θ {theta} edge {i} @{fracs:?}: the band meshes: {e:?}")
+                        });
+                    assert_eq!(
+                        crate::validate::check_volume(&mesh, volume, area, 0.1),
+                        Ok(()),
+                        "θ {theta} edge {i} @{fracs:?}: the placed band encloses its own volume"
+                    );
+                }
+            }
+        }
+    }
+
     fn split_each_edge_then_place(
         body: &Body<f64>,
         fracs: &[f64],
@@ -1990,6 +2033,9 @@ mod tests {
         for (name, body) in fixtures() {
             let edges = body.edges().count();
             let mut here = 0usize;
+            // A split and a rigid placement move neither the volume nor the
+            // area, so the fixture's own measure is every placed body's.
+            let props = enclosed(&body);
             for fracs in PATTERNS {
                 let (placed, skipped) = split_each_edge_then_place(&body, fracs);
                 assert!(
@@ -2018,6 +2064,13 @@ mod tests {
                             here += 1;
                             if let Err(e) = crate::validate::check_mesh(&mesh) {
                                 dirty.push(format!("{name} edge {i} @{fracs:?}: {e:?}"));
+                            }
+                            // Watertight is not enough: a face meshed as its
+                            // complement closes too.
+                            if let Err(e) =
+                                crate::validate::check_volume(&mesh, props.0, props.1, 0.1)
+                            {
+                                dirty.push(format!("{name} edge {i} @{fracs:?}: volume {e:?}"));
                             }
                         }
                         // The one refusal that IS a counterexample:
@@ -2056,7 +2109,7 @@ mod tests {
             crooked.is_empty() && dirty.is_empty(),
             "of {checked} meshed configurations ({refused} refused typed): \
              {} have a walk entry off their own UV box {crooked:?}; \
-             {} meshed non-watertight {dirty:?}",
+             {} meshed non-watertight or off their volume {dirty:?}",
             crooked.len(),
             dirty.len()
         );
