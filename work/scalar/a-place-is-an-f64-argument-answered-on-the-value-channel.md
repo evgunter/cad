@@ -34,3 +34,7 @@ The view's shape (borrowed where `Value = Self`). Whether `Sym` needs a computed
 ## Review
 
 Letter H, tier dual: a new associated type on `Real` and a new evaluator surface, which every later place site will build on.
+
+## Note from `a-bound-to-decide-against-never-becomes-a-t`
+
+`topo::pcurves_rings` `Ring::side` keeps `T::from_computed(room[1])` for the `v` window `v ± rv` that the chart's arms are read over: a place, so it belongs to this unit. The room decision beside it now uses `Margin::metered_bound`.

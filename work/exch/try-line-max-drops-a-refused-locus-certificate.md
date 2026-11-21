@@ -2,10 +2,12 @@
 id: try-line-max-drops-a-refused-locus-certificate
 kind: issue
 title: recognize_curve's try_line folds a refused INV-C3 sup through f64::max, so a line promotes with no locus certificate
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-11-20
+branch: exch/arc-map-obligation
 ---
 
 ## Finding
@@ -40,3 +42,11 @@ Either refuse on a NaN `delta_line` before the fold (a NaN-propagating
 max, as `ssi.rs` does), or, if INV-C5's hull is the whole certificate
 for unit weights, say so in the module docs and drop the claim that
 INV-C3 gates promotion. A row pinning the degree-30 fixture either way.
+
+## Closed
+
+The NaN refusal before the fold landed with the iso fix pass
+(`0121473083`: `if delta_line.is_nan() { return None; }` in `try_line`).
+EXCH unit B (`exch/arc-map-obligation`) adds the row the finding asked
+for: `recognize_curve::tests::l7_a_refused_locus_composite_refuses_the_line`,
+the degree-30 Bézier on 31 collinear control points, which stays NURBS.

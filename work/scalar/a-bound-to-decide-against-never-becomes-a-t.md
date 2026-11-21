@@ -2,11 +2,14 @@
 id: a-bound-to-decide-against-never-becomes-a-t
 kind: unit
 title: A bound to decide against is decided at f64 or is an f64 allowance of the margin; it never becomes a T
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
+pr: 7185
+branch: scalar/a-bound-never-becomes-a-t
+closed: 2026-11-20
 ---
 
 The rule is `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" (DL5.2, DL5.3), ratified by Ev on PR 7155. The site counts below are two designers' readings (`work/scalar/log.md`, 2026-11-20), mostly not traced to consumers: re-measure before building on one.
