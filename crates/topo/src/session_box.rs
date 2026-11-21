@@ -50,7 +50,7 @@ fn body_reach<T: Decide>(body: &Body<T>) -> T {
 }
 
 /// **What the one fold reads of a body as it stands.**
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Reads<T> {
     /// The largest `|coordinate|` of points known to lie on the body:
     /// its vertices and its certified edges' own points.
@@ -58,7 +58,7 @@ struct Reads<T> {
     /// The largest `|coordinate|` of its vertices and of each face's
     /// region bounded by its carrier and boundary alone; the first face
     /// with no such cover where one has none.
-    cover: Result<T, FaceKey>,
+    cover: Result<T, (FaceKey, crate::cover::FaceUncovered)>,
 }
 
 /// [`reach_of`] over the body as it stands, each edge's cover read by
@@ -189,30 +189,41 @@ fn reach_of<T: Decide, E>(
         ));
         covers.insert(e, cover);
     }
-    let mut cover = Ok(vertices);
-    for (face, _) in body.faces() {
-        let f = body.proven_face(face);
+    let cover = faces_reach(body, vertices, |f| {
         let moved = surface_of(f.surface())?;
         let surface = moved.as_ref().unwrap_or(f.surface());
-        let bounded = matches!(
-            f.outer().1.boundary,
-            crate::entity::LoopBoundary::Cycle { .. }
-        );
-        let read = crate::cover::face_cover_unproven(surface, bounded, || {
-            crate::cover::boundary_cover_by(body, f, &place, |ek, _| {
-                covers
-                    .get(ek)
-                    .cloned()
-                    .unwrap_or(Err(EdgeUncovered::Scaffold))
-            })
-        });
-        cover = match (cover, read) {
-            (Ok(far), Ok(c)) => Ok(far.max(cover_reach(&c))),
-            (Ok(_), Err(_)) => Err(face),
-            (Err(first), _) => Err(first),
-        };
-    }
+        Ok(crate::cover::face_cover_unproven(
+            surface,
+            crate::cover::outer_bounds(f),
+            || {
+                crate::cover::boundary_cover_by(body, f, &place, |ek, _| {
+                    covers
+                        .get(ek)
+                        .cloned()
+                        .unwrap_or(Err(EdgeUncovered::Scaffold))
+                })
+            },
+        ))
+    })?;
     Ok(Reads { points, cover })
+}
+
+/// **The largest `|coordinate|` of every face's cover**, as `read`
+/// reads each, from `from` up: the one fold over a body's faces. The
+/// first face with no cover ends it, with its cover's refusal.
+fn faces_reach<T: Decide, E>(
+    body: &Body<T>,
+    from: T,
+    mut read: impl FnMut(crate::live::FaceView<'_, T>) -> Result<crate::cover::FaceCovered<T>, E>,
+) -> Result<Result<T, (FaceKey, crate::cover::FaceUncovered)>, E> {
+    let mut far = from;
+    for (face, _) in body.faces() {
+        match read(body.proven_face(face))? {
+            Ok(cover) => far = far.max(cover_reach(&cover)),
+            Err(why) => return Ok(Err((face, why))),
+        }
+    }
+    Ok(Ok(far))
 }
 
 /// The largest `|coordinate|` of `body`'s vertices as `place` sets them.
@@ -244,7 +255,7 @@ pub(crate) const SESSION_BOX_POINT: &str = "session_box_point";
 /// [`ValidationError::SessionBoxUncovered`]).
 pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
     let reads = unmoved_reads(body, edge_cover_where);
-    if within(reads.cover, band) {
+    if within(&reads.cover, band) {
         return Ok(());
     }
     past_its_carriers(body, reads.points, band)
@@ -287,7 +298,7 @@ pub(crate) fn in_session_box_at<T: Decide>(
     band: Band,
 ) -> Result<(), crate::MoveError> {
     let reads = reads_at(body, motion).map_err(crate::MoveError::Map)?;
-    if within(reads.cover, band) {
+    if within(&reads.cover, band) {
         return Ok(());
     }
     let image = crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion))
@@ -298,8 +309,11 @@ pub(crate) fn in_session_box_at<T: Decide>(
 
 /// Whether a cover's reach decides its region in the box: anything but a
 /// definitely negative margin, and no face left uncovered.
-fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
-    cover.is_ok_and(|reach| {
+fn within<T: Decide>(
+    cover: &Result<T, (FaceKey, crate::cover::FaceUncovered)>,
+    band: Band,
+) -> bool {
+    cover.as_ref().is_ok_and(|&reach| {
         past(crate::validate::decide_reported(
             SESSION_BOX_REACH,
             box_margin(reach),
@@ -338,14 +352,10 @@ fn past_its_carriers<T: Decide>(
     points: T,
     band: Band,
 ) -> Result<(), ValidationError> {
-    let mut cover = Ok(points_only(body, |p| p));
-    for (face, _) in body.faces() {
-        cover = match (cover, crate::cover::face_cover(body, face, band)) {
-            (Ok(far), Ok(c)) => Ok(far.max(cover_reach(&c))),
-            (Ok(_), Err(_)) => Err(face),
-            (Err(first), _) => Err(first),
-        };
-    }
+    let cover = faces_reach::<T, core::convert::Infallible>(body, points_only(body, |p| p), |f| {
+        Ok(crate::cover::face_cover(body, f.key(), band))
+    })
+    .unwrap_or_else(|never| match never {});
     let unshown = match cover {
         Ok(reach) => match past(crate::validate::decide_reported(
             SESSION_BOX_REACH,
@@ -355,7 +365,7 @@ fn past_its_carriers<T: Decide>(
             None => return Ok(()),
             Some(margin) => ValidationError::SessionBoxUnshown { margin },
         },
-        Err(face) => ValidationError::SessionBoxUncovered { face },
+        Err((face, _)) => ValidationError::SessionBoxUncovered { face },
     };
     let origin = Point3::origin();
     let inside = body

@@ -1,12 +1,16 @@
 //! **The region a face or an edge can occupy** (DESIGN `[one-way.places]`,
 //! "The region a carrier, an edge or a face can occupy", and
 //! `[one-way.readings]`): topo's one reading of each, [`face_cover`] and
-//! [`edge_cover`]. A face's cover is its carrier's (`geom`'s
-//! `Surface::cover`) met with every trim constraint its one arm per kind
-//! proves; an edge's is its carrier's over its span (`geom`'s
-//! `Curve3::cover_over`) hulled with its ends. Those two readings in
-//! `geom` hold the only kind matches; every bound a door reads (a box in
-//! any frame, a support, a distance range, a ball) is a method on the
+//! [`edge_cover`]. A face's cover starts from its unproven region
+//! ([`face_cover_unproven`]: its carrier's, `geom`'s `Surface::cover`,
+//! or where the carrier is unbounded the region its boundary bounds on
+//! it, `Surface::face_region`) and meets every trim constraint its one
+//! arm per kind proves; an edge's is its carrier's over its span
+//! (`geom`'s `Curve3::cover_over`) hulled with its ends. Those readings
+//! in `geom` hold the kind matches that state a region; this file's arms
+//! match a kind only to prove a constraint, and [`face_extreme_points`]
+//! to name a carrier's critical points. Every bound a door reads (a box
+//! in any frame, a support, a distance range, a ball) is a method on the
 //! cover.
 //!
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`): a reading
@@ -312,31 +316,32 @@ fn face_cover_in<T: Decide>(
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
     let surface = f.surface();
-    let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    let bounded = outer_bounds(f);
+    // Every arm starts from the face's unproven region and meets only
+    // what it proves into it, or replaces it by a hull of fewer of its
+    // points, so the cover holds no more than that region.
+    let base = || face_cover_unproven(surface, bounded, || boundary_cover(body, f));
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
-            carrier
+            base()
         }
-        Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
+        Surface::Plane { .. } => base(),
         Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
         } => {
+            let base = base();
             if !crate::validate::is_direction(axis) {
-                return carrier;
+                return base;
             }
             let frame = geom::Frame::new(*origin, *axis, *u_ref);
-            let hull = boundary_cover(body, f).map(Cover::convex);
-            let wall = hull
+            let wall = base
                 .as_ref()
                 .ok()
                 .and_then(|h| Cover::wall(&frame, *radius, h));
-            and_proven(and_trim(carrier, hull), wall)
+            and_proven(base, wall)
         }
         Surface::Cone {
             apex,
@@ -344,26 +349,32 @@ fn face_cover_in<T: Decide>(
             half_angle,
             u_ref,
         } => {
-            let Some(at_apex) = Cover::points(vec![*apex]) else {
-                return carrier;
-            };
             let boundary = boundary_cover(body, f);
-            let hull = if cone_may_hold_apex(body, face, surface, band) {
-                boundary.map(|b| b.hull(at_apex))
-            } else {
-                boundary
+            let base = face_cover_unproven(surface, bounded, || boundary.clone());
+            if Cover::points(vec![*apex]).is_none() {
+                return base;
             }
-            .map(Cover::convex);
+            // The base holds the apex; a face shown not to hold it lies in
+            // its boundary's hull alone, a hull of fewer of the base's
+            // points.
+            let hull = if cone_may_hold_apex(body, face, surface, band) {
+                base
+            } else {
+                and_trim(
+                    surface.cover().map_err(FaceUncovered::of_carrier),
+                    boundary.map(Cover::convex),
+                )
+            };
             let frustum = hull
                 .as_ref()
                 .ok()
                 .and_then(|h| Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h));
-            and_proven(and_trim(carrier, hull), frustum)
+            and_proven(hull, frustum)
         }
         Surface::Sphere { center, radius, .. } => {
             let zone = sphere_window(body, f, surface, band);
             let cut = aim.and_then(|aim| pole_side(body, f, (*center, *radius), aim, band));
-            and_proven(and_proven(carrier, zone), cut)
+            and_proven(and_proven(base(), zone), cut)
         }
         Surface::Torus {
             center,
@@ -389,52 +400,51 @@ fn face_cover_in<T: Decide>(
                         v,
                     )
                 });
-            and_proven(carrier, rect)
+            and_proven(base(), rect)
         }
         // A spindle's tube, with no chart window: the window's closed
         // form reads a ring torus.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => carrier,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => base(),
     }
 }
 
+/// **Whether `f`'s outer loop is a cycle**: a lone-vertex outer loop
+/// bounds nothing, so a face's boundary holds no hull of it.
+pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
+    matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. })
+}
+
 /// **A face's region bounded by its carrier and its boundary alone**:
-/// the cover [`face_cover`] meets its proven constraints into, before
-/// any is read, of a face whose carrier is `surface` and whose boundary
-/// cover `boundary` reads, as the face stands. A ruled face lies in its
-/// boundary's convex hull, a cone face with its apex (each ruling
-/// through a point of the face leaves it at the boundary, or ends at the
-/// apex); every other kind in its carrier's cover. `bounded` is whether
-/// its outer loop is a cycle: a lone-vertex loop bounds no hull. So it
-/// holds [`face_cover`]'s region, and reads no decision.
+/// the region every arm of [`face_cover`] starts from, before any
+/// constraint is proven, of a face whose carrier is `surface` and whose
+/// boundary cover `boundary` reads, as the face stands. A face lies in
+/// its carrier's region where that is bounded; where it is not (a plane,
+/// a cylinder, a cone), in the region its boundary bounds on that carrier
+/// ([`Surface::face_region`]: the boundary's convex hull, with a cone's
+/// apex). `bounded` is whether its outer loop is a cycle
+/// ([`outer_bounds`]); a lone-vertex loop bounds no hull. It reads no
+/// decision.
 ///
 /// # Errors
 ///
-/// [`FaceUncovered`]: the carrier's refusal where no boundary bounds the
-/// face.
+/// [`FaceUncovered`]: the carrier's refusal where its boundary bounds no
+/// region, with the boundary's.
 pub(crate) fn face_cover_unproven<T: Decide>(
     surface: &Surface<T>,
     bounded: bool,
     boundary: impl FnOnce() -> BoundaryCovered<T>,
 ) -> FaceCovered<T> {
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    match surface {
-        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
-            carrier
-        }
-        Surface::Cylinder { axis, .. } if !crate::validate::is_direction(axis) => carrier,
-        Surface::Plane { .. } | Surface::Cylinder { .. } => {
-            and_trim(carrier, boundary().map(Cover::convex))
-        }
-        Surface::Cone { apex, .. } => match Cover::points(vec![*apex]) {
-            Some(at_apex) => and_trim(carrier, boundary().map(|b| b.hull(at_apex).convex())),
-            None => carrier,
-        },
-        Surface::Sphere { .. }
-        | Surface::Torus { .. }
-        | Surface::Spindle { .. }
-        | Surface::Nurbs(_)
-        | Surface::Approx(_) => carrier,
+    if !bounded {
+        return carrier;
     }
+    carrier.or_else(|mut why| match boundary() {
+        Ok(b) => surface.face_region(b).map_err(FaceUncovered::of_carrier),
+        Err(unknowns) => {
+            why.boundary.extend(unknowns);
+            Err(why)
+        }
+    })
 }
 
 /// **Points known to lie on `face` where its extremes along the world

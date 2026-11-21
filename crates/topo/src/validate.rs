@@ -7526,11 +7526,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
 pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
-    use geom_core::is_finite_length as finite;
-    let components = finite(v.x) && finite(v.y) && finite(v.z);
-    let len = v.norm();
-    let zero = finite(len) && geom_core::is_zero_length(len, v.norm_witness());
-    components && !zero
+    geom::cover::is_direction(*v)
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum
