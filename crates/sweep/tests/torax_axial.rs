@@ -1310,14 +1310,18 @@ fn torax_the_klein_elbow_hollow_hollows_again() {
     let hollow = topo::shell(&finished("the operand", elbow, tol()), 0.05, tol())
         .unwrap_or_else(|e| panic!("the elbow hollows, got {e:?}"))
         .body;
-    let again = topo::shell(&finished("the hollow", hollow.into_body(), tol()), 0.02, tol())
-        .unwrap_or_else(|e| {
-            panic!(
-                "the elbow's hollow hollows again, got {}",
-                e.render(geom_brep::recourse::Reading::Build)
-            )
-        })
-        .body;
+    let again = topo::shell(
+        &finished("the hollow", hollow.into_body(), tol()),
+        0.02,
+        tol(),
+    )
+    .unwrap_or_else(|e| {
+        panic!(
+            "the elbow's hollow hollows again, got {}",
+            e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
+    .body;
     assert_eq!(
         topo::validate_geometric(&again, tol()),
         Ok(()),
