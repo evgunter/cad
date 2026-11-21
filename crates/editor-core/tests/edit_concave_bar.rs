@@ -144,7 +144,7 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
         ),
         _ => false,
     });
-    assert_eq!(walls.len(), 2, "the bar's two half-walls");
+    assert_eq!(walls.len(), 1, "the bar's one wall");
     for chamfer in [false, true] {
         let verb = if chamfer { "chamfer" } else { "fillet" };
         let node = if chamfer {

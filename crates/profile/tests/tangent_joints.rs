@@ -136,8 +136,8 @@ fn a_collinear_joint_is_a_tangent_joint_decided_or_constructed() {
 }
 
 /// **The minimal two-arc circle**: its joints are one carrier
-/// continuing. The `circle` form constructs them; the same table no
-/// constructor built decides and records them.
+/// continuing. The two-arc `circle_split` constructs them; the same
+/// table no constructor built decides and records them.
 #[test]
 fn a_cocircular_joint_is_a_tangent_joint_decided_or_constructed() {
     let table = profile(vec![circle_h(0.0, 0.0, 1.0)])
@@ -148,7 +148,7 @@ fn a_cocircular_joint_is_a_tangent_joint_decided_or_constructed() {
         decided(&table),
         vec![(0, JointCarriers::Same), (1, JointCarriers::Same)]
     );
-    let form = profile::circle(Point2::new(0.0, 0.0), 1.0, tol()).expect("a circle");
+    let form = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 2, 0.0, tol()).expect("a circle");
     assert_eq!(form.loop_.constructed_joints(), &[0, 1]);
     let built = constructed(vec![form.loop_]).expect("the circle form validates");
     assert_eq!(built.loops()[0].tangent_joints(), &[0, 1]);

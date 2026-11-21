@@ -103,13 +103,11 @@ fn drawn_edges(index: &PickIndex, node: RecipeNodeId) -> Vec<(EdgeId, Vec<Point3
 fn hole_rim(index: &PickIndex, node: RecipeNodeId) -> (EdgeId, Vec<Point3<f64>>) {
     let [width, depth, thickness] = PLATE_EXTENT;
     let (cx, cy) = (width * 0.5, depth * 0.5);
-    // The rim is two half-circle edges. The rows' cursors are laid out
-    // against its +y half, so that half is chosen by GEOMETRY — the
-    // edge whose points lie above the hole's centre — rather than by
-    // the order the edges were minted in.
+    // The rim is one full-circle edge, chosen by GEOMETRY — the edge
+    // whose points all lie on the hole's circle in the top face — rather
+    // than by the order the edges were minted in.
     drawn_edges(index, node)
         .into_iter()
-        .filter(|(_, points)| points.iter().all(|p| p.y >= cy - 1.0e-9))
         .find(|(_, points)| {
             !points.is_empty()
                 && points.iter().all(|p| {

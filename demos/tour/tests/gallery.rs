@@ -177,11 +177,11 @@ mod tests {
                 doc: demo_tour::chain::gallery_document(tol),
                 placements: 10,
                 at_rest: 10,
-                // Each bar a six-face box; each pin a cylinder wall in
-                // two halves and its two caps.
+                // Each bar a six-face box; each pin a one-face cylinder
+                // wall and its two caps.
                 product: Some(Product {
                     solids: 10,
-                    faces: 4 * 6 + 6 * 4,
+                    faces: 4 * 6 + 6 * 3,
                 }),
                 why: concat!(
                     "TEN placements — four bars, five pins, and the target pin — and TEN ",

@@ -81,12 +81,12 @@ fn director<T: Real>(d: SegmentDirections<T>) -> Vec2<T> {
     }
 }
 
-/// **The circle verb's radials are exactly ±x**, at `f64` and over a
-/// box on its centre and radius: the verb places its vertices at
-/// `centre ± r·x̂`, so it holds the radial without a quotient, and the
-/// validated segment stores it with no width.
+/// **The circle verb's radial is exactly +x at both ends**, at `f64`
+/// and over a box on its centre and radius: the verb places its vertex
+/// at `centre + r·x̂`, so it holds the radial without a quotient, and
+/// the validated segment stores it with no width.
 #[test]
-fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
+fn a_circles_radials_are_exactly_plus_x_over_a_box() {
     let vp = validated(vec![
         profile::circle(Point2::new(0.3, 0.2), 0.05, tol())
             .unwrap()
@@ -94,7 +94,7 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
     ]);
     let segs = vp.loops()[0].segments();
     let (one, zero) = (1.0f64, 0.0f64);
-    let want = [((one, zero), (-one, zero)), ((-one, zero), (one, zero))];
+    let want = [((one, zero), (one, zero))];
     for (k, ((sx, sy), (ex, ey))) in want.into_iter().enumerate() {
         let (start, end) = radials(segs[k].directions);
         assert_eq!(
@@ -823,10 +823,7 @@ fn each_verb_records_what_it_holds_on_the_loop() {
     let circle = profile::circle(Point2::new(0.3, 0.2), 0.05, tol()).unwrap();
     records(
         &circle.loop_.into_loop(),
-        &[
-            arc_rec(x(1.0, 0.0), x(-1.0, 0.0)),
-            arc_rec(x(-1.0, 0.0), x(1.0, 0.0)),
-        ],
+        &[arc_rec(x(1.0, 0.0), x(1.0, 0.0))],
         "circle",
     );
     let split = profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, tol()).unwrap();

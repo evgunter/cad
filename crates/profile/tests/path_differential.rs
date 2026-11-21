@@ -816,27 +816,23 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 // hand-built raw twin, bit for bit.
 // ------------------------------------------------------------------
 
-/// G1-1 — the circle primitive lowers to the corpus's existing
-/// convention bit-for-bit: two semicircles at the ±x poles, east first,
-/// each on the authored carrier (the centre and radius as written, the
-/// sweep 4·atan(1)), counterclockwise, both joints constructed (one
-/// carrier continuing through each).
+/// G1-1 — the circle primitive lowers bit-for-bit to its raw twin: one
+/// full turn from the east pole on the authored carrier (the centre and
+/// radius as written, the sweep 8·atan(1)), counterclockwise, with no
+/// joint to construct.
 #[test]
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
         let algebra = profile::circle(Point2::new(cx, cy), r, Tol::witness()).unwrap();
         let algebra = pinned_constructed(algebra);
-        let half = profile::Segment::Arc(Arc2 {
+        let turn = profile::Segment::Arc(Arc2 {
             centre: Point2::new(cx, cy),
             radius: r,
-            sweep: 4.0 * 1.0_f64.atan(),
+            sweep: 8.0 * 1.0_f64.atan(),
         });
         let hand = ConstructedLoop::fixture(
-            <ProfileLoop<f64> as RawLoop<f64>>::new([
-                (Point2::new(cx + r, cy), half),
-                (Point2::new(cx - r, cy), half),
-            ]),
-            vec![0, 1],
+            <ProfileLoop<f64> as RawLoop<f64>>::new([(Point2::new(cx + r, cy), turn)]),
+            vec![],
         );
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);

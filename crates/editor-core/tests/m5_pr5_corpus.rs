@@ -39,8 +39,9 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<topo::EdgeCurve<f64>> {
     out
 }
 
-/// Shape (i) in the corpus: both split sides carry exactly two exact
-/// `Ellipse` section arcs (a = r/cos φ, b = r), Intersection-described,
+/// Shape (i) in the corpus: both split sides carry exactly one exact
+/// `Ellipse` section edge, closed where the plane crosses the wall's
+/// seam (a = r/cos φ, b = r), Intersection-described,
 /// with rounding-scale certificate residuals.
 #[test]
 fn cut_cylinder_sides_carry_exact_ellipses() {
@@ -57,7 +58,7 @@ fn cut_cylinder_sides_carry_exact_ellipses() {
     let phi = corpus::cut_cylinder::TILT;
     for part in [above.body(), below.body()] {
         let ellipses = ellipse_edges(part);
-        assert_eq!(ellipses.len(), 2, "two ellipse arcs bound the section");
+        assert_eq!(ellipses.len(), 1, "one closed ellipse bounds the section");
         for c in &ellipses {
             let Some(geom::MajorFrame { major, minor, .. }) = c.carrier().major_frame() else {
                 panic!("ellipse filter guarantees the variant");

@@ -225,9 +225,9 @@ fn r1_the_all_tangent_loop_lifts_at_every_seam() {
 
 /// A two-arc circle: both joints are one carrier continuing, so both
 /// are tangent, and the lift reads it as the closed carrier it is — the
-/// `circle` form, seamed at its +x pole.
+/// two-arc `circle_split`, seamed at its +x pole (`circle` is one arc).
 #[test]
-fn r1_a_two_arc_circle_lifts_as_the_circle_form() {
+fn r1_a_two_arc_circle_lifts_as_the_two_arc_split() {
     let circle = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 1.0),
         (Point2::new(2.0, 0.0), 1.0),
@@ -236,9 +236,9 @@ fn r1_a_two_arc_circle_lifts_as_the_circle_form() {
         LiftOutcome::Lifted {
             program, rotation, ..
         } => {
-            assert_eq!(rotation, 1, "the circle form seams at the +x pole");
+            assert_eq!(rotation, 1, "the split seams at the +x pole");
             assert!(
-                matches!(program.as_slice(), [Step::Circle { .. }]),
+                matches!(program.as_slice(), [Step::CircleSplit { n: 2, .. }]),
                 "{program:?}"
             );
         }

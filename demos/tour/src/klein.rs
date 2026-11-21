@@ -788,8 +788,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "the loop's mesh volume {v_mesh} is outside Pappus's A·L = {pappus} ± {allowance:e}: \
          the swept body is not the authored loop"
     );
-    // The census: two annular caps and two semicircular walls per
-    // side — a hollow tube, so one handle.
+    // The census: two annular caps and one wall per side, each a full
+    // turn — a hollow tube, so one handle.
     let census = euler_counts(&top);
     assert_eq!(
         (
@@ -800,8 +800,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             census.s,
             census.genus()
         ),
-        (8, 12, 6, 2, 1, Ok(1)),
-        "the loop is one genus-1 shell of 6 faces; got {census:?}"
+        (4, 6, 4, 2, 1, Ok(1)),
+        "the loop is one genus-1 shell of 4 faces; got {census:?}"
     );
 
     // Findings entry 10, executed: the same cylinder, said four ways.

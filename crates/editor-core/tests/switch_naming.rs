@@ -301,12 +301,11 @@ fn program_vertex_zero_is_the_authored_entry() {
 /// **The reversed-loop (hole circle) row — PR #291 review MAJOR-1,
 /// both reviewers' probes adopted.** `circle()` lowers CCW;
 /// canonicalization orients holes CW, i.e. REVERSES the program loop —
-/// and at n = 2 vertex positions cannot decide the parity (forward and
-/// reversed vertex maps agree mod 2), so the anchor must read the
-/// BULGE bits. Pins: the anchor recovers `reversed: true`, and the
-/// §V3 semantics — program segment 0 IS the authored upper (CCW)
-/// semicircle — hold under the reversal, checked against the
-/// primitive's own lowering.
+/// and at one vertex its position cannot decide the parity (forward and
+/// reversed vertex maps agree), so the anchor must read the sweep's
+/// sign. Pins: the anchor recovers `reversed: true`, and the §V3
+/// semantics — program segment 0 IS the authored (CCW) full turn — hold
+/// under the reversal, checked against the primitive's own lowering.
 #[test]
 fn hole_circle_anchor_recovers_reversal() {
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
@@ -355,7 +354,7 @@ fn hole_circle_anchor_recovers_reversal() {
     assert_eq!(a.program_loop, 1);
     assert!(a.reversed, "a CW-canonicalized CCW hole is REVERSED");
     // The program's own lowering (the primitive, replayed directly):
-    // program segment 0 is the arc leaving (cx+r, cy) with bulge +1.
+    // program segment 0 is the full turn leaving (cx+r, cy) CCW.
     let program = profile::circle(geom_core::Point2::new(2.0, 2.0), 0.5, Tol::witness())
         .expect("circle lowers")
         .loop_;
@@ -398,12 +397,11 @@ fn hole_circle_anchor_recovers_reversal() {
             "canonical seg {c} carries program seg {p_seg}'s negated sweep"
         );
     }
-    // Denotation at the name layer: both semicircle walls exist under
-    // the hole's CANONICAL indices — its two program segments,
-    // reflected.
+    // Denotation at the name layer: the hole's one wall exists under its
+    // program index.
     use editor_core::{EntityKind, RoleSeg};
     let table = ev.table_at(doc.ids()[1]).expect("extrude");
-    for seg in 0..2u32 {
+    for seg in 0..1u32 {
         let name = StableName {
             kind: EntityKind::Face,
             node: doc.ids()[1],

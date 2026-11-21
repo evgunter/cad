@@ -1,8 +1,8 @@
 //! **Both rims of a through-hole, rounded by ONE `Node::Fillet`.** The
-//! hole's two rims are ladder rims sharing the hole wall, whose seams
-//! run from one rim to the other, so both bands split each seam: the
+//! hole's two rims are ladder rims sharing the hole wall, whose seam
+//! runs from one rim to the other, so both bands split it: the
 //! document evaluates, every minted entity is named, and the two
-//! crossings on one wall seam are told apart by their band alone — on an
+//! crossings on the wall seam are told apart by their band alone — on an
 //! extruded plate with a hole and on a box with a cylinder subtracted.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -54,7 +54,7 @@ fn rim_names(t: &NameTable, body: &Body<f64>, z: f64) -> Vec<StableName> {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(keys.len(), 2, "the rim at z = {z} is two arcs");
+    assert_eq!(keys.len(), 1, "the rim at z = {z} is one full-turn edge");
     let mut names: Vec<StableName> = t
         .iter()
         .filter_map(|(n, entry)| match entry {
@@ -66,7 +66,7 @@ fn rim_names(t: &NameTable, body: &Body<f64>, z: f64) -> Vec<StableName> {
         })
         .collect();
     names.sort();
-    assert_eq!(names.len(), 2, "each rim arc is uniquely named");
+    assert_eq!(names.len(), 1, "the rim is uniquely named");
     names
 }
 
@@ -141,8 +141,8 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
         .collect();
     assert_eq!(
         crosses.len(),
-        4,
-        "{what}: each wall seam is crossed once per band"
+        2,
+        "{what}: the wall seam is crossed once per band"
     );
     let mut seams: Vec<_> = crosses
         .iter()
@@ -155,13 +155,13 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
     seams.dedup();
     assert_eq!(
         seams.len(),
-        2,
-        "{what}: two wall seams, each crossed by both bands"
+        1,
+        "{what}: one wall seam, crossed by both bands"
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandCut(_))),
-        2,
-        "{what}: one surviving middle piece per wall seam"
+        1,
+        "{what}: one surviving middle piece of the wall seam"
     );
 }
 
@@ -225,8 +225,8 @@ fn holds_a_piece_qualifier(edge: &StableName) -> bool {
 }
 
 /// **A band's crossing cites the wall seam it lies on by its line** (N2,
-/// *Vertices*). The drill is notched at mid-height across one of its
-/// seams before it bores the box, so that hole-wall seam is two pieces;
+/// *Vertices*). The drill is notched at mid-height across its seam
+/// before it bores the box, so that hole-wall seam is two pieces;
 /// each band crosses the piece at its own rim, and names the crossing
 /// by the seam's line, not by the piece and its ends.
 #[test]
@@ -279,8 +279,8 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         .collect();
     assert_eq!(
         crossed.len(),
-        4,
-        "each band crosses both wall seams: {crossed:?}"
+        2,
+        "each band crosses the wall seam: {crossed:?}"
     );
     let tool_read = fixture::out(&doc, notched);
     let cited_pieces = table(&ev, holed)

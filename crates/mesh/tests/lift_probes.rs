@@ -1223,13 +1223,14 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 175 loops
-/// of the 151 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 162 loops
+/// of the 135 curved faces, the 27 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
 /// apex row where it passes one (22 loops), and its sampled polygon is
-/// simple and wound with the face ([`not_closing`]). The 10 faces a
-/// seam closes (the washer's and the donut's walls) close the same way:
-/// the seam is walked twice, a period apart.
+/// simple and wound with the face ([`not_closing`]). The 26 faces a
+/// seam closes (the washer's and the donut's walls, and every one-face
+/// cylinder wall) close the same way: the seam is walked twice, a
+/// period apart.
 #[test]
 fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
     let facts = census(&door_built(), SAMPLES);
@@ -1239,7 +1240,7 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
         tally(&facts),
         rows(&[
             ("Cone", 34, 0, 3, 11),
-            ("Cylinder", 68, 2, 12, 0),
+            ("Cylinder", 52, 18, 15, 0),
             ("Nurbs", 12, 0, 0, 0),
             ("Sphere", 14, 0, 3, 11),
             ("Torus", 23, 8, 6, 0),
@@ -1261,7 +1262,7 @@ fn the_spline_section_bodies_read_lifts_that_close() {
     assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
     assert_eq!(
         tally(&facts),
-        rows(&[("Cylinder", 3, 0, 0, 0), ("Sphere", 3, 0, 0, 2)]),
+        rows(&[("Cylinder", 2, 1, 0, 0), ("Sphere", 3, 0, 0, 2)]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
         table(&facts)
     );
@@ -1649,7 +1650,7 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
             by_chart(SurfaceKind::Cone),
             by_chart(SurfaceKind::Sphere)
         ),
-        (24, 6, 12, 3, 3),
+        (27, 6, 15, 3, 3),
         "the ringed faces\n{}",
         ring_table(&rings)
     );

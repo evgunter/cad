@@ -537,11 +537,11 @@ fn each_order_refusal_refuses_at_the_replay_and_the_shape_alike() {
             PathErrorKind::FarEndAnchorWithoutFillet,
         ),
         (
-            "a circle split into one arc",
+            "a circle split into no arcs",
             vec![Step::CircleSplit {
                 centre: p(0.0, 0.0),
                 radius: 1.0,
-                n: 1,
+                n: 0,
                 phase: 0.0,
             }],
             0,

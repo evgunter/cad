@@ -136,7 +136,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ("l_profile", l_profile(), Class::Bits),
         ("arc_chain", arc_chain(), Class::Value),
         ("lens", lens(), Class::Value),
-        ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Bits),
+        ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Value),
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
@@ -184,8 +184,8 @@ fn the_census() {
 
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
-    assert_eq!(tally[Class::Bits as usize], 7, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 6, "value-equal lifts");
+    assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
+    assert_eq!(tally[Class::Value as usize], 7, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 0, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 0, "geometric walls");
     assert_eq!(tally[Class::Mismatch as usize], 0, "mismatches");
@@ -296,12 +296,19 @@ fn the_carrier_phase_is_the_surviving_angle_residue() {
             describe(&other)
         ),
     }
-    // The +x-seamed twin is exact, which is what makes the diagnosis
-    // "the angle", not "the carrier form".
+    // The +x-seamed two-arc twin lifts to `circle_split(2)`, whose
+    // second vertex is the same angle's `sin_cos(π)`; the one-segment
+    // circle, whose vertex is at angle 0, is exact, which is what makes
+    // the diagnosis "the angle", not "the carrier form".
     assert_eq!(
         classify(&lift_checked(&circle_h(0.0, 0.0, 1.0), Tol::witness())),
-        Class::Bits
+        Class::Value
     );
+    let one = circle(Point2::new(0.0, 0.0), 1.0, Tol::witness())
+        .expect("circle")
+        .loop_
+        .into_loop();
+    assert_eq!(classify(&lift_checked(&one, Tol::witness())), Class::Bits);
 }
 
 // ------------------------------------------------------------------
@@ -321,10 +328,18 @@ fn vert(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 #[test]
 fn structural_walls_are_named() {
     // Too few vertices.
-    let one = bulge_loop(vec![vert(0.0, 0.0, 0.0)]);
+    let none: ProfileLoop<f64> = RawLoop::new(Vec::new());
     assert_eq!(
-        refusal(&one),
-        Some(LiftRefusal::TooFewVertices { vertices: 1 })
+        refusal(&none),
+        Some(LiftRefusal::TooFewVertices { vertices: 0 })
+    );
+    // One vertex holding a line is read like any other table, and
+    // validation refuses its zero chord.
+    let one = bulge_loop(vec![vert(0.0, 0.0, 0.0)]);
+    assert!(
+        matches!(refusal(&one), Some(LiftRefusal::Unclassified(_))),
+        "{:?}",
+        refusal(&one)
     );
 
     // Non-finite authored data.

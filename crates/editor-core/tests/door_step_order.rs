@@ -229,12 +229,12 @@ fn a_far_end_anchor_with_no_fillet_open_refuses_at_the_door() {
     );
 }
 
-/// **A `circle_split` of one arc refuses at both doors**: its count is
-/// written, and one vertex cannot carry a full turn. The file is a
-/// four-arc split with its count rewritten. Red if either door admits
-/// it, which evaluation would then refuse as `CircleSplitCount`.
+/// **A `circle_split` of no arcs refuses at both doors**: its count is
+/// written, and zero arcs draw no circle. The file is a four-arc split
+/// with its count rewritten. Red if either door admits it, which
+/// evaluation would then refuse as `CircleSplitCount`.
 #[test]
-fn a_circle_split_of_one_arc_refuses_at_both_doors() {
+fn a_circle_split_of_no_arcs_refuses_at_both_doors() {
     let doc = ProfileDoc::empty_derived("door-step-order-split", Tol::witness());
     let split = |n| LoopProgram::CircleSplit {
         centre: [len(0.0), len(0.0)],
@@ -243,7 +243,7 @@ fn a_circle_split_of_one_arc_refuses_at_both_doors() {
         phase: Formula::zero(editor_core::Dimension::Angle),
     };
     assert_eq!(
-        refused_at_insert(&doc, vec![split(1)]),
+        refused_at_insert(&doc, vec![split(0)]),
         (0, PathErrorKind::CircleSplitCount),
         "the insert door"
     );
@@ -251,7 +251,7 @@ fn a_circle_split_of_one_arc_refuses_at_both_doors() {
     let text = save(&doc, Tol::witness()).expect("the four-arc split saves");
     let mangled = doctored(&text, |v| {
         v["snapshot"]["nodes"][four.0.to_string()]["Profile"]["loops"][0]["CircleSplit"]["n"] =
-            serde_json::json!(1);
+            serde_json::json!(0);
     });
     assert_eq!(
         refused_at_load(&mangled),

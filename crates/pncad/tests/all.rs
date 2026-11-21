@@ -2963,13 +2963,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         )
         .expect("the surface-kind atom is exact");
         found.sort();
-        // Each hole's wall is TWO faces sharing one cylinder carrier, so
-        // the first two in canonical order are one hole's halves and
-        // measure zero apart. Take the first and the LAST, which are
-        // different holes, so the measure is the holes' axis separation
-        // and the Python row that reads it has a real number to pin.
-        assert_eq!(found.len(), 4, "two holes, two wall faces each");
-        let last = found.pop().expect("four walls");
+        // Each hole's wall is one face, so the first and the last are
+        // the two holes and the measure is their axis separation, a
+        // real number the Python row that reads it can pin.
+        assert_eq!(found.len(), 2, "two holes, one wall face each");
+        let last = found.pop().expect("two walls");
         let first = found.remove(0);
         vec![first, last]
     };

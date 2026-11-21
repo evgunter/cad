@@ -140,13 +140,13 @@ fn a_holes_two_rims_chamfer_under_the_ring_roles_and_replay_alike() {
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandCross { .. })),
-        4,
-        "each wall seam is crossed once per band"
+        2,
+        "the wall seam is crossed once per band"
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandCut(_))),
-        2,
-        "one surviving middle piece per wall seam"
+        1,
+        "one surviving middle piece of the wall seam"
     );
 
     let again = fixture::run(&doc, &EvalOptions::default());

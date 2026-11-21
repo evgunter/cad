@@ -160,7 +160,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     // work/profile/paths-refusals-short-of-the-shape-guard.md
     (
         "ProfileReplay/Path/CircleSplitCount",
-        "circle_split needs between 2 and 4294967295 arcs",
+        "circle_split needs between 1 and 4294967295 arcs",
     ),
     ("ProfileReplay/Path/SeamRetrimsArcFirstSide", "p"),
     (
@@ -4375,7 +4375,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "ArcSweepNotShortOfFullTurn",
             P::ArcSweepNotShortOfFullTurn { angle: ga(7.0) },
         ),
-        ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
+        ("CircleSplitCount", P::CircleSplitCount { n: 0 }),
         (
             "PolygonTooFewVertices",
             P::PolygonTooFewVertices { given: 2 },
