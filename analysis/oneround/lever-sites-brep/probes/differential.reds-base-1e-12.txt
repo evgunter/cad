@@ -1,0 +1,10 @@
+== geom-brep pcurve_cache::envelope_lemma_fuzz::every_arm_and_term_is_load_bearing_in_a_pinned_sweep 
+     thread 'pcurve_cache::envelope_lemma_fuzz::every_arm_and_term_is_load_bearing_in_a_pinned_sweep' (19575) panicked at crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs:1299:5: | no row carried these (arm, term) pairs over the noise: [("cone rim, zero winding", Frame)] stack backtrace: 0: __rus
+== mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound 
+     thread 'reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound' (23481) panicked at crates/mesh/tests/reach_probes.rs:1761:39: | T1's box at s = 0.03, A ∩ B: builds at ε 1e-12, where it refused CurvedPierceUnsupported stack backtrace: 0: __rustc::rust_begin_unwind
+== step-import snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them 
+     thread 'snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them' (23769) panicked at crates/step-import/src/snap.rs:1176:66: | called `Result::unwrap()` on an `Err` value: Interpretation { id: 5130, refusal: Ambiguous { reading: "step_snap_relation", gap: 5.684452171
+== step-import::all tier_gate::every_corpus_import_passes_the_shared_gate 
+     thread 'tier_gate::every_corpus_import_passes_the_shared_gate' (25183) panicked at crates/step-import/tests/tier_gate.rs:1141:21: | tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp @ eps file: refused for a DIFFERENT reason than the table records (want a message containing "entity #4950: the file's
+== step-import::all wild::wild_refusals_are_typed_and_name_their_class 
+     thread 'wild::wild_refusals_are_typed_and_name_their_class' (25282) panicked at crates/step-import/tests/wild.rs:603:9: | nist/nist_ftc_09_asme1_rd.stp: refusal must name "(step_edge_on_description), in the band", got: step import: entity #5130: the distance 5.6844521718398856e-5 m (step_snap_relati

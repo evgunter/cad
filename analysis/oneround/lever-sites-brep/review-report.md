@@ -36,7 +36,10 @@ EXECUTED (this container, 4 cores; every probe is under
   against its closed form, a sweep of the fold through the file's band,
   the no-region arm), and one door-level probe of `edge_extent_inf`
   against nine samples on a circle arc past a half turn.
-- The differential (C3): section C3 says exactly what ran.
+- The differential (C3): base against head, one fuzz seed; the whole
+  workspace suite with the slow set at ε = 1e-9 (19 808 tests a side), a
+  targeted row at ε = 1e-12 (3 334 a side). Section C3 says exactly what
+  ran and what did not.
 - `python3 scripts/work.py lint` on the head (ok).
 
 ONLY READ: the whole diff; `crates/geom-brep/src/extent.rs` end to end
@@ -280,9 +283,14 @@ None is this unit's: each is red on `b5c3fb4b` with the same message.
 Per-PR CI does not run the slow set, so its green says nothing about
 them. My builds differ from the nightly's in two ways I know of (the
 logger patch, and `--workspace` feature unification), so I do not claim
-they are red there. Seven more reds on both sides are source censuses
-tripped by my own patch (`k_stats.rs`, and `unsafe_code` allowed for the
-logger's `atexit`), and `sweep::all germ_tilted_rod::other_spins_…` is red on both
+they are red there. Seven more reds on both sides are source-census
+rows. At least one is my patch's (`crate_lints_match_the_workspace_minus_unsafe_code`:
+I allowed `unsafe_code` for the logger's `atexit`); I did not separate the
+rest, and two of them name things my patch does not touch
+(`predicate_name_coverage`: "`step-import` decides predicate names and
+runs no roster"; `topo::all recourse_roster`: an unlisted site in
+`surface_group.rs`). At 1e-12 `geom-brep pcurve_cache::envelope_lemma_fuzz::every_arm_and_term_is_load_bearing_in_a_pinned_sweep`
+is red on both, a pinned sweep my seed overrides. And `sweep::all germ_tilted_rod::other_spins_…` is red on both
 under the fixed seed (I did not re-run it without).
 
 ## The claims
@@ -308,8 +316,10 @@ folds two feet's levers with **min** for two lines' tilt, and
 right (one bounds a section's travel from either foot, one bounds a
 displacement from both sides), but neither doc names the other (style S3).
 
-**C3. No verdict moves.** Holds at ε = 1e-9 over the whole
-workspace suite, base against head. DEMONSTRATED. <<C3-12>>
+**C3. No verdict moves.** Holds. DEMONSTRATED at ε = 1e-9 over the
+whole workspace suite with the slow set, base against head; at ε = 1e-12
+over a **targeted** row, not the whole suite (below). `sure` at 1e-9,
+`likely` at 1e-12.
 
 How it was taken (`klog.patch.py`, `differential.sh`, `compare.py`): the
 same logger patched into `geom_core::k_stats::classify` on `b5c3fb4b` and
@@ -358,6 +368,35 @@ the cone coincidence sum (`carrier_cone_reach`) is decided 1 042 times at
 `pn_apex_pair_reach` (the cone generator lever's row) is decided 34 831
 times at `f64` and never at `Interval`. "No verdict moves on the
 `Interval` lane" is true of the cones because nothing asks.
+
+ε = 1e-12 (`differential-1e-12.sh`): **not the whole suite.** A whole
+kernel row at this ε was started and stopped on the head at 5 499 of
+12 120 tests after 55 minutes (the sweep suites run several times slower
+there); both sides would have cost about four hours. What ran instead, on
+both trees: every test whose margin values moved at 1e-9 (the 99 above,
+the slow-set ones among them), every test of geom-brep and of step-import,
+and the mesh probe the brief names: 3 334 tests a side.
+
+- `f64`: 492 817 042 decisions on the base, 492 817 058 on the head;
+  `Interval`: 13 512 845 on both; `Sym` and `Dual`: equal.
+- 2 539 tests log a decision on both sides; **every count agrees in 2 538.**
+  The one that differs, `profile::all path_property::a_straight_arrival_off_an_arc_departure_rides_the_authored_ray`,
+  differs between two runs of the same head binary.
+- 100 tests have equal counts and a moved margin, at the same predicates
+  as at 1e-9.
+- The same five reds on both sides (C12, n8).
+
+What this row cannot see: a test that reaches a converted site at 1e-12
+and moved no margin at 1e-9, outside geom-brep and step-import. The
+levers themselves do not depend on ε, so that needs ε-dependent control
+flow to reach a site it did not reach before.
+
+Two limits of the instrument, at both ε. The log is keyed by binary stem
+and test name, so two keys collide across the `all` binaries
+(`every_suite_file_is_aggregated`, `recourse_roster::every_decided_name_…`:
+20 source-scan tests, none geometric). And it sees only decisions that go
+through `k_stats::classify`: the region placements this PR touches are
+unrecorded by design (C7 is by inspection and mutant, not by this).
 
 **C4.** The build is exact: the 1e-5 fold's carrier is the line through
 `(0.9999499987499375, 0, 0)` along `(0, 1, 0)`, which is `x = c₀, z = 0`
@@ -429,7 +468,13 @@ corrections to the row are true: `cone_boundary`'s lever was never read
 (C6); `seam_face_reading` needs the scalar's lane.
 
 **C12.** True of the frozen head except n2, and with M1's caveat on "14
-converted". CI is as the body says (step-level above). <<C12>>
+converted". CI is as the body says (step-level above). The red it names,
+`mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound`
+at ε = 1e-12, I met: red on the merge base and on the head with the same
+message ("T1's box at s = 0.03, A ∩ B: builds at ε 1e-12, where it refused
+CurvedPierceUnsupported"). Left alone. The body's own differential I could
+not check (its instrumentation was never committed); mine agrees with its
+conclusion and with its "same bits" list.
 
 ## Ratings
 
