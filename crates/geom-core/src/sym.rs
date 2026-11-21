@@ -5435,7 +5435,10 @@ impl<T: Decide> Real for Sym<T> {
 
 /// The bracket is the value channel's, verbatim: the DAG carries no
 /// numbers of its own and is never read here.
-impl<T: Bounds + Decide> Bounds for Sym<T> {
+impl<T: Bounds> Bounds for Sym<T>
+where
+    Self: Real,
+{
     fn lo(self) -> f64 {
         Bounds::lo(self.value)
     }
@@ -5448,7 +5451,10 @@ impl<T: Bounds + Decide> Bounds for Sym<T> {
 /// Certification delegates: whether the computation was defined on the
 /// whole box is a question about the numeric channel, and the symbolic
 /// tier neither widens nor narrows the answer.
-impl<T: crate::real::CertifiedBounds + Decide> CertifiedEnclosure for Sym<T> {
+impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T>
+where
+    Self: Real,
+{
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
     }
