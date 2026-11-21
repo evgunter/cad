@@ -502,7 +502,7 @@ fn stop_probe<T: Decide>(
     band: Band,
 ) {
     let (ca, cb) = (ra.curve(), rb.curve());
-    let fv = |x: T| x.enclosure_probe().map_or(f64::NAN, |(l, h)| 0.5 * (l + h));
+    let fv = |x: T| x.enclosure_probe().map_or_else(|| format!("{x:?}").parse().unwrap_or(f64::NAN), |(l, h)| 0.5 * (l + h));
     let outcome = |s: T, t: T| -> String {
         let mut f: Found<T> = Found { points: found.points.clone(), held: Vec::new() };
         let n0 = f.points.len();
@@ -564,7 +564,8 @@ fn stop_probe<T: Decide>(
         os = ns; ot = nt;
     }
     eprintln!(
-        "STOPPROBE pa ({:?}, {:?}) pb ({:?}, {:?}) | pol s {:?} t {:?} st {:?} -> {} | whole s {:?} t {:?} st {:?} -> {} | held s {:?} t {:?} st {:?} -> {} | oracle s {:?} t {:?} gap {:?} pt {:?}",
+        "STOPPROBE kinds {:?} {:?} spans {:?} {:?} pa ({:?}, {:?}) pb ({:?}, {:?}) | pol s {:?} t {:?} st {:?} -> {} | whole s {:?} t {:?} st {:?} -> {} | held s {:?} t {:?} st {:?} -> {} | oracle s {:?} t {:?} gap {:?} pt {:?}",
+        ca.kind(), cb.kind(), ra.span.params(), rb.span.params(),
         pa.a, pa.b, pb.a, pb.b,
         s, t, stat(s, t), o_pol,
         sw, tw, stat(sw, tw), o_whole,
@@ -672,8 +673,20 @@ pub(super) fn meet<T: Decide>(
     b: &Span<'_, T>,
     band: Band,
 ) -> Result<Meetings<T>, MeetRefusal<T>> {
+    let clock0 = std::time::Instant::now();
+    let r = meet_timed(a, b, band);
+    crate::probe_clock::add(0, clock0.elapsed());
+    r
+}
+
+fn meet_timed<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    band: Band,
+) -> Result<Meetings<T>, MeetRefusal<T>> {
     let (ra, rb) = (Read::of(a), Read::of(b));
     let mut found = Found::default();
+    let clock1 = std::time::Instant::now();
     let exhausted = |found: Found<T>| MeetRefusal {
         fault: MeetFault::Unsettled(Unsettled::Exhausted),
         found: found.points,
@@ -698,6 +711,8 @@ pub(super) fn meet<T: Decide>(
             );
         }
     }
+    crate::probe_clock::add(1, clock1.elapsed());
+    let clock2 = std::time::Instant::now();
     let Ok(points) = witnesses(&ra, &rb, band) else {
         return Err(exhausted(found));
     };
@@ -707,6 +722,8 @@ pub(super) fn meet<T: Decide>(
         };
         found.offer(q, || read_both((a, &ta), (b, &tb), q, band), band);
     }
+    crate::probe_clock::add(2, clock2.elapsed());
+    let clock3 = std::time::Instant::now();
     let floor = Some(floor(&ra, &rb, band));
     let walk = bisect(
         [(Piece::whole(a.params()), Piece::whole(b.params()))],
@@ -721,6 +738,7 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
+                let clock4 = std::time::Instant::now();
                 let hold = |span: &Span<'_, T>| span.ended().then(|| span.params());
                 let polished = super::polish::pair_held(
                     |s| ra.curve().ders1(s),
@@ -730,6 +748,7 @@ pub(super) fn meet<T: Decide>(
                     (hold(a), hold(b)),
                 );
                 read_polished(&mut found, (&ra, pa), (&rb, pb), polished, band);
+                crate::probe_clock::add(4, clock4.elapsed());
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {
@@ -739,6 +758,7 @@ pub(super) fn meet<T: Decide>(
             }
         },
     );
+    crate::probe_clock::add(3, clock3.elapsed());
     if walk.is_err() {
         return Err(exhausted(found));
     }

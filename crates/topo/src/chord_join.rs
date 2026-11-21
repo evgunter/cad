@@ -4186,6 +4186,19 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
     closing: (Option<&EdgeCurveSpec<T>>, Option<&SplineArc<T>>),
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, JoinError> {
+    let clock5 = std::time::Instant::now();
+    let r = winding_timed(body, face, run, closing, band);
+    geom_brep::probe_clock::add(5, clock5.elapsed());
+    r
+}
+
+fn winding_timed<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    run: (HalfEdgeKey, HalfEdgeKey),
+    closing: (Option<&EdgeCurveSpec<T>>, Option<&SplineArc<T>>),
+    band: Band,
+) -> Result<Result<Sign, Indeterminate>, JoinError> {
     let island = match IslandReading::closed_by(body, face, run, closing, band)? {
         Ok(island) => island,
         Err(diag) => return Ok(Err(diag)),

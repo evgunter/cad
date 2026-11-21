@@ -62,6 +62,7 @@ fn main() {
             if args.get(1).is_some_and(|o| o != op) {
                 continue;
             }
+            let _ = geom_brep::probe_clock::take();
             let from = Instant::now();
             let r = match op {
                 "union" => topo::union(&a, &b, tol),
@@ -69,6 +70,8 @@ fn main() {
                 _ => topo::subtract(&a, &b, tol),
             };
             let t = from.elapsed();
+            let c = geom_brep::probe_clock::take();
+            println!("CLOCK walk {:.3} ends {:.3} witnesses {:.3} bisect {:.3} stop {:.3} winding {:.3} spline_crossings_meet {:.3}", c[0], c[1], c[2], c[3], c[4], c[5], c[6]);
             let what = match &r {
                 Ok(topo::BooleanResult::Body(bb)) => {
                     let from = Instant::now();

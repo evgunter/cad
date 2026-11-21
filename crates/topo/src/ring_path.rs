@@ -1844,7 +1844,10 @@ fn spline_crossings<T: Decide>(
     }
     let on_piece = Span::new(&curve, params);
     let on_arc = Span::new(carrier, *span);
-    let met = match meet(&on_piece, &on_arc, band) {
+    let clock6 = std::time::Instant::now();
+    let met_r = meet(&on_piece, &on_arc, band);
+    geom_brep::probe_clock::add(6, clock6.elapsed());
+    let met = match met_r {
         Ok(met) => met,
         Err(refusal) => return meet_refused(refusal.fault),
     };

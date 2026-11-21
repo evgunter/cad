@@ -65,6 +65,26 @@ pub mod conic_bend;
 pub mod curvature_arm;
 pub mod curve_face;
 pub mod curve_pair;
+/// PROBE (not for merge): timing slots.
+pub mod probe_clock {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    /// Slots, nanoseconds.
+    pub static SLOTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+    /// Add a duration to a slot.
+    pub fn add(i: usize, d: std::time::Duration) {
+        SLOTS[i].fetch_add(u64::try_from(d.as_nanos()).unwrap_or(u64::MAX), Ordering::Relaxed);
+    }
+    /// Read and reset the slots, in seconds.
+    #[must_use]
+    pub fn take() -> [f64; 8] {
+        let mut out = [0.0; 8];
+        for (o, s) in out.iter_mut().zip(SLOTS.iter()) {
+            #[allow(clippy::cast_precision_loss)]
+            { *o = s.swap(0, Ordering::Relaxed) as f64 * 1e-9; }
+        }
+        out
+    }
+}
 pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
