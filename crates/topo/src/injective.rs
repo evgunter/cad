@@ -2499,7 +2499,7 @@ fn present_plane<'a>(
     // An edge's chart points in the loop's order, each with its parameter.
     type End = (Point2<Interval>, Interval);
     let segment = |ei: usize| -> Result<(End, End), Unpresented> {
-        let e = b.edges.get(ei).ok_or({
+        let e = b.edges.get(ei).ok_or_else(|| {
             crate::gate_measure::local_site("L", line!());
             Unpresented::Local
         })?;
@@ -3223,7 +3223,7 @@ fn present_curved<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or({
+    let e = piece.boundary.edges.get(ei).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -3521,7 +3521,7 @@ fn present_wall<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or({
+    let e = piece.boundary.edges.get(ei).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -3567,7 +3567,7 @@ fn present_wall<'a>(
         let (s0, s1) = through.as_ref().map_or((t0, t1), |th| th.span);
         let reach = w.on(Axis::V, Interval::from_bounds(s0, s1));
         turn_ladder((reach.lo(), reach.hi()), a)
-            .ok_or({
+            .ok_or_else(|| {
                 crate::gate_measure::local_site("L", line!());
                 Unpresented::Local
             })?
@@ -3576,7 +3576,7 @@ fn present_wall<'a>(
                 let t = held(k);
                 s0 < t.lo() && t.hi() < s1
             })
-            .ok_or({
+            .ok_or_else(|| {
                 crate::gate_measure::local_site("L", line!());
                 Unpresented::Local
             })?
@@ -4296,11 +4296,11 @@ fn present_line_corner<'a>(
     let cell = (piece.u, piece.v);
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
-    let sigma = face_side(ue, iso, b.orientation()).ok_or({
+    let sigma = face_side(ue, iso, b.orientation()).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
-    let [i0, i1] = ue.image.ok_or({
+    let [i0, i1] = ue.image.ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -4633,7 +4633,7 @@ fn present_vertex_corner<'a>(
         });
     };
     let periodic = periodic_axes(surface);
-    let (a, [near, _]) = straight(surface, e, v).ok_or({
+    let (a, [near, _]) = straight(surface, e, v).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -4664,7 +4664,7 @@ fn present_vertex_corner<'a>(
         (l.is_finite() && l > 0.0).then(|| [w[0] / l, w[1] / l])
     };
     let a_mid = [mid(a[0]), mid(a[1])];
-    let d1 = unit2(a_mid).ok_or({
+    let d1 = unit2(a_mid).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -4672,7 +4672,7 @@ fn present_vertex_corner<'a>(
     let d2 = unit2(core::array::from_fn(|i| {
         away * mid(-h.pa[i] * tv.sin() + h.pb[i] * tv.cos() + h.pl[i])
     }))
-    .ok_or({
+    .ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?;
@@ -4750,7 +4750,7 @@ fn present_vertex_corner<'a>(
     let chart = ChartCurve::Harmonic(h);
     let kc = turns_to(periodic, chart.at(tv), vc);
     let curve_reach = reach_of(pieces_of((t0, t1)).iter().map(|&t| chart.at(t)));
-    for c in copies(periodic, curve_reach, footprint).ok_or({
+    for c in copies(periodic, curve_reach, footprint).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })? {
@@ -4914,7 +4914,7 @@ fn leaves_line(
     // vertex on the face's side while it is in `R`; `gone` keeps a piece
     // that comes back into `R` after the run has left — from any side, at
     // any rate — from being read as the run.
-    for c in copies(periodic, reach, r).ok_or({
+    for c in copies(periodic, reach, r).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })? {
@@ -5093,7 +5093,7 @@ fn graph(
     through: Option<&Through>,
     band: Band,
 ) -> Result<Graph, Unpresented> {
-    graph_read(piece, ei, plus, p, through, band).ok_or({
+    graph_read(piece, ei, plus, p, through, band).ok_or_else(|| {
         crate::gate_measure::local_site("L", line!());
         Unpresented::Local
     })?
