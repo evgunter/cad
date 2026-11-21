@@ -6472,7 +6472,7 @@ pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
         walked: &[crate::loop_winding::Step<'_, T>],
         end: Point3<T>,
         closing: Option<crate::loop_winding::Traversed<'_, T>>,
-        open: bool,
+        gapped: bool,
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> crate::loop_winding::Winding;
@@ -6526,11 +6526,11 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         walked: &[crate::loop_winding::Step<'_, T>],
         end: Point3<T>,
         closing: Option<crate::loop_winding::Traversed<'_, T>>,
-        open: bool,
+        gapped: bool,
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> crate::loop_winding::Winding {
-        crate::loop_winding::enclosed_winding_with(self, walked, end, closing, open, normal, band)
+        crate::loop_winding::enclosed_winding_with(self, walked, end, closing, gapped, normal, band)
     }
 }
 
@@ -6580,7 +6580,7 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
         _walked: &[crate::loop_winding::Step<'_, T>],
         _end: Point3<T>,
         _closing: Option<crate::loop_winding::Traversed<'_, T>>,
-        _open: bool,
+        _gapped: bool,
         _normal: geom_core::Vec3<T>,
         _band: Band,
     ) -> crate::loop_winding::Winding {
