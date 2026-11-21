@@ -3651,3 +3651,15 @@ fn review_probe_delta_refusers() {
         );
     }
 }
+
+#[test]
+#[ignore]
+fn op_probe_turned_balls() {
+    for k in 0..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
+        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
+        let report = injective(&ball, None, BUDGET);
+        println!("OPBALL frame {k}: {:?} {:?}", report.verdict, report.receipt);
+    }
+}

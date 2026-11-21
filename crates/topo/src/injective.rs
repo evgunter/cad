@@ -6162,6 +6162,17 @@ fn planes_through(
         ) => Some((frame.origin(), frame.axis())),
         _ => None,
     };
+    if std::env::var_os("OP_TRACE").is_some() {
+        for r in &rims {
+            if let Some((Curve3::Circle(c), _)) = r.arc.as_ref() {
+                eprintln!("OP lifted {:?} o={:?} a={:?} u={:?}", r.key, c.frame.origin(), c.frame.axis(), c.frame.u_ref());
+            }
+            if let Some(Curve3::Circle(c)) = r.stated.as_ref() {
+                let m = c.frame.motion();
+                eprintln!("OP stated {:?} o={:?} u={:?} v={:?} w={:?}", r.key, c.frame.origin(), m.u(), m.v(), m.w());
+            }
+        }
+    }
     if !rims.is_empty()
         && let Some(frames) = rims.iter().map(|r| conic(r)).collect::<Option<Vec<_>>>()
     {
