@@ -73,3 +73,60 @@ the refusing seconds are spent on valid bodies the engine refuses (1,076
 failing tests), not on the bodies that truly cross. Measured with
 `REFUSED_FIRST` in the `GATE` rows of `embed/gate-measure`
 (`measure/gate/README.md`).
+
+## Evidence: where a refusing ask spends after its first refusal (the gate lane, 2026-11-21)
+
+`embed/gate-measure` at `95facbf3cb` (`CAD_GATE_WALK=1`, verdicts
+unchanged), the per-solid gate on the census-2 base (main `c2a0c41f40`
+merged to `4ef175f079`). Each refusing ask's walk was logged per cell pair,
+and its time after the first refusal was split into (a) the face pair that
+refused, (b) pairs that end certified, (c) other pairs that themselves
+refuse, before and after their own first refusal, and (d) cells left open
+when the budget ran out. Population, named in
+`measure/gate/walk-population.json`:
+- the four tests behind the census's twelve dearest refusing asks
+  (`germ_torus_components` ×2, `germ_sphere_torus_placements`,
+  `quadric_pair_sections`), 13 refusing asks;
+- 150 refusing tests drawn by shape in proportion, cheapest first
+  (departure at an edge 86, at a vertex 24, `Budget(Pairs)` 19,
+  `Budget(Depth)` 13, second order 8), 153 refusing asks;
+- the 22 tests behind the 38 asks that crossed after a refusal (206 more
+  refusing asks).
+
+| population | asks | seconds | before the first refusal | (a) | (b) | (c) before own / after own | stopping the ask saves | settling per pair saves |
+|---|---:|---:|---:|---:|---:|---|---:|---:|
+| twelve dearest | 13 | 4,434 | 4.6 | 0.0 | 27.9 | 3,250 / 1,150 | 99.9% | 25.9% |
+| departure, edge | 89 | 2.8 | 2.5 | 0.0 | 0.0 | 0.1 / 0.2 | 10.0% | 7.0% |
+| departure, vertex | 24 | 0.7 | 0.5 | 0.0 | 0.1 | 0.0 / 0.0 | 18.9% | 0.5% |
+| `Budget(Pairs)` | 19 | 41.0 | 33.3 | 2.0 | 0.1 | 0.0 / 5.0 | 17.3% | 17.0% |
+| `Budget(Depth)` | 13 | 1.5 | 1.4 | 0.0 | 0.0 | 0.0 / 0.0 | 5.6% | 5.6% |
+| second order | 8 | 0.2 | 0.1 | 0.1 | 0.0 | 0.0 / 0.0 | 37% | 37% |
+| refusing asks of the M3 tests | 206 | 56.5 | 49.7 | 0.7 | 0.6 | 2.0 / 2.9 | 11.0% | 6.2% |
+
+(d) was zero in every ask: no level overflowed whole; budget refusals came
+at admission, cell by cell.
+
+- **The dear asks refuse at once and then pay for other pairs.** In all
+  13 the first refusal comes at depth 0 within 3 splits (departure at an
+  edge). The refusing pair then spends nothing more; almost all the time
+  is other pairs walking to their own refusals (4 to 21 refusing pairs an
+  ask, departure and `Budget(Pairs)`). Stopping the ask at its first
+  refusal saves 99.9%; settling each pair at its first finding saves 26%.
+- **The cheap asks spend before the first refusal.** Their first refusal
+  comes at the depth floor (median depth 40; second order at 10), so most
+  of their seconds precede it.
+- **M2.** Distinct refusing pairs per refusing ask, over the 372 sample
+  asks: 1 in 126, 2 in 75, 3 in 32, 4 in 56, 5 to 12 in the rest. Their
+  kinds: departure at an edge 406 pairs, `Budget(Depth)` 296,
+  `Budget(Pairs)` 206, departure at a vertex 67, and pairs refusing two
+  ways (depth and departure) 225. 38 of 136 crossing asks also hold a
+  refusing pair.
+- **M3, the 38 asks that crossed after keeping a refusal:** the crossing
+  is in the pair that refused first in 19, in another refusing pair in 2,
+  and in a pair that never refused in 17. So settling per pair keeps 17 of
+  the 38 crossings and loses 21 to a refusal; stopping the ask at its first
+  refusal loses all 38.
+- **M4, reading on past a crossing.** The 136 crossing asks in the
+  population, each run again with the walk going on past its first
+  verified crossing (the verdict kept): 7.8 s stopped against 15.3 s run
+  on (median ratio 3.0), every one still `Crosses`.
