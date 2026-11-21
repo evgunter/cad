@@ -378,7 +378,7 @@ fn a_curved_partner_with_no_march_door_is_r_lane() {
         &sphere(pt(0.0, 0.0, 0.0), 1.0),
         &the_zone(1.0),
         None,
-        None,
+        None::<geom_core::NoLane>,
         band(),
     );
     assert!(matches!(got, Err(SectionError::NoMarch { .. })), "{got:?}");

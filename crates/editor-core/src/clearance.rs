@@ -108,9 +108,9 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom_core::{Band, BandError, Point3, Sign, Tol};
-use topo::Body;
 use topo::clearance::{Ask, BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
+use topo::{Body, ClearanceLaneOf};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
@@ -1317,7 +1317,7 @@ struct Replayed<'q> {
 impl crate::eval::AtLeaf for Replayed<'_> {
     type Out = ClearanceReport;
 
-    fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+    fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
         self,
         ev: &Evaluation<T>,
         engine: topo::ClearanceLane<T>,
