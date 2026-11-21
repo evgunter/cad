@@ -51,3 +51,5 @@ main at `fa4e9ba921`: the same failure (run).
 
 - 2026-11-20 — **another seed, from GERM's PR 7184** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x520b1ebbb3e81f34` on head `07fa2a1e7e` (run 44779686027) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main's `line_quadric.rs` and `solid_contain.rs` (the PR's only kernel files swapped back) with the command above and that seed.
 - 2026-11-21 — another seed, from GERM's U3a CI (run 44847984295, corrupt-input job, head `c4d0b956`): `CAD_FUZZ_SEED=0xc626cabad4b11ded` panics `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` at `pcurves/site.rs:395:36` ("HalfEdgeKey(4v1) is a member of its own loop"). It reproduces on `origin/main`. (GERM orchestrator)
+
+- 2026-11-21 — **another seed, from PROFILE's `circle-lowers-to-one-segment`** (its diff touches nothing under `crates/topo/src/` but a doc comment in `shell.rs`; `topo` does not depend on `profile`): the same job drew `0xcd85c9e904c6dd22` on head `a4f67b5f35` (run 44912159864) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:395`.
