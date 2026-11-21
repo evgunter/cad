@@ -3008,14 +3008,18 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// holds them. A spline's domain is its own knot domain
 /// (`Schedule::new(&eval, net.domain(), net.knot_values().domain())`);
 /// a closed-form carrier's is the one its caller states.
+///
+/// Bounded `CertifiedEnclosure`: its consumers are the chart image's
+/// certification doors, and a station is a place handed to the
+/// carrier's evaluator at a scalar that carries no tangent.
 #[derive(Clone, Copy)]
-pub(crate) struct Schedule<'a, T: geom_core::Real> {
+pub(crate) struct Schedule<'a, T: geom_core::CertifiedEnclosure> {
     eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
     domain: (f64, f64),
     ends: (T, T),
 }
 
-impl<'a, T: geom_core::Real> Schedule<'a, T> {
+impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
     /// The schedule of `eval` over `domain`, held at `ends`.
     pub(crate) fn new(
         eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
