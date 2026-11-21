@@ -913,7 +913,7 @@ fn shares_ray(f: &Wedge, g: &Wedge) -> bool {
 /// How a second partner sits in the void of the first
 /// ([`partner_in_void`]).
 #[derive(Clone, Copy, Debug)]
-enum Placed {
+enum PartnerAt {
     /// Its boundary meets the cone's only at the vertex.
     Apart,
     /// One of its corners is a bound of the cone, the rest strictly in
@@ -959,7 +959,7 @@ fn ring_about(corners: [[f64; 3]; 3], rng: &mut Rng) -> Ring {
 }
 
 /// A small convex cone in the void of the cone `oracle` reads, a second
-/// partner of the same solid, placed as `how` says ([`Placed`]), all
+/// partner of the same solid, placed as `how` says ([`PartnerAt`]), all
 /// read exactly; `None` where the draw fails that. The touching
 /// placements are drawn in convex voids only, where a cone over
 /// directions in the void's closure stays in it.
@@ -967,10 +967,10 @@ fn partner_in_void(
     rng: &mut Rng,
     cone: &[Sector],
     oracle: &Oracle,
-    how: Placed,
+    how: PartnerAt,
 ) -> Option<(Vec<Sector>, Oracle)> {
     let ring: Ring = match how {
-        Placed::Apart => {
+        PartnerAt::Apart => {
             let q = norm3([
                 rng.range(-1.0, 1.0),
                 rng.range(-1.0, 1.0),
@@ -995,8 +995,8 @@ fn partner_in_void(
                 })
                 .collect()
         }
-        Placed::AlongARay | Placed::OnTheFaces if !void_is_convex(oracle) => return None,
-        Placed::AlongARay => {
+        PartnerAt::AlongARay | PartnerAt::OnTheFaces if !void_is_convex(oracle) => return None,
+        PartnerAt::AlongARay => {
             // The void's mean bound lies inside a convex void.
             let g = norm3([0, 1, 2].map(|i| {
                 cone.iter()
@@ -1020,7 +1020,7 @@ fn partner_in_void(
             }
             ring_about([shared, a, b], rng)
         }
-        Placed::OnTheFaces => {
+        PartnerAt::OnTheFaces => {
             if cone.len() < 3 {
                 return None;
             }
@@ -1056,7 +1056,7 @@ fn partner_in_void(
     }
     let own = Oracle::new(&partner)?;
     match how {
-        Placed::Apart => {
+        PartnerAt::Apart => {
             let apart = oracle.class(partner[0].start_far, rng) == SideCode::Out
                 && own.class(cone[0].start_far, rng) == SideCode::Out
                 && !oracle
@@ -1066,7 +1066,7 @@ fn partner_in_void(
             apart.then_some((partner, own))
         }
         // The cone's own bounds lie outside a partner in its void.
-        Placed::AlongARay | Placed::OnTheFaces => cone
+        PartnerAt::AlongARay | PartnerAt::OnTheFaces => cone
             .iter()
             .all(|s| own.class(s.start_far, rng) != SideCode::In)
             .then_some((partner, own)),
@@ -1089,9 +1089,13 @@ fn check_pair(
         return Vec::new();
     };
     let how = if void_is_convex(&oracle) {
-        [Placed::Apart, Placed::AlongARay, Placed::OnTheFaces][rng.below(3)]
+        [
+            PartnerAt::Apart,
+            PartnerAt::AlongARay,
+            PartnerAt::OnTheFaces,
+        ][rng.below(3)]
     } else {
-        Placed::Apart
+        PartnerAt::Apart
     };
     let Some((partner, _)) = partner_in_void(rng, cone, &oracle, how) else {
         return Vec::new();
@@ -1118,7 +1122,7 @@ fn check_partners(
     cone: &[Sector],
     partner: &[Sector],
     probes: &[[f64; 3]],
-    how: Placed,
+    how: PartnerAt,
     band: Band,
     rng: &mut Rng,
     counts: &mut PairCounts,
@@ -1158,9 +1162,9 @@ fn check_partners(
 /// reader's counts.
 #[derive(Default)]
 struct PairCounts {
-    /// By [`Placed`]: apart, along a ray, on the faces.
+    /// By [`PartnerAt`]: apart, along a ray, on the faces.
     placed: [usize; 3],
-    /// Placed pairs whose union no reference reads clear of a sliver,
+    /// PartnerAt pairs whose union no reference reads clear of a sliver,
     /// skipped.
     no_reference: usize,
     reads: [Counts; 2],
@@ -1421,7 +1425,7 @@ fn islands_touching_every_face_of_their_voids_read_as_one_cone() {
             &cone,
             &partner,
             &probes,
-            Placed::OnTheFaces,
+            PartnerAt::OnTheFaces,
             band,
             &mut rng,
             &mut counts,

@@ -181,12 +181,12 @@ pub enum BooleanDecision {
     BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`curve_face::line_quadric::line_sphere_roots`,
-    /// `line_quadric_sphere_disc`).
+    /// `curve_face_pose_disc`).
     SphereRoots,
     /// Where an arc crosses a sphere: the conic × quadric door's rows
     /// (`conic_quadric`) — on a circle, or an ellipse whose second
     /// harmonic is in the zero band, its first-harmonic arm's extremes
-    /// (`conic_quadric_first_extreme`), read for a constant
+    /// (`curve_face_pose_extreme`), read for a constant
     /// residual and for either end of the range; otherwise the
     /// half-angle quartic's rows.
     ArcSphereRoots,
@@ -364,7 +364,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question

@@ -1033,7 +1033,7 @@ enum End {
 
 /// Where the dropped operand meets kept vertex `x`, which lies in the
 /// face divided from `root`.
-fn end_at<T: geom_core::Real>(
+fn end_at<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     holder: Operand,
     x: VertexKey,
