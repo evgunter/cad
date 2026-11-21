@@ -338,16 +338,19 @@ fn a_body_that_meshes_records_mains_k_stream() {
 fn wider_in_band(s: &Surface<f64>) -> Surface<f64> {
     match *s {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin,
-            axis,
-            radius: radius + in_band(),
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(origin, axis, u_ref),
+                radius: radius + in_band(),
+            }
+        }
         _ => unreachable!("the poisoned face is a cylinder wall"),
     }
 }
@@ -468,10 +471,12 @@ fn outer_edges(body: &Body<f64>, fk: topo::FaceKey) -> Vec<topo::EdgeKey> {
 #[test]
 fn an_edge_off_its_surface_refuses_with_that_cause() {
     let (body, face) = poisoned_washer(|_| Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 4.0),
-        axis: Vec3::new(0.0, 0.0, -1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     });
     assert_eq!(
         mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ()),
@@ -497,23 +502,24 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("the wall");
     let Surface::Cylinder {
-        origin,
-        axis,
+        frame: carrier_frame,
         radius,
-        u_ref,
     } = was
     else {
         unreachable!("the wall is a cylinder")
     };
+    let (origin, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
     body.set_face_surface_unvouched_for_tests(
         fk,
         topo::construction::FaceSurface::New {
             surface: Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius: radius + in_band(),
-                u_ref,
             },
             sense,
         },

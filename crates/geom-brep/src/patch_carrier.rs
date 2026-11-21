@@ -212,20 +212,22 @@ mod tests {
     /// The true distance of `p` from `surface`'s complete locus.
     fn true_distance(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
         match *surface {
-            Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => (rho_h(p, origin, axis).0 - radius).abs(),
-            Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (p - origin).dot(normal).abs()
+            }
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                (rho_h(p, origin, axis).0 - radius).abs()
+            }
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                ((p - center).norm() - radius).abs()
+            }
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 let (rho, h) = rho_h(p, apex, axis);
                 let (s, c) = half_angle.sin_cos();
                 // The two generator rays of the meridian half-plane.
@@ -240,12 +242,12 @@ mod tests {
                 ray((s, c)).min(ray((s, -c)))
             }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 let (rho, h) = rho_h(p, center, axis);
                 ((rho - major_radius).hypot(h) - minor_radius).abs()
             }
@@ -271,40 +273,36 @@ mod tests {
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Torus {
-            center: Point3::origin(),
-            axis,
+            frame: geom::Frame::new(Point3::origin(), axis, u_ref),
             major_radius: major,
             minor_radius: minor,
-            u_ref,
         }
     }
 
     fn sphere(radius: f64, center: Point3<f64>) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         }
     }
 
     fn cone(half_angle: f64, apex: Point3<f64>) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Cone {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis, u_ref),
             half_angle,
-            u_ref,
         }
     }
 
     fn cylinder_z(radius: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -384,9 +382,11 @@ mod tests {
                 "plane on",
                 &across_axis,
                 Surface::Plane {
-                    origin: Point3::new(0.0, 0.05, 0.0),
-                    normal: Vec3::new(0.0, 1.0, 0.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.05, 0.0),
+                        Vec3::new(0.0, 1.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 true,
             ),

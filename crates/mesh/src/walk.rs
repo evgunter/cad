@@ -1639,36 +1639,26 @@ mod tests {
         );
         let surface = match kind {
             ChartKind::Cylinder { r } => Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                u_ref,
             },
             ChartKind::Cone { half_angle } => Surface::Cone {
-                apex: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 half_angle,
-                u_ref,
             },
             ChartKind::Sphere { r } => Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             },
             ChartKind::Torus { major, minor } => Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
             ChartKind::Spindle { major, minor } => Surface::Spindle {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
         };
         Chart::of(&surface).unwrap()

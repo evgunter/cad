@@ -399,9 +399,14 @@ impl<T: Decide> SplineImplicitPose<T> {
     /// alone (its rounding uncharged far out:
     /// `work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
     fn height(&self, p: Point3<T>) -> T {
-        let Surface::Plane { origin, normal, .. } = self.partner else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = self.partner
+        else {
             unreachable!("the pose holds a plane")
         };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
         (p - origin).dot(normal.normalize())
     }
 }
@@ -415,29 +420,20 @@ impl SplineImplicitPose<f64> {
     /// where the partner is a plane.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = self.partner
         else {
             unreachable!("the pose holds a plane")
         };
+        let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
         let Some(foot) = self.partner.foot(self.ball().center()) else {
             unreachable!("a plane's foot is in closed form")
         };
-        let (a, o, m) = (
-            foot.map(Interval::from_certified),
-            origin.map(Interval::from_certified),
-            normal.map(Interval::from_certified),
-        );
-        let norm = (m.x.powi(2) + m.y.powi(2) + m.z.powi(2)).sqrt();
         Pivot {
             plane: Surface::Plane {
-                origin: foot,
-                normal,
-                u_ref,
+                frame: geom::Frame::new(foot, normal, u_ref),
             },
-            lift: ((a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z) / norm,
+            lift: stored_height(&carrier_frame, foot),
         }
     }
 
@@ -452,6 +448,16 @@ impl SplineImplicitPose<f64> {
         let ball = self.ball();
         super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0)
     }
+}
+
+/// **`foot`'s certified height over a stored plane**, the plane read as
+/// every certified partner read takes a stored frame: its polar
+/// enclosure ([`crate::ssi::residual::certified_frame`]), whose normal is
+/// a unit, so the height is the dot along it.
+fn stored_height(plane: &geom::Frame<f64>, foot: Point3<f64>) -> Interval {
+    let (o, [_, _, m]) = crate::ssi::residual::certified_frame(plane);
+    let a = foot.map(Interval::from_certified);
+    (a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z
 }
 
 /// **The plane read at its pivot** (`SplineImplicitPose::pivot`).
@@ -1652,6 +1658,27 @@ mod tests {
     use crate::ssi::exhaust::UvRect;
     use crate::ssi::residual::ImplicitForm;
 
+    /// **The pivot's lift reads its stored plane on the polar factor**
+    /// (decision 1, PR 7131), the carrier the `Interval` lift reads: on
+    /// 4,096 tilted planes placed out to 10 km, a foot a near-graze
+    /// `≤ 1e-12` off each 10 to 20 km out along its seam, the lift holds
+    /// the foot's double-double height over the polar plane
+    /// ([`crate::ssi::residual::polar_truth`]). Red under the stored
+    /// origin and normal lifted as points and divided by the normal's
+    /// norm (the old `pivot`; first at draw 456), and under them read raw
+    /// (draw 36).
+    #[test]
+    fn a_pivots_lift_reads_its_stored_plane_on_the_polar_factor() {
+        use crate::ssi::residual::polar_truth::{height, holds, poses};
+        for (n, (frame, foot)) in poses(4096, 1e4).into_iter().enumerate() {
+            let lift = super::stored_height(&frame, foot);
+            assert!(
+                holds(lift, height(&frame, foot)),
+                "draw {n}: {lift:?} misses the polar truth"
+            );
+        }
+    }
+
     /// The plane read through `origin` with `normal`, lifted by `lift`
     /// onto the stored plane.
     type Read = (geom::Surface<f64>, ImplicitForm);
@@ -1665,9 +1692,7 @@ mod tests {
     /// the stored plane.
     fn lifted((origin, normal): (Point3<f64>, Vec3<f64>), lift: f64) -> Read {
         let surface = geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(origin, normal, Vec3::new(1.0, 0.0, 0.0)),
         };
         let form = ImplicitForm::of(&surface)
             .unwrap()
