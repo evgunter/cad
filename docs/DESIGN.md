@@ -911,7 +911,12 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is the edge's wedge as tier 3 reads it, one reading for
+  both: an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision. A cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -927,8 +932,6 @@ tiers".
   constant ([tolerance.measure]) counts only what that finish asks: it
   is a backstop against an ask that would not end, not a bound on a
   body, so a carried fact costs it nothing and keeps no count.
-  The embedding question ends at its first finding, a verified crossing
-  or a refusal, and that is its finding.
   Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
