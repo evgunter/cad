@@ -871,12 +871,12 @@ BOUND_AS = {
     # arrives BESIDE it rather than in place of it, `None` on every
     # other arm.
     #
-    # Two values, and they are two different next moves: `plane`
-    # declining is a flatness question at the file's tolerance,
+    # One word per promotable kind, and the kinds lead different places:
+    # `plane` declining is a flatness question at the file's tolerance,
     # `cylinder` declining is an ill-conditioned axis and wants more
-    # of the patch. The match that mints them is exhaustive, so a
-    # third promotable kind stops the bindings compiling instead of
-    # joining one of these.
+    # of the patch. The match that mints them is exhaustive, so a new
+    # promotable kind stops the bindings compiling instead of joining
+    # one of these.
     #
     # No Python test row: firing the arm needs a file with a
     # multi-bound curved face on an ill-conditioned NURBS surface,
@@ -923,7 +923,7 @@ BOUND_AS = {
     # value side's spelling: the carrier projects every field as an
     # attribute, so its discriminant is one of those fields — a word at
     # `kind`, with the one arm's payload beside it at `promoted_to`
-    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # (which analytic kind certified, `PromotedKind`'s own words)
     # and `residual`, `None` on the other four arms. The word does NOT
     # fold the kind in: a caller reading "a patch was promoted" reads
     # `surface_promotion` whichever kind it was, and branches on the
@@ -936,6 +936,11 @@ BOUND_AS = {
     # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
+    # `NormalizationKind::Snapped`'s payload, at the same spelling: which
+    # catalogue construction moved the surface, as `relation` beside the
+    # `kind` word (`coaxial`, `tangent`, `axis_normal`; `None` on every
+    # other arm).
+    "SnapRelation": "StructureNormalization.relation",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -3988,7 +3993,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
-    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
@@ -4000,6 +4004,8 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
+    "StepImportError::NotYetSupported": "StepImportError.variant",
+    "StepImportError::BuildEscalated": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",
@@ -4020,6 +4026,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
+    "TessellateError::BoundaryBoundsNoRegion": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
@@ -4028,8 +4035,10 @@ MEMBERS_BOUND_AS = {
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
     "TessellateError::UnresolvedWinding": "TessellateError.variant",
-    "TessellateError::BoundaryEar": "TessellateError.variant",
+    "TessellateError::UnclearedSharedSide": "TessellateError.variant",
+    "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
+    "TessellateError::WrapStripTurn": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides

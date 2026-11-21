@@ -315,7 +315,7 @@ pub(crate) fn every_edge<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
     all
 }
 
-pub(crate) fn volume<T: Scalar>(body: &Body<T>) -> (f64, f64) {
+pub(crate) fn volume<T: Scalar + topo::CertifiedPolicy>(body: &Body<T>) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),

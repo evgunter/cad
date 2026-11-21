@@ -601,7 +601,7 @@ class StepImportError(PncadError):
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
-    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
     `join`, `singularity_undecided`, `singularity_side_undecided`,
     `singularity_meet_unread`, `interpretation`, `placement`,
@@ -613,7 +613,9 @@ class StepImportError(PncadError):
     sits on a surface whose recognition estimator is ill-conditioned at
     the file's own tolerance, so no answer exists at the interpretation
     budget — and `promoted_kind` carries beside it which analytic
-    kind's estimator declined, `plane` or `cylinder`. The two lead
+    kind's estimator declined, one of `plane`, `cylinder`, `cone`,
+    `sphere` and `torus` (the cylinder's is the one estimator with a
+    conditioning margin, so it is the one that declines). The two lead
     different places: a plane that will not certify is a flatness
     question at the import tolerance, a cylinder that will not is an
     ill-conditioned axis and wants more of the patch. The face and
@@ -4988,7 +4990,14 @@ class StructureNormalization:
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,
     the farthest a face on either of two records of one surface lies
-    from the other's), each `None` on the other arms —
+    from the other's, `snapped`'s, how far the snap catalogue moved a
+    point of a surface's faces (`relation` is which construction moved
+    it: `coaxial`, `tangent` or `axis_normal`; `face` the surface
+    record's entity id), `vertex_built`'s, how far the build moved a
+    vertex from its printed point, whose `face` is then the
+    `VERTEX_POINT`'s entity id, and `carrier_built`'s, how far the printed
+    carrier stands off the one the build constructed, whose `face` is the
+    `EDGE_CURVE`'s), each `None` on the other arms —
     present on every row, so a read never raises and a caller never has
     to branch on `kind` first. On `placement_re_minted`, `face` is the
     transformation's entity id, the row naming no face."""
@@ -5007,6 +5016,8 @@ class StructureNormalization:
     def joined(self) -> Optional[int]: ...
     @property
     def singularity(self) -> Optional[str]: ...
+    @property
+    def relation(self) -> Optional[str]: ...
     @property
     def transform(self) -> Optional[int]: ...
     @property

@@ -577,18 +577,21 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
 
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
-    let geom::Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
+    let geom::Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = carrier
     else {
         panic!("a meridian great circle")
     };
+    let radius = conic_k.radius();
     // Which seam: the azimuth-0 meridian's plane holds the chart's seam
     // direction, the other's its quadrature partner.
     let planted_at_zero = axis.dot(ch.3).abs() < 1e-9;

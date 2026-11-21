@@ -421,6 +421,9 @@ pub(crate) struct RuledCylinders<T: Real> {
     pub(crate) gap: T,
     pub(crate) cos: T,
     pub(crate) beta: T,
+    /// The ruled wall's curvature arm: the thinner wall's, the lesser
+    /// of the two.
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 impl<T: Real> RuledCylinders<T> {
@@ -459,7 +462,7 @@ impl<T: Real> RuledCylinders<T> {
 
 impl<T: Real> Ruled<T> for RuledCylinders<T> {
     fn lever(&self) -> geom_core::Lever<T> {
-        geom_core::Lever::curvature_radius(self.rho)
+        self.lever
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
@@ -534,6 +537,8 @@ pub(crate) struct RuledCylinderSphere<T: Real> {
     pub(crate) d: T,
     /// The sphere's radius.
     pub(crate) big_r: T,
+    /// The cylinder's curvature arm.
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 impl<T: Real> RuledCylinderSphere<T> {
@@ -568,7 +573,7 @@ impl<T: Real> RuledCylinderSphere<T> {
 
 impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
     fn lever(&self) -> geom_core::Lever<T> {
-        geom_core::Lever::curvature_radius(self.r)
+        self.lever
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {

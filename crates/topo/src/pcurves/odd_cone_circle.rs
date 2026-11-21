@@ -38,7 +38,14 @@ fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
             h * alpha.tan(),
             Vec3::new(1.0, 0.0, 0.0),
         );
-        match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
+        match analytic_derive(
+            &circle,
+            (0.0, tau),
+            geom_brep::SingularEnds::default(),
+            &cone,
+            band,
+            HalfEdgeKey::default(),
+        ) {
             Ok(image) => {
                 assert!(
                     tilt < 0.3,

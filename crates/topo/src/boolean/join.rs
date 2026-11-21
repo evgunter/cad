@@ -172,8 +172,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, RimSide, SegmentCurve,
-    SegmentEdge,
+    ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::{NormalAtError, face_outward_normal};
@@ -344,7 +343,7 @@ struct SegmentPair<T: geom_core::Real> {
     site_loop: Option<SectionLoop<T>>,
 }
 
-impl<T: Decide> SegmentPair<T> {
+impl<T: crate::props::AtRestPolicy> SegmentPair<T> {
     /// The pair `seg`'s germ was recorded against, read in `red`.
     fn read(
         red: &BooleanReduction<T>,
@@ -649,7 +648,7 @@ impl SolidJoin {
         curve: &SegmentCurve<T>,
         segment: Option<EdgeKey>,
         tol: Tol,
-    ) -> Result<(), BooleanError> {
+    ) -> Result<Vec<EdgeKey>, BooleanError> {
         let reordered;
         let plan = if roles == plan.halves() {
             plan
@@ -659,10 +658,9 @@ impl SolidJoin {
         };
         let minted = self.joiner.join(body, plan, curve, tol).map_err(of_join)?;
         if let Some(edge) = segment {
-            self.along
-                .extend(minted.into_iter().map(|chord| (edge, chord)));
+            self.along.extend(minted.iter().map(|&chord| (edge, chord)));
         }
-        Ok(())
+        Ok(minted)
     }
 }
 
@@ -685,7 +683,11 @@ fn of_join(refusal: JoinError) -> BooleanError {
 }
 
 impl SolidJoin {
-    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
+    fn new<T: crate::props::AtRestPolicy>(
+        red: &BooleanReduction<T>,
+        operand: Operand,
+        band: Band,
+    ) -> Self {
         Self {
             joiner: ChordJoiner::new(band),
             sides: Sides::new(red, operand),
@@ -704,7 +706,7 @@ struct Sides {
 }
 
 impl Sides {
-    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand) -> Self {
+    fn new<T: crate::props::AtRestPolicy>(red: &BooleanReduction<T>, operand: Operand) -> Self {
         let mut in_set = SecondaryMap::new();
         let mut out_set = SecondaryMap::new();
         for r in red.null_edges_of(operand) {
@@ -817,7 +819,9 @@ impl SegmentLane {
 
 /// Every pair record with its germs, none consumed, in `red.null_pairs`
 /// order.
-fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T>>, BooleanError> {
+fn open_records<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+) -> Result<Vec<OpenRecord<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     // Per-operand germ maps (edge keys are body-lineage-scoped — one
     // map across both bodies would collide).
@@ -851,7 +855,7 @@ fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T
 /// **Every segment the join builds**: the matched ones
 /// ([`matched_records`]), then each one-site loop
 /// ([`one_site_segments`]).
-pub(super) fn join_segments<T: Decide>(
+pub(super) fn join_segments<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
@@ -868,7 +872,7 @@ pub(super) fn join_segments<T: Decide>(
 /// Reads the records and the annotated clones' site points; the surgery
 /// changes neither.
 #[allow(clippy::type_complexity)] // (segments, records)
-fn matched_records<T: Decide>(
+fn matched_records<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<(Vec<SectionSegment<T>>, Vec<OpenRecord<T>>), BooleanError> {
@@ -897,7 +901,7 @@ fn matched_records<T: Decide>(
 /// names, `None` for a pair the join reads by its carried components
 /// and not by a frame ([`rides_carried`]).
 #[allow(clippy::type_complexity)] // (germ, its loop)
-fn one_site<T: Decide>(
+fn one_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     rec: &OpenRecord<T>,
     band: Band,
@@ -916,7 +920,7 @@ fn one_site<T: Decide>(
 }
 
 /// The site of an A germ.
-fn germ_site<T: Decide>(
+fn germ_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Point3<T>, BooleanError> {
@@ -936,36 +940,54 @@ fn germ_site<T: Decide>(
 ///
 /// - **a transverse section of a one-face closed wall** that crosses the
 ///   wall's wrap edge (both its halves bound that face) once, piercing
-///   the partner's planar face there, or meeting a vertex of its
-///   boundary, where the loop only touches that boundary (a wall
-///   tangent to a hole's along the wrap edge);
+///   a face of the partner there, or meeting a vertex of its boundary,
+///   where the loop only touches that boundary (a wall tangent to a
+///   hole's along the wrap edge);
 /// - **a closed edge lying in the partner** (a one-segment circle or
 ///   ellipse, both of whose ends are its one vertex): the loop is that
 ///   edge, and the
-///   site is its vertex. The partner holds it inside a planar or a
-///   spherical face, whose interior the site pierces; inside a planar
+///   site is its vertex. The partner holds it inside a face, whose
+///   interior the site pierces; inside a planar
 ///   face whose boundary passes through the site, where the loop only
-///   touches that boundary (two rims tangent at their vertices); or
-///   along a closed edge of its own through the same site.
+///   touches that boundary (two rims tangent at their vertices); on a
+///   one-face closed wall's wrap edge; or along a closed edge of its own
+///   through the same site.
 ///
 /// Read from the records [`matched_records`]' quiescence left. Every
 /// other [`one_site`] record is left for the
-/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
-/// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, a site where a pierce meets an edge of another face, a
-/// transverse section or a closed edge meets one in a curved face, and
-/// a closed edge on a carrier the joiner does not copy whole
-/// (`crate::chord_join::copies_closed_edge`).
+/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce or a boundary
+/// vertex of a face the joiner sides no closed loop in
+/// (`crate::chord_join::reads_loop_side`), a site on both operands' wrap
+/// edges, a site where a pierce meets an edge of another face, a closed
+/// edge meeting one in a curved face, and a closed edge on a carrier the
+/// joiner does not copy whole (`crate::chord_join::copies_closed_edge`).
 ///
-/// Where a record is taken, three things are kernel bugs, refused as
+/// A record is read on its section's frame where the pair has one, and
+/// otherwise on the component of its carried section both germs stand
+/// on ([`carried_foot`]), read only once [`closes_at_its_site`] admits it.
+///
+/// A pierced face holds the loop as a disc of its own: a loop that winds
+/// round the face's surface (round its axis, or a torus's meridian round
+/// the tube) meets the face's seam, since an at-rest face is one disc of
+/// its chart, and reaches no pierce cell. That premise is tier 3's, and a
+/// seamless band would break it
+/// (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`).
+/// A frame's loop is a closed conic, which winds round every cylinder,
+/// cone and torus, so a frame record piercing one is a kernel fault; a
+/// carried record's component, or the node-joined set holding it, says
+/// whether it winds ([`component_winds`]).
+///
+/// Where a record is taken, these are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
 /// on the same loop of its section ([`SectionLoops`]; each loop is one
 /// closed curve, which the record's two germs then cover alone, while a
 /// section of two loops, the plane×torus pair's, carries the other
 /// loop's records); B germs whose loci are not the A germs'; and two
-/// germs that agree in sense or turn one way round the loop (insertion
-/// mints a null edge's two germs facing apart).
-fn one_site_segments<T: Decide>(
+/// germs that agree in sense or turn one way round the loop, read about
+/// the frame's axis or along the carried component (insertion mints a
+/// null edge's two germs facing apart), or stand on two components; and
+/// a loop piercing a face whose surface it winds round.
+fn one_site_segments<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
     band: Band,
@@ -974,15 +996,62 @@ fn one_site_segments<T: Decide>(
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        // A pair the join reads from the section table closes at no one
-        // site this join builds: every closing [`closes_at_its_site`]
-        // admits has a planar partner or a closed edge. Its record is
-        // left to the refusal.
-        let Some((g0, Some(frame))) = one_site(red, rec, band)? else {
+        let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
         };
         if !closes_at_its_site(red, &g0, rec.b[0].0.he, band)? {
             continue;
+        }
+        let g1 = rec.a[1].0;
+        let pierced = pierced_face(red, &g0, rec.b[0].0.he)?;
+        let winds_round = || BooleanError::JoinDesync {
+            what: "a one-site loop pierces a face whose surface it winds round: an at-rest face \
+                   is one disc of its chart, so a winding loop meets the face's seam",
+        };
+        match frame {
+            // A frame's loop is a closed conic, and every closed conic on
+            // a cylinder, a cone or a torus winds round it.
+            Some(_) => {
+                if let Some((x, f)) = pierced {
+                    let body = if x == Operand::A { &red.a } else { &red.b };
+                    if matches!(
+                        keyed_surface(body, f).1.kind(),
+                        geom::SurfaceKind::Cylinder
+                            | geom::SurfaceKind::Cone
+                            | geom::SurfaceKind::Torus
+                    ) {
+                        return Err(winds_round());
+                    }
+                }
+            }
+            // A record on a carried section is read on its component:
+            // both germs stand on the one component and leave it opposite
+            // ways, and the component, or the node-joined set holding it,
+            // says whether it winds round each surface.
+            None => {
+                let section = germ_section(red, &g0)?.ok_or_else(unheld_section)?;
+                let p = germ_site(red, &g0)?;
+                let foot = |g: &HalfGerm<T>| {
+                    carried_foot((&red.sections, &red.a, &red.b), section, (g, p), band)
+                };
+                let ((f0, up0), (f1, up1)) = (foot(&g0)?, foot(&g1)?);
+                if f0.component != f1.component {
+                    return Err(desync(
+                        "a one-site record's two germs stand on two components of its section",
+                    ));
+                }
+                if up0 == up1 {
+                    return Err(desync(
+                        "a one-site record's two germs turn one way round its loop",
+                    ));
+                }
+                if let Some((x, _)) = pierced
+                    && component_winds(red, &g0, section, f0.component)?
+                        [usize::from(x == Operand::B)]
+                {
+                    return Err(winds_round());
+                }
+            }
         }
         for (_, other) in open.iter().enumerate().filter(|&(o, _)| o != r) {
             for (g, _) in &other.a {
@@ -993,7 +1062,6 @@ fn one_site_segments<T: Decide>(
                 }
             }
         }
-        let g1 = rec.a[1].0;
         if rec
             .b
             .iter()
@@ -1006,15 +1074,17 @@ fn one_site_segments<T: Decide>(
         {
             return Err(desync("a one-site record's two germs agree in sense"));
         }
-        let p = germ_site(red, &g0)?;
-        let senses = (
-            rotational_sense(frame.axis, p, g0.dir, band)?,
-            rotational_sense(frame.axis, p, g1.dir, band)?,
-        );
-        if senses.0 == senses.1 {
-            return Err(desync(
-                "a one-site record's two germs turn one way round its loop",
-            ));
+        if let Some(frame) = frame {
+            let p = germ_site(red, &g0)?;
+            let senses = (
+                rotational_sense(frame.axis, p, g0.dir, band)?,
+                rotational_sense(frame.axis, p, g1.dir, band)?,
+            );
+            if senses.0 == senses.1 {
+                return Err(desync(
+                    "a one-site record's two germs turn one way round its loop",
+                ));
+            }
         }
         out.push(SectionSegment {
             ends: [(r, 0), (r, 1)],
@@ -1027,51 +1097,107 @@ fn one_site_segments<T: Decide>(
 
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
-/// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face or a vertex of its boundary, or a closed circle or
-/// ellipse against a pierce of a face [`RimSide::of`] sides, against a
-/// vertex on the boundary of a planar face it stands on from the other
-/// side ([`stands_on`]), or against another closed circle or ellipse.
-/// At a boundary vertex the germ's cell is the face, so the loop leaves
-/// the vertex into the face and
-/// returns to it; the joiner mints it in that face as one chord from the
-/// vertex round to itself, dividing the face
-/// (`crate::chord_join::ChordJoiner`'s null strut). A closed edge of
-/// any other carrier has no copy, and its loop is refused. A pierce is
-/// joined in its face as a ring of its own
-/// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
-/// [`RimSide`]; the transverse section's conic is the wall's, not a
-/// plane section, so only a planar face takes it.
-fn closes_at_its_site<T: Decide>(
+/// on each operand ([`site_cell`]): a wrap edge or a closed circle or
+/// ellipse against a pierce of a face, or a wrap edge against a vertex of
+/// its boundary, where the face is one the chord joiner sides a closed
+/// loop in ([`crate::chord_join::reads_loop_side`]); a closed circle or
+/// ellipse against a vertex on the boundary of a planar face it stands on
+/// from the other side ([`stands_on`]), against a wrap edge, or against
+/// another closed circle or ellipse. Against a wrap edge the closed
+/// edge's side copies it whole and the wall's side runs from the site
+/// round the wall back to it, as a transverse section's does, whatever
+/// the wall's kind: that holds for a loop that winds round the wall,
+/// crossing its wrap edge at the site. A loop that only touches the wrap
+/// edge there, winding round nothing, never reaches this table: the
+/// crossing layer escalates the tangent touch first. At a boundary
+/// vertex the germ's cell is the face, so
+/// the loop leaves the vertex into the face and returns to it; the joiner
+/// mints it in that face as one chord from the vertex round to itself,
+/// dividing the face (`crate::chord_join::ChordJoiner`'s null strut). A
+/// closed edge of any other carrier has no copy, and its loop is refused.
+/// A pierce is joined in its face as a ring of its own
+/// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
+/// [`crate::chord_join::loop_holds_outer`].
+fn closes_at_its_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
     b_he: HalfEdgeKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let rim = |body: &Body<T>, f: FaceKey| RimSide::of(keyed_surface(body, f).1);
+    let reads =
+        |body: &Body<T>, f: FaceKey| crate::chord_join::reads_loop_side(keyed_surface(body, f).1);
+    let planar = |body: &Body<T>, f: FaceKey| {
+        matches!(keyed_surface(body, f).1, geom::Surface::Plane { .. })
+    };
+    let cells = (
+        site_cell(&red.a, g0.a_locus, g0.he)?,
+        site_cell(&red.b, g0.b_locus, b_he)?,
+    );
+    Ok(match cells {
+        (SiteCell::Wrap | SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => reads(&red.b, f),
+        (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
+        (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_))) => reads(&red.a, f),
+        (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
+        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
+        (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
+        (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+        (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
+            planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
+        }
+        (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
+            planar(&red.a, f) && stands_on(red, (Operand::B, e), f, band)?
+        }
+        _ => false,
+    })
+}
+
+/// **The face a one-site record's site pierces**, and its operand:
+/// `None` where neither germ's cell is a pierce ([`site_cell`]).
+fn pierced_face<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    b_he: HalfEdgeKey,
+) -> Result<Option<(Operand, FaceKey)>, BooleanError> {
     Ok(
         match (
             site_cell(&red.a, g0.a_locus, g0.he)?,
             site_cell(&red.b, g0.b_locus, b_he)?,
         ) {
-            (SiteCell::Wrap, SiteCell::Pierce(f) | SiteCell::Other(f)) => {
-                rim(&red.b, f) == Some(RimSide::Plane)
-            }
-            (SiteCell::Pierce(f) | SiteCell::Other(f), SiteCell::Wrap) => {
-                rim(&red.a, f) == Some(RimSide::Plane)
-            }
-            (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f).is_some(),
-            (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f).is_some(),
-            (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
-            (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
-                rim(&red.b, f) == Some(RimSide::Plane) && stands_on(red, (Operand::A, e), f, band)?
-            }
-            (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
-                rim(&red.a, f) == Some(RimSide::Plane) && stands_on(red, (Operand::B, e), f, band)?
-            }
-            _ => false,
+            (_, SiteCell::Pierce(f)) => Some((Operand::B, f)),
+            (SiteCell::Pierce(f), _) => Some((Operand::A, f)),
+            _ => None,
         },
     )
+}
+
+/// **Whether carried component `k` of `g0`'s section winds round each
+/// surface** (A's, then B's): its node-joined set's claim where it is an
+/// arc of one ([`geom_brep::PairSection::node_sets`]), its own otherwise
+/// ([`geom_brep::CarriedComponent::winds`]).
+fn component_winds<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+    g0: &HalfGerm<T>,
+    section: &geom_brep::CarriedSection<T>,
+    k: usize,
+) -> Result<[bool; 2], BooleanError> {
+    let own = section
+        .components()
+        .get(k)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a one-site record's foot names no component of its carried section",
+        })?
+        .winds;
+    let listed = red
+        .sections
+        .listed((&red.a, g0.a_face), (&red.b, g0.b_face));
+    Ok(match listed {
+        Some(Ok(listed)) => listed
+            .node_sets()
+            .iter()
+            .find(|set| set.arcs.contains(&k))
+            .map_or(own, |set| set.winds),
+        _ => own,
+    })
 }
 
 /// **Whether closed edge `e` of operand `x` stands on planar face `f` of
@@ -1084,8 +1210,8 @@ fn closes_at_its_site<T: Decide>(
 /// both faces facing one way, is not: joined there, the piece of the
 /// face the rim walls off is bounded by the copy's half that runs
 /// against the rim's own
-/// (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
-fn stands_on<T: Decide>(
+/// (`work/tang/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+fn stands_on<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
     f: FaceKey,
@@ -1765,7 +1891,17 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 band,
             )
             .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
-        sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
+        let minted = sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
+        // B's chords are copies of A's first on the same section: the
+        // edge door reads its locus certificate where the support is a
+        // chord's of B's (`Body::certify_edge_spec`).
+        let mut curve_b = curve_b;
+        curve_b.keep(minted.first().and_then(|&chord| {
+            red.a
+                .stored_curve_as(chord, crate::live::Arg("chord"))
+                .ok()
+                .and_then(|curve| curve.locus_certificate().cloned())
+        }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
             open[r].a[slot].1 = true;
@@ -2289,7 +2425,7 @@ type Met<T> = (usize, PartnerDistance<T>, (Slot, Slot));
 /// equally near refuse ([`BooleanError::JoinPartnersTied`],
 /// [`own_nearest`]); a tie between two germs' pairs is free only where
 /// the round is all mutual, and refuses elsewhere ([`first_pair`]).
-fn find_match<T: Decide>(
+fn find_match<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
@@ -2463,7 +2599,7 @@ fn first_pair<T: Decide>(
 /// same loci, opposed senses — or the join has desynced. `Some(reach)`
 /// when they are partners — how far the partner is along the germ's
 /// line ([`PartnerDistance`]). Two slots of one record never are.
-fn partners<T: Decide>(
+fn partners<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
@@ -2567,7 +2703,7 @@ fn partners<T: Decide>(
 /// **Whether `germ`'s face pair is two cones through one apex**
 /// ([`KindArm::Apex`]): their section is two rulings through it, each a
 /// straight line of its own ([`partners`]).
-fn two_rulings<T: Decide>(
+fn two_rulings<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -2670,7 +2806,7 @@ fn along_edge_conic<T: Decide>(
 /// ([`pair_reading`]): the line pair is straight, a loop its frame, and
 /// a section with no frame refuses as the frame does. Nothing re-reads
 /// the pair here, so the join and the mint cannot disagree.
-fn germ_loops<T: Decide>(
+fn germ_loops<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -2714,7 +2850,7 @@ fn germ_loops<T: Decide>(
 /// Section escalations propagate; non-escalation classification
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
-fn germ_section_loops<T: Decide>(
+fn germ_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (a, b): (&Body<T>, &Body<T>),
     germ: &HalfGerm<T>,
@@ -2753,7 +2889,7 @@ fn germ_section_loops<T: Decide>(
 /// consumed ([`frame_reading`]) and levered at the consumed region's
 /// measure ([`frame_extent`]): [`germ_section_loops`] for a germ lying
 /// inside a face of each operand.
-pub(super) fn face_pair_section_loops<T: Decide>(
+pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -2797,7 +2933,7 @@ fn frame_lever<T: Decide>(
 
 /// **The germ's own loop** of its pair's section
 /// ([`germ_section_loops`]), the one its branch names.
-fn germ_section_frame<T: Decide>(
+fn germ_section_frame<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -3364,7 +3500,7 @@ impl<T: Decide> SectionLoops<T> {
 /// section, which names no arc: an operand's edge through the node. The
 /// section's own refusals ([`frame_refusal`]), the split's escalation
 /// and desync; [`apex_line`]'s, for a germ on the apex line pair.
-pub(super) fn germ_branch<T: Decide>(
+pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3466,7 +3602,7 @@ pub(super) fn germ_branch<T: Decide>(
 /// along both or neither, is a desync: the pair was decided the line
 /// pair, its lines a definite angle apart, and the germ was minted on
 /// it, along a line.
-fn apex_line<T: Decide>(
+fn apex_line<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3489,7 +3625,7 @@ fn apex_line<T: Decide>(
 ///
 /// The reading's refusal ([`frame_refusal`]); a face that does not
 /// resolve, and [`frame_lever`]'s desync.
-fn pair_reading<T: Decide>(
+fn pair_reading<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
@@ -3596,7 +3732,7 @@ pub(super) fn line_of<T: Decide>(
 ///
 /// [`section_unbuilt`]: the pair's section refused at the glue door, or
 /// it did not carry.
-fn germ_section<'r, T: Decide>(
+fn germ_section<'r, T: crate::props::AtRestPolicy>(
     red: &'r BooleanReduction<T>,
     germ: &HalfGerm<T>,
 ) -> Result<Option<&'r geom_brep::CarriedSection<T>>, BooleanError> {
@@ -3623,7 +3759,7 @@ fn germ_section<'r, T: Decide>(
 /// [`section_unbuilt`] and the site's reading ([`site_refusal`]); a
 /// desync where a carried segment's germ pair holds no section, or an
 /// end of it lies on another component than its germ's branch names.
-fn carried_seats<T: Decide>(
+fn carried_seats<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     open: &[OpenRecord<T>],
     segments: &[SectionSegment<T>],
@@ -3709,7 +3845,7 @@ struct SeatedCarried<T: geom_core::Real> {
 ///
 /// [`section_unbuilt`] for a section that did not carry or a component
 /// that did not seat; a desync where the germ's pair holds no section.
-fn carried_component<T: Decide>(
+fn carried_component<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     k: usize,
@@ -3786,7 +3922,7 @@ pub(super) fn section_unbuilt(
 /// The pair's section refused at the glue door ([`faces_section_unbuilt`]);
 /// a desync for a cylinder pair the table does not hold, since the table
 /// holds every pair of overlapping faces the join meets.
-pub(super) fn cylinder_read<T: Decide>(
+pub(super) fn cylinder_read<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3825,7 +3961,7 @@ pub(super) fn cylinder_read<T: Decide>(
 /// edge of one solid where its mint named a component of the pair's
 /// section ([`germ_branch`], which read the pair the same way); one along
 /// an edge of both solids never.
-fn germ_rides_carried<T: Decide>(
+fn germ_rides_carried<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3845,7 +3981,7 @@ fn germ_rides_carried<T: Decide>(
 /// every pose, so a pose added to the value decides here before any of
 /// its components rides. A held refusal rides too: the join reads it
 /// where it carries the pair ([`faces_section_unbuilt`]).
-fn rides_carried<T: Decide>(
+fn rides_carried<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
     b: (&Body<T>, FaceKey),
@@ -3974,9 +4110,9 @@ fn conic_section_frame_at<T: Decide>(
     if let Some((plane, cone)) = plane_and_cone(sa, sb) {
         return pk_germ_frame(plane, cone, extent, band);
     }
-    let (plane_s, cyl_s, radius) = match (sa, sb) {
-        (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (sa, sb, *radius),
-        (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (sb, sa, *radius),
+    let (plane_s, cyl_s) = match (sa, sb) {
+        (Sf::Plane { .. }, Sf::Cylinder { .. }) => (sa, sb),
+        (Sf::Cylinder { .. }, Sf::Plane { .. }) => (sb, sa),
         // The sphere germ pair (M5 S13): the C5 Circle's frame,
         // through THE table — same escalation plumbing.
         (Sf::Plane { .. }, Sf::Sphere { .. }) | (Sf::Sphere { .. }, Sf::Plane { .. }) => {
@@ -4072,7 +4208,7 @@ fn conic_section_frame_at<T: Decide>(
         FrameExtent::Radii => geom_brep::plane_cylinder_section(
             plane_s,
             cyl_s,
-            &geom_brep::Reach::of_frame(at, (radius, radius)),
+            &geom_brep::Reach::of_frame(at, cyl_s),
             band,
         ),
         FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
@@ -4404,41 +4540,24 @@ enum Faced<T: geom_core::Real> {
     Along(Along<T>),
 }
 
-/// **Whether two germs face each other along their section's
-/// component** ([`super::section_table`]), each a germ and its site:
-/// each site's foot on the component it lies on
-/// ([`geom_brep::CarriedSection::site`]; a germ at a node stands at the
-/// end of the arc its branch names, leaving along it), read here at the germ's
-/// half-edge's start, which must name the component its germ's branch
-/// was minted from (at the mint's own reading of the site,
-/// [`germ_branch`]); and the direction each germ leaves along
-/// its component, decided on the germ's direction against the carrier's
-/// tangent there (`bool_join_foot_heading`, the cosine levered by the
-/// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
-/// germ's foot and heading are its own, read once for the operation
-/// ([`super::section_table::SectionTable::germ_foot`]); both germs are
-/// A's halves, the B halves at their slots being mirror checks
-/// ([`partners`]). Two germs whose branches name different
-/// components (each its site's foot's, [`germ_branch`]), or leaving the
-/// same way, never face. A closed component is travelled round; on an
-/// open one the partner's foot must lie ahead. `Along` carries the
-/// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
+/// **Where `germ`, at its site `p`, stands on its carried section and
+/// which way it leaves along it** ([`along_facing`]'s reading of one
+/// germ): its foot on the component its branch names, and whether it
+/// heads along the carrier's tangent there (`bool_join_foot_heading`),
+/// read once for the operation
+/// ([`super::section_table::SectionTable::germ_foot`]).
 ///
 /// # Errors
 ///
 /// A site's escalation or desync; a germ with no heading along its
 /// component, a desync.
-fn along_facing<T: Decide>(
+fn carried_foot<T: crate::props::AtRestPolicy>(
     (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
     section: &geom_brep::CarriedSection<T>,
-    (g1, p1): (&HalfGerm<T>, Point3<T>),
-    (g2, p2): (&HalfGerm<T>, Point3<T>),
+    (germ, p): (&HalfGerm<T>, Point3<T>),
     band: Band,
-) -> Result<Faced<T>, BooleanError> {
+) -> Result<(geom_brep::SiteFoot<T>, bool), BooleanError> {
     use super::section_table::{FootRefusal, GermFoot};
-    if g1.branch != g2.branch {
-        return Ok(Faced::Apart);
-    }
     let desync = |what| BooleanError::JoinDesync { what };
     let read = |germ: &HalfGerm<T>, p| -> Result<GermFoot<T>, FootRefusal> {
         let foot = match section.site(p, band).map_err(FootRefusal::Site)? {
@@ -4485,7 +4604,7 @@ fn along_facing<T: Decide>(
             Err(diag) => Err(FootRefusal::Heading(diag)),
         }
     };
-    let foot = |germ: &HalfGerm<T>, p| {
+    let foot = |germ: &HalfGerm<T>, p: Point3<T>| {
         table
             .germ_foot(
                 (Operand::A, germ.he),
@@ -4500,6 +4619,45 @@ fn along_facing<T: Decide>(
                 FootRefusal::Desync(what) => desync(what),
             })
     };
+    foot(germ, p)
+}
+
+/// **Whether two germs face each other along their section's
+/// component** ([`super::section_table`]), each a germ and its site:
+/// each site's foot on the component it lies on
+/// ([`geom_brep::CarriedSection::site`]; a germ at a node stands at the
+/// end of the arc its branch names, leaving along it), read here at the germ's
+/// half-edge's start, which must name the component its germ's branch
+/// was minted from (at the mint's own reading of the site,
+/// [`germ_branch`]); and the direction each germ leaves along
+/// its component, decided on the germ's direction against the carrier's
+/// tangent there (`bool_join_foot_heading`, the cosine levered by the
+/// section's own scale, [`geom_brep::CarriedSection::lever`]). Each
+/// germ's foot and heading are its own, read once for the operation
+/// ([`super::section_table::SectionTable::germ_foot`]); both germs are
+/// A's halves, the B halves at their slots being mirror checks
+/// ([`partners`]). Two germs whose branches name different
+/// components (each its site's foot's, [`germ_branch`]), or leaving the
+/// same way, never face. A closed component is travelled round; on an
+/// open one the partner's foot must lie ahead. `Along` carries the
+/// carrier's parameter from `g1`'s foot to `g2`'s, the way `g1` leaves.
+///
+/// # Errors
+///
+/// A site's escalation or desync; a germ with no heading along its
+/// component, a desync.
+fn along_facing<T: crate::props::AtRestPolicy>(
+    (table, a, b): (&super::section_table::SectionTable<T>, &Body<T>, &Body<T>),
+    section: &geom_brep::CarriedSection<T>,
+    (g1, p1): (&HalfGerm<T>, Point3<T>),
+    (g2, p2): (&HalfGerm<T>, Point3<T>),
+    band: Band,
+) -> Result<Faced<T>, BooleanError> {
+    if g1.branch != g2.branch {
+        return Ok(Faced::Apart);
+    }
+    let desync = |what| BooleanError::JoinDesync { what };
+    let foot = |germ: &HalfGerm<T>, p| carried_foot((table, a, b), section, (germ, p), band);
     let ((f1, up1), (f2, up2)) = (foot(g1, p1)?, foot(g2, p2)?);
     if up1 == up2 {
         return Ok(Faced::Apart);
@@ -4588,7 +4746,7 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// record's), are each other's: its segment ([`one_site_segments`])
 /// runs from one round the loop to the other. A loose half with no
 /// partner maps to `None` (conservatively separated wherever captured).
-fn loose_partners<T: Decide>(
+fn loose_partners<T: crate::props::AtRestPolicy>(
     open: &[OpenRecord<T>],
     segments: &[SectionSegment<T>],
     red: &BooleanReduction<T>,
@@ -5049,7 +5207,7 @@ fn run_spline_edge<T: Decide>(
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
 /// run that passes neither, is returned as it is.
-fn pinch_ray_refusal<T: geom_core::Real>(
+fn pinch_ray_refusal<T: crate::props::AtRestPolicy>(
     e: BooleanError,
     red: &BooleanReduction<T>,
     side: Operand,
@@ -5109,7 +5267,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
 /// `side`'s own at the vertex, else the other's at a vertex the other
 /// holds there, a vertex pair's partner or a pierce the vertex's ring
 /// serves. A null edge's copy of a vertex reads as the vertex.
-fn slit_tip_on<T: geom_core::Real>(
+fn slit_tip_on<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     vertices: impl IntoIterator<Item = VertexKey>,
@@ -5158,7 +5316,7 @@ fn slit_tip_on<T: geom_core::Real>(
 /// it. A run both of whose arcs separate a pending pair refuses
 /// [`BooleanError::SlitFaceGlued`] ([`super::SlitFaceGap::ArcsSeparate`]);
 /// every other refusal is [`pinch_ray_refusal`]'s.
-fn glued_slit_roles<T: Decide>(
+fn glued_slit_roles<T: crate::props::AtRestPolicy>(
     e: BooleanError,
     red: &BooleanReduction<T>,
     side: Operand,
@@ -5197,7 +5355,7 @@ fn glued_slit_roles<T: Decide>(
 /// counterclockwise where the chord leaves `start(h1)` along the first
 /// germ, or reaches `end(h2)` along the second. `None` where neither end
 /// faces a tied germ, or the two ends read different ties that disagree.
-fn tie_winding<T: geom_core::Real>(
+fn tie_winding<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -5365,7 +5523,7 @@ fn best_arc<T: Decide>(
 /// Cut the corresponding null edges in both solids; completions must
 /// coincide (lockstep). Roles stay UNRESOLVED here (resolved at
 /// quiescence — see `bool_connect`).
-fn cut_pair<T: Decide>(
+fn cut_pair<T: crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     sa: &mut SolidJoin,
     sb: &mut SolidJoin,
@@ -5503,7 +5661,7 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// one slit or ring of the other operand's: both its ends are tips of
 /// that operand's slits in one face ([`slit_tip_on`]), so its one
 /// segment is the slit's line.
-fn sliver_along_a_slit<T: Decide>(
+fn sliver_along_a_slit<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
     face: FaceKey,
@@ -5874,7 +6032,7 @@ impl HoldingUnread {
 /// read a germ ([`seam_germ_side`]). A crossing's two flanks can both do
 /// that only where no region face offers an interior witness off it.
 /// One such face is curved
-/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// (`work/cleavetail/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// Another is planar, with an inward line from each edge's midpoint that
 /// meets no line or conic carrier beyond the band (`crate::stands`,
 /// rung 3), such as one whose nearest boundary there is a spline or a
@@ -7194,7 +7352,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None::<geom_core::NoLane>, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();
@@ -7219,11 +7377,13 @@ mod frame_dispatch_tests {
         let k = b.escalate() / b.zero();
         assert!(
             text.starts_with("whether a cylinder's radius is positive is undecided: ")
-                && text.contains(&format!(
+                && text.contains(
                     "Recourse: make the cylinder's radius clearly larger than the tolerance, \
-                     or, if this radius is intended, tighten the tolerance below {:e} m",
-                    mid / k
-                ))
+                     or, if this radius is intended, tighten the tolerance below "
+                )
+                && geom_core::test_support::offered_tolerance(&text).is_some_and(|offered| {
+                    geom_core::test_support::is_told_offer_of(offered, mid / k)
+                })
                 && !text.contains("declare"),
             "{text}"
         );
@@ -7405,19 +7565,21 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(geom::Ellipse {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                u_ref,
-                            },
-                        semi_u,
-                        semi_v,
-                    }) = *e
+                    let geom::Curve3::Ellipse(
+                        conic_k @ geom::Ellipse {
+                            frame:
+                                geom::Frame {
+                                    origin: center,
+                                    axis,
+                                    u_ref,
+                                },
+                            ..
+                        },
+                    ) = *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:
                     // an exact round trip iff the point is ON the

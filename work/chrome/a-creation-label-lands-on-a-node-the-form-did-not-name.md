@@ -16,7 +16,7 @@ Found driving the viewer (2026-10-31; Ev: file it). A creation form's label fiel
 - **Mirror.** The mirror form's label reads `Mirror 1` until a face is picked, then `Union 1`. The committed Union gets it and the Mirror node is unlabelled (`Mirror aa8bedaa77d7` in the tree).
 - **Pattern.** The pattern form's label defaults to `Place 2`: it counts the Place node the op mints, not the pattern a person asked for.
 
-In each, a form that mints more than one node labels the last, and the default counts by that node's kind (`ViewerBehavior::tool_noun`, `push_labelled`, `crates/viewer/src/pane/create.rs`). Related: `work/wiretail/the-seated-tools-label-nouns-are-not-pinned-to-the-nodes-they-mint.md` (P4, pins the nouns to the minted nodes; this row is about which node gets the label).
+In each, a form that mints more than one node labels the last, and the default counts by that node's kind (`ViewerBehavior::tool_noun`, `push_labelled`, `crates/viewer/src/pane/create.rs`). Related: `work/refs/the-seated-tools-label-nouns-are-not-pinned-to-the-nodes-they-mint.md` (P4, pins the nouns to the minted nodes; this row is about which node gets the label).
 
 Replay with `cargo run --release -p viewer --features app --example drive -- script.txt`.
 

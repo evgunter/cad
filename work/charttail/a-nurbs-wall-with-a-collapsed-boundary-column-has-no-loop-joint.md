@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P1
 cost: H
+design: true
 ---
 
 Filed by CARVE's `carve/pinned-corners` lane (phase 1 of

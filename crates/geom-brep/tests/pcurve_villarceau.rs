@@ -443,18 +443,21 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
         "the crest circle's envelope is inside the band"
     );
 
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: c,
-                axis: n,
-                u_ref: e,
-            },
-        radius,
-    }) = villarceau(0.4, 1.0, 1.0, 0.0)
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: c,
+                    axis: n,
+                    u_ref: e,
+                },
+            ..
+        },
+    ) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
+    let radius = conic_k.radius();
     let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
     let rot = |v: Vec3<f64>, by: f64| {
         // Rotate about the circle's own `u_ref` direction.
@@ -583,18 +586,21 @@ fn each_villarceau_gate_alone_refuses_typed() {
     else {
         unreachable!()
     };
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis: n,
-                u_ref,
-            },
-        radius,
-    }) = villarceau(0.4, 1.0, 1.0, 0.0)
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis: n,
+                    u_ref,
+                },
+            ..
+        },
+    ) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
+    let radius = conic_k.radius();
     let delta = 3.0 * Tol::witness().k() * eps();
     let d = {
         let w = center - tc;
@@ -626,14 +632,14 @@ fn each_villarceau_gate_alone_refuses_typed() {
         ("radius", center, n, radius + delta, u_ref),
     ];
     for (gate, center, axis, radius, u_ref) in rows {
-        let carrier = Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let carrier = Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
             matches!(

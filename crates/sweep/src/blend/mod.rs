@@ -1135,7 +1135,7 @@ pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the
 /// shoulder refuses `SpineIrregular` at `r = 0.5`
 /// (`a_ball_with_no_room_at_its_rim_refuses_typed`), and the row that
 /// follows this sentence there is
-/// `work/bandreach/the-lantern-shoulder-witnesses-the-spine-recourse-the-followability-suite-says-has-none.md`.
+/// `work/band/the-lantern-shoulder-witnesses-the-spine-recourse-the-followability-suite-says-has-none.md`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 where a curved link meets

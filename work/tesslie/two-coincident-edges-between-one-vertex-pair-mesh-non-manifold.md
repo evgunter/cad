@@ -92,3 +92,16 @@ every δ from 1e-3 to 0.1, `PinchWedge` with the V turned −20° and
 ## Moved to TESSLIE (the mesh answers Ok, or panics, where it should refuse or mesh right) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## On a cylinder face (TESSLIE walk-slit, 2026-11-20)
+
+The same mesh on a curved face, `Ok` from `tessellate`: the slit block of
+`crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs`
+(`slit_block`) with its trench closed above `z = 3` as well — the lower
+tool there unioned with the V prism over `z ∈ [3, 6]` — so the keel runs
+`(1, 0, 2)`–`(1, 0, 3)` on the bore's ruling. The union leaves the bore
+as two cylinder faces, the keel two coincident line edges between one
+vertex pair; tier 3 passes, props hold the closed form (55.7168), and at
+δ = 5e-3 the mesh's volume is 55.7347 while `check_mesh` refuses
+`NonManifoldEdge { edge: (16, 18), count: 4 }`, ids 16 and 18 the
+keel's two ends. The throwaway harness is not committed.

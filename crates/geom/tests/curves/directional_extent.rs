@@ -25,14 +25,14 @@ use geom::curves::boxes::{
 use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
+    Curve3::Circle(geom::Circle::new(
+        geom::Frame {
             origin: center,
             axis,
             u_ref,
         },
         radius,
-    })
+    ))
 }
 
 fn ellipse(
@@ -42,15 +42,15 @@ fn ellipse(
     semi_v: f64,
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
-    Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame {
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame {
             origin: center,
             axis,
             u_ref,
         },
         semi_u,
         semi_v,
-    })
+    ))
 }
 
 /// A tilted plane's normal and an in-plane reference direction.
@@ -90,15 +90,24 @@ fn reading(c: &Curve3<f64>, t: f64, origin: Point3<f64>, n: Vec3<f64>) -> f64 {
 /// crest angle `atan2(q, p)`.
 fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     let (axis, u, a, b) = match *c {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis, u_ref, .. },
-            radius,
-        }) => (axis, u_ref, radius, radius),
-        Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { axis, u_ref, .. },
-            semi_u,
-            semi_v,
-        }) => (axis, u_ref, semi_u, semi_v),
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame: geom::Frame { axis, u_ref, .. },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
+            (axis, u_ref, radius, radius)
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: geom::Frame { axis, u_ref, .. },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            (axis, u_ref, semi_u, semi_v)
+        }
         _ => unreachable!(),
     };
     let v = axis.cross(u);
@@ -316,7 +325,7 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
             dhi.hi()
         );
     }
-    let poisoned = circle(Point3::origin(), axis, f64::NAN, u);
+    let poisoned = circle(Point3::new(f64::NAN, 0.0, 0.0), axis, 1.0, u);
     let (lo, hi) = conic_arc_extent_along(&poisoned, 0.1, 1.2, Point3::origin(), n).unwrap();
     assert!(
         lo.is_nan() && hi.is_nan(),

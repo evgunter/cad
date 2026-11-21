@@ -67,8 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
-#[path = "a_turned_discs_union_names_its_unfinished_member.rs"]
-mod a_turned_discs_union_names_its_unfinished_member;
+#[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
+mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
 mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
@@ -369,6 +369,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "maintenance_net.rs"]
 mod maintenance_net;
+#[path = "meet_by_construction.rs"]
+mod meet_by_construction;
 #[path = "member_budget.rs"]
 mod member_budget;
 #[path = "msolve10_door_admission.rs"]

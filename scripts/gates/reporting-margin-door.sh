@@ -36,8 +36,8 @@
 # (D4 ¶1, as Ev ruled on `[ev]` PR 3380):
 # `MarginDiag::sized_recourse_in_file` withholds the offer to tighten
 # alone for a size whose nearer end lies at or below the file's ε_in,
-# and `FileCoincidence::miss_recourse_in_file` names the set-ε-to-ε_in
-# stopgap for a miss within it — a comparison against the margin that
+# and `FileCoincidence::miss_recourse_in_file` names re-exporting the
+# file for a miss within it — a comparison against the margin that
 # picks the words and nothing else, so a caller searching either
 # sentence would read whether the margin lies within ε_in. Their
 # production call sites are a third list here: the sized-decision table
@@ -137,7 +137,6 @@ MINT_ALLOWLIST=(
   'crates/sweep/src/skin.rs 1 an arc sweep decision the structure refuses undecided (C6) reports the sweep'"'"'s distance to the breakpoint it read, in the refusal and nothing else'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/recl.rs 1 a grazing bisector between definite keys rides a record code that keeps no margin, so its On reports the zero band (residue on hand-minted-indeterminate-ratchet-gate)'
-  'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
   'crates/topo/src/validate.rs 1 a datum convention margin the check leaves undecided (its bracket straddles zero) reports the bracket it read, in the refusal and nothing else'
 )
 # `MarginDiag>?::` so the qualified-path form `<…MarginDiag>::value`

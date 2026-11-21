@@ -147,7 +147,8 @@ use pncad::select::{
     ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{
-    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, StepImportError,
+    NormalizationKind, PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation,
+    StepImportError,
 };
 use pncad::sweep::blend::{BlendError, UnbuiltEnd};
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
@@ -227,7 +228,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 /// caller branches on the reason without parsing the sentence. Over
 /// `CornerReason`'s arms rather than `..`, so a new one stops this
 /// build instead of acquiring a silent tag.
-pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
+pub fn corner_reason_tag(reason: &CornerReason) -> &'static str {
     match reason {
         CornerReason::OutsideAnchors(window) => match window {
             CornerWindow::BehindIncomingRay => "behind_incoming_ray",
@@ -2196,7 +2197,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
-        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
@@ -2208,6 +2208,8 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
+        StepImportError::NotYetSupported { .. } => "not_yet_supported",
+        StepImportError::BuildEscalated { .. } => "build_escalated",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2226,15 +2228,18 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
 /// certify is a flatness question at ε_in, a cylinder that will not is
 /// an ill-conditioned axis and wants more of the patch.
 ///
-/// The match is exhaustive, so a third promotable kind recognised
+/// The match is exhaustive, so a new promotable kind recognised
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these two words. The face and surface entity ids and the
+/// one of these words. The face and surface entity ids and the
 /// conditioning margin stay in the kernel's own `Display`, which is
 /// where they already were.
 pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+        PromotedKind::Cone => "cone",
+        PromotedKind::Sphere => "sphere",
+        PromotedKind::Torus => "torus",
     }
 }
 
@@ -2271,7 +2276,24 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::PlacementReMinted { .. } => "placement_re_minted",
         NormalizationKind::OneRecord { .. } => "one_record",
+        NormalizationKind::Snapped { .. } => "snapped",
         NormalizationKind::CurvePromoted { .. } => "curve_promoted",
+        NormalizationKind::VertexBuilt { .. } => "vertex_built",
+        NormalizationKind::CarrierBuilt { .. } => "carrier_built",
+    }
+}
+
+/// The stable tag for the snap catalogue's relation whose construction
+/// moved a surface — `NormalizationKind::Snapped`'s payload, at
+/// `relation` beside the record's `kind` word.
+///
+/// The match is exhaustive, so a fourth relation stops this crate
+/// compiling instead of arriving under one of these three words.
+pub fn snap_relation_tag(relation: &SnapRelation) -> &'static str {
+    match relation {
+        SnapRelation::Coaxial => "coaxial",
+        SnapRelation::Tangent => "tangent",
+        SnapRelation::AxisNormal => "axis_normal",
     }
 }
 
@@ -2294,10 +2316,10 @@ pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
 /// to — `CurvePromotion::kind`.
 ///
 /// The exhaustive match is why it is a map rather than a literal:
-/// the recognizer's kinds (the line's #388 follow-up landed; the
-/// named exclusions — ellipse, helix, open arcs — are still to come)
-/// each land here when their follow-up does, and each stops this
-/// crate compiling until it has a word of its own.
+/// the recognizer's kinds (the line's #388 follow-up landed, and open
+/// arcs promote as `circle`; the named exclusions — ellipse, helix —
+/// are still to come) each land here when their follow-up does, and
+/// each stops this crate compiling until it has a word of its own.
 pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
     match kind {
         PromotedCurveKind::Circle => "circle",
@@ -2496,6 +2518,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
+        TessellateError::BoundaryBoundsNoRegion { .. } => "boundary_bounds_no_region",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
@@ -2504,8 +2527,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
-        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::UnclearedSharedSide { .. } => "uncleared_shared_side",
+        TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
+        TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
 }
 
