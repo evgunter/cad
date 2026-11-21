@@ -3,10 +3,10 @@
 //!
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
-//! per profile segment ([`crate::skin::LoftGeometry`]), wall–wall
+//! per profile segment ([`crate::skin::body_walls`]), wall–wall
 //! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
 //! per vertex. At v-degree 1 through `k ≥ 3` sections that wall is one
-//! per slab ([`fn@slab_walls`]): the body is `k − 1` such laminae swept
+//! per slab, built from its two sections' rows: the body is `k − 1` such laminae swept
 //! one on the next, each interior section a ring of rims between two
 //! slabs' walls, each in the row `v = 1` of the wall below it. The three
 //! edge classes:
@@ -115,8 +115,8 @@ use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
 
 use crate::skin::{
-    PathCarry, Section, SectionLoop, SkinError, check_counts, check_shapes, compatible_strips,
-    skin_validated, validate_at_t, validate_guided, validate_loft,
+    PathCarry, Section, SectionLoop, SkinError, body_walls, check_counts, check_shapes,
+    compatible_strips, validate_at_t, validate_guided, validate_loft,
 };
 use crate::swept::{
     CapEnd, SweptSeg, cap_plane, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
@@ -146,8 +146,8 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     /// order. At v-degree ≥ 2, and through two sections, each segment
     /// has one wall, `side_faces[l][j][0]`, carrying
     /// `LoftGeometry.walls[l][j]`; at v-degree 1 through `k ≥ 3`
-    /// sections it has one per slab, `side_faces[l][j][s]` spanning
-    /// sections `s` and `s + 1` on that wall's rows `s` and `s + 1`.
+    /// sections it has one per slab, `side_faces[l][j][s]`, the ruled
+    /// wall whose rows are sections `s` and `s + 1`.
     pub side_faces: Vec<Vec<Vec<FaceKey>>>,
     /// Wall–wall seam edges `[loop][vertex][slab]`: `seams[l][j][s]` is
     /// the strut at vertex `j` across slab `s` — wall `[j][s]`'s
@@ -166,9 +166,10 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     /// wall's iso row `v = section_params[i]`. The body's walls carry
     /// it only where each wall spans every section (v-degree ≥ 2, or
     /// two sections). At v-degree 1 through `k ≥ 3` sections each body
-    /// wall is one slab on its own `v ∈ [0, 1]` (`side_faces`), so no
-    /// body wall holds these values as knots. They still say where
-    /// along the stack the skin put each section.
+    /// wall is one slab on its own `v ∈ [0, 1]` (`side_faces`), built
+    /// from its two sections' rows, so no body wall holds these values
+    /// as knots and none is built that does. They still say where
+    /// along the stack the skin puts each section.
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
@@ -825,19 +826,16 @@ struct LoftBuild<'a, T: Real, L> {
 
 impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// **The loft in `T`**, over `canonical`, the sections validated at
-    /// `T`: the stacking door, the skin ([`skin_validated`]: the section curves,
-    /// their compatibility, the parameters and the solve) and the caps
+    /// `T`: the stacking door, the walls ([`body_walls`]: the section
+    /// curves, their compatibility, the parameters and the solve) and the caps
     /// all read those, so a section or placement value that is a
     /// function of the variables gives walls and caps that are
     /// functions of them, and one wider than a point gives walls and
     /// caps that enclose its family.
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T, Body<T>>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        let strips = compatible_strips(&canonical, self.places)
-            .map_err(LoftError::Skin)?
-            .iter()
-            .map(|lp| strip_points(lp))
-            .collect();
+        let compat = compatible_strips(&canonical, self.places).map_err(LoftError::Skin)?;
+        let strips = compat.iter().map(|lp| strip_points(lp)).collect();
         stacking::stacking_door(
             self.places,
             &canonical,
@@ -846,15 +844,9 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             band,
             self.tol,
         )?;
-        let geometry = skin_validated(canonical, self.places, self.v_degree, self.params)
-            .map_err(LoftError::Skin)?;
-        assemble(
-            self.places,
-            &geometry.walls,
-            &geometry.canonical,
-            geometry.section_params,
-            self.tol,
-        )
+        let (walls, section_params) =
+            body_walls(&compat, self.v_degree, self.params).map_err(LoftError::Skin)?;
+        assemble(self.places, walls, &canonical, section_params, self.tol)
     }
 }
 
@@ -913,52 +905,6 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
         check_shapes(&canonical).map_err(LoftError::Skin)?;
         self.in_t(canonical)
     }
-}
-
-/// **The walls one skinned wall is built as.** At v-degree ≥ 2, and
-/// through two sections, the wall itself. At v-degree 1 through
-/// `sections ≥ 3`, one wall per slab: the skinned wall is not C¹ at its
-/// interior sections by its knot structure, which is where DESIGN
-/// \[topology\] lets the kernel cut ("the kernel adds none, except where a
-/// face or edge carrier is not C¹ by its knot structure"). The net's
-/// control rows are its sections, so slab `s` is rows `s` and
-/// `s + 1` on `v ∈ [0, 1]`, the `u` structure and every weight copied —
-/// a sub-net, with no arithmetic. Adjacent slabs share their section's
-/// row bit for bit.
-///
-/// # Errors
-///
-/// [`LoftError::SectionStructure`] for a degree-1 net whose row count
-/// is not the section count, and [`LoftError::SeamStructure`] if a
-/// sub-net is refused; neither is reachable from the skin.
-fn slab_walls<T: geom_core::spline::SpanLocate>(
-    wall: &Arc<NurbsSurface<T>>,
-    sections: usize,
-) -> Result<Vec<Arc<NurbsSurface<T>>>, LoftError> {
-    let (nu, nv) = wall.control_counts();
-    if wall.knot_values_v().degree() != 1 || sections == 2 {
-        return Ok(vec![Arc::clone(wall)]);
-    }
-    if nv != sections {
-        return Err(LoftError::SectionStructure);
-    }
-    let two = core::num::NonZeroUsize::MIN.saturating_add(1);
-    (0..nv - 1)
-        .map(|s| {
-            let rows = (0..nu).flat_map(|iu| [iu * nv + s, iu * nv + s + 1]);
-            let control = rows.clone().map(|i| wall.control()[i]).collect();
-            let weights = rows.map(|i| wall.weights()[i]).collect();
-            let knots_v = geom_core::spline::Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)
-                .map_err(|e| LoftError::SeamStructure {
-                    source: geom_core::spline::Built::new(e),
-                })?;
-            NurbsSurface::new(wall.knot_values_u().clone(), knots_v, control, weights)
-                .map(Arc::new)
-                .map_err(|e| LoftError::SeamStructure {
-                    source: geom_core::spline::Built::new(e),
-                })
-        })
-        .collect()
 }
 
 /// What a one-segment loop's sweep through every slab minted
@@ -1051,7 +997,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
 /// [`LoftError`] — every door named on the enum.
 fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[SketchPlane<T>],
-    walls_t: &[Vec<Arc<NurbsSurface<T>>>],
+    walls: Vec<Vec<Vec<Arc<NurbsSurface<T>>>>>,
     canonical: &[ValidatedProfile<T>],
     section_params: Vec<T>,
     tol: Tol,
@@ -1062,17 +1008,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     };
     let (bplace, tplace) = (place_bottom.placement(), place_top.placement());
 
-    // ---- The walls, one per segment per slab ([`slab_walls`]). Slab
+    // ---- The walls, one per segment per slab ([`body_walls`]). Slab
     // boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
     let k = canonical.len();
-    let walls: Vec<Vec<Vec<Arc<NurbsSurface<T>>>>> = walls_t
-        .iter()
-        .map(|lp| {
-            lp.iter()
-                .map(|w| slab_walls(w, k))
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect::<Result<_, _>>()?;
     let slabs = walls.first().and_then(|lp| lp.first()).map_or(1, Vec::len);
     let at = |b: usize| if slabs == 1 { b * (k - 1) } else { b };
 
@@ -1730,6 +1668,58 @@ pub(crate) fn sweep_body_construction<T: Decide + topo::AtRestPolicy>(
         v_degree,
         tol,
     )
+}
+
+/// **A body at `T` whose carriers hold `f64` values as points**: the
+/// `f64` body [`loft_body`] builds over `sections` and `places`, each
+/// wall's poles, weights and knots, each cap profile's stored scalars
+/// and each placement entered at `T` as the point it is, and assembled
+/// there. A family of one whose member has `f64` values. It is not the
+/// loft of these sections at `T`, which is built in `T` and holds what
+/// that arithmetic gives.
+///
+/// # Errors
+///
+/// [`loft_body`]'s at `f64` short of its finish, and the assembly's at
+/// `T`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn f64_body_held_as_points<T: Decide + topo::AtRestPolicy>(
+    sections: &[Section<profile::ProfileLoop<f64>>],
+    places: &[SketchPlane<f64>],
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T, Body<T>>, LoftError> {
+    check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
+    let band = Band::linear(tol).map_err(LoftError::Band)?;
+    let (canonical, _) = validate_loft(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
+    let compat = compatible_strips(&canonical, places).map_err(LoftError::Skin)?;
+    let strips = compat.iter().map(|lp| strip_points(lp)).collect();
+    stacking::stacking_door(places, &canonical, &strips, v_degree, band, tol)?;
+    let (walls, params) = body_walls(&compat, v_degree, None).map_err(LoftError::Skin)?;
+    let held_places = crate::test_support::lift_places::<T>(places, tol);
+    let held: Vec<ValidatedProfile<T>> = canonical
+        .into_iter()
+        .zip(&held_places)
+        .map(|(c, place)| {
+            c.lift_onto(*place)
+                .unwrap_or_else(|e| unreachable!("{e}: a placement admitted at `T` is finite"))
+        })
+        .collect();
+    let walls = walls
+        .iter()
+        .map(|lp| {
+            lp.iter()
+                .map(|slabs| {
+                    slabs
+                        .iter()
+                        .map(|w| Arc::new(w.map_scalar(T::from_f64)))
+                        .collect()
+                })
+                .collect()
+        })
+        .collect();
+    let params = params.into_iter().map(T::from_f64).collect();
+    assemble(&held_places, walls, &held, params, tol)
 }
 
 #[cfg(test)]

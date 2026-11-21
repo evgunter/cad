@@ -149,7 +149,7 @@ crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
-crates/sweep/src/skin.rs	1	constant	*share	skin_validated: a path sweep's station share i/(stations − 1), structure, the same v at every scalar
+crates/sweep/src/skin.rs	1	constant	*share	section_parameters: a path sweep's station share i/(stations − 1), structure, the same v at every scalar
 crates/sweep/src/skin.rs	2	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at; and each station's roll reference, selected at f64 from that path alone (PathCarry::of), so a constant of the model as the path is
 crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge

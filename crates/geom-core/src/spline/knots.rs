@@ -261,15 +261,20 @@ impl core::fmt::Display for SplineError {
                 "{fact}. Recourse: supply those breakpoints from inputs narrow enough that the \
                  step clears zero"
             ),
+            // Valid and unbuilt ([failure.taxonomy] row 2): a carrier at
+            // an enclosure scalar may hold such a value (C6), and its
+            // readers do not take one yet.
             SplineError::CarrierKnotNotAPoint { .. } => write!(
                 f,
-                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
-                 lifted, so its breakpoints stay the numbers it was built on"
+                "{fact}. Nothing is wrong with the breakpoint: a curve or surface holding \
+                 an enclosure breakpoint is not built yet. {}",
+                crate::NOT_YET_ENDING
             ),
             SplineError::CarrierWeightNotAPoint { .. } => write!(
                 f,
-                "{fact}. Recourse: supply the carrier built at a point scalar (`f64`) and \
-                 lifted, so its weights stay the numbers it was built on"
+                "{fact}. Nothing is wrong with the weight: a curve or surface holding an \
+                 enclosure weight is not built yet. {}",
+                crate::NOT_YET_ENDING
             ),
             SplineError::WeightSignUndecided { .. } => write!(
                 f,
