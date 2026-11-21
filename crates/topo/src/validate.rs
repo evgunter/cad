@@ -11941,6 +11941,33 @@ mod tests {
     use crate::seqgen;
     use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
 
+    /// **Collinear spans a rounding apart do not meet.** Two collinear
+    /// spans 3 km long at ε = 10⁻¹², the second starting past the first's
+    /// end by half their overlap's charge (`10⁻¹¹`, past the band's
+    /// escalation): their gap is within its rounding of zero, so the
+    /// overlap's lower end is definitely negative and its upper end is
+    /// not, a straddle. Read at the upper end for both,
+    /// the overlap reaches zero and the pair is read as meeting.
+    #[test]
+    fn collinear_spans_a_rounding_apart_do_not_meet() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+        let len = 3000.0;
+        let at = |t: f64| Point3::new(t, 0.0, 0.0);
+        let noise = geom_core::one_line::on_one_line(x, (at(0.0), at(len)), (at(len), at(2.0 * len)), 0.0).noise;
+        let gap = noise / 2.0;
+        let got = lines_meet(at(0.0), at(len), at(len + gap), at(2.0 * len), geom_core::Vec3::new(0.0, 0.0, 1.0), band);
+        assert!(
+            matches!(got, EdgePair::Unsure(_)),
+            "a gap of {gap:e} within its charge reads {:?}",
+            match got {
+                EdgePair::Apart => "apart",
+                EdgePair::Meet => "meeting",
+                EdgePair::Unsure(_) => "unsure",
+            }
+        );
+    }
+
     /// **An open round and an unresolved one stay apart once the
     /// schedule runs out**: a sign undecided about the body itself keeps
     /// its escalation for check 7's refusal, and one left unresolved by a
