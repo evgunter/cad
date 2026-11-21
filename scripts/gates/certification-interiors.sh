@@ -329,7 +329,7 @@ plant_holder_policy_by_value() {
 }
 plant_holder_exception_gone() {
   local entry=${CERT_HOLDER_EXCEPTIONS[0]}
-  printf 'pub fn other() {}\n' > "$1/${entry%% *}"
+  printf 'pub fn other<T: DoorScalar>(_door: Option<T::ShellDoor>) {}\n' > "$1/${entry%% *}"
 }
 plant_ok_holders() {
   mkdir -p "$1/crates/planted/src"
