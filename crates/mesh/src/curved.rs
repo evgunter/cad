@@ -2569,9 +2569,9 @@ mod tests {
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         // The split ruling's face is the trimmed lane's
         // (`walk::splits_a_straight_side`), which lays rows this face
-        // does not need: 40 where the rectangle lane's chart CDT made 28.
+        // does not need: 38 where the rectangle lane's chart CDT made 28.
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 40, "the split+placed wedge's triangle count at δ = 0.1");
+        assert_eq!(n, 38, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own

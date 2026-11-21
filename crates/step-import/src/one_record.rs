@@ -408,6 +408,7 @@ mod tests {
             t0: 0.0,
             t1: std::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         let surface = Surface::Cylinder {
             frame: geom::Frame::new(Point3::origin(), y, x),

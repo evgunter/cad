@@ -10900,10 +10900,14 @@ fn net_bound_refusal<T: Decide>(
     // the bound decides positive or escalates.
     let unshown = |bound: f64| {
         let bound = if bound.is_finite() { bound } else { f64::MAX };
-        let decided = |x: T| {
-            geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
+        let decided = |x: f64| {
+            geom_core::k_stats::decide_reported(
+                "pcurve_net_bound_straddle",
+                Margin::<T>::bound(x),
+                band,
+            )
         };
-        match (decided(T::zero()), decided(T::from_computed(bound))) {
+        match (decided(0.0), decided(bound)) {
             (Ok(lower), Ok(upper)) => {
                 geom_core::k_stats::straddle("pcurve_net_bound_straddle", lower, upper, band)
             }

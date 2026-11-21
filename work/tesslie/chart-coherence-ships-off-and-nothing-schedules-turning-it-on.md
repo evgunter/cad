@@ -7,8 +7,7 @@ opened: 2026-09-12
 refs: [2408]
 priority: P1
 cost: M
-branch: tesslie/coherence-default
-design: true
+branch: tesslie/retire-coherence
 ---
 
 
@@ -116,3 +115,12 @@ you except where this note says Ev answered it.
 ## Moved to TESSLIE (the mesh answers Ok, or panics, where it should refuse or mesh right) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## Ev's ruling: the examination retires (2026-11-21, PR 7224)
+
+Ev, on PR 7224: *"nice find, sounds great!"*. That approves the recommendation both designers reached: retire `topo::examine_chart_coherence`, `CheckId::ChartCoherence`, `ImportOptions::examine_chart_coherence` and `StepImport::Solid::coherence`. The finding behind it:
+- Read through the kernel's exact iso-family reading (`geom_brep::chart_iso_family`), the examination reports nothing a tier-3 body can hold beyond the ε–2ε fringe the band already counts as agreement.
+- Its founding class (a carrier stated slightly off its iso curve) is real at tier 3, but an exact classifier cannot measure it: "slightly off iso" and "not iso at ε" are one fact.
+- Every finding it ever made was a non-iso carrier read as iso, an off-surface carrier, or a pole-crossing arc. The mint or tier 3 refuses the last two.
+
+The full write-up and the designers' census are in PR 7224's body; the exact-iso row it was about lived on PR 7197's branch and never reached main. PR 7197 (the door change) and PR 7224 close unmerged: the retirement supersedes them. This row closes with the unit that removes the examination.
