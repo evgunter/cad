@@ -1555,6 +1555,10 @@ fn sheets(
     band: Band,
 ) -> Result<Sheets, Unpresented> {
     let mut on = [Sheet::Free; 2];
+    if std::env::var_os("CV_TRACE").is_some() {
+        let fe = face_extent(surface, b, band);
+        eprintln!("CVX cell={cell:?} stored={:?} read={} edges={:?}", b.extent, match &fe { Ok(Extent::Known(_)) => "Known", Ok(Extent::Wraps) => "Wraps", Ok(Extent::Unknown) => "Unknown", Err(_) => "Err" }, b.edges.iter().map(|e| (e.key, e.ends, e.uses.iter().map(|u| (u.plus, u.iso.map(|i| (i.held, mid(i.at), i.full)), u.image.map(|im| im.map(|p| (mid(p.x), mid(p.y)))), u.harmonic.is_some(), u.wall.is_some())).collect::<Vec<_>>())).collect::<Vec<_>>());
+    }
     let extent = match face_extent(surface, b, band)? {
         Extent::Known(extent) => extent,
         Extent::Wraps => return Ok(Sheets::On(on)),
