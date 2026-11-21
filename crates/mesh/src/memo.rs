@@ -49,9 +49,14 @@
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
 //! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
-//! schedule) and each half-edge's image where the face's domain places it
+//! schedule), each half-edge's image where the face's domain places it
 //! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
-//! outer loop's sheet).
+//! outer loop's sheet), and the face across each edge (the chord pass's
+//! `ChordPass::holders`, which the shared-side rule reads in
+//! `trimmed::faces_across` to tell which two boundary points one
+//! neighbour holds both of) — the last folded as a relabeling numbered by
+//! first appearance along the walk, since a face key is an arena key,
+//! with a seam (an edge the face holds both halves of) folded as none.
 //!
 //! # The entry identity a consumer can cache against
 //!
@@ -707,6 +712,12 @@ pub(crate) struct EdgeInputs {
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
     pub(crate) lineage: Option<u32>,
+    /// The face across the edge ([`ChordPass::across`]), as an identity
+    /// numbered by first appearance along the face's walk: `None` where
+    /// the face holds both halves (a seam). The trimmed lane's
+    /// shared-side rule reads it (`trimmed::faces_across`), and the face
+    /// across is an arena key, so it is folded as a relabeling.
+    pub(crate) across: Option<u32>,
 }
 
 /// Everything a face's lane reads — the memo key, as a value. The
@@ -753,6 +764,8 @@ impl FaceInputs {
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
+        // The faces across the edges, relabeled the same way.
+        let mut neighbours: HashMap<FaceKey, u32> = HashMap::new();
         // Each half-edge's image where the trimmed lane reads it: the
         // face's domain (`trimmed::face_domain`), the one value the lane
         // reads, every loop. A moved ring's image is read afresh from its
@@ -797,6 +810,11 @@ impl FaceInputs {
                 #[allow(clippy::cast_possible_truncation)]
                 let next = roots.len() as u32;
                 let lineage = root.map(|r| *roots.entry(r).or_insert(next));
+                #[allow(clippy::cast_possible_truncation)]
+                let next = neighbours.len() as u32;
+                let across = chords
+                    .across(ek, fk)?
+                    .map(|f| *neighbours.entry(f).or_insert(next));
                 edges.push(EdgeInputs {
                     forward,
                     carrier: curve.carrier().clone(),
@@ -806,6 +824,7 @@ impl FaceInputs {
                     chord_params,
                     pcurve: lifted.remove(&hek),
                     lineage,
+                    across,
                 });
             }
             loops.push(edges);
@@ -920,6 +939,13 @@ impl FaceInputs {
                             Some(p) => {
                                 w.u8(1);
                                 w.pcurve(p);
+                            }
+                        }
+                        match e.across {
+                            None => w.u8(0),
+                            Some(f) => {
+                                w.u8(1);
+                                w.u32(f);
                             }
                         }
                     }
@@ -1330,6 +1356,7 @@ mod tests {
                 ends: None,
             }),
             lineage: Some(ids[0]),
+            across: Some(ids[0]),
         }
     }
 
@@ -1496,6 +1523,16 @@ mod tests {
             "a carrier lineage that stops resolving",
             |f| f.loops[0][1].lineage = None,
             [false, true, false],
+        ),
+        (
+            "the faces across' identity structure",
+            |f| f.loops[0][1].across = f.loops[0][0].across,
+            [false, false, true],
+        ),
+        (
+            "an edge that becomes a seam",
+            |f| f.loops[0][1].across = None,
+            [false, false, true],
         ),
     ];
 

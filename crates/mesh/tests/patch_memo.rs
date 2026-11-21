@@ -788,3 +788,154 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         "the wall and its edge-neighbours miss"
     );
 }
+
+/// A shallow circular segment extruded to height 1 and cut by a plane
+/// tilted across the chord (the part below it): a cylinder wall whose
+/// two straight edges both lie against the one chord-plane face, so one
+/// neighbour holds points of two edges of the wall that are not
+/// neighbours on its loop. The cut's elliptical rim puts the wall on the
+/// trimmed lane (an uncut wall is an iso rectangle, the curved lane's).
+/// The arc spans `4·atan(0.1)` ≈ 23°, a few lattice cells across.
+fn shallow_segment() -> Body<f64> {
+    use geom_core::{Point3, Vec3};
+    use topo::splitting::{SplitPart, split};
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 0.1),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let prism = topo::test_support::finished(
+        "the segment prism",
+        sweep::test_support::extruded(profile::SketchPlane::xy(), vec![lp], 1.0, Tol::witness()),
+        Tol::witness(),
+    );
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.0, 0.3_f64.sin(), 0.3_f64.cos()),
+        Tol::witness(),
+    );
+    let result = split(&prism, &plane, Tol::witness()).expect("the tilted cut splits");
+    let SplitPart::Body(below) = &result.below else {
+        panic!("the cut leaves material below");
+    };
+    Body::clone(below)
+}
+
+/// `body` with the plane face across the wall's straight edges split in
+/// two by a new edge between the midpoints of its other two edges (its
+/// rims against the caps), so each straight edge of the wall has its own
+/// face across. Returns the split body. No vertex or edge of the wall
+/// moves: the new vertices sit on the cap rims, away from the wall's
+/// corners.
+fn chord_face_split(body: &Body<f64>, wall: FaceKey) -> Body<f64> {
+    let mut body = body.clone();
+    let across =
+        |b: &Body<f64>, hek: HalfEdgeKey| b.face_of_half_edge(b.mate(hek).unwrap()).unwrap();
+    // The chord-plane face: the face across the wall's straight edges.
+    let chord_face = {
+        let held: Vec<FaceKey> = body
+            .half_edges()
+            .filter(|(h, he)| {
+                body.face_of_half_edge(*h) == Some(wall)
+                    && matches!(
+                        body.get_curve_geom(body.get_edge(he.edge).unwrap().curve)
+                            .unwrap()
+                            .certified()
+                            .unwrap()
+                            .carrier(),
+                        geom::Curve3::Line(_)
+                    )
+            })
+            .map(|(h, _)| across(&body, h))
+            .collect();
+        assert_eq!(held.len(), 2, "the wall has two straight edges");
+        assert_eq!(held[0], held[1], "one face lies across both");
+        held[0]
+    };
+    // Its rims: its edges the wall does not hold.
+    let rims: Vec<topo::EdgeKey> = body
+        .half_edges()
+        .filter(|(h, _)| {
+            body.face_of_half_edge(*h) == Some(chord_face) && across(&body, *h) != wall
+        })
+        .map(|(_, he)| he.edge)
+        .collect();
+    assert_eq!(rims.len(), 2, "the chord face's two cap rims");
+    let stations: Vec<topo::VertexKey> = rims
+        .into_iter()
+        .map(|rim| {
+            let (t0, t1) = body
+                .get_curve_geom(body.get_edge(rim).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .params();
+            body.split_edge(rim, (t0 + t1) * 0.5, Tol::witness())
+                .unwrap()
+                .vertex
+        })
+        .collect();
+    let leaving = |b: &Body<f64>, v: topo::VertexKey| {
+        b.half_edges()
+            .find(|(h, he)| he.start == v && b.face_of_half_edge(*h) == Some(chord_face))
+            .unwrap()
+            .0
+    };
+    let (he1, he2) = (leaving(&body, stations[0]), leaving(&body, stations[1]));
+    body.mef_chord(
+        topo::construction::MefSite::Chords { he1, he2 },
+        Tol::witness(),
+    )
+    .unwrap();
+    body
+}
+
+/// **The trimmed lane misses when only the face across an edge changes**
+/// (`memo`'s docs, the trimmed lane's list; `trimmed::faces_across`).
+/// The wall's two straight edges have one face across them, then two:
+/// its surface, loops, carriers, chord points, parameters and pcurves
+/// are the same bits, and only which face lies across moved. Its
+/// shared-side rule reads that, so the wall misses, and the
+/// memo-assisted mesh of the split body is the fresh one
+/// (`misses_between`).
+#[test]
+fn the_trimmed_lane_misses_when_only_the_face_across_an_edge_changes() {
+    let base = shallow_segment();
+    let wall = face_where(&base, |s| matches!(s, Surface::Cylinder { .. }));
+    let split = chord_face_split(&base, wall);
+    assert_eq!(split.faces().count(), base.faces().count() + 1);
+
+    // The wall's boundary is the same points: its polylines, edge for
+    // edge, carry bit-identical positions in both meshes.
+    let rims = |body: &Body<f64>| -> Vec<Vec<[u64; 3]>> {
+        let mesh = tessellate(body, DELTA, Tol::witness()).unwrap();
+        let mut held: Vec<topo::EdgeKey> = body
+            .half_edges()
+            .filter(|(h, _)| body.face_of_half_edge(*h) == Some(wall))
+            .map(|(_, he)| he.edge)
+            .collect();
+        held.sort();
+        held.iter()
+            .map(|ek| {
+                let line = mesh.boundaries.iter().find(|b| b.edge == *ek).unwrap();
+                line.points
+                    .iter()
+                    .map(|&i| {
+                        let p = mesh.positions[i as usize];
+                        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+                    })
+                    .collect()
+            })
+            .collect()
+    };
+    assert_eq!(
+        rims(&base),
+        rims(&split),
+        "the split moves none of the wall's chord points"
+    );
+
+    let missed = misses_between(&base, &split);
+    assert!(
+        missed.contains(&position_of(&split, wall)),
+        "the wall misses: only its faces across moved (missed {missed:?})"
+    );
+}
