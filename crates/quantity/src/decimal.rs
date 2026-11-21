@@ -235,6 +235,8 @@ impl fmt::Display for Decimal {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::panic)]
+
     use super::Decimal;
     use core::cmp::Ordering;
 
@@ -246,7 +248,7 @@ mod tests {
     fn a_decimal_is_held_normalized() {
         assert_eq!(d("300.0400"), d("30004e-2"));
         assert_eq!(d("0.000"), Decimal::ZERO);
-        assert_eq!(d("-0").is_negative(), true);
+        assert!(d("-0").is_negative());
         assert_eq!(d("+1.5E3"), d("1500"));
         assert_eq!(d(".5"), d("5e-1"));
         assert_eq!(d("5."), d("5"));

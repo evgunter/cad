@@ -2124,18 +2124,18 @@ mod written_tests {
         );
     }
 
-    /// **A value the notation cannot name reads in the canonical unit,
-    /// under its own word, and never spells `inf`**: `inf` is a text
-    /// that reads back as no value at all, offered for a value the
-    /// document holds perfectly well.
+    /// **A value whose number of the unit no float holds reads in the
+    /// unit, and never spells `inf`**: `inf` is a text that reads back
+    /// as no value at all, offered for a value the document holds
+    /// perfectly well.
     #[test]
     fn a_render_of_an_unnameable_value_is_not_an_infinity() {
         let mm = MM.def();
         assert_eq!(no_reading(mm), "no mm reading");
-        assert_eq!(written_text(1.0e306, mm), "1e306 m");
+        assert_eq!(written_text(1.0e306, mm), "1e309 mm");
         assert_eq!(
             written_text(5.0e-324, PI.def()),
-            "5e-324 rad",
+            "2e-324 pi rad",
             "and the other end is told the same way, not as a zero"
         );
         // The ordinary case is a number and its symbol.
@@ -2214,10 +2214,9 @@ mod written_tests {
         );
         assert_eq!(
             super::field_text(&row(1.0e304), super::Notation::DEFAULT),
-            "9.999999999999999e306",
+            "1e307",
             "and one decade below the overflow is an ordinary field, spelled \
-             by `{{:?}}`'s exact round-tripping digits — the quotient's, \
-             which is not `1e307`"
+             by `{{:?}}`'s exact round-tripping digits of the exact quotient"
         );
     }
 }

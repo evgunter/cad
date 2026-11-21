@@ -133,7 +133,7 @@ pub fn field_number(value: f64) -> String {
 pub fn names(spelling: &str, value: f64) -> bool {
     spelling
         .parse::<f64>()
-        .is_ok_and(|read| as_field(read) == as_field(value))
+        .is_ok_and(|read| field_number(read) == field_number(value))
 }
 
 /// A field's number as the told quantity [`field_number`] renders.
@@ -171,8 +171,10 @@ mod tests {
     fn a_unit_says_a_value_its_number_has_no_float_for() {
         assert_eq!(computed(1.0e306, MM.def()), "1e309 mm");
         assert_eq!(computed_number(1.0e306, MM.def()), "1e309");
-        assert_eq!(computed(5.0e-324, PI.def()), "1.573e-324 pi rad");
-        assert_eq!(computed_number(5.0e-324, PI.def()), "1.573e-324");
+        // The floats there are a whole least subnormal apart, so one
+        // figure is all the decimal carries.
+        assert_eq!(computed(5.0e-324, PI.def()), "2e-324 pi rad");
+        assert_eq!(computed_number(5.0e-324, PI.def()), "2e-324");
         assert_eq!(computed_number(0.025, MM.def()), "25");
         assert_eq!(computed_number(0.25, ONE.def()), "0.25");
     }

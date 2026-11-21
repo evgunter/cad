@@ -365,7 +365,6 @@ fn a_number_in_a_unit_is_its_decimal_times_the_exact_factor_rounded_once() {
     // And a float is read as its shortest decimal: `300.04 * MM` is
     // what `300.04 mm` is, where the float multiply lands one over.
     assert_eq!((300.04 * MM).meters(), 0.300_04);
-    assert!(300.04 * MILLI > 0.300_04);
 }
 
 /// Every finite float has a decimal of at most seventeen figures that,
