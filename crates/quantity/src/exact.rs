@@ -7,7 +7,7 @@
 //! float it is is the decimal times the factor, rounded once
 //! ([`round_to_f64`]). A canonical float told in a unit is the float
 //! divided by the factor, and its decimal at some number of figures is
-//! that quotient rounded once ([`Real::scaled_integer`]). Each is a
+//! that quotient rounded once ([`Real::scaled`]). Each is a
 //! step function of an exact real, decided on a rational enclosure of
 //! it: exact where the factor is rational, and where it carries π, at
 //! enclosures of π refined until both ends give one answer. That
