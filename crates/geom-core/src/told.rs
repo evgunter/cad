@@ -1899,9 +1899,17 @@ mod tests {
             "25 mm"
         );
         assert_eq!(in_(&Told::given(&0.0254, Dimension::Length), in_pi), "1 in");
+        // 300.04 typed in millimetres is the float above 0.30004 m, so
+        // the offer is the grid point below it; 12.5 types back on
+        // the side that works.
+        assert!(300.04 * MM.factor() > 0.300_04);
         assert_eq!(
             in_(&Told::at_most(&0.300_04, Dimension::Length), mm_deg),
-            "300.04 mm"
+            "300.0399999 mm"
+        );
+        assert_eq!(
+            in_(&Told::at_most(&0.012_5, Dimension::Length), mm_deg),
+            "12.5 mm"
         );
         assert_eq!(
             in_(
