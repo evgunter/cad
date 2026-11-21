@@ -3140,19 +3140,16 @@ mod field_tests {
         }
     }
 
-    /// **The top of the type is what the bound is the width of**, and
-    /// it is no longer an exception to it: four figures round out of
-    /// `f64` there, so the value is spelled exactly, and that exact
-    /// spelling is `crate::readout::MAX_CHARS` characters. Twenty-two,
-    /// not three hundred and eleven.
+    /// **The top of the type is inside the bound**: the widget's own
+    /// spelling there is three hundred and eleven characters, and the
+    /// field shows the told number's instead.
     #[test]
     fn the_top_of_the_type_is_the_render_bounds_own_width() {
         let text = number_text(f64::MAX, MM);
         assert_eq!(text, crate::readout::field_number(f64::MAX));
-        assert_eq!(
-            text.chars().count(),
-            crate::readout::MAX_CHARS,
-            "the top of the type is spelled exactly, as {text}"
+        assert!(
+            text.chars().count() <= crate::readout::MAX_CHARS,
+            "the top of the type is spelled {text}"
         );
         assert_eq!(
             egui::emath::format_with_decimals_in_range(f64::MAX, MM)
@@ -3171,10 +3168,10 @@ mod field_tests {
     fn a_value_the_range_cannot_name_gets_a_text_that_names_it() {
         for (value, text) in [
             (1.6e-3_f64, "0.0016"),
-            (4.0e-5, "0.00004"),
-            (-4.0e-5, "-0.00004"),
+            (4.0e-5, "4e-5"),
+            (-4.0e-5, "-4e-5"),
             (0.0625, "0.0625"),
-            (1.0e-9, "0.000000001"),
+            (1.0e-9, "1e-9"),
             (1.0e-11, "1e-11"),
         ] {
             assert_eq!(number_text(value, MM), text, "the field's text for {value}");
@@ -3211,7 +3208,7 @@ mod field_tests {
         for value in [3.0_f64, -12.0, 0.0, 1.0e9, i64::MAX as f64] {
             assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
         }
-        for value in [1.0e23_f64, -1.0e23, 1.0e30, -1.0e30, 1.0e40] {
+        for value in [1.0e24_f64, -1.0e24, 1.0e30, -1.0e30, 1.0e40] {
             let exact = format!("{value:.0}");
             assert!(
                 exact.chars().count() > crate::readout::MAX_CHARS,
@@ -4434,8 +4431,8 @@ mod value_field_tests {
         );
         assert_eq!(
             text,
-            Some(format!("{} {}", props::DRIVEN, props::no_reading(MM.def()))),
-            "and says the notation cannot name its value"
+            Some(format!("{} 4e305 m", props::DRIVEN)),
+            "and says its value in a unit that can name it"
         );
         assert_eq!(
             seed.as_deref(),

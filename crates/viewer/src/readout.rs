@@ -115,7 +115,7 @@ pub fn bare(value: f64, quantity: UnitQuantity) -> String {
         symbol => text
             .strip_suffix(symbol)
             .and_then(|number| number.strip_suffix(' '))
-            .map_or(text.clone(), str::to_owned),
+            .map_or_else(|| text.clone(), str::to_owned),
     }
 }
 
@@ -133,7 +133,8 @@ pub fn bare(value: f64, quantity: UnitQuantity) -> String {
 /// `work/vgeom/the-field-door-tells-a-written-number-with-no-unit-in-hand.md`.
 pub fn field_number(value: f64) -> String {
     let text = as_field(value).to_string();
-    text.strip_suffix(" m").map_or(text.clone(), str::to_owned)
+    text.strip_suffix(" m")
+        .map_or_else(|| text.clone(), str::to_owned)
 }
 
 /// Whether `spelling` names `value` as a field shows it: it reads as a

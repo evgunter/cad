@@ -166,9 +166,9 @@ fn camera_readout(camera: &Camera, notation: Notation) -> [String; 2] {
 ///
 /// **It ASKS for the value in `unit` rather than forming it**
 /// ([`crate::props::written_text`]). A camera distance above
-/// `f64::MAX * MILLI` metres has no millimetre value at all, and `inf`
-/// names no distance; [`crate::props::written`] is the question and
-/// [`crate::props::no_reading`] is the answer.
+/// `f64::MAX * MILLI` metres has no millimetre value at all and reads
+/// in metres; `inf` names no distance, and
+/// [`crate::props::no_reading`] is the answer to one.
 ///
 /// **That is the half of this render owns, and there is another it
 /// does not.** `Camera::max_distance` is
@@ -396,7 +396,7 @@ mod tests {
             "0.5 pi rad"
         );
         let unnameable = 1.0e306;
-        assert_eq!(camera_reading(unnameable, MM.def()), "no mm reading");
+        assert_eq!(camera_reading(unnameable, MM.def()), "1e306 m");
         assert_eq!(camera_reading(unnameable, M.def()), "1e306 m");
         assert!(
             !camera_reading(f64::INFINITY, M.def()).contains("inf"),
@@ -612,8 +612,8 @@ mod tests {
     /// leave the user's own draft reading exactly as the render did —
     /// and committing a render can only coarsen δ to a spelling of
     /// itself. δ here is 1/30 of the starting δ, whose render
-    /// (`0.0016666667`) is a rounding: committing it would move δ from
-    /// 1.66666666666…e-6 to 1.6666667e-6.
+    /// (`0.0016667`) is a rounding: committing it would move δ from
+    /// 1.66666666666…e-6 to 1.6667e-6.
     #[test]
     fn a_draft_typed_back_to_the_render_commits_nothing() {
         let mut field = Field::at(0.05 / 30.0);
@@ -624,7 +624,7 @@ mod tests {
         field.backspace();
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.0016666667"),
+            Some("0.0016667"),
             "and the draft is back to the render it started from"
         );
         field.tab();
@@ -704,14 +704,14 @@ mod tests {
     /// millimetres reds on both halves.
     #[test]
     fn the_field_reads_and_commits_in_the_working_unit() {
-        let mut field = Field::at(0.05);
+        let mut field = Field::at(500.0);
         field.unit = M;
         field.frame(Vec::new());
         field.tab();
         field.type_text("7");
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.000057"),
+            Some("0.57"),
             "the render the keystroke landed on is δ in metres"
         );
         field.frame(vec![

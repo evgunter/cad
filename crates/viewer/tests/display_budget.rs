@@ -199,9 +199,12 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
     );
     // Four figures, and half of a tenth of ε (1e-7 mm) where that is
     // finer; one float of slack for the divide that made `mm`.
-    let grid = (0.5e-7_f64).min(mm * 5.0e-4) * (1.0 + 1.0e-9);
+    // Past about half a kilometre a decimal step is the floats' own
+    // gap, so the grid is no finer than that.
+    let gap = mm.next_up() - mm;
+    let grid = ((0.5e-7_f64).min(mm * 5.0e-4) * (1.0 + 1.0e-9)).max(5.0 * gap);
     assert!(
-        (read - mm).abs() <= grid + (mm.next_up() - mm),
+        (read - mm).abs() <= grid + gap,
         "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }

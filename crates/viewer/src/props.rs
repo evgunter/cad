@@ -441,14 +441,20 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// **The crate's render of a value nobody wrote
 /// ([`crate::readout::computed`])**: told on the grid in `unit`, and
 /// in the canonical unit, under its own word, where `unit` cannot say
-/// the value at all ([`written`]'s `None`).
+/// the value at all ([`written`]'s `None`). A value that is not
+/// finite names no quantity in any unit and is [`no_reading`], never
+/// `inf`.
 ///
 /// `render_number` is deliberately not the render here. That one is a
 /// FIELD's — exact round-tripping digits, because the text a
 /// field shows is the text an edit starts from — and a sentence is not
 /// a commit path.
 pub fn written_text(canonical: f64, unit: UnitDef) -> String {
-    crate::readout::computed(canonical, unit)
+    if canonical.is_finite() {
+        crate::readout::computed(canonical, unit)
+    } else {
+        no_reading(unit)
+    }
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
