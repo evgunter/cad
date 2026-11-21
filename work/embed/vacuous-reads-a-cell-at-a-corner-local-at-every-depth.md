@@ -4,7 +4,7 @@ kind: issue
 title: injective's vacuous reads a cell that touches a face's corner from outside Local at every depth, because the touching line's edge is read without running on past the corner
 status: open
 opened: 2026-11-01
-priority: P3
+priority: P0
 ---
 
 
