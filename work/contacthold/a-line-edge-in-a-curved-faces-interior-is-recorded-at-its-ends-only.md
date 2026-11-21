@@ -63,3 +63,7 @@ in the other tube's wall along their tangent line. ∪ records the two
 rim circles' touches on the seam as vertex–edge records and nothing for
 the seam's span in the wall, alike in both operand orders; the rows pin
 the count at two.
+
+## 2026-11-20 — two kissing cylinders, one seam on the kiss (PROFILE)
+
+Evidence from PROFILE's `circle-lowers-to-one-segment` (branch `profile/circle-lowers-to-one-segment`). `sweep/tests/verbs_cylcyl_r1_review_probes.rs` `externally_tangent_walls_touch_at_every_op`: unit cylinders about `(0, 0)` and `(2, 0)`, `z ∈ [0, 2]`, kissing along `x = 1, y = 0`. With two-arc `circle()` rims both walls had a seam on the kiss and ∪ carried the seams' edge–edge record, 3′ clean. Once `circle()` lowers to one segment, each wall's one seam is at its `+x`: the left's lies on the kiss and the right's wall runs on through it. ∪ now builds the two solids carrying two vertex–edge rows (the right's rim circles on the left's seam vertices) and nothing for the seam's span in the right wall, in both orders, and 3′ leaves the walls' cross-solid pair `CensusUndecidable (MayOverlap)`, the same state `two_tubes_in_the_zero_band.rs` pins. The row is re-pinned to it, naming this item.

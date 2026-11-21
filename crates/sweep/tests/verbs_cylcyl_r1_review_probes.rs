@@ -240,18 +240,60 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row() {
 
 /// **Externally tangent walls touch at every op**: two upright unit
 /// cylinders a diameter apart share the ruling `x = 1, y = 0` and no
-/// volume, so ∪ is the two solids with the edge–edge record of their
-/// edges on the ruling, ∖ returns each, and ∩ is empty.
+/// volume, so ∪ is the two solids, ∖ returns each, and ∩ is empty.
+///
+/// The left wall's seam lies on the ruling and the right wall runs on
+/// through it, so ∪ records the two rim circles' touches on the seam as
+/// vertex–edge rows and nothing for the seam's span in the right wall,
+/// in both orders; tier 3′ leaves the walls' cross-solid pair
+/// undecided. That is CONTACTHOLD's
+/// `a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`
+/// (`two_tubes_in_the_zero_band.rs` is its other witness): the rows pin
+/// the records and the findings as they stand.
 #[test]
 fn externally_tangent_walls_touch_at_every_op() {
     let tol = Tol::witness();
-    crate::common::touch_union::assert_touch_at_every_op(
-        "externally tangent walls",
-        &finished("the left cylinder", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol),
-        &finished("the right cylinder", cyl(2.0, 0.0, 1.0, 0.0, 2.0), tol),
-        [Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 2.0)],
-        [Point3::new(0.0, 0.0, 1.0), Point3::new(2.0, 0.0, 1.0)],
-    );
+    let a = finished("the left cylinder", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let b = finished("the right cylinder", cyl(2.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let unit = 2.0 * PI;
+    for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+        let topo::BooleanResult::Body(u) = topo::union(x, y, tol).expect("∪ builds") else {
+            panic!("{order}: ∪ is not empty");
+        };
+        assert_eq!(u.body.solids().count(), 2, "{order}: ∪ is two solids");
+        let v = topo::test_support::pinned_volume("the union", &u.body, tol).volume;
+        assert!((v - 2.0 * unit).abs() < 1e-9, "{order}: ∪ volume {v}");
+        assert_eq!(
+            (
+                u.contacts.vertex_edge().count(),
+                u.contacts.edge_edge().count()
+            ),
+            (2, 0),
+            "{order}: the rims' touches on the seam, and no record of the seam's span"
+        );
+        let findings = topo::validate_pseudomanifold(&u.body, &u.contacts, tol)
+            .expect_err("tier 3′ leaves the walls' pair undecided");
+        assert!(
+            findings
+                .iter()
+                .all(|f| matches!(f, topo::ValidationError::CensusUndecidable { .. })),
+            "{order}: only undecided pairs: {findings:?}"
+        );
+        for (what, r) in [
+            ("∖", topo::subtract(x, y, tol)),
+            ("∩", topo::intersect(x, y, tol)),
+        ] {
+            match (what, r) {
+                ("∖", Ok(topo::BooleanResult::Body(d))) => {
+                    let v =
+                        topo::test_support::pinned_volume("the difference", &d.body, tol).volume;
+                    assert!((v - unit).abs() < 1e-9, "{order}: ∖ volume {v}");
+                }
+                ("∩", Ok(topo::BooleanResult::Empty)) => {}
+                (what, other) => panic!("{order}: {what}: {other:?}"),
+            }
+        }
+    }
 }
 
 /// A pose: its name, its two operands, and the truth its answers are
