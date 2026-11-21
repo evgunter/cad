@@ -310,6 +310,25 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
+    /// **Whether `other` is this value, so that a certificate whose
+    /// support holds it may be read rather than derived again** — the
+    /// one knob of reading by support (`geom_brep::LocusCertificate`,
+    /// a pcurve row's support): every comparison of a support reads its
+    /// values through this, so a scalar that answers `false` reads no
+    /// certificate and derives each where it is asked.
+    ///
+    /// `true` only where a derivation is a pure function of its support
+    /// down to the bits of what it returns and records nothing a read
+    /// would drop: the same bits at a value scalar, the same enclosure
+    /// and decoration at an interval. `false`, the default, is always
+    /// sound: a dual holds no certificate, and a scalar whose
+    /// derivations are its record (the symbolic tier's decision log, the
+    /// recording scalar's K samples) answers `false` by its own impl.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **What a certifying door's record is held as at this scalar**:
     /// the record itself where the scalar certifies, and
     /// [`Uncertified`] where it never does (a dual, DL1). An edge a
@@ -2076,6 +2095,10 @@ pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    fn same_value(self, other: Self) -> bool {
+        self.to_bits() == other.to_bits()
+    }
+
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same
