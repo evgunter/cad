@@ -9,40 +9,53 @@ use common::fixture;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
-/// Row 4: the curve-only fixture parses; the rational quadratic
-/// reconstructs exactly (`==` on control points / knots / weights —
-/// legitimate because the writer's printer round-trips to identical
-/// bits); **no body is claimed**, and the reason is structural: a
-/// `GEOMETRIC_CURVE_SET` wireframe carries no faces, shells, or
-/// solids, so there is nothing a `Body` could honestly represent —
-/// the import result is the `Wireframe` disposition, not a skip.
+/// Row 4: the curve-only fixture parses; **no body is claimed**, and
+/// the reason is structural: a `GEOMETRIC_CURVE_SET` wireframe carries
+/// no faces, shells, or solids, so there is nothing a `Body` could
+/// honestly represent — the import result is the `Wireframe`
+/// disposition, not a skip. Its one curve, the writer's quarter of the
+/// unit circle as a rational quadratic, is read exactly and promotes to
+/// that circle: the frame is the arc's own, its seam at the arc's
+/// start, the span the quarter the file states, and the promotion is
+/// reported.
 #[test]
 fn nurbs_wireframe_disposition() {
     let text = fixture("nurbs_wireframe", "step");
     let import = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect("the wireframe imports");
+    let promotions = import.curve_promotions();
     let StepImport::Wireframe { curves, eps_in, .. } = import else {
         panic!("a curve-only file must take the wireframe disposition, not claim a body");
     };
     assert_eq!(eps_in, 1e-9, "the file's declared uncertainty");
     assert_eq!(curves.len(), 1, "one curve in the set");
-    let geom::Curve3::Nurbs(payload) = &curves[0] else {
-        panic!("the curve is the rational quadratic");
+    let geom::Curve3::Circle(circle) = curves[0].carrier else {
+        panic!("the quarter circle promotes: {:?}", curves[0]);
     };
-    // Exact reconstruction: the writer's record pin, inverted.
-    assert_eq!(payload.knots_f64_interim().degree(), 2);
-    assert_eq!(
-        payload.knots_f64_interim().knots(),
-        &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+    let frame = circle.frame;
+    let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let radius = circle.radius();
+    assert!(
+        origin.to_array().iter().all(|c| c.abs() < 1e-15),
+        "centre {origin:?}"
     );
-    let control = payload.control();
-    assert_eq!((control[0].x, control[0].y, control[0].z), (1.0, 0.0, 0.0));
-    assert_eq!((control[1].x, control[1].y, control[1].z), (1.0, 1.0, 0.0));
-    assert_eq!((control[2].x, control[2].y, control[2].z), (0.0, 1.0, 0.0));
-    assert_eq!(
-        payload.weights(),
-        &[1.0, std::f64::consts::FRAC_1_SQRT_2, 1.0]
+    assert!((radius - 1.0).abs() < 1e-15, "radius {radius:e}");
+    assert!((axis.z - 1.0).abs() < 1e-15, "axis {axis:?}");
+    assert!((u_ref.x - 1.0).abs() < 1e-15, "u_ref {u_ref:?}");
+    // The file states a quarter of that circle, and the curve says so.
+    let Some((t0, t1)) = curves[0].span else {
+        panic!("an open arc carries its span: {:?}", curves[0]);
+    };
+    assert!(
+        t0 == 0.0 && (t1 - core::f64::consts::FRAC_PI_2).abs() < 1e-15,
+        "the quarter from the seam: {t0:e}..{t1:e}"
     );
+    assert_eq!(
+        promotions.len(),
+        1,
+        "the promotion is reported: {promotions:?}"
+    );
+    assert!(promotions[0].residual < 1e-14, "{promotions:?}");
 }
 
 /// A minimal hand-authored solid file whose one face carries the

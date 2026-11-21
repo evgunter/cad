@@ -537,10 +537,13 @@ pub fn route_pose<T: Decide>(
         [a, b]
             .into_iter()
             .filter_map(|s| match *s {
-                Surface::Cone { apex: anchor, .. }
-                | Surface::Sphere { center: anchor, .. }
-                | Surface::Torus { center: anchor, .. }
-                | Surface::Spindle { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                Surface::Cone { frame, .. }
+                | Surface::Sphere { frame, .. }
+                | Surface::Torus { frame, .. }
+                | Surface::Spindle { frame, .. } => {
+                    let anchor = frame.origin();
+                    Some(reach.lever_from(anchor))
+                }
                 Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Nurbs(_)
@@ -559,7 +562,7 @@ pub fn route_pose<T: Decide>(
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
-            crate::pair_section(a, b, None, None, band).map(drop)
+            crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
         }
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
@@ -1333,14 +1336,17 @@ fn plane_cylinder_data<T: Real>(
         return Err(wrong());
     };
     let &Surface::Cylinder {
-        origin: o,
-        axis: a,
+        frame: carrier_frame,
         radius: r,
-        u_ref,
     } = cylinder
     else {
         return Err(wrong());
     };
+    let (o, a, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     Ok((PlaneCylinder { q, n, o, a, r }, u_ref))
 }
 
@@ -1361,7 +1367,10 @@ pub trait SectionPlane<T: Real> {
 impl<T: Real> SectionPlane<T> for Surface<T> {
     fn site(&self) -> Option<(Point3<T>, Vec3<T>)> {
         match *self {
-            Surface::Plane { origin, normal, .. } => Some((origin, normal)),
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         }
     }
@@ -1431,16 +1440,19 @@ pub fn plane_sphere_section<T: Decide>(
         });
     };
     let &Surface::Sphere {
-        center: c,
+        frame: carrier_frame,
         radius: r,
-        axis: sph_axis,
-        u_ref: sph_u,
     } = sphere
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
         });
     };
+    let (c, sph_axis, sph_u) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let s = (c - q).dot(n);
     let foot = c - n * s;
     // The circle's `u_ref` is a PLACEMENT convention (D2): every
@@ -1574,22 +1586,24 @@ pub fn sphere_sphere_section<T: Decide>(
         expected: "sphere×sphere",
     };
     let &Surface::Sphere {
-        center: c1,
+        frame: carrier_frame,
         radius: r1,
-        axis: axis1,
-        u_ref: u1,
     } = a
     else {
         return Err(wrong());
     };
+    let (c1, axis1, u1) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let &Surface::Sphere {
-        center: c2,
-        radius: r2,
-        ..
+        frame, radius: r2, ..
     } = b
     else {
         return Err(wrong());
     };
+    let c2 = frame.origin();
     // The margins and the SIGNED radical-plane foot, from one pair
     // (`geom_core::Circles`). Every branch that places the foot has
     // already decided `d` definitely positive, so its division is safe.
@@ -2158,9 +2172,14 @@ pub fn cone_plane_apex_extrema<T: Real>(
     cone: &Surface<T>,
     normal: Vec3<T>,
 ) -> Option<[Vec3<T>; 2]> {
-    let &Surface::Cone { axis, .. } = cone else {
+    let &Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = cone
+    else {
         return None;
     };
+    let axis = carrier_frame.axis();
     let n = normal.normalize();
     let p = (axis - n * axis.dot(n)).normalize();
     Some([p, -p])
@@ -2320,7 +2339,9 @@ pub fn plane_cone_section<T: Decide>(
     };
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: carrier_frame,
+            half_angle,
+            ..
         },
         Some(frame),
     ) = (cone, cone.frame())
@@ -2329,6 +2350,7 @@ pub fn plane_cone_section<T: Decide>(
             expected: "plane×cone",
         });
     };
+    let apex = carrier_frame.origin();
     // The cone's frame, squared once: nothing holds a stored cone's axis
     // unit or its seam square to it, and the arm reads the axis and
     // half-angle as the geometric cone, so the seam only places azimuth
@@ -2912,15 +2934,14 @@ fn plane_torus_read<T: Decide>(
         return Err(wrong());
     };
     let &Surface::Torus {
-        center: c,
-        axis: a,
+        frame,
         major_radius: big_r,
         minor_radius: r,
-        u_ref: tor_u,
     } = torus
     else {
         return Err(wrong());
     };
+    let (c, a, tor_u) = (frame.origin(), frame.axis(), frame.u_ref());
 
     let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
@@ -3116,16 +3137,24 @@ pub fn cone_sphere_section<T: Decide>(
 ) -> Result<ConeSphereSection<T>, SectionError> {
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: cone_frame,
+            half_angle,
+            ..
         },
         Some(frame),
-        &Surface::Sphere { center, radius, .. },
+        &Surface::Sphere {
+            frame: sphere_frame,
+            radius,
+            ..
+        },
     ) = (cone, cone.frame(), sphere)
     else {
         return Err(SectionError::WrongLane {
             expected: "cone×sphere (cone first)",
         });
     };
+    let apex = cone_frame.origin();
+    let center = sphere_frame.origin();
     coaxial_cone_sphere(
         (apex, half_angle, frame.square()),
         (center, radius),
@@ -3270,12 +3299,13 @@ pub fn cone_torus_section<T: Decide>(
 ) -> Result<ConeTorusSection<T>, SectionError> {
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: cone_frame,
+            half_angle,
+            ..
         },
         Some(frame),
         &Surface::Torus {
-            center,
-            axis,
+            frame: torus_frame,
             major_radius,
             minor_radius,
             ..
@@ -3286,6 +3316,8 @@ pub fn cone_torus_section<T: Decide>(
             expected: "cone×torus (cone first)",
         });
     };
+    let apex = cone_frame.origin();
+    let (center, axis) = (torus_frame.origin(), torus_frame.axis());
     coaxial_cone_torus(
         (apex, half_angle, frame.square()),
         (center, axis, major_radius, minor_radius),
@@ -3506,13 +3538,16 @@ pub fn cone_cylinder_section<T: Decide>(
     };
     let (
         &Surface::Cone {
-            apex, half_angle, ..
+            frame: carrier_frame,
+            half_angle,
+            ..
         },
         Some(frame),
     ) = (cone, cone.frame())
     else {
         return Err(wrong());
     };
+    let apex = carrier_frame.origin();
     // The cone's frame, squared once ([`Frame::square`]).
     let SquareFrame {
         axis: a,
@@ -3520,8 +3555,7 @@ pub fn cone_cylinder_section<T: Decide>(
         width: seam_width,
     } = frame.square();
     let &Surface::Cylinder {
-        origin: o,
-        axis: b,
+        frame,
         radius: big_r,
         ..
     } = cyl
@@ -3530,6 +3564,7 @@ pub fn cone_cylinder_section<T: Decide>(
             expected: "cone×cylinder (cylinder second)",
         });
     };
+    let (o, b) = (frame.origin(), frame.axis());
 
     let (sin_a, cos_a) = half_angle.sin_cos();
     match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(|diag| {
@@ -3697,10 +3732,12 @@ mod apex_fan_rows {
             Vec3::new(0.0, 1.0, 0.0)
         };
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                axis,
+                (u - axis * u.dot(axis)).normalize(),
+            ),
             half_angle: half,
-            u_ref: (u - axis * u.dot(axis)).normalize(),
         }
     }
 

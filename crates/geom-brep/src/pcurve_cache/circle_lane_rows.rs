@@ -54,29 +54,35 @@ fn framed_circle(
 
 pub(super) fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.3, -0.2, 0.5),
-        axis: Vec3::new(0.2, 0.1, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(0.3, -0.2, 0.5),
+            Vec3::new(0.2, 0.1, 1.0).normalize(),
+            Vec3::new(1.0, 0.0, -0.2).normalize(),
+        ),
         half_angle,
-        u_ref: Vec3::new(1.0, 0.0, -0.2).normalize(),
     }
 }
 
 pub(super) fn torus(major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(-0.4, 0.7, 0.2),
-        axis: Vec3::new(0.0, 0.3, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(-0.4, 0.7, 0.2),
+            Vec3::new(0.0, 0.3, 1.0).normalize(),
+            Vec3::unit_x(),
+        ),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 pub(super) fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.1, 0.2, -0.3),
-        axis: Vec3::new(-0.3, 0.0, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(0.1, 0.2, -0.3),
+            Vec3::new(-0.3, 0.0, 1.0).normalize(),
+            Vec3::unit_y(),
+        ),
         radius,
-        u_ref: Vec3::unit_y(),
     }
 }
 
@@ -202,6 +208,20 @@ pub(super) fn certifies_projected(
     span: (f64, f64),
     surface: &Surface<f64>,
 ) -> (f64, f64, f64) {
+    certifies_projected_at(what, carrier, span, surface, None)
+        .unwrap_or_else(|| unreachable!("{what}: no pin, so it certifies"))
+}
+
+/// [`certifies_projected`], or `None` where `pin` names the margin band
+/// its `Interval` certificate is pinned to escalate `pcurve_envelope` in
+/// at ε 1e-12 ([`super::frame_cost`]).
+pub(super) fn certifies_projected_at(
+    what: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    surface: &Surface<f64>,
+    pin: Option<(f64, f64)>,
+) -> Option<(f64, f64, f64)> {
     let (at_f64, at_interval) = derived(carrier, span, surface);
     let image = at_f64.unwrap_or_else(|e| panic!("{what}: derives at f64: {e:?}"));
     let image_i = at_interval.unwrap_or_else(|e| panic!("{what}: derives at Interval: {e:?}"));
@@ -224,8 +244,18 @@ pub(super) fn certifies_projected(
         &carrier.map_scalar(f),
         &surface.map_scalar(f),
         band(),
-    )
-    .unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
+    );
+    let cache_i = match (
+        cache_i,
+        pin.filter(|_| super::frame_cost::at_the_least_band()),
+    ) {
+        (Err(e), Some(band)) if super::frame_cost::envelope_escalates(&e, band) => return None,
+        (got, Some(band)) => panic!(
+            "{what}: pinned to escalate pcurve_envelope in {band:?} at Interval at ε 1e-12: {:?}",
+            got.map(|_| ())
+        ),
+        (got, None) => got.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}")),
+    };
     let (envelope, hi) = (
         cache.certificate().envelope,
         cache_i.certificate().envelope.hi(),
@@ -244,7 +274,7 @@ pub(super) fn certifies_projected(
     if sup > zero() / 2.0 {
         covers(what, &image, span, carrier, surface, envelope, hi);
     }
-    (envelope, hi, sup)
+    Some((envelope, hi, sup))
 }
 
 /// The class reading lands in band: the closed-form derivation escalates
@@ -290,9 +320,10 @@ fn a_cone_circle_that_is_no_rim_certifies_through_the_projected_lane() {
             let Some(form) = carrier_harmonic(&carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
-            let Surface::Cone { axis, .. } = surface else {
+            let Surface::Cone { frame, .. } = surface else {
                 unreachable!("a cone")
             };
+            let axis = frame.axis();
             assert!(
                 harmonic_sup_scalar(form.a.dot(axis), form.b.dot(axis)) > band().escalate(),
                 "{what}: the tilt reads definite"
@@ -475,7 +506,7 @@ pub(super) fn lemma_envelopes(
         carrier,
         surface,
         band(),
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     let (terms_i, _) = projected::projected_envelope(
@@ -486,7 +517,7 @@ pub(super) fn lemma_envelopes(
         &carrier.map_scalar(f),
         &surface.map_scalar(f),
         band(),
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     Ok((terms.total(), terms_i.total().hi()))
@@ -546,36 +577,31 @@ fn form_at<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
         (q, rho, h)
     };
     match *surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (_, rho, _) = split(origin, axis);
             (rho - radius) * (rho + radius)
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (_, rho, h) = split(apex, axis);
             let (sa, ca) = half_angle.sin_cos();
             (rho * ca - h * sa) * (rho * ca + h * sa)
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let q = (p - center).norm();
             (q - radius) * (q + radius)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (_, rho, h) = split(center, axis);
             let tube = |x: T| x.powi(2) + h.powi(2) - minor_radius.powi(2);
             tube(rho - major_radius) * tube(rho + major_radius)
@@ -621,11 +647,9 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
             (3.0, 0.5),
         ] {
             let surface = Surface::Torus {
-                center: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 major_radius: major,
                 minor_radius: major * ratio,
-                u_ref,
             };
             for target in [1e-12, 2e-10, 1e-9] {
                 let delta = (2.0 * major * ratio * target).sqrt();
@@ -639,10 +663,8 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
         }
         for (alpha, h) in [(0.003, 1e-4), (1.567, 1e-4), (0.6, 2.0)] {
             let surface = Surface::Cone {
-                apex: at,
-                axis,
+                frame: geom::Frame::new(at, axis, u_ref),
                 half_angle: alpha,
-                u_ref,
             };
             rows.push((
                 format!("cone α {alpha}, h {h:e}, far {far}"),
@@ -651,10 +673,8 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
             ));
         }
         let sphere = Surface::Sphere {
-            center: at,
+            frame: geom::Frame::new(at, axis, u_ref),
             radius: 2.0,
-            axis,
-            u_ref,
         };
         let (st, ct) = 0.3_f64.sin_cos();
         rows.push((
@@ -669,10 +689,8 @@ fn the_form_bound_covers_the_form_enclosed_at_interval() {
             ),
         ));
         let wall = Surface::Cylinder {
-            origin: at,
-            axis,
+            frame: geom::Frame::new(at, axis, u_ref),
             radius: 0.7,
-            u_ref,
         };
         rows.push((
             format!("cylinder, far {far}"),
@@ -725,14 +743,14 @@ pub(super) fn cone_coefficient_excess(
 ) -> (bool, f64) {
     use crate::exact_q::Q;
     let Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
         ..
     } = *surface
     else {
         unreachable!("a cone row")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let Some(conic) = carrier.conic() else {
         unreachable!("a circle row")
     };
@@ -766,11 +784,11 @@ pub(super) fn cone_coefficient_excess(
     };
     let (o, c) = (
         q(apex - Point3::origin()),
-        q(frame.origin - Point3::origin()),
+        q(frame.origin() - Point3::origin()),
     );
     let d = [c[0].sub(&o[0]), c[1].sub(&o[1]), c[2].sub(&o[2])];
-    let u = q(frame.u_ref);
-    let v = cross(&q(frame.axis), &u);
+    let u = q(frame.u_ref());
+    let v = cross(&q(frame.axis()), &u);
     let (e, up, vp) = (perp(&d), perp(&u), perp(&v));
     let (a, b, two, half) = (Q::of(a), Q::of(b), Q::of(2.0), Q::of(0.5));
     let (aa, bb) = (a.mul(&a).mul(&dot(&up, &up)), b.mul(&b).mul(&dot(&vp, &vp)));
@@ -823,10 +841,12 @@ pub(super) fn cone_coefficient_excess(
 fn a_cone_sections_coefficients_stay_within_their_charge() {
     let mut rows: Vec<(String, Surface<f64>, Curve3<f64>)> = Vec::new();
     let needle = |far: f64, axis: Vec3<f64>, u_ref: Vec3<f64>, alpha: f64| Surface::Cone {
-        apex: Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
-        axis,
+        frame: geom::Frame::new(
+            Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
+            axis,
+            u_ref,
+        ),
         half_angle: alpha,
-        u_ref,
     };
     let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
     let surface = needle(1e5, axis, axis.cross(Vec3::unit_x()).normalize(), 0.003);
@@ -883,10 +903,12 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
     let far = 1e5;
     let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
     let surface = Surface::Cone {
-        apex: Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
-        axis,
+        frame: geom::Frame::new(
+            Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far),
+            axis,
+            axis.cross(Vec3::unit_x()).normalize(),
+        ),
         half_angle: 0.003,
-        u_ref: axis.cross(Vec3::unit_x()).normalize(),
     };
     let carrier = cone_section_circle(&surface, 0.003, 1.0, 1e-7);
     let exact = 2.723_422_719_786_418_5e-12;
@@ -901,7 +923,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &carrier,
         &surface,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads: {e:?}"));
@@ -922,7 +944,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &ci,
         &si,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads at Interval: {e:?}"));
@@ -985,9 +1007,15 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects: {e:?}"));
     image.breaks = one_piece();
     image.azimuth.truncate(1);
-    let Err(refused) =
-        PcurveCache::certify_projected(image.clone(), 0.0, SPAN, &carrier, &surface, b, None)
-    else {
+    let Err(refused) = PcurveCache::certify_projected(
+        image.clone(),
+        0.0,
+        SPAN,
+        &carrier,
+        &surface,
+        b,
+        None::<geom_core::NoLane>,
+    ) else {
         panic!("a piece reaching the axis certified")
     };
     assert!(azimuth(&refused), "f64: {refused:?}");
@@ -1013,9 +1041,15 @@ fn a_lane_choices_azimuth_refusal_ends_not_yet() {
         .unwrap_or_else(|e| panic!("the rim projects at Interval: {e:?}"));
     image_i.breaks = one_piece();
     image_i.azimuth.truncate(1);
-    let Err(refused_i) =
-        PcurveCache::certify_projected(image_i.clone(), f(0.0), f(SPAN), &ci, &si, b, None)
-    else {
+    let Err(refused_i) = PcurveCache::certify_projected(
+        image_i.clone(),
+        f(0.0),
+        f(SPAN),
+        &ci,
+        &si,
+        b,
+        None::<geom_core::NoLane>,
+    ) else {
         panic!("a piece reaching the axis certified at Interval")
     };
     assert!(azimuth(&refused_i), "Interval: {refused_i:?}");
@@ -1077,10 +1111,8 @@ fn a_circles_projected_envelope_covers_its_residual() {
             0 => {
                 let alpha = s.log_uniform(0.003, 1.567);
                 let surface = Surface::Cone {
-                    apex: place,
-                    axis,
+                    frame: geom::Frame::new(place, axis, u_ref),
                     half_angle: alpha,
-                    u_ref,
                 };
                 let h = s.log_uniform(1e-4, 2.0) * scale * sign(&mut s);
                 let tau = if s.below(2) == 0 {
@@ -1101,11 +1133,9 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 };
                 let (major, minor) = (scale, scale * ratio);
                 let surface = Surface::Torus {
-                    center: place,
-                    axis,
+                    frame: geom::Frame::new(place, axis, u_ref),
                     major_radius: major,
                     minor_radius: minor,
-                    u_ref,
                 };
                 let carrier = if s.below(2) == 0 {
                     let delta = (2.0 * minor * off(&mut s)).sqrt();
@@ -1131,10 +1161,8 @@ fn a_circles_projected_envelope_covers_its_residual() {
             2 => {
                 let radius = scale;
                 let surface = Surface::Cylinder {
-                    origin: place,
-                    axis,
+                    frame: geom::Frame::new(place, axis, u_ref),
                     radius,
-                    u_ref,
                 };
                 let carrier = if s.below(2) == 0 {
                     let phi = s.range(-3.1, 3.1);
@@ -1164,10 +1192,8 @@ fn a_circles_projected_envelope_covers_its_residual() {
             _ => {
                 let alpha = s.log_uniform(0.003, 1.567);
                 let surface = Surface::Cone {
-                    apex: place,
-                    axis,
+                    frame: geom::Frame::new(place, axis, u_ref),
                     half_angle: alpha,
-                    u_ref,
                 };
                 let (sa, ca) = alpha.sin_cos();
                 let phi = s.range(-3.1, 3.1);
@@ -1186,15 +1212,15 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let (carrier, t0, t1) = match carrier {
             Curve3::Circle(
                 conic_k @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n,
-                            u_ref: x,
-                        },
+                    frame: carrier_frame_35,
                     ..
                 },
             ) => {
+                let (center, n, x) = (
+                    carrier_frame_35.origin(),
+                    carrier_frame_35.axis(),
+                    carrier_frame_35.u_ref(),
+                );
                 let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
                 let t1 = t0
@@ -1320,14 +1346,16 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     // (their pose stood a fixed `1.298e-10` off, at 60 digits: past the
     // band at a smaller ε, where its incidence read ends it first).
     let apex = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::new(
-            0.036582851423955946,
-            -0.3691082383934535,
-            -0.9286661420186344,
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(
+                0.036582851423955946,
+                -0.3691082383934535,
+                -0.9286661420186344,
+            ),
+            Vec3::new(-0.7808453755737287, -0.590498825246728, 0.203940277599489),
         ),
         half_angle: 0.016142392389299435,
-        u_ref: Vec3::new(-0.7808453755737287, -0.590498825246728, 0.203940277599489),
     };
     let (sa, ca) = 0.016142392389299435_f64.sin_cos();
     let phi = 1.9_f64;
@@ -1486,15 +1514,15 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     match *carrier {
         Curve3::Circle(
             conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: centre,
-                        axis: n,
-                        u_ref: x,
-                    },
+                frame: carrier_frame_34,
                 ..
             },
         ) => {
+            let (centre, n, x) = (
+                carrier_frame_34.origin(),
+                carrier_frame_34.axis(),
+                carrier_frame_34.u_ref(),
+            );
             let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
@@ -1548,11 +1576,21 @@ fn a_foreign_stored_row_never_ends_not_yet() {
         for angle in [1e-6, 1e-4, 1e-2] {
             let b = turned(&a, surface, angle);
             for (scalar, got) in [
-                ("f64", row.recertify(&b, span, surface, band(), None).err()),
+                (
+                    "f64",
+                    row.recertify(&b, span, surface, band(), None::<geom_core::NoLane>)
+                        .err(),
+                ),
                 (
                     "Interval",
                     row_i
-                        .recertify(&b.map_scalar(f), (f(span.0), f(span.1)), &s_i, band(), None)
+                        .recertify(
+                            &b.map_scalar(f),
+                            (f(span.0), f(span.1)),
+                            &s_i,
+                            band(),
+                            None::<geom_core::NoLane>,
+                        )
                         .err(),
                 ),
             ] {
@@ -1601,11 +1639,11 @@ fn torus_coefficients_excess(
     let (a, b) = conic.semi_axes();
     let (o, c) = (
         q3(at - Point3::origin()),
-        q3(frame.origin - Point3::origin()),
+        q3(frame.origin() - Point3::origin()),
     );
     let d = q_sub(&c, &o);
-    let (uq, ax) = (q3(frame.u_ref), q3(axis));
-    let vq = q_cross(&q3(frame.axis), &uq);
+    let (uq, ax) = (q3(frame.u_ref()), q3(axis));
+    let vq = q_cross(&q3(frame.axis()), &uq);
     let (aq, bq) = (Q::of(a), Q::of(b));
     let z = || Q::of(0.0);
     let aa = aq.mul(&aq).mul(&q_dot(&uq, &uq));
@@ -1955,11 +1993,11 @@ pub(super) fn other_charts_within(
     let (a, b) = conic.semi_axes();
     let (o, c) = (
         q3(at - Point3::origin()),
-        q3(frame.origin - Point3::origin()),
+        q3(frame.origin() - Point3::origin()),
     );
     let d = q_sub(&c, &o);
-    let (uq, ax) = (q3(frame.u_ref), q3(axis));
-    let vq = q_cross(&q3(frame.axis), &uq);
+    let (uq, ax) = (q3(frame.u_ref()), q3(axis));
+    let vq = q_cross(&q3(frame.axis()), &uq);
     let (aq, bq, rq) = (Q::of(a), Q::of(b), Q::of(r));
     // The quadrics: `|⊥(C − o)|² − r²`, `⊥` the identity on the sphere.
     for (slot, wall) in [(0, false), (1, true)] {

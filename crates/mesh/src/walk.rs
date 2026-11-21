@@ -320,6 +320,16 @@ pub(crate) const fn edge_key(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
 }
 
+/// A triangle's three sides, each as its [`edge_key`]: the one spelling
+/// of "the sides of a triangle" every census of side uses reads.
+pub(crate) const fn sides(t: [u32; 3]) -> [(u32, u32); 3] {
+    [
+        edge_key(t[0], t[1]),
+        edge_key(t[1], t[2]),
+        edge_key(t[2], t[0]),
+    ]
+}
+
 /// The edge incident to an IDENTIFIED vertex that this patch uses more
 /// than twice, if any — the emitted form of #678's class, re-derived
 /// over the emission rather than argued from the grid, for whichever
@@ -346,15 +356,14 @@ pub(crate) fn overused_identified_edge_in(
         return None;
     }
     let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-    for t in triangles {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
+    for &t in triangles {
+        for (a, b) in sides(t) {
             if identified.contains(&a) || identified.contains(&b) {
-                *uses.entry(edge_key(a, b)).or_insert(0) += 1;
+                *uses.entry((a, b)).or_insert(0) += 1;
             }
         }
     }
-    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+    uses.into_iter().filter(|&(_, n)| n > 2).min()
 }
 
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
@@ -1385,7 +1394,7 @@ pub(crate) fn loop_polygon(
         let outward = |normal: Vec3<f64>| OutwardNormal::from_chart(normal, sense).vec();
         let mid_az = geom::Azimuth::of(
             area.dot(outward(frame.v_ref())),
-            area.dot(outward(frame.u_ref)),
+            area.dot(outward(frame.u_ref())),
         )
         .near(0.0);
         Some(
@@ -1679,36 +1688,26 @@ mod tests {
         );
         let surface = match kind {
             ChartKind::Cylinder { r } => Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                u_ref,
             },
             ChartKind::Cone { half_angle } => Surface::Cone {
-                apex: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 half_angle,
-                u_ref,
             },
             ChartKind::Sphere { r } => Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             },
             ChartKind::Torus { major, minor } => Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
             ChartKind::Spindle { major, minor } => Surface::Spindle {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
         };
         Chart::of(&surface).unwrap()
@@ -2130,7 +2129,7 @@ mod tests {
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
         area.dot(chart.frame().v_ref())
-            .atan2(area.dot(chart.frame().u_ref))
+            .atan2(area.dot(chart.frame().u_ref()))
     }
 
     /// A 1.3 mm band's own geometry, placed at seven distances from

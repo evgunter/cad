@@ -3,7 +3,7 @@
 //! PR body makes, by execution through public doors only.
 //!
 //! Attack map:
-//! - generator-parallel schedule rays (the `line_quadric_cone_lead` Zero
+//! - generator-parallel schedule rays (the `curve_face_pose_cone_lead` Zero
 //!   site): a cone whose half-angle equals the angle between the first
 //!   TWO schedule members and its axis, so both graze and the third
 //!   answers — the retry recovers rather than answering wrong;
@@ -123,7 +123,7 @@ fn tilted_cone() -> Body<f64> {
 
 /// Generator-parallel leading coefficient: the first two schedule rays
 /// graze on the tilted cone, and the door still answers — through the
-/// third — on all three verdicts. This is the `line_quadric_cone_lead`
+/// third — on all three verdicts. This is the `curve_face_pose_cone_lead`
 /// Zero site's reachability row: red if the degenerate quadratic is
 /// ANSWERED (a linear root would count one crossing where the arm
 /// cannot certify a pair) rather than retried.

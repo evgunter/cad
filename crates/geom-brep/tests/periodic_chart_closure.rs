@@ -24,20 +24,16 @@ const R0: f64 = 0.005;
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: RR,
         minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -219,10 +215,8 @@ fn four_winding_rims_bound_no_single_face() {
         let loops = rims::<T>(senses);
         let refs: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
         let s = Surface::Cylinder {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             radius: T::one(),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         curved_face_loops(&s, &refs, true, band()).map(|_| ())
     }
@@ -297,10 +291,8 @@ fn a_loop_of_many_rulings_turns_by_their_own_turns() {
         let (zig, turned) = zig::<T>(radius);
         assert!(turned > 3.5, "the rulings turn {turned} rad between them");
         let s = Surface::Cylinder {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             radius: T::from_f64(radius),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         let (u0, u1) = if with_rim == Some(true) {
             (0.0, TAU)
@@ -374,10 +366,8 @@ fn segment<T: geom_core::Decide>(a: [f64; 3], b: [f64; 3]) -> LoopEdge<T> {
 
 fn cylinder_of<T: geom_core::Decide>(radius: f64) -> Surface<T> {
     Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: T::from_f64(radius),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -620,11 +610,9 @@ fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
         assert!(phi > 3.5, "the meridians turn {phi} rad between them");
         zig.push(parallel::<T>(rr, r0, 0.0, (phi, 0.0)));
         let s = Surface::Torus {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             major_radius: T::from_f64(rr),
             minor_radius: T::from_f64(r0),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         let ends = if with_parallel == Some(true) {
             (0.0, TAU)
@@ -764,11 +752,9 @@ fn a_torus_loop_of_many_parallels_turns_by_their_own_turns() {
         };
         zig.push(meridian(0.0, (v_end, v_start)));
         let s = Surface::Torus {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             major_radius: T::from_f64(rr),
             minor_radius: T::from_f64(r0),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         let ends = if with_meridian == Some(true) {
             (0.0, TAU)
@@ -866,11 +852,9 @@ fn torus_chains_of_arcs_off_centre_measure() {
         l.push(parallel(v1, [0.0, 0.0], u_span, 0.0));
         l.push(meridian(0.0, 0.0, v1, v0));
         let s = Surface::Torus {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             major_radius: T::from_f64(big),
             minor_radius: T::from_f64(r),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         curved_face_loops(&s, &[&l], true, band()).map(|_| ())
     }
@@ -993,11 +977,9 @@ fn circles_just_past_the_axis_class_threshold_measure() {
             meridian(0.0, v1, v0),
         ];
         let s = Surface::Torus {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             major_radius: T::from_f64(big),
             minor_radius: T::from_f64(r),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         // `∫∫ r·(R + r·cos v) du dv` over `u ∈ [0, 1]`.
         let want = (r * (big * (v1 - v0) + r * (v1.sin() - v0.sin()))).abs();
@@ -1042,10 +1024,8 @@ fn circles_just_past_the_axis_class_threshold_measure() {
 /// The cone of half-angle ½ about `+z` through the origin.
 fn cone<T: geom_core::Real>() -> Surface<T> {
     Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: T::from_f64(0.5),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -1223,10 +1203,12 @@ impl SkewCone {
     }
     fn surface<T: geom_core::Real>(&self) -> Surface<T> {
         Surface::Cone {
-            apex: p3(self.apex[0], self.apex[1], self.apex[2]),
-            axis: v3(self.a[0], self.a[1], self.a[2]),
+            frame: geom::Frame::new(
+                p3(self.apex[0], self.apex[1], self.apex[2]),
+                v3(self.a[0], self.a[1], self.a[2]),
+                v3(self.e1[0], self.e1[1], self.e1[2]),
+            ),
             half_angle: T::from_f64(self.alpha),
-            u_ref: v3(self.e1[0], self.e1[1], self.e1[2]),
         }
     }
     fn rim<T: geom_core::Real>(&self, v: f64, u0: f64, u1: f64) -> LoopEdge<T> {
@@ -1626,11 +1608,9 @@ fn a_metre_spindle_torus_near_its_axis_measures_its_closed_form() {
             meridian(0.0, v1, v0),
         ];
         let s = Surface::Torus {
-            center: p3(o[0], o[1], o[2]),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(o[0], o[1], o[2]), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             major_radius: T::from_f64(big),
             minor_radius: T::from_f64(r),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         curved_face_loops(&s, &[&l], true, band()).map(|fc| {
             let (lo, hi) = fc.area.certified_bracket().expect("a certified area");

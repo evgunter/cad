@@ -71,11 +71,9 @@ fn f2_oracle(
 
 fn torus(center: Point3<f64>, axis: Vec3<f64>, big_r: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, Vec3::unit_x()),
         major_radius: big_r,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -590,29 +588,35 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
         let radius = rng.range(0.05, 3.0);
         let s: Surface<f64> = match case % 3 {
             0 => Surface::Plane {
-                origin: Point3::new(rng.range(-1.0, 1.0), 0.0, rng.range(-1.0, 1.0)),
-                normal: axis.cross(u_ref).normalize(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(
+                    Point3::new(rng.range(-1.0, 1.0), 0.0, rng.range(-1.0, 1.0)),
+                    axis.cross(u_ref).normalize(),
+                    Vec3::unit_x(),
+                ),
             },
             1 => Surface::Sphere {
-                center: Point3::new(
-                    rng.range(-3.0, 3.0),
-                    rng.range(-3.0, 3.0),
-                    rng.range(-3.0, 3.0),
+                frame: geom::Frame::new(
+                    Point3::new(
+                        rng.range(-3.0, 3.0),
+                        rng.range(-3.0, 3.0),
+                        rng.range(-3.0, 3.0),
+                    ),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
                 ),
                 radius: rng.range(0.05, 2.5),
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             _ => Surface::Cylinder {
-                origin: Point3::new(
-                    rng.range(-3.0, 3.0),
-                    rng.range(-3.0, 3.0),
-                    rng.range(-3.0, 3.0),
+                frame: geom::Frame::new(
+                    Point3::new(
+                        rng.range(-3.0, 3.0),
+                        rng.range(-3.0, 3.0),
+                        rng.range(-3.0, 3.0),
+                    ),
+                    u_ref,
+                    Vec3::unit_x(),
                 ),
-                axis: u_ref,
                 radius: rng.range(0.05, 2.5),
-                u_ref: Vec3::unit_x(),
             },
         };
         let t0 = rng.range(0.0, TAU);
@@ -683,9 +687,7 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
     // bound is attained. The arc stands OUTSIDE the plane, so the
     // margin is the `lo` branch and the minimum is what decides it.
     let s = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, -2.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, -2.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let (center, axis, radius, u_ref) = (Point3::origin(), Vec3::unit_x(), 1.0, Vec3::unit_z());
     let span = 0.02;

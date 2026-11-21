@@ -1,49 +1,58 @@
 //! **A carrier's placement**, [`Frame`]: a point and a right-handed
-//! orthonormal basis `(u_ref, v_ref, axis)`, the third axis
-//! `v_ref = axis × u_ref` derived, never stored.
+//! orthonormal basis `(u_ref, v_ref, axis)`, held as the
+//! [`RigidMotion`] it is, so its axes are unit and square as a property
+//! of the type. `v_ref` is read as `axis × u_ref`.
 //!
-//! `axis` and `u_ref` are unit and orthogonal by convention, unchecked
-//! here and certified at rest. What each one means on a carrier (a
-//! conic's plane normal and seam, a surface's axis of revolution) is
-//! that kind's own docs'. The readings of a placement alone below are
-//! its one home: a reader holding a `Frame` asks it for them rather than
-//! spelling them again from the fields.
+//! What each axis means on a carrier (a conic's plane normal and seam,
+//! a surface's axis of revolution) is that kind's own docs'. The
+//! readings of a placement alone below are its one home: a reader
+//! holding a `Frame` asks it for them rather than spelling them again
+//! from the axes.
 //!
-//! A [`RigidMotion`] is a different fact about the same shape of data:
-//! a motion is proven rigid where it is minted, a frame is stated data
-//! certified at rest. [`Frame::of_motion`] is the one bridge from the
-//! first to the second, and [`Frame::moved`] is a frame's image under
-//! one. An improper map has no reading here: its image is a per-kind
-//! rule (a conic's axis, a plane's outward normal), stated where the
-//! map is applied.
+//! A frame is placed by a motion its construction mints
+//! ([`Frame::of_motion`]), or stated as an origin and two directions and
+//! squared with no decision ([`Frame::new`], [`RigidMotion::squared`]).
+//! [`Frame::moved`] is its image under a motion. At another scalar it
+//! is carried within one witness kind and re-minted across kinds
+//! ([`Frame::map_scalar`]). An improper map has no reading here: its
+//! image is a per-kind rule (a conic's axis, a plane's outward normal),
+//! stated where the map is applied.
 
-use geom_core::{Point3, Real, RigidMotion, Vec3};
+use geom_core::{Point3, Real, RigidMotion, UnitVec3, Vec3};
 
 use crate::{Line, SquareFrame};
 
 /// **A placement**: a point and a right-handed orthonormal basis
-/// `(u_ref, v_ref, axis)` ([module docs](self)).
-#[derive(Clone, Copy, Debug)]
+/// `(u_ref, v_ref, axis)` ([module docs](self)), held as the
+/// [`RigidMotion`] it is.
+///
+/// Its `Debug` renders the frame's data, `origin`, `axis` and `u_ref`,
+/// the three a frame is stated by and every reader reads; `v_ref` is
+/// `axis × u_ref` by the motion's rigidity and is not rendered.
+#[derive(Clone, Copy)]
 pub struct Frame<T: Real> {
-    /// The point the basis is placed at.
-    pub origin: Point3<T>,
-    /// The third axis, unit (conventional, unchecked).
-    pub axis: Vec3<T>,
-    /// The first axis, unit and square to `axis` (conventional,
-    /// unchecked).
-    pub u_ref: Vec3<T>,
+    motion: RigidMotion<T>,
+}
+
+impl<T: Real> core::fmt::Debug for Frame<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Frame")
+            .field("origin", &self.origin())
+            .field("axis", &self.axis())
+            .field("u_ref", &self.u_ref())
+            .finish()
+    }
 }
 
 impl<T: Real> Frame<T> {
     /// The frame at `origin` with third axis `axis` and first axis
-    /// `u_ref`.
+    /// `u_ref`, squared with no decision ([`RigidMotion::squared`]): the
+    /// axis over its length, `u_ref`'s part square to it over its own.
+    /// A construction that can decide its frame mints it and places it
+    /// with [`Frame::of_motion`].
     #[must_use]
     pub fn new(origin: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>) -> Self {
-        Self {
-            origin,
-            axis,
-            u_ref,
-        }
+        Self::of_motion(&RigidMotion::squared(origin, axis, u_ref))
     }
 
     /// **The frame a motion places**: its origin, `w` as the axis and
@@ -51,7 +60,49 @@ impl<T: Real> Frame<T> {
     /// to rounding.
     #[must_use]
     pub fn of_motion(motion: &RigidMotion<T>) -> Self {
-        Self::new(motion.origin(), motion.w().get(), motion.u().get())
+        Self { motion: *motion }
+    }
+
+    /// The motion this frame is.
+    #[must_use]
+    pub fn motion(&self) -> RigidMotion<T> {
+        self.motion
+    }
+
+    /// The point the basis is placed at.
+    #[must_use]
+    pub fn origin(&self) -> Point3<T> {
+        self.motion.origin()
+    }
+
+    /// The third axis.
+    #[must_use]
+    pub fn axis(&self) -> Vec3<T> {
+        self.motion.w().get()
+    }
+
+    /// The third axis, as the witness it is.
+    #[must_use]
+    pub fn axis_unit(&self) -> UnitVec3<T> {
+        self.motion.w()
+    }
+
+    /// The first axis, square to [`Self::axis`].
+    #[must_use]
+    pub fn u_ref(&self) -> Vec3<T> {
+        self.motion.u().get()
+    }
+
+    /// The first axis, as the witness it is.
+    #[must_use]
+    pub fn u_ref_unit(&self) -> UnitVec3<T> {
+        self.motion.u()
+    }
+
+    /// The same axes placed at `origin`.
+    #[must_use]
+    pub fn with_origin(&self, origin: Point3<T>) -> Self {
+        Self::of_motion(&self.motion.with_origin(origin))
     }
 
     /// **The unit radial direction at azimuth `u`**, `u_ref·cos u +
@@ -73,14 +124,14 @@ impl<T: Real> Frame<T> {
     /// `axis × u_ref`, the second axis.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
+        self.axis().cross(self.u_ref())
     }
 
     /// The components of `p − origin` along `u_ref` and `v_ref`.
     #[must_use]
     pub fn in_plane(&self, p: Point3<T>) -> (T, T) {
-        let w = p - self.origin;
-        (w.dot(self.u_ref), w.dot(self.v_ref()))
+        let w = p - self.origin();
+        (w.dot(self.u_ref()), w.dot(self.v_ref()))
     }
 
     /// **`p`'s direction about the axis**: [`Self::in_plane`] read as an
@@ -97,7 +148,7 @@ impl<T: Real> Frame<T> {
     /// [`plane_offset`] of the plane through `origin` normal to `axis`.
     #[must_use]
     pub fn height(&self, p: Point3<T>) -> T {
-        plane_offset(self.origin, self.axis, p)
+        plane_offset(self.origin(), self.axis(), p)
     }
 
     /// **`p`'s local coordinates** `(x, y, h)`: [`Self::in_plane`] and
@@ -112,7 +163,7 @@ impl<T: Real> Frame<T> {
     /// `origin + u_ref·x + v_ref·y + axis·h`, [`Self::local`]'s inverse.
     #[must_use]
     pub fn at_local(&self, (x, y, h): (T, T, T)) -> Point3<T> {
-        self.origin + self.u_ref * x + self.v_ref() * y + self.axis * h
+        self.origin() + self.u_ref() * x + self.v_ref() * y + self.axis() * h
     }
 
     /// **`p`'s foot on the frame's plane**, the plane through `origin`
@@ -126,8 +177,8 @@ impl<T: Real> Frame<T> {
     #[must_use]
     pub fn axis_line(&self) -> Line<T> {
         Line {
-            origin: self.origin,
-            dir: self.axis,
+            origin: self.origin(),
+            dir: self.axis(),
         }
     }
 
@@ -135,59 +186,116 @@ impl<T: Real> Frame<T> {
     /// the derived `v_ref` flips with it.
     #[must_use]
     pub fn reversed(&self) -> Self {
-        Self {
-            axis: -self.axis,
-            ..*self
-        }
+        Self::of_motion(&self.motion.reversed())
+    }
+
+    /// **The same placement turned a quarter turn, its seam the
+    /// normalized `v_ref`** ([`RigidMotion::quarter_turned_renormalized`]):
+    /// the axis kept bit for bit and `u_ref` set to `v_ref().normalize()`
+    /// as given, nothing decided and nothing re-squared.
+    #[must_use]
+    pub fn quarter_turned_renormalized(&self) -> Self {
+        Self::of_motion(&self.motion.quarter_turned_renormalized())
+    }
+
+    /// The same placement turned a quarter turn about its axis: `u_ref`
+    /// becomes the old `v_ref`, and `v_ref` the old `−u_ref`.
+    #[must_use]
+    pub fn quarter_turned(&self) -> Self {
+        Self::of_motion(&self.motion.quarter_turned())
+    }
+
+    /// The same placement turned a half turn about its axis: `u_ref` and
+    /// `v_ref` both reversed.
+    #[must_use]
+    pub fn half_turned(&self) -> Self {
+        Self::of_motion(&self.motion.half_turned())
+    }
+
+    /// **One of two placements, by the sign of `d`**
+    /// ([`RigidMotion::select_le_zero`]): `when_le` where `d ≤ 0`,
+    /// `when_gt` where it is positive.
+    #[must_use]
+    pub fn select_le_zero(d: T, when_le: Self, when_gt: Self) -> Self {
+        Self::of_motion(&RigidMotion::select_le_zero(
+            d,
+            when_le.motion,
+            when_gt.motion,
+        ))
     }
 
     /// The same placement moved by `by`.
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Self {
-        Self {
-            origin: self.origin + by,
-            ..*self
-        }
+        self.with_origin(self.origin() + by)
     }
 
-    /// **The image under a rigid motion**: the origin moved, both
-    /// stored axes turned by the motion's linear part
-    /// ([`RigidMotion::transform_point`], [`RigidMotion::transform_vec`]).
+    /// **The image under a rigid motion**: the origin moved, every axis
+    /// turned by the motion's linear part ([`RigidMotion::carried_by`]).
     #[must_use]
     pub fn moved(&self, motion: &RigidMotion<T>) -> Self {
-        Self::new(
-            motion.transform_point(self.origin),
-            motion.transform_vec(self.axis),
-            motion.transform_vec(self.u_ref),
-        )
+        Self::of_motion(&self.motion.carried_by(*motion))
     }
 
-    /// The same placement with every scalar mapped by `f`.
+    /// **The same placement at another scalar** ([`RigidMotion::map_scalar`]):
+    /// within one witness kind its entries carried through `f` as they
+    /// are; from `f64` to `Interval` read as the enclosure of its polar
+    /// factor. No read carries a frame into `Dual` or `Sym` from another
+    /// scalar.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Frame<U> {
-        Frame {
-            origin: self.origin.map(&f),
-            axis: self.axis.map(&f),
-            u_ref: self.u_ref.map(&f),
-        }
+        Frame::of_motion(&self.motion.map_scalar(f))
     }
 
-    /// **The basis squared** ([`SquareFrame`]): the unit axis along a
-    /// stored `axis` of any length, and the unit seam square to it toward
-    /// the stored `u_ref`, taken as `a × (u_ref × a)` over the unit `a`.
+    /// **The `f64` placement this one's value channel holds**
+    /// ([`RigidMotion::point_value`]), or `None` where an entry has no
+    /// single finite `f64`.
+    #[must_use]
+    pub fn point_value(&self) -> Option<Frame<f64>>
+    where
+        T: geom_core::spline::SpanLocate,
+    {
+        Some(Frame::of_motion(&self.motion.point_value()?))
+    }
+
+    /// **The basis squared** ([`SquareFrame`]): the axis over its length
+    /// and the seam taken as `a × (u_ref × a)` over the unit `a`. The
+    /// stored axes are already unit and square, so this moves them only
+    /// by rounding; it is kept as the arithmetic its readers' pins were
+    /// taken on.
     #[must_use]
     pub fn square(&self) -> SquareFrame<T> {
-        let axis = self.axis.normalize();
-        let across = axis.cross(self.u_ref.cross(axis));
+        let axis = self.axis().normalize();
+        let across = axis.cross(self.u_ref().cross(axis));
         let ((u_ref, len), (_, u_len)) = (
             across.direction_and_length(),
-            self.u_ref.direction_and_length(),
+            self.u_ref().direction_and_length(),
         );
         SquareFrame {
             axis,
             u_ref,
             width: len / u_len,
         }
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl Frame<f64> {
+    /// **A stated frame admitted as it is, at `f64`**: `axis` and `u_ref`
+    /// kept bit for bit where the basis `(u_ref, axis × u_ref, axis)` is
+    /// rigid within its own rounding ([`RigidMotion::check_rigid`]), and
+    /// `None` where it is not. The door for a caller whose `f64` entries
+    /// are a frame already, and whose readings are pinned to those very
+    /// bits (an oracle computed off them); [`Frame::new`] squares instead.
+    /// Test builds only: a production frame is minted by its construction.
+    #[must_use]
+    pub fn admitted(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Option<Self> {
+        let map = geom_core::Affine3 {
+            linear: geom_core::Mat3::from_cols(u_ref, axis.cross(u_ref), axis),
+            translation: origin - Point3::origin(),
+        };
+        let motion = RigidMotion::check_rigid(&map).ok()?;
+        Some(Self::of_motion(&motion))
     }
 }
 
@@ -247,7 +355,7 @@ mod tests {
         let foot = f.foot(p);
         assert!(f.height(foot).abs() < 1e-14, "the foot lies on the plane");
         assert!(
-            (foot + f.axis * h - p).norm() < 1e-14,
+            (foot + f.axis() * h - p).norm() < 1e-14,
             "the foot is p less its height along the axis"
         );
         assert!(

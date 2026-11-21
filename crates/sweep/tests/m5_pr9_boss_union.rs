@@ -49,7 +49,7 @@ fn the_boss_union_lands_end_to_end() {
             continue;
         };
         if let geom::Curve3::Circle(k) = *c.carrier()
-            && (k.frame.origin.z - 1.0).abs() < 1e-9
+            && (k.frame.origin().z - 1.0).abs() < 1e-9
             && (k.radius() - 0.5).abs() < 1e-9
         {
             seam_arcs += 1;
@@ -138,8 +138,8 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     let top_face = body
         .faces()
         .find_map(|(k, _)| match body.face_surface(k) {
-            Some(geom::Surface::Plane { origin, normal, .. })
-                if (origin.z - 1.0).abs() < 1e-9 && normal.z > 0.5 =>
+            Some(geom::Surface::Plane { frame, .. })
+                if (frame.origin().z - 1.0).abs() < 1e-9 && frame.axis().z > 0.5 =>
             {
                 Some(k)
             }
@@ -229,9 +229,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
                 && b.faces().any(|(fk, _)| {
                     matches!(
                         b.face_surface(fk),
-                        Some(geom::Surface::Cylinder { origin, radius, .. })
-                            if (origin.x - 2.0).abs() < 1e-9
-                                && (origin.y - 2.0).abs() < 1e-9
+                        Some(geom::Surface::Cylinder { frame, radius, .. })
+                            if (frame.origin().x - 2.0).abs() < 1e-9
+                                && (frame.origin().y - 2.0).abs() < 1e-9
                                 && (radius - 0.5).abs() < 1e-9
                     )
                 })
@@ -254,9 +254,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let cyl_faces = |b: &Body<f64>| -> Vec<topo::FaceKey> {
         b.faces()
             .filter_map(|(k, _)| match b.face_surface(k) {
-                Some(geom::Surface::Cylinder { origin, radius, .. })
-                    if (origin.x - 2.0).abs() < 1e-9
-                        && (origin.y - 2.0).abs() < 1e-9
+                Some(geom::Surface::Cylinder { frame, radius, .. })
+                    if (frame.origin().x - 2.0).abs() < 1e-9
+                        && (frame.origin().y - 2.0).abs() < 1e-9
                         && (radius - 0.5).abs() < 1e-9 =>
                 {
                     Some(k)

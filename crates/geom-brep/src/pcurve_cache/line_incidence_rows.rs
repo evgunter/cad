@@ -41,11 +41,9 @@ fn charts() -> Vec<Chart> {
         let tip = (r * r - big * big).sqrt();
         (
             Surface::Spindle {
-                center: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 major_radius: big,
                 minor_radius: r,
-                u_ref,
             },
             vec![c + axis * tip, c - axis * tip, c],
         )
@@ -56,60 +54,48 @@ fn charts() -> Vec<Chart> {
         (
             "plane",
             Surface::Plane {
-                origin: c,
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(c, axis, u_ref),
             },
             vec![c],
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 radius: 0.7,
-                u_ref,
             },
             vec![c],
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: c,
+                frame: geom::Frame::new(c, axis, u_ref),
                 radius: 0.7,
-                axis,
-                u_ref,
             },
             vec![c],
         ),
         (
             "cone",
             Surface::Cone {
-                apex: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 half_angle: 0.5,
-                u_ref,
             },
             vec![c],
         ),
         (
             "narrow cone",
             Surface::Cone {
-                apex: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 half_angle: 0.05,
-                u_ref,
             },
             vec![c],
         ),
         (
             "torus",
             Surface::Torus {
-                center: c,
-                axis,
+                frame: geom::Frame::new(c, axis, u_ref),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref,
             },
             vec![c],
         ),
@@ -127,11 +113,9 @@ fn on_z(big: f64) -> (Surface<f64>, Vec<Point3<f64>>) {
     let (c, z) = (Point3::origin(), Vec3::unit_z());
     (
         Surface::Spindle {
-            center: c,
-            axis: z,
+            frame: geom::Frame::new(c, z, Vec3::unit_x()),
             major_radius: big,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         },
         vec![c + z * tip, c - z * tip, c],
     )
@@ -364,7 +348,8 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
         let mut lines = Vec::new();
         for u in [0.0, 1.0, -2.5, 3.1415] {
             match surface {
-                Surface::Cone { apex, .. } => {
+                Surface::Cone { frame, .. } => {
+                    let apex = frame.origin();
                     for v in [0.3, -0.3] {
                         let wall = surface.eval(u, v);
                         let g = wall - apex;
@@ -377,10 +362,13 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
                         }
                     }
                 }
-                Surface::Cylinder { axis, .. } => lines.push(geom::Line {
-                    origin: surface.eval(u, 0.4),
-                    dir: axis * 0.7,
-                }),
+                Surface::Cylinder { frame, .. } => {
+                    let axis = frame.axis();
+                    lines.push(geom::Line {
+                        origin: surface.eval(u, 0.4),
+                        dir: axis * 0.7,
+                    })
+                }
                 Surface::Plane { .. } => lines.push(geom::Line {
                     origin: surface.eval(u, 0.4),
                     dir: surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
@@ -440,11 +428,9 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             cases.push((
                 format!("spindle R {big} along {axis:?}"),
                 Surface::Spindle {
-                    center: c,
-                    axis,
+                    frame: geom::Frame::new(c, axis, (u_ref - axis * u_ref.dot(axis)).normalize()),
                     major_radius: big,
                     minor_radius: 0.5,
-                    u_ref: (u_ref - axis * u_ref.dot(axis)).normalize(),
                 },
                 geom::Line {
                     origin: c - axis * tip,
@@ -456,10 +442,8 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "sphere diameter".into(),
         Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             radius: 0.5,
-            axis: Vec3::unit_z(),
-            u_ref,
         },
         geom::Line {
             origin: Point3::new(0.0, 0.0, -0.5),
@@ -471,11 +455,9 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "torus chord through the core".into(),
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             major_radius: 1.2,
             minor_radius: 0.4,
-            u_ref,
         },
         geom::Line {
             origin: Point3::new(0.8, 0.0, 0.0),
@@ -486,10 +468,8 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     // shifted off the apex by `30·zero`: the chord crosses the apex plane
     // `30·zero` from the apex.
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
         half_angle: 0.5,
-        u_ref,
     };
     let r = 0.3 * 0.5f64.tan();
     let side = Vec3::new(0.0, 30.0 * zero(), 0.0);

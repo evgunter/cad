@@ -111,7 +111,7 @@ pub(crate) enum Shape {
     Solids(Vec<SolidRecord>),
     /// A `GEOMETRIC_CURVE_SET` wireframe (curve-only file): the
     /// reconstructed carriers, in set order.
-    Wireframe(Vec<Curve3<f64>>),
+    Wireframe(Vec<crate::WireframeCurve>),
 }
 
 /// The keywords a solid record is spelled with: a
@@ -253,6 +253,11 @@ pub(crate) struct EdgeSpec {
     /// carrier is untouched; this bit composes into the orientation of
     /// every `ORIENTED_EDGE` that uses the edge.
     pub(crate) reversed: bool,
+    /// The curve entity the file states as the carrier, for an edge the
+    /// file states or a piece of one; `None` for an edge the import
+    /// mints. It keys the curve's promotion record, which the ledger
+    /// keeps only where the body holds the promoted carrier.
+    pub(crate) curve: Option<u64>,
 }
 
 /// The resolver: the parsed file plus typed accessors that turn
@@ -290,6 +295,12 @@ pub(crate) struct Resolver<'a> {
     /// so a carrier read once per incident edge records once
     /// ([`crate::CurvePromotion`]) — never silent.
     curve_promotions: std::cell::RefCell<BTreeMap<u64, CurvePromotion>>,
+    /// The promotions whose carrier covers PART of its analytic curve
+    /// (an open arc, a chord), keyed as `curve_promotions`: the
+    /// analytic curve's parameter range it covers, which bounds every
+    /// edge's trim on it ([`Self::edge`]) and is a wireframe curve's
+    /// span ([`Self::curve_set`]).
+    partial_promotions: std::cell::RefCell<BTreeMap<u64, (f64, f64)>>,
 }
 
 impl<'a> Resolver<'a> {
@@ -547,13 +558,10 @@ impl<'a> Resolver<'a> {
         // vector's length is no distance for the file's band to read, so
         // only a vanishing one (a reference exactly along its axis) is
         // degenerate, and the move is the build's to report.
-        let stated = geom::Frame {
-            origin,
-            axis,
-            u_ref: reference,
-        };
-        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_affine(stated)) {
-            return Ok((stated, rigid, None));
+        if let Ok(rigid) =
+            geom_core::RigidMotion::check_rigid(&stated_affine(origin, axis, reference))
+        {
+            return Ok((geom::Frame::of_motion(&rigid), rigid, None));
         }
         let built = geom_core::RigidMotion::from_axis_and_reference(
             origin,
@@ -568,18 +576,14 @@ impl<'a> Resolver<'a> {
                        whose reference direction is not parallel to its axis (a \
                        parallel pair states no frame)",
         })?;
-        let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
+        let frame = geom::Frame::of_motion(&built);
         // A `direction` is a ratio vector, so dividing one by its length
         // is what it means, not a move: the move is measured from the
         // frame of the two directions normalized, and is none where that
         // frame is rigid within its rounding (a reference the build only
         // scaled).
         let unit = |v: Vec3<f64>| v.checked_direction().map_or(v, |(u, _)| u);
-        let normalized = stated_affine(geom::Frame {
-            origin,
-            axis: unit(axis),
-            u_ref: unit(reference),
-        });
+        let normalized = stated_affine(origin, unit(axis), unit(reference));
         let moved = geom_core::RigidMotion::check_rigid(&normalized)
             .is_err()
             .then(|| in_box_displacement(&built.to_affine(), &normalized));
@@ -631,15 +635,9 @@ impl<'a> Resolver<'a> {
                 let [_, placement] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis: normal,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 })
             }
             "CYLINDRICAL_SURFACE" => {
@@ -647,16 +645,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
-                    origin,
-                    axis,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, CYLINDER_RADIUS)?,
-                    u_ref,
                 })
             }
             "CONICAL_SURFACE" => {
@@ -718,21 +710,18 @@ impl<'a> Resolver<'a> {
                         },
                     ));
                 }
-                let geom::Frame {
-                    origin: location,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
+                let (location, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let apex = if radius == 0.0 {
                     location
                 } else {
                     location - axis * (radius / half_angle.tan())
                 };
+                // The placement's own frame, moved to the apex: its axes
+                // as adopted, not squared again.
                 Ok(Surface::Cone {
-                    apex,
-                    axis,
+                    frame: carrier_frame.with_origin(apex),
                     half_angle,
-                    u_ref,
                 })
             }
             "SPHERICAL_SURFACE" => {
@@ -740,16 +729,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
-                    center,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, SPHERE_RADIUS)?,
-                    axis,
-                    u_ref,
                 })
             }
             // Both radii are roots no construction takes unless
@@ -766,21 +749,15 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 let major_radius = self.root_length(id, major, expected, TORUS_MAJOR_RADIUS)?;
                 let minor_radius = self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?;
                 self.budget
                     .positive_length(id, TORUS_RING, major_radius - minor_radius)?;
                 Ok(Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 })
             }
             "QUASI_UNIFORM_SURFACE" => {
@@ -1033,11 +1010,11 @@ impl<'a> Resolver<'a> {
                 // The kernel's deciding door, at the file's band, which
                 // reads the minor semi-axis the rule above has read.
                 Curve3::ellipse(
-                    frame.origin,
-                    frame.axis,
+                    frame.origin(),
+                    frame.axis(),
                     semi_u,
                     semi_v,
-                    frame.u_ref,
+                    frame.u_ref(),
                     self.budget.band(),
                 )
                 .map_err(|_| {
@@ -1236,19 +1213,21 @@ impl<'a> Resolver<'a> {
     /// `B_SPLINE_CURVE_WITH_KNOTS` arm, the `QUASI_UNIFORM_CURVE` arm,
     /// and the `RATIONAL_B_SPLINE_CURVE` complex), and each is tested
     /// for promotion to an analytic kind exactly as every NURBS
-    /// SURFACE is tested at [`Self::face`]. This is the right site for
-    /// the same reason that one is: it is upstream of everything that
-    /// asks a carrier what it IS — the adoption ladder's `MappedCurve`
-    /// rungs, `endpoint_params`' conic arm, the pcurve mint, the
-    /// re-export printer — so a promoted carrier is analytic
-    /// everywhere, with no second reading anywhere to disagree with
-    /// the first.
+    /// SURFACE is tested at [`Self::face`]: on the WHOLE carrier, before
+    /// the C⁰-knot split or any edge reads it, so every edge's printed
+    /// carrier is the promoted curve where it certifies, and an edge's
+    /// trim is read against the range it covers ([`Self::edge`]). The
+    /// build reads the printed carrier as evidence for the edge's
+    /// description, not as its carrier: where it carries the edge on a
+    /// wall's own column instead (`build::column_match`), the body holds
+    /// that spline, and the curve's promotion record is dropped from the
+    /// ledger.
     ///
     /// Promotion is verified-not-trusted ([`crate::recognize_curve`]):
-    /// it fires iff the certificate holds at ε_in, the file's own form
-    /// flag is never consulted, and a carrier that certifies nowhere
-    /// stays NURBS silently. It is reported as data through
-    /// [`crate::CurvePromotion`].
+    /// it fires iff the locus and coverage certificates hold at ε_in,
+    /// the file's own form flag is never consulted, and a carrier that
+    /// certifies nowhere stays NURBS silently. It is reported as data
+    /// through [`crate::CurvePromotion`].
     fn nurbs(
         &self,
         id: u64,
@@ -1263,7 +1242,11 @@ impl<'a> Resolver<'a> {
                         curve,
                         residual,
                         kind,
+                        covers,
                     } => {
+                        if let Some(covers) = covers {
+                            self.partial_promotions.borrow_mut().insert(id, covers);
+                        }
                         self.curve_promotions.borrow_mut().insert(
                             id,
                             CurvePromotion {
@@ -1640,13 +1623,7 @@ impl<'a> Resolver<'a> {
                 what: "internal: an edge-free face without its vertex loop",
             });
         };
-        let Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } = surface
-        else {
+        let Surface::Sphere { frame, radius } = surface else {
             return Err(StepImportError::Topology {
                 id,
                 what: "an ADVANCED_FACE bounded by a VERTEX_LOOP on a surface that is \
@@ -1655,6 +1632,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -1700,6 +1678,7 @@ impl<'a> Resolver<'a> {
                     // A minted edge: the importer states its own
                     // start → end, so there is no sense to compose.
                     reversed: false,
+                    curve: None,
                 },
             );
             Ok(eid)
@@ -1936,8 +1915,17 @@ impl<'a> Resolver<'a> {
         };
         let p_start = resolve_point(start)?;
         let p_end = resolve_point(end)?;
-        let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
+        let curve_id = as_ref(id, curve_ref, expected)?;
+        let carrier = self.curve(id, curve_id)?;
         let (t0, t1) = geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
+        // A carrier promoted from a spline that covers part of its
+        // analytic curve: the edge's trim is the stated spline's only
+        // where it lies inside what the spline covers, in order.
+        let covers = self.partial_promotions.borrow().get(&curve_id).copied();
+        let (t0, t1) = match covers {
+            Some(covers) => geometry::trim_within(id, &carrier, (t0, t1), covers, self.budget)?,
+            None => (t0, t1),
+        };
         Ok(EdgeSpec {
             start,
             end,
@@ -1945,6 +1933,7 @@ impl<'a> Resolver<'a> {
             t0,
             t1,
             reversed: !same_sense,
+            curve: Some(curve_id),
         })
     }
 
@@ -2122,15 +2111,26 @@ impl<'a> Resolver<'a> {
         Ok(solid)
     }
 
-    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order.
-    fn curve_set(&self, id: u64, args: &[Value]) -> Result<Vec<Curve3<f64>>, StepImportError> {
+    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order, each with the span
+    /// of its carrier the file states.
+    fn curve_set(
+        &self,
+        id: u64,
+        args: &[Value],
+    ) -> Result<Vec<crate::WireframeCurve>, StepImportError> {
         let expected = "GEOMETRIC_CURVE_SET(name, (elements))";
         let [_, elements] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
+        // A carrier promoted to an analytic curve it covers part of
+        // carries that part: the bare curve would claim an extent the
+        // file did not state.
         let mut curves = Vec::new();
         for element in as_list(id, elements, expected)? {
-            curves.push(self.curve(id, as_ref(id, element, expected)?)?);
+            let curve_id = as_ref(id, element, expected)?;
+            let carrier = self.curve(id, curve_id)?;
+            let span = self.partial_promotions.borrow().get(&curve_id).copied();
+            curves.push(crate::WireframeCurve { carrier, span });
         }
         Ok(curves)
     }
@@ -2678,10 +2678,10 @@ type BuiltPlacement = (geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64
 /// A placement frame as the file states it, as a map: its columns the
 /// reference direction, the axis crossed with it and the axis,
 /// unnormalized.
-fn stated_affine(stated: geom::Frame<f64>) -> Affine3<f64> {
+fn stated_affine(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Affine3<f64> {
     Affine3::from_parts(
-        Mat3::from_cols(stated.u_ref, stated.axis.cross(stated.u_ref), stated.axis),
-        stated.origin - Point3::origin(),
+        Mat3::from_cols(u_ref, axis.cross(u_ref), axis),
+        origin - Point3::origin(),
     )
 }
 
@@ -3291,7 +3291,7 @@ fn resolve_shape(
     // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
     // order — the same one `referenced` already dedupes it to.
     let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
-    let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
+    let mut wireframe: Option<(u64, Vec<crate::WireframeCurve>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
         let [(kw, args)] = instance.records.as_slice() else {
@@ -3411,6 +3411,7 @@ fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
     }
 }
 
@@ -3470,6 +3471,7 @@ pub(crate) fn resolve(
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a

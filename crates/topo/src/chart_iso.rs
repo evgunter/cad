@@ -82,7 +82,7 @@ pub fn traversal_kind(
         }),
         geom_brep::IsoFamily::V => match *curve.carrier() {
             Curve3::Circle(circle) => Some(TravKind::Rim {
-                v_raw: chart.rim_v(circle.frame.origin, circle.radius()),
+                v_raw: chart.rim_v(circle.frame.origin(), circle.radius()),
             }),
             _ => None,
         },
@@ -115,10 +115,10 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
     match *curve.carrier() {
         Curve3::Line(_) => traversal_kind(chart, curve, geom_brep::IsoFamily::U),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis, .. },
+            frame: carrier_frame,
             ..
         }) => {
-            let family = if axis.dot(chart.frame().axis).abs() > 0.5 {
+            let family = if carrier_frame.axis().dot(chart.frame().axis()).abs() > 0.5 {
                 geom_brep::IsoFamily::V
             } else {
                 geom_brep::IsoFamily::U

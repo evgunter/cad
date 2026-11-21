@@ -69,7 +69,8 @@ fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
     query::all_faces(body)
         .into_iter()
         .filter(|&f| match body.face_surface(f) {
-            Some(Surface::Plane { origin, normal, .. }) => {
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
             }
             _ => false,

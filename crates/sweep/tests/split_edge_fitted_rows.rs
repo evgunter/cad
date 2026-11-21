@@ -180,9 +180,11 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(T::zero(), T::from_f64(-SCALE), T::zero()),
-                    normal: Vec3::new(T::zero(), -T::one(), T::zero()),
-                    u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+                    frame: geom::Frame::new(
+                        Point3::new(T::zero(), T::from_f64(-SCALE), T::zero()),
+                        Vec3::new(T::zero(), -T::one(), T::zero()),
+                        Vec3::new(T::one(), T::zero(), T::zero()),
+                    ),
                 },
                 sense: true,
             },
@@ -333,14 +335,13 @@ fn fitted_row<T: AtRestPolicy + geom_core::Bounds>() {
         panic!("the mint stores the interior column's General image")
     };
     let (carrier, t0, t1) = seam_carrier(&body, edge);
-    let fitted = PcurveCache::certify_fitted(
+    let fitted = geom_brep::FittedLaneOf::certify_fitted(
+        T::fitted_lane().expect("the scalar holds the fitted door"),
         image,
-        t0,
-        t1,
+        (t0, t1),
         &carrier,
         body.get_surface(chart).unwrap(),
         band(),
-        T::fitted_lane().expect("the scalar holds the fitted door"),
     )
     .expect("the image certifies as a Fitted row");
     body.attach_pcurve(he, fitted);

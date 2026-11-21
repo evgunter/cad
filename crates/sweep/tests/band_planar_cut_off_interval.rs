@@ -392,7 +392,10 @@ fn foot_lines<T: Bounds + Decide>(body: &Body<T>) -> Vec<(EdgeKey, Vec3<T>, Vec3
             };
             [edge.he_plus, edge.he_minus].into_iter().find_map(|he| {
                 match body.face_surface(body.face_of_half_edge(he)?)? {
-                    geom::Surface::Cylinder { axis, .. } => Some((e, line.dir, *axis)),
+                    geom::Surface::Cylinder { frame, .. } => {
+                        let axis = frame.axis();
+                        Some((e, line.dir, axis))
+                    }
                     _ => None,
                 }
             })

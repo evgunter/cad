@@ -68,46 +68,36 @@ fn all_surfaces() -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane",
             Surface::Plane {
-                origin: c,
-                normal: tilted_axis(),
-                u_ref: tilted_uref(),
+                frame: geom::Frame::new(c, tilted_axis(), tilted_uref()),
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: c,
-                axis: tilted_axis(),
+                frame: geom::Frame::new(c, tilted_axis(), tilted_uref()),
                 radius: 2.5,
-                u_ref: tilted_uref(),
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: c,
-                axis: tilted_axis(),
+                frame: geom::Frame::new(c, tilted_axis(), tilted_uref()),
                 half_angle: FRAC_PI_6,
-                u_ref: tilted_uref(),
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: c,
+                frame: geom::Frame::new(c, tilted_axis(), tilted_uref()),
                 radius: 2.5,
-                axis: tilted_axis(),
-                u_ref: tilted_uref(),
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: c,
-                axis: tilted_axis(),
+                frame: geom::Frame::new(c, tilted_axis(), tilted_uref()),
                 major_radius: 3.0,
                 minor_radius: 1.25,
-                u_ref: tilted_uref(),
             },
         ),
     ]
@@ -175,11 +165,9 @@ fn all_partials_match_finite_differences() {
 #[test]
 fn torus_duv_hand_computed() {
     let t = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 3.0,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let duv = t.deriv_uv(PI / 3.0, FRAC_PI_4);
     let expect = Vec3::new(
@@ -197,10 +185,8 @@ fn tilted_sphere_matches_rodrigues_oracle() {
     let center = Point3::new(-0.5, 4.0, 1.25);
     let (axis, uref, r) = (tilted_axis(), tilted_uref(), 2.5);
     let s = Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, axis, uref),
         radius: r,
-        axis,
-        u_ref: uref,
     };
     for (u, v) in [(0.9, 0.3), (-2.0, -0.8), (5.0, 1.2)] {
         // Meridian point at azimuth 0: center + (uref·cos v + axis·sin v)·r,
@@ -223,10 +209,8 @@ fn tilted_sphere_matches_rodrigues_oracle() {
 #[test]
 fn cone_apex_poison_and_near_apex_honesty() {
     let c = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
     };
     for u in [0.0, 0.9, -3.0, 100.0] {
         let n = c.normal(u, 0.0);
@@ -283,21 +267,17 @@ fn seam_at_uref_everywhere() {
 #[test]
 fn latitude_conventions() {
     let s = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let eq = s.eval(0.0, 0.0);
     assert_eq!((eq.x, eq.y, eq.z), (2.0, 0.0, 0.0));
     let np = s.eval(0.3, FRAC_PI_2);
     assert!((np.z - 2.0).abs() <= 1e-15);
     let t = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 3.0,
         minor_radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let outer = t.eval(0.0, 0.0);
     assert_eq!(outer.x, 4.0); // R + r: outer equator, farthest from axis
@@ -305,28 +285,32 @@ fn latitude_conventions() {
     assert!((top.z - 1.0).abs() <= 1e-15 && (top.x - 3.0).abs() <= 1e-15);
 }
 
-/// Non-unit axis: documented garbage-out — well-defined values, no
-/// poison, no panic; the "circle" becomes non-circular but total.
+/// A stated axis that is not unit is squared where the frame is stated
+/// (`Frame::new`): the circle stays a circle of its radius, and a
+/// cylinder on a long axis stays on its unit axis. A frame is a rigid
+/// motion, so no reading sees a sheared basis.
 #[test]
-fn non_unit_axis_is_garbage_out_not_poison() {
+fn a_stated_non_unit_axis_is_squared_into_the_frame() {
     let c = Curve3::circle(
         Point3::origin(),
         Vec3::new(0.0, 0.0, 2.0),
         1.0,
-        Vec3::unit_x(),
+        Vec3::new(1.0, 0.0, 0.5),
     );
-    // v_ref = axis × u_ref has norm 2 ⇒ ellipse with semi-axes 1 and 2.
     let p = c.eval(FRAC_PI_2);
-    assert!((p.y - 2.0).abs() <= 1e-15, "sheared locus is well-defined");
-    assert!(!p.x.is_nan() && !p.y.is_nan() && !p.z.is_nan());
+    assert!(
+        (p.y - 1.0).abs() <= 1e-15 && p.x.abs() <= 1e-15 && p.z.abs() <= 1e-15,
+        "the circle keeps its radius on its squared frame: {p:?}"
+    );
     let s = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 3.0),
+        frame: geom::Frame::new(Point3::origin(), Vec3::new(0.0, 0.0, 3.0), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
-    let q = s.eval(1.0, 1.0);
-    assert!(!q.x.is_nan() && !q.y.is_nan() && !q.z.is_nan());
+    let q = s.eval(0.0, 1.0);
+    assert!(
+        (q.x - 1.0).abs() <= 1e-15 && (q.z - 1.0).abs() <= 1e-15,
+        "v is a length along the unit axis: {q:?}"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -383,11 +367,7 @@ fn bulge_arc_carrier_composes() {
         let axis = if bulge >= 0.0 { ez } else { ez * -1.0 };
         let u_ref = (to3d(p0) - center) * (1.0 / radius);
         let carrier = Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
 

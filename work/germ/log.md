@@ -1649,3 +1649,63 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-20 23:05 — **PR 7209 (U2) merged** (`f43c98df1f`). Its row is closed, and its fired trigger is pruned from ONEDOOR's parked `engine-leaves-by-visibility`. The pin-cites-an-open-row main red was TESSLIE's, from a closed-row pin; it is green on main again. State PR 7216 merged under the inherited-red rule. **Kind-pair staging:** U0, U1, U1b and U2 are merged. U3a is in its cloud session, now on main's base: trace is moved onto `cross`, and the census touch confirm is being ported. The roster main-red fix (PR 7217) is in CI.
 - 2026-11-20 23:10 — **PR 7217 merged**: the nightly recourse-roster red that GERM caused is fixed. `closed_form_shown` and `ClassRead::shown` are `NameCarrier::Call` carriers, and `TANGENT_SECTOR_ORDER2` is a const carrier; all 25 roster rows pass locally. **A further slow-set red is suspected:** `offer_rows::every_offered_tolerance_passes_just_below_it` makes false offers on `lever_arm_sector_side`, `conic_bend` and `tangent_side`, names close to PRs 7171 and 7174. The U2 lane is bisecting on clean main. If the cause is GERM's, it fixes it on `germ/offer-rows-red`; otherwise the red is routed to its owner.
 - 2026-11-21 — (ONEROUND orchestrator) **A main red traced to PR 7184 (`germ/line-cone-one-rule-set`), and it is an improvement the tests have not been told about.** `work/green/main-red-the-ringless-cone-face-probe-builds-at-1e-12-where-it-pins-a-refusal.md` has the bisect (green at the merge's first parent, red at `4d2d9942`) and the hunk: `line_cone_roots`' quadratic is now read about the run's point nearest the apex, so the root slack on T1's box edge falls from 2.0e-12 to 2.8e-14 and the pose is placed where it refused `CurvedPierceUnsupported`. The build is right by the row's own check (`Got::Meshed` with the pin off). Owed, yours as the lane that caused it: in `crates/mesh/tests/reach_probes.rs`, the `(1e-12, …)` entry comes off four `refused_at` lists (one in `a_ringless_cone_face_near_its_apex_meshes_sound`, three in the slow-set `ringed_curved_faces_that_still_refuse_answer_by_cause`) and two doc sentences. No kernel change. `tesslie/four-use-edge` (PR 7198) edits beside those pins.
+- 2026-11-21 04:50 — **U3a reported** (PR 7226, frozen head `1aeafb3efc`, `gate ok` green on run 44864595739).
+  - The spec's §a.3 gate (the forced-ladder fuzz) is green at effort 1 and 5 and reds under its mutant.
+  - Every pose rung moved out of its door into `curve_face/pose.rs`; the doors' old entries are wrappers.
+  - The general `NotLies` rung escalates a Villarceau circle in band, and `Kappa` is levered by the run's length.
+  - Disclosed deviations: `PoseRefusal::InBand` on `gate_rejection` for a Zero that the class needs definite; a new `PoseRefusal::Meter`; the rows in `pose.rs`; spline and unbuilt arms answered with a whole-span window (filed `cross-answers-a-spline-arm-with-a-whole-span-window`).
+
+  **Dual review dispatched**: two Opus reviewers, concurrently, with identical briefs (`~/.local/share/cad-work/germ-u3a-review/brief.md`, 10 claims). The lane's inherited torn-body seed is added to CHARTTAIL's row on its behalf.
+- 2026-11-21 05:50 — **U3a (PR 7226) dual review.** R1 says NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES. Held: the §a.3 gate is genuine and its forcing load-bearing; `NotLies`; the arc bound; the exhaustive `cross` match; every non-cone moved rung.
+  - **Bilateral:**
+    - `cross` drops a `Tangent` whose `at` is just past the span but whose arc reaches in, a lost meeting. Main's `graze_reaches_span` covers that case.
+    - `Kappa`, levered by the span's length, over-escalates short spans far from the touch, so the wrapper no longer maps back.
+    - A second axis-parallel spelling survives in `span_plane_meet`.
+    - `CrossRefusal.found` holds meetings inside windows.
+    - The wrappers route on row-name strings.
+  - **Unilateral, one class:** on a narrow cone, rungs decided on `F = Q/R` without the floor. R2 showed a line four bands off answered `Lies`, reaching the sweep as `ArcOnCarrier`. R1 showed a circle that misses or double-crosses answered `Tangent`. Main refused both. The gate's fuzz drew α only in [0.1, 1.4], so it could not see them.
+  - **Fix pass sent to the U3a session**, covering the class sweep over every cone rung, the fuzz extended to α ≈ 1e-3, eight MINORs and the rows that cannot fail. Both reviewers then do a delta review on the new head.
+- 2026-11-21, 05:36Z — (ONEROUND orchestrator) A note from another program: editor-core's `m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned` is red on main at ε = 1e-12 since the merge of PR 7183 (`germ/ellipse-speed-magnitudes`, `6d58cebd`; it passes on the four commits tested before it). The call and frozen counts are the pin's; four of five form counts and digests moved by 2 to 8. The PR gate runs editor-core at 1e-12 only when a diff touches the crate. Whether the new ledger is right was not read. The row is `work/green/main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes.md`; the re-pin or the fix is yours.
+- 2026-11-21 11:50 — **Friction: U3a's fix pass has spent about two hours on random-seed fuzz reds** in its PR's kernel job: the window-oracle rows on CPAIR's slate, the torn-body row on CHARTTAIL's, a torus-convention row. Each push draws fresh seeds, and each red has to be shown inherited (it reproduces on main) or regressed (the failure rate is higher on the branch than on main) before the lane can move on. The seeds are filed as evidence on their owners' rows. A PR gate that runs varying-seed fuzz rows whose known failure rate on main is above zero reds a PR independently of its diff; the CI tracks (GREEN, CIW) own that question.
+- 2026-11-21 12:15 — **U3a fix pass done** (PR 7226, frozen at `2d92a10739`, `gate ok` green). It covers the whole union:
+  - **MAJOR 1:** fixed as a class. No cone rung decides on `F` in its zero band alone; the swept table is in the PR body. The fuzz's cone family is extended to α down to 1e-3 and near π/2.
+  - **MAJOR 2:** a past touch reaching into the span gives a window, and `graze_reaches_span` is retired onto one reach reading.
+  - **MAJOR 3:** `Kappa` is read only where it decides, levered by the carrier's own scale at the touch.
+  - The minors are taken.
+
+  **Delta review** dispatched to both reviewers (the same agents continued), with identical briefs on the new head.
+- 2026-11-21 12:50 — **U3a delta reviews: APPROVE (R2) and APPROVE-WITH-FIXES (R1).** Every original MAJOR and MINOR is confirmed fixed by re-run probes and mutants. Both reviewers re-derived the new floor bounds (`e + (|A|/|d|²)·L/m`; `(|F|+noise)/floor`) as sound. No new wrong class.
+  - **Bilateral new MINOR:** the past-touch window is sized from the ε-arc while the not-`Apart` decision used the Kε reach, so a window can collapse to a point while in-gap span points sit outside it.
+  - **R1's two others:** no row guards the Kε reach; an endless span's seam is read as an end.
+
+  A final small round is sent to the session, all over-refusal or contract fixes. It merges on my read once green, with no further review, since no MAJOR remains.
+- 2026-11-21, 07:18Z — (ONEROUND orchestrator) A note from another program: `demos/tour` does not build under `--features probe` on main: `bodies.rs` destructures `Circle { radius, .. }` and PR 7183 made a conic's sizes private. The nightly's k-probe sweep needs that build. The row is `work/green/main-red-the-tours-probe-build-destructures-a-circles-private-radius.md`; the fix (read through the accessor) is yours.
+- 2026-11-21 13:28 — **U3b dispatched**, stacked on U3a's branch, as cloud session `session_01BJC3B56pNrGKigN6ME68bY` (branch `germ/crossing-consumers`). It follows spec §U3b: the ring path, classify, `on_surface` and region move onto `pose`/`cross`. Tier **single, FULL**. It goes ahead of U3a's merge because U3a's final round is over-refusal and contract fixes that do not reshape the reading. The U3a reviews' lessons are carried into the brief.
+- 2026-11-21 14:06 — **PR 7226 (U3a) merged** (`194acb6efb`). Its final round sizes a past touch's window by its Kε reach and places an endless span without ends. I read the delta diff. The U3a session is archived. U3b, stacked, is told to merge main and target it. State PR 7295 merged. The kind-pair row gains a progress note: U0, U1, U1b, U2 and U3a are done; U3b is in flight; U4 and U5 remain.
+- 2026-11-21 18:45 — **U3b reported** (PR 7299, frozen at `444bc41373`, `gate ok` green, base main). Ten mutants red. `under` is retired, but a spiric edge is still read by its leg across its plane, routed through `cross`. The ring-path move is parked on `germ/crossing-consumers-ring-path-parked`. Two blocker rows are filed:
+  - the plane pose's offset loses digits at far frames, so the ring path can't drop its charge: 22 to 376 wrong of 2000 at far 1e4 to 1e6;
+  - the region's spiric fork: refusing the edge reds ten plane × torus rows.
+
+  **Dispatched in parallel:**
+  - U3b's FULL review, including whether the kept leg reading is one method through `cross` or `under` renamed;
+  - **two designers on the spiric fork** (problem at `~/.local/share/cad-work/germ-spiric-fork/problem.md`). Two Opus designers under the Fable outage; no design-fork log row.
+
+  The far-frame re-pose unit is next, after U3b merges.
+- 2026-11-21 19:30 — **PR 7299 (U3b) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Confirmed, with the designers:**
+    - U3b collapsed main's per-family co-surface direction, regressing a near-crest parallel leg: it grazes or escalates inside about √(Kε/r) of the crest, where main landed.
+    - Commit 3e748d3791 narrowed the C5 co-surface sentence Ev ratified in PR 6567 and deleted PR 6624's "whichever way" clause, without sign-off, and the spiric path skips `same_record`.
+  - **MINORs:**
+    - classify lets an `Apart` carrier with its ends on opposite sides pass;
+    - a mutant row doesn't reproduce;
+    - an escalated spiric window becomes a landing;
+    - faults are set aside rather than failing loud.
+
+  **Fix pass sent** (U3b session unarchived): restore main's direction and the C5 text and record check; the MINORs; retitle (the ring path is parked).
+
+  **Spiric fork: two Opus designers converged in one round on R.** S1 moved from A after probing S2's crest counterexample numerically. R is:
+  - the region's question is D3's co-surface outcome, so `curve_pair::on_surface` owns one direction table per curve-family pair on the transversality rule (cut with the plane transversal to the surface all along its curve), and the edge's section becomes one geom-brep reading;
+  - separately, build the `(Spiric, Plane)` arm by the section reduction (`P ∩ Q` against the torus through the built line × torus door), for the slit, the plane split and the planar walk.
+
+  It adds ratified text (the table rule), so it goes to Ev as an `[ev]` PR. No design-fork log row (two Opus designers, Fable outage).
+- 2026-11-21 19:50 — **The spiric fork went to Ev as `[ev]` PR 7301**: C5 gains the co-surface direction table (the transversality rule) and the `spiric_plane` door (the section reduction). Ev's PR 6567 and PR 6624 phrases are kept word for word. The co-surface sentence's "through the plane door" becomes "through the curve × face arm (`curve_face::cross`)", a change to ratified words that the PR names. Both designers' revised For Ev sections are in the body as A and B. The orchestrator subscribed to the PR.

@@ -20,9 +20,11 @@ fn band() -> Band {
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::from_array(o),
-        normal: Vec3::from_array(n),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::from_array(o),
+            Vec3::from_array(n),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -38,10 +40,12 @@ fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
 #[test]
 fn probe_crossing_cylinder_through_plane_contradicts() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     // The intersection line y = 1, z = 0: on the plane and on the
@@ -81,10 +85,12 @@ fn probe_dihedral_crossing_planes_contradict_despite_zero_kappa() {
 #[test]
 fn probe_separated_pair_contradicts() {
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.001),
-        axis: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.001),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -249,10 +255,12 @@ fn probe_in_band_gap_escalates() {
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let at_gap = |gap: f64| {
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0 + gap),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + gap),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
     };

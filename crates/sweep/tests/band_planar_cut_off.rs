@@ -18,7 +18,7 @@ use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
 use geom_core::RigidMotion;
-use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
 use sweep::blend::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
@@ -95,17 +95,19 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
             let p = c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 64.0);
             for s in &surfaces {
                 let d = match *s {
-                    Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-                    Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => {
+                    Surface::Plane { frame, .. } => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
+                        (p - origin).dot(normal).abs()
+                    }
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let (origin, axis) = (frame.origin(), frame.axis());
                         let d = p - origin;
                         ((d - axis * d.dot(axis)).norm() - radius).abs()
                     }
-                    Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+                    Surface::Sphere { frame, radius, .. } => {
+                        let center = frame.origin();
+                        ((p - center).norm() - radius).abs()
+                    }
                     ref other => panic!("an end arc joins a {other:?}"),
                 };
                 worst = worst.max(d);
@@ -121,7 +123,10 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
 pub(crate) fn volume_enclosure<
-    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     body: &Body<T>,
 ) -> (f64, f64) {

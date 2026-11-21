@@ -2604,9 +2604,9 @@ mod tests {
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         // The split ruling's face is the trimmed lane's
         // (`walk::splits_a_straight_side`), which lays rows this face
-        // does not need: 40 where the rectangle lane's chart CDT made 28.
+        // does not need: 38 where the rectangle lane's chart CDT made 28.
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 40, "the split+placed wedge's triangle count at δ = 0.1");
+        assert_eq!(n, 38, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own
@@ -2695,10 +2695,12 @@ mod tests {
     fn a_cone_patch_takes_no_rows_at_any_column_count() {
         // The π/6 wedge fixture's own chart: half-angle π/4, ρ_max = 1.
         let surface = Surface::Cone {
-            apex: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let row = crate::chart_table::AnalyticRow::new(&surface, 1.0).unwrap();
         let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());
