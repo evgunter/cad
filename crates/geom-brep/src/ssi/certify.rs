@@ -1723,7 +1723,7 @@ fn pcurve_end<T: geom_core::CertifiedBounds>(
     } else {
         spans.last()?.ends.1
     };
-    let p = pcurve.span_at(t)?.eval_in_span(T::from_computed(t));
+    let p = pcurve.span_at(t)?.eval_in_span(geom_core::place(t));
     let (u, v): (f64, f64) = (
         geom::mid_param(Bounds::lo(p.x), Bounds::hi(p.x)),
         geom::mid_param(Bounds::lo(p.y), Bounds::hi(p.y)),

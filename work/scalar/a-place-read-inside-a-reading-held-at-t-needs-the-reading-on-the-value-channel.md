@@ -15,5 +15,6 @@ Found by `a-place-is-an-f64-argument-answered-on-the-value-channel`. Each site b
 - `topo/src/pcurves_rings.rs`, `Ring::side`: the window `v ± rv` the chart's arms are read over; the arms go to `ray_parity_as` with the chain's `T` pieces.
 - `topo/src/chart_region.rs`, `interior_witness`'s stage 2 (two calls): the candidate `(x, y)` is a plane point handed to `contain::contfp` on the bodies at `T`. The bound is `Decide + Bounds`, so `place::<T>` is not available (it needs `Value = T`); a `Certifies` bound would make it so.
 - `sweep/src/blend/reach.rs`, `Cell::new` and the two `corner` closures in `band_reach` (three calls): box-arithmetic cell corners, read into margins `face_bound` and `metered` return as `T` and the band reach subtracts at `T`.
+- `geom-brep/src/pair_section/ruling.rs`, `Cell::new` (two calls): a cell's end angles, at `T: Real`; the cell's cosine and sine bound `meeting` and `velocity` (`V3<T>`). Found by the second sweep pass; its consumers were not traced, so whether it is a place or builds something kept is open.
 
 Whether any of these readings keeps what it evaluates was traced by reading only (consumers named above); none was found stored in a body.

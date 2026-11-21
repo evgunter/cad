@@ -791,10 +791,10 @@ fn link<'p, T: CertifiedBounds>(
 }
 
 /// The pcurve's point at a parameter the walk chose in `f64` (a
-/// window's end): a computed value, so at `Sym` an unknown. `None` off
-/// the pcurve's spans.
+/// window's end): a place ([`geom_core::place`]). `None` off the
+/// pcurve's spans.
 fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Point2<T>> {
-    Some(pcurve.span_at(t)?.eval_in_span(T::from_computed(t)))
+    Some(pcurve.span_at(t)?.eval_in_span(geom_core::place(t)))
 }
 
 /// **The chart chain's solution set is one arc, and it spans the
