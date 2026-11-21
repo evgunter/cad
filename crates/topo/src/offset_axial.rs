@@ -3316,6 +3316,37 @@ mod tests {
         solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
     }
 
+    /// **A corner's arms are its edges' extents**: at the corner of a
+    /// half-disc cap (radius 1), the half-turn arc reads its diameter `2`
+    /// (red at its arc length `π`) and the diameter line its chord `2`.
+    /// A closed arc's chord is zero, so a read of the chord alone is red
+    /// on the arc too.
+    #[test]
+    fn a_half_turn_rims_corner_arms_are_its_diameter() {
+        let (body, _, end) = crate::test_support_fixtures::half_disc_cap(0.0, Tol::witness());
+        let vertex = body
+            .vertices
+            .keys()
+            .find(|&v| {
+                body.resolve_vertex_point(v, crate::live::Proven)
+                    .distance(end)
+                    < 1e-12
+            })
+            .expect("the cap's corner at the arc's end");
+        let arms: Vec<f64> = corner_arms(&body, vertex)
+            .unwrap()
+            .into_iter()
+            .map(Lever::length)
+            .collect();
+        assert_eq!(arms.len(), 2, "the corner's two edges: {arms:?}");
+        for arm in arms {
+            assert!(
+                (arm - 2.0).abs() < 1e-12,
+                "an arm off the diameter 2: {arm}"
+            );
+        }
+    }
+
     const CIRCLE: Profile<f64> = Profile::Circle {
         rho_c: 10.0,
         h_c: 0.0,
