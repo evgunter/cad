@@ -40,8 +40,8 @@ use crate::validate::decide;
 pub(crate) const PAIR_AXIS: &str = "bool_pair_axis";
 
 /// K name: a planar face's normal, a pure number levered by the face's
-/// reach diagonal ([`UnitVec3::levered`]), before it is read as a unit
-/// axis.
+/// extent from below ([`planar_axis`], [`UnitVec3::levered`]), before it
+/// is read as a unit axis.
 pub(crate) const PAIR_NORMAL: &str = "bool_pair_normal";
 
 /// K name: two reaches' gap along a candidate direction, less both
@@ -99,7 +99,7 @@ impl<T: Real> Circle<T> {
 
 /// The outward normal of every planar face of `a` and of `b`
 /// ([`planar_axis`]): the candidate axes that turn with the operands.
-/// One the band cannot read, or a face with no reach, is left out,
+/// One the band cannot read, or a face with no certified boundary edge, is left out,
 /// which only drops a candidate. So is one whose `key` is a kept axis's, or its
 /// negation's: a gap along `−n` is the gap along `n` (a box's six faces
 /// give three axes). That merge is exact-identity de-duplication of one
@@ -154,26 +154,21 @@ pub(crate) fn world_axes<T: Decide>() -> [UnitVec3<T>; 3] {
     ]
 }
 
-/// A planar face's outward normal as a unit direction, levered by the
-/// diameter of the face's cover ([`crate::cover::face_cover`],
-/// [`geom_brep::ExtentBall::diameter`]), the length it is consumed over.
-/// `None` for a face that is not planar, one with no cover, or a normal
-/// the band cannot read. The cover is read only once the face is known
-/// planar, so a curved face costs no cover here.
+/// A planar face's outward normal as a unit direction, levered by how
+/// far apart two of the face's points stand at least
+/// ([`crate::cover::face_extent_below`]), the length it is consumed
+/// over: the normal is a direction only where that reads definitely
+/// positive, so the length is read from below. `None` for a face that is
+/// not planar, one with no certified boundary edge, or a normal the band
+/// cannot read.
 pub(crate) fn planar_axis<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Option<UnitVec3<T>> {
     let n = crate::face_normal::face_outward_normal(body, face)?;
-    let cover = crate::cover::face_cover(body, face, band).ok()?;
-    UnitVec3::levered(
-        n.vec(),
-        PAIR_NORMAL,
-        band,
-        geom_brep::ExtentBall::of_cover(&cover).diameter(),
-    )
-    .ok()
+    let arm = crate::cover::face_extent_below(body, face)?;
+    UnitVec3::levered(n.vec(), PAIR_NORMAL, band, arm).ok()
 }
 
 /// What [`operand_axes`] compares two axes by: two equal keys are one
@@ -415,19 +410,19 @@ mod tests {
         );
     }
 
-    /// **A planar face's normal is levered at the face's diameter.** The
-    /// top of a unit half-disc is 2 across and its world box `√5`
-    /// (`2 × 1`); its normal stored `s` long reads `s` at each unit of
-    /// arm, a direction only past the band's escalation `e`. At
-    /// `s = 1.03·e/2` the diameter reads a direction where a radius would
-    /// not; at `s = 0.97·e/2` it reads none where the box's diagonal
-    /// would.
+    /// **A planar face's normal is levered at the face's extent from
+    /// below.** The unit cube's top: its edges are 1 long, its points
+    /// stand up to `√2` apart, and its normal stored `s` long reads `s` at
+    /// each unit of arm, a direction only past the band's escalation `e`.
+    /// At `s = 1.03·e` the edges' extent reads a direction, where half of
+    /// it would not; at `s = 0.97·e` it reads none, where the face's
+    /// diameter from above would read one.
     #[test]
-    fn a_planar_faces_normal_is_levered_at_its_diameter() {
+    fn a_planar_faces_normal_is_levered_at_its_extent_from_below() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let top_at = |length: f64| {
-            let mut body = crate::tier3_tests::half_disc(1.0, 1.0, (0.0, 0.0, 0.0), false, tol);
+            let mut body = geometric_cube::<f64>(tol).body;
             let top = body
                 .faces()
                 .map(|(k, _)| k)
@@ -444,12 +439,12 @@ mod tests {
         };
         let e = band.escalate();
         assert!(
-            top_at(1.03 * e / 2.0).is_some(),
-            "the half-disc's diameter reads the short normal as a direction"
+            top_at(1.03 * e).is_some(),
+            "the top's edges read the short normal as a direction"
         );
         assert!(
-            top_at(0.97 * e / 2.0).is_none(),
-            "the half-disc's diameter reads the shorter normal as none"
+            top_at(0.97 * e).is_none(),
+            "the top's edges read the shorter normal as none"
         );
     }
 }

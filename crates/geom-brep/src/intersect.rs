@@ -2852,10 +2852,10 @@ const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus
 pub fn plane_torus_section<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: geom_core::Lever<T>,
+    extent: impl Into<LeverBounds<T>>,
     band: Band,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
-    plane_torus_read(plane, torus, extent, band, ClassRead::Lane)
+    plane_torus_read(plane, torus, extent.into(), band, ClassRead::Lane)
 }
 
 /// [`plane_torus_section`] for a tangency reader, which acts on its
@@ -2869,10 +2869,10 @@ pub fn plane_torus_section<T: Decide>(
 pub(crate) fn plane_torus_tangency<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: geom_core::Lever<T>,
+    extent: impl Into<LeverBounds<T>>,
     band: Band,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
-    plane_torus_read(plane, torus, extent, band, ClassRead::Structural)
+    plane_torus_read(plane, torus, extent.into(), band, ClassRead::Structural)
 }
 
 /// How a consumer takes a class row's answer (D3, `[verdicts.consumers]`).
@@ -2896,12 +2896,41 @@ impl ClassRead {
             Self::Structural => decide(name, margin, band).map(|sign| sign == Sign::Zero),
         }
     }
+
+    /// [`Self::shown`] of `x` levered at both bounds of `extent`, acted
+    /// on only where they agree: a class row that serves either answer
+    /// reads its lever from both sides (`geom-core`'s README, "Float
+    /// rounding"). Where they disagree the reading straddles the band
+    /// between its two bounds, refused as an in-band reading is.
+    fn shown_at_both<T: Decide>(
+        self,
+        name: &'static str,
+        x: T,
+        extent: LeverBounds<T>,
+        band: Band,
+    ) -> Result<bool, Indeterminate> {
+        let at = |lever| Margin::levered(x, lever);
+        let (below, above) = match extent {
+            LeverBounds::Exact(lever) => return self.shown(name, at(lever), band),
+            LeverBounds::Between { below, above } => (below, above),
+        };
+        let low = self.shown(name, at(below), band)?;
+        if low == self.shown(name, at(above), band)? {
+            return Ok(low);
+        }
+        let (a, b) = (
+            decide_reported(name, at(below), band)?,
+            decide_reported(name, at(above), band)?,
+        );
+        let (lower, upper) = if a.sign < b.sign { (a, b) } else { (b, a) };
+        Err(geom_core::k_stats::straddle(name, lower, upper, band))
+    }
 }
 
 fn plane_torus_read<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: geom_core::Lever<T>,
+    extent: LeverBounds<T>,
     band: Band,
     class: ClassRead,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
@@ -2924,13 +2953,15 @@ fn plane_torus_read<T: Decide>(
 
     let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
-    // The axis tilt is levered at the extent for the fork alone. Each
-    // served row below decides the displacement it puts on its minted
-    // curves beside its own position datum, so no served circle leans on
-    // the extent being long.
-    let tilt = Margin::levered(a.dot(n), extent);
+    // The axis tilt is levered at the extent for the fork alone, which
+    // serves either lane, so it reads both of the extent's bounds and
+    // acts where they agree. Each served row below decides the
+    // displacement it puts on its minted curves beside its own position
+    // datum, so no served circle leans on the extent being long; the
+    // ovals' plane leans by at most the tilt at the bound from above.
+    let tilt = Margin::levered(a.dot(n), extent.above());
     match class
-        .shown("pt_axis_in_plane", tilt, band)
+        .shown_at_both("pt_axis_in_plane", a.dot(n), extent, band)
         .map_err(SectionError::Escalated)?
     {
         true => {

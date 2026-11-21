@@ -31,12 +31,12 @@ Shared consumers:
 | `attach::reask_on`, `reask_chart_on` | `wedge_reach` | MC re-ask | every sign |
 | `boolean::combine::graft_solids_impl` | `wedge_reach` | CERT (recertify) | definite sign |
 | `boolean::edge_join::joinable` | `edge_wedge_reach` | `dihedral_wedge`, `tangent_second_order` | every sign, then definite |
-| `boolean::join::stands_on` | `wedge_reach` | `bool_rim_face_opposed` | definite sign (Zero reads as not opposed, unrefused) |
+| `boolean::join::stands_on` | `wedge_reach` | `bool_rim_face_opposed` | Zero (ends `== Sign::Negative`, so Zero is returned as "not opposed" and acted on) |
 | `boolean::route_rim` (2) | `wedge_reach` | shared-rim class | Zero (a seam is routed, Transverse refuses) |
 | `boolean::ops::describe_edges` | `wedge_reach` | seam class | every sign |
-| `boolean::reduce::sheets_part` (2) | `wedge_reach` | `bool_touch_sheets_part` | definite sign (Zero reads unseen, unrefused) |
+| `boolean::reduce::sheets_part` (2) | `wedge_reach` | `bool_touch_sheets_part` | Zero (ends `== Sign::Negative`, so Zero is returned as "not parted" and acted on) |
 | `boolean::slit::walls_inside` | `wedge_reach` | `bool_rider_wall_side` | every sign |
-| `chord_join::chord_spec` | `wedge_reach` | MC `must_carry_description` | Zero |
+| `chord_join::chord_spec` | `wedge_reach` | MC `must_carry_description` | Zero, unsure: the second-order rung serves a determinate bend and an under-determined one alike, which may make it every sign |
 | `edge_wedge::edge_wedge` | `edge_wedge_reach` | WV | every sign |
 | `edge_wedge::edge_wedge_read` | `edge_wedge_reach` | WV | every sign (its `splitting::finish` caller serves Smooth only, a Zero use) |
 | `euler::certify_edge_spec`, `certify_rebased_run` | `wedge_reach` | CERT | definite sign |
@@ -50,19 +50,19 @@ Shared consumers:
 | `pcurves::tier3::pcurve_pass` (2) | `stored_reach` | JT | every sign and definite |
 | `replace_face::plan_edge` (5) | `wedge_reach` | MC re-ask | every sign |
 | `replace_face::plan_reanchors` | `wedge_reach` | MC re-ask | every sign |
-| `split::split_edge_onto` | `wedge_reach` | MC `must_carry_description` | Zero |
+| `split::split_edge_onto` | `wedge_reach` | MC `must_carry_description` | Zero, unsure, as `chord_spec` |
 | `splitting::finish::describe_section_boundary` | `wedge_reach` | seam class, then WV | every sign |
 | `splitting::rules::edge_wedge` | `edge_wedge_reach` | `dihedral_wedge`, then material side | every sign |
 | `validate::tier3_local_checks_marked` | `WedgeReach::reach` | CERT, then WV | definite, then every sign |
 
 About 41 call sites, counted as the reading pass counted them:
 - every sign: about 18;
-- definite sign: 7;
-- Zero: `route_rim` (2 calls), `chord_spec` and `split_edge_onto`;
+- definite sign: 5 (the certifications at `attach` ×2, `combine`, `euler` ×2);
+- Zero: `route_rim` (2 calls), `stands_on`, `sheets_part` (2 calls), and `chord_spec` and `split_edge_onto` (both unsure);
 - both a definite and an every-sign decision on one lever: about 13;
 - none unclassified.
 
-Only the definite-sign sites are served by the bound from below that every site reads today. The Zero sites need the bound from above, and the every-sign and mixed sites need both.
+Only the definite-sign sites, the certifications, are served by the bound from below that every site reads today. `stands_on` and `sheets_part` look definite but return a Zero as a quiet `false` that their callers act on: a short lever turns a true Negative into "not opposed" or "not parted". They are Zero sites and need the bound from above with the others. The every-sign and mixed sites need both.
 
 The classification was made by a reading pass, spot-checked at `stands_on` and `split_edge_onto`. Check each against the code when converting it.
 

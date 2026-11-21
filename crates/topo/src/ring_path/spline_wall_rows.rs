@@ -460,7 +460,9 @@ fn a_wall_paths_lean_is_levered_within_its_arriving_pieces_chord_and_turn() {
 /// unit circle as a rational quadratic, over `[0.02, 0.98]` of its
 /// domain: the piece runs nearly the whole turn, so its ends stand about
 /// a quarter apart while its points stand 2 apart. The arm reads the
-/// diameter, and no more than it.
+/// diameter, and no more than it. Over the whole domain its ends meet,
+/// and the arm still reads the diameter: the piece has a length, so a
+/// path arriving along it is asked (`split_ring_path_wall_arrival`).
 #[test]
 fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
     let s = std::f64::consts::FRAC_1_SQRT_2;
@@ -488,10 +490,14 @@ fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
             .collect(),
     )
     .unwrap();
-    for forward in [true, false] {
+    for (span, forward) in [
+        ((0.02, 0.98), true),
+        ((0.02, 0.98), false),
+        ((0.0, 1.0), true),
+    ] {
         let piece = super::spline_wall::IsoPiece {
             curve: Arc::new(circle.clone()),
-            span: (0.02, 0.98),
+            span,
             forward,
         };
         let (start, stop) = piece.ends();
@@ -503,7 +509,7 @@ fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
         );
         assert!(
             (1.9..=2.0 + 1e-12).contains(&arm),
-            "forward {forward}: the arm reads the turn's diameter from below, got {arm}"
+            "{span:?}, forward {forward}: the arm reads the turn's diameter from below, got {arm}"
         );
     }
 }

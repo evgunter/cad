@@ -1812,10 +1812,9 @@ fn spline_crossings<T: Decide>(
             )
         }
         &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
-            let line = geom::Curve3::line(from, to - from);
-            let length = geom_brep::edge_extent_inf(&line, T::zero(), T::one());
+            let length = geom_brep::ExtentBall::point(from).lever_from(to);
             (
-                line,
+                geom::Curve3::line(from, to - from),
                 (T::zero(), T::one()),
                 length,
                 Margin::of(charge(length.length(), slack)),
