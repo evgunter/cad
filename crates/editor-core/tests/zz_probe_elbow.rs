@@ -25,8 +25,8 @@ fn report(ev: &Evaluation<f64>, what: &str, n: RecipeNodeId) {
         Some(e) => println!("PROBE {what}: REFUSES: {}", e.kind),
     }
 }
-fn run(angle: f64, axis_x: f64, end: CapEnd) {
-    println!("PROBE ---- angle {angle} axis_x {axis_x} end {end:?}");
+fn run(angle: f64, axis_x: f64, end: CapEnd, heading: f64) {
+    println!("PROBE ---- angle {angle} axis_x {axis_x} end {end:?} heading {heading}");
     let doc = ProfileDoc::empty_derived("probe_elbow", Tol::witness());
     let (doc, ring) = insert(
         doc,
@@ -56,7 +56,7 @@ fn run(angle: f64, axis_x: f64, end: CapEnd) {
         Node::Revolve {
             profile: drawn.profile.into(),
             axis_through: [len(axis_x), len(0.0)],
-            axis_heading: ang(std::f64::consts::FRAC_PI_2),
+            axis_heading: ang(heading),
             angle: ang(angle),
         },
     );
@@ -89,9 +89,12 @@ fn run(angle: f64, axis_x: f64, end: CapEnd) {
 #[test]
 fn probe() {
     let q = std::f64::consts::FRAC_PI_2;
-    run(q, 3.0, CapEnd::End);
-    run(-q, 3.0, CapEnd::End);
-    run(q, 3.0, CapEnd::Start);
-    run(-q, 3.0, CapEnd::Start);
+    for end in [CapEnd::End, CapEnd::Start] {
+        for (axis_x, heading) in [(3.0, q), (3.0, -q), (-3.0, q), (-3.0, -q)] {
+            for angle in [q, -q] {
+                run(angle, axis_x, end, heading);
+            }
+        }
+    }
     panic!("PROBE DONE: this test fails on purpose so the runner prints the PROBE lines above");
 }
