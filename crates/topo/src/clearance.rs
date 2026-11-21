@@ -3462,18 +3462,18 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     };
     let superset = |u, v| (u, v, Region::Trimmed);
     let (u, v, region) = match &charted {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => superset(along(*origin, *u_ref), along(*origin, normal.cross(*u_ref))),
-        Surface::Cylinder { origin, axis, .. } => superset(full_turn(), along(*origin, *axis)),
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            superset(along(origin, u_ref), along(origin, normal.cross(u_ref)))
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            superset(full_turn(), along(origin, axis))
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             // `slant` encloses `v` over the boundary. The face's `v`
             // peaks on its boundary or at the apex, so `slant` widened
             // to `0` holds it, and `slant` alone does wherever it holds
@@ -3484,7 +3484,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // homologous, on the punctured nappe, to the whole boundary,
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
-            let slant = (extent - *apex).dot(*axis) / half_angle.cos();
+            let slant = (extent - apex).dot(axis) / half_angle.cos();
             let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
@@ -3898,6 +3898,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .collect();
             out.edges.push(Rim {
                 key: ek,
+                stated: (T::WITNESS == geom_core::Witness::Inexact)
+                    .then(|| curve.carrier().map_scalar(|x| Bounds::lo(x))),
                 arc: Some((carrier, span)),
                 ends,
                 uses,
@@ -4553,19 +4555,17 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 /// (this module's header). The doors it holds take that crossing
 /// themselves, and a verifier reads a candidate's carriers already
 /// crossed ([`Candidate::enclosure`]), so no caller spells a lift. A
-/// scalar without that right cannot write the value:
+/// scalar that does not certify has no such type ([`crate::QuadLane`]'s
+/// paragraph):
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::ClearanceLane;
 /// let _ = ClearanceLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct ClearanceLane<T: Decide> {
+pub struct ClearanceLane<T: geom_core::Certifies> {
     /// [`Side::windows`] (`wiring_rows` pins the pointer).
     windows: for<'b> fn(
         &Side<'b, T>,
@@ -4585,7 +4585,7 @@ pub struct ClearanceLane<T: Decide> {
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
 }
 
-impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
     /// The certified engine: the whole inventory of this door, and the
     /// only constructor there is.
     #[must_use]
@@ -4620,13 +4620,80 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
     }
 }
 
-impl<T: Decide> ClearanceLane<T> {
-    /// [`Side::windows`], at this lane.
+/// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed ([`crate::RegionLaneOf`]'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::RigidMotion;
+/// use topo::clearance::{BoundReport, Candidate, EngineRefusal, Side, Stations, Sweep, Which, Windows};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::ClearanceLaneOf<f64> for Mine {
+///     fn windows<'b>(self, _s: &Side<'b, f64>, _w: Which) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn windows_at<'b>(
+///         self,
+///         _s: &Side<'b, f64>,
+///         _w: Which,
+///         _at: Option<&RigidMotion<f64>>,
+///     ) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn sweep<W>(
+///         self,
+///         _sweep: &Sweep,
+///         _wa: &Windows<'_, f64>,
+///         _wb: &Windows<'_, f64>,
+///         _same_body: bool,
+///         _verify: impl FnMut(Candidate<'_, '_, f64>) -> Result<W, String>,
+///     ) -> BoundReport<W> {
+///         unimplemented!()
+///     }
+///     fn on_face_stations(self, _c: Candidate<'_, '_, f64>) -> (Stations, Stations) {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// A side's windows in its own frame.
     ///
     /// # Errors
+    /// The lane's own.
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which)
+    -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// A side's windows moved by `at`.
     ///
-    /// [`Side::windows`]'s own.
-    pub fn windows<'b>(
+    /// # Errors
+    /// The lane's own.
+    fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// The bound sweep of two sides' windows, `verify` asked of each
+    /// candidate; the first `Ok` per question is kept.
+    fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W>;
+
+    /// A candidate's stations on its two faces.
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+}
+
+impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
+    fn windows<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4634,12 +4701,7 @@ impl<T: Decide> ClearanceLane<T> {
         (self.windows)(side, which, None)
     }
 
-    /// [`Side::windows_at`], at this lane.
-    ///
-    /// # Errors
-    ///
-    /// [`Side::windows_at`]'s own.
-    pub fn windows_at<'b>(
+    fn windows_at<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4648,9 +4710,7 @@ impl<T: Decide> ClearanceLane<T> {
         (self.windows)(side, which, at)
     }
 
-    /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
-    /// the sweep's, and the witness is the first one `verify` answered.
-    pub fn sweep<W>(
+    fn sweep<W>(
         self,
         sweep: &Sweep,
         wa: &Windows<'_, T>,
@@ -4693,9 +4753,42 @@ impl<T: Decide> ClearanceLane<T> {
         }
     }
 
-    /// [`Candidate::on_face_stations`], at this lane.
-    pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
         (self.face_stations)(candidate)
+    }
+}
+
+impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
+    fn windows<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn windows_at<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+        _at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn sweep<W>(
+        self,
+        _sweep: &Sweep,
+        _wa: &Windows<'_, T>,
+        _wb: &Windows<'_, T>,
+        _same_body: bool,
+        _verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        match self {}
+    }
+
+    fn on_face_stations(self, _candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        match self {}
     }
 }
 
@@ -4765,7 +4858,7 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
-pub fn embedded<T: Decide + CertifiedBounds>(
+pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,
@@ -4828,7 +4921,7 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
-    fn holds_the_certified_clearance_lane<T: super::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_clearance_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -4927,7 +5020,7 @@ mod wiring_rows {
     #[allow(clippy::expect_used)]
     fn the_verdict_door_on_a_cube<T>() -> (bool, bool)
     where
-        T: super::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy,
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         let tol = geom_core::Tol::witness();
         let cube: crate::Body<T> =
@@ -5512,10 +5605,12 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { origin, .. }) = b.surfaces.values_mut().next() else {
+                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
                     panic!("a brick's faces are planes");
                 };
-                refuse(origin, axis);
+                let mut origin = frame.origin();
+                refuse(&mut origin, axis);
+                *frame = frame.with_origin(origin);
             });
             assert_eq!(
                 carrier, "a face whose carrier does not certify",
@@ -5675,10 +5770,12 @@ mod trv_rows {
         for refuse in [false, true] {
             let mut x = wa.clone();
             if refuse {
-                let Surface::Plane { origin, .. } = &mut x.surface else {
+                let Surface::Plane { frame, .. } = &mut x.surface else {
                     panic!("a brick's face is a plane");
                 };
+                let mut origin = frame.origin();
                 origin.x = refused(origin.x);
+                *frame = frame.with_origin(origin);
             }
             let (ca, cb) = (Cell::of(&wa), Cell::of(&wb));
             let mut q = start(&x, &wb);
@@ -5803,41 +5900,33 @@ mod support_rows {
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     half_angle: 30f64.to_radians(),
-                    u_ref,
                 },
                 (1.0, 1.1),
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     major_radius: 1.6,
                     minor_radius: 0.8,
-                    u_ref,
                 },
                 (2.5, 2.6),
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.7,
-                    u_ref,
                 },
                 (0.2, 0.3),
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.9,
-                    axis,
-                    u_ref,
                 },
                 (0.4, 0.5),
             ),

@@ -1169,37 +1169,56 @@ pub(crate) fn chart_frame<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, [
     let frame = |o: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| (o, [u_ref, axis.cross(u_ref), axis]);
     Some(match *surface {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => frame(origin, normal, u_ref),
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, normal, u_ref)
+        }
         Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => frame(origin, axis, u_ref),
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(origin, axis, u_ref)
+        }
         Surface::Cone {
-            apex, axis, u_ref, ..
-        } => frame(apex, axis, u_ref),
+            frame: carrier_frame,
+            ..
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(apex, axis, u_ref)
+        }
         Surface::Sphere {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
         }
         | Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             ..
-        } => frame(center, axis, u_ref),
+        } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            frame(center, axis, u_ref)
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
 }
@@ -3056,7 +3075,7 @@ pub(super) fn projected_envelope<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
     parts: super::Parts,
 ) -> Result<(EnvelopeTerms<T>, super::ImageName), PcurveCertifyError> {
     let mut terms = EnvelopeTerms::new();
@@ -3065,12 +3084,8 @@ pub(super) fn projected_envelope<T: Decide>(
         why,
     };
     // ---- The plane: the mapped net's difference, exactly. ----
-    if let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *surface
-    {
+    if let Surface::Plane { frame } = *surface {
+        let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let (FramedCarrier::Net(net), Curve3::Nurbs(c)) = (&image.carrier, carrier) else {
             return Err(refuse(
                 "a plane's projected image is a spline carrier's net",
@@ -3437,7 +3452,7 @@ pub(super) fn check_4_terms<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
     parts: super::Parts,
 ) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
     let super::Pcurve::Projected(image) = pcurve else {
@@ -3466,7 +3481,7 @@ pub(super) fn run_projected_checks<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
 ) -> Result<super::PcurveCertificate<T>, PcurveCertifyError> {
     use super::{EnvelopeStatement, Record};
     let Pcurve::Projected(image) = pcurve else {
@@ -3747,9 +3762,11 @@ mod tests {
                 .map(|d| revalue(d.node, &none))
                 .collect();
             let plane = Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             }
             .map_scalar(S::from_f64);
             let (incidence, floor) = net_incidence(

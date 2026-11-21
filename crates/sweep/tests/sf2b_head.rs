@@ -312,7 +312,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.y - 8.0 / 64.0).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - 8.0 / 64.0).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

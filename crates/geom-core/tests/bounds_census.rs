@@ -158,15 +158,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/carrier_net.rs",
-        subject: "carrier_span",
-        why: Payload(
-            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
-             closed-form carrier's chart-image schedule and enclosing net are built over, \
-             lifted back through `from_computed`; nothing branches on them",
-        ),
-    },
-    Site {
         path: "crates/geom-brep/src/edge_nurbs.rs",
         subject: "impl<T: Bounds> FeetRefusal<T>",
         why: Payload(
@@ -200,6 +191,15 @@ const ROSTER: &[Site] = &[
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "exact3",
         why: HandedOff("Track Q's; a private helper S88's census names"),
+    },
+    Site {
+        path: "crates/geom-brep/src/ssi/certify.rs",
+        subject: "brackets",
+        why: Payload(
+            "a frame direction's components read as brackets for `frame_direction`: its \
+             midpoint and its turn bound, f64 payloads the composite's hull charges and the \
+             chart tube's partner form reads its structure from",
+        ),
     },
     Site {
         path: "crates/geom-core/src/dual.rs",

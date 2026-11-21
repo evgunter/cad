@@ -6,9 +6,8 @@
 //! turn with; the full revolve then closes the wall on itself in `u`
 //! as well (`full::build_turn_lamina`).
 
-use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
-use geom_core::{Decide, Point3, Tol, Vec3};
+use geom_core::{Decide, Point3, Sign, Tol};
 use topo::construction::FaceSurface;
 use topo::{Body, LoopKey};
 
@@ -28,8 +27,6 @@ pub(super) struct TurnEnds<T: geom_core::Real> {
     /// The sketch placement, turned through `theta` when the far end
     /// is not the near one.
     pub(super) place_far: Placing<T>,
-    /// Its sketch normal.
-    pub(super) n_far: Vec3<T>,
 }
 
 /// Sweeps the one-segment loop `seg` (loop `loop_index`, whose classes
@@ -47,7 +44,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
     r#loop: LoopKey,
     ends: &TurnEnds<T>,
     theta: T,
-    axis_c: Vec3<T>,
+    axis_c: Sign,
     near_cap: FaceSurface<T>,
     tol: Tol,
 ) -> Result<(FullTurn, LoopSwept), RevolveError> {
@@ -82,12 +79,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         }),
         // `u_ref` points at the far end: the seam direction `u₃` (the
         // vertex lies at `r > 0`), turned with it.
-        carrier: Curve3::circle(
-            center,
-            Vec3::zero() - axis_c,
-            radius,
-            ends.place_far.carry(frame.u3),
-        ),
+        carrier: frame.latitude(center, radius, axis_c.flip(), ends.place_far),
         param_start: T::zero(),
         param_end: theta.abs(),
     };
@@ -95,10 +87,10 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         body,
         r#loop,
         ends.near,
-        placed_segment_spec(seg, ends.place_far, ends.n_far, ends.far, tol),
+        placed_segment_spec(seg, ends.place_far, ends.far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, frame.place, frame.n3, ends.near, tol),
+        placed_segment_spec(seg, frame.motion, ends.near, tol),
         near_cap,
         tol,
     )?;

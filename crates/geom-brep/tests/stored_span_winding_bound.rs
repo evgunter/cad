@@ -79,29 +79,21 @@ const KINDS: [Kind; 4] = [Kind::Cylinder, Kind::Cone, Kind::Sphere, Kind::Torus]
 fn surface<T: Real>(kind: Kind) -> Surface<T> {
     match kind {
         Kind::Cylinder => Surface::Cylinder {
-            origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: f(R),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Cone => Surface::Cone {
-            apex: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             half_angle: f(HALF),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Sphere => Surface::Sphere {
-            center: p(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: f(R),
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Torus => Surface::Torus {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             major_radius: f(R),
             minor_radius: f(MINOR),
-            u_ref: v(1.0, 0.0, 0.0),
         },
     }
 }
