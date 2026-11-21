@@ -1630,7 +1630,7 @@ impl Sweep {
                         _ => None,
                     };
                     if let Some(r) = readings.below.as_ref().and_then(sliver) {
-                        q.lower_refusal.get_or_insert(r);
+                        crate::gate_measure::noted(&mut q.lower_refusal, r);
                     }
                     if let Some(r) = readings.above.as_ref().and_then(sliver) {
                         q.upper_refusal.get_or_insert(r);
@@ -1668,7 +1668,8 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            q.lower_refusal.get_or_insert(r);
+                            crate::gate_measure::noted(&mut q.lower_refusal, r);
+                            crate::gate_measure::walk_event((x.face, y.face), 0, 0.0, true, 0);
                         }
                     }
                     continue;
@@ -1829,6 +1830,12 @@ fn walk<T: Real, Q: Question<T>>(
         // is started.
         let r = &w.receipt;
         if r.discharged + r.violated + r.refused + frontier.len() > budgets.max_cell_pairs {
+            crate::gate_measure::walk_overflow(
+                frontier
+                    .iter()
+                    .filter_map(|t| Some((wa.get(t.i)?.face, wb.get(t.j)?.face)))
+                    .collect(),
+            );
             q.overflow(&mut w.receipt, frontier);
             break;
         }
@@ -1843,7 +1850,21 @@ fn walk<T: Real, Q: Question<T>>(
                 continue;
             };
             deepest = deepest.max(task.pair.depth);
-            if q.pair(&mut w, task, x, y).is_break() {
+            let (m_splits, m_refused, m_depth, m_clock) = (
+                w.receipt.splits,
+                w.receipt.refused,
+                task.pair.depth,
+                std::time::Instant::now(),
+            );
+            let m_flow = q.pair(&mut w, task, x, y);
+            crate::gate_measure::walk_event(
+                (x.face, y.face),
+                w.receipt.splits - m_splits,
+                m_clock.elapsed().as_secs_f64(),
+                w.receipt.refused > m_refused,
+                m_depth,
+            );
+            if m_flow.is_break() {
                 w.receipt.abandoned += w.left + w.next.len();
                 return (w.receipt, deepest);
             }
@@ -1955,7 +1976,8 @@ impl<W, F> Bound<'_, W, F> {
     /// Whether every question the bound asks has its answer: a lower
     /// violation, or an upper bound's proof where there is no lower one.
     fn answered(&self) -> bool {
-        self.violation.is_some() || (self.sweep.bound.lower().is_none() && self.within.is_some())
+        (self.violation.is_some() && !crate::gate_measure::continuing())
+            || (self.sweep.bound.lower().is_none() && self.within.is_some())
     }
 
     /// The refusal an undecided reading is, where refinement cannot
@@ -2029,12 +2051,19 @@ impl<W, F> Bound<'_, W, F> {
                     if self.lower_refusal.is_some() {
                         crate::gate_measure::refused_before_crossing();
                     }
+                    crate::gate_measure::crossed_in(at.x.face, at.y.face);
+                    if crate::gate_measure::continuing() {
+                        self.violation.get_or_insert(w);
+                        return ControlFlow::Continue(Bucket::Violated);
+                    }
                     self.violation = Some(w);
                     return ControlFlow::Break(());
                 }
                 Err(what) => {
-                    self.lower_refusal
-                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                    crate::gate_measure::noted(
+                        &mut self.lower_refusal,
+                        EngineRefusal::WitnessUnverified { what },
+                    );
                 }
             }
             bucket = Bucket::Violated;
@@ -2207,7 +2236,12 @@ where
                     other => other,
                 };
                 if std::env::var_os("CV_PAIRS").is_some() {
-                    let o = match &outcome { Outcome::Certified{..}=>"cert".to_string(), Outcome::Split{arm,shared}=>format!("split {arm:?} {shared:?}"), Outcome::Refuse(r)=>format!("refuse {r:?}"), Outcome::Cusp{..}=>"cusp".into() };
+                    let o = match &outcome {
+                        Outcome::Certified { .. } => "cert".to_string(),
+                        Outcome::Split { arm, shared } => format!("split {arm:?} {shared:?}"),
+                        Outcome::Refuse(r) => format!("refuse {r:?}"),
+                        Outcome::Cusp { .. } => "cusp".into(),
+                    };
                     eprintln!("CVP touch {:?} {:?} d={} {}", x.face, y.face, pair.depth, o);
                 }
                 match outcome {
@@ -2224,7 +2258,7 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        self.lower_refusal.get_or_insert(r);
+                        crate::gate_measure::noted(&mut self.lower_refusal, r);
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -2249,15 +2283,18 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            self.lower_refusal.get_or_insert(match stop {
-                                CellBudget::Depth { .. } => EngineRefusal::Uncertified {
-                                    a: x.face,
-                                    b: y.face,
-                                    shared,
-                                    arm,
+                            crate::gate_measure::noted(
+                                &mut self.lower_refusal,
+                                match stop {
+                                    CellBudget::Depth { .. } => EngineRefusal::Uncertified {
+                                        a: x.face,
+                                        b: y.face,
+                                        shared,
+                                        arm,
+                                    },
+                                    other => EngineRefusal::Budget(other),
                                 },
-                                other => EngineRefusal::Budget(other),
-                            });
+                            );
                         }
                     }
                 }
@@ -2353,12 +2390,17 @@ where
                 if self.lower_refusal.is_some() {
                     crate::gate_measure::refused_before_crossing();
                 }
+                crate::gate_measure::crossed_in(x.face, y.face);
+                if crate::gate_measure::continuing() {
+                    self.violation.get_or_insert(w);
+                    return ControlFlow::Continue(());
+                }
                 self.violation = Some(w);
                 return ControlFlow::Break(());
             }
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
-                    self.lower_refusal.get_or_insert(refusal);
+                    crate::gate_measure::noted(&mut self.lower_refusal, refusal);
                     bucket = Bucket::Refused;
                 }
                 None => split.below = true,
@@ -2415,13 +2457,20 @@ where
             ..task
         };
         if std::env::var_os("CV_PAIRS").is_some() {
-            eprintln!("CVP dist {:?} {:?} d={} sep={:?} a={:?}", x.face, y.face, pair.depth, separation(&pair.a.enc, &pair.b.enc), pair.a.enc);
+            eprintln!(
+                "CVP dist {:?} {:?} d={} sep={:?} a={:?}",
+                x.face,
+                y.face,
+                pair.depth,
+                separation(&pair.a.enc, &pair.b.enc),
+                pair.a.enc
+            );
         }
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
             let refusal = EngineRefusal::Budget(stop);
             if split.below {
-                self.lower_refusal.get_or_insert(refusal.clone());
+                crate::gate_measure::noted(&mut self.lower_refusal, refusal.clone());
             }
             if split.above {
                 self.upper_refusal.get_or_insert(refusal);
@@ -2440,7 +2489,7 @@ where
             max_cell_pairs: self.sweep.budgets.max_cell_pairs,
         });
         if frontier.iter().any(|t| t.open.below) {
-            self.lower_refusal.get_or_insert(refusal.clone());
+            crate::gate_measure::noted(&mut self.lower_refusal, refusal.clone());
         }
         if frontier.iter().any(|t| t.open.above) && self.within.is_none() {
             self.upper_refusal.get_or_insert(refusal);
@@ -3543,7 +3592,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Surface::Approx(_) => return unsupported(APPROXIMATED),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
-        if std::env::var_os("CV_CAVITY_F64").is_some() { eprintln!("CVWIN face={face:?} u={u:?} v={v:?} bounds={bounds:?}"); }
+        if std::env::var_os("CV_CAVITY_F64").is_some() {
+            eprintln!("CVWIN face={face:?} u={u:?} v={v:?} bounds={bounds:?}");
+        }
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
     if !refines(&charted, u, v) {
@@ -3898,8 +3949,18 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             let whole = carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi()));
-            if std::env::var_os("CV_CAVITY_F64").is_some() && !(whole.x.hi().is_finite() && whole.x.lo().is_finite() && whole.y.hi().is_finite() && whole.y.lo().is_finite() && whole.z.hi().is_finite() && whole.z.lo().is_finite()) {
-                eprintln!("CVEDGE face={face:?} edge={ek:?} span={span:?} carrier={:?} whole={whole:?}", curve.carrier());
+            if std::env::var_os("CV_CAVITY_F64").is_some()
+                && !(whole.x.hi().is_finite()
+                    && whole.x.lo().is_finite()
+                    && whole.y.hi().is_finite()
+                    && whole.y.lo().is_finite()
+                    && whole.z.hi().is_finite()
+                    && whole.z.lo().is_finite())
+            {
+                eprintln!(
+                    "CVEDGE face={face:?} edge={ek:?} span={span:?} carrier={:?} whole={whole:?}",
+                    curve.carrier()
+                );
             }
             pts.push(whole);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));

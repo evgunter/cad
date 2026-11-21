@@ -419,3 +419,204 @@ pub fn declared(records: [&crate::boolean::OperandRecords; 2]) {
     }
     DECLARED.with(|d| d.set(k));
 }
+
+// ---- The walk measurement (M1–M4): per cell-pair events of one ask. ----
+
+#[derive(Default)]
+struct WalkRec {
+    events: Vec<(FaceKey, FaceKey, usize, f64, bool, u32, Option<String>)>,
+    pending: Option<String>,
+    open: Vec<(FaceKey, FaceKey)>,
+    crossed: Option<(FaceKey, FaceKey)>,
+}
+
+thread_local! {
+    static WALK: RefCell<Option<WalkRec>> = const { RefCell::new(None) };
+    static CONTINUING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn short(r: &R) -> String {
+    match r {
+        R::Uncertified { arm, shared, .. } => {
+            let sh = format!("{shared:?}");
+            format!("Uncertified/{arm:?}/{}", sh.split('(').next().unwrap_or(""))
+        }
+        R::Budget(b) => format!("{b:?}").split(' ').next().unwrap_or("").to_owned(),
+        other => format!("{other:?}")
+            .split([' ', '(', '{'])
+            .next()
+            .unwrap_or("")
+            .to_owned(),
+    }
+}
+
+/// `slot.get_or_insert(r)`, noting `r`'s kind for the walk record.
+pub fn noted(slot: &mut Option<R>, r: R) -> &mut R {
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.pending = Some(short(&r));
+        }
+    });
+    slot.get_or_insert(r)
+}
+
+pub fn walk_event(pair: (FaceKey, FaceKey), splits: usize, secs: f64, refused: bool, depth: u32) {
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            let kind = w.pending.take();
+            w.events.push((
+                pair.0,
+                pair.1,
+                splits,
+                secs,
+                refused,
+                depth,
+                if refused { kind } else { None },
+            ));
+        }
+    });
+}
+
+pub fn walk_overflow(open: Vec<(FaceKey, FaceKey)>) {
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.open = open;
+        }
+    });
+}
+
+pub fn crossed_in(a: FaceKey, b: FaceKey) {
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.crossed.get_or_insert((a, b));
+        }
+    });
+}
+
+pub fn continuing() -> bool {
+    CONTINUING.with(|c| c.get())
+}
+
+/// Starts recording the ask about to run, where `CAD_GATE_WALK` is set.
+pub fn walk_start() {
+    if std::env::var_os("CAD_GATE_WALK").is_some() {
+        WALK.with(|w| *w.borrow_mut() = Some(WalkRec::default()));
+    }
+}
+
+/// Ends the record and writes its `WALK` row (refusing or crossing asks
+/// only).
+pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
+    let Some(rec) = WALK.with(|w| w.borrow_mut().take()) else {
+        return;
+    };
+    if matches!(r.verdict, Embedding::Embedded) {
+        return;
+    }
+    let key = |a: FaceKey, b: FaceKey| (a.min(b), a.max(b));
+    let first = rec.events.iter().position(|e| e.4);
+    let mut refusing: std::collections::BTreeMap<(FaceKey, FaceKey), (usize, Vec<String>)> =
+        Default::default();
+    for (n, e) in rec.events.iter().enumerate() {
+        if e.4 {
+            let ent = refusing.entry(key(e.0, e.1)).or_insert((n, Vec::new()));
+            if let Some(k) = &e.6 {
+                if !ent.1.contains(k) {
+                    ent.1.push(k.clone());
+                }
+            }
+        }
+    }
+    let (mut before_s, mut before_t) = (0usize, 0f64);
+    let mut part = [(0usize, 0f64); 4]; // a, b, c-before-own, c-after-own
+    let (mut depth0, mut splits_at0, mut kind0, mut pair0) = (0u32, 0usize, String::new(), None);
+    if let Some(f) = first {
+        let e0 = &rec.events[f];
+        depth0 = e0.5;
+        splits_at0 = rec.events[..f].iter().map(|e| e.2).sum();
+        kind0 = e0.6.clone().unwrap_or_default();
+        pair0 = Some(key(e0.0, e0.1));
+    }
+    for (n, e) in rec.events.iter().enumerate() {
+        let p = key(e.0, e.1);
+        match first {
+            Some(f) if n > f => {
+                let slot = if Some(p) == pair0 {
+                    0
+                } else {
+                    match refusing.get(&p) {
+                        None => 1,
+                        Some((own, _)) if n < *own => 2,
+                        Some(_) => 3,
+                    }
+                };
+                part[slot].0 += e.2;
+                part[slot].1 += e.3;
+            }
+            _ => {
+                before_s += e.2;
+                before_t += e.3;
+            }
+        }
+    }
+    let crossed = rec.crossed.map(|(a, b)| key(a, b));
+    let cross_where = match (crossed, pair0) {
+        (None, _) => "none",
+        (Some(_), None) => "no-refusal",
+        (Some(c), Some(p)) if c == p => "same-pair-as-first-refusal",
+        (Some(c), _) if refusing.contains_key(&c) => "another-refusing-pair",
+        _ => "a-pair-that-did-not-refuse",
+    };
+    let kinds: Vec<String> = refusing.values().map(|(_, k)| k.join("+")).collect();
+    let verdict = match &r.verdict {
+        Embedding::Crosses(_) => "Crosses".to_owned(),
+        Embedding::Refused(x) => short(x),
+        Embedding::Embedded => unreachable!(),
+    };
+    write(&format!(
+        "WALK\t{}\tverdict={verdict}\tsecs={secs:.4}\tsplits={}\tfirst_depth={depth0}\tsplits_at_first={splits_at0}\tfirst_kind={kind0}\tbefore={before_s}:{before_t:.4}\ta={}:{:.4}\tb={}:{:.4}\tc_pre={}:{:.4}\tc_post={}:{:.4}\td_open={}\trefusing_pairs={}\tkinds={kinds:?}\tcrossing={cross_where}\n",
+        test_name(),
+        r.receipt.splits,
+        part[0].0,
+        part[0].1,
+        part[1].0,
+        part[1].1,
+        part[2].0,
+        part[2].1,
+        part[3].0,
+        part[3].1,
+        rec.open.len(),
+        refusing.len(),
+    ));
+}
+
+/// M4: the ask run again past its first crossing (verdict kept), its cost.
+pub fn continue_cost<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    side: &crate::clearance::Side<'_, T>,
+    band: geom_core::Band,
+    stopped: &EmbeddingReport,
+    stopped_secs: f64,
+) {
+    if std::env::var_os("CAD_GATE_M4").is_none()
+        || !matches!(stopped.verdict, Embedding::Crosses(_))
+    {
+        return;
+    }
+    CONTINUING.with(|c| c.set(true));
+    let t = std::time::Instant::now();
+    let r = crate::clearance::embedded(side, band, crate::clearance::GATE_BUDGETS);
+    let secs = t.elapsed().as_secs_f64();
+    CONTINUING.with(|c| c.set(false));
+    let v = match &r.verdict {
+        Embedding::Crosses(_) => "Crosses".to_owned(),
+        Embedding::Refused(x) => short(x),
+        Embedding::Embedded => "Embedded".to_owned(),
+    };
+    write(&format!(
+        "M4\t{}\tstopped_splits={}\tstopped_secs={stopped_secs:.4}\tcontinued_splits={}\tcontinued_secs={secs:.4}\tcontinued_verdict={v}\tviolated_cells={}\n",
+        test_name(),
+        stopped.receipt.splits,
+        r.receipt.splits,
+        r.receipt.violated
+    ));
+}
