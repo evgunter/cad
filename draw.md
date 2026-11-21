@@ -47,3 +47,10 @@ They appear to have met: stop now; ground every split; go on past refusals once 
 ## Round 4 (2026-11-21, dispatched 21:20Z)
 
 Each designer was shown the other's round-3 report and `round4/joint.md`, the orchestrator's statement of what the two round-3 reports share (J1 stop now, injectivity only; J2 a split must carry its ground; J3 once that is built and measured, the ask ends only at a verified crossing and reports every refusal met; J4 stop at a crossing; J5 what both dropped; J6 the text), and asked to sign it, amend it, or state the difference in one sentence, and to write a final `For Ev` that does not misdescribe the other.
+
+### Round 4 results (both in by 21:23Z): agreed
+
+- **A** signs J1 to J6 as they stand. Recommends yes to (a) and ruling J3 now, conditionally; the text for J3 lands with the unit that meets the condition, and the condition stays out of `DESIGN.md`.
+- **B** signs with three amendments: every refusal names the two faces of its cell pair (`Sliver` and `WitnessUnverified` carry none today, as `Budget` does not); J3's condition is the price alone (how many of the 38 are still found is reported, not a condition: stopping finds none); if Ev rules J3 now, the text is one change, the rule plus a named exception until the engine row (precedent: the at-rest row of `[one-way.places]`, Ev, PR 6371). B took back the list of refusals met under J3 (the walk has them in hand; some are the model's to move) and holds J4. Recommends yes to both.
+
+**Reconciliation ends agreed**: stop now at the first finding (the injectivity question only); a split must carry its ground (a defect, filed and built, measured first); once a refusing ask costs about what a holding one does, the ask ends only at a verified crossing and reports every refusal it met; one crossing a run. The designers differ only in how the text carries J3 if Ev rules it now (A: the sentence changes with the unit; B: one change now with a named exception), which is put to Ev inside (b). Tokens (cumulative, harness): A 220,046; B 353,160. Four rounds.
