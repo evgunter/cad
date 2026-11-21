@@ -94,8 +94,38 @@ right-to-spacing being zero everywhere:
 | 1e-9, 1.002 | 1e5 | 0 / 0 / 384 | 0 / 0 / 384 | 0 / 0 / 384 | 0 / 0 / 384 |
 | 1e-12, 10 and 2.81 | 3e3, 1e4, 1e5 | 0 / 0 / 384 | 0 / 0 / 384 | 0 / 0 / 384 | 0 / 0 / 384 |
 
-**No wrong definite verdict in any cell**: 18,432 decisions, 0 wrong, in
-either reading, either lane.
+In that table each reading is judged against the exact oracle run on
+**its own** conic: the centre-sum against the circle about the stored
+centre, the chord against the circle through `fl(centre + u_ref·a)` (the
+oracle reads that anchored conic's derived centre). So judged, no cell
+holds a wrong definite verdict: 18,432 decisions, 0 wrong.
+
+### The chord reading judged against the stored centre's circle
+
+`decisions-by-distance-three-judgings.txt`,
+`decisions-raw-three-judgings.txt`: the same edges and poses, with a
+third judging, the chord reading's answers against the exact roots of the
+circle about the **stored centre**. Right / WRONG / refused of 384:
+
+| ε, K | D | chord f64 | chord Interval |
+|---|---|---|---|
+| 1e-9, 10 | 3e3 | 192 / 0 / 192 | 72 / 0 / 312 |
+| 1e-9, 10 | 1e4 | 93 / **3** / 288 | 48 / 0 / 336 |
+| 1e-9, 1.002 | 3e3 | 96 / 0 / 288 | 48 / 0 / 336 |
+| 1e-9, 1.002 | 1e4 | 39 / **9** / 336 | 0 / 0 / 384 |
+| every other cell | | 0 / 0 / 384 | 0 / 0 / 384 |
+
+- The twelve are on the sketch-arc prism's edges and its plane section's
+  (radius 1e4), at depths −1e-6 m (K = 10) and −5.01e-7 m (K = 1.002):
+  the right count of roots, each placed 1.4e-9 to 1.9e-9 m (K = 10) and
+  1.4e-9 to 2.7e-9 m (K = 1.002) along the arc from the stored centre's
+  true root. That is past ε = 1e-9, and at K = 10 inside `K·ε` = 1e-8.
+- The same twelve answers are within ε of the roots of the circle through
+  `fl(centre + u_ref·a)` (the table above).
+- The two exact circles differ by the rounding of the seam vertex, at
+  most `ulp(1e4)` = 1.8e-12 m a coordinate; at these near-tangent
+  crossings that moves a root by more than ε.
+- The `Interval` lane holds no such answer in any cell.
 
 The ε = 1e-12 rows decide carriers the ε = 1e-9 build stored: no door
 stores one at ε = 1e-12 (above). `D = 1e6` and `1e7` have no cell: no
