@@ -1749,9 +1749,9 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
                 }
             };
             // An ellipse stores its centre or its anchor, and the two
-            // read as one value: the tag says which, by the datum's name.
-            let anchored = carrier.data().named(geom::CurveDatum::Anchor).is_some();
-            core::iter::once(tag | (u64::from(anchored) << 8))
+            // read as one value: an anchor's walk is three scalars
+            // longer, its phase, and a signature is compared whole.
+            core::iter::once(tag)
                 .chain(
                     data.into_iter()
                         .flat_map(|(_, value)| value.scalars())
@@ -2325,6 +2325,24 @@ fn params(
 mod tests {
     use super::*;
     use geom_core::spline::KnotVector;
+
+    /// **A carrier's signature parts an ellipse held at a point as its
+    /// centre from one held there on its arc**: one frame and one pair of
+    /// semi-axes, two ellipses a semi-axis apart, two signatures. Red
+    /// where the signature reads fewer scalars than the walk yields.
+    #[test]
+    fn a_carriers_signature_parts_a_centre_from_an_anchor() {
+        let (at, axis, u) = (Point3::new(0.3, -1.2, 2.5), Vec3::unit_z(), Vec3::unit_x());
+        let centred = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(at, axis, u), 2.0, 0.75));
+        let anchored = Curve3::Ellipse(geom::Ellipse::anchored(at, axis, u, 2.0, 0.75));
+        assert!(centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5);
+        assert_ne!(carrier_sig(&centred), carrier_sig(&anchored));
+        assert_eq!(carrier_sig(&anchored), carrier_sig(&anchored.clone()));
+        assert_eq!(
+            carrier_sig(&anchored).len(),
+            carrier_sig(&centred).len() + 3
+        );
+    }
 
     /// **The straight-iso match's selection table**: forward vertex order
     /// answers the iso's start control and its chord, reversed answers its

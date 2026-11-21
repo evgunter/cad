@@ -1772,9 +1772,12 @@ mod tests {
     /// **The key parts an ellipse held at a point as its centre from one
     /// held there on its arc.** With one axis, reference direction and
     /// pair of semi-axes they are different ellipses (the second's centre
-    /// is a semi-axis back from the point). Red where the key drops the
-    /// anchor's mark and the phase the walk yields beside it; that the
-    /// walk yields the phase is `geom`'s
+    /// is a semi-axis back from the point). The key is a stream with no
+    /// length of its own, and the second's walk is the first's with the
+    /// anchor's phase after it; so the key marks an anchor by its datum's
+    /// name, and the second's key is not the first's followed by that
+    /// phase. Red where the mark is dropped. That the walk yields the
+    /// phase is `geom`'s
     /// `the_walk_names_an_arc_held_ellipses_anchor_and_phase`.
     #[test]
     fn the_curve_key_parts_a_centre_from_an_anchor() {
@@ -1792,6 +1795,14 @@ mod tests {
             "two ellipses"
         );
         assert_ne!(key(&centred), key(&anchored), "an ellipse");
+        let mut followed = KeyWriter::default();
+        followed.curve3(&centred);
+        followed.datum(geom::DatumValue::Direction(Vec3::new(1.0, 0.0, 0.0)));
+        assert_ne!(
+            followed.0,
+            key(&anchored),
+            "the mark parts them, not the stream's length"
+        );
     }
 
     /// **The key reads every scalar the curve walk yields** — the
