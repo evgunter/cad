@@ -210,7 +210,10 @@ fn line_distance_sup(p: [Interval; 3], origin: Point3<f64>, dir: Vec3<f64>) -> f
 /// its projection runs past either end, `hypot` of the two, outward; from
 /// `a` where the segment is not certified to have a length. `NaN` where
 /// it certifies none.
-pub(crate) fn segment_distance_sup(p: [Interval; 3], (a, b): ([Interval; 3], [Interval; 3])) -> f64 {
+pub(crate) fn segment_distance_sup(
+    p: [Interval; 3],
+    (a, b): ([Interval; 3], [Interval; 3]),
+) -> f64 {
     let off = sub(p, a);
     let d = sub(b, a);
     let length = geom_core::interval::norm_sq(&d).sqrt();
