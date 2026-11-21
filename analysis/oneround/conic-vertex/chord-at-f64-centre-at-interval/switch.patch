@@ -1,0 +1,116 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index fa49dd415..f32dbb48f 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -476,6 +476,19 @@ fn offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (T, T) {
+     (-(T::from_f64(2.0) * sh.powi(2) - (T::one() - c0)), s - s0)
+ }
+ 
++/// TEMPORARY PROBE SWITCH. `CV_CHORD=f64`: a centre-held conic is read by
++/// chords from `fl(centre + u·a)` at every scalar but `interval` and
++/// `symbolic`; `CV_CHORD=all`: at every scalar.
++fn cv_chord<T: Real>() -> bool {
++    static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
++    let m = *MODE.get_or_init(|| match std::env::var("CV_CHORD").as_deref() {
++        Ok("f64") => 1,
++        Ok("all") => 2,
++        _ => 0,
++    });
++    m == 2 || (m == 1 && T::NAME != "interval" && T::NAME != "symbolic")
++}
++
+ /// A sine or a cosine as computed, charged an ulp.
+ fn transcendental<T: Real>(x: T) -> Rounded<T> {
+     Rounded {
+@@ -631,6 +644,16 @@ impl<T: Real> Circle<T> {
+     }
+ }
+ 
++impl<T: Real> Circle<T> {
++    fn read_anchor(&self) -> Option<Point3<T>> {
++        match self.born {
++            Born::Anchored => Some(self.at.origin()),
++            Born::Centred if cv_chord::<T>() => Some(self.at.origin() + self.at.u_ref() * self.radius),
++            Born::Centred => None,
++        }
++    }
++}
++
+ impl<T: Real> Conic<T> for Circle<T> {
+     fn frame(&self) -> Frame<T> {
+         match self.born {
+@@ -646,7 +669,7 @@ impl<T: Real> Conic<T> for Circle<T> {
+     }
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
+-        match self.anchor() {
++        match self.read_anchor() {
+             None => self.at.origin() + self.azimuth(theta).radial.0 * self.radius,
+             Some(zero) => {
+                 let (ku, kv) = offsets(theta, (T::one(), T::zero()));
+@@ -716,7 +739,7 @@ impl<T: Real> Conic<T> for Circle<T> {
+     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.at);
+         let r = Rounded::exact(self.radius);
+-        match self.anchor() {
++        match self.read_anchor() {
+             None => {
+                 let (sin, cos) = running_sin_cos(theta);
+                 core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
+@@ -1039,6 +1062,22 @@ impl<T: Real> Ellipse<T> {
+     }
+ }
+ 
++impl<T: Real> Ellipse<T> {
++    fn read_phase(&self) -> (T, T) {
++        match self.born {
++            Born::Anchored => self.phase,
++            Born::Centred => (T::one(), T::zero()),
++        }
++    }
++    fn read_anchor(&self) -> Option<Point3<T>> {
++        match self.born {
++            Born::Anchored => Some(self.at.origin()),
++            Born::Centred if cv_chord::<T>() => Some(self.at.origin() + self.at.u_ref() * self.semi_u),
++            Born::Centred => None,
++        }
++    }
++}
++
+ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn frame(&self) -> Frame<T> {
+         match self.born {
+@@ -1061,13 +1100,13 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
+-        match self.anchor() {
++        match self.read_anchor() {
+             None => {
+                 let ((s, c), v_ref) = self.basis(theta);
+                 self.at.origin() + (self.at.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+             }
+             Some(anchor) => {
+-                let (ku, kv) = offsets(theta, self.phase);
++                let (ku, kv) = offsets(theta, self.read_phase());
+                 let (u, v) = (self.at.u_ref(), self.at.v_ref());
+                 anchor + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
+             }
+@@ -1158,7 +1197,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.at);
+         let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
+-        match self.anchor() {
++        match self.read_anchor() {
+             None => {
+                 let (sin, cos) = running_sin_cos(theta);
+                 let (ac, bs) = (a * cos, b * sin);
+@@ -1166,7 +1205,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+             }
+             Some(zero) => {
+                 let zero = exact_point(zero);
+-                let (ku, kv) = running_offsets(theta, self.phase);
++                let (ku, kv) = running_offsets(theta, self.read_phase());
+                 let (ku, kv) = (a * ku, b * kv);
+                 core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv))
+             }

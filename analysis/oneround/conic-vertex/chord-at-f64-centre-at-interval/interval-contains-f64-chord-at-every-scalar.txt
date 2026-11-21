@@ -1,0 +1,32 @@
+P2A circle size 1e-3 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 6.661338147750939e-16 m
+P2A circle size 1e-3 |t| < 1e-3: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 5.551115123125783e-16 m
+P2A circle size 1e0 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.4210854715202004e-14 m
+P2A circle size 1e0 |t| < 1e-3: 6 of 3000 f64 points outside the Interval point, worst 3.2959746043559335e-17 m out, widest enclosure 1.2212453270876722e-15 m
+P2A circle size 1e2 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.3642420526593924e-12 m
+P2A circle size 1e2 |t| < 1e-3: 113 of 3000 f64 points outside the Interval point, worst 5.662137425588298e-15 m out, widest enclosure 1.1457501614131615e-13 m
+P2A circle size 1e3 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.3642420526593924e-11 m
+P2A circle size 1e3 |t| < 1e-3: 140 of 3000 f64 points outside the Interval point, worst 4.463096558993129e-14 m out, widest enclosure 9.14823772291129e-13 m
+P2A circle size 1e4 whole turn: 1 of 3000 f64 points outside the Interval point, worst 1.9895196601282805e-13 m out, widest enclosure 1.4551915228366852e-10 m
+P2A circle size 1e4 |t| < 1e-3: 150 of 3000 f64 points outside the Interval point, worst 6.838973831690964e-13 m out, widest enclosure 1.4577672402538155e-11 m
+P2A circle size 1e5 whole turn: 1 of 3000 f64 points outside the Interval point, worst 3.410605131648481e-13 m out, widest enclosure 1.5133991837501526e-9 m
+P2A circle size 1e5 |t| < 1e-3: 138 of 3000 f64 points outside the Interval point, worst 5.364597654988756e-12 m out, widest enclosure 1.1692691259668209e-10 m
+P2A circle size 1e6 whole turn: 2 of 3000 f64 points outside the Interval point, worst 2.2737367544323206e-12 m out, widest enclosure 1.3969838619232178e-8 m
+P2A circle size 1e6 |t| < 1e-3: 154 of 3000 f64 points outside the Interval point, worst 5.789502210973296e-11 m out, widest enclosure 9.365521691506729e-10 m
+P2A circle size 1e7 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.4156103134155273e-7 m
+P2A circle size 1e7 |t| < 1e-3: 155 of 3000 f64 points outside the Interval point, worst 9.1313268058002e-10 m out, widest enclosure 1.491753209847957e-8 m
+P2A ellipse size 1e-3 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 6.661338147750939e-16 m
+P2A ellipse size 1e-3 |t| < 1e-3: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 5.551115123125783e-16 m
+P2A ellipse size 1e0 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.3322676295501878e-14 m
+P2A ellipse size 1e0 |t| < 1e-3: 9 of 3000 f64 points outside the Interval point, worst 4.163336342344337e-17 m out, widest enclosure 1.2212453270876722e-15 m
+P2A ellipse size 1e2 whole turn: 2 of 3000 f64 points outside the Interval point, worst 1.887379141862766e-15 m out, widest enclosure 1.4779288903810084e-12 m
+P2A ellipse size 1e2 |t| < 1e-3: 149 of 3000 f64 points outside the Interval point, worst 6.522560269672795e-15 m out, widest enclosure 1.141309269314661e-13 m
+P2A ellipse size 1e3 whole turn: 1 of 3000 f64 points outside the Interval point, worst 9.103828801926284e-15 m out, widest enclosure 1.3642420526593924e-11 m
+P2A ellipse size 1e3 |t| < 1e-3: 147 of 3000 f64 points outside the Interval point, worst 4.235500838944972e-14 m out, widest enclosure 9.130474154517287e-13 m
+P2A ellipse size 1e4 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.5279510989785194e-10 m
+P2A ellipse size 1e4 |t| < 1e-3: 137 of 3000 f64 points outside the Interval point, worst 6.759037773917953e-13 m out, widest enclosure 1.4567902439921454e-11 m
+P2A ellipse size 1e5 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.3969838619232178e-9 m
+P2A ellipse size 1e5 |t| < 1e-3: 141 of 3000 f64 points outside the Interval point, worst 5.4356519285647664e-12 m out, widest enclosure 1.1681322575896047e-10 m
+P2A ellipse size 1e6 whole turn: 0 of 3000 f64 points outside the Interval point, worst 0e0 m out, widest enclosure 1.3969838619232178e-8 m
+P2A ellipse size 1e6 |t| < 1e-3: 148 of 3000 f64 points outside the Interval point, worst 6.539835339935962e-11 m out, widest enclosure 9.34733179747127e-10 m
+P2A ellipse size 1e7 whole turn: 1 of 3000 f64 points outside the Interval point, worst 5.820766091346741e-11 m out, widest enclosure 1.4901161193847656e-7 m
+P2A ellipse size 1e7 |t| < 1e-3: 150 of 3000 f64 points outside the Interval point, worst 4.6270542952697724e-10 m out, widest enclosure 1.492389856139198e-8 m

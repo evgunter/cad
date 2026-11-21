@@ -1,0 +1,131 @@
+### editor-core::all m10_9_r2_probes_interval::r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval
+    @ crates/editor-core/tests/m10_9_r2_probes_interval.rs:405:9:
+    assertion `left == right` failed: f64 at t = 0.7
+    left: [4563276941383001900, 13786898525716211554, 4560127705340933312]
+    right: [4563276941383001901, 13786898525716211554, 4560127705340933312]
+### geom curves::conic::tests::the_conic_readings_are_the_carriers_own
+    @ crates/geom/src/curves/conic.rs:1576:17:
+    assertion `left == right` failed: Circle(Circle { at: Frame { origin: Point3 { x: 0.5, y: -1.0, z: 2.0 }, axis: Vec3 { x: 0.6666666666666666, y: 0.6666666666666666, z: 0.3333333333333333 }, u_ref: Vec3 { x: 0.3333333333333333, y: -0.6666666666666666, z: 0.6666666666666666 } }, born: Centred, radius: 0.7 }) at -2.5
+    left: [4585028958463987168, 13825807472120228872, 4611260067884528934]
+    right: [4585028958463987176, 13825807472120228870, 4611260067884528934]
+### geom-brep carrier_resolution::tests::the_resolution_bounds_each_section_tables_carrier
+    @ crates/geom-brep/src/carrier_resolution.rs:371:13:
+    sphere: a miss at 0.1063547134399414 of the bound
+### geom-brep curve_face::ellipse_torus::torus_rows::the_slack_meter_charges_every_term
+    @ crates/geom-brep/src/curve_face/ellipse_torus.rs:1021:13:
+    the top speed: the meter refuses the root it cannot place, got Ok(Certified(Found { count: 2, roots: [-0.7855827968304363, 0.32682681121253265, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] }))
+### geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates
+    @ crates/geom-brep/src/curve_pair/touch_spread_rows.rs:158:9:
+    1e0 out, (1.98, 0.99) inside, ε 2e-13: Spread, read Ok(Meetings { shared: None, points: [Meeting { point: Point3 { x: 1.0000000000000098, y: 2.0, z: 0.0 }, on_a: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) }, on_b: On { t: 1.5707963267948917, margin: MarginDiag(Value(0.0, None, ZeroWord(0))) } }] })
+### geom-brep::all edge_extent_bounds::each_kinds_bounds_bracket_the_diameter_and_stay_tight
+    @ crates/geom-brep/tests/edge_extent_bounds.rs:392:5:
+    circle, closed: sup 4 is short of D 4.000000000000001
+### geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+    @ crates/geom-brep/tests/pcurve_villarceau.rs:538:21:
+    r/R 0.35, moved 0.9·ε along the axis: the image does not certify: pcurve certification: MapResidual at sample 0 escalated: margin 1.2503179345670444e-12 lies inside the ambiguity band (1e-12, 1e-11). Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting
+### geom-brep::all r2_probes::r2_probe_sphere_seam_bit_move
+    @ crates/geom-brep/tests/r2_probes.rs:160:5:
+    assertion `left == right` failed: R2 sphere-seam row moved: legacy 2.5000002068509275e-10 m, now 2.500002041387553e-10 m, delta 3548509910 ULP
+    left: (3548509910, 2.5000002068509275e-10, 2.500002041387553e-10)
+    right: (2349518964, 2.5000002068509275e-10, 2.5000014215237624e-10)
+### mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
+    @ crates/mesh/tests/d9_mesh_goldens.rs:380:5:
+    the mesh moved for 19 of 48 body/δ pairs at eps=0.000000000001:
+    wedge at delta=0.05: 6162b834d72693be, committed c3cc46f2c9a9d6ce
+    wedge at delta=0.15: 7f5a00fd98d70b72, committed e4e25c533441c482
+    axis_wedge at delta=0.15: 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+    rounded_prism at delta=0.05: b29d167e90332f43, committed 0d7a8827002b0ba9
+    rounded_prism at delta=0.15: b29d167e90332f43, committed 0d7a8827002b0ba9
+    ball at delta=0.05: 12c325fbff59de82, committed 7808bbdcc848c50e
+### mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
+    @ crates/mesh/tests/d9_mesh_goldens.rs:474:5:
+    the mesh is not a function of (body, delta) alone at eps=0.000000000001:
+    wedge at delta=0.05: 1 thread 6162b834d72693be, committed c3cc46f2c9a9d6ce
+    wedge at delta=0.15: 1 thread 7f5a00fd98d70b72, committed e4e25c533441c482
+    axis_wedge at delta=0.15: 1 thread 73f9bff7fd4a1bfe, committed c22a36c7a287583e
+    rounded_prism at delta=0.05: 1 thread b29d167e90332f43, committed 0d7a8827002b0ba9
+    rounded_prism at delta=0.15: 1 thread b29d167e90332f43, committed 0d7a8827002b0ba9
+    ball at delta=0.05: 1 thread 12c325fbff59de82, committed 7808bbdcc848c50e
+### mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+    @ crates/mesh/tests/reach_probes.rs:1763:39:
+    T1's box at s = 0.03, A ∩ B: builds at ε 1e-12, where it refused CurvedPierceUnsupported
+### mesh::all route_rows::a_body_that_meshes_records_mains_k_stream
+    @ crates/mesh/tests/route_rows.rs:332:9:
+    assertion `left == right` failed: rounded prism: main's bytes
+    left: 3754135872730209029
+    right: 7449119955816324655
+### mesh::all route_rows::a_section_tilted_within_the_band_meshes_to_mains_bytes
+    @ crates/mesh/tests/route_rows.rs:235:9:
+    assertion `left == right` failed: x0 = 0.3, θ = 2e-9: main's bytes
+    left: 17877698262526812332
+    right: 854441196626164579
+### mesh::all route_rows::an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes
+    @ crates/mesh/tests/route_rows.rs:591:5:
+    assertion `left == right` failed: main's bytes
+    left: 4298303061234873893
+    right: 12396868946538390960
+### mesh::all the_one_face_ball::a_slit_between_the_tips_is_not_the_strip
+    @ crates/mesh/tests/the_one_face_ball.rs:189:5:
+    assertion `left == right` failed
+    left: Err(SingleColumnCurvedFace { face: FaceKey(3v1), surface: Sphere })
+    right: Err(PinchWedge { face: FaceKey(2v1) })
+### mesh::all the_one_face_ball::a_wrap_tip_cap_meshes_off_its_rim
+    @ crates/mesh/tests/the_one_face_ball.rs:259:9:
+    assertion `left == right` failed: the hemisphere cap's mesh bytes
+    left: 18123877241593834373
+    right: 9884659491889629567
+### step-import::all freecad::cross_dialect_fixed_point
+    @ crates/step-import/tests/freecad.rs:593:9:
+    assertion `left == right` failed: box_fillet_corner: the second round trip's export must be byte-identical to the first's
+    left: "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\nFILE_NAME('box_fillet_corner.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n#1 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n#2 = DIRECTION('', (1.0, 0.0, 0.0));\n#3 = DIRECTION('', (0.0, 0.0, 1.0));\n#4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);\n#5 = PLANE('', #4);\n#6 = CARTESIAN_POINT('', (0.0, 0.001, 0.00025));\n#7 = VERTEX_POINT('', #6);\n#8 = CARTESIAN_POINT('', (0.0, 0.001, 0.001));\n#9 = VERTEX_POINT('', #8);\n#10 = CARTESIAN_POINT('',
+    right: "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''), '2;1');\nFILE_NAME('box_fillet_corner.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n#1 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n#2 = DIRECTION('', (1.0, 0.0, 0.0));\n#3 = DIRECTION('', (0.0, 0.0, 1.0));\n#4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);\n#5 = PLANE('', #4);\n#6 = CARTESIAN_POINT('', (0.0, 0.001, 0.00025));\n#7 = VERTEX_POINT('', #6);\n#8 = CARTESIAN_POINT('', (0.0, 0.001, 0.001));\n#9 = VERTEX_POINT('', #8);\n#10 = CARTESIAN_POINT(''
+### sweep::all a_slit_tip_on_a_curved_face_reads_its_full_turn::the_slit_block_meshes
+    @ crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs:444:51:
+    the slit block meshes: SelfTouchingTrimLoop { face: FaceKey(2v5) }
+### sweep::all revert_plane_charts::carried_cavity_certificates_equal_a_fresh_recertification
+    @ crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: cavity: edge EdgeKey(16v1) stores the fresh run's certificate
+    left: "Certificate { samples: 9, max_residual: 8.040613248383182e-17 }"
+    right: "Certificate { samples: 9, max_residual: 6.123233995736766e-17 }"
+### sweep::all review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule
+    @ crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs:507:17:
+    assertion `left == right` failed: r = 0.4: the equator stands 0.5 from the bore
+    left: Value(0.49999999999999994)
+    right: Value(0.5)
+### sweep::all section_end_poses::a_section_ends_own_rounding_is_a_kernel_limitation
+    @ crates/sweep/tests/section_end_poses.rs:437:5:
+    (0.95, 3, 0.0003, 0.5): pinned to cut, then escalate props_chart_junction_open at margin 0 in the result: Some(Join(SectionUnresolved { face: FaceKey(3v1), miss: Undecided { check: EndpointEnd, diag: Indeterminate { margin: MarginDiag(Value(1.0231815937046515e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("carrier_endpoint_end") }, resolution: MarginDiag(Value(2.380245754479521e-10, None, ZeroWord(0))) } }))
+    (0.95, 1, 1e-6, 0.3): Some(Join(SectionUnresolved { face: FaceKey(3v1), miss: Undecided { check: EndpointStart, diag: Indeterminate { margin: MarginDiag(Value(7.275957616936283e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("carrier_endpoint_start") }, resolution: MarginDiag(Value(7.1406838965238e-8, None, ZeroWord(0))) } }))
+### sweep::all snowman::the_fallback_assembly_carries_the_kept_operands_certificates
+    @ crates/sweep/tests/common/certificates.rs:46:9:
+    assertion `left == right` failed: slab ∪ ball: edge EdgeKey(13v1) stores the fresh run's certificate
+    left: "Certificate { samples: 9, max_residual: 2.220446049250313e-16 }"
+    right: "Certificate { samples: 9, max_residual: 1.2246467991473532e-16 }"
+### topo boolean::conic_quadric::cone_rows::a_root_the_slack_meter_cannot_place_refuses
+    @ crates/topo/src/boolean/conic_quadric/cone_rows.rs:472:9:
+    d = 1e-5: a root charged 4.440907799480723e-11 is refused, got Ok(Ok(Certified(Found { count: 4, roots: [-1.5707963267948968, -8.240741185453117e-17, 1.4142235625699017e-5, 1.5707821845592709, 0.0, 0.0, 0.0, 0.0] })))
+### topo boolean::conic_quadric::in_band_sweep::a_circle_of_radius_1500_places_its_roots_within_the_zero_band
+    @ crates/topo/src/boolean/conic_quadric/in_band_sweep.rs:646:5:
+    30 wrong answers (reproduce with CAD_FUZZ_SEED=0xb74b7a67d1407227 CAD_FUZZ_EFFORT=1):
+    ε 1e-9, depth -2.923423534314378e-8, g 4.951087750769197, b 3.217252965199367: root -0.0000006777746879123327 lies 1.5613920608972641e-9 m from the truth
+    ε 1e-9, depth -2.923423534314378e-8, g 4.951087750769197, b 3.217252965199367: root 0.0000006777745454609155 lies 1.5589350956146905e-9 m from the truth
+    ε 1e-9, depth -5.388068419213141e-8, g 1.498583198226987, b 5.156449899516016: root -0.0000031201910143203106 lies 1.1955162595871408e-9 m from the truth
+    ε 1e-9, depth -5.388068419213141e-8, g 1.498583198226987, b 5.156449899516016: root 0.0000031203196255913492 lies 1.1988703512395902e-9 m from the truth
+    ε 1e-12, depth -4.624142089972977e-3, g 1.5797041436156252, b 2.6646362925324962: root -0.0024549852931260905 lies 3.240441769081226e-11 m from the truth
+    ε 1e-12, depth -4.624142089972977e-3, g 1.5797041436156252, b 2.6646362925324962: root 0.002492228226427049 lies 3.349404087416019e-11 m from the truth
+### topo boolean::conic_quadric::in_band_sweep::a_root_whose_slack_reads_in_the_gap_is_refused
+    @ crates/topo/src/boolean/conic_quadric/in_band_sweep.rs:575:5:
+    refused, got Ok(Ok(Certified(Found { count: 2, roots: [-9.13960746084467e-7, 9.139604627265533e-7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] })))
+### topo ruled_region::ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation
+    @ crates/topo/src/ruled_region_rows.rs:875:5:
+    assertion `left == right` failed: queries a frame answers at the escalation
+    left: 36
+    right: 35
+### topo splitting::containment::arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size
+    @ crates/topo/src/splitting/containment.rs:3321:13:
+    the arc's point at -0.00045 lies 0.5062501916684451 out, past 0.5062501912455183
+### topo torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation
+    @ crates/topo/src/torus_region.rs:1210:9:
+    assertion `left == right` failed: queries a frame answers at the escalation
+    left: 32
+    right: 33
