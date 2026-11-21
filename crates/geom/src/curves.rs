@@ -2484,11 +2484,6 @@ mod tests {
         );
     }
 
-    /// **A re-seam goes to the principal vertex its direction names**,
-    /// with the documented tie-break: an exact tie keeps the seam's own
-    /// axis, and a zero component points forward. The turned seam is
-    /// renormalized: a frame whose `axis × u_ref` reads 4 ulp long turns
-    /// to a seam unit to within one.
     /// **A quarter turn of an ellipse's seam keeps the merge base's
     /// bits**: the turned seam is the merge base's own formula,
     /// `axis × u_ref` normalized with no re-projection onto the plane
@@ -2566,6 +2561,11 @@ mod tests {
         );
     }
 
+    /// **A re-seam goes to the principal vertex its direction names**,
+    /// with the documented tie-break: an exact tie keeps the seam's own
+    /// axis, and a zero component points forward. The turned seam is
+    /// renormalized: a frame whose `axis × u_ref` reads 4 ulp long turns
+    /// to a seam unit to within one.
     #[test]
     fn a_reseam_goes_to_the_vertex_its_direction_names() {
         let at = |axis: Vec3<f64>, u_ref: Vec3<f64>| {

@@ -217,11 +217,10 @@ fn takes_the_general_lane(
 /// At ε 1e-12 the needle certifies at `f64` and its `Interval`
 /// certificate escalates `pcurve_envelope`, margin in `(1.0e-12,
 /// 1.05e-12]` (measured 1.023e-12 and 1.029e-12, on either nappe and
-/// span). It has both causes: a stored frame read as its polar
-/// enclosure (decision 1, #7131), and a frame built at Interval from
+/// span). Its cause is a bracket one: a frame built at Interval from
 /// bracket inputs, a rigid-motion claim (fork 274). Mutant F1X alone
-/// certifies nappe −1; nappe 1 needs A and F1X together, which turns
-/// this pin red. It certifies at ε 1e-9 and 1e-6.
+/// turns this pin red (nappe −1 certifies), and mutant A alone does not;
+/// nappe 1 certifies only under both. It certifies at ε 1e-9 and 1e-6.
 #[test]
 fn an_in_band_cone_section_certifies_through_the_projected_lane() {
     let cone = cone(0.5);
