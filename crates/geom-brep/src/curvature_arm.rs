@@ -2,8 +2,11 @@
 //! curvature (`crates/geom-core/README.md`, "Float rounding": a
 //! verdict's lever arm is a read of the consumed extent, a curvature arm
 //! `1/κ_rel`, or the session box). Each reader here takes the carrier it
-//! reads. A reader that also takes a point reads that point's distance
-//! from the carrier's axis, so the point is the caller's to answer for.
+//! reads. Two kinds of reader also take a point, which is the caller's to
+//! answer for: one reads that point's distance from the carrier's axis
+//! ([`curvature_lever_arm`] on a cone, [`parallel_curvature_arm`]), and
+//! [`chart_curvature_arm`] reads a spline chart's certified arm at the
+//! point, over a reach, through the scalar's lane.
 //!
 //! `geom_core::Lever`'s bare curvature doors are this file's to call.
 //! `scripts/gates/lever-doors.sh` pins the references that still stand

@@ -2,9 +2,11 @@
 # references per door and file outside the door's home. A pin only falls
 # (work/oneround/lever-doors-pinned-sites-await-a-geometry-read.md).
 # door count file
+generator_lever 1 crates/geom-brep/src/intersect.rs
 points_diameter 1 crates/geom-brep/src/lib.rs
 points_lever_from 1 crates/geom-brep/src/lib.rs
 of_cover_within 1 crates/geom-brep/src/pair_section.rs
+of_crossing_cylinders 1 crates/geom-brep/src/pair_section/cylinders.rs
 within_curvature 1 crates/geom-brep/src/ssi.rs
 curvature_radius 1 crates/sweep/src/blend/battery.rs
 points_diameter 1 crates/sweep/src/blend/battery.rs

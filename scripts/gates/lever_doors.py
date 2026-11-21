@@ -55,6 +55,8 @@ DOORS = {
     'Reach::Measured': EXTENT_HOME,
     'Reach::Face': EXTENT_HOME,
     'lever_from_point_and_plane': EXTENT_HOME,
+    'of_crossing_cylinders': EXTENT_HOME,
+    'generator_lever': EXTENT_HOME,
     'hinge_lever': EXTENT_HOME,
     'turn_lever': EXTENT_HOME,
 }
