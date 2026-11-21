@@ -162,3 +162,22 @@ merged in:
   `self_intersection_proves_injectivity` with `shell_cavity_embedded`
   at the default ε, 1e-6 and 1e-12 (58 rows pass, same receipts).
   `editor-core`'s 56 clearance rows pass at the three ε.
+- Main then moved again (to the tree PR 7119's head `7c94981d6`
+  merges: the carriers' frames, and an injectivity reading of two
+  edges as one conic). Measured on that tree with the depth gap asked
+  and not asked (the one line that asks it switched off):
+  - the tour walk holds 78 of 85 either way, with no verdict
+    differing between the two. `diepips`, `diecomposed`, `diechamfer`
+    and `lily_lantern` now refuse `Uncertified` on that main, with or
+    without this change; the three benches cross as before. Splits
+    492,679 not asked, 324,441 asked; 22 bodies split less, none more
+    (`hollowtorus` 31,162 to 1,582, `hollowring` 27,546 to 1,582,
+    `torusvessel` 27,877 to 10,307, `diecomposed` 46,657 to 30,706,
+    `klein_bulb` 23,531 to 8,361);
+  - the cavity rows: 12 of 222 fail. The new one,
+    `shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively`,
+    fails with the depth gap not asked too;
+  - both suites and `editor-core`'s clearance rows pass at the three
+    ε; four receipts moved by one or two splits against the tree
+    before.
+
