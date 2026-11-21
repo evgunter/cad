@@ -6,11 +6,11 @@
 //! imports.
 //!
 //! - `declined/cyl_declined`: the closed-rim cylinder with its top rim a
-//!   16-span rational circle, its first span stretched in parameter and
-//!   its middle control nudged 8e-11 m outward. The rim lies within
-//!   4e-11 m of the plane × cylinder circle, but the three samples curve
+//!   32-span rational circle, its first span stretched in parameter and
+//!   its middle control nudged 3e-11 m outward. The rim lies within
+//!   1.5e-11 m of the plane × cylinder circle, but the three samples curve
 //!   recognition estimates its circle from all fall in that span, and the
-//!   estimate misses the rest of the rim by about 4e-9 m: at a run
+//!   estimate misses the rest of the rim by about 6e-9 m: at a run
 //!   tolerance of 1e-9 and below the rim stays a spline, and the solid
 //!   imports on its analytic walls all the same, each piece of the rim
 //!   built on the walls' circle and the nudged one reporting its move.
@@ -77,7 +77,7 @@ fn a_rim_recognition_declines_imports_on_its_analytic_walls() {
         })
         .collect();
     assert!(
-        moves.iter().any(|&m| (1e-11..1e-10).contains(&m)),
+        moves.iter().any(|&m| (5e-12..5e-11).contains(&m)),
         "the nudged span is carried on the circle and reports its move: {moves:?}"
     );
 }

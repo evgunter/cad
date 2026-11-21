@@ -476,6 +476,17 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/closed-rim/cyl_single.step",
         Pass(1, 1, 3, 3, 2),
     ),
+    // -- tests/fixtures/declined/ -------------------------------------
+    // Edges curve recognition declines, read on their descriptions
+    // (`an_edge_is_read_on_its_description_whatever_recognition_says`).
+    (
+        "tests/fixtures/declined/cyl_declined.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/declined/side_column_declined.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
     // two sub-arcs and each elliptic cone rim two arcs, and a knot on an
     // edge alone is a vertex the closing join keeps; the C prism's top is
