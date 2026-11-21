@@ -740,7 +740,7 @@ pub(crate) fn walk_halves<T: AtRestPolicy>(
             stored_edge(body, he),
         ))
     };
-    let wedges = crate::wedge_reach::WedgeReach::new(body, band);
+    let wedges = crate::wedge_reach::WedgeReach::unlifted(body, band);
     let reach = |i: usize| stored_reach(&wedges, body, halves[i]);
     let walked = walk_cycle(
         chart,
@@ -837,7 +837,7 @@ pub(super) fn walk_runs<T: AtRestPolicy>(
                 .take()
                 .unwrap_or_else(|| unreachable!("walk_cycle reads each item of a run once")))
         };
-        let wedges = crate::wedge_reach::WedgeReach::new(body, band);
+        let wedges = crate::wedge_reach::WedgeReach::unlifted(body, band);
         let reach = |i: usize| stored_reach(&wedges, body, keys[i]);
         match walk_cycle(
             chart,

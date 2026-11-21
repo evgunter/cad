@@ -217,7 +217,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         let sense = half_edge_face(body, half_edge).sense();
         // The joint of `image`'s entry onto `onto`, the exit of the image
         // before it, each on its half: `arrived` and `leaving`.
-        let wedges = crate::wedge_reach::WedgeReach::new(body, band);
+        let wedges = crate::wedge_reach::WedgeReach::unlifted(body, band);
         let pin = |image: &Pcurve<T>,
                    onto: geom_core::Point2<T>,
                    arrived: JointHalf<'_, T>,
@@ -1182,7 +1182,7 @@ pub(crate) fn turn_element<T: Decide>(
     let image = row.pcurve();
     let (carrier, ..) = half_edge_carrier(body, half_edge)
         .unwrap_or_else(|e| unreachable!("{half_edge:?} stores a row, so its edge a carrier: {e}"));
-    let wedges = crate::wedge_reach::WedgeReach::new(body, band);
+    let wedges = crate::wedge_reach::WedgeReach::unlifted(body, band);
     let reach = || stored_reach(&wedges, body, half_edge);
     // The half against its direction: the joint carries its exit onto
     // its entry, so the edge arrives at the point by its entry end and

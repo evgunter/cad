@@ -315,22 +315,27 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
+///
+/// **Moved when the wedge reach began reading its faces' covers** (its
+/// bound from above, `topo::wedge_reach`): both `Assertion` walks build
+/// the covers' forms, `Plain` 2572 → 2688 and `Early` 3001 → 3117, with
+/// the calls, the decisions and every `Decision` line unchanged.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
+     Plain/Assertion calls 992 forms 2688 frozen 0 digest 8aa97385e03d91d2d9a88408dce3f2b2\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
+     Early/Assertion calls 992 forms 3117 frozen 0 digest 9d08bdabd9606b8cc10a592de259d9ec",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
+     Plain/Assertion calls 992 forms 2688 frozen 0 digest 91c0c8142b61000d53f2c9912d3ba2d7\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Early/Assertion calls 992 forms 3117 frozen 0 digest ce034813379fc6e9af8a5bbd7970098f",
     "\
      Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
+     Plain/Assertion calls 992 forms 2688 frozen 0 digest cdb52f75e792272d22d0c85c2e893d2f\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
+     Early/Assertion calls 992 forms 3117 frozen 0 digest 2c0be4071373f277f44b9ab0ccf2e16c",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built

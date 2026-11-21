@@ -682,7 +682,7 @@ impl<T: Decide> Lift<T> {
                 stored_edge(body, *he),
             ))
         };
-        let wedges = crate::wedge_reach::WedgeReach::new(body, band);
+        let wedges = crate::wedge_reach::WedgeReach::unlifted(body, band);
         let reach = |i: usize| stored_reach(&wedges, body, charted[i].0);
         let walked = walk_cycle(
             chart,

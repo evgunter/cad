@@ -97,6 +97,9 @@ pub fn edge_wedge_reach<T: Decide>(
 pub struct WedgeReach<'a, T: Decide> {
     body: &'a Body<T>,
     band: Band,
+    /// Whether a face's cover reads its lift ([`crate::cover::face_cover`])
+    /// or not ([`crate::cover::face_cover_unlifted`]).
+    lifts: bool,
     faces: RefCell<SecondaryMap<FaceKey, Rc<FaceRead<T>>>>,
 }
 
@@ -115,7 +118,19 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         Self {
             body,
             band,
+            lifts: true,
             faces: RefCell::new(SecondaryMap::new()),
+        }
+    }
+
+    /// [`Self::new`] for the turns a lift decides: each face's cover read
+    /// without its lift ([`crate::cover::face_cover_unlifted`]), since
+    /// a face's cover can ask that lift.
+    #[must_use]
+    pub(crate) fn unlifted(body: &'a Body<T>, band: Band) -> Self {
+        Self {
+            lifts: false,
+            ..Self::new(body, band)
         }
     }
 
@@ -143,9 +158,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
             .collect();
         let far = |cover: Option<&Cover<T>>| ExtentBall::of_cover_from(cover, at).lever();
         let own = crate::cover::edge_cover_over(carrier, (t0, t1), ends).ok();
+        // The points bound the region from above too: mid-door a face's
+        // vertex can stand off its carrier, past the cover its carrier
+        // trims.
+        let below = far(Cover::points(points).as_ref());
         LeverBounds::Between {
-            below: far(Cover::points(points).as_ref()),
-            above: reads.fold(far(own.as_ref()), |above, f| {
+            below,
+            above: reads.fold(far(own.as_ref()).max(below), |above, f| {
                 above.max(far(f.cover.as_ref().ok()))
             }),
         }
@@ -188,7 +207,11 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         }
         let read = Rc::new(FaceRead {
             points,
-            cover: crate::cover::face_cover(body, face, self.band),
+            cover: if self.lifts {
+                crate::cover::face_cover(body, face, self.band)
+            } else {
+                crate::cover::face_cover_unlifted(body, face, self.band)
+            },
         });
         self.faces.borrow_mut().insert(face, Rc::clone(&read));
         read
