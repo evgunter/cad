@@ -117,7 +117,7 @@ fn f64_replay_or_unresolvable(
         |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
     let answered = match &refusal.kind {
         ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { read, scale, .. }) => {
-            unresolvable(read.gate().predicate(), *scale)
+            unresolvable(read.gate().predicate(), crate::common::told(scale))
         }
         ReplayErrorKind::Path(PathError::Escalated { source, .. }) => {
             source.predicate.is_some_and(|read| unresolvable(read, r))
@@ -228,7 +228,7 @@ fn departure_line_refusal<T: profile::ArcCarrierScalar>(
             ..
         }) => {
             let chord = match &e {
-                PathError::DegenerateArcChord { chord } => Some((chord.lo(), chord.hi())),
+                PathError::DegenerateArcChord { chord } => Some(chord.pinned_ends()),
                 _ => None,
             };
             let undecided = matches!(&e, PathError::Escalated { source, .. }

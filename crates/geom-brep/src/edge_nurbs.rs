@@ -2143,7 +2143,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The tube's extent, from the object being certified, as limb 3
         // reads it everywhere: from below, since its transversality is
         // the definite verdict it acts on.
-        crate::edge_extent_inf(&carrier, p0, p1, (piece.eval(p0), piece.eval(p1))).length(),
+        crate::edge_extent_inf(&carrier, p0, p1).length(),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -4420,10 +4420,10 @@ mod tests {
             [second, first],
             band,
         ));
-        // The 3e-6 end's reading, an enclosure about it; the 1e-6 end's
-        // would read 1e-6.
+        // The 3e-6 end's reading, an enclosure about it told outward on
+        // the grid; the 1e-6 end's would read about 1e-6.
         assert!(
-            forward.contains("3.0000000000000005e-6") && forward == backward,
+            forward == "[2.9999e-6, 3.0001e-6]" && forward == backward,
             "the worse miss, whichever end is met first: {forward} and {backward}"
         );
         let verdicts = read

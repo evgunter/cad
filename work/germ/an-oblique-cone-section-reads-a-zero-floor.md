@@ -14,7 +14,7 @@ cost: M
 An ellipse that lies exactly on a cone (an oblique plane section of
 one nappe, clear of the apex) answers `CircleRoots::Uncertain` from
 the conic × quadric door's cone arm
-(`topo::boolean::conic_quadric::cone_roots`), not `OnSurface`. So the
+(`geom_brep::curve_face::conic_quadric::cone_roots`), not `OnSurface`. So the
 reduction's `(Zero, Zero)` arm cannot record it through
 `reduce::lying_on`, the way it records a circle on a sphere or a
 meridian on a torus.
@@ -34,7 +34,7 @@ read `OnSurface` (1200 each).
 
 `cone_roots` takes the first-harmonic arm (each harmonic of `Q` is
 rounding) and its constant residual answers `OnSurface`. It then
-reads the reach again through the floor (`bool_conic_cone_on_surface`,
+reads the reach again through the floor (`conic_quadric_cone_on_surface`,
 `reach = (max(|lo|, |hi|) + noise) / h.floor`). The floor
 (`geom_brep::conic_cone_harmonics`, in `implicit.rs`) is
 `min(sin α, cos α)·near/per`, where `near` is a lower bound on the

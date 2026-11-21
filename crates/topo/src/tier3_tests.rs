@@ -2914,8 +2914,8 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
-            (quoted - offered).abs() <= 1e-9 * offered,
-            "{label}: offers {quoted:e}, wants {offered:e}"
+            geom_core::test_support::is_told_offer_of(quoted, offered),
+            "{label}: offers {quoted:e}, wants {offered:e} told as a bound"
         );
     }
     // The end read's own stop, as the fold raises it, through check 4's

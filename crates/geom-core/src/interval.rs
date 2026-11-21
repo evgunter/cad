@@ -522,6 +522,11 @@ impl Real for Interval {
         Self::from_f64(x)
     }
 
+    /// The enclosure's ends; an empty or ill-formed one does not read.
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::enclosure(self.0.lo(), self.0.hi())
+    }
+
     /// The exact point `[0, 0]`.
     fn zero() -> Self {
         Self::from_f64(0.0)

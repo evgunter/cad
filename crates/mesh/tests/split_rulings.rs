@@ -1,7 +1,7 @@
 //! **A ruled face whose straight side holds a point**: a cylinder or
 //! cone face with a ruling carried by more than one edge, which the
-//! route sends to the chart lane (`tessellate::route_of`'s fourth fact,
-//! `walk::splits_a_straight_side`).
+//! route sends to the chart lane (`tessellate::route_of`'s
+//! `walk::splits_a_straight_side` fact).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -180,7 +180,7 @@ fn a_ruled_face_with_a_split_ruling_meshes() {
 /// lane on that answer, which meshes it. Each line edge split at its
 /// middle in turn, a ruling of the notch's sides among them: the split
 /// side is a fact the route reads only of a rectangle
-/// (`walk::splits_a_straight_side`, `tessellate::route_of`'s fourth
+/// (`tessellate::route_of`'s `walk::splits_a_straight_side`
 /// fact), so the doors' answer still routes the face and every cell
 /// answers as the unsplit body does.
 #[test]
