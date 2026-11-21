@@ -3128,3 +3128,90 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+/// The verdict door ([`topo::clearance::embedded`]) on every face of
+/// `body`, at the strict bound and the default budget.
+fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
+    let faces = body.faces().map(|(k, _)| k).collect();
+    topo::clearance::embedded(
+        &Side { body, faces },
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// The frames an apex row is read in: the plain one, a rigid turn about
+/// a generic axis, and the plain one moved a hundred units off the
+/// origin.
+fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let a = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14f64.sqrt());
+    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let turn = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let frame = |m: Mat3<f64>, d: Vec3<f64>| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, d),
+            tol(),
+        ))
+    };
+    [
+        ("plain", SketchPlane::xy()),
+        ("turned", frame(turn, Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "moved",
+            frame(Mat3::identity(), Vec3::new(64.0, -57.0, 52.0)),
+        ),
+    ]
+}
+
+/// **A cone wedge past a half turn is embedded at its apex**: the
+/// triangle `(0,0) (1,0) (0,1)` revolved by `θ` about `y`. Each wedge
+/// plane holds the axis, so its carrier holds a second ruling of the
+/// cone through the apex, half a turn from the one it shares, and past a
+/// half turn that ruling is on the cone face: no plane through the
+/// shared ruling parts the cone's cells about it from the wedge plane's
+/// at the apex. A plane through the apex does, each face read against
+/// the apex alone. Read at both scalars in each of [`apex_frames`].
+#[test]
+fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64) -> Body<T> {
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(theta)),
+            tol(),
+        )
+        .unwrap()
+        .body
+        .into_body()
+    }
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
+        for (name, place) in apex_frames() {
+            let what = format!("the {theta} wedge, {name}");
+            let (float, twin) = (
+                embedding(&wedge::<f64>(&place, theta)),
+                embedding(&wedge::<Interval>(&place, theta)),
+            );
+            println!(
+                "[apex wedge] {what}: f64 {:?} {:?} | Interval {:?} {:?}",
+                float.verdict, float.receipt, twin.verdict, twin.receipt
+            );
+        }
+    }
+}
