@@ -540,20 +540,34 @@ fn choose(
             what: "an edge whose printed carrier has no region over its interval",
         })?;
     // The pose readings are levered at how far the edge's two faces run,
-    // their region's diameter from above, and the edge's own extent where
-    // that is longer.
-    let faces = crate::reach::Reach::of(solid, [plus, minus]).ok_or(StepImportError::Topology {
-        id,
-        what: "an edge whose faces have no region to read their reach from",
+    // from below for a reading that builds on its definite sign and from
+    // above for one that builds on its Zero ([`crate::reach::faces_run`]).
+    let run = crate::reach::faces_run(solid, &[plus, minus]).map_err(|unread| match unread {
+        crate::reach::NoRegion::Edge(edge) => StepImportError::Topology {
+            id: edge,
+            what: "an edge whose printed carrier has no region over its interval",
+        },
+        crate::reach::NoRegion::Face(face) => StepImportError::Topology {
+            id: face,
+            what: "a face whose surface reads no region of its boundary",
+        },
+        crate::reach::NoRegion::NoFace => {
+            unreachable!("an edge's two faces were named")
+        }
     })?;
-    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1).max(faces.lever());
     // A cone's pose readings are levered from its apex (the station of a
-    // coaxial cylinder's circles is a distance from it): the edge's own
-    // diameter is no reach from there.
-    let extent = [sa, sb].into_iter().fold(extent, |lever, s| match *s {
-        Surface::Cone { apex, .. } => lever.max(region.lever_from(apex)),
-        _ => lever,
-    });
+    // coaxial cylinder's circles is a distance from it): no diameter is a
+    // reach from there.
+    let from_apexes = |lever: geom_core::Lever<f64>| {
+        [sa, sb].into_iter().fold(lever, |lever, s| match *s {
+            Surface::Cone { apex, .. } => lever.max(region.lever_from(apex)),
+            _ => lever,
+        })
+    };
+    let extent = geom_brep::LeverBounds::Between {
+        below: from_apexes(run.below()),
+        above: from_apexes(run.above()),
+    };
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
     if spline(sa) || spline(sb) {
         return spline_pair(
@@ -612,7 +626,7 @@ fn spline_pair(
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     ends: (Point3<f64>, Point3<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
@@ -638,7 +652,8 @@ fn spline_pair(
     if let Some(rim) = cap_row(id, spec, (sa, sb), ends, file, true)? {
         return Ok(rim);
     }
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
@@ -711,7 +726,7 @@ fn spline_pair(
 }
 
 /// Whether two planes an edge lies on cross: the sine of their normals'
-/// angle levered at the edge's extent, read at the file's band.
+/// angle levered at the faces' run from below, read at the file's band.
 pub(crate) const STEP_PLANES_CROSS: &str = "step_planes_cross";
 
 /// Whether a wall's boundary row or column lies in a cap plane: the
@@ -725,11 +740,12 @@ fn analytic_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     let at_file = read(file.band()).map_err(|source| ambiguous(id, &source, file))?;
@@ -759,7 +775,7 @@ fn analytic_pair(
         // Two planes the file's band reads parallel meet in no line: the
         // file's statements are no description there.
         Err(V::Unsupported { .. }) if let Some(normals) = plane_normals(sa, sb) => {
-            let crossing = normals.0.cross(normals.1).norm() * extent.length();
+            let crossing = normals.0.cross(normals.1).norm() * extent.below().length();
             Err(file.refused(id, file.touching(STEP_PLANES_CROSS, crossing)))
         }
         Err(V::Unsupported { .. }) => {
@@ -795,7 +811,7 @@ fn served_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let ball = Some(region.ball());
@@ -921,7 +937,7 @@ fn tangent(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let locus = if geom_brep::tangent_locus_kinds(sa.kind(), sb.kind()) {
@@ -951,7 +967,8 @@ fn tangent(
             }
         }
     } else {
-        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent, band) {
+        // The coaxial circle is built on its axis rows' Zero.
+        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
             Ok(circle) => Ok(circle),
             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
             Err(e) => Err(Ok(e)),
@@ -2869,6 +2886,7 @@ mod tests {
                     t0,
                     t1,
                     reversed: false,
+                    curve: None,
                 },
             )
         })
@@ -2902,16 +2920,19 @@ mod tests {
         }
     }
 
-    /// **A crease between two faces is read over the faces' run, not
-    /// their vertices' box.** Two unit discs folded along a 2 cm chord
-    /// have the chord's ends for their only vertices, and run 4.47 m
-    /// corner to corner. Folded by `1e-5` they stand `2e-5` apart at
-    /// their far side, twenty times the file's `1e-6`: two planes, and
-    /// the chord is their crease. Folded by `1e-7` they are one plane to
-    /// the file over that run, and the refusal's gap is the fold over it.
-    /// Red against the vertices' box or the edge's own length for the
-    /// reach (the `1e-5` fold then refuses as parallel planes), and
-    /// against one face's region for both (a gap of `2.8e-7`).
+    /// **A crease between two faces is read over the faces' run, from
+    /// below, not over their vertices.** Two unit discs folded along a
+    /// 2 cm chord have the chord's ends for their only vertices, and
+    /// stand `2 + 2c₀ ≈ 4` m across, rim to rim. Folded by `1e-5` they
+    /// are `2e-5` apart at their far side, twenty times the file's
+    /// `1e-6`: two planes, and the chord is their crease. Folded by
+    /// `1e-7` they are one plane to the file over that run, and the
+    /// refusal's gap is the fold over it: never more than the fold over
+    /// the faces' true diameter, and most of it. Red against the
+    /// vertices or the edge's own length for the reach (the `1e-5` fold
+    /// then refuses as parallel planes), against one face's boundary for
+    /// both (a gap of `2e-7`), and against the region's box diagonal, a
+    /// bound from above (`4.47e-7`).
     #[test]
     fn a_crease_is_read_over_its_faces_run() {
         let read = |fold: f64| {
@@ -2945,9 +2966,10 @@ mod tests {
                 ..
             }) => {
                 assert_eq!(reading, STEP_PLANES_CROSS);
+                let across = 2.0 + 2.0 * (1.0 - 1e-4_f64).sqrt();
                 assert!(
-                    (4.4e-7..4.5e-7).contains(&gap),
-                    "the fold over the two discs' run, 4.47 m: {gap:e}"
+                    gap <= 1e-7 * across * (1.0 + 1e-9) && gap >= 1e-7 * 0.95 * across,
+                    "the fold over the two discs' run, never past their {across} m: {gap:e}"
                 );
             }
             other => panic!(
@@ -2955,6 +2977,29 @@ mod tests {
                 other.map(|c| c.carrier)
             ),
         }
+    }
+
+    /// **A pair of faces with no region refuses naming the edge at
+    /// fault**, whichever edge asked: with edge 2's interval unreadable,
+    /// edge 1, whose own carrier and interval are sound, answers with
+    /// edge 2's refusal. Red against the asking edge named.
+    #[test]
+    fn a_face_pair_with_no_region_names_the_edge_whose_carrier_does_not_read() {
+        let mut solid = folded_discs(1e-5);
+        solid.edges.get_mut(&2).unwrap().t0 = f64::NAN;
+        let refused = choose(
+            &solid,
+            1,
+            &solid.edges[&1],
+            (0, 1),
+            Tol::witness(),
+            FileBand::test(1e-6),
+        );
+        assert!(
+            matches!(refused, Err(StepImportError::Topology { id: 2, .. })),
+            "{:?}",
+            refused.map(|c| c.carrier)
+        );
     }
 
     /// **A wrap edge is the surface's own generator through the printed

@@ -574,6 +574,77 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Leve
     Lever::of_consumed_extent(extent_inf(carrier, t0, t1, chord(carrier, t0, t1)))
 }
 
+/// The unit directions [`edges_extent_inf`] reads a point set's width
+/// along: the three axes, the six face diagonals and the four body
+/// diagonals of the world box. Some one of them stands within 36° of any
+/// direction, so the widest of the thirteen widths is at least 0.8 of the
+/// set's diameter.
+fn width_directions<T: Real>() -> impl Iterator<Item = Vec3<T>> {
+    let (o, l) = (0.0, 1.0);
+    [
+        [l, o, o],
+        [o, l, o],
+        [o, o, l],
+        [l, l, o],
+        [l, -l, o],
+        [l, o, l],
+        [l, o, -l],
+        [o, l, l],
+        [o, l, -l],
+        [l, l, l],
+        [l, l, -l],
+        [l, -l, l],
+        [l, -l, -l],
+    ]
+    .into_iter()
+    .map(|[x, y, z]: [f64; 3]| {
+        let len = (x * x + y * y + z * z).sqrt();
+        Vec3::new(
+            T::from_f64(x / len),
+            T::from_f64(y / len),
+            T::from_f64(z / len),
+        )
+    })
+}
+
+/// **The extent of several edges' point set, bounded from below**: no
+/// more than the farthest two points of the edges stand apart. The lever
+/// of a reading consumed over every edge at once (the boundaries of an
+/// edge's two faces) whose definite sign is acted on and whose Zero only
+/// refuses, as [`edge_extent_inf`] is one edge's. The measure never
+/// over-states the edges' reach, the unsafe direction for such a lever.
+///
+/// It is the largest of each edge's own extent from below
+/// ([`edge_extent_inf`]) and the set's width along each of thirteen
+/// fixed directions, read off the edges' sampled points
+/// (`t₀ + k·(t₁ − t₀)/16`): the two samples a width is read between are
+/// points of the edges that far apart along it, so no farther apart than
+/// the diameter. Zero for no edge.
+///
+/// Total and comparison-free (`min`/`max` are the [`Real`] lattice
+/// operations).
+pub fn edges_extent_inf<'a, T: SpanLocate + 'a>(
+    edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
+) -> Lever<T> {
+    let mut own = T::zero();
+    let mut samples = Vec::new();
+    for (carrier, (t0, t1)) in edges {
+        own = own.max(extent_inf(carrier, t0, t1, chord(carrier, t0, t1)));
+        samples.extend(schedule(carrier, (t0, t1), EXTENT_PIECES));
+    }
+    let Some(first) = samples.first().copied() else {
+        return Lever::of_consumed_extent(own);
+    };
+    let width = width_directions::<T>().fold(T::zero(), |widest, dir| {
+        let along = |p: &Point3<T>| (*p - first).dot(dir);
+        let (lo, hi) = samples.iter().fold((T::zero(), T::zero()), |(lo, hi), p| {
+            (lo.min(along(p)), hi.max(along(p)))
+        });
+        widest.max(hi - lo)
+    });
+    Lever::of_consumed_extent(own.max(width))
+}
+
 /// The chord between the carrier's points at the span's two ends.
 fn chord<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
     carrier.eval(t0).distance(carrier.eval(t1))
@@ -2221,6 +2292,38 @@ mod geometry_door_rows {
             assert!((perp.foot - Point3::origin()).norm() < 1e-12);
             assert!((perp.gap - 3.0).abs() < 1e-12 && (perp.sin - 1.0).abs() < 1e-12);
         }
+    }
+
+    /// **Several edges' extent is read from below.** Three short posts,
+    /// one standing 2 m out along each axis: no two of their points are
+    /// farther apart than the far corners of two posts, about `2√2`,
+    /// where the box about them is `2√3` corner to corner. The reading
+    /// is never past the farthest pair and is most of it. Red against
+    /// the box's diagonal (a bound from above), against the edges' own
+    /// extents alone (0.1), and against one width in place of the
+    /// widest. No edge reads zero.
+    #[test]
+    fn several_edges_extent_never_passes_their_farthest_pair() {
+        let post = |foot: Point3<f64>, up: Vec3<f64>| {
+            Curve3::Line(Line {
+                origin: foot,
+                dir: up,
+            })
+        };
+        let posts = [
+            post(Point3::new(2.0, 0.0, 0.0), Y),
+            post(Point3::new(0.0, 2.0, 0.0), Z),
+            post(Point3::new(0.0, 0.0, 2.0), X),
+        ];
+        let ends: Vec<Point3<f64>> = posts
+            .iter()
+            .flat_map(|c| [c.eval(0.0), c.eval(0.1)])
+            .collect();
+        let farthest = farthest_pair(&ends);
+        let read = edges_extent_inf(posts.iter().map(|c| (c, (0.0, 0.1)))).length();
+        assert!(read <= farthest * (1.0 + 1e-12), "{read} past {farthest}");
+        assert!(read >= 0.95 * farthest, "{read} well short of {farthest}");
+        assert_eq!(edges_extent_inf::<f64>([]).length(), 0.0);
     }
 
     /// **A cover's diameter is read from above**: a segment's box
