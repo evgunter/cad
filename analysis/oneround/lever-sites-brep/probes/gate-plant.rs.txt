@@ -1,0 +1,18 @@
+
+// REVIEW PLANT (C1): production calls that hand the new doors made-up numbers and points.
+pub(crate) fn review_plant_cone(reach: &crate::Reach<f64>) -> geom_core::Lever<f64> {
+    let made_up_axis = geom::Line { origin: geom_core::Point3::new(1.0e3, 0.0, 0.0), dir: geom_core::Vec3::new(0.0, 0.0, 1.0) };
+    reach.cone_generator_lever(made_up_axis, 1.5707)
+}
+pub(crate) fn review_plant_cyl(reach: &crate::Reach<f64>, lines: [geom::Line<f64>; 2]) -> crate::ExtentBall<f64> {
+    crate::ExtentBall::of_cylinders_crossing(lines, [1.0e6, 2.0e6], reach)
+}
+pub(crate) fn review_plant_either(ball: crate::ExtentBall<f64>, made_up: f64) -> geom_core::Lever<f64> {
+    let p = ball.center();
+    ball.lever_from_either(p, p + geom_core::Vec3::new(made_up, 0.0, 0.0))
+}
+pub(crate) fn review_plant_ruled(reach: &crate::Reach<f64>, made_up: f64) -> geom_core::Lever<f64> {
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    let pc = crate::intersect::PlaneCylinder { q: geom_core::Point3::new(0.0, 0.0, -made_up), n: z, o: geom_core::Point3::origin(), a: z, r: 1.0 };
+    reach.ruled_pivot_lever(&pc).1
+}
