@@ -12658,15 +12658,19 @@ mod presentation_rows {
         // The plane's second edge ends at `q`, its chart point `far`.
         let q = p3(far.1, 0.0, far.0);
         let cone = Surface::Cone {
-            apex,
-            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
             half_angle: iv0(core::f64::consts::FRAC_PI_4),
-            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
         };
         let plane = Surface::Plane {
-            origin: apex,
-            normal: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
-            u_ref: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
         };
         let mut c = Boundary {
             sense: true,
@@ -12691,6 +12695,7 @@ mod presentation_rows {
         let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
             key: edge(n),
             arc,
+            stated: None,
             ends: ends.map(vertex),
             uses: vec![Use {
                 plus,
