@@ -978,14 +978,14 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Two curves on one surface record are not a curve pair to this table.
 Their 3D gap is identically zero in the model, so a contact decision on
 it reads only the construction's rounding against the band. They meet
-where one crosses the other's plane, through the plane door
-(`curve_face::plane_crossing`), at a root on the curve's own section of
-that plane, read through the surface's chart: the co-surface arm
-(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
+where the edge crosses the curve's plane, through the crossing reading
+(`curve_face::cross`), at a meeting on the curve's own section of that
+plane, read through the surface's chart: the co-surface arm
+(`curve_pair::on_surface`), whose plane arm shares `meet`'s transverse
 harmonic (`pose::height`). A curve on a surface is built from chart
 coordinates on a surface record: its key, and its surface as stored or
 on another chart of it. An edge carries its face's record, and the arm
-refuses a pair on two records whichever way it reads the pair. That the
+refuses a pair on two records. That the
 key and the surface are one record's stays the caller's: the region
 doors and the sphere cut-in read both off one face, and the planar loop
 walk names its own premise for the ray's plane. Every consumer holding

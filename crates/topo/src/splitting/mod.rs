@@ -213,20 +213,6 @@ pub(crate) fn crossing_reading(why: CrossWhy) -> CrossingReading {
     }
 }
 
-/// The window's diagnostics, where it was read in the band.
-pub(crate) fn fault_diag(why: CrossWhy) -> Option<Indeterminate> {
-    use geom_brep::curve_face::PoseRefusal;
-    use geom_brep::curve_pair::MeetFault;
-    match why {
-        CrossWhy::Pose(PoseRefusal::InBand { diag, .. })
-        | CrossWhy::Method {
-            fault: MeetFault::Escalated(diag) | MeetFault::Touch(diag),
-            ..
-        } => Some(diag),
-        CrossWhy::Pose(_) | CrossWhy::Method { .. } => None,
-    }
-}
-
 /// Which reading of where the split plane leaves the faces round a
 /// vertex escalated ([`SplitReduceError::SectionGermsEscalated`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -797,7 +783,7 @@ impl SplitReduceError {
             // since a split takes no declaration.
             Self::CrossingEscalated { fault, .. } => {
                 let reading = crossing_reading(*fault);
-                match (fault_diag(*fault), reading) {
+                match (fault.diag(), reading) {
                     (Some(diag), CrossingReading::Decision { crossing, .. }) => {
                         // The coincidence lever is the same at every door;
                         // a crossing decision's ending is read at this one.

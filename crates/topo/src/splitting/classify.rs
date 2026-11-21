@@ -177,18 +177,19 @@ pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
-) -> Result<
-    (
-        SecondaryMap<VertexKey, PlaneSide>,
-        Vec<VertexKey>,
-        SecondaryMap<VertexKey, ()>,
-    ),
-    SplitReduceError,
-> {
+) -> Result<RecordedSides, SplitReduceError> {
     let tips = crate::sector_shape::SlitTips::of(body);
     classify_vertices_margined(body, plane, &tips, band)
         .map(|(sides, on, _, on_plane)| (sides, on, on_plane))
 }
+
+/// Each vertex's side, the ON vertices in arena order, and the vertices
+/// whose offset from the plane was decided Zero ([`classify_vertices`]).
+pub(super) type RecordedSides = (
+    SecondaryMap<VertexKey, PlaneSide>,
+    Vec<VertexKey>,
+    SecondaryMap<VertexKey, ()>,
+);
 
 /// Each vertex's side, the ON vertices in arena order, the margin each
 /// ON vertex was decided Zero on, and the vertices whose offset from the

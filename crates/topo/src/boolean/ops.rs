@@ -7432,18 +7432,21 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     carrier,
                     (t0, t1),
                 )
-                .across(&meridian, "bool_sphere_cut_in_plane", band)
+                .across(&meridian, band)
                 {
                     Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
                     Ok(
                         geom_brep::curve_pair::on_surface::CoSurface::InPlane
-                        | geom_brep::curve_pair::on_surface::CoSurface::Touch
-                        | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                        | geom_brep::curve_pair::on_surface::CoSurface::Touch,
                     ) => return Err(uncertified()),
-                    // A rung of the plane door escalated: the cut-in's own
-                    // question, in band.
-                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
-                        return Err(esc(diag));
+                    // A stretch of the arc read in band: the cut-in's own
+                    // question, on its margin where it has one.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::Windows(refusal)) => {
+                        return Err(refusal
+                            .windows
+                            .iter()
+                            .find_map(|w| w.why.diag())
+                            .map_or_else(uncertified, esc));
                     }
                     // Every piece inherits the cut face's record (the
                     // `mef` below): a piece on another is a fault here.
@@ -7459,14 +7462,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
-                for (root, p) in roots {
-                    let theta = root.t;
-                    let at_end = match root.place {
-                        geom_brep::curve_face::plane_crossing::RootPlace::Inside => false,
-                        geom_brep::curve_face::plane_crossing::RootPlace::AtEnd => true,
-                        geom_brep::curve_face::plane_crossing::RootPlace::Undecided(_) => {
-                            return Err(uncertified());
-                        }
+                for meeting in roots {
+                    let p = meeting.point;
+                    let (theta, at_end) = match meeting.on_span {
+                        geom_brep::curve_face::OnSpan::Inside { t } => (t, false),
+                        geom_brep::curve_face::OnSpan::End(_) => (t0, true),
                     };
                     let at_pole = sign_as(
                         "bool_sphere_cut_pole",

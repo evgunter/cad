@@ -95,24 +95,21 @@
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
 
-use geom_brep::curve_face::plane_crossing::{RootPlace, span_place};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Vec3};
 
-use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::ray_walk::RayFault;
 use crate::region::{
-    self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, in_band,
+    self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
-use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -255,7 +252,7 @@ impl<T: Decide> TorusFaceRegion<T> {
 
     /// The parallel through `p`, run `forward` (the major angle
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
-    /// the tube side `p` lies on ([`Section::TubeSide`]).
+    /// the tube side `p` lies on ([`Section::TubeSide`](geom_brep::curve_pair::on_surface::Section::TubeSide)).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
         let curve =
             SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
@@ -268,32 +265,6 @@ impl<T: Decide> TorusFaceRegion<T> {
         let curve =
             SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
-    }
-
-    /// Where `y`, a point of the torus on the edge arc's plane, lies on
-    /// the arc of `(t0, t1)` from its offset `(x, y)` in the arc's frame
-    /// at `lever`: its parameter within half a turn of the span's middle
-    /// against the span ([`span_place`]).
-    fn arc_place(
-        (t0, t1): (T, T),
-        (x, y): (T, T),
-        lever: T,
-        band: Band,
-    ) -> Result<Option<(T, bool)>, Fault> {
-        let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        // The arc's circle in its own frame, where `(x, y)` is read: its
-        // chords are the arc's.
-        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), lever, Vec3::unit_x());
-        match span_place(
-            &geom_brep::curve_pair::Span::new(&circle, (t0, t1)),
-            theta,
-            band,
-        ) {
-            Some(RootPlace::Inside) => Ok(Some((theta, false))),
-            Some(RootPlace::AtEnd) => Ok(Some((theta, true))),
-            Some(RootPlace::Undecided(diag)) => Err(in_band(diag)),
-            None => Ok(None),
-        }
     }
 
     /// The unit chart normal at `y`.
@@ -443,95 +414,6 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     fn charted(&self) -> &Charted<T> {
         &self.charted
-    }
-
-    /// An oval across a leg's plane has no closed form, and a parallel
-    /// leg's plane is tangent to the torus by its top and bottom circles:
-    /// each is read the other way, the leg across the edge's plane. A
-    /// meridian leg's plane is normal to the torus everywhere, so every
-    /// circle edge is read across it.
-    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, _: Band) -> Result<ReadAcross, Fault> {
-        match edge.carrier {
-            geom::Curve3::Spiric { .. } => Ok(ReadAcross::LegOverEdge),
-            geom::Curve3::Circle(_) => Ok(match region::Course::curve(&leg.course).section() {
-                Section::TubeSide { .. } => ReadAcross::LegOverEdge,
-                _ => ReadAcross::EdgeOverLeg,
-            }),
-            _ => unreachable!("torus_face_region admits circles and spirics only"),
-        }
-    }
-
-    /// The edge's plane meets the torus in two curves: a meridian's or a
-    /// Villarceau circle's in it and its mirror through the centre, an
-    /// oval's in two ovals across its trace. A root on the edge's own is
-    /// placed on its span.
-    fn on_edge_plane(
-        &self,
-        _: &Leg<T>,
-        edge: &Edge<T>,
-        y: Point3<T>,
-        band: Band,
-    ) -> Result<Option<(T, bool)>, Fault> {
-        let row = |m: T| decide(Self::COMPONENT, Margin::of(m), band).map_err(in_band);
-        match edge.carrier {
-            geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius: major,
-                minor_radius: minor,
-                ..
-            } => {
-                let w = y - center;
-                match row(w.dot(axis.cross(u_ref)))? {
-                    Sign::Positive => {}
-                    Sign::Negative => return Ok(None),
-                    Sign::Zero => return Err(RayFault::Graze),
-                }
-                let (h, rho) = geom::Line {
-                    origin: center,
-                    dir: axis,
-                }
-                .height_and_distance(y);
-                Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
-            }
-            geom::Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
-                    ..
-                },
-            ) => {
-                let radius = conic_k.radius();
-                let w = y - center;
-                // A parallel leg across a meridian's or a Villarceau
-                // circle's plane, which meets the torus in it and its
-                // mirror through the centre.
-                let mirror = self.center + (self.center - center);
-                let own = match row((y - mirror).norm() - radius)? {
-                    Sign::Positive | Sign::Negative => true,
-                    // On the mirror, or where the two cross.
-                    Sign::Zero => match row(w.norm() - radius)? {
-                        Sign::Positive | Sign::Negative => false,
-                        Sign::Zero => return Err(RayFault::Graze),
-                    },
-                };
-                if !own {
-                    return Ok(None);
-                }
-                Self::arc_place(
-                    (edge.t0, edge.t1),
-                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
-                    radius,
-                    band,
-                )
-            }
-            _ => unreachable!("torus_face_region admits circles and spirics only"),
-        }
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -1007,11 +889,39 @@ mod tests {
         }
     }
 
-    /// **A leg keeps the crossing on the edge's own oval.** The plane
-    /// `x = 1` cuts the torus in two ovals, `y > 0` and `y < 0`; an arc of
-    /// the first is crossed by the outer equator once, at `y > 0`.
+    /// **A leg's plane tangent to the torus along an edge escalates in
+    /// band.** The parallel leg round the tube's top lies in the plane
+    /// `z = r`, which touches the torus along that circle; an edge on the
+    /// parallel whose height is `r − g`, `g` in the band's gap, is parallel
+    /// to the plane at an offset the band cannot call: the crossing
+    /// reading's pose escalates on it, and the path is set aside on that
+    /// margin, never read as no crossing.
     #[test]
-    fn a_leg_keeps_the_crossing_on_the_edges_own_oval() {
+    fn a_plane_tangent_along_an_edge_escalates_in_band() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let g = 0.5 * (b.zero() + b.escalate());
+        let edge = parallel((1.0 - g / MINOR).asin(), true, 9);
+        let region = holding(edge.clone());
+        let leg = region.parallel(foot(&region, at(0.3, core::f64::consts::FRAC_PI_2)), true);
+        let got = region::landings(&region, &edge, &leg, b);
+        assert!(
+            matches!(
+                &got,
+                Err(crate::ray_walk::RayFault::InBand(RegionRefusal::Escalated(diag)))
+                    if diag.predicate == Some("curve_face_pose_plane_offset")
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **A spiric edge blocks the path, typed.** The plane `x = 1` cuts
+    /// the torus in two ovals, `y > 0` and `y < 0`; an arc of the first
+    /// has no built reading against a leg's plane (the curve × face
+    /// table's `(Spiric, Plane)` route is unbuilt), so every leg against it
+    /// is blocked on the edge as an uncrossable spiric, never set aside as
+    /// a graze or read as no crossing.
+    #[test]
+    fn a_spiric_edge_blocks_the_path_typed() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let oval = RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
@@ -1033,10 +943,17 @@ mod tests {
         let region = holding(oval.clone());
         for p in [at(0.2, 0.0), at(2.0, 0.4), at(3.5, -0.3)] {
             let leg = region.parallel(foot(&region, p), true);
-            let got = region::landings(&region, &oval, &leg, b).unwrap();
-            assert_eq!(got.len(), 1, "{p:?}: {got:?}");
+            let got = region::landings(&region, &oval, &leg, b);
             assert!(
-                got[0].0.y > 0.0 && (got[0].0.x - 1.0).abs() < 1e-12,
+                matches!(
+                    got,
+                    Err(crate::ray_walk::RayFault::Blocked(
+                        RegionRefusal::Unreadable(Uncrossable {
+                            carrier: UncrossableCarrier::Spiric,
+                            ..
+                        })
+                    ))
+                ),
                 "{p:?}: {got:?}"
             );
         }
@@ -1196,8 +1113,11 @@ mod tests {
     /// edge at 60 stations (480 queries). A query counts where any frame
     /// answers otherwise than the first. With the legs started at
     /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
-    /// started at the foot, 31. What is left is the frame a curve
-    /// carries in its section and plane
+    /// started at the foot, 31; with an edge read across a parallel leg's
+    /// plane by the crossing reading, where the leg was read across the
+    /// edge's, 38, each a refusal against an answer and none a side
+    /// against the other. What is left is the frame a curve carries in its
+    /// section and plane
     /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
     #[test]
     fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
@@ -1222,7 +1142,7 @@ mod tests {
 
     /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
     /// count.
-    const KEPT_TORUS: usize = 31;
+    const KEPT_TORUS: usize = 38;
 
     /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
     /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.

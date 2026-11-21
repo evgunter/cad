@@ -2,12 +2,12 @@
 //! a surface ([`SurfaceCurve`]) and an edge of a face on it ([`OnSurface`])
 //! lie on one surface record, so their gap is zero in the model: a 3D
 //! curve-pair reading ([`super::meet`]) of the pair decides only the
-//! construction's rounding against the band. They meet instead where one
-//! crosses the other's plane, through the plane door
-//! ([`crate::curve_face::plane_crossing::span_plane_meet`], whose harmonic
-//! is [`super::pose::height`], the one [`super::meet`]'s transverse
-//! reading is built on), at a root that lies on the curve's own section of
-//! its plane ([`Section`]).
+//! construction's rounding against the band. They meet instead where the
+//! edge crosses the curve's plane, through the curve × face crossing
+//! reading ([`crate::curve_face::cross()`], whose plane arm reads
+//! [`super::pose::height`], the one [`super::meet`]'s transverse reading is
+//! built on), at a meeting that lies on the curve's own section of its
+//! plane ([`Section`]).
 //!
 //! A plane through a curve on the surface cuts the surface in that curve
 //! and a few others: a plane's square plane through a line of it in that
@@ -31,9 +31,9 @@
 //!
 //! A curve and an edge are tied by record: a curve carries the key of the
 //! surface record it was charted from ([`Charted`]), an edge the key of
-//! its face's record ([`OnSurface::edge`]), and both readings of the pair,
-//! [`OnSurface::across`] and [`OnSurface::under`], refuse a pair on two
-//! records ([`AcrossRefusal::OffRecord`]). That the key and the surface
+//! its face's record ([`OnSurface::edge`]), and the reading of the pair,
+//! [`OnSurface::across`], refuses a pair on two records
+//! ([`AcrossRefusal::OffRecord`]). That the key and the surface
 //! a caller hands [`Charted::record`] are one record's stays the
 //! caller's: each reads both off one face.
 
@@ -41,9 +41,7 @@ use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, C
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3};
 
-use crate::curve_face::plane_crossing::{
-    ConicRootFault, SpanEnds, SpanPlaneMeet, SpanRoot, span_plane_meet,
-};
+use crate::curve_face::{CrossRefusal, Meeting, Pose};
 
 use crate::keys::SurfaceKey;
 
@@ -100,8 +98,7 @@ pub struct SurfaceCurve<T: Real> {
 /// ([`Self::turned`]): the same surface on another chart. A surface a
 /// caller builds instead is [`Self::held`], its premise the caller's.
 /// The key names the record, so a curve built on it is read only against
-/// edges of faces on that record ([`OnSurface::across`],
-/// [`OnSurface::under`]).
+/// edges of faces on that record ([`OnSurface::across`]).
 #[derive(Clone, Debug)]
 pub struct Charted<T: Real> {
     key: SurfaceKey,
@@ -653,31 +650,6 @@ impl<T: Decide> SurfaceCurve<T> {
     }
 }
 
-/// The plane door's answer for `carrier` decided once, for both readings
-/// ([`OnSurface::across`], [`OnSurface::under`]): a carrier
-/// parallel to the plane is in it or apart on `row`'s offset, and each
-/// root carries its point.
-fn decided<T: Decide>(
-    found: SpanPlaneMeet<T>,
-    carrier: &Curve3<T>,
-    row: &'static str,
-    band: Band,
-) -> Result<CoSurface<T>, Indeterminate> {
-    Ok(match found {
-        SpanPlaneMeet::Parallel { offset } => match decide(row, Margin::of(offset), band)? {
-            Sign::Zero => CoSurface::InPlane,
-            Sign::Positive | Sign::Negative => CoSurface::Roots(Vec::new()),
-        },
-        SpanPlaneMeet::Touch => CoSurface::Touch,
-        SpanPlaneMeet::Roots(roots) => CoSurface::Roots(
-            roots
-                .into_iter()
-                .map(|root| (root, carrier.eval(root.t)))
-                .collect(),
-        ),
-    })
-}
-
 /// **An edge on a surface**: a span of a face's boundary edge, on the
 /// surface of that face. It is read only against a [`SurfaceCurve`] on
 /// the same surface ([`OnSurface::across`]), never as a bare
@@ -691,10 +663,12 @@ pub struct OnSurface<'a, T: Real> {
 
 /// **Why an edge gives no reading against a curve**
 /// ([`OnSurface::across`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum AcrossRefusal {
-    /// A rung of the plane door, or the parallel offset, in band.
-    InBand(Indeterminate),
+#[derive(Clone, Debug)]
+pub enum AcrossRefusal<T: Real> {
+    /// The crossing reading left windows: the meetings it decided outside
+    /// them, and the stretches it could not read
+    /// ([`crate::curve_face::CrossRefusal`]).
+    Windows(CrossRefusal<T>),
     /// The edge's face is on another record than the one the curve was
     /// charted from: the pair is not known to be co-surface, so the arm
     /// does not read it.
@@ -706,12 +680,6 @@ pub enum AcrossRefusal {
     },
 }
 
-impl From<Indeterminate> for AcrossRefusal {
-    fn from(diag: Indeterminate) -> Self {
-        Self::InBand(diag)
-    }
-}
-
 /// **Where an edge on a surface crosses a curve on it**
 /// ([`OnSurface::across`]).
 #[derive(Debug)]
@@ -720,16 +688,13 @@ pub enum CoSurface<T: Real> {
     /// another curve of the plane, which the caller reads
     /// ([`SurfaceCurve::section_of`]) where it needs to.
     InPlane,
-    /// The edge grazes the curve's plane: a double root, no crossing.
+    /// The edge touches the curve's plane: a double root, no crossing.
     Touch,
-    /// The edge's roots on the curve's plane, each with its point: one
-    /// is a meeting where it lies on the curve's own section of the plane
-    /// ([`SurfaceCurve::section_of`]), which the caller reads, after what
-    /// it reads first (a pole, an end).
-    Roots(Vec<(SpanRoot<T>, Point3<T>)>),
-    /// The edge's carrier has no closed form across a plane (a spiric or
-    /// a spline): the caller reads the curve across the edge's plane.
-    Unlaned,
+    /// The edge's meetings with the curve's plane, ascending along the
+    /// edge: one is a meeting of the pair where it lies on the curve's own
+    /// section of the plane ([`SurfaceCurve::section_of`]), which the
+    /// caller reads, after what it reads first (a pole, an end).
+    Roots(Vec<Meeting<T>>),
 }
 
 impl<'a, T: Decide> OnSurface<'a, T> {
@@ -752,85 +717,41 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         self.span
     }
 
-    /// **The edge across `curve`'s plane** (module docs): the plane door's
-    /// roots in the edge's own parameter over its span, each with its
-    /// point. An edge parallel to the plane is decided in it or apart on
-    /// `row`'s offset.
+    /// **The edge across `curve`'s plane** (module docs): the crossing
+    /// reading of the edge's span against the plane
+    /// ([`crate::curve_face::cross()`]), its pose deciding an edge in the
+    /// plane, touching it, or apart from it; its meetings in the edge's
+    /// own parameter.
     ///
     /// # Errors
     ///
     /// [`AcrossRefusal::OffRecord`] where the edge's record is not the
-    /// curve's; [`AcrossRefusal::InBand`] where a rung of the plane door or
-    /// an offset is in band.
+    /// curve's; [`AcrossRefusal::Windows`] where the crossing reading left
+    /// a stretch of the edge unread.
     pub fn across(
         &self,
         curve: &SurfaceCurve<T>,
-        row: &'static str,
         band: Band,
-    ) -> Result<CoSurface<T>, AcrossRefusal> {
+    ) -> Result<CoSurface<T>, AcrossRefusal<T>> {
         self.same_record(curve)?;
-        let (on, normal) = curve.plane();
-        match span_plane_meet(self.carrier, self.span, SpanEnds::Ended, on, normal, band) {
-            Ok(Some(found)) => Ok(decided(found, self.carrier, row, band)?),
-            Ok(None) => Ok(CoSurface::Unlaned),
-            Err(fault) => Err(ConicRootFault::diag(fault).into()),
-        }
-    }
-
-    /// **The plane the edge's carrier lies in**, a point and a unit
-    /// normal: a conic's own, a spiric's cutting plane. A line lies in no
-    /// one plane (`None`).
-    pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>)> {
-        match *self.carrier {
-            Curve3::Circle(Circle { frame, .. }) | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Some((frame.origin, frame.axis))
-            }
-            Curve3::Spiric {
-                center,
-                u_ref,
-                offset,
-                ..
-            } => Some((center + u_ref * offset, u_ref)),
-            _ => None,
-        }
-    }
-
-    /// **`curve` over `span` across the edge's plane** ([`Self::plane`]):
-    /// the other way to read the pair, where the edge's carrier has no
-    /// closed form across the curve's plane or that plane is tangent to
-    /// the surface along the edge. The plane door's roots are in the
-    /// curve's own parameter, each with its point, decided as
-    /// [`Self::across`] decides (a curve parallel to the plane in it or
-    /// apart on `row`'s offset). An edge in no one plane is
-    /// [`CoSurface::Unlaned`].
-    ///
-    /// # Errors
-    ///
-    /// [`AcrossRefusal::OffRecord`] where the edge's record is not the
-    /// curve's; [`AcrossRefusal::InBand`] where a rung of the plane door or
-    /// an offset is in band.
-    pub fn under(
-        &self,
-        curve: &SurfaceCurve<T>,
-        span: (T, T),
-        ends: SpanEnds,
-        row: &'static str,
-        band: Band,
-    ) -> Result<CoSurface<T>, AcrossRefusal> {
-        self.same_record(curve)?;
-        let Some((on, normal)) = self.plane() else {
-            return Ok(CoSurface::Unlaned);
+        let (origin, normal) = curve.plane();
+        let plane = geom::Surface::Plane {
+            origin,
+            normal,
+            u_ref: normal.orthonormal_basis().0,
         };
-        let carrier = curve.carrier();
-        match span_plane_meet(&carrier, span, ends, on, normal, band) {
-            Ok(Some(found)) => Ok(decided(found, &carrier, row, band)?),
-            Ok(None) => unreachable!("a surface curve is a circle or a line"),
-            Err(fault) => Err(ConicRootFault::diag(fault).into()),
-        }
+        let read =
+            crate::curve_face::cross(&super::Span::new(self.carrier, self.span), &plane, band)
+                .map_err(AcrossRefusal::Windows)?;
+        Ok(match read.pose {
+            Pose::Lies => CoSurface::InPlane,
+            Pose::Tangent(_) => CoSurface::Touch,
+            Pose::Apart | Pose::Isolated(_) | Pose::Through(_) => CoSurface::Roots(read.meetings),
+        })
     }
 
     /// The pair's records agree, or the arm refuses it.
-    fn same_record(&self, curve: &SurfaceCurve<T>) -> Result<(), AcrossRefusal> {
+    fn same_record(&self, curve: &SurfaceCurve<T>) -> Result<(), AcrossRefusal<T>> {
         if self.on == curve.record() {
             Ok(())
         } else {
@@ -1027,7 +948,7 @@ mod tests {
             SurfaceCurve::parallel(&on(&torus), Point2::new(FRAC_PI_2, 0.0), true).unwrap();
         let carrier = parallel.carrier();
         let CoSurface::Roots(roots) = OnSurface::edge(key(), &carrier, (-1.0, 2.0 * PI - 1.0))
-            .across(&meridian, ROW, b())
+            .across(&meridian, b())
             .unwrap()
         else {
             unreachable!("a parallel crosses a meridian's plane")
@@ -1035,13 +956,13 @@ mod tests {
         assert_eq!(roots.len(), 2);
         let mut sides: Vec<(f64, Sign)> = roots
             .iter()
-            .map(|&(_, y)| (y.x, meridian.section_of(y, ROW, b()).unwrap()))
+            .map(|m| (m.point.x, meridian.section_of(m.point, ROW, b()).unwrap()))
             .collect();
         sides.sort_by(|a, b| a.0.total_cmp(&b.0));
         assert!((sides[0].0 + 6.5).abs() < 1e-12 && (sides[1].0 - 6.5).abs() < 1e-12);
         assert_eq!((sides[0].1, sides[1].1), (Sign::Negative, Sign::Positive));
         let short = OnSurface::edge(key(), &carrier, (0.2, 1.0))
-            .across(&meridian, ROW, b())
+            .across(&meridian, b())
             .unwrap();
         assert!(
             matches!(short, CoSurface::Roots(ref r) if r.is_empty()),
@@ -1049,7 +970,7 @@ mod tests {
         );
         let own = meridian.carrier();
         let in_plane = OnSurface::edge(key(), &own, (0.0, 1.0))
-            .across(&meridian, ROW, b())
+            .across(&meridian, b())
             .unwrap();
         assert!(matches!(in_plane, CoSurface::InPlane), "{in_plane:?}");
     }
@@ -1074,34 +995,14 @@ mod tests {
         .unwrap();
         let carrier = parallel.carrier();
         let span = (-1.0, 2.0 * PI - 1.0);
-        assert_eq!(
-            OnSurface::edge(other, &carrier, span)
-                .across(&meridian, ROW, b())
-                .unwrap_err(),
-            AcrossRefusal::OffRecord {
-                edge: other,
-                curve: mine
-            }
-        );
         assert!(matches!(
-            OnSurface::edge(mine, &carrier, span).across(&meridian, ROW, b()),
-            Ok(CoSurface::Roots(ref roots)) if roots.len() == 2
+            OnSurface::edge(other, &carrier, span)
+                .across(&meridian, b())
+                .unwrap_err(),
+            AcrossRefusal::OffRecord { edge, curve } if edge == other && curve == mine
         ));
-        // The other way, the meridian across the parallel edge's plane,
-        // is refused alike: no reading of the pair skips the check.
-        let whole = (0.0, 2.0 * PI);
-        assert_eq!(
-            OnSurface::edge(other, &carrier, span)
-                .under(&meridian, whole, SpanEnds::Endless, ROW, b())
-                .unwrap_err(),
-            AcrossRefusal::OffRecord {
-                edge: other,
-                curve: mine
-            }
-        );
         assert!(matches!(
-            OnSurface::edge(mine, &carrier, span)
-                .under(&meridian, whole, SpanEnds::Endless, ROW, b()),
+            OnSurface::edge(mine, &carrier, span).across(&meridian, b()),
             Ok(CoSurface::Roots(ref roots)) if roots.len() == 2
         ));
     }
@@ -1140,21 +1041,21 @@ mod tests {
         let circle = |cy: f64| geom::Curve3::circle(Point3::new(0.0, cy, 0.0), z(), 1.0, x());
         let near = circle(0.5);
         let CoSurface::Roots(roots) = OnSurface::edge(key(), &near, (-PI, PI))
-            .across(&line, ROW, b())
+            .across(&line, b())
             .unwrap()
         else {
             unreachable!("a circle through the line crosses its plane")
         };
-        let mut xs: Vec<f64> = roots.iter().map(|&(_, y)| y.x).collect();
+        let mut xs: Vec<f64> = roots.iter().map(|m| m.point.x).collect();
         xs.sort_by(f64::total_cmp);
         assert_eq!(xs.len(), 2);
         assert!((xs[0] + 0.75f64.sqrt()).abs() < 1e-12 && (xs[1] - 0.75f64.sqrt()).abs() < 1e-12);
-        for &(_, y) in &roots {
-            assert_eq!(line.section_of(y, ROW, b()).unwrap(), Sign::Positive);
+        for m in &roots {
+            assert_eq!(line.section_of(m.point, ROW, b()).unwrap(), Sign::Positive);
         }
         let clear = circle(2.0);
         let apart = OnSurface::edge(key(), &clear, (-PI, PI))
-            .across(&line, ROW, b())
+            .across(&line, b())
             .unwrap();
         assert!(
             matches!(apart, CoSurface::Roots(ref r) if r.is_empty()),
@@ -1162,7 +1063,7 @@ mod tests {
         );
         let tangent = circle(1.0);
         let touch = OnSurface::edge(key(), &tangent, (-PI, PI))
-            .across(&line, ROW, b())
+            .across(&line, b())
             .unwrap();
         assert!(matches!(touch, CoSurface::Touch), "{touch:?}");
     }

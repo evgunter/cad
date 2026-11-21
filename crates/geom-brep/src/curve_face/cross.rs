@@ -85,6 +85,25 @@ pub enum CrossWhy {
     },
 }
 
+impl CrossWhy {
+    /// **The window's diagnostics, where it was read in the band**: a
+    /// pose rung's, or the placement's or a method's escalation (a root in
+    /// band of an end, two roots the band cannot order). `None` for a
+    /// window no margin reads: a limit, an unbuilt or enclosed arm, a
+    /// fault.
+    #[must_use]
+    pub fn diag(self) -> Option<Indeterminate> {
+        match self {
+            Self::Pose(PoseRefusal::InBand { diag, .. })
+            | Self::Method {
+                fault: MeetFault::Escalated(diag) | MeetFault::Touch(diag),
+                ..
+            } => Some(diag),
+            Self::Pose(_) | Self::Method { .. } => None,
+        }
+    }
+}
+
 /// **The crossing reading, read past what it could not read**: the
 /// meetings decided outside the windows, never the complete set, and the
 /// windows of the span it could not read. Exact outside the windows,
