@@ -176,3 +176,92 @@ five-times row), the edge spec's speed meters 13 % (partly
 the march 8 %. The target (under about 0.5 s) is not reached; the
 largest remaining levers are certificates taken more than once, whose
 sharing is the design question the five-times row names.
+
+## 2026-11-21: re-measured after PRs 7173 and 7193
+
+On main `afa8184d`, 4 cores with nothing else running (`top` 90 % idle
+between rounds; the load average of 1.6–3.3 was these runs' own volume
+workers and builds that had finished before timing began). Each op was
+timed alone by a throwaway timer (not committed), each run in a fresh
+process, because a second op in one process reads the first one's
+session memos and comes in 20–30 % faster. Every op ends in a body.
+
+**Build the timer outside the dev-dependencies.** An example under
+`crates/sweep/examples/` links sweep's dev-dependency
+`geom-brep/read-pins-testing`, whose pin derives every certificate read
+by its support again to compare it (`locus_certificate::read_or_derive`).
+That took 14 % of ball ∪ rod's samples (21 of 150) and 0.2–0.5 s per op. The
+tables below come from a throwaway `src/bin/` target built with
+`--features test-support` only, checked to lack the pin's panic string.
+The viewer's own build doesn't link the pin either: viewer names it under
+`[dev-dependencies]` only.
+
+Median of three runs each, in seconds:
+
+| operation | `--release` (opt 3, debug assertions on, as the viewer builds), default ε | same, ε 1e-12 | opt 2, assertions and overflow checks off, default ε | same, ε 1e-12 | 11-20 branch, opt 2, default → 1e-12 |
+|---|---|---|---|---|---|
+| ball ∪ rod | 2.05 (1.91–2.07) | 10.72 (10.68–11.03) | 2.35 (2.23–2.45) | 13.09 (12.68–13.81) | 2.43 → 15.40 |
+| ball ∖ rod | 1.79 (1.67–1.99) | 10.22 (9.92–10.56) | 2.19 (2.16–2.58) | 12.41 (12.14–12.79) | 1.80 → 11.12 |
+| ball ∪ stub | 1.12 (1.06–1.13) | 6.27 (6.11–6.31) | 1.49 (1.32–1.53) | 7.68 (7.39–7.82) | 1.70 → 8.79 |
+| ball ∖ stub | 1.04 (1.03–1.11) | 6.34 (6.31–6.50) | 1.56 (1.53–1.69) | 7.79 (7.49–8.34) | 1.22 → 6.64 |
+
+The unions moved a little (3–15 %). The two differences came back 20–30 %
+slower than the 11-20 branch, which was not traced. The viewer's
+build is about 0.85× the opt-2 one.
+
+**Where the time goes** (ball ∪ rod, default ε, the opt-2 build with
+line tables). There are 150 gdb samples, one per fresh process, each at a uniform
+offset into the op. Each sample covers the main thread and the four
+rayon workers. The workers run only in the volume, so the volume's main-thread
+share below is its wall time. "Inclusive" is the main thread's share; seconds
+are that share of 2.35 s. Timers and counts come from throwaway
+`eprintln!` counters on the same build, two runs, since reverted.
+
+| stage (main thread, exclusive) | inclusive | ≈ s | what is under it |
+|---|---|---|---|
+| the join's edge door (`chord_join::join` → `euler::mef` → `certify_edge_spec` → `run_checks`) | 45 % | 1.07 | below |
+| · rung 3 (`edge_nurbs::analytic_rung3`) | 29 % | 0.58–0.68 timed | **12 calls**. Limb 2 (`limb2_offset_sup` → `twin_span_hulls` → `spans_of` → `piece_controls` → blossom `restrict`) is 26 %; the tube (`tube_bounds`, 12 calls, 0.06 s) is 3 % |
+| · check 2's turn (`decide_turn` → the speed meters) | 13 % | 0.25 timed | 142 calls; `speed_pieces` is 11 % of it |
+| · the rest of the door | 3 % | | |
+| the pcurve mint (`mint_pcurves` → `certify_stated_image` → `certify_projected` → `run_projected_checks`) | 23 % | 0.48–0.53 timed | **8 calls**, one per kept row; check 4's terms 15 %, `projected_hull` 11 %, `frame_box_on` 9 % |
+| the result gate's volume (`plus_v_by_sign` → `at_round_zero` → `decide_faces`, main waiting on rayon) | 22 % | 0.56 timed | about 3 of 4 workers busy. Of the workers' samples, `rotational_cut_face_rounds` is 83 %, `length_bound` 13 %, `projected_edge::of_image` 4 % |
+| the section table's march (`germ_branch` → `SectionTable::carried` → `march_over_the_ball`) | 9 % | 0.22 timed | **1 march** |
+| the rest of the result gate | < 1 % | | |
+
+Cross-cutting, inclusive: `twin_span_hulls` 36 % (56 calls; under limb 2
+and under the mint's check 4), the speed meters' `speed_pieces` 15 % (28
+computes, 0.46 s timed, in the turn and the mint), `session_memo` 17 %.
+Self (leaf) time is spread out. Main-thread futex wait is 22 %, the volume's
+wait. The interval rounding kernels (`two_sum_err`, `upper_of`, `make`,
+`from_bounds`, `add_lo`, `two_prod_witness`, `signed_corners`) are about
+25 %, malloc/free about 11 %, the knot locate in `spline::locate` 5 %, and no
+other leaf is over 3 %.
+
+Counted: limb 2 is 40 calls, with 24 memo reads and 16 misses. Locus
+certificates are 20 derived and 56 read by support. Row certificates are 56
+derived and 8 read. Rung 3 is down from 40 calls on 16 inputs (11-20) to 12
+(PR 7193), so what remains of it is first derivations, and limb 2's rounds are
+now most of that cost. Its memo no longer serves repeats because none are left.
+
+**Lever → row, and the saving if it landed** (ball ∪ rod, opt 2, 2.35 s):
+
+| stage | share | owning row | estimated saving |
+|---|---|---|---|
+| rung 3's 12 derivations | 29 % | `work/sect/a-chords-locus-certificate-is-not-its-section-components-cut-to-its-span.md` (P2, design): read the component's certificate instead of deriving again | ≈ 0.55–0.6 s, less option 1's cut charge (small). It removes the 12 rung-3 calls; it does not remove the 16 limb-2 calls outside rung 3 |
+| the volume | 22 % | `work/quad/a-ball-and-cylinder-results-volume-is-a-fifth-of-the-boolean.md` (P2) | ≈ 0.25 s for half the rounds; at most ≈ 0.5 s |
+| the speed meters | 11–15 % | `work/nurbs/a-curve-cloned-before-its-speed-meters-first-read-computes-them-again.md` (P3): the clones' recomputes only | ≈ 0.13 s (that row's 8 of 18 recomputes); the first computes stay |
+| the march | 9 % | `work/sect/a-surface-pairs-march-is-repeated-per-operation-and-per-germ.md` (P3) | 0 within one op (already 1 march); ≈ 0.22 s on a later op on the same pair, only with a cross-operation cache |
+| (no stage) | — | `work/sect/a-same-kind-pairs-canonical-order-reads-arena-keys.md` (P3) | ≈ 0: ball ∪ rod has no same-kind pair (sphere × cylinder, plane × cylinder) |
+| the pcurve mint's 8 projected certificates | 23 % | **unowned**: three doors became one in `a-fitted-chords-projected-pcurve-certificate-is-taken-at-three-doors-per-operation` (closed), but no row owns the first certificate's cost | — |
+| check 2's turn, apart from the clone recomputes | ≈ 8–10 % | **unowned** | — |
+| the march itself, within one op | 9 % | **unowned** (its row shares marches; it does not make one cheaper) | — |
+
+**Is the ~0.5 s target reachable through these rows? No.** Suppose all five
+land at their best: −0.6 (locus), −0.5 (volume), −0.13 (meters),
+0 (march), 0 (order). That leaves ball ∪ rod at about 1.1 s at opt 2, or about
+0.95 s in the viewer's build. What would remain is mostly unowned: the mint's
+projected certificates (0.5 s), the turn's first speed-meter computes
+(≈ 0.2 s) and the march (0.22 s). Getting under 0.5 s also needs one
+of those three made cheaper, and the largest is check 4 on a fitted
+carrier's row. At 1e-12 the ops are 4.5–5.5× the default ε and the
+target is out of sight on any of these levers.
