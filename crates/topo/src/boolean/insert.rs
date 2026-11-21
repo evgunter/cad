@@ -1901,9 +1901,10 @@ fn flankers_of<T: Decide>(
 /// its end bound toward its start: the sign of `(x × y)·n`, `Negative`
 /// where `y` lies after `x`, `Zero` where the two lie along one
 /// direction. The rotation from start to end is positive about the
-/// sector's normal, the convention `sectors::within` reads. It is
-/// levered at the sector's arm and the two directions' leans
-/// (`sectors::leaned`). An in-band reading refuses as the
+/// sector's normal, the convention `sectors::within` reads. The reading
+/// is foreshortened by the two directions' smaller lean
+/// (`sectors::leaned`) and levered at the sector's arm, the metering
+/// arm the sector carries. An in-band reading refuses as the
 /// coincidence it is, as the strut order's does.
 fn walks_after<T: Decide>(
     s: &BoolSector<T>,
@@ -1931,7 +1932,7 @@ fn walks_after<T: Decide>(
     }
 }
 
-/// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
+/// **A fan's turn from `x`'s ruling to `y`'s**, read as the sector's
 /// sides are ([`leaned`]): the one margin [`walks_after`] and
 /// [`walk_faces_first`] read a fan's order by
 /// ([`crate::sector_face::ConeApex::turn`]).
