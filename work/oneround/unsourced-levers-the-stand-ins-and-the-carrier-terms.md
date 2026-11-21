@@ -2,7 +2,7 @@
 id: unsourced-levers-the-stand-ins-and-the-carrier-terms
 kind: unit
 title: The unsourced arms that are not a lever at all: a tolerance or rounding standing in for an arm, and a carrier's stored term, each re-posed by the role its length plays
-status: spec
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: H

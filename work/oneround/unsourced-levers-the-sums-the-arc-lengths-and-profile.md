@@ -2,7 +2,7 @@
 id: unsourced-levers-the-sums-the-arc-lengths-and-profile
 kind: unit
 title: The unsourced arms whose source exists and moves verdicts: sums of reaches read as a union, arc lengths read as extents, and profile's six read through the point-level home
-status: spec
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: M

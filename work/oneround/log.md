@@ -171,3 +171,4 @@
   - Both stack on `oneround/unsourced-bits` (PR 7227, in review): they share its pin file and nothing else.
   - **Left on the parent row for the records unit** (Ev's condition): family 3, and every site whose arm sits in a record (`SectionOval.extent`, editor-core's `Arm`, the metering arm's three records, `vtxfac`'s ball, `coincide::replay`, editor-core `trace`); then the bare arms and the deletion of the doors.
   - `sizes-are-read-back-out-of-extent-levers` (P1, M) waits for PRs 7219 and 7228 to merge: its ten sites sit in files both of them change, and two of them are records.
+- 2026-11-21, 04:50Z — (ONEROUND orchestrator) Both dispatched (draws on the analysis branch): `oneround/unsourced-stand-ins` in `session_01EdpJs6vobfZ9ZK9ga7x73b`, `oneround/unsourced-unions` in `session_01EdpJs6ZecLYvkWXBcpRWzy`. Each brief carries the stop-to-ask rule, and a sweep for the shape (a number that is no extent handed to a NAMED door) rides the stand-ins unit.
