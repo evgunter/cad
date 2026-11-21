@@ -3128,3 +3128,257 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ------------------------------------- a boundary C¹ through a vertex
+
+/// The class of the verdict door's answer over every face of `body`
+/// (`topo::clearance::embedded`), at the default depth and budget:
+/// `Embedded`, `Crosses`, or the refusal with the arm and the kinds of
+/// the two faces it names.
+fn door_class<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> String {
+    door_over(body, body.faces().map(|(k, _)| k).collect())
+}
+
+/// [`door_class`] over `faces` of `body` alone.
+fn door_over<T: Scalar + geom_core::Certifies>(body: &Body<T>, faces: Vec<FaceKey>) -> String {
+    use topo::clearance::{Embedding, embedded};
+    let report = embedded(
+        &Side { body, faces },
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    );
+    match report.verdict {
+        Embedding::Embedded => "Embedded".into(),
+        Embedding::Crosses(_) => "Crosses".into(),
+        Embedding::Refused(EngineRefusal::Uncertified {
+            a, b, shared, arm, ..
+        }) => {
+            let cell = match shared {
+                SharedCell::Edge(_) => "an edge",
+                SharedCell::Vertex(_) => "a vertex",
+                SharedCell::Face(_) => "a face",
+            };
+            let mut kinds = [kind(body, a), kind(body, b)];
+            kinds.sort_unstable();
+            format!(
+                "Uncertified {arm:?} {} x {} across {cell}",
+                kinds[0], kinds[1]
+            )
+        }
+        Embedding::Refused(other) => format!("Refused {other:?}"),
+    }
+}
+
+/// A rigid turn about a generic axis through a generic point, and a
+/// placement a hundred units from the origin: the two poses every body
+/// of this section is also asked in.
+fn poses() -> [(&'static str, geom_core::Affine3<f64>); 2] {
+    use geom_core::{Affine3, Vec3};
+    let axis = Vec3::new(0.3, -0.5, 0.81);
+    let axis = axis * (1.0 / axis.norm());
+    let turn = Affine3::rotation_about_axis(Point3::new(0.2, -0.1, 0.3), axis, 0.7);
+    let far = Affine3::translation(Vec3::new(100.0, -60.0, 80.0));
+    [
+        ("turned about a generic axis", turn),
+        ("a hundred units out", far),
+    ]
+}
+
+/// `edges` of `body` filleted at `r`, at rest; `None` where the
+/// certified scalar's touch reading escalates at the tightest ε
+/// ([`crate::band_closed_mixed_chain_shapes::tightest_interval`]).
+fn rounded<T: Scalar>(
+    what: &str,
+    body: &Body<T>,
+    edges: &[topo::EdgeKey],
+    r: f64,
+) -> Option<topo::AtRestBody<T>> {
+    use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
+    match sweep::blend::fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        edges,
+        T::from_f64(r),
+        tol(),
+    ) {
+        Ok(out) => Some(out.body),
+        Err(e) if tightest_interval::<T>() => {
+            assert_touch_escalation(what, &e.error);
+            println!("[tangent] {what}: SKIPPED, the fillet's touch escalates at this ε");
+            None
+        }
+        Err(e) => panic!("{what}: fillets, got {:?}", e.error),
+    }
+}
+
+/// `body` asked at the verdict door as built and in each of [`poses`]:
+/// every answer is `want`.
+fn door_reads<T: Scalar + geom_core::Certifies>(
+    what: &str,
+    body: Option<topo::AtRestBody<T>>,
+    want: &str,
+) {
+    let Some(body) = body else {
+        return;
+    };
+    assert_eq!(door_class::<T>(&body), want, "{what}, as built");
+    for (pose, m) in poses() {
+        assert_eq!(door_class::<T>(&moved(&body, &m)), want, "{what}, {pose}");
+    }
+}
+
+/// The inset corner (`band_mixed_corner::inset`), its three edges
+/// filleted at `0.1`: the plate's top is bounded by the corner patch's
+/// arc and, tangent to it at each end, a strip's straight foot, the face
+/// outside the arc's circle.
+fn inset_filleted<T: Scalar>() -> Option<topo::AtRestBody<T>> {
+    let (body, edges) = crate::band_mixed_corner::inset::<T>();
+    rounded("the inset corner", &body, &edges, 0.1)
+}
+
+/// A `2 × 1.2 × 0.5` plate of corner radius `0.3`, every edge filleted
+/// at `0.1`: each cap is bounded by four arcs and the four lines tangent
+/// to them, the face inside each arc's circle.
+fn rounded_plate<T: Scalar>() -> Option<topo::AtRestBody<T>> {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
+    let body = prism::<T>(&rect(1.0, 0.6, [0.3; 4]), 0.0, 0.5);
+    rounded("the rounded plate", &body, &every_edge(&body), 0.1)
+}
+
+/// The four-arc barrel (`band_closed_mixed_chain_shapes`), every edge
+/// filleted at `0.05`: each cap is bounded by four arcs of two radii,
+/// each tangent to the next, and no line.
+fn barrel<T: Scalar>() -> Option<topo::AtRestBody<T>> {
+    use crate::band_closed_mixed_chain_shapes::{arcs, every_edge, prism};
+    use core::f64::consts::PI;
+    let (a, c, r1) = (0.6_f64, 0.4_f64, 0.3_f64);
+    let r2 = a.hypot(c) + r1;
+    let t0 = c.atan2(a);
+    let o = arcs(&[
+        ((a, 0.0), r1, -t0, 2.0 * t0),
+        ((0.0, -c), r2, t0, PI - 2.0 * t0),
+        ((-a, 0.0), r1, PI - t0, 2.0 * t0),
+        ((0.0, c), r2, PI + t0, PI - 2.0 * t0),
+    ]);
+    let body = prism::<T>(&o, 0.0, 0.5);
+    rounded("the barrel", &body, &every_edge(&body), 0.05)
+}
+
+/// **A support face whose boundary is C¹ through a vertex is embedded
+/// against the band faces that meet it there**: a fillet band's corner
+/// patch is a torus whose foot on the support plane is an arc, tangent
+/// at each end to a strip's straight foot (or, on the barrel, to the
+/// next patch's arc), and tangent to the plane along it, so neither
+/// carrier parts the pair and the plane's cell at the joint is read by
+/// no edge alone. The arc and the next edge are read as one run through
+/// the vertex (`topo::injective`'s `present_corner`), from either edge,
+/// under a graph separator run on along both.
+///
+/// Three bodies: the face outside the arc's circle (the inset corner),
+/// inside it (the rounded plate), and an arc into an arc of another
+/// radius (the barrel). Each as built, turned about a generic axis and
+/// placed a hundred units out. Red if the run is withdrawn (every one
+/// then refuses `Uncertified Departure plane x torus across an edge`),
+/// if it is read from the arc's side only (the inset corner then
+/// refuses plane x cylinder), or if its other edge must be straight
+/// (the barrel).
+#[test]
+fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
+    door_reads::<f64>("the inset corner", inset_filleted(), "Embedded");
+    door_reads::<f64>("the rounded plate", rounded_plate(), "Embedded");
+    door_reads::<f64>("the barrel", barrel(), "Embedded");
+}
+
+/// **The same bodies at `Interval`**, the scalar the shell gate and the
+/// document door ask at, as built. Every support plane against every
+/// corner patch it shares an arc with holds, asked alone: the run reads
+/// there as at `f64`. The whole bodies do not: each refuses on a pair
+/// this reading does not touch, pinned here as found, a finding and not
+/// a target (`work/embed/a-line-tangent-to-an-arc-at-their-vertex-is-read-by-no-corner-presentation.md`
+/// names the rows):
+/// - the inset corner, a wall plane against the patch at a vertex they
+///   share alone;
+/// - the rounded plate, a strip against a patch across their meridian;
+/// - the barrel, two walls across their tangent seam.
+///
+/// Red if the run reads at `f64` only (a plane against a patch then
+/// refuses across an edge), or if one of the three findings closes: the
+/// pin then moves to `Embedded`.
+#[test]
+fn a_support_face_c1_through_a_vertex_at_interval() {
+    for (what, body, whole) in [
+        (
+            "the inset corner",
+            inset_filleted::<Interval>(),
+            "Uncertified Departure plane x torus across a vertex",
+        ),
+        (
+            "the rounded plate",
+            rounded_plate::<Interval>(),
+            "Uncertified Departure cylinder x torus across an edge",
+        ),
+        (
+            "the barrel",
+            barrel::<Interval>(),
+            "Uncertified Departure cylinder x cylinder across an edge",
+        ),
+    ] {
+        let Some(body) = body else {
+            continue;
+        };
+        let mut held = 0;
+        for (a, b) in touching_pairs(&body) {
+            let mut kinds = [kind(&body, a), kind(&body, b)];
+            kinds.sort_unstable();
+            if kinds != ["plane", "torus"] {
+                continue;
+            }
+            let class = door_over::<Interval>(&body, vec![a, b]);
+            assert!(
+                !class.ends_with("across an edge"),
+                "{what} at Interval: a plane against a patch across their arc: {class}"
+            );
+            held += usize::from(class == "Embedded");
+        }
+        assert!(
+            held > 0,
+            "{what} at Interval: a plane holds against a patch"
+        );
+        assert_eq!(
+            door_class::<Interval>(&body),
+            whole,
+            "{what} at Interval, whole"
+        );
+    }
+}
+
+/// **A copy pushed through a tangent joint crosses**: the inset corner
+/// filleted, and a copy of it moved `0.02` along `(1, 1, 0)`, grafted in
+/// as a solid of its own. The copy's support plane is the body's own, so
+/// its corner patch passes through the body's plate top beside the
+/// joint. Faces of two solids share nothing in M, so the crossing is
+/// decided by distance: the row pins that reading the joint as one run
+/// leaves a crossing beside it to be found. A fold through the joint's
+/// own cell is `injective`'s `a_fold_through_a_tangent_joint_is_not_certified`.
+#[test]
+fn a_copy_pushed_through_a_tangent_joint_crosses() {
+    fn folded<T: Scalar>() -> Option<Body<T>> {
+        use geom_core::{Affine3, Vec3};
+        let body = inset_filleted::<T>()?;
+        let over = Affine3::translation(Vec3::new(0.02, 0.02, 0.0));
+        let copy = moved(&body, &over);
+        let mut folded = body.into_body();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        Some(folded)
+    }
+    assert_eq!(
+        door_class::<f64>(&folded().expect("f64 fillets")),
+        "Crosses",
+        "the two copies cross"
+    );
+    if let Some(twin) = folded::<Interval>() {
+        assert_eq!(door_class::<Interval>(&twin), "Crosses", "at Interval");
+    }
+}

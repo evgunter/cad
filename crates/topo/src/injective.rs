@@ -3779,7 +3779,7 @@ fn corner_of(
 /// 1. Nothing in reach of `R` bounds the face but `E` and the other
 ///    edge `O` ([`alone`], or [`present_line_corner`]'s own reading),
 ///    and `O` leaves `V` strictly into `E`'s face side and stays there
-///    within `R` ([`leaves_graph`], [`leaves_line`]). So `D`, and the
+///    within `R` ([`leaving`], [`leaves_line`]). So `D`, and the
 ///    continuation of `E` past `V`, hold no point of the boundary.
 /// 2. `D` is connected: across a line it is a convex set; across a
 ///    graph, every column of it reaches the side of `R` the curve is
@@ -4917,7 +4917,7 @@ fn present_vertex_corner<'a>(
 /// that is not told is halved, [`LEAVES`] times at most, and one still
 /// meeting `r` then is `false`. The scan of a curve's copies by whole
 /// turns, for [`leaves_line`] and [`present_vertex_corner`];
-/// [`leaves_graph`]'s straight edge is one segment, read by its hull.
+/// [`leaving`]'s straight edge is one segment, read by its hull.
 fn copy_misses(
     h: &ChartCurve,
     (t0, t1): (f64, f64),
@@ -8623,7 +8623,7 @@ mod presentation_rows {
     /// `(1, 0)` from `(2, 0)`, so it leaves the vertex outside the
     /// circle, on the arc's other side, and the face is the three
     /// quarters about the vertex the region inside the circle does not
-    /// hold. Red if [`leaves_graph`] admits a decided `Negative`.
+    /// hold. Red if [`leaving`] admits a decided `Negative`.
     #[test]
     fn a_reflex_corner_of_a_curved_shared_edge_is_structural() {
         let b = quarter(segment(20, [3, 1], (2.0, 0.0), (1.0, 0.0)), Vec::new());
@@ -10554,7 +10554,7 @@ mod presentation_rows {
     /// face inside the circle, the loop reaching the vertex along it and
     /// leaving along the line to `(2, 0)`, outside the circle — the
     /// quarter disc's reflex corner mirrored, its curve falling along
-    /// `v`. Red if [`leaves_graph`] drops the sign of the column's rate.
+    /// `v`. Red if [`leaving`] drops the sign of the column's rate.
     #[test]
     fn a_reflex_corner_whose_curve_falls_along_its_column_is_structural() {
         let mut b = quarter(segment(20, [1, 3], (1.0, 0.0), (2.0, 0.0)), Vec::new());
@@ -10746,9 +10746,10 @@ mod presentation_rows {
     /// disc's reflex face (the line reaching `(1, 0)` from `(2, 0)`)
     /// holds the circle past the vertex; so does the wall past the
     /// corner. The two coincide there, within the corner cells, a fold of
-    /// M on no shared cell. Red if [`leaves_graph`] admits a decided
-    /// `Negative`: the disc is then presented by the inside of the
-    /// circle, the wall's carrier departs it, and the pair certifies.
+    /// M on no shared cell. Red if [`leaving`] reads a decided
+    /// `Negative` as leaving onto the face's side: the disc is then
+    /// presented by the inside of the circle, the wall's carrier departs
+    /// it, and the pair certifies.
     #[test]
     fn a_fold_through_a_reflex_corner_is_not_certified() {
         let disc = quarter(segment(20, [3, 1], (2.0, 0.0), (1.0, 0.0)), Vec::new());
@@ -10765,11 +10766,37 @@ mod presentation_rows {
         );
     }
 
+    /// **A fold through a tangent joint is not certified.** The quarter
+    /// disc whose line leaves `(1, 0)` along the circle's tangent holds
+    /// the circle past the vertex in its interior, between the circle's
+    /// continuation and the line; the wall past the corner stands on it
+    /// there, a fold of M on no shared cell. The disc is one run of the
+    /// arc and the line, and the wall's side runs on along the circle
+    /// two hundredths past the vertex. Red if [`graph_run`] lets the
+    /// graph's own edge follow its carrier past the vertex further than
+    /// the vertex concession: the graph is then the circle where the
+    /// disc's boundary is the line, and the pair certifies.
+    #[test]
+    fn a_fold_through_a_tangent_joint_is_not_certified() {
+        let disc = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let got = across_the_fold(
+            &disc,
+            [
+                ((0.98, 1.02), (-0.02, 0.02)),
+                ((-0.02, 0.02), (-0.02, 0.02)),
+            ],
+        );
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the fold is not certified: {got:?}"
+        );
+    }
+
     /// **A fold where the other edge crosses back is not certified.** The
     /// quarter disc whose line crosses back out of the continued circle
     /// at `y ≈ −0.04` holds the circle past that point; so does the wall
-    /// past the corner. Red if [`leaves_graph`] decides the tangents at
-    /// the vertex alone.
+    /// past the corner. Red if [`leaving`] decides the tangents at the
+    /// vertex alone.
     #[test]
     fn a_fold_past_a_line_that_crosses_back_is_not_certified() {
         let disc = quarter(segment(20, [3, 1], (0.98, -1.0), (1.0, 0.0)), Vec::new());
@@ -12374,7 +12401,7 @@ mod presentation_rows {
 
     /// **A corner of a shared wall is read through its vertex where the
     /// parallel leaves into the face's side** ([`present_wall`] through
-    /// a corner, [`leaves_graph`]): leaving to lower `u`, inside the
+    /// a corner, [`leaving`]): leaving to lower `u`, inside the
     /// oval's azimuth, the cell is presented through the corner; leaving
     /// to higher `u` it is a reflex corner, `Structural`. Red if a
     /// decided `Negative` is admitted.
