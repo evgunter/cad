@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,spiric_plane,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
@@ -978,11 +978,18 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Two curves on one surface record are not a curve pair to this table.
 Their 3D gap is identically zero in the model, so a contact decision on
 it reads only the construction's rounding against the band. They meet
-where one crosses the other's plane, through the plane door
-(`curve_face::plane_crossing`), at a root on the curve's own section of
-that plane, read through the surface's chart: the co-surface arm
-(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from chart
+where one crosses the other's plane, through the curve × face arm for
+that curve against that plane (`curve_face::cross`), at a root on the
+curve's own section of that plane, read through the surface's chart:
+the co-surface arm (`curve_pair::on_surface`), whose plane door
+(`curve_face::plane_crossing`) shares `meet`'s transverse harmonic
+(`pose::height`). Which curve crosses which plane is fixed per pair of
+curve families, at write time, by one table in the arm, its *direction
+table*, on the transversality rule: the plane is that of a curve whose
+plane is transversal to the surface all along that curve, and a meeting
+is kept only where it lies on both curves' own sections. A pair whose
+curves' planes both touch the surface somewhere along their curves has
+its row fixed all the same, and escalates in band there. A curve on a surface is built from chart
 coordinates on a surface record: its key, and its surface as stored or
 on another chart of it. An edge carries its face's record, and the arm
 refuses a pair on two records whichever way it reads the pair. That the
@@ -990,7 +997,8 @@ key and the surface are one record's stays the caller's: the region
 doors and the sphere cut-in read both off one face, and the planar loop
 walk names its own premise for the ray's plane. Every consumer holding
 two curves on one surface reads that arm (the region doors' landings,
-the sphere cut-in, the planar loop walk's ray against a conic arc), and
+the sphere cut-in, the planar loop walk's ray against a conic or spiric
+arc), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
@@ -1251,7 +1259,14 @@ kind. A door takes typed operands. The plane door has one entry point;
 dropping a root at an end of the span is the consumer's choice on the
 answer's end hit, not the door's. Every door is here (DESIGN's
 Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
-`circle_torus`, `ellipse_torus`, `composite` and `spline_face`. A span
+`circle_torus`, `ellipse_torus`, `spiric_plane`, `composite` and
+`spline_face`. The spiric × plane door reads a spiric span by its
+*section reduction*: the span is one oval of its torus cut by the
+spiric's own plane, so it meets a plane not parallel to that one only
+on the line where the two planes meet, which the line × torus door reads
+against the spiric's own torus over the stretch of the line on the
+oval's side of the axis, each root's minor angle the span's parameter.
+A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
 only where the surface-pair pose decides that pose; where it declines
@@ -1313,10 +1328,11 @@ span against a spline face is unbuilt. Of the analytic arms, the
 plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
 a conic's roots against the plane), the line × quadric door
 (`curve_face::line_quadric`), the conic × quadric door
-(`curve_face::conic_quadric`) and the conic × torus doors
+(`curve_face::conic_quadric`), the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
-shared half-angle root cores `curve_face::circle_roots`) are built
-here, each keeping its method; their classes are the pose's
+shared half-angle root cores `curve_face::circle_roots`) and the spiric
+× plane door (`curve_face::spiric_plane`, over the line × quadric door)
+are built here, each keeping its method; their classes are the pose's
 (`curve_face::pose`, the rows `curve_face_pose_*`, decided in that one
 module), and `curve_face::cross` reads the pose then the door's method,
 placing each root against the span's ends and ordering the meetings
