@@ -819,7 +819,7 @@ fn row_crossing_verdict<T: Decide>(
     };
     let least = match crossing {
         crate::ssi::RowCrossing::Turns => {
-            let zero = Margin::levered(T::from_computed(0.0), extent);
+            let zero = Margin::bound_levered(0.0, extent);
             let decided = crate::dihedral::decide_reported("shared_row_turn", zero, band)
                 .map_err(escalated)?;
             return Err(CertifyError::NotTransverse {
@@ -834,7 +834,7 @@ fn row_crossing_verdict<T: Decide>(
         crate::ssi::RowCrossing::Clear(least) => least,
         crate::ssi::RowCrossing::Unread => f64::NAN,
     };
-    let margin = Margin::levered(T::from_computed(least), extent);
+    let margin = Margin::bound_levered(least, extent);
     crate::dihedral::decide_positive("shared_row_crossing", margin, band).map_err(escalated)
 }
 

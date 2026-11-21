@@ -635,16 +635,29 @@ pub enum TessellateError {
         /// and the refusal rides in every caller's `Result`.
         unresolved: Box<crate::validate::Unresolved>,
     },
-    /// A trimmed face on an analytic chart keeps, after the retry budget,
-    /// a triangle a neighbouring face may make a side of too: an ear of
-    /// its boundary polygon (a triangle on three consecutive chord
-    /// points), or on a cone a side joining two boundary points that are
-    /// not neighbours and that one neighbour holds both of. The neighbour
-    /// may join the same two points, which would make that side an edge
-    /// of four triangles, so it refuses.
-    BoundaryEar {
-        /// The face whose patch keeps the ear.
+    /// A trimmed face keeps, after the retry budget, a triangle with a
+    /// side a neighbouring face may make too: a side joining two boundary
+    /// points that are not neighbours on their loop and that one
+    /// neighbour holds both of (an ear's third side is the nearest case).
+    /// The neighbour may join the same two points, which would make that
+    /// side an edge of four triangles, so it refuses.
+    UnclearedSharedSide {
+        /// The face whose patch keeps the triangle.
         face: FaceKey,
+    },
+    /// The faces' patches, joined, use one side between two boundary
+    /// points more often than two triangles per chord carrying it (two
+    /// for a side no chord carries): an edge of the mesh that is not
+    /// manifold, which [`crate::validate::check_mesh`] would refuse
+    /// `NonManifoldEdge`. Raised where the patches join, on every lane;
+    /// two faces across one chord chain that both use one chord between
+    /// two of its points as an interior edge reach it. A different δ may
+    /// clear it.
+    OverusedSide {
+        /// The faces whose patches use the side, in arena order.
+        faces: Vec<FaceKey>,
+        /// The triangles using it.
+        uses: usize,
     },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
@@ -658,6 +671,20 @@ pub enum TessellateError {
         edge: EdgeKey,
         /// What the arm cannot mesh.
         cause: SphereTrimCause,
+    },
+    /// A loop shaped as the wrap strip, one edge's two halves pole to
+    /// pole and back (an empty chart image whose two tips lie on two
+    /// distinct singular points), whose stored lift does not move its far
+    /// half exactly one whole turn of the azimuth from its near half
+    /// (`walk::wrap_strip`). The turn round a singular point is the
+    /// joint's stored element there, so a lift that disagrees with the
+    /// loop's shape is a defect of the body's rows. No door mints one.
+    WrapStripTurn {
+        /// The refused face.
+        face: FaceKey,
+        /// The far half's lift relative to the near half's, or `None`
+        /// where the face's lift holds no row for one of the two.
+        turn: Option<topo::Deck>,
     },
 }
 
@@ -1025,11 +1052,18 @@ impl TessellateError {
                     ulps = crate::cert::ROUNDING_ULPS,
                 )
             }
-            Self::BoundaryEar { .. } => f.write_str(
-                "tessellate: a trimmed face's patch keeps a triangle on three \
-                 consecutive boundary chord points after its retries — the face \
-                 across that chain may cut the same one, leaving an edge of four \
-                 triangles; a different δ may clear it",
+            Self::UnclearedSharedSide { .. } => f.write_str(
+                "tessellate: a trimmed face's patch keeps, after its retries, a \
+                 triangle with a side between two boundary chord points the face \
+                 across them may join too, leaving an edge of four triangles; a \
+                 different δ may clear it",
+            ),
+            Self::OverusedSide { faces, uses } => write!(
+                f,
+                "tessellate: the faces' patches use one side between two boundary \
+                 points as an edge of {uses} triangles, across {} faces, so the mesh \
+                 is not a closed manifold; a different δ may clear it",
+                faces.len()
             ),
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
@@ -1072,6 +1106,34 @@ impl TessellateError {
                     f,
                     "tessellate: a trimmed face is outside the shapes the trimmed lane \
                      meshes about its chart's poles and apexes — {what}",
+                )
+            }
+            Self::WrapStripTurn { turn, .. } => {
+                write!(
+                    f,
+                    "tessellate: a face's loop walks one edge from pole to pole and \
+                     back, but its stored lift does not turn the face one whole turn \
+                     round the far pole: "
+                )?;
+                match turn {
+                    Some(deck) => write!(
+                        f,
+                        "it moves the far half {} whole turns of the azimuth and {} of \
+                         the second channel{}",
+                        deck.u,
+                        deck.v,
+                        if deck.twin {
+                            ", onto the chart's twin"
+                        } else {
+                            ""
+                        }
+                    )?,
+                    None => write!(f, "it holds no row for one of the edge's two halves")?,
+                }
+                write!(
+                    f,
+                    ". The body's chart rows contradict its loop; re-mint them \
+                     (`topo::mint_pcurves`)"
                 )
             }
         }
