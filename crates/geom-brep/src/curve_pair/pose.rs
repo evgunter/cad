@@ -1702,7 +1702,7 @@ fn line_conic<T: Decide>(
     // decides no gap between them), and ringing drops the one within the
     // band of the found meeting's point.
     let harmonic = match known {
-        [j] if !reflected(&k, &range, j, band) => {
+        [j] if !reflected(&k, &range, j, e, band) => {
             let (lo, hi) = level.roots();
             Harmonic::Cross(vec![lo, hi])
         }
@@ -2542,10 +2542,16 @@ enum Harmonic<T> {
 /// the found one, but on the conic's other branch. An angle not decided
 /// within the ring is read past it, so both roots are read.
 ///
-/// The ring in angle is `e/|C′|max`: an angle within it of `θ_J` runs at
+/// The ring in angle is `e/|C′|max`, `e` the band's escalation: an angle within it of `θ_J` runs at
 /// most `e` of arc, so its point is within `e` of the found one, a chord
 /// no longer than that arc.
-fn reflected<T: Decide>(k: &dyn Conic<T>, r: &Range<T>, j: &Candidate<T>, band: Band) -> bool {
+fn reflected<T: Decide>(
+    k: &dyn Conic<T>,
+    r: &Range<T>,
+    j: &Candidate<T>,
+    e: T,
+    band: Band,
+) -> bool {
     let mirror = r.at_hi + r.at_hi - j.tb;
     if !super::ringed_by([j.point], k.point_at(mirror), band) {
         return true;
@@ -2553,7 +2559,7 @@ fn reflected<T: Decide>(k: &dyn Conic<T>, r: &Range<T>, j: &Candidate<T>, band: 
     let tau = T::pi() + T::pi();
     let turn = mirror - j.tb;
     let least = (turn - tau * (turn / tau + T::from_f64(0.5)).floor()).abs();
-    let ring = T::from_f64(band.escalate()) / k.speed_hi();
+    let ring = e / k.speed_hi();
     matches!(
         geom_core::k_stats::param_order(row::REFLECTION_FAR, least, ring),
         Ok(Sign::Negative | Sign::Zero)
