@@ -278,8 +278,7 @@ mod tests {
                 // The door's noise in residual metres, and the least slope
                 // of the true distance per metre of arc at a crossing.
                 let geom::Surface::Torus {
-                    center,
-                    axis,
+                    frame,
                     major_radius,
                     minor_radius,
                     ..
@@ -287,6 +286,7 @@ mod tests {
                 else {
                     unreachable!("a torus")
                 };
+                let (center, axis) = (frame.origin(), frame.axis());
                 let conic = e.conic().unwrap();
                 let h = crate::conic_torus_harmonics(
                     &conic,
@@ -372,10 +372,12 @@ mod tests {
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01);
         let e = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.5);
         let ball = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.5,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         for (carrier, surface) in [(&circle, &ring), (&e, &ball)] {
             let got = ellipse_torus_roots(carrier, 0.0, 1.0, surface, band());
@@ -575,12 +577,15 @@ mod torus_rows {
 
     impl Pose {
         fn build(&self) -> (geom::Curve3<f64>, geom::Surface<f64>) {
+            // The pose's stated bits where they are a frame already, which
+            // its oracle reads; squared where not.
+            let (o, n, u) = (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::from_array(self.n),
+                Vec3::from_array(self.u),
+            );
             let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::from_array(self.n),
-                    Vec3::from_array(self.u),
-                ),
+                geom::Frame::admitted(o, n, u).unwrap_or_else(|| geom::Frame::new(o, n, u)),
                 self.semi[0],
                 self.semi[1],
             ));
@@ -623,9 +628,9 @@ mod torus_rows {
     /// certified.** Two grazes the fuzz drew at ε = 1e-12, each crossing
     /// the torus twice within 1e-4 rad: there the residual's slope along
     /// the carrier is about 1e-5, so its `f64` rounding moves the bisected
-    /// root by tens of zero bands. The true roots are the 40-digit ones
-    /// `scripts/oracles/ellipse_torus_mpmath.py` finds from the stored
-    /// values. The door refuses both, and never a `Miss`
+    /// root by tens of zero bands. The true roots are the 70-digit ones
+    /// mpmath finds on the stored frames' polar factor (decision 1, PR
+    /// 7131), as the exact oracle reads them. The door refuses both, and never a `Miss`
     /// (they cross); any root it certified would have to lie within the
     /// zero band, as arc length, of a true one. On the first the meter is
     /// what decides: with no slack meter the walk certifies all four of its
@@ -665,10 +670,10 @@ mod torus_rows {
                     arc: [1.226_257_671_700_713_4, 6.066_069_630_592_406_4],
                 },
                 [
-                    1.655_031_910_583_527_7,
-                    1.655_125_629_734_536_3,
-                    2.047_503_220_344_307_7,
-                    5.772_456_607_894_865,
+                    1.655_031_910_575_077_3,
+                    1.655_125_629_742_988_8,
+                    2.047_503_220_344_303,
+                    5.772_456_607_894_866,
                 ],
             ),
             (
@@ -698,10 +703,10 @@ mod torus_rows {
                     arc: [2.866_752_917_421_971, 4.963_815_025_747_772],
                 },
                 [
-                    2.204_785_365_190_525_8,
+                    2.204_785_365_190_526,
                     3.334_730_708_216_815,
-                    3.689_491_881_643_564_1,
-                    3.689_517_963_451_27,
+                    3.689_491_881_650_904,
+                    3.689_517_963_443_929,
                 ],
             ),
         ];
@@ -756,7 +761,9 @@ mod torus_rows {
     /// fuzz drew at ε = 1e-9 crosses the torus six times, two of them
     /// 5.6e-4 rad apart about a bump 3.5e-8 m high, and its arc (the first
     /// below) puts the turn's seam 3e-5 rad past that pair. The six true
-    /// roots are the 50-digit ones mpmath finds from the stored values, and
+    /// roots are the 70-digit ones mpmath finds on the stored frames' polar
+    /// factor (decision 1, PR 7131; the stored entries read as reals put
+    /// the pair 1.1e-13 rad off), and
     /// the exact oracle and the sampled one find the same six. With the arc
     /// moved so the seam falls before, inside and past the pair, a radian
     /// off and two away: at ε 1e-9 the door certifies all six, each within
@@ -770,8 +777,8 @@ mod torus_rows {
             7.565_772_021_816_14,
             8.086_537_994_185_642,
             9.791_087_935_253_971,
-            10.389_850_001_893_556,
-            10.390_414_854_663_097,
+            10.389_850_001_893_45,
+            10.390_414_854_663_204,
         ];
         let t0 = 4.282_277_677_218_393;
         let drawn = 10.215_426_389_017_1;
@@ -1059,18 +1066,12 @@ mod torus_rows {
                     let (
                         geom::Curve3::Ellipse(
                             ellipse @ geom::Ellipse {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        axis,
-                                        u_ref,
-                                    },
+                                frame: carrier_frame_18,
                                 ..
                             },
                         ),
                         geom::Surface::Torus {
-                            center: hub,
-                            axis: t_axis,
+                            frame,
                             major_radius,
                             minor_radius,
                             ..
@@ -1079,6 +1080,12 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
+                    let (center, axis, u_ref) = (
+                        carrier_frame_18.origin(),
+                        carrier_frame_18.axis(),
+                        carrier_frame_18.u_ref(),
+                    );
+                    let (hub, t_axis) = (frame.origin(), frame.axis());
                     let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
                         Ok(Ok(CircleRoots::Certified(found))) => {
@@ -1095,8 +1102,8 @@ mod torus_rows {
                             let r = crate::conic_torus_residual(
                                 &conic,
                                 geom::Line {
-                                    origin: *hub,
-                                    dir: *t_axis,
+                                    origin: hub,
+                                    dir: t_axis,
                                 },
                                 *major_radius,
                                 *minor_radius,
@@ -1114,11 +1121,11 @@ mod torus_rows {
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
                          \"residuals\": {bounds:?}}}",
-                        pt(*center),
-                        v(*axis),
-                        v(*u_ref),
-                        pt(*hub),
-                        v(*t_axis),
+                        pt(center),
+                        v(axis),
+                        v(u_ref),
+                        pt(hub),
+                        v(t_axis),
                     )
                     .unwrap();
                 }

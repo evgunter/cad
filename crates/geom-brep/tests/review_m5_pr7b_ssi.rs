@@ -32,9 +32,7 @@ fn cutting_plane() -> Surface<f64> {
     let u = Vec3::new(1.0, 0.0, 0.0);
     let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.4),
-        normal: n,
-        u_ref: u,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.4), n, u),
     }
 }
 

@@ -422,7 +422,9 @@ fn pair_arm(
 /// sketch's coordinates; `None` on any other carrier.
 fn axis_in_sketch(face: &crate::TracedFace<Lane>) -> Option<geom_core::Vec3<Lane>> {
     match &face.surface {
-        Ok(geom::Surface::Cylinder { axis, .. }) => Some(face.body_to_sketch.transform_vec(*axis)),
+        Ok(geom::Surface::Cylinder { frame, .. }) => {
+            Some(face.body_to_sketch.transform_vec(frame.axis()))
+        }
         _ => None,
     }
 }

@@ -26,48 +26,38 @@ fn gap() -> f64 {
 
 fn plane(z: f64) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::new(0.3, -0.2, z),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.3, -0.2, z), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
 fn wall(r: f64) -> geom::Surface<f64> {
     geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn sphere(r: f64) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The cone of half-angle `π/4` with its apex at the origin, up `z`.
 fn cone() -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The ring torus `(2, 0.7)` about `z`.
 fn torus() -> geom::Surface<f64> {
     geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.7,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -337,9 +327,7 @@ fn a_short_span_far_from_a_touch_is_apart() {
     let touch = hoop.eval(PI / 2.0);
     assert!((touch.y + 1.0).abs() < 1e-15, "the hoop's touch: {touch:?}");
     let floor = |y: f64| geom::Surface::Plane {
-        origin: Point3::new(0.0, y, 0.0),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, y, 0.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     for mid in [0.0, 1.0, 2.0] {
         let span = Span::new(&hoop, (mid - 1e-5, mid + 1e-5));
@@ -394,9 +382,11 @@ fn a_short_span_far_from_a_touch_is_apart() {
 fn a_touch_reaching_into_the_span_is_a_window() {
     let hoop = Curve3::circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_z());
     let poke = geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0 - 0.5e-9),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0 - 0.5e-9),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
     };
     let l = line([1.0 - 0.5e-9, -1.0, 0.0], [0.0, 1.0, 0.0]);
     for (label, span, s) in [
@@ -496,10 +486,8 @@ fn a_touchs_arc_holds_the_in_band_arc() {
 /// The cone of half-angle `alpha` with its apex at the origin, up `z`.
 fn cone_of(alpha: f64) -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -693,9 +681,7 @@ fn a_pair_the_band_cannot_part_is_one_window() {
 fn a_touch_past_the_span_is_windowed_by_its_reach() {
     let hoop = Curve3::circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_z());
     let top = geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     for k in 0..=10 {
         let s = 1e-4 + 1e-5 * f64::from(k);

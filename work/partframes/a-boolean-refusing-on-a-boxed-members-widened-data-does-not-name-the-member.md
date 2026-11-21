@@ -19,9 +19,13 @@ Under a boxed motion the image's data is wider than the source's. A decision the
 - Before placed members, the clear copy's image was finished in the turned frame. Its cylinder's datum, read through the turn, refused at the member's take as `UnfinishedLeaf { input: clear, into: Some(turned) }`, which named both members.
 - The subtract already took its operands this way on main (`wire_subtract` finishes `from` in its own frame, then moves it), so its refusals behave the same.
 
-**Where it goes:** stage 2 (`work/onehome/a-body-records-its-parts-in-their-frames.md`). There the Boolean reads each member through the relative motion at the reading, not on a moved copy, so the widening that causes this refusal goes away. Until then, a refusal raised on a moved member's data could say which member it was carried through, and which turn.
+**Where it goes:** stage 2 (`work/partframes/a-body-records-its-parts-in-their-frames.md`). There the Boolean reads each member through the relative motion at the reading, not on a moved copy, so the widening that causes this refusal goes away. Until then, a refusal raised on a moved member's data could say which member it was carried through, and which turn.
 
 **What is named and what is not.** Where the placed door's move itself refuses (an image past the session box), the refusal names the operand.
 - `topo::PlacedBooleanError::Placed { operand }` and `verbs::VerbError::Placed { operand }` carry the side, and `topo::nary_placed`'s refusal carries the member's place.
 - The fold and the subtract raise it as `NodeErrorKind::UnfinishedLeaf { input, into }`: the operand moved, and the one whose frame it was moved into.
 - A refusal the Boolean raises afterwards, inside its own decisions on the moved copy's widened data, is the one this row is about. It names neither.
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged (Ev, PR 7282: stage 2 split off): its body names stage 2 as where it goes.

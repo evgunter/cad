@@ -753,12 +753,13 @@ fn the_two_section_planes_of_one_split_face_away_from_each_other() {
         let surface = body.get_face(face).expect("a live face").surface;
         body.get_surface(surface).expect("a live carrier").clone()
     };
-    let (topo::Surface::Plane { normal: na, .. }, topo::Surface::Plane { normal: nb, .. }) = (
+    let (topo::Surface::Plane { frame: fa, .. }, topo::Surface::Plane { frame: fb, .. }) = (
         section(SplitHalf::Above, &above),
         section(SplitHalf::Below, &below),
     ) else {
         panic!("planes")
     };
+    let (na, nb) = (fa.axis(), fb.axis());
     assert_eq!(
         format!("{na:?}"),
         format!("{:?}", -nb),

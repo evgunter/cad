@@ -43,8 +43,8 @@ fn face_on(body: &Body<f64>, normal: [f64; 3]) -> topo::FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal: n, .. })
-                    if (n.x - normal[0]).abs() + (n.y - normal[1]).abs() + (n.z - normal[2]).abs() < 1e-12
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.axis().x - normal[0]).abs() + (frame.axis().y - normal[1]).abs() + (frame.axis().z - normal[2]).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)
