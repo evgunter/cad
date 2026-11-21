@@ -682,7 +682,17 @@ mod tests {
         );
         let sweep = Sweep {
             core,
-            core_lever: geom_core::test_support::fixture_lever(2.0),
+            core_lever: crate::ExtentBall::of_covered(
+                geom::cover::Cover::circle(geom::cover::Core {
+                    axis: geom::Line {
+                        origin: core.circle.frame.origin,
+                        dir: core.circle.frame.axis,
+                    },
+                    radius: core.circle.radius(),
+                })
+                .as_ref(),
+            )
+            .lever(),
             spine: Spine::Line(geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 dir: Vec3::new(0.0, 0.0, 1.0),
