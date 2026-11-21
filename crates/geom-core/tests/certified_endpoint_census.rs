@@ -710,9 +710,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        75,
-        "the 75 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        180,
+        78,
+        "the 78 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `ends_on_collapse` (3), \
          `present_chart` (22), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
@@ -734,7 +735,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (4), behind its own `is_certified()` ask. `Trig::psi`'s 3 are its `over` \
          closure, read behind `is_certified()`. `face_extent`'s 4 read each line of the face \
          against its extent, a line it takes only where its value `is_certified()` and places \
-         by whole turns, which keeps it certified. Of the other 102, `reaching_its_singular_points`' 4 \
+         by whole turns, which keeps it certified. `ends_on_collapse` reads \
+         an edge's held coordinate (1) and its image's end (2) behind its own `is_certified()` \
+         ask, to hand them to the incidence decision. Of the other 102, \
+         `reaching_its_singular_points`' 4 \
          read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
          compare the stored extent with it and move the extent to it: the constant's own \
          enclosure, as `present_chart`'s singular reads are; the seeds and selections \
