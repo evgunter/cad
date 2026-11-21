@@ -1708,3 +1708,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - separately, build the `(Spiric, Plane)` arm by the section reduction (`P ∩ Q` against the torus through the built line × torus door), for the slit, the plane split and the planar walk.
 
   It adds ratified text (the table rule), so it goes to Ev as an `[ev]` PR. No design-fork log row (two Opus designers, Fable outage).
+- 2026-11-21 19:50 — **The spiric fork went to Ev as `[ev]` PR 7301**: C5 gains the co-surface direction table (the transversality rule) and the `spiric_plane` door (the section reduction). Ev's PR 6567 and PR 6624 phrases are kept word for word. The co-surface sentence's "through the plane door" becomes "through the curve × face arm (`curve_face::cross`)", a change to ratified words that the PR names. Both designers' revised For Ev sections are in the body as A and B. The orchestrator subscribed to the PR.
