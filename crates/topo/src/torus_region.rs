@@ -95,21 +95,23 @@
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
 
-use geom_core::{Band, Decide, Margin, Point3, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::ray_walk::RayFault;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit,
+    circle_edge_hit, in_band,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
+use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -414,6 +416,51 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     fn charted(&self) -> &Charted<T> {
         &self.charted
+    }
+
+    /// The edge's plane meets the torus in two ovals across its trace: a
+    /// meeting on the edge's own is placed on its span.
+    fn on_edge_plane(
+        &self,
+        edge: &Edge<T>,
+        y: Point3<T>,
+        band: Band,
+    ) -> Result<Option<(T, bool)>, Fault> {
+        let geom::Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius: major,
+            minor_radius: minor,
+            ..
+        } = edge.carrier
+        else {
+            unreachable!("a torus door reads a leg across a spiric's plane only")
+        };
+        let w = y - center;
+        match decide(Self::COMPONENT, Margin::of(w.dot(axis.cross(u_ref))), band)
+            .map_err(in_band)?
+        {
+            Sign::Positive => {}
+            Sign::Negative => return Ok(None),
+            Sign::Zero => return Err(RayFault::Graze),
+        }
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .height_and_distance(y);
+        // The oval's tube circle in its own frame, where `(ρ − R, h)` is
+        // read: its chords are the arc's.
+        let theta = geom::Azimuth::of(h, rho - major).near(geom::mid_param(edge.t0, edge.t1));
+        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), minor, Vec3::unit_x());
+        match geom_brep::curve_pair::Span::new(&circle, (edge.t0, edge.t1)).place_param(theta, band)
+        {
+            Ok(geom_brep::curve_pair::Place::Inside) => Ok(Some((theta, false))),
+            Ok(geom_brep::curve_pair::Place::End(_)) => Ok(Some((theta, true))),
+            Ok(geom_brep::curve_pair::Place::Past) => Ok(None),
+            Err(diag) => Err(in_band(diag)),
+        }
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -914,14 +961,13 @@ mod tests {
         );
     }
 
-    /// **A spiric edge blocks the path, typed.** The plane `x = 1` cuts
-    /// the torus in two ovals, `y > 0` and `y < 0`; an arc of the first
-    /// has no built reading against a leg's plane (the curve × face
-    /// table's `(Spiric, Plane)` route is unbuilt), so every leg against it
-    /// is blocked on the edge as an uncrossable spiric, never set aside as
-    /// a graze or read as no crossing.
+    /// **A leg keeps the crossing on the edge's own oval.** The plane
+    /// `x = 1` cuts the torus in two ovals, `y > 0` and `y < 0`; an arc of
+    /// the first is crossed by the outer equator once, at `y > 0`. The
+    /// `(Spiric, Plane)` route is unbuilt, so the leg is read across the
+    /// oval's plane.
     #[test]
-    fn a_spiric_edge_blocks_the_path_typed() {
+    fn a_leg_keeps_the_crossing_on_the_edges_own_oval() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let oval = RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
@@ -943,17 +989,10 @@ mod tests {
         let region = holding(oval.clone());
         for p in [at(0.2, 0.0), at(2.0, 0.4), at(3.5, -0.3)] {
             let leg = region.parallel(foot(&region, p), true);
-            let got = region::landings(&region, &oval, &leg, b);
+            let got = region::landings(&region, &oval, &leg, b).unwrap();
+            assert_eq!(got.len(), 1, "{p:?}: {got:?}");
             assert!(
-                matches!(
-                    got,
-                    Err(crate::ray_walk::RayFault::Blocked(
-                        RegionRefusal::Unreadable(Uncrossable {
-                            carrier: UncrossableCarrier::Spiric,
-                            ..
-                        })
-                    ))
-                ),
+                got[0].0.y > 0.0 && (got[0].0.x - 1.0).abs() < 1e-12,
                 "{p:?}: {got:?}"
             );
         }

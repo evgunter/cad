@@ -119,12 +119,14 @@ pub struct SplitPlane<T: Real> {
 }
 
 impl<T: Real> SplitPlane<T> {
-    /// The plane as a surface, for the curve × face reading.
-    pub(crate) fn surface(&self) -> geom::Surface<T> {
+    /// The plane as a surface, for the curve × face reading, charted in
+    /// the plane's own frame ([`geom::cover::BoxAxes::aimed`], the frame
+    /// the carrier gate reads reaches in).
+    pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Plane {
             origin: self.origin,
             normal: self.normal.get(),
-            u_ref: self.normal.orthonormal_basis().0,
+            u_ref: geom::cover::BoxAxes::aimed(self.normal).rows()[1],
         }
     }
 }
@@ -132,7 +134,7 @@ impl<T: Real> SplitPlane<T> {
 /// **What an edge's crossing window asks**, as the split ends it
 /// ([`SplitReduceError::CrossingEscalated`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CrossingReading {
+enum CrossingReading {
     /// A decision: `None` a pose rung, which asks whether the plane
     /// coincides with the carrier and takes the split's levers (`parallel`
     /// where it asks whether the carrier runs parallel to the plane),
@@ -152,7 +154,7 @@ pub(crate) enum CrossingReading {
 impl CrossingReading {
     /// What the reading decides, as a clause with no colon or dash of
     /// its own.
-    pub(crate) fn subject(self) -> &'static str {
+    fn subject(self) -> &'static str {
         match self {
             Self::Decision {
                 crossing: Some(decision),
@@ -179,7 +181,7 @@ impl CrossingReading {
 ///
 /// [`MeetFault::Escalated`]: geom_brep::curve_pair::MeetFault::Escalated
 /// [`MeetFault::Touch`]: geom_brep::curve_pair::MeetFault::Touch
-pub(crate) fn crossing_reading(why: CrossWhy) -> CrossingReading {
+fn window_reading(why: CrossWhy) -> CrossingReading {
     use geom_brep::curve_face::{PoseRefusal, PoseRung};
     use geom_brep::curve_pair::MeetFault;
     use geom_brep::edge_crossing::CrossingDecision;
@@ -438,7 +440,7 @@ pub enum SplitReduceError {
     /// ([`geom_brep::curve_face::cross()`]): a pose rung or a root's
     /// placement in the band (the operand/plane pair is ill-conditioned at
     /// this ε), a carrier no lane reads at this scalar, or readings that
-    /// contradict ([`crossing_reading`]).
+    /// contradict ([`window_reading`]).
     CrossingEscalated {
         /// The crossing edge.
         edge: EdgeKey,
@@ -782,7 +784,7 @@ impl SplitReduceError {
             // between the plane and the conic takes the split's levers,
             // since a split takes no declaration.
             Self::CrossingEscalated { fault, .. } => {
-                let reading = crossing_reading(*fault);
+                let reading = window_reading(*fault);
                 match (fault.diag(), reading) {
                     (Some(diag), CrossingReading::Decision { crossing, .. }) => {
                         // The coincidence lever is the same at every door;

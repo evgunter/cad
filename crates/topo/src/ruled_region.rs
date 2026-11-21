@@ -269,6 +269,13 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
             Self::Ruling(line) => line.curve(),
         }
     }
+
+    fn span(&self, end: Option<T>) -> ((T, T), bool) {
+        match self {
+            Self::Parallel(round) => round.span(end),
+            Self::Ruling(line) => line.span(end),
+        }
+    }
 }
 
 /// One leg of a path, along a parallel or a ruling.

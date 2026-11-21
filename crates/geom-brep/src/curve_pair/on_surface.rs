@@ -735,10 +735,16 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     ) -> Result<CoSurface<T>, AcrossRefusal<T>> {
         self.same_record(curve)?;
         let (origin, normal) = curve.plane();
+        // The plane is charted along the curve: a circle's reference, or a
+        // line's direction, each in its plane.
+        let u_ref = match curve.shape {
+            Shape::Circle(c) => c.frame.u_ref,
+            Shape::Line(l) => l.dir,
+        };
         let plane = geom::Surface::Plane {
             origin,
             normal,
-            u_ref: normal.orthonormal_basis().0,
+            u_ref,
         };
         let read =
             crate::curve_face::cross(&super::Span::new(self.carrier, self.span), &plane, band)
