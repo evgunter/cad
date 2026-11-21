@@ -2027,7 +2027,7 @@ fn walls_inside<T: Decide>(
         // How far the wall leaves the floor grows across the line: the
         // lever is the wall's own reach from the line's middle, as a
         // seam's dihedral reads it ([`crate::wedge_reach`]).
-        let arm = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1));
+        let arm = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1), band).below();
         let sectors =
             |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
         // Bent alike, the wall's sheet and the floor's are one to the

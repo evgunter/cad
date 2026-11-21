@@ -1091,7 +1091,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
         p0,
         p1,
         |k| body.get_surface(k).cloned(),
-        crate::edge_wedge_reach(body, edge)?,
+        crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::below)?,
         band,
         geom_brep::NurbsLane::certified(),
     ) {
@@ -1270,7 +1270,9 @@ fn assert_unlisted_members_answer_to_the_gate(
                     m.start,
                     m.end,
                     |k| body.get_surface(k).cloned(),
-                    crate::edge_wedge_reach(body, m.edge).expect("the walk mints no null edge"),
+                    crate::edge_wedge_reach(body, m.edge, band)
+                        .map(geom_brep::LeverBounds::below)
+                        .expect("the walk mints no null edge"),
                     band,
                     geom_brep::NurbsLane::certified(),
                 )
@@ -1371,7 +1373,8 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     ) else {
         return false;
     };
-    let Some(reach) = crate::edge_wedge_reach(body, edge) else {
+    let Some(reach) = crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::below)
+    else {
         return false;
     };
     curve

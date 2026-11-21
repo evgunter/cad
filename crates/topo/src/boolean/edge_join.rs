@@ -728,7 +728,7 @@ fn joinable<T: Decide>(
     // lists first.
     let reach = [e1, e2]
         .into_iter()
-        .filter_map(|e| crate::edge_wedge_reach(body, e))
+        .filter_map(|e| crate::edge_wedge_reach(body, e, band).map(geom_brep::LeverBounds::below))
         .reduce(geom_core::Lever::max);
     let Some(reach) = reach else {
         return Ok(None);

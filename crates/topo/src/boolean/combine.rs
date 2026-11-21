@@ -966,7 +966,9 @@ fn graft_solids_impl<T: geom_core::Decide>(
             crate::edge_faces(src, src_edge_key),
             curve.carrier(),
             curve.params(),
-        );
+            band,
+        )
+        .below();
         let surfaces = |sk| dst.surfaces.get(sk).cloned();
         let recert =
             door(spec, start, end, &surfaces, reach, band).map_err(BooleanError::GraftRecertify)?;

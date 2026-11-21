@@ -77,7 +77,7 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
     let surface = |f| body.face_surface(f).unwrap().clone();
     let (sf, sg) = (surface(f), surface(g));
     let mid = Point3::new(0.0, 0.0, h / 2.0);
-    let reach = topo::edge_wedge_reach(&body, strut).unwrap();
+    let reach = topo::edge_wedge_reach(&body, strut, band).unwrap().below();
     assert!(
         reach.length() >= 1.0,
         "the walls reach a metre from the strut: {}",

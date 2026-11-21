@@ -2698,7 +2698,9 @@ fn plan_edge<'s, T: Decide>(
                     crate::edge_faces(body, edge),
                     curve.carrier(),
                     curve.params(),
-                ),
+                    band,
+                )
+                .below(),
                 (a, b),
                 band,
                 tol,
@@ -2870,7 +2872,14 @@ fn plan_edge<'s, T: Decide>(
                 (old_key, other_key, new_surface, held),
                 (
                     extent,
-                    crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
+                    crate::wedge_reach(
+                        body,
+                        crate::edge_faces(body, edge),
+                        &old_carrier,
+                        (t0, t1),
+                        band,
+                    )
+                    .below(),
                 ),
                 band,
                 (
@@ -3033,7 +3042,14 @@ fn plan_edge<'s, T: Decide>(
                 [(old_key, new_surface), (other_key, held)],
                 &carrier,
                 (t0, t1),
-                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                crate::wedge_reach(
+                    body,
+                    crate::edge_faces(body, edge),
+                    &carrier,
+                    (t0, t1),
+                    band,
+                )
+                .below(),
                 band,
             )?;
             match demanded {
@@ -3066,7 +3082,14 @@ fn plan_edge<'s, T: Decide>(
                 [(old_key, new_surface), (other, held)],
                 &carrier,
                 (t0, t1),
-                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                crate::wedge_reach(
+                    body,
+                    crate::edge_faces(body, edge),
+                    &carrier,
+                    (t0, t1),
+                    band,
+                )
+                .below(),
                 carried_declaration,
                 band,
             )?
@@ -3160,7 +3183,14 @@ fn plan_edge<'s, T: Decide>(
                 [(old_key, new_surface), (c.surface, held)],
                 &carrier,
                 (t0, t1),
-                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                crate::wedge_reach(
+                    body,
+                    crate::edge_faces(body, edge),
+                    &carrier,
+                    (t0, t1),
+                    band,
+                )
+                .below(),
                 carried_declaration,
                 band,
             )?
@@ -4134,7 +4164,14 @@ fn plan_reanchors<T: Decide>(
                     [(ka, surface(ka)), (kb, surface(kb))],
                     &carrier,
                     (t0, t1),
-                    crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                    crate::wedge_reach(
+                        body,
+                        crate::edge_faces(body, edge),
+                        &carrier,
+                        (t0, t1),
+                        band,
+                    )
+                    .below(),
                     || Ok(declared),
                     band,
                 )?

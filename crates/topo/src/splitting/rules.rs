@@ -545,7 +545,8 @@ fn edge_wedge<T: Decide>(
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let along = star.bounds[k].ray();
     let edge = proven(&body.half_edges, star.bounds[k].he, EntityId::HalfEdge).edge;
-    let Some(extent) = crate::edge_wedge_reach(body, edge) else {
+    let Some(extent) = crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::below)
+    else {
         unreachable!("the star read {edge:?}'s departure off its certified carrier")
     };
     // Both faces are read along the edge's ray: at the vertex where each
