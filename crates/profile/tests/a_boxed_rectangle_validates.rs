@@ -14,8 +14,8 @@ use core::f64::consts::FRAC_PI_2;
 use geom_core::sym::with_session_rules;
 use geom_core::{Decide, Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Tol};
 use profile::{
-    ConstructedLoop, ConstructedProfile, EscalationSite, Gate, Open, ProfileError, SketchPlane,
-    Start, ValidatedProfile,
+    ConstructedLoop, ConstructedProfile, ContactKind, EscalationSite, Gate, Open, Profile,
+    ProfileError, ProfileLoop, SketchPlane, Start, ValidatedProfile,
 };
 
 type Lane = Sym<Interval>;
@@ -108,13 +108,15 @@ fn a_cornered_rectangle_with_a_boxed_width_validates_at_interval() {
     }
 }
 
-/// **Today's truth, filed as
-/// `profile/a-pen-loop-turned-by-a-rounded-quarter-cannot-order-its-start-over-an-interval`**:
-/// turned by the rounded `π/2`, the pen's fourth vertex has
-/// `x = w·(1 + cos² − sin²) + cos` of that angle, a few `10⁻¹⁷` over the
-/// reals, which reads `±2h` about zero (and straddles it at a point box
-/// too), so the canonical order's exact `x` comparison against the start
-/// is undecided. The pair pass is not reached.
+/// **Today's truth: unguided validation at an interval scalar cannot
+/// order a boxed loop's start**
+/// (`profile/a-pen-loop-turned-by-a-rounded-quarter-cannot-order-its-start-over-an-interval`,
+/// and `validate.rs`'s guided-validation doc, which is why the document
+/// path replays guided). Turned by the rounded `π/2`, the pen's fourth
+/// vertex has `x = w·(1 + cos² − sin²) + cos` of that angle, a few
+/// `10⁻¹⁷` over the reals, which reads `±2h` about zero and straddles it
+/// at a point box too. So the canonical order's exact `x` comparison
+/// against the start is undecided, and the pair pass is never reached.
 #[test]
 fn a_pen_rectangle_turned_by_a_rounded_quarter_cannot_order_its_start() {
     for h in HALVES {
@@ -157,5 +159,51 @@ fn a_square_with_a_boxed_corner_validates_at_interval() {
         if let Err(e) = validate(lp) {
             panic!("the square over ±{h:e}: {e:?}");
         }
+    }
+}
+
+/// **Far from the origin at `f64`, the shared vertex is not read off
+/// the chord's own rounding.** At coordinates around `10⁷` the side and
+/// span readings at an adjacent pair's shared vertex came out about
+/// `1.9e-9` from zero, past the default ε row's zero band: these three
+/// escalated at `SegmentPair(0, 1)` (`chord_side`, `line_span`) where
+/// they now decide: a triangle and a quadrilateral validate, and a
+/// pentagon crosses itself. Every ε row decides them the same.
+#[test]
+fn far_from_the_origin_an_adjacent_pairs_shared_vertex_decides_at_f64() {
+    let poly = |pts: &[(f64, f64)]| {
+        Profile::new(
+            SketchPlane::xy(),
+            vec![ProfileLoop::polygon(
+                pts.iter().map(|&(x, y)| Point2::new(x, y)),
+            )],
+        )
+        .validate(tol())
+    };
+    for (what, pts) in [
+        ("triangle", vec![(1e7, 0.0), (4e7, 2e7), (1e7, 4e7)]),
+        (
+            "quadrilateral",
+            vec![(3.1e7, 1.7e7), (4.1e7, 7e6), (4.1e7, 3.7e7), (3.1e7, 3.7e7)],
+        ),
+    ] {
+        if let Err(e) = poly(&pts) {
+            panic!("the {what} validates: {e:?}");
+        }
+    }
+    match poly(&[(0.0, 1e7), (3e7, 3e7), (4e7, 0.0), (1e7, 4e7), (1e7, 2e7)]) {
+        Err(ProfileError::NonSimple {
+            first,
+            second,
+            kind: ContactKind::Crossing,
+        }) => assert_eq!(
+            (first.segment_index, second.segment_index),
+            (0, 2),
+            "the crossing pair"
+        ),
+        other => panic!(
+            "the pentagon crosses itself: {:?}",
+            other.map(|_| "validated")
+        ),
     }
 }

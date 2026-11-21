@@ -150,13 +150,20 @@ fn eps_change_diff_reports_exactly_the_shifted_predicate() {
     // miss a far crossing of the side carriers and so read the segment
     // ends, are gone, and the straight pairs that replace them and
     // share no vertex each read their gap first) —
-    // never absorbed, never guessed about (vdiff module docs). An
-    // adjacent line pair's shared vertex is not read (`profile::seg`'s
-    // `line_line`), so the straight branch's `chord_side` count carries
-    // four fewer Zeros than the arc branch's, and the residual pairing
-    // reports that recount as a `chord_side` Zero → Positive shift beside
-    // its divergence (with the shared vertices read, the same pairing
-    // left the arc branch no Zero surplus and reported no shift).
+    // never absorbed, never guessed about (vdiff module docs).
+    //
+    // The `chord_side` Zero → Positive shift is NOT a reading crossing the
+    // band, and it breaks this golden's rule that a re-pin moves no
+    // predicate's shift. The straight branch's line pairs take their
+    // shared vertex by construction (`profile::seg`'s `line_line`), but
+    // the arc branch's line × arc pairs still read the arc's shared end
+    // against the line, and that `chord_side` reads Zero.
+    // So the arc branch carries four Zeros more, and the residual pairing
+    // matches them against the straight branch's Positive surplus.
+    // `profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`
+    // takes the curved arms' shared vertex by construction too, and its
+    // fix removes this shift: re-pin then to the one
+    // `segment_straightness` shift.
     assert_eq!(
         shifts.nodes.len(),
         1,
