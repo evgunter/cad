@@ -62,3 +62,7 @@ graze is then the Zero path's, and the row asks whether that path
 places a tangent touch at an end that lies outside the face. If it
 does, the near turns build. If not, they refuse there typed, with the
 `m²/2R` margin named.
+
+## 2026-11-21 — the one-segment tube (PROFILE)
+
+Evidence from PROFILE's `circle-lowers-to-one-segment` (branch `profile/circle-lowers-to-one-segment`). With `circle()` lowered to one segment the fixture's tube has one wall and one seam ruling, at `+x`. Every turn past the sliver band now builds in both member orders, at `5ε`, `±√(ε·R)` and `√(2000·ε·R)` apart, at the default ε and `1e-6`: tier 3, 3′, maximal edges and the volume all hold (`built`), census `(4, 7, 5, 1)`. The covered line rung's door this row measures is not met on that fixture, and why the one wrap-edge ruling escapes it where the two-arc tube's rulings did not is not measured. The row's witness is now the two-arc tube only; `the_sphere_capped_tube_turned_within_a_hair_of_aligned` pins the builds.
