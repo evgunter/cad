@@ -4,10 +4,12 @@ Merge base with main: `f43c98df`. Hosted CI: run 44836415726.
 
 ## Verdict: APPROVE-WITH-FIXES
 
-Nothing acted on moves. On my own differential (both lanes, ε 1e-9 and
-1e-12, base-vs-base control clean) no Positive, Negative or Zero that any
-site acts on moves at any touched row, and every test passes on both
-sides. The fixes are bounded: one doc comment spliced onto the wrong test,
+No answer moves. On my own differential (both lanes, ε 1e-9 and 1e-12,
+base-vs-base control clean, every test passing on both sides), the
+default suite moves no acted verdict at any touched row. One slow row
+does move acted cell verdicts in `gap`'s sweep at the band's edge (M0).
+The sweep reads a few more cells, and everything downstream of it stays
+bit-identical. That refutes C1 as worded, but not its substance. The fixes are bounded: one doc comment spliced onto the wrong test,
 one unmeasured change to the gap floor's refusal kind, and a new
 charge door the bare-rounding gate cannot see. Also two read-claims of the
 body: the window jets are cited to an admission rule whose premise the
@@ -41,6 +43,11 @@ correctness.
   - My first pass lost dumps to PID reuse (`pid_max` 32768), so I
     rebuilt with collision-free file names and reran everything. All
     numbers here come from the second pass.
+- **Bisecting M0.** I ran the moved slow row twice per tree. In the
+  review checkout, with the instrument and its own target directory, I
+  ran two probes:
+  - **A**: `nearest` uncharged;
+  - **B**: `D²` without its `u·D²`.
 - **Mutants.** Each was run against all of geom-brep and topo at the
   `ci` profile (6,437 tests), then reverted.
   - **m1**: the cone arm's slope bound at the call site, `2·noise` →
@@ -104,6 +111,43 @@ backend, and no hosted job ran k-lint (see C2).
 
 ### MINOR
 
+**M0. C1 is false as stated: in one slow row, acted cell verdicts in
+`gap`'s sweep move, and the sweep reads more cells.** DEMONSTRATED,
+sure.
+- **The row:**
+  `topo boolean::section_cert::section_cert_rows::every_torus_touch_holds_against_a_sampling_oracle`,
+  at ε 1e-9. It is in the slow set, which the author's differential did
+  not run.
+- **Base against head.** The run is deterministic: two runs per tree are
+  identical.
+
+  | Row | Base (p, n, z, e) | Head |
+  |---|---|---|
+  | `ct_critical_gap` | 1,286,886, 0, 1,152, 174,792 | 1,286,890, 0, 1,152, 174,792 |
+  | `_clear` | 61,356, 110,186, 354,682, 393,424 | 61,358, …, 393,430 |
+  | `_floor` | escalations 160,768 | 160,770 |
+  | `_monotone` | Zeros 40,162 | 40,164 |
+  | `_turn` | Zeros 1,032,106 | 1,032,110 |
+
+- **What happened.** A cell's clear or monotone verdict, which the walk
+  acts on by not splitting, flipped at the band's edge, and the walk
+  split cells it did not split before.
+- **The cause is not one change.**
+  - Removing the new `u·|D − L|` subtraction charge in `nearest` leaves
+    the head's counts exactly.
+  - Removing `D²`'s own `u·D²` charge gives a third, different pattern:
+    clear +4 Positive and −4 escalation, monotone −4 Positive.
+  - So the bit-level moves the body files as "margin bits only, with
+    the same counts" (association in the Taylor sums, `d.square()`) do
+    flip acted verdicts where a margin sits on the band's edge.
+- **No answer moves.** The test passes on both sides, and the 29 other
+  rows it logs, everything downstream of the gap, are bit-identical
+  between base and head.
+- **Why it matters.** Both the body's measurement and its C1 claim
+  ("no verdict that is acted on moves") are fixture-bound. The honest
+  statement is "no answer moves in the suites run, and a walk's path
+  can".
+
 **M1. A new test was spliced between another test's doc comment and its
 `fn`.** DEMONSTRATED (read in the tree), sure.
 `crates/geom-brep/src/implicit.rs:2340-2359`. The new
@@ -137,10 +181,11 @@ and were not re-measured.
 - **Effect.** The refusal's predicate (`*_critical_gap` against
   `*_critical_gap_straddle`) and its margin move. No answer moves: it is
   a refusal either way.
-- **Reach of my differential.** Every count move at
-  `*_critical_gap_floor`, `*_critical_gap_straddle` and `*_critical_gap`
-  is zero in the default and selected slow suites at both ε. So the
-  suite never reaches this arm, and nothing pins it.
+- **Reach of my differential.** The default suite moves no count at
+  `*_critical_gap_floor`, `*_critical_gap_straddle` or `*_critical_gap`
+  at either ε. The one floor move in the slow rows is M0's path change,
+  and no `*_straddle` count moves anywhere. So this arm is not
+  evidenced, and nothing pins it.
 - **What the body owes.** It does not mention that the floor's refusal
   kind can change.
 
@@ -330,7 +375,10 @@ All of these are oracles.
 
 ## The claims
 
-- **C1 — holds** (DEMONSTRATED: my differential, at the frozen head).
+- **C1 — holds for answers, not for every acted verdict** (DEMONSTRATED:
+  my differential, at the frozen head). In the default suite it holds as
+  stated. In one selected slow row, acted cell verdicts in the sweep move
+  (M0).
   - **What moves.**
     - At both ε and in both lanes, the only count moves are at
       `chart_singularity_pole_plane` (f64 in 12 tests, `Interval` in 1),
@@ -346,7 +394,9 @@ All of these are oracles.
     reads, so each dropped decide was a "clear" read that was Positive.
   - **The gap monotone rows.** Positive counts are identical, and only
     Negatives move, into Zero or escalation.
-  - **The selected slow rows** do not change that picture.
+  - **The selected slow rows at 1e-9.** The same pattern holds in
+    `torus_gap`'s three slow rows and in `cone_rows::grazes_and_apex_…`,
+    except for M0.
   - **Bit-only moves.** The Taylor rows (`*_sub_monotone`,
     `*_root_slack`, `section_ruling_monotone`, `coplanar_sub_*`,
     `pose_touch_spread`), the gap's `clear` and `critical_gap` rows, and
