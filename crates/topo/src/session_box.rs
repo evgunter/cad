@@ -26,7 +26,9 @@
 //! ([`ValidationError::SessionBoxUnshown`],
 //! [`ValidationError::SessionBoxUncovered`]). The finished-body gate,
 //! tier 3′, every move's image and the door that places a body
-//! ([`in_session_box_at`]) all ask it.
+//! ([`in_session_box_at`]) all ask it. The gate and tier 3′ refuse a
+//! face with no cover after their checks, which name why it bounds
+//! nothing ([`asked_before_the_checks`]).
 
 use geom::Surface;
 use geom::cover::{BoxAxes, Cover};
@@ -232,6 +234,28 @@ pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<()
         return Ok(());
     }
     past_its_carriers(body, reads.points, band)
+}
+
+/// **[`in_session_box`] as the finished-body gate and tier 3′ ask it,
+/// before their checks**: a body past the box, or shown in it by no
+/// cover, refuses first and alone; a face with no cover
+/// ([`ValidationError::SessionBoxUncovered`]) is handed back, to refuse
+/// after the checks, which name why its carrier or boundary bounds
+/// nothing (check 1 names a poisoned or placeholder carrier). The body
+/// is refused either way.
+///
+/// # Errors
+///
+/// The box's other refusals, as [`in_session_box`] gives them.
+pub(crate) fn asked_before_the_checks<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<Option<ValidationError>, Vec<ValidationError>> {
+    match in_session_box(body, band) {
+        Ok(()) => Ok(None),
+        Err(uncovered @ ValidationError::SessionBoxUncovered { .. }) => Ok(Some(uncovered)),
+        Err(finding) => Err(vec![finding]),
+    }
 }
 
 /// **`session_box_reach` of `body` where it stands under `motion`**:

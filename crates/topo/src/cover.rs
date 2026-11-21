@@ -488,9 +488,19 @@ pub(crate) fn face_extreme_points<T: Decide>(
                     at.extend([center + reach, center - reach]);
                 } else {
                     let across = axis.cross(u_ref);
-                    for k in 0..8 {
-                        let turn = T::from_f64(core::f64::consts::TAU * f64::from(k) / 8.0);
-                        let (sin, cos) = turn.sin_cos();
+                    let (one, zero) = (T::one(), T::zero());
+                    let half = (one / (one + one)).sqrt();
+                    let compass = [
+                        (one, zero),
+                        (half, half),
+                        (zero, one),
+                        (zero - half, half),
+                        (zero - one, zero),
+                        (zero - half, zero - half),
+                        (zero, zero - one),
+                        (half, zero - half),
+                    ];
+                    for (cos, sin) in compass {
                         let ring = center + (u_ref * cos + across * sin) * big;
                         at.extend([ring + e * small, ring - e * small]);
                     }
@@ -846,9 +856,7 @@ fn sphere_window<T: Decide>(
         let trim = match crate::solid_contain::sphere_chart_trim(
             body,
             f.key(),
-            *center,
-            *radius,
-            *axis,
+            (surface, *center, *radius, *axis),
             band,
         ) {
             Ok(Some(trim)) => trim,

@@ -128,13 +128,12 @@
 //!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
 //!   The outward sign at each root is read off the SAME decided
 //!   discriminant (`d·(p − c)/r = ±√disc/r`), never re-decided.
-//! - **`bool_ray_cone_lead`**: the ray×cone quadratic's leading
-//!   coefficient `(d·â)² − cos²α`, levered by the face's slant extent.
-//!   Zero ⇒ the ray runs parallel to a generator, where the quadratic
-//!   degenerates and no certified crossing PAIR exists — graze, retry.
-//! - **`bool_ray_cone_disc`**: that quadratic's discriminant over the
-//!   same extent (a length). Zero ⇒ the ray grazes a generator —
-//!   graze, retry; Negative ⇒ definite miss.
+//! - **`line_quadric_cone_{apex, apex_spread, lead, depth, root_slack}`**:
+//!   the line × cone door's rungs (`line_cone_roots`), the one reading
+//!   of a line against a cone, read over the run of the ray's line
+//!   inside the ball holding the face. A run at the apex, a ray parallel
+//!   to a generator, a tangency or a root the meter cannot place grazes,
+//!   retry; a definite miss is a miss.
 //! - **`bool_ray_cone_nappe`**: the hit's height over the apex along
 //!   the axis, which says the nappe whose outward normal the hit is read
 //!   by. Zero ⇒ the hit is at the apex, where the SURFACE (not merely
@@ -226,13 +225,13 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 use geom_brep::PlaneDesc;
 use geom_brep::curve_face::line_quadric::{
-    About, WallRoots, line_cone_quadratic, line_sphere_roots, line_torus_roots, line_wall_roots,
+    About, ConeRoots, WallRoots, line_cone_roots, line_sphere_roots, line_torus_roots,
+    line_wall_roots,
 };
 use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use crate::region::RegionRefusal;
-use crate::rim_wedge::Rim;
 use crate::ruled_region::{RuledFaceRegion, ruled_face_region};
 use crate::sphere_region::{SphereFaceRegion, sphere_face_region};
 use crate::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
@@ -877,8 +876,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         axis: geom::Line<T>,
         /// The half-angle.
         half_angle: T,
-        /// A radius about the apex the face lies within, which is also
-        /// the lever of the ray margins.
+        /// A radius about the apex the face lies within: the ball whose
+        /// run of the ray's line the cone door reads ([`cone_door`]).
         reach: Lever<T>,
     },
     /// A cylinder wall face whose region this door cannot read, as
@@ -1346,9 +1345,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
-    axis: Vec3<T>,
+    (sphere, center, radius, axis): (&geom::Surface<T>, Point3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
@@ -1356,7 +1353,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = f.surface().clone();
+    let arm = geom_brep::uniform_curvature_arm(sphere);
     let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
@@ -1459,7 +1456,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
                         pole.dot(m_hat) - c_h,
-                        geom_brep::ExtentBall::of_covered(surf.cover().as_ref().ok()).lever(),
+                        geom_brep::ExtentBall::of_covered(sphere.cover().as_ref().ok()).lever(),
                     ),
                     band,
                 )
@@ -1482,12 +1479,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
                     origin: center,
                     dir: axis,
                 },
-                &Rim {
-                    center: c_c,
-                    axis: n_c,
-                    radius: r_c,
-                    u_ref: u_c,
-                },
+                &conic_k,
             );
             if !zero_as("bool_sphere_iso_rim", tilt)?
                 || !zero_as("bool_sphere_iso_rim", off)?
@@ -1585,7 +1577,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             south: None,
         }));
     };
-    let Some((north, south)) = latitude_extremes(first, rest, radius, band).map_err(escalate)?
+    let Some((north, south)) =
+        latitude_extremes(first, rest, (radius, arm), band).map_err(escalate)?
     else {
         return Ok(None);
     };
@@ -1644,12 +1637,12 @@ fn latitude_sine<T: geom_core::Real>(a: (T, T), b: (T, T), r: T) -> T {
 fn latitude_after<T: Decide>(
     a: (T, T),
     b: (T, T),
-    radius: T,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, radius), Lever::curvature_radius(radius)),
+        Margin::levered(latitude_sine(a, b, radius), arm),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1682,15 +1675,15 @@ fn latitude_after<T: Decide>(
 fn latitude_extremes<T: Decide>(
     first: (T, T),
     rest: &[(T, T)],
-    radius: T,
+    (radius, arm): (T, Lever<T>),
     band: Band,
 ) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
     let (mut lo, mut hi) = (first, first);
     for &e in rest {
-        if latitude_after(e, lo, radius, band)? {
+        if latitude_after(e, lo, (radius, arm), band)? {
             lo = e;
         }
-        if latitude_after(hi, e, radius, band)? {
+        if latitude_after(hi, e, (radius, arm), band)? {
             hi = e;
         }
     }
@@ -1721,10 +1714,7 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(
-                latitude_sine(lo, hi, radius),
-                Lever::curvature_radius(radius)
-            ),
+            Margin::levered(latitude_sine(lo, hi, radius), arm),
             band,
         )?,
         Sign::Zero
@@ -3368,6 +3358,37 @@ fn worse<E>(
     }
 }
 
+/// **A ray against a cone face's carrier**: the line × cone door
+/// ([`line_cone_roots`]) read over the run of the ray's line inside the
+/// ball of radius `reach` about the apex, which holds the face. No point
+/// of the line outside that run is on the face, so the run is centred on
+/// the line's closest approach to the apex and `reach` long either side.
+/// `None` is a definite miss; `Some` the two roots, each with its slack.
+///
+/// # Errors
+///
+/// A graze: a ray needs an outward side at each crossing, so what the
+/// door leaves undecided (a tangency, a generator-parallel line, a root
+/// the meter cannot place) grazes, and so does the apex's double root
+/// ([`ConeRoots::Apex`]), where the cone has no tangent plane. A rung in
+/// band, escalated at `face`.
+fn cone_door<T: Decide>(
+    ray: &geom::Ray<T>,
+    (cone, face): ((geom::Line<T>, T), FaceKey),
+    reach: T,
+    band: Band,
+) -> Result<Option<[(T, T); 2]>, RayFault<PointInSolidError>> {
+    let line = ray.line();
+    let (centre, half) = (line.param(cone.0.origin), reach / line.dir.norm());
+    match line_cone_roots(line, cone, (centre - half, centre + half), band)
+        .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
+    {
+        Ok(ConeRoots::Two(ts)) => Ok(Some(ts)),
+        Ok(ConeRoots::Miss) => Ok(None),
+        Ok(ConeRoots::Apex(_)) | Err(_) => Err(RayFault::Graze),
+    }
+}
+
 /// **The roots of each trimmed curved face's carrier** on the ray `q +
 /// s·d` (a wall's, a cone's, a sphere patch's, a torus patch's), before
 /// any region reads them, and the faces whose carriers the ray
@@ -3382,12 +3403,11 @@ fn worse<E>(
 /// enters the wall's chart and the far one leaves it, read off the
 /// decided discriminant (`d·rad = ∓√disc` at the roots).
 ///
-/// The cone arm (issue 1011): the roots of `G(t) = (w·â)² − |w|²cos²α`
-/// on the double cone. A ray parallel to a generator (`A` in band,
-/// levered by the face's slant extent) leaves no certified pair and
-/// grazes, and so does a tangent one (the discriminant `B² − AC`, metered
-/// by that extent); `bool2_r1_probes::probe_generator_parallel_schedule_rays_graze_and_the_door_recovers`
-/// is the generator-parallel row.
+/// The cone arm: the line × cone door's roots on the double cone over
+/// the run inside the ball holding the face ([`cone_door`]); a ray
+/// parallel to a generator, a tangent one and one through the apex graze
+/// (`bool2_r1_probes::probe_generator_parallel_schedule_rays_graze_and_the_door_recovers`
+/// is the generator-parallel row).
 ///
 /// The sphere patch: [`line_sphere_roots`], the near root entering the
 /// ball and the far one leaving it. The torus patch: [`line_torus_roots`]
@@ -3450,42 +3470,17 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
-                    let a2 = centred.coeffs[0];
-                    // A bound on the face's reach from its apex, never under
-                    // it — the lever both margins below are metered by.
-                    let v_ext = region.reach();
-                    if decide(
-                        "bool_ray_cone_lead",
-                        // Unsourced lever: the cone face's reach from its
-                        // apex (`RuledFaceRegion::reach`), a boundary read
-                        // the extent home does not make.
-                        Margin::levered(a2, Lever::unsourced(v_ext)),
-                        band,
-                    )
-                    .map_err(escalate)?
-                        == Sign::Zero
-                    {
-                        return Err(RayFault::Graze); // generator-parallel
-                    }
-                    let disc = centred.disc();
-                    match decide(
-                        "bool_ray_cone_disc",
-                        Margin::over_lever(centred.charged(disc, About::Nearest), v_ext),
-                        band,
-                    )
-                    .map_err(escalate)?
-                    {
-                        Sign::Positive => {
-                            // Unordered: `A` may be negative, and the count
-                            // orders by advance anyway.
-                            let (ts, slack) = centred.roots(disc);
-                            for t in ts {
+                    // The face lies within its reach of the apex, never
+                    // under it (`RuledFaceRegion::reach`).
+                    match cone_door(ray, ((cone, half_angle), face), region.reach(), band)? {
+                        // Unordered: `A` may be negative, and the count
+                        // orders by advance anyway.
+                        Some(ts) => {
+                            for (t, slack) in ts {
                                 push(t, slack, RootSide::Cone);
                             }
                         }
-                        Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                        Sign::Negative => missed.push(face),
+                        None => missed.push(face),
                     }
                 }
                 FaceGeo::SpherePatch {
@@ -3608,13 +3603,12 @@ fn root_outward<T: Decide>(
             {
                 return Ok(Sign::Zero);
             }
-            let rho = (wp - axis * hp).norm();
             Ok(oriented(
                 decide(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        Lever::curvature_radius(rho),
+                        geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
                     ),
                     band,
                 )
@@ -3622,30 +3616,20 @@ fn root_outward<T: Decide>(
                 sense,
             ))
         }
-        (
-            RootSide::Torus,
-            &(FaceGeo::Torus {
-                minor_radius,
+        (RootSide::Torus, &(FaceGeo::Torus { sense, .. } | FaceGeo::TorusPatch { sense, .. })) => {
+            Ok(oriented(
+                decide(
+                    "bool_ray_torus_incidence",
+                    Margin::levered(
+                        d.dot(chart_normal(body, face, p)?),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
+                    ),
+                    band,
+                )
+                .map_err(escalate)?,
                 sense,
-                ..
-            }
-            | FaceGeo::TorusPatch {
-                minor_radius,
-                sense,
-                ..
-            }),
-        ) => Ok(oriented(
-            decide(
-                "bool_ray_torus_incidence",
-                Margin::levered(
-                    d.dot(chart_normal(body, face, p)?),
-                    Lever::curvature_radius(minor_radius),
-                ),
-                band,
-            )
-            .map_err(escalate)?,
-            sense,
-        )),
+            ))
+        }
         // A root is made only by its face's own arm.
         _ => Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
     }
@@ -4182,33 +4166,15 @@ pub(crate) fn ray_crossings<T: Decide>(
                 reach,
             } => {
                 // Only a root definitely ahead and definitely within the
-                // ball holding the face blocks the ray; a `Zero` on any
-                // of these rows grazes, as on the trimmable arm, since a
-                // tighter tolerance could decide it either way.
-                let centred = line_cone_quadratic(ray.line(), cone, half_angle, About::Nearest);
-                if decide(
-                    "bool_ray_cone_lead",
-                    Margin::levered(centred.coeffs[0], reach),
-                    band,
-                )
-                .map_err(escalate)?
-                    == Sign::Zero
-                {
-                    return Err(RayFault::Graze); // generator-parallel
-                }
-                let disc = centred.disc();
-                match decide(
-                    "bool_ray_cone_disc",
-                    Margin::over_lever(centred.charged(disc, About::Nearest), reach.length()),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Negative => continue,
-                    Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                    Sign::Positive => {}
-                }
-                for t in centred.roots(disc).0 {
+                // ball holding the face blocks the ray; an answer the door
+                // leaves undecided, or a `Zero` on a row below, grazes, as
+                // on the trimmable arm, since a tighter tolerance could
+                // decide it either way.
+                let Some(ts) = cone_door(ray, ((cone, half_angle), face), reach.length(), band)?
+                else {
+                    continue;
+                };
+                for (t, _) in ts {
                     let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
@@ -5787,5 +5753,59 @@ mod reach_tests {
             "at ε {:e}: {decided} decided, {in_band} in band",
             tol.eps()
         );
+    }
+}
+
+#[cfg(test)]
+mod cone_ray_rows {
+    //! The ray's cone arm reads the line × cone door's rungs.
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::Tol;
+
+    /// **A ray a centiradian off a cone face's generator and a micrometre
+    /// off the face is decided, not grazed.** The cap of the right cone
+    /// about `+z` to height 2; a ray in the tangent plane at `(1, 0, 1)`,
+    /// turned `0.01` rad off the generator there and moved `10⁻⁶` m off
+    /// the cone along its normal, misses it outward and crosses it twice
+    /// inward, at ε 1e-9. The depth the door reads is the discriminant
+    /// over `|A|·R`, `|A| ≈ 5·10⁻⁵` here: a discriminant read over the
+    /// face's reach alone puts both in the zero band, and the ray grazes.
+    #[test]
+    fn a_ray_near_a_generator_and_just_off_a_cone_face_is_decided() {
+        let (body, face) = crate::test_support_fixtures::cone_cap(
+            core::f64::consts::FRAC_PI_4,
+            2.0,
+            Tol::witness(),
+        );
+        let band = Band::new(1e-9, 1e-8).expect("the band");
+        let charts = SolidFaces::of_body(&body).expect("its faces").charts;
+        let geos = [(
+            face,
+            face_geo(&body, face, &charts, band).expect("the face's geometry"),
+        )];
+        assert!(
+            matches!(
+                geos[0].1,
+                FaceGeo::Cone { .. } | FaceGeo::PartialCone { .. }
+            ),
+            "a cone face"
+        );
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
+        let d = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
+        for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
+            let ray = geom::Ray::new(Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5, d);
+            let (roots, missed) = match carrier_roots(&geos, &ray, 4.0, band, SCHEDULE_ROWS) {
+                Ok(got) => got,
+                Err(fault) => panic!("{label}: decided, got {fault:?}"),
+            };
+            if two {
+                assert_eq!(roots.len(), 2, "{label}: two crossings");
+            } else {
+                assert!(roots.is_empty() && missed == [face], "{label}: a miss");
+            }
+        }
     }
 }

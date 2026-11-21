@@ -606,8 +606,8 @@ fn profile_payloads_are_matchable(
             radius,
             angular_margin,
         } => {
-            named::<f64>(radius);
-            named::<f64>(angular_margin);
+            named::<pncad::geom_core::Told>(radius);
+            named::<pncad::geom_core::Told>(angular_margin);
             "arc"
         }
     };
@@ -772,8 +772,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             ),
             FilletLeg::Outgoing,
             FilletLegCarrier::Arc {
-                radius: 2.0,
-                angular_margin: -0.5,
+                radius: pncad::geom_core::Told::computed(&2.0, pncad::geom_core::Dimension::Length),
+                angular_margin: pncad::geom_core::Told::computed(
+                    &-0.5,
+                    pncad::geom_core::Dimension::Angle,
+                ),
             },
             NoCornerReason::OffsetCarriersDisjoint,
         ),
@@ -1386,7 +1389,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 /// Which analytic kind's estimator declined, read off the arm that
 /// reports it — `None` on every other refusal.
 ///
-/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// The kinds are matched EXHAUSTIVELY, so a new one recognised
 /// kernel-side stops this compiling rather than arriving under an
 /// existing word. Their recourses differ, which is why the
 /// discriminant is worth a curated name: a plane that will not
@@ -1397,6 +1400,9 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
         StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
             PromotedKind::Plane => "plane",
             PromotedKind::Cylinder => "cylinder",
+            PromotedKind::Cone => "cone",
+            PromotedKind::Sphere => "sphere",
+            PromotedKind::Torus => "torus",
         }),
         _ => None,
     }
@@ -1562,6 +1568,9 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+                PromotedKind::Cone => "surface_promotion_cone",
+                PromotedKind::Sphere => "surface_promotion_sphere",
+                PromotedKind::Torus => "surface_promotion_torus",
             }
         }
         NormalizationKind::OneRecord {

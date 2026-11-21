@@ -5,7 +5,7 @@ title: 74 lever arms fit none of the three sources and are pinned unsourced, awa
 status: open
 opened: 2026-11-02
 priority: P1
-cost: M
+cost: H
 pr: 7141
 ---
 
@@ -107,7 +107,7 @@ From the two designers weighing this row for Ev, each item checked in the tree b
 
 Two designers agree after four rounds (`docs/DESIGN-FORK-LOG.md` row 290): no fourth source, both `unsourced` doors and the pin deleted, each site re-posed by the role its length plays. The question to Ev is the `[ev]` PR this note rides.
 
-- **More exposure the pin cannot see, checked in the tree:** `geom_core::Margin::sagitta(curvature_rel, arm: T)` (12 production calls) and `Margin::over_lever(measure, lever: T)` with `over_lever_down` (43 calls outside `geom-core`) take a bare arm.
+- **More exposure the pin cannot see, checked in the tree:** `geom_core::Margin::sagitta(curvature_rel, arm: Lever<T>)` took a bare `arm: T` until PR 7143 typed it (11 production calls), and `Margin::over_lever(measure, lever: T)` with `over_lever_down` (43 calls outside `geom-core`) still take a bare lever.
 - **Not needing a ruling, by both designers' read:** the seven test sites go to the fixture doors, and the arms whose honest read moves only last bits are re-read (`metering_arm`'s callers, the line parameter spans in `offset_axial`, `reduce` and `census`, `leaned_lever`, `intersect`'s quotient forms). `[simple.conditioned]` already covers them.
 - **For the unit that builds the answer:** classify each of about 34 `Lever`/`LeverBounds` struct fields outside the extent home (a regex count, a heuristic) by two questions: does the struct already hold what the lever is read from (then it is a method, never a field beside); if not, do all its readers pin their data at one point (then it may hold the lever; else it holds its region). `BoundSupport::Bisector.arm`, `BoundSupport::Conic.extent` and `star::walk::Sector.arm` are the three the designers left to it. `Lever::max`'s doc ("a read of the union of their extents") holds only from a shared pivot.
 - **Unsure, per both:** `pcurve_cache`'s focal β and `unit_sign`, `coincide::replay`'s power-of-two arm. About 35 to 40 of the 66 sites were classified from their comments, not read; nothing was built or measured, and "about 30 sites move verdicts by more than bits" is an estimate.
@@ -120,3 +120,15 @@ Two designers agree after four rounds (`docs/DESIGN-FORK-LOG.md` row 290): no fo
 
 The design question is closed; what is left on this row is the build, cut into units at spec time.
 
+## Added 2026-11-20 (`oneround/lever-doors`, the lever-fields pass)
+
+PR 7143 mints curvature arms from carriers, and where the record or function it reaches also needs the radius as geometry it holds the two side by side, paired by whoever builds the record. Each is a half-fix. Where they are headed: the record holds the carrier (a `Circle`, the sphere or the cylinder) and derives both the radius and the arm from it, as `surface_group`'s `Unmated(FaceKey, Circle)`, `census::circle_plane(&Circle)` and `solid_contain`'s rim site do.
+
+- `geom_brep::props::curved` — `SphereArc { centre, axis, radius, arm }`, `SeamLoops { radius, arm }`, `RimArms::uniform(r, arm)`, and the sphere, cylinder and torus functions that take `radius` (or `minor`) beside `arm` (or `tube_arm`), threaded from the surface-match doors. The radius feeds areas, pole points, residuals and `IsoChart`; holding the surface means re-threading about twenty signatures.
+- `geom_brep::pair_section::ruling` — `RuledCylinders { rho, r, lever }` and `RuledCylinderSphere { r, lever }`. The first's lever is the lesser of two cylinders' arms; `rho` and `r` feed the discriminant, the meeting point and its velocity.
+- `topo::ring_path` — `Quadric::Sphere { centre, radius, arm }`, where `Quadric::Cylinder` holds `radius` alone and reads its arm from the surface handed to `Quadric::lever`.
+- `topo::ring_path` — `Quadric::lever(&self, surface, p)`: the record and the surface it is of are passed side by side, so a sphere's stored `arm` and the `surface` argument are two sources of one arm.
+- `geom_brep::props::curved::cone_boundary` — `RimArms::uniform(rim_radius, Lever::curvature_radius(rim_radius))`: the one pair whose arm is minted from its own scalar (`cone_arm`'s `|v|·sin α`, or `1`), a pinned bare door.
+- `topo::census::point` — the module's own `Surface::Sphere { center, radius, arm }` and the `(c, r, arm)` tuples of `on_sphere` and `sphere_sphere`.
+- `topo::solid_contain` — `(radius, arm)` in `latitude_after` and `latitude_extremes`; `sphere_chart_trim` is handed the sphere and its destructured centre, radius and axis together.
+- `topo::boolean::ops` — `SphereRecut` holds `arm` alone and reads no geometry from it.

@@ -133,7 +133,6 @@ fn pierces_refused(
 
 #[cfg(test)]
 mod cone_frame_rows;
-mod conic_quadric;
 pub mod contact_verify;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
@@ -4841,6 +4840,31 @@ impl BooleanError {
                 decision: BooleanDecision::ConeRoots,
                 diag,
             },
+        }
+    }
+
+    /// The conic × quadric door's refusal
+    /// ([`geom_brep::curve_face::conic_quadric::ConicQuadricRefusal`]),
+    /// its in-band sign an escalation as the refusing arm's decision: an
+    /// arc's roots on a sphere, a cylinder wall or a cone.
+    pub(in crate::boolean) fn of_conic_quadric_refusal(
+        refusal: geom_brep::curve_face::conic_quadric::ConicQuadricRefusal,
+    ) -> Self {
+        use geom_brep::curve_face::conic_quadric::ConicQuadricRefusal;
+        match refusal {
+            ConicQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcSphereRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cylinder(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcCylinderRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcConeRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Invariant(what) => Self::ClassificationInvariant { what },
         }
     }
 

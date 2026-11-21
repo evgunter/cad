@@ -1898,7 +1898,7 @@ impl DoorCheck for CertCheck {
 fn tube_separation<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
     let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
@@ -5128,7 +5128,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let mut tangent_gap_max = T::zero();
     let mut tangent_prev: Option<(T, T, T)> = None;
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
-    let mut tangent_arm_min = T::from_f64(f64::MAX);
+    let mut tangent_arm_min: Option<geom_core::Lever<T>> = None;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         // Each arm takes the point through the door it needs: the
@@ -5325,7 +5325,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                         }
                     }
                     tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
-                    tangent_arm_min = tangent_arm_min.min(arm.length());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                     check_residual(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,
@@ -5480,13 +5480,25 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             band,
             &mut max_residual,
         )?;
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
+        // Every interior sample of a tangent edge folded its arm in the
+        // loop above or returned its refusal, and there is one. Each
+        // arm is `folded_lever_arm`'s, never past a carrier's own
+        // curvature arm, which no kind states above `f64::MAX`.
+        const _: () = assert!(CERT_SAMPLES >= 3);
+        let Some(arm) = tangent_arm_min else {
+            unreachable!(
+                "a tangent edge folded no arm over its {} interior samples, each of which \
+                 folds one or returns its refusal",
+                CERT_SAMPLES - 2
+            );
+        };
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1);
     // ---- Intersection, a residual × NURBS pair (a plane, sphere,
     // cylinder or torus beside a spline chart), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
@@ -8323,12 +8335,22 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(kappa_min, drift, 1.0, band),
+                tube_separation(
+                    kappa_min,
+                    drift,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band
+                ),
                 at_f64,
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(point(kappa_min), point(drift), point(1.0), band),
+                tube_separation(
+                    point(kappa_min),
+                    point(drift),
+                    geom_core::test_support::fixture_lever(point(1.0)),
+                    band
+                ),
                 at_interval,
                 "Interval: {why}"
             );
@@ -10351,7 +10373,7 @@ mod tests {
             (
                 forward(proved),
                 "the stored parameter interval is not shown to run forward (length \
-                 3.725290298461914e-9 m)",
+                 3.725e-9 m)",
             ),
             (
                 forward(zero(none)),

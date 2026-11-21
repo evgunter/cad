@@ -228,7 +228,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 /// caller branches on the reason without parsing the sentence. Over
 /// `CornerReason`'s arms rather than `..`, so a new one stops this
 /// build instead of acquiring a silent tag.
-pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
+pub fn corner_reason_tag(reason: &CornerReason) -> &'static str {
     match reason {
         CornerReason::OutsideAnchors(window) => match window {
             CornerWindow::BehindIncomingRay => "behind_incoming_ray",
@@ -2228,15 +2228,18 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
 /// certify is a flatness question at ε_in, a cylinder that will not is
 /// an ill-conditioned axis and wants more of the patch.
 ///
-/// The match is exhaustive, so a third promotable kind recognised
+/// The match is exhaustive, so a new promotable kind recognised
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these two words. The face and surface entity ids and the
+/// one of these words. The face and surface entity ids and the
 /// conditioning margin stay in the kernel's own `Display`, which is
 /// where they already were.
 pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+        PromotedKind::Cone => "cone",
+        PromotedKind::Sphere => "sphere",
+        PromotedKind::Torus => "torus",
     }
 }
 
@@ -2515,6 +2518,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
+        TessellateError::BoundaryBoundsNoRegion { .. } => "boundary_bounds_no_region",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",

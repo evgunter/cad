@@ -19,7 +19,7 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
   - Line uses interpolation and conic uses `splitting::conic_plane_candidates` (`crates/topo/src/splitting/classify.rs:563`).
   - Spiric and spline are refused `CrossingCarrierUnsupported`.
   - Dispatch is an Option gate, not a match.
-- **Walls:** `reduce::curved_face_arm` (`:1918`) → `conic_clearance` (`:2737`) → `wall_crossing` (`:3320`) → per-pair root finders (`line_quadric_roots`, `line_cone_roots`, `conic_quadric_roots` at `crates/topo/src/boolean/conic_quadric/mod.rs:197`, `circle_torus_roots`, `ellipse_torus_roots`).
+- **Walls:** `reduce::curved_face_arm` (`:1918`) → `conic_clearance` (`:2737`) → `wall_crossing` (`:3320`) → per-pair root finders (`line_quadric_roots`, `line_cone_roots`, `conic_quadric_roots` at `crates/geom-brep/src/curve_face/conic_quadric.rs`, `circle_torus_roots`, `ellipse_torus_roots`).
   - Wildcards: `wall_crossing` `_ => Unsettled` (twice), `line_quadric_roots` `_ => Uncertain`, `conic_quadric_roots` `_ => {}`.
   - Runtime fallbacks: enclosures first, then roots, then `carrier_touch::off_face`; the dip-bound clearance, then roots; `implicit::conic_residual_extremes` harmonic, else sampled.
 - **Circle×plane is solved in about six places:**
