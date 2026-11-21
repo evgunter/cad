@@ -1,0 +1,5 @@
+fork: a-profile-loop-comes-from-existing-geometry (PROFILE, work/profile/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md, P1)
+drawn: 2026-11-21T05:12:56Z, python3 os.urandom(1)
+arm byte: 180 (>= 86): two designers
+label byte: 54 (even): A = Opus designer, B = Fable designer
+protocol: ddd201f411
