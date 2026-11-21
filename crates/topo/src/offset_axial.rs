@@ -1165,7 +1165,8 @@ fn classify<T: Decide>(
     // A direction's misalignment is a SINE, levered by how far the scope
     // reaches from the point the chart's datum is read at: the length a
     // tilt pinned there moves a point of the scope by. A Zero names the
-    // chart aligned, so the reach is read from above.
+    // chart aligned and any other sign refuses, so the reach is read
+    // from above.
     let sine = |x: T, at: Point3<T>, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
         let lever = frame.region.reach_from(at).above();
         match decide(what, Margin::levered(x, lever), band) {
@@ -1174,6 +1175,20 @@ fn classify<T: Decide>(
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
         }
     };
+    // A plane's normal acts on every sign: a Zero names it a station, any
+    // other sign sends it on to the axis-parallel read. So it is read at
+    // both bounds of the reach and acted on where they agree, a straddle
+    // (`offset_axial_alignment_straddle`) refused as an in-band reading.
+    let sine_both = |x: T, at: Point3<T>| -> Result<bool, ReplaceFaceError<T>> {
+        crate::validate::decide_levered(
+            ("offset_axial_alignment", "offset_axial_alignment_straddle"),
+            x,
+            frame.region.reach_from(at),
+            band,
+        )
+        .map(|sign| sign == Sign::Zero)
+        .map_err(|source| ReplaceFaceError::Escalated { source })
+    };
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
@@ -1181,7 +1196,7 @@ fn classify<T: Decide>(
     Ok(match surface {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
-            if sine(parallel(n), *origin, "offset_axial_alignment")? {
+            if sine_both(parallel(n), *origin)? {
                 Constraint::Station(frame.station(*origin))
             } else {
                 // A plane whose normal is PERPENDICULAR to the axis is
@@ -2465,10 +2480,14 @@ fn mint_carrier<T: Decide>(
                     }
                 }
             }
+            // The section reads several decisions off one lever, so it
+            // takes the bound it took before the scope held both: the
+            // region from above, about the torus's centre. Which bound a
+            // composite consumer reads is the turn-lever unit's question.
             _ => match geom_brep::plane_torus_section(
                 &cap.new,
                 &wall.new,
-                frame.region.reach_from(torus_centre(&wall.new)),
+                frame.region.reach_from(torus_centre(&wall.new)).above(),
                 band,
             )
             .map_err(section_refused)?
@@ -4333,6 +4352,29 @@ mod frame_extent_rows {
         assert!(
             matches!(got, Err(ReplaceFaceError::TogetherNotAxial { .. })),
             "the tilted wall is not coaxial over the scope's reach from above"
+        );
+    }
+
+    /// **A plane's alignment acts on every sign, so it is read at both
+    /// bounds.** A cap plane through the origin whose normal is tilted by
+    /// `sin θ = 0.5·ε` from the axis: levered at the vertices' 1 m it reads
+    /// aligned, a station, and at the cover's 100 m it reads tilted and
+    /// goes on to the axis-parallel read, which refuses. The two disagree,
+    /// so the reading straddles and escalates.
+    #[test]
+    fn a_planes_alignment_straddling_its_reach_escalates() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 0.5 * band.zero();
+        let cap = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            u_ref: Vec3::unit_y(),
+        };
+        let got = classify(FaceKey::default(), &cap, &short_vertices_long_cover(), band);
+        assert!(
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "the tilted cap straddles its reach and escalates"
         );
     }
 
