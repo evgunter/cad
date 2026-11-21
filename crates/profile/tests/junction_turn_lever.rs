@@ -341,3 +341,40 @@ fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
     tip.line_to(Start.arrives_tangent(), tol)
         .expect("the declared seam closes");
 }
+
+// PROBE-ONLY (removed before commit).
+#[test]
+fn probe_declared_seam_on_a_short_first_leg() {
+    let mut said = String::new();
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let phi = 64.0_f64.to_radians();
+    let (c, s) = (phi.cos(), phi.sin());
+    for k in [0.3, 1.05, 3.0, 20.0, 50.0] {
+        let lever = k * eps;
+        let closed = Open
+            .at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(lever, 0.0), tol)
+            .unwrap()
+            .line(1.0, tol)
+            .unwrap()
+            .line_to(Point2::new(1.0 + lever, -2.0), tol)
+            .unwrap()
+            .line_to(Point2::new(-c, -s), tol)
+            .unwrap()
+            .line_to(Start.arrives_tangent(), tol);
+        match closed {
+            Ok(cl) => {
+                let v =
+                    profile::ConstructedProfile::new(profile::SketchPlane::xy(), vec![cl.loop_])
+                        .validate(tol);
+                said += &format!(
+                    "\nPROBE k={k}: declared seam CLOSES; validate: {:?}",
+                    v.as_ref().map(|_| "ok").map_err(|e| e.to_string())
+                );
+            }
+            Err(e) => said += &format!("\nPROBE k={k}: refused {e}"),
+        }
+    }
+    panic!("{said}");
+}
