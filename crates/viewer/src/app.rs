@@ -8023,7 +8023,7 @@ mod properties_pane_tests {
     /// on the copy. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
     ///
-    /// Pinned red at the default ε: the filleted body the copy is
+    /// Pinned red at every ε row: the filleted body the copy is
     /// re-pointed onto refuses tessellation at the display δ
     /// (`CertificateExceeded`), so the copy draws nothing
     /// (`work/tesslane/a-filleted-one-segment-hole-rims-band-exceeds-its-mesh-certificate.md`).
@@ -8031,7 +8031,7 @@ mod properties_pane_tests {
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
         test_utils::pinned_red::row(
             pncad::tolerance::witness().eps(),
-            &[1e-9],
+            &test_utils::pinned_red::EVERY_ROW,
             "the re-pointed copy's filleted body",
             &[
                 "the re-pointed copy still draws the held face",

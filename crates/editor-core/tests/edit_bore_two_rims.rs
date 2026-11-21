@@ -354,16 +354,15 @@ fn a_plate_holes_bottom_rim_filleted_meshes() {
 }
 
 /// **A plate's hole filleted at a sixtieth of its radius meshes at a
-/// millimetre** — pinned red at the default ε, where the one-segment
-/// rim's band refuses `CertificateExceeded` 7.7× over at this δ alone
-/// while its two-arc twin meshes
+/// millimetre** — pinned red at every ε row, where the one-segment
+/// rim's band refuses `CertificateExceeded` (7.7× over at the default
+/// ε) at this δ alone while its two-arc twin meshes
 /// (`work/tesslane/a-filleted-one-segment-hole-rims-band-exceeds-its-mesh-certificate.md`).
-/// Measured at the default ε only; the other rows run it as written.
 #[test]
 fn a_plate_holes_bottom_rim_filleted_at_five_millimetres_meshes_at_one() {
     test_utils::pinned_red::row(
         tol().eps(),
-        &[1e-9],
+        &test_utils::pinned_red::EVERY_ROW,
         "the filleted hole's band",
         &["the filleted plate meshes", "CertificateExceeded"],
         a_plate_holes_bottom_rim_filleted_at_five_millimetres_meshes_at_one_row,
