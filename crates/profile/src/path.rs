@@ -7152,7 +7152,10 @@ mod tests {
                 let seg::SegKind::Arc(g) = seg.kind else {
                     panic!("{what}: a full turn reads as a line");
                 };
-                assert!(matches!(g.span, seg::ArcSpan::FullTurn), "{what}: a full turn");
+                assert!(
+                    matches!(g.span, seg::ArcSpan::FullTurn),
+                    "{what}: a full turn"
+                );
                 assert_eq!(g.turn, Sign::Positive, "{what}: counterclockwise");
             }
         }

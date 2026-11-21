@@ -576,8 +576,8 @@ fn corm<S: Scalar>(
 /// cylinder standing in the corm's socket and rising to the world
 /// origin, where the turtle's first arc begins.
 fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
-    let rim = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(r), tol)
-        .expect("the foot's rim authors");
+    let rim =
+        pncad::profile::circle(p2(0.0, 0.0), S::from_f64(r), tol).expect("the foot's rim authors");
     let plane = SketchPlane::xy_at(p3(0.0, 0.0, z0));
     let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
     extrude(
