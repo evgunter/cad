@@ -9,6 +9,8 @@ ball 1 crates/geom-brep/src/chart_singularity.rs
 arm 2 crates/geom-brep/src/conic_bend.rs
 arm 1 crates/geom-brep/src/curve_face/circle_torus.rs
 ball 1 crates/geom-brep/src/curve_face/circle_torus.rs
+arm 1 crates/geom-brep/src/curve_face/conic_quadric.rs
+ball 1 crates/geom-brep/src/curve_face/conic_quadric.rs
 ball 2 crates/geom-brep/src/curve_face/line_quadric.rs
 arm 3 crates/geom-brep/src/curve_face/conic_oracle.rs
 arm 1 crates/geom-brep/src/curve_face/spline_face.rs
@@ -17,7 +19,8 @@ arm 1 crates/geom-brep/src/curve_pair/span.rs
 arm 1 crates/geom-brep/src/edge_nurbs.rs
 arm 14 crates/geom-brep/src/extent.rs
 ball 2 crates/geom-brep/src/extent.rs
-arm 7 crates/geom-brep/src/implicit.rs
+arm 1 crates/geom-brep/src/curvature_arm.rs # from crates/geom-brep/src/implicit.rs
+arm 2 crates/geom-brep/src/implicit.rs
 ball 7 crates/geom-brep/src/implicit.rs
 arm 5 crates/geom-brep/src/intersect.rs
 whole 1 crates/geom-brep/src/intersect.rs
@@ -73,8 +76,6 @@ ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
 arm 9 crates/topo/src/boolean/carrier_touch.rs
-arm 1 crates/topo/src/boolean/conic_quadric/mod.rs
-ball 1 crates/topo/src/boolean/conic_quadric/mod.rs
 arm 1 crates/topo/src/boolean/fate.rs
 arm 18 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs

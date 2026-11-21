@@ -15,3 +15,9 @@ cost: M
 Either the text or the variants is wrong. If the variants are wrong, the destination is the one the `foot_on` fork (`a-reachs-pivot-is-chosen-per-kind`, `[ev]` PR 6968) takes for edges: the reach holds its region as a cover. A face reach would need its own derivation of the hinge and turn levers.
 
 Both designers on that fork raised this independently, as off-question.
+
+## Added 2026-11-19 (ONEROUND `oneround/lever-doors`)
+
+- `Reach::of_frame` no longer takes lengths. It takes the wall surface and reads its radius through `curvature_lever_arm`; the one production caller (`boolean::join`, `FrameExtent::Radii`) hands its cylinder. `Reach::Measured` still stores that length, so the variant is unchanged.
+- `Reach::of_face` is untouched: still `(at, (below, above), across)`. `scripts/gates/lever-doors.sh` now pins its three production callers (`topo::cover::cone_face_reach`, `boolean::join::surface_pair_reach`, `chord_join::wall_face_section`), so a fourth is red.
+- `hinge_lever`, `turn_lever`, `ruled_lever` and `generator_lever` are crate-private to geom-brep and pinned at their callers in `intersect.rs`.
