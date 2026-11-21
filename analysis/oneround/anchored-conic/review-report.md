@@ -105,7 +105,7 @@ Counts printed on the head: centred 7, 7, 7, 7, 1; anchored 40 in each family.
 
 ### C4 — the author's "three doors" is short (m7)
 
-### C5 — the four readers part the forms; three of the four are not pinned (m3); two sites outside `conic.rs` do ask (n2)
+### C5 — the four readers part the forms; three of the four are not pinned (m2); two sites outside `conic.rs` do ask (n2)
 
 ### C6 — holds as far as I took it
 
@@ -287,7 +287,8 @@ BY-INSPECTION from the row's own numbers, likely.
 `crates/geom-brep/tests/pcurve_cone_section.rs:887`–`:907`. The ceiling went
 48 → 104 `u` on readings of 50, 81, 95. Its stated mutant reads 42, 160, 82:
 BELOW the unmutated reading at two poses of three, and red at one. On the base
-the same mutant read 54, 63, 70 against 48, red at all three. The comment
+its counterpart (the centre moved the same 30 `u`) read 54, 63, 70 against
+48, red at all three. The comment
 dropped the two other things that used to red it.
 
 **m7. More than three production doors rebuild a conic through a centre
@@ -396,9 +397,9 @@ split of comment against code: not done.
   ellipse's `u·a` has a two-sided pin. Nothing disclosed is unscheduled. Sure.
 - **S8 (Q2).** `conic.rs:944`–`:961`: eighteen lines of doc on
   `quarter_turned_where` for a body whose anchored arm is three. Mild.
-- **S9 (Q4).** Structural-fix trap: the unit closes "a reader restates a
-  conic from its centre" for the evaluator and adds a new reader that does
-  exactly that for the cover, the image and the floors, by reading
+- **S9 (Q4).** Structural-fix trap: the unit closes "a point is summed from
+  the far centre" for the evaluator, and leaves the cover, the image and the
+  distance floors summing from a centre that is now DERIVED, through
   `frame()`. Named in the PR body and scheduled, and still the shape. Sure.
 - **S10.** Typos: "a ellipse" (`conic.rs:875`). Sure.
 
