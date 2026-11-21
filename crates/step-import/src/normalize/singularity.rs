@@ -917,6 +917,7 @@ fn mint_spoke(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     Ok((id, forward))
@@ -1267,6 +1268,7 @@ mod side_through_a_pole {
             t0,
             t1,
             reversed: false,
+            curve: None,
         };
         let pi = core::f64::consts::PI;
         let edges = || {
@@ -1365,6 +1367,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: 0.0,
                     t1: core::f64::consts::TAU,
                     reversed: false,
+                    curve: None,
                 },
             ),
             (
@@ -1376,6 +1379,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: -0.5,
                     t1: 0.5,
                     reversed: false,
+                    curve: None,
                 },
             ),
         ]);
@@ -1512,6 +1516,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         ((id, spec), (v, at))
     }
@@ -1645,6 +1650,7 @@ mod meetings_are_the_kernels {
                         t0: 0.0,
                         t1: 1.0,
                         reversed: false,
+                        curve: None,
                     },
                 ),
                 rim,
@@ -1773,6 +1779,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::PI,
             reversed: false,
+            curve: None,
         };
         let south = Point3::new(0.0, 0.0, -1.0);
         let across = |offset: f64| {
@@ -1839,6 +1846,7 @@ mod meetings_are_the_kernels {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 },
             )],
             vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
@@ -1901,6 +1909,7 @@ mod meetings_are_the_kernels {
                         t0: 1.0,
                         t1: stop,
                         reversed: false,
+                        curve: None,
                     },
                 )],
                 vec![(1, meridian.eval(1.0)), (2, meridian.eval(stop))],
