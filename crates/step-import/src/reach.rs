@@ -129,10 +129,8 @@ mod tests {
             faces: vec![crate::entities::FaceSpec {
                 id: 2,
                 surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     radius: 1.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 sense: true,
                 loops: vec![crate::entities::LoopSpec {

@@ -178,7 +178,7 @@ fn window<'w, T: geom_core::Decide>(
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         span_b: b,
-        height: height(ka, kb.frame().origin, kb.frame().axis),
+        height: height(ka, kb.frame().origin(), kb.frame().axis()),
     }
 }
 

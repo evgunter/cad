@@ -286,12 +286,14 @@ pub(super) fn torus_method<T: Decide>(
 fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, Vec3<T>, T, T)> {
     match *torus {
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => Some((center, axis, major_radius, minor_radius)),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some((center, axis, major_radius, minor_radius))
+        }
         _ => None,
     }
 }
@@ -312,12 +314,12 @@ pub(super) fn axes<T: Decide>(
     circle: &geom::Circle<T>,
     (t_center, t_axis): (Point3<T>, Vec3<T>),
 ) -> Axes<T> {
-    let tilt = circle.radius() * circle.frame.axis.cross(t_axis).norm();
+    let tilt = circle.radius() * circle.frame.axis().cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
     }
-    .param_and_offset(circle.frame.origin);
+    .param_and_offset(circle.frame.origin());
     Axes {
         tilt,
         h0,
@@ -361,10 +363,10 @@ pub(super) fn meridian<T: Decide>(
 ) -> T {
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
     let rounding = rounding_charge(
-        (circle.frame.origin - origin).norm() + (t_center - origin).norm() + major_radius,
+        (circle.frame.origin() - origin).norm() + (t_center - origin).norm() + major_radius,
     );
     meridian_deviation(
-        circle.frame.axis,
+        circle.frame.axis(),
         circle.radius(),
         axes.w_perp,
         axes.offset,
@@ -611,7 +613,7 @@ pub(super) fn contours<T: Decide>(
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let rho_max = radius + offset;
     let middle = geom::mid_param(t0, t1);
-    let (u_ref, v_ref) = (circle.frame.u_ref, circle.frame.v_ref());
+    let (u_ref, v_ref) = (circle.frame.u_ref(), circle.frame.v_ref());
     Contours {
         depth: (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius),
         charge_h,
@@ -740,11 +742,7 @@ mod tests {
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
         let carrier = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
         circle_torus_roots(&carrier, t0, t1, torus, band)
@@ -767,11 +765,13 @@ mod tests {
 
     fn torus<T: geom_core::Real>() -> geom::Surface<T> {
         geom::Surface::Torus {
-            center: Point3::new(T::zero(), T::zero(), T::zero()),
-            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            frame: geom::Frame::new(
+                Point3::new(T::zero(), T::zero(), T::zero()),
+                Vec3::new(T::zero(), T::zero(), T::one()),
+                Vec3::new(T::one(), T::zero(), T::zero()),
+            ),
             major_radius: T::from_f64(R),
             minor_radius: T::from_f64(RT),
-            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
         }
     }
 
@@ -1641,11 +1641,13 @@ mod tests {
     ) -> (u32, Vec<(f64, Option<Unsettled>)>) {
         let (mut answered, mut refused) = (0, Vec::new());
         let far_torus = geom::Surface::Torus {
-            center: Point3::from_array(far),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::from_array(far),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: R,
             minor_radius: RT,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         for alpha in [0.3_f64, 1.9, 3.4, 5.1] {
             for &depth in depths {
@@ -1874,11 +1876,9 @@ mod tests {
             let w = |i: usize| Vec3::new(v[i], v[i + 1], v[i + 2]);
             let (eps, rho) = (v[0], v[1]);
             let torus = geom::Surface::Torus {
-                center: p(11),
-                axis: w(14),
+                frame: geom::Frame::new(p(11), w(14), w(14).orthonormal_basis().0),
                 major_radius: v[17],
                 minor_radius: v[18],
-                u_ref: w(14).orthonormal_basis().0,
             };
             let band = Band::new(eps, 10.0 * eps).unwrap();
             match roots_of(p(2), w(5), rho, w(8), v[19], v[20], &torus, band) {
@@ -1917,8 +1917,10 @@ mod tests {
     /// The general arm's shallow crossings at `ε = 1e-12` that the `f64`
     /// lane once placed tens of bands from the truth, each as `[t0, t1 |
     /// centre | axis | ρ | u_ref | torus centre | torus axis | R, r]` with
-    /// its true crossings over the turn (mpmath at 70 digits on these
-    /// inputs' exact binary values, `v̂ = n̂ × û` exact).
+    /// its true crossings over the turn (mpmath at 70 digits on the polar
+    /// factor of the frames these inputs' exact binary values store,
+    /// decision 1 of PR 7131; read as reals, `v̂ = n̂ × û` exact, the
+    /// everyday pose's tangent pair moves 1.2e-10 rad).
     pub(super) const SHALLOW_POSES: [(&str, [f64; 20], &[f64]); 3] = [
         (
             "a near-parallel circle at the tube's top, its tilt in the gap",
@@ -1944,7 +1946,7 @@ mod tests {
                 1.0,
                 0.25,
             ],
-            &[2.685_922_411_422_998_5, 2.710_943_694_713_821_5],
+            &[2.685_922_411_422_938_5, 2.710_943_694_713_881],
         ),
         (
             "a ten-metre-scale torus",
@@ -1971,10 +1973,10 @@ mod tests {
                 0.302_517_561_644_429_8,
             ],
             &[
-                4.839_154_770_862_667_4e-5,
-                0.027_670_534_202_302_89,
+                4.839_154_727_764_309_6e-5,
+                0.027_670_534_202_314_266,
                 1.475_588_767_894_032_7,
-                6.283_137_001_569_704,
+                6.283_137_001_570_124,
             ],
         ),
         (
@@ -2002,10 +2004,10 @@ mod tests {
                 0.25,
             ],
             &[
-                3.126_822_588_620_022e-5,
-                0.589_305_912_820_224,
-                6.278_594_383_972_917_5,
-                6.283_153_825_613_722,
+                3.126_810_917_445_953e-5,
+                0.589_305_912_820_224_4,
+                6.278_594_383_971_298,
+                6.283_153_825_732_052,
             ],
         ),
     ];
@@ -2017,20 +2019,24 @@ mod tests {
         band: Band,
         pair: fn(T) -> (f64, f64),
     ) -> Result<Vec<(f64, f64)>, String> {
+        // The frames the oracle's pins are taken on (`shallow_sweep`'s
+        // `Pose`): the stated bits admitted as they are, then carried to
+        // the lane, so the door reads the carrier the truth was found on.
         let at = T::from_f64;
-        let p = |i: usize| Point3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
-        let w = |i: usize| Vec3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
+        let p = |i: usize| Point3::new(v[i], v[i + 1], v[i + 2]);
+        let w = |i: usize| Vec3::new(v[i], v[i + 1], v[i + 2]);
+        let circle_frame = geom::Frame::admitted(p(2), w(5), w(9))
+            .unwrap_or_else(|| panic!("a pose's circle frame is rigid within rounding"));
+        let torus_frame = geom::Frame::admitted(p(12), w(15), w(15).orthonormal_basis().0)
+            .unwrap_or_else(|| panic!("a pose's torus frame is rigid within rounding"));
+        let carrier =
+            geom::Curve3::Circle(geom::Circle::new(circle_frame, v[8])).map_scalar(T::from_f64);
         let torus = geom::Surface::Torus {
-            center: p(12),
-            axis: w(15),
+            frame: torus_frame.map_scalar(T::from_f64),
             major_radius: at(v[18]),
             minor_radius: at(v[19]),
-            u_ref: {
-                let (e, _) = Vec3::new(v[15], v[16], v[17]).orthonormal_basis();
-                Vec3::new(at(e.x), at(e.y), at(e.z))
-            },
         };
-        match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
+        match circle_torus_roots(&carrier, at(v[0]), at(v[1]), &torus, band) {
             Ok(Ok(CircleRoots::Certified(found))) => {
                 Ok(found.roots().iter().map(|&t| pair(t)).collect())
             }

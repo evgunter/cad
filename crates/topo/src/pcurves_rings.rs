@@ -806,10 +806,12 @@ mod tests {
     fn an_analytic_outer_loop_reads_a_point_in_out_or_near_and_a_copy_past_the_pole() {
         let eps = Tol::witness().eps();
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let outer = sphere_half_band(&sphere);
         let band = Band::linear(Tol::witness()).unwrap();
@@ -865,10 +867,12 @@ mod tests {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -970,10 +974,12 @@ mod tests {
             "a sliver thinner than the band"
         );
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let wedge = chain(
             &cone,
@@ -1025,11 +1031,13 @@ mod tests {
     fn a_torus_places_a_ring_in_both_channels() {
         let band = Band::linear(Tol::witness()).unwrap();
         let torus = Surface::Torus {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 3.0,
             minor_radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let square = chain(
             &torus,
