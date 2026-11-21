@@ -124,7 +124,7 @@ fn ring_at(margin: f64) -> (AtRestBody<f64>, f64) {
 fn bore_circles(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool + Copy {
     move |c| {
         matches!(c, Curve3::Circle(k)
-            if k.frame.axis.y.abs() > 0.5 && (k.radius() - r_bore).abs() <= r_bore * 1e-9)
+            if k.frame.axis().y.abs() > 0.5 && (k.radius() - r_bore).abs() <= r_bore * 1e-9)
     }
 }
 

@@ -407,7 +407,10 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.face_surface(face)? {
-        Surface::Plane { normal, .. } => Some(OutwardNormal::from_chart(*normal, f.sense)),
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Some(OutwardNormal::from_chart(normal, f.sense))
+        }
         _ => None,
     }
 }

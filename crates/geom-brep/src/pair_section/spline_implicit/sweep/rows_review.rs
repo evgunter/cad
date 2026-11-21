@@ -15,9 +15,7 @@ fn band() -> Band {
 
 fn level(h: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.5, 0.5, h),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.5, 0.5, h), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 

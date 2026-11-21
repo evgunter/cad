@@ -459,20 +459,21 @@ fn the_planar_lane_reads_neither_the_stored_plane_nor_the_sense() {
     // boundary (planar.rs, #284), so this is not an input it reads.
     let mut rotated = base.clone();
     let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: carrier_frame,
     } = *rotated.face_surface(fk).unwrap()
     else {
         panic!("a plane")
     };
+    let (origin, normal, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     recharted(
         &mut rotated,
         fk,
         Surface::Plane {
-            origin,
-            normal,
-            u_ref: normal.cross(u_ref),
+            frame: geom::Frame::new(origin, normal, normal.cross(u_ref)),
         },
     )
     .unwrap();
@@ -502,22 +503,23 @@ fn the_curved_lane_misses_when_its_chart_or_sense_changes_and_nothing_else_does(
     // not.
     let mut rotated = base.clone();
     let Surface::Cylinder {
-        origin,
-        axis,
+        frame: carrier_frame,
         radius,
-        u_ref,
     } = *rotated.face_surface(fk).unwrap()
     else {
         panic!("a cylinder")
     };
+    let (origin, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     recharted(
         &mut rotated,
         fk,
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, axis.cross(u_ref)),
             radius,
-            u_ref: axis.cross(u_ref),
         },
     )
     .unwrap();
@@ -673,20 +675,21 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
     let cap = face_where(&base, |s| matches!(s, Surface::Plane { .. }));
     let mut rotated = base.clone();
     let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: carrier_frame,
     } = *rotated.face_surface(cap).unwrap()
     else {
         panic!("a plane")
     };
+    let (origin, normal, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     recharted(
         &mut rotated,
         cap,
         Surface::Plane {
-            origin,
-            normal,
-            u_ref: normal.cross(u_ref),
+            frame: geom::Frame::new(origin, normal, normal.cross(u_ref)),
         },
     )
     .unwrap();
