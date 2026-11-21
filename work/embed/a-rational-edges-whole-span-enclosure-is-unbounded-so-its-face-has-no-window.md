@@ -85,39 +85,48 @@ f64 lane reads the same windows as the `Interval` table below.
   (`cover_box_against_the_whole_span_eval`; filed as
   `onecopy/an-arcs-cover-reads-its-crest-a-rounding-out-where-the-radius-squared-rounds`).
 - On a spline edge it is finite where the evaluation was the line.
-- On the tour walk at f64, window by window against main, over 57 of
-  the 85 bodies: 89 window ends 1–4 ulps wider, 6 wider by under 1e-12
+- On the tour walk at f64, window by window against main `c5bc653ae`
+  (a one-time figure, 2026-11-18, from an uncommitted print of each
+  window in `window_of`; main's walk prints no windows), over 57 of the
+  85 bodies: 89 window ends 1–4 ulps wider, 6 wider by under 1e-12
   relative, 3 moved off `0` by at most 4.4e-16 (sheave, the lily's
   rootstock), 63 ends 1–4 ulps narrower, and 151 narrower by more (the
   rocker's `±3.53 → ±2.5`, where the evaluation overshot a spline).
 
-**Measured** (main `c5bc653ae` against the branch, f64):
+**Measured** (main `45023f4e3` against the branch merged onto it, f64,
+2026-11-21):
 - the cavity rows, through the uncommitted `CavityGate` switch
-  (`origin/embed/cavity-trace-measure`): the conical wedge and the
-  three-quarter frustum have windows on every face and refuse later,
-  `Uncertified { 1v1, 4v1, Edge(8v1), Departure }` (wedge 14 candidates,
-  100 discharged, 2 refused, 88 splits; frustum 14, 161, 2, 149), the
-  plane cap against the cone wall across the hyperbola, both faces
-  `Structural` at depth 0
+  (`origin/embed/cavity-trace-measure`'s `shell.rs`): the conical wedge
+  and the three-quarter frustum have windows on every face and refuse
+  later, `Uncertified { 1v1, 4v1, Edge(8v1), Departure }` (wedge 14
+  candidates, 100 discharged, 2 refused, 88 splits; frustum 14, 161, 2,
+  149), the plane cap against the cone wall across the hyperbola, both
+  faces `Structural` at depth 0
   (`curved-presentation-reads-plane-and-cylinder-images-only`, re-banded
   P0 for it). The same 14 fail on main and on the branch otherwise; the
   other ten valid rows and the two crossing pins keep their verdicts,
   their receipts moving by up to 28 discharged cells;
 - `self_intersection_proves_injectivity`: 49 of 49 on main and 50 of 50
-  on the branch at the default ε, 1e-6 and 1e-12. The collinear-cap
-  drum holds on the branch (traced on
-  `a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`,
-  whose pin moves to a radius-0.7 drum that refuses on both);
-- the tour walk (`origin/embed/conic-vertex-measure`'s `embed_walk`):
-  82 of 85 hold on main and on the branch, the same three refusing
-  (the bench assemblies' recorded contacts) and `budfillet` holding.
-  14 bodies' counts move: candidates 6,929 → 6,925 (`tiltedcut_above`
-  150 → 146), discharged 479,866 → 479,419, splits 473,162 → 472,719,
-  refused 0 → 0. The largest: `lily_bud_b` 676 → 537, `lily_bud_a`
-  733 → 606, `budfillet` 3,423 → 3,547, `projectbox/cutaway_below`
-  6,815 → 6,717, `cutaway_above` 2,996 → 2,917, `lily_bud_c` 794 → 726,
-  `tiltedcut_above` 1,831 → 1,782, `fivewall` 15,090 → 15,070, the two
-  torus vessels +12, `teapotvessel` −9.
+  on the branch (the radius-0.7 drum added) at the default ε, 1e-6 and
+  1e-12. The collinear-cap drum refuses 210 cells on both. It held on
+  the branch at `c5bc653ae` by the alignment of its halvings with the
+  half-circle, which PR 7131's frames moved
+  (`a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`);
+- the tour walk, main's `demos/tour/examples/embed_walk.rs` (`grep '^WALK'`,
+  diffed against main's own): 78 of 85 hold on main and on the branch,
+  and no verdict differs at any stop; the seven that refuse are the same
+  on both (the three bench assemblies' recorded contacts, and the three
+  die bodies and the lily's lantern, departure). 13 bodies' counts move:
+  candidates 6,929 → 6,925 (`tiltedcut_above` 150 → 146), discharged
+  499,153 → 498,677, splits 492,679 → 492,207, refused 230 → 230. The
+  largest: `lily_bud_b` 676 → 537, `lily_bud_a` 733 → 606, `budfillet`
+  3,423 → 3,547, `projectbox/cutaway_below` 6,815 → 6,717,
+  `cutaway_above` 2,996 → 2,917, `lily_bud_c` 794 → 726,
+  `tiltedcut_above` 1,826 → 1,782, `fivewall` 15,090 → 15,070;
+- every stored edge of every tour body lies inside its cover's box:
+  3,815 edges, worst escape 0
+  (`demos/tour/examples/edge_cover_soundness.rs`, 297 s with the tour's
+  build).
 
 **The census's 59.** On the at-rest gate's branch (`origin/embed/gate`
 `9d271e43e`) with this fix's first form, the census's named row for its
