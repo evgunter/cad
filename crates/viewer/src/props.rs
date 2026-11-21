@@ -374,11 +374,10 @@ pub fn rendering_unit(
     remembered.or_else(|| notation.unit(dimension))
 }
 
-/// A canonical value as it is WRITTEN in `unit` — one divide, the
-/// inverse of the text door's one multiply.
-///
+/// A canonical value as it is WRITTEN in `unit`: the float nearest its
+/// exact number of the unit ([`UnitDef::quotient`]).
 pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
-    canonical / unit.factor()
+    unit.quotient(canonical)
 }
 
 /// [`in_written`] where that value IS a number, and `None` where the
@@ -392,7 +391,8 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// is `inf`, which [`render_number`] spells `inf`. A text reading
 /// infinity names no value, and the value it was asked about is one
 /// the document holds perfectly well. ([`crate::readout::computed`]
-/// is handed the canonical value and tells such a length in metres.)
+/// is handed the canonical value and tells such a length in the unit,
+/// as a decimal no float of the unit holds: `1e309 mm`.)
 ///
 /// **The other end is the same question and is not symmetric.** One
 /// row's factor is above one — `pi rad`, at π — so a canonical angle
@@ -415,9 +415,9 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// value is a number and the unit is a unit, and the value written in
 /// that unit is neither.
 pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    // The unit's own question (`UnitDef::number_of`, which a told
-    // quantity asks too), and this door's addition: a value that is
-    // not finite is no number to show in any unit.
+    // The unit's own question (`UnitDef::number_of`), and this door's
+    // addition: a value that is not finite is no number to show in any
+    // unit.
     unit.number_of(canonical)
         .filter(|written| written.is_finite())
 }
@@ -441,11 +441,9 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// carrying its symbol.
 ///
 /// **The crate's render of a value nobody wrote
-/// ([`crate::readout::computed`])**: told on the grid in `unit`, and
-/// in the canonical unit, under its own word, where `unit` cannot say
-/// the value at all ([`written`]'s `None`). A value that is not
-/// finite names no quantity in any unit and is [`no_reading`], never
-/// `inf`.
+/// ([`crate::readout::computed`])**: told on the grid in `unit`, which
+/// says every finite value. A value that is not finite names no
+/// quantity in any unit and is [`no_reading`], never `inf`.
 ///
 /// `render_number` is deliberately not the render here. That one is a
 /// FIELD's — exact round-tripping digits, because the text a
@@ -459,12 +457,13 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
     }
 }
 
-/// A written value back to canonical — `n * factor`, which is exactly
-/// the literal semantics `parse_formula` applies to `n <symbol>`, so a
-/// number typed into a panel field and the same number typed into the
-/// expression field land on the same bits.
+/// A written value back to canonical — the number read as its shortest
+/// decimal, through the unit's one door ([`UnitDef::canonical_of_float`]),
+/// which is the literal semantics `parse_formula` applies to
+/// `n <symbol>`, so a number typed into a panel field and the same
+/// number typed into the expression field land on the same bits.
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
-    written * unit.factor()
+    unit.canonical_of_float(written)
 }
 
 /// [`in_written`] over a field that may name NO unit — one canonical
