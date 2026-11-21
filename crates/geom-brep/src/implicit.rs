@@ -865,8 +865,16 @@ pub fn circle_arc_residual_range<T: Real>(
 #[must_use]
 pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<(T, T)> {
     if let Some(h) = conic_residual_harmonics(s, conic) {
-        let reach = h.a1 + h.a2 + h.noise;
-        return Some((h.c0 - reach, h.c0 + reach));
+        // The computed form's extremes, each within the form's rounding.
+        let swing = h.a1 + h.a2;
+        let extreme = |value: T| Rounded {
+            value,
+            error: h.noise,
+        };
+        return Some((
+            extreme(h.c0 - swing).lower_end(),
+            extreme(h.c0 + swing).upper_end(),
+        ));
     }
     conic_arc_residual_range(s, conic, T::zero(), geom::conic_period::<T>().length())
 }
@@ -2294,6 +2302,39 @@ mod tests {
                     "pose {k}: {name}'s bound {err} exceeds its ceiling {ceiling}"
                 );
             }
+        }
+    }
+
+    /// **A conic's residual extremes are its computed form's, each within
+    /// the form's rounding.** A circle of radius 2 about `(3, 1, 7)` against
+    /// the plane `z = 0`, tilted so its height swings: the extremes read
+    /// are `c₀ ∓ A₁`, each moved outward by the form's noise, which is not
+    /// zero; and they hold the sampled residual.
+    #[test]
+    fn a_conics_extremes_are_its_forms_within_its_rounding() {
+        let circle = geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(3.0, 1.0, 7.0),
+                Vec3::new(0.6, 0.0, 0.8),
+                Vec3::new(0.8, 0.0, -0.6),
+            ),
+            2.0,
+        );
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let h = conic_residual_harmonics(&plane, &circle).unwrap();
+        assert!(h.noise > 0.0, "the form carries its rounding");
+        let (lo, hi) = conic_residual_extremes(&plane, &circle).unwrap();
+        let swing = h.a1 + h.a2;
+        assert_eq!(lo, (h.c0 - swing) - h.noise, "the lower extreme, within its rounding");
+        assert_eq!(hi, (h.c0 + swing) + h.noise, "the upper extreme, within its rounding");
+        for i in 0..256 {
+            let t = core::f64::consts::TAU * f64::from(i) / 256.0;
+            let f = implicit_residual(&plane, geom::Conic::point_at(&circle, t));
+            assert!(lo <= f && f <= hi, "the residual {f} at {t} past [{lo}, {hi}]");
         }
     }
 

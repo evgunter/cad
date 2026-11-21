@@ -43,7 +43,7 @@ crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	prod	1	re-pose
 crates/geom-brep/src/half_angle.rs	test	8	oracle
-crates/geom-brep/src/implicit.rs	prod	70	re-pose,far-centre
+crates/geom-brep/src/implicit.rs	prod	71	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
