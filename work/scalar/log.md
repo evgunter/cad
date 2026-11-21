@@ -338,3 +338,38 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
     fix pass): at `Interval`, `Sym` and `Probe` three lanes are an
     `Option` of a type with no constructor there — DL5.3's forbidden
     shape at scalars other than a dual.
+
+- 2026-11-21 — **PR 7190's pair is blind-coded** (`coding-7190/`): 30
+  deduplicated findings; both reviewers built the same kind of probe
+  for the unsealed lane traits and planted the same gate blind spot;
+  one tally candidate (the sixteen by-value interiors), contested by
+  the other reviewer and not overlooked.
+- 2026-11-21 — **PR 7229 (the notation unit) is built and green**
+  (head `0cff6e4c8d`, run 44861598189, after five red runs) and went
+  to the first of its sequential reviews (`review-brief-7229.md`,
+  eleven claims). Built: `quantity::Notation` as the one home
+  (`geom-core` now depends on `quantity`), a `Tell` trait with
+  `Display` as the canonical telling, `geom_core::Sentence` for a
+  stored refusal, and the viewer's `readout` as doors onto `Told`.
+  - **Coming to Ev after the review, on that PR**: an offered bound in
+    a non-canonical unit often reads oddly (`at most 0.30004 m` reads
+    `300.0399999 mm`, because the typed float of `300.04 mm` lands
+    above the bound) — whether "the side that works when typed" means
+    the typed float or the exact decimal; and what a unit that cannot
+    say a quantity falls back to. The reviewer is asked to measure the
+    first and state both as questions.
+  - The working notation reaches only the sketch preview's refusal:
+    every other route turns a `PathError` into a `String` before the
+    viewer holds it. Filed P1,
+    `a-kept-refusal-keeps-its-text-where-it-must-keep-its-sentence`.
+  - Measured for the boxing row, as an estimate read from source and
+    not compiled: 65 error types would cross clippy's size line with
+    an inline `Told`.
+- 2026-11-21 — **Friction: the build slot.** Width one, shared by four
+  lanes of this program and by other programs; waits of 20 to 50
+  minutes per compile are routine, a viewer test build did not finish
+  in 90 minutes, and two units sent first-compile errors to CI
+  because local compiles timed out. With four lanes in flight no
+  further lane is dispatched from this container until one lands;
+  the told lane, free now, waits for PR 7229's review before unit 3
+  stacks on an API the review may reshape.
