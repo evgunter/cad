@@ -62,6 +62,30 @@ pub(crate) struct Rim<T: Real> {
     pub u_ref: Vec3<T>,
 }
 
+impl<T: Decide> Rim<T> {
+    /// **The farthest the whole circle stands from `pivot`**: its cover's
+    /// far distance ([`geom_brep::ExtentBall::of_cover_from`]), exact on
+    /// a circle, so one read bounds it from both sides; poison where the
+    /// circle has no cover.
+    fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
+        let circle = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
+                origin: self.center,
+                axis: self.axis,
+                u_ref: self.u_ref,
+            },
+            self.radius,
+        ));
+        let cover = circle
+            .cover_over(geom::cover::ParamWindow::new(
+                T::zero(),
+                T::from_f64(core::f64::consts::TAU),
+            ))
+            .ok();
+        geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
+    }
+}
+
 /// What the ruling's table routes a shared rim to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RimRouting {
@@ -211,12 +235,11 @@ fn same_circle<T: Decide>(
             (RIM_CIRCLE_CENTER, Margin::norm3(ra.center - rb.center)),
             (
                 RIM_CIRCLE_AXIS_PARALLEL,
-                // Unsourced lever: the two rims' radii summed, which no
-                // one extent's read is; their union's (the larger)
-                // would move verdicts by a shorter arm.
+                // The tilt pinned at `ra`'s centre, levered at both
+                // circles' far distance from there: their union's.
                 Margin::levered(
                     ra.axis.cross(rb.axis).norm(),
-                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                    ra.reach_from(ra.center).max(rb.reach_from(ra.center)),
                 ),
             ),
         ],

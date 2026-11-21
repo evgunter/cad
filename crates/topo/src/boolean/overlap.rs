@@ -336,24 +336,35 @@ pub(crate) fn overlap_as<T: Decide>(
 }
 
 /// The middle of `a`'s first boundary edge, and a's and b's outward
-/// normals there, which must face one way.
+/// normals there, which must face one way: their cosine levered at how
+/// far `a`'s boundary reaches from that point, read from below, since a
+/// definite sign is what is acted on.
 fn one_sense<T: Decide>(
     a: (&Body<T>, FaceKey),
     (b, reversed): ((&Body<T>, FaceKey), bool),
     band: Band,
 ) -> Result<(), OverlapRefusal> {
-    let Some(&he) = loops(a)?.iter().flatten().next() else {
+    let boundary = loops(a)?;
+    let Some(&he) = boundary.iter().flatten().next() else {
         return Err(OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge));
     };
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
+    let reach_below = |h: HalfEdgeKey| -> Result<Lever<T>, OverlapRefusal> {
+        let (_, edge) = edge_record(a.0, h)?;
+        crate::cover::edge_reach_bounds(a.0, half_edge(a.0, h)?.edge, edge, p)
+            .map(geom_brep::LeverBounds::below)
+            .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))
+    };
+    let arm = boundary
+        .iter()
+        .flatten()
+        .try_fold(reach_below(he)?, |arm, &h| Ok(arm.max(reach_below(h)?)))?;
     let na = normal_at(a, p, band)?;
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        // Unsourced lever: the unit normals' cosine is read at a unit arm,
-        // not over the faces' extent; the holdings row owns its source.
-        Margin::levered(na.dot(nb), Lever::unsourced(T::one())),
+        Margin::levered(na.dot(nb), arm),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
