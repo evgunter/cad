@@ -2,11 +2,11 @@
 id: the-session-box-reach-misses-a-curved-faces-bulge
 kind: issue
 title: The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed
-status: dispatched
+status: review
 opened: 2026-11-02
 priority: P1
 cost: H
-pr: 7140
+pr: 7225
 branch: oneround/box-region
 ---
 
