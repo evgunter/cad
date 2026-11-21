@@ -2,11 +2,10 @@
 id: a-number-in-a-unit-is-rounded-once
 kind: unit
 title: A number in a unit is rounded once over the unit's exact factor; the fallback, the float unit arithmetic and Display on a told number retire
-status: open
+status: spec
 opened: 2026-11-20
 priority: P1
 cost: H
-design: true
 ---
 
 
@@ -36,3 +35,7 @@ A compared pair of two dimensions should not construct (it falls back today); `r
 ## Sequencing
 
 PR 7229's `Tell`, `Sentence` and the notation's home survive all four changes, so it merges as built. Change 2 rewrites every `Tell` body, so it lands before the per-crate sweeps convert more refusals.
+
+## Ratified
+
+Ev, PR 7261, 2026-11-21: all four changes. On equality Ev asked why a display-rounding equality existed at all; the answer is that it should not, and equality is a plain `#[derive(PartialEq)]` with no hand-written logic (not `cfg(test)`-only). On the teller Ev confirmed the rule stays "the reader's working unit", not the unit a number was written in.
