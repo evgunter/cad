@@ -194,9 +194,9 @@ mod r1_mesh2_review_probes {
 }
 
 /// **The Klein loop's caps hold against its walls where a wall seam
-/// meets them.** The loop's section circle is split into four arcs,
-/// one per wall, so each cap is a plane bounded by four arcs of one
-/// circle. A cap cell holding a vertex where two arcs meet is read by
+/// meets them.** The loop's section is an annulus of two `circle`s,
+/// each one segment and one wall, so each cap is a plane bounded by the
+/// two circles, each at its one vertex. A cap cell holding that vertex is read by
 /// no presentation; the wall's departure from the cap's plane certifies
 /// it, the wall's side on the shared edge read off its own restricted
 /// iso net. The tour builds at `f64` only; the `Interval` twin of this
@@ -211,39 +211,28 @@ mod cap_corner_departure {
         let tol = Tol::witness();
         let float = bottle::<f64>(tol).top;
         let pairs = cap_wall_pairs(&float);
-        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
         let receipts: Vec<(usize, u32)> = pairs
             .iter()
             .map(|&pair| assert_holds("klein loop", &float, pair))
             .collect();
         assert_eq!(
             receipts,
-            [
-                (1, 1),
-                (1, 1),
-                (1, 1),
-                (1, 1),
-                (3, 3),
-                (3, 3),
-                (3, 3),
-                (3, 3)
-            ],
+            [(1, 1), (1, 1), (3, 3), (3, 3)],
             "each pair's (splits, deepest cell)"
         );
     }
 }
 
 /// **The loop's outer walls hold against its inner walls within the
-/// default budget.** The loop's section is an annulus whose two circles
-/// are each split into two arcs, so its four walls are two outer halves
-/// and two inner halves, about 0.05 apart over a 2.8 body, and an outer
-/// wall shares no vertex with an inner one. Two of those four pairs
-/// face each other tilted against the axes, where the distance test's
-/// boxes stay apart only for cells about as small as the gap; the
-/// support along a cell's normal separates them at cells of about
-/// √(gap · radius). Each pair holds under the strict question at the
-/// default depth and pair budget, in at most 4096 cell pairs, each
-/// pair's count printed.
+/// default budget.** The loop's section is an annulus of two one-segment
+/// circles, so its walls are one outer and one inner, about 0.05 apart
+/// over a 2.8 body, sharing no vertex. They face each other tilted
+/// against the axes, where the distance test's boxes stay apart only for
+/// cells about as small as the gap; the support along a cell's normal
+/// separates them at cells of about √(gap · radius). The pair holds
+/// under the strict question at the default depth and pair budget, in
+/// at most 4096 cell pairs, its count printed.
 mod wall_gap_support {
     use std::collections::BTreeSet;
 
@@ -299,8 +288,8 @@ mod wall_gap_support {
             .collect();
         assert_eq!(
             apart.len(),
-            4,
-            "two outer walls against two inner walls: {apart:?}"
+            1,
+            "the outer wall against the inner wall: {apart:?}"
         );
         let window = |f, which| {
             Side {

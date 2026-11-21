@@ -1619,11 +1619,14 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
 /// wall, an ellipse ring on the cone's half, and a tilted circle on the
 /// ball's half band.
 ///
-/// Every one sits inside the polygon its outer loop's lift draws as
-/// stored, and no other whole-period move puts it there: on the ball
-/// less the tube, as on the ball and the tube united, the ring is one
-/// whole `Projected` circle on the outer loop's own branch, `u ∈ [π,
-/// 2π]`.
+/// All but the bar through the pipe's sit inside the polygon their
+/// outer loop's lift draws as stored, and no other whole-period move
+/// puts them there. The bar through the pipe's does not: the pipe's one
+/// wall lifts its outer loop on `u ∈ [−2π, 0]` and the ring the bar
+/// leaves on the far side at `u ≈ π`, one period above, and `(−1, 0)`
+/// is the one move that places it. On the ball less the tube, as on
+/// the ball and the tube united, the ring is one whole `Projected`
+/// circle on the outer loop's own branch, `u ∈ [π, 2π]`.
 ///
 /// `Body::face_lift` answers the same move for every ring, and every
 /// sample of the ring it moves lies inside the outer loop's polygon.
@@ -1632,7 +1635,7 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
 /// a ringed face is moved by the sphere's involution, and the ball's
 /// ring and outer loop both lie between the pole rows `v = ±π/2`.
 #[test]
-fn a_ring_sits_in_its_outer_loops_polygon_as_stored() {
+fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_bar_through_the_pipe() {
     let mut sample = donut_and_bar();
     sample.extend(tube_on_ball());
     sample.extend(pipe_and_bars());
@@ -1653,14 +1656,15 @@ fn a_ring_sits_in_its_outer_loops_polygon_as_stored() {
         ring_table(&rings)
     );
     for r in &rings {
-        let want = (0, 0);
+        let displaced = r.body.starts_with("the bar through,");
+        let want = if displaced { (-1, 0) } else { (0, 0) };
         assert_eq!(
             (
                 r.places.as_slice(),
                 hull_within(r.ring_hull, r.outer_hull),
                 &r.door
             ),
-            (&[want][..], true, &Ok((want, true))),
+            (&[want][..], !displaced, &Ok((want, true))),
             "{} ring {}: the one move that places it, whether it is inside as stored, and \
              the door's move and whether the ring it moved is inside\n{}",
             r.body,
@@ -1684,6 +1688,16 @@ fn a_ring_sits_in_its_outer_loops_polygon_as_stored() {
             );
         }
     }
+    let displaced = rings
+        .iter()
+        .find(|r| r.body == "the bar through, A ∪ B")
+        .expect("the bar through the pipe leaves a ring");
+    let (u, o) = (displaced.ring_hull.0, displaced.outer_hull.0);
+    assert!(
+        u.0 > 2.8 && u.1 < 3.5 && (o.0 + TAU).abs() < MEET && o.1.abs() < MEET,
+        "the displaced ring is a period above its outer loop\n{}",
+        ring_table(&rings)
+    );
     let held = rings
         .iter()
         .find(|r| r.body == "the tube on the ball, B ∖ A")

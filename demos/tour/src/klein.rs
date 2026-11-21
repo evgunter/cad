@@ -111,8 +111,10 @@
 //! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
 //!    stop at one place (`wall3_pinned`): the join's germ pair of the
 //!    bulb's cone and the loop's spline wall has no section arm to frame
-//!    it (`GermFrameUnsupported`). Every op reads the pair through the
-//!    same doors, so the subtract stops where the union does. So the
+//!    it (`GermFrameUnsupported`); at ε `1e-12` a bulb edge's walk
+//!    against that wall floors first (`SplineCrossingUnsettled`).
+//!    Every op reads the pair through the same doors, so the subtract
+//!    stops where the union does. So the
 //!    bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
@@ -603,11 +605,27 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
 /// spline wall, is taken before it. Both faces are pinned by key and by
 /// their surfaces' kinds as the two operands hold them. Shared with
 /// `verbs_gate_r1_probes`, so the two cannot drift.
+///
+/// At ε `1e-12` the join stops one door earlier: a bulb edge walked
+/// against the loop's spline wall floors (`SplineCrossingUnsettled`,
+/// `Floor`), pinned by the wall's kind as the loop holds it
+/// (`work/splice/klein-wall-3-at-1e-12-floors-the-bulbs-edge-against-the-loops-one-section-wall.md`).
 pub fn wall3_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
     top: &AtRestBody<S>,
 ) -> bool {
+    let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
+    if let BooleanError::SplineCrossingUnsettled {
+        operand: pncad::topo::Operand::A,
+        face,
+        face_of: pncad::topo::Operand::B,
+        why: pncad::geom_brep::roots::Unsettled::Floor,
+        ..
+    } = e
+    {
+        return kind_of(top, *face) == Some(SurfaceKind::Nurbs);
+    }
     let BooleanError::GermFrameUnsupported {
         a_face,
         a_kind: SurfaceKind::Cone,
@@ -617,7 +635,6 @@ pub fn wall3_pinned<S: Scalar>(
     else {
         return false;
     };
-    let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
     format!("{a_face:?}") == "FaceKey(6v1)"
         && format!("{b_face:?}") == "FaceKey(4v1)"
         && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)
