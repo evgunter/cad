@@ -187,6 +187,13 @@ failure-output = "immediate-final"
 # 1.0 s bar on PR 7052's hosted run. It times the same on main as on that
 # branch (3.6-3.9 s and 3.4-3.8 s, local debug), so it sits at the bar:
 #    1.02 s  sweep::all parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings
+# A ball wedge cut pole to pole, and a circle near a pole folded at a
+# coarse delta: 1.033 s and 1.021 s against the 1.0 s bar on PR 7208's
+# hosted run. Five local debug runs on that branch read 1.09-1.26 s and
+# 0.29-0.37 s; earlier heads' full-suite logs, 3c's (since merged) among
+# them, read 1.0-1.4 s and 0.35-0.70 s, so both sit at the bar:
+#    1.03 s  sweep::all snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds
+#    1.02 s  sweep::all tilted_sphere_pair::a_circle_near_the_pole_folds_at_a_coarse_delta
 # The chamfer over rounded outlines, its strips and frustums meeting at
 # junctions: closed rims turned, moved and drawn in arc pieces, pockets,
 # open runs and the plate at the certified scalar, the adversarial rows,
@@ -472,7 +479,8 @@ not (
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
-  (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk))
+  (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
+  (binary_id(sweep::all) & (test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds) | test(=tilted_sphere_pair::a_circle_near_the_pole_folds_at_a_coarse_delta)))
 )
 """
 
