@@ -53,6 +53,51 @@
 //! read under the reader's stretch rule (the parent module's docs). A
 //! walk past [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
+//!
+//! # The reach and the run, past a span
+//!
+//! The walk's pair reads its window's reach and run past a span
+//! ([`Span::past_by`]), on the bound `pose`'s module docs derive ("The
+//! gap's lower bound"); the pose's pair is held to the spans and reads
+//! neither.
+//!
+//! **The reach.** Where `p` reads past a span and its chord to each of
+//! the span's ends exceeds `m₋` past the band
+//! (`curve_pair_span_past_reach`), the arc of `m₋` either side of `p`
+//! reaches neither end (a chord is at most its arc), so no pair of the
+//! window lies on that span; `q` on the second span alike.
+//!
+//! **The run.** The *run* is the pairs of the window within `e` of each
+//! other. Where the polished pair is itself one of them (its gap `|w|`
+//! in the zero band, `curve_pair_walk_pair_gap`), an end of a span the
+//! run would cross can be read off the other carrier:
+//!
+//! - Every pair of the run lies within `m₋` of `(p, q)` along both
+//!   carriers (`pose`'s module docs, "The move").
+//! - Take a pair of the run at arc parameters `(α, β)` from `(p, q)`, and
+//!   the pairs `(tα, tβ)`, `t ∈ [0, 1]`, between it and the polished
+//!   pair. Their difference is `L(t) + r(t)`, with
+//!   `L(t) = −w + t(uα − vβ)` affine in `t` and `|r(t)| ≤ K·m₋²/2`, the
+//!   *bend*, since `t·m ≤ m₋`.
+//! - A norm is convex, so `|L(t)| ≤ max(|L(0)|, |L(1)|)`. Here
+//!   `|L(0)| = |w| ≤ e` and `|L(1)| < e + bend`, since the pair at
+//!   `t = 1` is within `e` and its remainder is at most the bend.
+//! - So every point of the first carrier between `p` and the run's pair,
+//!   an end of the span among them, lies within `e + 2·bend` of the
+//!   second carrier.
+//!
+//! So where `p` is past a span and each of the span's ends is either out
+//! of the reach (its chord to `p` past `m₋`, `curve_pair_span_past_reach`)
+//! or has a closed-form clearance from the other carrier
+//! ([`geom::Curve3::clearance`]) past `e + 2·bend`
+//! (`curve_pair_span_run_end`), no pair of the run lies on the span, and
+//! the Off prunes ([`Span::past_by`]). `q` on the second span alike. This
+//! is main's argument, that the closest pair's run is read through the
+//! spans' ends: its premise, that the polish converged, is replaced by a
+//! decided one, the polished pair's own gap. It needs no premise past the
+//! basin's: no monotonicity of the gap along a carrier, only the move's
+//! bound and the bend. A spline end has no closed-form clearance, so its
+//! run arm does not read.
 
 use geom::{Curve3, ParamSide, PieceStep};
 use geom_core::bisect::{Step, bisect};
@@ -349,10 +394,12 @@ fn window<T: Decide>(
     );
     // A two-sided reading that bounds its reach stands; one whose basin
     // or move is not proved gives way to the one-sided reading where the
-    // pair is held at an end of each span.
-    if let Some(bound) = two.filter(|b| geom_core::is_finite_length(b.reach)) {
-        return bound;
-    }
+    // pair is held at an end of each span (`polish::two_or_one_sided`, the
+    // pose's too, which differs in three ways: it reads its carriers' own
+    // derivatives, conics' and lines' with no crease; their curvature
+    // over both sides of the end; and its two-sided reading carries a
+    // held side's floor). Where neither bounds a reach the window is
+    // undecided, where the pose refuses.
     let one = || {
         let (side_a, side_b) = (held(ra.span, s)?, held(rb.span, t)?);
         // Each end reads its span's side: its half-tangent is the
@@ -360,7 +407,7 @@ fn window<T: Decide>(
         // span, and the curvature is read over that side alone.
         let into = |r: &Read<'_, '_, T>, u: T, side: ParamSide| {
             let (p, d) = r.curve().ders1_from(u, side);
-            (p, if side == ParamSide::Above { d } else { -d })
+            (p, super::polish::into_span(d, side))
         };
         let curvature = ra.curvature_near(s, span, Arcs::Toward(side_a))
             + rb.curvature_near(t, span, Arcs::Toward(side_b));
@@ -371,13 +418,7 @@ fn window<T: Decide>(
             (e, span),
         )
     };
-    // Where the one-sided reading bounds no reach either, the two-sided
-    // result stands as it is: a basin proved but its move not, whose
-    // bound is undecided (`polish::undecided`, the reach `+∞`), or none.
-    one()
-        .filter(|b| geom_core::is_finite_length(b.reach))
-        .or(two)
-        .unwrap_or_else(super::polish::undecided)
+    super::polish::two_or_one_sided(two, one).unwrap_or_else(super::polish::undecided)
 }
 
 /// **A polished parameter at its span's end is that end**: where the
@@ -396,9 +437,8 @@ fn window<T: Decide>(
 /// The place is read once, held apart with its record
 /// ([`super::PlaceRead`]), for the pair read to use.
 fn at_end<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> (T, super::PlaceRead) {
-    let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
-    let at_an_end = matches!(place, Ok(super::Place::End(_)));
-    let read = super::PlaceRead { place, record };
+    let read = super::PlaceRead::of(span, u, band);
+    let at_an_end = matches!(read.place, Ok(super::Place::End(_)));
     if !at_an_end {
         return (u, read);
     }
@@ -447,13 +487,63 @@ fn read_polished<T: Decide>(
     found.read_pair(ra.span, rb.span, candidate, (on_a, on_b), band);
 }
 
+/// **The stops' polished pairs, logged for the guard row**
+/// (`tests::every_stop_polishes_to_its_pieces_least_distance`): on a test
+/// thread that opens the log, each stop's two pieces and its polished
+/// pair, as `f64`. `cfg(test)` compiles it out of
+/// every other build.
+#[cfg(test)]
+mod stop_log {
+    use core::cell::RefCell;
+
+    use geom_core::Decide;
+
+    use super::Piece;
+
+    /// A stop: its pieces' bounds on each carrier and its polished pair.
+    pub(super) type Stop = ((f64, f64), (f64, f64), (f64, f64));
+
+    std::thread_local! {
+        static STOPS: RefCell<Option<Vec<Stop>>> = const { RefCell::new(None) };
+    }
+
+    /// The stops `f` makes on this thread.
+    pub(super) fn during(f: impl FnOnce()) -> Vec<Stop> {
+        STOPS.with(|log| *log.borrow_mut() = Some(Vec::new()));
+        f();
+        STOPS
+            .with(|log| log.borrow_mut().take())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn record<T: Decide>(pa: Piece<T>, pb: Piece<T>, (s, t): (T, T)) {
+        // The rows run at `f64`, whose value its `Debug` spells; another
+        // scalar logs its enclosure's middle, or NaN.
+        let mid = |x: T| {
+            x.enclosure_probe().map_or_else(
+                || format!("{x:?}").parse().unwrap_or(f64::NAN),
+                |(l, h)| 0.5 * (l + h),
+            )
+        };
+        STOPS.with(|log| {
+            if let Some(stops) = log.borrow_mut().as_mut() {
+                stops.push((
+                    (mid(pa.a), mid(pa.b)),
+                    (mid(pb.a), mid(pb.b)),
+                    (mid(s), mid(t)),
+                ));
+            }
+        });
+    }
+}
+
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
 /// the span's end parameters (`curve_pair_walk_held_end`), and the span
 /// has ends. Read as which side of `u` the span lies on, from the order
 /// of the span's two ends
 /// (`curve_pair_walk_span_order`, asked only at an end); `None` at no
 /// end, on an endless span, and where the order is not decided.
-fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
+pub(super) fn held<T: Decide>(span: &Span<'_, T>, u: T) -> Option<ParamSide> {
     if !span.ended() {
         return None;
     }
@@ -603,6 +693,8 @@ pub(super) fn meet<T: Decide>(
                     |m| step_taken(m, slack),
                     (hold(a), hold(b)),
                 );
+                #[cfg(test)]
+                stop_log::record(pa, pb, polished);
                 read_polished(&mut found, (&ra, pa), (&rb, pb), polished, band);
                 return Step::Settled;
             }
@@ -627,7 +719,7 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Piece, Read, at_end, read_polished, step_taken, window, witnesses};
+    use super::{Piece, Read, at_end, read_polished, step_taken, stop_log, window, witnesses};
     use crate::curve_pair::Span;
 
     /// **The one-sided window's reach, checked against its pairs**: the
@@ -1002,7 +1094,7 @@ mod tests {
     }
 
     /// **The run arm reads only where the polished pair is in the run**
-    /// (`pose`'s module docs, "The run"; [`super::super::window_off`]):
+    /// (the module docs, "The reach and the run, past a span"; [`super::super::window_off`]):
     /// the x axis over `(0, 1)` and a line square to it, read at a pair on
     /// the axis at `x = 1.5`, past the span, with a window of reach 10
     /// and no bend, so both of the axis span's ends are within reach.
@@ -1021,6 +1113,7 @@ mod tests {
             floor: f64::NEG_INFINITY,
             reach: 10.0,
             bend: 0.0,
+            spans: crate::curve_pair::WindowSpans::MayPass,
         };
         for (crossing, cleared) in [(1.5, true), (0.5, false)] {
             let (x, cross) = axis_and_cross(crossing, 0.0);
@@ -1260,5 +1353,152 @@ mod tests {
         for q in &points {
             assert!(off(q).is_ok(), "{q:?} lies in the band's gap of the joint");
         }
+    }
+
+    /// The least distance between two pieces, `(s, t)` its pair: the
+    /// best of a `n × n` grid, refined by Gauss–Newton held to the pieces.
+    fn least_within(
+        (a, pa): (&Curve3<f64>, (f64, f64)),
+        (b, pb): (&Curve3<f64>, (f64, f64)),
+        n: usize,
+    ) -> (f64, (f64, f64)) {
+        let gap = |s: f64, t: f64| (a.eval(s) - b.eval(t)).norm();
+        #[allow(clippy::cast_precision_loss)]
+        let at = |(lo, hi): (f64, f64), i: usize| lo + (hi - lo) * i as f64 / n as f64;
+        let mut best = (f64::INFINITY, (pa.0, pb.0));
+        for i in 0..=n {
+            for j in 0..=n {
+                let (s, t) = (at(pa, i), at(pb, j));
+                let g = gap(s, t);
+                if g < best.0 {
+                    best = (g, (s, t));
+                }
+            }
+        }
+        let (mut s, mut t) = best.1;
+        for _ in 0..50 {
+            let (p, du) = a.ders1(s);
+            let (q, dv) = b.ders1(t);
+            let w = p - q;
+            let (a11, a12, a22) = (du.dot(du), -du.dot(dv), dv.dot(dv));
+            let (b1, b2) = (-du.dot(w), dv.dot(w));
+            let det = a11 * a22 - a12 * a12;
+            if det == 0.0 {
+                break;
+            }
+            let ns = (s + (b1 * a22 - a12 * b2) / det).clamp(pa.0, pa.1);
+            let nt = (t + (a11 * b2 - a12 * b1) / det).clamp(pb.0, pb.1);
+            if gap(ns, nt) >= gap(s, t) {
+                break;
+            }
+            (s, t) = (ns, nt);
+        }
+        (gap(s, t), (s, t))
+    }
+
+    /// A cubic whose `n` control points lie within `spread` of the circle
+    /// of radius `r` about the origin in `z = 0`, from angle `from` over
+    /// `turn`: a spline that crosses, grazes or clears the circle.
+    fn about_the_circle(
+        rng: &mut test_utils::fuzz::Rng,
+        r: f64,
+        (from, turn): (f64, f64),
+        spread: f64,
+    ) -> Curve3<f64> {
+        let n = 4 + rng.below(4);
+        #[allow(clippy::cast_precision_loss)]
+        let points: Vec<Point3<f64>> = (0..n)
+            .map(|i| {
+                let step = turn / (n - 1) as f64;
+                let th = from + step * i as f64;
+                // Lifted off the chord's sagitta, so the spline lies at
+                // the circle and the spread moves it across.
+                let rr = r / (step / 2.0).cos() + rng.range(-spread, spread);
+                Point3::new(rr * th.cos(), rr * th.sin(), 0.0)
+            })
+            .collect();
+        let mut knots = vec![0.0; 4];
+        #[allow(clippy::cast_precision_loss)]
+        knots.extend((1..n - 3).map(|i| i as f64 / (n - 3) as f64));
+        knots.extend([1.0; 4]);
+        Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(knots, 3).unwrap(),
+                points,
+                vec![1.0; n],
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// **Every stop of the walk polishes to its pieces' least distance**,
+    /// the guard of
+    /// `work/onehome/the-stops-settling-rests-on-where-the-pair-polish-lands.md`.
+    /// The window's bound is sound at any polished pair (`pose`'s module
+    /// docs, "The gap's lower bound"); whether it settles rests on where
+    /// the Gauss–Newton polish from the pieces' middles lands. The draws
+    /// are the three carrier pairs the walk stops on in that item's three
+    /// sweep rows, a circle, a line or a spline against a spline, all in
+    /// one plane about a unit circle. At every stop the polished pair's
+    /// gap is within the zero of the pieces' least distance: a `32 × 32`
+    /// grid over the two pieces, refined by Gauss–Newton held to them.
+    /// Red where the stop reads its pieces' middles unpolished.
+    #[test]
+    fn every_stop_polishes_to_its_pieces_least_distance() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let mut rng = test_utils::fuzz::pinned("walk_stop_polish", 0x5709_d150);
+        let circle = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let mut stops = [0usize; 3];
+        for draw in 0..60 {
+            let kind = draw % 3;
+            let spread = rng.log_uniform(1e-4, 0.3);
+            let from = rng.range(-1.0, 1.0);
+            let turn = rng.range(0.3, 1.5);
+            let spline = about_the_circle(&mut rng, 1.0, (from, turn), spread);
+            let other = match kind {
+                0 => circle.clone(),
+                1 => {
+                    let th = from + rng.range(0.0, 1.0);
+                    let (c, s) = (th.cos(), th.sin());
+                    let off = 1.0 + rng.range(-spread, spread);
+                    Curve3::line(Point3::new(off * c, off * s, 0.0), Vec3::new(-s, c, 0.0))
+                }
+                _ => {
+                    let turn = rng.range(0.3, 1.5);
+                    about_the_circle(&mut rng, 1.0, (from, turn), spread)
+                }
+            };
+            let span_other = match kind {
+                0 => (from - 0.5, from + 2.0),
+                1 => (-1.0, 1.0),
+                _ => (0.0, 1.0),
+            };
+            let (a, b) = (
+                Span::new(&other, span_other),
+                Span::new(&spline, (0.0, 1.0)),
+            );
+            let logged = stop_log::during(|| {
+                let _ = super::meet(&a, &b, band);
+            });
+            stops[kind] += logged.len();
+            for (pa, pb, (s, t)) in logged {
+                let polished = (other.eval(s) - spline.eval(t)).norm();
+                let (least, at) = least_within((&other, pa), (&spline, pb), 32);
+                assert!(
+                    polished <= least + band.zero(),
+                    "draw {draw} (kind {kind}): the stop on {pa:?} × {pb:?} polished to \
+                     ({s:e}, {t:e}) at gap {polished:e}, the pieces' least {least:e} at {at:?}"
+                );
+            }
+        }
+        assert!(
+            stops.iter().all(|&n| n > 0),
+            "every carrier pair stops: {stops:?}"
+        );
     }
 }

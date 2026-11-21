@@ -380,7 +380,7 @@ fn a_split_rim_donut_meshes_and_measures() {
         .edges()
         .find(|(_, e)| {
             let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(c.carrier(), Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() > 1e-9)
+            matches!(c.carrier(), Curve3::Circle(k) if (k.radius() - 0.5).abs() > 1e-9)
         })
         .map(|(k, _)| k)
         .expect("a major-circle rim");

@@ -1262,10 +1262,11 @@ fn corner_arms<T: Decide>(
                 // points; the end points' distance rounds differently.
                 Lever::unsourced((t1 - t0).abs())
             }
-            Curve3::Circle(geom::Circle { radius, .. }) => {
+            Curve3::Circle(circle) => {
+                let radius = circle.radius();
                 // Unsourced lever: the arc's length, an angular span times its radius, is
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-                Lever::unsourced((t1 - t0).abs() * *radius)
+                Lever::unsourced((t1 - t0).abs() * radius)
             }
             other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
         });
@@ -2199,19 +2200,22 @@ fn mint_carrier<T: Decide>(
             // translation, and not pretended to be one.
             (
                 Surface::Sphere { center, .. },
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: cc,
-                            axis,
-                            u_ref,
-                        },
-                    radius,
-                }),
+                Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame:
+                            geom::Frame {
+                                origin: cc,
+                                axis,
+                                u_ref,
+                            },
+                        ..
+                    },
+                ),
             ) => {
+                let radius = circle.radius();
                 let off = cc.distance(*center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, radius + ca.distance, *u_ref)),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2233,19 +2237,22 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: cc,
-                            axis,
-                            u_ref,
-                        },
-                    radius,
-                }),
+                Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame:
+                            geom::Frame {
+                                origin: cc,
+                                axis,
+                                u_ref,
+                            },
+                        ..
+                    },
+                ),
             ) => {
+                let radius = circle.radius();
                 let off = tube_centre_offset(frame, *cc, *center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, radius + ca.distance, *u_ref)),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",
@@ -3052,15 +3059,18 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { origin: center, .. },
-                            radius,
-                        }) = carrier
+                        let Curve3::Circle(
+                            circle @ geom::Circle {
+                                frame: geom::Frame { origin: center, .. },
+                                ..
+                            },
+                        ) = carrier
                         else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let radius = circle.radius();
                         let centre = flat(*center);
                         let (u, v) = (a - centre, b - centre);
                         let covered = range.span().map_or(was.sweep, |span| was.sweep * span);
@@ -3069,11 +3079,11 @@ fn reauthor<T: Decide>(
                             b,
                             arc: Arc2 {
                                 centre,
-                                radius: *radius,
+                                radius,
                                 sweep: keep_turn(
                                     covered,
                                     u.perp_dot(v).atan2(u.dot(v)),
-                                    InfSpeed::new(*radius),
+                                    InfSpeed::new(radius),
                                     edge,
                                     band,
                                 )?,

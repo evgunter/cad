@@ -2,12 +2,12 @@
 id: a-value-edit-never-re-asks-the-door-checks-that-read-values
 kind: issue
 title: A value edit never re-asks the edit-door checks that read the current values
-status: parked
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
 design: true
-blocked_on: [7075]
+closed: 2026-11-18
 ---
 
 Raised by the STYLE review of PR 5926 (F2).
@@ -42,3 +42,16 @@ station case as it stands.
 
 If the second, the later unrelated edit should not refuse for a fault it
 did not cause.
+
+## Closed
+
+2026-11-18, by the second answer, as Ev ruled on #7075 (`[recipe.doors]`):
+the value-reading door checks are evaluation's. `check_loft_shape` is
+gone; the doors ask `loft_structure_fault` alone, and
+`LoftFault::{StationInFirstPlane, DegreeOutOfRange}` retire to
+evaluation's `LoftError::{DegenerateStacking, ReversedStacking}` and the
+count's range. The profile replay at the door is gone too; the doors ask
+`ProfileProgram::lattice`, which reads no value. So a value edit owes the
+door nothing, and the later unrelated edit no longer refuses for a fault
+it did not write
+(`intent_loft_set_sections::a_value_edit_to_a_zero_slide_is_refused_at_evaluation`).

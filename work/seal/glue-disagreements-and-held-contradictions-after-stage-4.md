@@ -145,7 +145,7 @@ dispatch.
 **The two ref rows:**
 - `work/twice/decided-coincidence-carries-a-synthetic-invalid-margin` (P3):
   its original reach is gone. Its surviving overlap is C22 and I1–I7.
-- `work/sector/contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`
+- `work/contacthold/contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`
   (P3): its seven are I1–I7. Its census-dihedral half was not checked.
 
 **Split for dispatch:**

@@ -314,7 +314,7 @@ pub struct View {
 /// `TourStop`, not `Stop`, so it is never read as the measurement's
 /// [`pncad::topo::Stop`], which this file also matches on.
 pub struct TourStop {
-    name: &'static str,
+    pub name: &'static str,
     /// Montage caption (defaults to `name` when empty).
     caption: String,
     /// Whether the scene is a montage panel (aux proof renders — the
@@ -487,15 +487,9 @@ fn continued<T: Gated>(
 
 /// The scalars a body is gated and measured at: the tour's `f64`, and
 /// the K sweep's recording `Probe` (`probe.rs`).
-trait Gated:
-    pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
-{
-}
+trait Gated: pncad::geom_core::CertifiedBounds + pncad::topo::CertifiedPolicy {}
 
-impl<T> Gated for T where
-    T: pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
-{
-}
+impl<T> Gated for T where T: pncad::geom_core::CertifiedBounds + pncad::topo::CertifiedPolicy {}
 
 /// The tier-3 or tier-3′ gate a body that is not at rest passes — 3′
 /// with the op's contact records for a boolean result, plain tier 3
@@ -820,7 +814,7 @@ fn scene_json(stop: &TourStop, bodies: &[ManifestBody]) -> String {
 /// other documents, and the seam it crosses is a workspace on disk —
 /// so the contract grew a path. Recorded rather than hidden: the tour
 /// harness assumed single-document scenes.
-fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol) {
+pub fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol) {
     for stop in bodies::stops(tol) {
         visit(&stop);
     }

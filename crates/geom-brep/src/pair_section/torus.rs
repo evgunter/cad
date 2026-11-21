@@ -688,6 +688,32 @@ impl<T: Decide> SphereTorusPose<T> {
     }
 }
 
+impl<T: Decide> SphereTorusPose<T> {
+    /// **The parallel the coaxial tangency touches along**, where the pose
+    /// is coaxial and its tube row decided `Zero`: the contact point of
+    /// the tube circle and the sphere's meridian in their half-plane
+    /// ([`geom_core::CirclesAt::foot`], external and internal alike),
+    /// swept about the axis. `None` for every other pose.
+    pub(crate) fn tangent_parallel(&self) -> Option<Curve3<T>> {
+        let StStance::Coaxial { tube, .. } = self.stance else {
+            return None;
+        };
+        if tube.0 != Sign::Zero {
+            return None;
+        }
+        let ring = self.ring;
+        let ca = (self.center - ring.center).dot(ring.axis);
+        let (c1, c2) = (
+            Point2::new(ring.big_r, T::zero()),
+            Point2::new(T::zero(), ca),
+        );
+        let p = Circles::new((c2 - c1).norm(), ring.r, self.radius)
+            .at(c1, c2)
+            .foot();
+        Some(ring.parallel(p.x, p.y))
+    }
+}
+
 /// **The sphere × torus gap in closed form**: the sphere's centre stands
 /// `ρ = s` from the torus axis and `h` along it, so the core circle's
 /// critical distances from it are the two meridian ones, `√((ρ ∓ R)² +
@@ -776,7 +802,7 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
@@ -949,6 +975,21 @@ impl<T: Decide> CylinderTorusPose<T> {
     }
 }
 
+impl<T: Decide> CylinderTorusPose<T> {
+    /// **The parallel the coaxial tangency touches along**, where the pose
+    /// is coaxial and its wall row decided `Zero`: the cylinder's own
+    /// radius in the torus's equator plane, where the wall touches the
+    /// tube's inner or outer equator. `None` for every other pose.
+    pub(crate) fn tangent_parallel(&self) -> Option<Curve3<T>> {
+        match self.stance {
+            CtStance::Coaxial { wall, .. } if wall.0 == Sign::Zero => {
+                Some(self.ring.parallel(self.radius, T::zero()))
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The cylinder × torus section over its decided pose.
 pub(super) fn cylinder_torus<T: Decide>(
     pose: CylinderTorusPose<T>,
@@ -1023,7 +1064,7 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
@@ -1272,8 +1313,8 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(r1.r)
-            .min(geom_core::Lever::curvature_radius(r2.r)),
+        lever: crate::uniform_curvature_arm(&pose.first)
+            .min(crate::uniform_curvature_arm(&pose.second)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,

@@ -290,7 +290,7 @@ fn chorded_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), feet: u32) -> Arc<
 /// `NoGeneralLane { gap: Image }`, ending "not yet" with its own lever,
 /// never a tolerance offer.
 fn a_refused_bending_image_ends_as_the_lanes_gap<
-    T: geom_core::Decide + geom_core::CertifiedBounds,
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
 >() {
     let lift = |x: f64| T::from_f64(x);
     let wall = Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall().map_scalar(lift)));
@@ -374,19 +374,21 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
     for (name, carrier, off) in [
         ("circle", circle(0.5), circle(0.501)),
         ("ellipse", ellipse(), {
-            let Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) = ellipse()
+            let Curve3::Ellipse(
+                conic_k @ geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            ) = ellipse()
             else {
                 unreachable!()
             };
+            let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
                 geom::Frame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),
                 semi_u,
@@ -664,7 +666,7 @@ fn flat_wall() -> NurbsSurface<f64> {
 /// ring wall in two sub-arcs, where the circle crosses the knot line
 /// between them and the image breaks there.
 fn the_derived_route_certifies_a_line_and_a_bending_carrier<
-    T: geom_core::Decide + geom_core::CertifiedBounds,
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
 >() {
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
@@ -683,7 +685,7 @@ fn the_derived_route_certifies_a_line_and_a_bending_carrier<
 /// `general_image` over `span` and then `certify_general`, which
 /// certifies within ε. At `Interval` a degree-5 image is about 1e-12 m
 /// wide at a sample, which an ε of that size reads in band.
-fn derived_route_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn derived_route_certifies<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     name: &str,
     carrier: &Curve3<f64>,
     span: (f64, f64),
@@ -728,7 +730,7 @@ fn derived_route_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>(
 /// of a step past one, and within a few feet of either end of the span.
 /// The crossing is a node of every rung wherever it falls, and the image
 /// certifies.
-fn a_knot_crossing_anywhere_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+fn a_knot_crossing_anywhere_certifies<T: geom_core::Certifies + geom_core::CertifiedBounds>() {
     let ring = ring_wall();
     let mut spans = vec![
         ("at a foot", (0.0, 1.2)),

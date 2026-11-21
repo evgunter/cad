@@ -765,7 +765,7 @@ Items 4 and 5, after C.
   `ContentKey` (`eval/memo.rs` ~34), so k consumers of one leaf pay
   once. It retires with the switch
   (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`).
-  `work/wiretail/a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times.md`
+  `work/refs/a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times.md`
   is this item; its site list predates PR 6371.
 - **Item 5:** `viewer::session::land` (`viewer/src/session.rs` ~1817)
   lands a preview as construction state, badged, and only a commit

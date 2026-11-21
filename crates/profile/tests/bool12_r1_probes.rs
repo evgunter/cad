@@ -377,6 +377,7 @@ fn r1_the_levered_verdict_holds_at_arm_ten_and_the_margin_is_signed() {
     for sign in [1.0, -1.0] {
         match tilted_close(sign * 100.0 * k_eps, 10.0) {
             Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+                let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
                 assert!((margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0));
                 assert!((arm - 10.0).abs() < 1e-6, "{arm}");
                 println!("R1: off={sign:+}·100Kε at arm 10 -> margin {margin:e}");

@@ -158,15 +158,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/carrier_net.rs",
-        subject: "carrier_span",
-        why: Payload(
-            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
-             closed-form carrier's chart-image schedule and enclosing net are built over, \
-             lifted back through `from_computed`; nothing branches on them",
-        ),
-    },
-    Site {
         path: "crates/geom-brep/src/edge_nurbs.rs",
         subject: "impl<T: Bounds> FeetRefusal<T>",
         why: Payload(
@@ -548,11 +539,6 @@ const ROSTER: &[Site] = &[
             "a ball's box, for the extent scan and the crossing layer's touch reading: a \
              centre's and a radius's brackets into an f64 `bvh::Aabb`, padded, and stop",
         ),
-    },
-    Site {
-        path: "crates/topo/src/chart_region.rs",
-        subject: "definite_diag",
-        why: Payload("echoes a classified margin's conservative end into a diagnostic"),
     },
     Site {
         path: "crates/topo/src/chart_region.rs",

@@ -72,7 +72,7 @@ fn old_gates<T: Decide>(r: T, angle: T, band: Band) -> Outcome {
 }
 
 fn new_gates(r: f64, angle: f64, band: Band) -> Outcome {
-    match sweep_gates(r, angle, band) {
+    match sweep_gates(r, crate::path::verbs::SweepDatum::Angle(angle), band) {
         Ok(()) => Outcome::Admitted,
         Err(PathError::DegenerateArcSpec { .. }) => Outcome::Refused,
         Err(PathError::ArcSweepNotShortOfFullTurn { .. }) => Outcome::FullTurn,

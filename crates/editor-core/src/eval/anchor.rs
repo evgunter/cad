@@ -379,7 +379,7 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// so the ANSWER is carried and the record is
     /// not: whether the record itself belongs on the value is PP1/PP2's
     /// open question
-    /// (`work/wirehold/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),
+    /// (`work/doctail/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),
     /// and nothing here decides it.
     ///
     /// Variables rather than lowered tokens, because lowering is
@@ -395,10 +395,21 @@ pub struct ProfileValue<T: geom_core::Real> {
 impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
     /// **A body swept from this profile**, built in the profile's own
     /// coordinates: in the frame the profile is drawn on, or its own.
-    pub(crate) fn framed(&self, body: std::sync::Arc<T::Leaf>) -> super::Framed<T> {
+    ///
+    /// # Errors
+    ///
+    /// Where it stands in its space past the session box
+    /// ([`super::Framed::asked_where_it_stands`]).
+    pub(crate) fn framed(
+        &self,
+        body: std::sync::Arc<T::Leaf>,
+        tol: geom_core::Tol,
+    ) -> Result<super::Framed<T>, super::NodeErrorKind> {
         match &self.frame {
-            Some(frame) => super::Framed::in_frame_leaf(body, frame.clone()),
-            None => super::Framed::own_leaf(body),
+            Some(frame) => {
+                super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol)
+            }
+            None => Ok(super::Framed::own_leaf(body)),
         }
     }
 

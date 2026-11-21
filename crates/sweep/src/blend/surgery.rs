@@ -2689,7 +2689,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).norm(),
             (self.point_at(tb) - c).norm(),
         );
-        let (o, radius) = (self.frame.origin, self.radius);
+        let (o, radius) = (self.frame.origin, self.radius());
         let axis = self.frame.axis_line();
         let h = (axis.foot(c) - o).norm();
         let plane = axis.offset(c);
@@ -2728,7 +2728,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(ta) - c).dot(u),
             (self.point_at(tb) - c).dot(u),
         );
-        let (o, radius) = (self.frame.origin, self.radius);
+        let (o, radius) = (self.frame.origin, self.radius());
         let mid = (o - c).dot(u);
         let plane = u - self.frame.axis * u.dot(self.frame.axis);
         let nu = plane.norm();
@@ -3518,7 +3518,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
             match body.get_surface(fd.surface) {
-                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius),
+                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
                 Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
                     let u = rim_circle.frame.axis;
                     (
@@ -3895,7 +3895,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         band: Band,
     ) -> Vec<Clip<T>> {
         let plane = u - c.frame.axis * u.dot(c.frame.axis);
-        let reach = c.radius * plane.norm();
+        let reach = c.radius() * plane.norm();
         let k = (c.frame.origin - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
             return windows;
@@ -3977,7 +3977,7 @@ impl<'a, T: Real> Clippable<'a, T> {
     fn speed(self) -> T {
         match self {
             Self::Line(line) => line.dir.norm(),
-            Self::Circle(c) => c.radius,
+            Self::Circle(c) => c.radius(),
         }
     }
 }

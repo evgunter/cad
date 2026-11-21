@@ -188,7 +188,7 @@ pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> 
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle(c) => {
-            Some(c.frame.origin + perp_unit(p - c.frame.origin, c.frame.axis) * c.radius)
+            Some(c.frame.origin + perp_unit(p - c.frame.origin, c.frame.axis) * c.radius())
         }
         _ => None,
     }
@@ -1523,6 +1523,10 @@ pub fn chamfer_strip<T: Real>(
 /// half at equal setbacks). The axis is signed so the feet lie on the
 /// `v > 0` nappe. Exact, nothing fitted.
 ///
+/// Each trim circle's radius is its foot's distance from the axis, so
+/// the caller decides the plane foot's definitely positive before it
+/// asks for the band (`battery::frustum_arm`).
+///
 /// The cone's chart normal is radially outward on that nappe, whichever
 /// side the material is, so the band's sense is not this constructor's
 /// to fix: its caller derives it from [`frustum_rim_side`], as the
@@ -1588,8 +1592,8 @@ pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option
     };
     let (a, b) = (blend.trim_a.0.as_circle()?, blend.trim_b.0.as_circle()?);
     let radial = perp_unit(rim - a.frame.origin, axis);
-    let fa = a.frame.origin + radial * a.radius;
-    let fb = b.frame.origin + radial * b.radius;
+    let fa = a.frame.origin + radial * a.radius();
+    let fb = b.frame.origin + radial * b.radius();
     let (sin_a, cos_a) = half_angle.sin_cos();
     Some((radial * cos_a - axis * sin_a).dot(rim - fa.mid(fb)))
 }

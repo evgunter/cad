@@ -44,7 +44,6 @@ crates/topo/src/census.rs span_clear_as 1 row t4-ports-unpinned-for-a-kept-readi
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers
 # lone_ring_outer_side: holds_outer's ladder over the outer loop's points.
-crates/topo/src/chord_join.rs lone_ring_outer_side 1 pin a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next
 # path_ring_side: cone_ring_rows reads the outer reader at every offset,
 # among them offsets whose first path is in band, and holds its answer; a
 # first-refusal ladder refuses there. paths_rung is read on the rung
@@ -81,7 +80,7 @@ crates/topo/src/rim_wedge.rs at 1 pin a_stretch_ridden_both_ways_reads_mixed
 crates/topo/src/boolean/vtxfac.rs partner_side 1 pin a_partners_side_of_a_face_is_read_off_its_bounds
 # read_paths: the agreeing ladder over the outer references, with a
 # reference whose paths read in band ahead of one that decides.
-crates/topo/src/chord_join.rs read_paths 1 pin a_path_escalating_by_a_corner_hands_the_winding_to_the_next
+crates/topo/src/chord_join.rs read_paths_from 1 pin a_path_escalating_by_a_corner_hands_the_winding_to_the_next
 crates/geom-brep/src/props/curved.rs unanimous_rim_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/join.rs seam_germ_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs tangent_lump 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer

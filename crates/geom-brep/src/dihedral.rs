@@ -129,7 +129,8 @@ use geom_core::NonzeroSign;
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::curvature_arm::curvature_lever_arm;
+use crate::implicit::implicit_gradient;
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
@@ -242,9 +243,9 @@ pub enum DihedralClass {
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of
 /// `docs/predicate-dimension-audit.md`.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -255,9 +256,9 @@ pub(crate) fn decide<T: Decide>(
 /// refusal whose words read it — a sized decision's quoting the
 /// tolerance that would decide it, and a residual's definite miss read
 /// against the file's ε_in at the import door.
-pub(crate) fn decide_reported<T: Decide>(
+pub(crate) fn decide_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     geom_core::k_stats::decide_reported(name, margin, band)
@@ -266,9 +267,9 @@ pub(crate) fn decide_reported<T: Decide>(
 /// The crate's **magnitude door**
 /// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
 /// nonnegative by construction, whose two signs are both verdicts.
-pub(crate) fn decide_magnitude<T: Decide>(
+pub(crate) fn decide_magnitude<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     geom_core::k_stats::decide_magnitude(name, margin, band)
@@ -276,9 +277,9 @@ pub(crate) fn decide_magnitude<T: Decide>(
 
 /// [`decide_magnitude`], keeping the reporting margin it decided on
 /// ([`geom_core::k_stats::decide_magnitude_reported`]).
-pub(crate) fn decide_magnitude_reported<T: Decide>(
+pub(crate) fn decide_magnitude_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_magnitude_reported(name, margin, band)
@@ -291,9 +292,9 @@ pub(crate) fn decide_magnitude_reported<T: Decide>(
 /// definite non-positive sign is the funnel's escalation, recorded on
 /// the open frame, so no caller here mints an [`Indeterminate`] the
 /// verdict log cannot see.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
@@ -303,9 +304,9 @@ pub(crate) fn decide_positive<T: Decide>(
 /// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
 /// a side off the margin's sign and has none to read at a definite
 /// zero.
-pub(crate) fn decide_nonzero<T: Decide>(
+pub(crate) fn decide_nonzero<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
@@ -313,9 +314,9 @@ pub(crate) fn decide_nonzero<T: Decide>(
 
 /// [`decide_nonzero`], keeping the reporting margin the passing sign was
 /// decided on ([`geom_core::k_stats::decide_nonzero_reported`]).
-pub(crate) fn decide_nonzero_reported<T: Decide>(
+pub(crate) fn decide_nonzero_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_nonzero_reported(name, margin, band)
@@ -500,30 +501,19 @@ fn signed_wedge<T: Real>(
     Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
 }
 
-/// The name a corner's sign is decided under when the reading is of the
-/// body's shape ([`crate::edge_wedge_over`]).
+/// The name a corner's sign is decided under ([`Corner::convexity`],
+/// read only through [`crate::edge_wedge_over`]).
 ///
-/// **What its verdicts are.** Each records which way one corner turns at
-/// one station, taken by tier 3's check 4, the boolean's shared-rim
-/// routing, and the extrude and revolve upgrades that describe an edge by
-/// its whole wedge (`topo::edge_wedge`, `topo::edge_wedge_description`).
-/// Its population is the body's mix of convex and concave stations, so
-/// an edit that trades corners of one turn for corners of the other (a
-/// through slot becoming a blind pocket) moves the population across
-/// signs although no corner turned, and a population diff cannot tell
-/// the two apart. A flip among them changes whether a body is accepted (a
-/// sign that turns along one edge, or reads in band), never which body
-/// was built, since a crease of either turn is described alike:
-/// `editor_core::resolve`'s flip lane passes over it, as it does over the
-/// side reader's family.
-///
-/// **A reader whose side builds records it under its own name.** The
-/// blend reads the same fold through [`crate::edge_wedge_over_as`] with
-/// its own [`crate::FoldNames`], `fillet3_convexity_sign` for a corner's
-/// sign and `fillet3_knife_end` for a tangency's end, since either picks
-/// the side its ball rolls on and so which body it builds; the split
-/// rule's sign stays on its own reading for the same reason. Neither is
-/// in this population, so the flip lane sees their flips.
+/// **One population, two roles.** Each verdict records which way one
+/// corner turns at one station. Tier 3's check 4 reads it off a body
+/// already built, under the at-rest doors' check scope; the boolean's
+/// shared-rim routing and the constructors that store an edge by its
+/// wedge (`topo::edge_wedge_description`) route a crease of either turn
+/// alike, so they record it as a check too ([`crate::edge_wedge_over_as`]'s
+/// side, [`crate::WedgeClass`]). The
+/// blend builds from it, since the sign picks the side its ball rolls on,
+/// and records it as a choice. Which one a verdict is, the verdict says
+/// (`geom_core::k_stats::Role`); the name does not.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 /// The name a dihedral's class is decided under ([`classify_dihedral`]):
@@ -539,9 +529,8 @@ pub const TANGENT_SECOND_ORDER: &str = "tangent_second_order";
 pub const MATERIAL_CUSP_SIDE: &str = "material_cusp_side";
 
 impl<T: Decide> Corner<T> {
-    /// **The corner's convexity** at `station`, decided as `name` (the
-    /// fold's reader's: [`DIHEDRAL_SIGN`] for a reading of the body's
-    /// shape, the blend's own name for its building decision): the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
+    /// **The corner's convexity** at `station`, decided as
+    /// [`DIHEDRAL_SIGN`]: the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
     /// token's normals, each turned outward by its face's `Face::sense`
     /// bit (`senses`, the plus face's first), with `τ̂` the station's
     /// direction, under [`Convexity`]'s convention: the plus face is the
@@ -569,14 +558,13 @@ impl<T: Decide> Corner<T> {
     /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
     pub(crate) fn convexity(
         &self,
-        name: &'static str,
         station: &Station<T>,
         senses: [bool; 2],
         band: Band,
     ) -> Result<(Convexity, geom_core::MarginDiag), WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
         decide_nonzero_reported(
-            name,
+            DIHEDRAL_SIGN,
             signed_wedge(n_plus.vec(), n_minus.vec(), station.tau, self.0.arm),
             band,
         )
@@ -1274,7 +1262,7 @@ fn second_order_verdict<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         TANGENT_SECOND_ORDER,
-        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     )
 }
@@ -2979,14 +2967,14 @@ mod tests {
             axis,
             u_ref,
         };
-        let equator = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        let equator = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        });
+        ));
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
         let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn));
         assert!(

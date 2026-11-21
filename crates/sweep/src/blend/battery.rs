@@ -12,8 +12,8 @@
 //! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
 //! definite ones. Predicate 5, each requested edge's wedge, is the one
 //! read through another door: the edge's wedge fold
-//! (`topo::edge_wedge_as`), which decides each corner's sign under the
-//! blend's own `fillet3_convexity_sign`, and whose in-band or mixed
+//! (`topo::edge_wedge`), which decides each corner's sign as a choice
+//! (`dihedral_sign`), and whose in-band or mixed
 //! reading refuses as [`super::BlendError::WedgeUnsettled`].
 //!
 //! # The ordering claim, stated so it can be attacked
@@ -45,9 +45,9 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_frustum,
-    chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room, plane_plane_blend,
-    plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_feet,
+    chamfer_frustum, chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room,
+    plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::junction::JUNCTION_NO_HOST;
@@ -281,9 +281,9 @@ pub struct Link<T: Real> {
     pub convexity: Convexity,
     /// The margin that verdict was decided from, kept whole: the sign
     /// the edge's wedge fold decided at its first station
-    /// (`fillet3_convexity_sign`) on a crease, and on a knife link, whose
+    /// (`dihedral_sign`) on a crease, and on a knife link, whose
     /// faces meet smoothly, the end its convexity came from
-    /// (`fillet3_knife_end`).
+    /// (`material_cusp_side`).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -781,35 +781,6 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
-/// **A frustum's plane trim stays off the axis**: the plane support of
-/// a frustum link is a face reaching from the rim to the axis at most
-/// where the plane runs inward (a post's or a boss's top), so the band's
-/// setback there must be shorter than the rim's radius. The margin is the
-/// plane trim circle's own radius, `R − s` inward (`R + s` outward,
-/// always clear), and the gap it is read against the rim's radius `R`:
-/// the screen's own reading of a face too narrow for its setback, which
-/// the caller classifies under `fillet3_face_clearance` before any band
-/// is minted. `None` for a link of any other arm.
-fn frustum_plane_room<T: Decide>(
-    body: &Body<T>,
-    link: &Link<T>,
-) -> Result<Option<(FaceKey, T, T)>, BlendError> {
-    if link.arm != BlendArm::CylinderPlaneCone {
-        return Ok(None);
-    }
-    let (carrier, _, _) = carrier_of(body, link.edge)?;
-    let Some(rim) = carrier.as_circle() else {
-        return Ok(None);
-    };
-    Ok([link.face_a, link.face_b].into_iter().find_map(|face| {
-        let planar = body
-            .face_surface(face)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane);
-        let trim = link.trim_on(face).and_then(|(c, _)| c.as_circle())?;
-        planar.then_some((face, trim.radius, rim.radius))
-    }))
-}
-
 // ---------------------------------------------------------------
 // Predicate 3 — spine regularity.
 // ---------------------------------------------------------------
@@ -1141,13 +1112,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // It is the edge's wedge read whole, as tier 3 reads it: every
     // station's class, every corner's sign, and on a tangency its
     // pairing and end, levered at the faces' extent. The sign and the
-    // end pick the side the ball rests on, so they are recorded under
-    // the blend's own names (`geom_brep::DIHEDRAL_SIGN`'s docs).
-    let names = geom_brep::FoldNames {
-        sign: BlendDecision::ConvexitySign.predicate(),
-        end: BlendDecision::KnifeEnd.predicate(),
-    };
-    let wedge = topo::edge_wedge_as(body, edge, band, names).ok_or_else(broken)?;
+    // end pick the side the ball rests on, so the blend reads them as
+    // choices (`topo::edge_wedge` reads its side as one).
+    let wedge = topo::edge_wedge(body, edge, band).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
@@ -1161,7 +1128,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (convexity, convexity_margin, branch) = match wedge {
         geom_brep::WedgeVerdict::Crease { convexity, margin } => (
             convexity,
-            decided_as(names.sign, convexity, margin, band),
+            decided_as(geom_brep::DIHEDRAL_SIGN, convexity, margin, band),
             Branch::Rim,
         ),
         geom_brep::WedgeVerdict::Seam { margin, .. } => {
@@ -1201,7 +1168,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             let toward = inward_unit(n_a, tau.normalize());
             (
                 convexity,
-                decided_as(names.end, convexity, margin, band),
+                decided_as(geom_brep::MATERIAL_CUSP_SIDE, convexity, margin, band),
                 Branch::Knife(toward),
             )
         }
@@ -1214,8 +1181,21 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         }
     };
     let (arm, blend, axis) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, branch, edge,
-        kind, band,
+        &sa,
+        n_a,
+        &sb,
+        n_b,
+        senses,
+        &carrier,
+        p,
+        tau,
+        extent,
+        radius,
+        convexity,
+        branch,
+        (edge, (face_a, face_b)),
+        kind,
+        band,
     )?;
     let support_axis = axis.map(|(relation, margin)| {
         row(
@@ -1376,7 +1356,8 @@ fn classify_arm<T: Decide + Bounds>(
     radius: T,
     convexity: Convexity,
     branch: Branch<T>,
-    edge: EdgeKey,
+    // The edge and its two support faces, in `(sa, sb)` order.
+    (edge, faces): (EdgeKey, (FaceKey, FaceKey)),
     kind: BlendKind,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
@@ -1392,6 +1373,10 @@ fn classify_arm<T: Decide + Bounds>(
                 other => other,
             })
         };
+        // The frustum's plane trim against the rim (`frustum_arm`), on
+        // whichever support is the plane.
+        let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
+        let room = |trim: T, rim: T| face_clearance_margin(plane, trim, rim, false, band);
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
@@ -1409,7 +1394,7 @@ fn classify_arm<T: Decide + Bounds>(
                 (p, tau),
                 radius,
                 convexity,
-                coaxial,
+                (coaxial, room),
                 unsupported,
             ),
             _ => Err(unsupported()),
@@ -1495,6 +1480,16 @@ fn classify_arm<T: Decide + Bounds>(
 /// theirs), and the frustum through the strip's feet minted
 /// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
 /// the chamfer's table does not cover (`unsupported`).
+///
+/// **The plane trim stays off the axis, decided before the band is
+/// minted**: the plane support is a face reaching from the rim to the
+/// axis at most where it runs inward (a post's or a boss's top), so its
+/// trim circle's radius, the foot's distance from the axis along the
+/// sheet's radial (`R − s` inward, `R + s` outward), is the margin
+/// `room` decides (`fillet3_face_clearance` against the rim's radius
+/// `R`). Only a definitely positive one is a circle; zero is a cap
+/// consumed to a point and negative one consumed past the axis, and
+/// both refuse typed.
 #[allow(clippy::too_many_arguments)]
 fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
@@ -1504,7 +1499,12 @@ fn frustum_arm<T: Real>(
     (p, tau): (Point3<T>, Vec3<T>),
     radius: T,
     convexity: Convexity,
-    coaxial: impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+    // The supports' coaxiality, and the plane trim's room (the
+    // caller's `fillet3_face_clearance` on the plane face).
+    (coaxial, room): (
+        impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+        impl FnOnce(T, T) -> Result<(), BlendError>,
+    ),
     unsupported: impl Fn() -> BlendError,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     let sheet = Meridian {
@@ -1518,9 +1518,20 @@ fn frustum_arm<T: Real>(
         return Err(unsupported());
     };
     let margin = coaxial(da.max(db))?;
+    let tau = tau.normalize();
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, radius);
+    let foot = if sa.kind() == geom::SurfaceKind::Plane {
+        foot_a
+    } else {
+        foot_b
+    };
+    room(
+        (foot - sheet.axis.origin).dot(sheet.radial()),
+        circle.radius(),
+    )?;
     Ok((
         BlendArm::CylinderPlaneCone,
-        chamfer_frustum(&sheet, tau.normalize(), n_a, n_b, radius),
+        chamfer_frustum(&sheet, tau, n_a, n_b, radius),
         Some((topo::Relation::Coaxial, margin)),
     ))
 }
@@ -2236,14 +2247,9 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // --- 2. face clearance (the conservative screen — see
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
-    // the chamfer's screen runs on the chamfer's own setbacks.
-    for chain in &chains {
-        for link in chain.links() {
-            if let Some((face, trim, rim)) = frustum_plane_room(body, link)? {
-                face_clearance_margin(face, trim, rim, false, band)?;
-            }
-        }
-    }
+    // the chamfer's screen runs on the chamfer's own setbacks. A
+    // frustum's plane trim is screened earlier, when its arm is
+    // classified (`frustum_arm`), before its band is minted.
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for
@@ -4061,20 +4067,31 @@ mod coaxial_spine_rows {
                     let Curve3::Circle(c) = trim else {
                         panic!("r = {r}: a coaxial trimline is a circle");
                     };
-                    assert!(c.radius > 0.0, "r = {r}: a trimline's radius, {}", c.radius);
+                    assert!(
+                        c.radius() > 0.0,
+                        "r = {r}: a trimline's radius, {}",
+                        c.radius()
+                    );
                     // The contact: where the circle crosses the rim's
                     // sheet, at the ball's radius from its centre.
                     let at = |x: f64| ((c.frame.origin + radial * x) - ball).norm() - r;
-                    let rho = if at(c.radius).abs() < at(-c.radius).abs() {
-                        c.radius
+                    let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
+                        c.radius()
                     } else {
-                        -c.radius
+                        -c.radius()
                     };
                     assert!(
                         at(rho).abs() < 1e-9,
                         "r = {r}: the trimline holds the contact"
                     );
-                    let signed = Curve3::circle(c.frame.origin, axis, rho, radial);
+                    // The signed circle at `rho` is the circle of `|rho|`
+                    // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
+                    // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
+                    let signed = if rho > 0.0 {
+                        Curve3::circle(c.frame.origin, axis, rho, radial)
+                    } else {
+                        Curve3::circle(c.frame.origin, axis, -rho, -radial)
+                    };
                     for k in 0..8 {
                         let t = f64::from(k) * 0.8;
                         let gap = (trim.eval(t) - signed.eval(t)).norm();

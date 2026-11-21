@@ -1,12 +1,12 @@
-//! **LIB-SWITCH §4c/§4d: program slot addressing and the VQ9 doors.**
+//! **LIB-SWITCH §4c/§4d: program slot addressing, and the doors that
+//! read no value.**
 //!
 //! Profile nodes gained expression slots (behavior delta 3): the
 //! `SlotId::Profile { loop_, step, arg }` address routes `SetParam`/
-//! `SetExpression`/`Doc::expr_at` into the program; the authoring-time
-//! check (VQ9) refuses program-breaking edits typed AT THE DOOR under
-//! the current environment, while `DefineVar` NEVER refuses for
-//! downstream profile breakage — that surfaces as the node's typed
-//! evaluation error (V1 class 2). Both directions pinned here.
+//! `SetExpression`/`Doc::expr_at` into the program. Neither a slot edit
+//! nor `DefineVar` refuses for a value that breaks the program; it
+//! surfaces as the node's typed evaluation error (V1 class 2, VQ9:
+//! values bind once, at evaluation). Both doors pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -207,42 +207,52 @@ fn program_slots_refuse_wrong_dimensions() {
     }
 }
 
-/// VQ9 direction one: an edit that breaks the program under the
-/// CURRENT env refuses typed AT THE DOOR — and WHICH geometry refusal
-/// fired is read off the typed class, not the rendered sentence, so
+/// **A slot edit that breaks the program at the current values is
+/// admitted, and evaluation refuses it typed** — WHICH geometry refusal
+/// fired read off the typed class, not the rendered sentence, so
 /// rewording a `Display` arm cannot move this assertion.
 #[test]
-fn program_breaking_slot_edit_refuses_at_the_door() {
+fn program_breaking_slot_edit_refuses_at_evaluation() {
     let doc = circle_doc(0.5);
-    match doc.apply(
-        &DocEdit::SetParam {
-            node: doc.ids()[0],
-            slot: radius_slot(),
-            value: len(0.0).into(),
-            fresh: Vec::new(),
-        },
+    let node = doc.ids()[0];
+    let broken = doc
+        .apply(
+            &DocEdit::SetParam {
+                node,
+                slot: radius_slot(),
+                value: len(0.0).into(),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the slot door reads no value")
+        .doc;
+    let ev = evaluate::<f64>(
+        &broken,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
         Tol::witness(),
-    ) {
-        Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node.id(), doc.ids()[0]);
-            match *refusal {
-                ProgramRefusal::Geometry {
-                    loop_: 0,
-                    step: 0,
-                    kind,
-                    ..
-                } => assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius),
-                other => panic!("r = 0 refuses at the circle's own step, got {other:?}"),
-            }
-        }
-        other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
+    );
+    match ev.nodes.get(&node) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::ProfileReplay {
+                loop_: 0,
+                error:
+                    profile::ReplayError {
+                        step: 0,
+                        kind: profile::ReplayErrorKind::Path(path),
+                    },
+            } => assert_eq!(path.kind(), profile::PathErrorKind::NonpositiveCircleRadius),
+            other => panic!("r = 0 refuses at the circle's own step, got {other:?}"),
+        },
+        other => panic!("r = 0 refuses at evaluation, got {other:?}"),
     }
 }
 
-/// VQ9 direction two: `DefineVar` NEVER refuses for downstream
-/// profile breakage — the broken binding surfaces as the NODE's typed
-/// evaluation error naming (loop, step): V1 class 2, refusing programs
-/// exist at rest.
+/// **`DefineVar` never refuses for downstream profile breakage** — the
+/// broken binding surfaces as the NODE's typed evaluation error naming
+/// (loop, step): V1 class 2, refusing programs exist at rest.
 #[test]
 fn define_var_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
@@ -282,7 +292,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
             },
             Tol::witness(),
         )
-        .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
+        .expect("DefineVar never refuses for downstream profile breakage")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
     let ev = evaluate::<f64>(
@@ -350,7 +360,7 @@ fn insert_node_checks_program_dimensions() {
 /// **Where the reach ends**, and it is the lattice's answer rather than
 /// addressing's: `profile`'s `family::ArrivalSpec` is implemented for
 /// `Center`, `Via` and `Radius` alone, so replay refuses one of these
-/// three modes in second position and the VQ9 door turns the program
+/// three modes in second position and the lattice door turns the program
 /// away at `InsertNode` (the persistence snapshot walk refuses the same
 /// program at load). No document holds the shape, so `SetParam`,
 /// `SetExpression` and `Doc::expr_at` have no node to route into — the
@@ -496,7 +506,9 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 other => panic!("the refusal names the arriving transition, got {other:?}"),
             },
             other => {
-                panic!("a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}")
+                panic!(
+                    "a {arrival:?}-carrying program must refuse at the lattice door, got {other:?}"
+                )
             }
         }
     }

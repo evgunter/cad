@@ -80,7 +80,7 @@ fn cylinder_z<T: Real>() -> Surface<T> {
 
 /// `EdgeCurve::certify` of an `Intersection` of `s1`, `s2` over
 /// `carrier`, at the scalar of its arguments.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     carrier: &NurbsCurve3<T>,
     s1: Surface<T>,
     s2: Surface<T>,
@@ -117,8 +117,8 @@ fn in_file_words(eps_in: f64) -> String {
     format!(
         "This miss lies beyond the tolerance and within the file's declared coincidence \
          distance ε_in = {eps_in} m, and may be the kernel's own approximation. Recourse: \
-         re-export the file more precisely, or, as a stopgap, set the tolerance to \
-         ε_in = {eps_in} m; this refusal may indicate a kernel bug worth reporting"
+         loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+         reporting"
     )
 }
 
@@ -730,4 +730,143 @@ fn a_dense_interpolant_of_a_section_certifies_its_tube() {
     assert_eq!(spline.control().len(), nodes + 1, "the export's net size");
     let got = certify(&spline, oblique, wall).map(|_| ());
     assert_eq!(got, Ok(()));
+}
+
+/// [`certify`] through [`EdgeCurve::certify_carrying`] with `kept`, on
+/// `f64`, the plane and the cylinder.
+fn certify_kept(
+    carrier: &NurbsCurve3<f64>,
+    kept: &[&geom_brep::LocusCertificate<f64>],
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+    let (t0, t1) = carrier.domain();
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(cylinder_z()), arena.insert(plane()));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(k1, k2),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5 * (t0 + t1))),
+        },
+        carrier: c.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    EdgeCurve::certify_carrying(
+        spec,
+        c.eval(t0),
+        c.eval(t1),
+        |k| arena.get(k).cloned(),
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+        NurbsLane::certified(),
+        None,
+        kept,
+    )
+}
+
+/// **A kept locus certificate is read only by its own support**: the
+/// flat quarter's certificate, handed to a door certifying the same
+/// quarter as another allocation of the same net, reads (the edge
+/// certifies); handed to a door certifying the quarter bulged off the
+/// plane between its samples, it is not read, and the bulge refuses on
+/// limb 2 as it does with nothing kept. Red under a door that takes the
+/// kept certificate on its word, which would admit the bulge.
+#[test]
+fn a_kept_locus_is_read_by_its_own_support_and_not_by_a_moved_carrier() {
+    let flat = certify(&bulged(8, 0.0), cylinder_z(), plane()).expect("the flat quarter");
+    let locus = flat.locus_certificate().expect("an intersection's locus");
+    certify_kept(&bulged(8, 0.0), &[locus]).expect("the same net, another allocation, reads");
+    let moved = certify_kept(&bulged(8, 1e-3), &[locus]);
+    assert!(
+        matches!(moved, Err(CertifyError::AnalyticRung3(_))),
+        "the bulged quarter with the flat one's locus: {moved:?}"
+    );
+    assert_eq!(
+        format!("{moved:?}"),
+        format!("{:?}", certify_kept(&bulged(8, 1e-3), &[])),
+        "the kept certificate changes nothing about a moved carrier's refusal"
+    );
+}
+
+/// **The rest door reads an edge's locus at the band and surfaces it was
+/// derived at, and derives it at any other**: re-certifying the flat
+/// quarter at its own band reads (one read, no derivation); at another
+/// band, and against the cylinder an ulp wider, each derives once. Red
+/// under a support compare that leaves the band or a surface out, which
+/// the agreement pin cannot see (the limbs return no number to compare).
+#[test]
+fn rest_reads_a_locus_only_at_its_own_band_and_surfaces() {
+    use geom_brep::Certified;
+    use geom_brep::locus_certificate::counts;
+    let carrier = bulged(8, 0.0);
+    let edge = certify(&carrier, cylinder_z(), plane()).expect("the flat quarter");
+    let at = |s1: Surface<f64>, b: Band| {
+        let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+        let _ = (arena.insert(s1), arena.insert(plane()));
+        let (t0, t1) = carrier.domain();
+        let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+        let before = counts::of(Certified::Locus);
+        edge.recertify(
+            c.eval(t0),
+            c.eval(t1),
+            |k| arena.get(k).cloned(),
+            geom_core::test_support::fixture_lever(1.0),
+            b,
+            NurbsLane::certified(),
+        )
+        .expect("the flat quarter certifies");
+        let after = counts::of(Certified::Locus);
+        (after.0 - before.0, after.1 - before.1)
+    };
+    assert_eq!(
+        at(cylinder_z(), band()),
+        (1, 0),
+        "its own band and surfaces read"
+    );
+    let other = Band::new(band().zero(), 2.0 * band().escalate()).unwrap();
+    assert_eq!(at(cylinder_z(), other), (0, 1), "another band derives");
+    let wider = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: f64::from_bits(1.0_f64.to_bits() + 1),
+        u_ref: Vec3::unit_x(),
+    };
+    assert_eq!(at(wider, band()), (0, 1), "a surface an ulp off derives");
+}
+
+/// **A read records what a derivation records**: under a decision frame,
+/// certifying the flat quarter with its own locus kept (a read, its
+/// record replayed) leaves exactly the verdicts and escalations that
+/// certifying it with nothing kept (a derivation) leaves, and the frame
+/// is not empty, so the comparison has decisions to compare. Red under a
+/// read that records nothing, which breaks the subdivision driver's
+/// lane parity (`onehome_switch_parity_interval`), or one that records
+/// its derivation twice.
+#[test]
+fn a_read_records_what_a_derivation_records() {
+    use geom_brep::Certified;
+    use geom_brep::locus_certificate::counts;
+    use geom_core::k_stats::Bracket;
+    let carrier = bulged(8, 0.0);
+    let flat = certify(&carrier, cylinder_z(), plane()).expect("the flat quarter");
+    let locus = flat.locus_certificate().expect("an intersection's locus");
+    let frame = |kept: &[&geom_brep::LocusCertificate<f64>]| {
+        let bracket = Bracket::open();
+        let before = counts::of(Certified::Locus);
+        certify_kept(&carrier, kept).expect("the flat quarter certifies");
+        let after = counts::of(Certified::Locus);
+        (bracket.finish(), after.0 - before.0)
+    };
+    let (derived, derived_reads) = frame(&[]);
+    let (read, reads) = frame(&[locus]);
+    assert_eq!(
+        (derived_reads, reads),
+        (0, 1),
+        "one derives, the other reads"
+    );
+    assert!(
+        !derived.verdicts.is_empty(),
+        "the derivation records decisions"
+    );
+    assert_eq!(read, derived, "a read's frame is a derivation's");
 }

@@ -430,8 +430,8 @@ impl<T: Decide> SurfaceCurve<T> {
                 let off = (p - centre)
                     .dot(axis)
                     .abs()
-                    .max((w.norm() - c.radius).abs());
-                match (off.point_value(), c.radius.point_value()) {
+                    .max((w.norm() - c.radius()).abs());
+                match (off.point_value(), c.radius().point_value()) {
                     (Some(off), Some(r)) => off <= ON_CIRCLE * r.max(1.0),
                     _ => true,
                 }
@@ -441,7 +441,7 @@ impl<T: Decide> SurfaceCurve<T> {
         Self {
             shape: Shape::Circle(Circle::new(
                 Frame::new(centre, axis, w.normalize()),
-                c.radius,
+                c.radius(),
             )),
             ..self
         }

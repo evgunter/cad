@@ -46,8 +46,8 @@ use geom_core::Tol;
 /// [`PersistError::Serialize`] if the JSON writer itself fails or
 /// the serialized document is not the object shape this build wrote
 /// (unreachable short of a serde-impl bug; surfaced, not swallowed).
-pub fn canonical_bytes(doc: &ProfileDoc, tol: Tol) -> Result<Vec<u8>, PersistError> {
-    check::validate_document(doc, tol)?;
+pub fn canonical_bytes(doc: &ProfileDoc, _tol: Tol) -> Result<Vec<u8>, PersistError> {
+    check::validate_document(doc)?;
     // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then put in
     // canonical order over a heap stack: the bytes serde_json writes
