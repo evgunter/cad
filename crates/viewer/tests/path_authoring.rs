@@ -545,7 +545,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     assert!(
         matches!(
             refusal,
-            PreviewError::Geometry { step: 6, rendered, .. } if rendered.contains("arrives_tangent")
+            PreviewError::Geometry { step: 6, rendered, .. } if rendered.to_string().contains("arrives_tangent")
         ),
         "{refusal}",
     );

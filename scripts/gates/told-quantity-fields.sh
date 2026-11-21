@@ -76,6 +76,10 @@
 #    as any other `{}`; rule 1 is what keeps an `f64` from being there.
 #  - A `Formatter` reached through a closure (`fmt::from_fn(|f| …)`)
 #    outside any body rule 2 reads.
+#  - A told quantity a notation-taking body writes with a bare `{}`,
+#    which reads in metres whatever the reader's notation. This gate
+#    does not read for it (a formatter does not say what type it
+#    prints); `told-in-the-notation.sh` does, by argument.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
