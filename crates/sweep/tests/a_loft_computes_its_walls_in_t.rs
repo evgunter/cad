@@ -416,78 +416,121 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     }
 }
 
-/// **Point inputs keep the lifted `f64` skin.** Where every input to
-/// the skin is a point, the loft at `Interval` is the `f64` loft lifted,
-/// bit for bit: an arc section (lifted from `f64`, so its sweep is a
-/// point), and four sections at v-degree 2, whose walls' interior v knot
-/// is the mean of two computed parameters. That is the status quo, not
-/// an enclosure claim over a box: the family is one member. Widening an
-/// interior section's parameter refuses at the skin's carrier door
-/// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`). At v-degree
-/// 1 the body's walls are one slab each and carry no interior knot, so
-/// that case lofts at degree 2 and its walls are checked to carry one.
+/// **Point inputs are a family of one, built in `T`.** Sections and
+/// placements lifted from `f64` loft at `Interval` as any other family
+/// does: the walls are skinned at `Interval` and enclose the `f64`
+/// loft, wider than a point only by their own arithmetic's rounding.
+/// What a carrier cannot hold refuses for a family of one as for a box
+/// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`): an arc
+/// section, whose weight `cos(Δ/2)` is an enclosure from rounding
+/// alone, and four sections at v-degree 2, whose walls' interior v knot
+/// is the mean of two computed parameters. Red where the `f64` skin is
+/// lifted into the lane instead: the two refusals build.
 #[test]
-fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
-    use geom_core::Interval;
-    let lift = |s: Vec<ProfileLoop<f64>>| -> Vec<ProfileLoop<Interval>> {
+fn point_inputs_loft_in_t_at_interval() {
+    use geom_core::spline::SplineError;
+    use geom_core::{Bounds, Interval};
+    use sweep::{LoftError, SkinError};
+    let lift = |s: &[ProfileLoop<f64>]| -> Vec<ProfileLoop<Interval>> {
         s.iter()
             .map(|lp| lp.map_scalar(Interval::from_f64))
             .collect()
     };
-    let cases = [
-        (
-            "an arc section",
-            vec![section(0.2), section(0.2)],
-            vec![0.0, 1.0],
-            1,
-        ),
-        (
-            "four sections at v-degree 2",
-            vec![quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
-            vec![0.0, 1.0, 2.0, 3.0],
-            2,
-        ),
-    ];
-    for (what, sections, zs, degree) in cases {
-        let places: Vec<SketchPlane<f64>> = zs.iter().map(|z| at_height(*z)).collect();
-        let nominal = loft_body::<f64>(&sections, &places, degree, Tol::witness())
-            .expect("the f64 loft builds");
-        if zs.len() > degree + 1 {
-            // The case's hypothesis: the body's walls carry the computed
-            // interior knot.
-            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
-            else {
-                panic!("{what}: a lofted wall is a NURBS surface")
-            };
-            let knots = net.knot_values_v();
-            let (lo, hi) = knots.domain();
-            assert!(
-                knots.values().iter().any(|k| *k > lo && *k < hi),
-                "{what}: the wall carries an interior v knot"
-            );
-        }
-        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
-        let lifted_places: Vec<SketchPlane<Interval>> = zs
+    let at_interval = |sections: &[Vec<ProfileLoop<f64>>], zs: &[f64], degree| {
+        let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.iter().map(|s| lift(s)).collect();
+        let places: Vec<SketchPlane<Interval>> = zs
             .iter()
             .map(|z| at_height(Interval::from_f64(*z)))
             .collect();
-        let enclosed = sweep::test_support::loft_body_construction::<Interval>(
+        sweep::test_support::loft_body_construction::<Interval>(
             &lifted,
-            &lifted_places,
+            &places,
             degree,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
-        assert_eq!(
-            points(&enclosed.section_params),
-            nominal
-                .section_params
-                .iter()
-                .map(|u| Some(*u))
-                .collect::<Vec<_>>(),
-            "{what}"
+    };
+
+    let lines = [quad(1.2), quad(1.3)];
+    let nominal = loft_body::<f64>(&lines, &[0.0, 1.0].map(at_height), 1, Tol::witness())
+        .expect("the f64 loft builds");
+    let enclosed = at_interval(&lines, &[0.0, 1.0], 1)
+        .unwrap_or_else(|e| panic!("two line sections loft at Interval: {e:?}"));
+    assert_encloses("two line sections", &enclosed, &nominal);
+    let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
+        .into_iter()
+        .fold(0.0, f64::max);
+    assert!(
+        widest <= 1e-14,
+        "a family of one widens by rounding alone: the widest wall value is {widest:e}"
+    );
+
+    match at_interval(&[section(0.2), section(0.2)], &[0.0, 1.0], 1) {
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(e.refusal(), SplineError::CarrierWeightNotAPoint { .. }) => {}
+        other => panic!(
+            "an arc section: expected its weight's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    match at_interval(
+        &[quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
+        &[0.0, 1.0, 2.0, 3.0],
+        2,
+    ) {
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { .. }) => {}
+        other => panic!(
+            "four sections at v-degree 2: expected the interior knot's refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **A dual over an enclosure gets the loft's tangent.** A two-section
+/// loft whose top [`quad`] has its moving corner at the variable
+/// `h = 1.2`, at `Dual<Interval>`: every wall value's derivative holds
+/// what the `f64` lofts a unit apart differ by (the poles are the
+/// sections' corners, so each is affine in `h`), and the corner's own
+/// poles move at rate one. Red where the walls are lifted from an `f64`
+/// skin: every derivative is then zero.
+#[test]
+fn a_loft_at_a_dual_over_an_interval_carries_the_sections_tangent() {
+    use geom_core::{Bounds, Dual, DualInterval, Interval};
+    let at = |h: f64| {
+        loft_body::<f64>(
+            &[quad(1.2), quad(h)],
+            &[0.0, 1.0].map(at_height),
+            1,
+            Tol::witness(),
+        )
+        .expect("the f64 loft builds")
+    };
+    let lit = |x: f64| DualInterval::from_f64(x);
+    let lofted = sweep::test_support::loft_body_construction::<DualInterval>(
+        &[
+            quad(lit(1.2)),
+            quad(Dual::variable(Interval::from_f64(1.2))),
+        ],
+        &[0.0, 1.0].map(|z| at_height(lit(z))),
+        1,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the loft builds at Dual<Interval>: {e:?}"));
+    let got = wall_values(&lofted, |x: DualInterval| (x.deriv.lo(), x.deriv.hi()));
+    let step: Vec<f64> = wall_values(&at(2.2), |x: f64| x)
+        .iter()
+        .zip(wall_values(&at(1.2), |x: f64| x))
+        .map(|(hi, lo)| hi - lo)
+        .collect();
+    assert_eq!(got.len(), step.len(), "the same walls at every corner");
+    let moving = step.iter().filter(|d| d.abs() > 0.5).count();
+    assert!(moving > 0, "the corner reaches the walls");
+    for (k, ((lo, hi), want)) in got.iter().zip(&step).enumerate() {
+        assert!(
+            lo - 1e-12 <= *want && *want <= hi + 1e-12 && hi - lo <= 1e-12,
+            "wall value {k} moves with the corner as the f64 lofts do: [{lo}, {hi}] \
+             against {want}"
         );
-        assert_eq!(wall_bits(&enclosed), wall_bits(&nominal), "{what}");
     }
 }
 
@@ -596,48 +639,15 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
     }
 }
 
-/// The wall poles, weights and knots of every face a loft built, in face
-/// order, as bits of their value channel.
-fn wall_bits<
-    T: topo::AtRestPolicy + geom_core::spline::SpanLocate,
-    B: crate::common::enclosure::LoftedBody<T>,
->(
-    lofted: &Lofted<T, B>,
-) -> Vec<u64> {
-    lofted
-        .side_faces
-        .iter()
-        .flatten()
-        .flatten()
-        .flat_map(|f| {
-            match lofted
-                .body
-                .body_of()
-                .face_surface(*f)
-                .expect("a described face")
-            {
-                Surface::Nurbs(n) => n
-                    .control()
-                    .iter()
-                    .flat_map(|p| [p.x, p.y, p.z])
-                    .chain(n.weights().iter().copied())
-                    .chain(n.knot_values_u().values().iter().copied())
-                    .chain(n.knot_values_v().values().iter().copied())
-                    .map(|x| x.value_channel().to_bits())
-                    .collect::<Vec<_>>(),
-                other => panic!("a lofted wall is a NURBS surface, got {other:?}"),
-            }
-        })
-        .collect()
-}
-
-/// At `Interval` a sweep along a turning path is the `f64` sweep its
-/// value channel describes, enclosed: the stations are composed at
-/// `f64` and lifted, so the turn's sines and cosines, which are no
-/// points at `Interval`, never reach the skin.
+/// At `Interval` a sweep along a turning path encloses the `f64` sweep
+/// its value channel describes: the stations are minted at `Interval`
+/// from the path's tangents read there, and the walls are skinned at
+/// `Interval` over them, so every wall value holds the `f64` one and is
+/// wider than a point only by that arithmetic's rounding. The stations'
+/// shares are structure, the same points at every scalar.
 #[test]
 fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
-    use geom_core::Interval;
+    use geom_core::{Bounds, Interval};
     use sweep::sweep_body;
     use sweep::test_support::{
         ELBOW_STATIONS, ELBOW_V_DEGREE, elbow_path, elbow_section, lift_sections,
@@ -671,7 +681,14 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
             .map(|u| Some(*u))
             .collect::<Vec<_>>()
     );
-    assert_eq!(wall_bits(&enclosed), wall_bits(&nominal));
+    assert_encloses("the elbow", &enclosed, &nominal);
+    let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
+        .into_iter()
+        .fold(0.0, f64::max);
+    assert!(
+        widest <= 1e-12,
+        "the swept walls widen by rounding alone: the widest wall value is {widest:e}"
+    );
 }
 
 /// Every value of every wall a loft built, in face order: poles,
@@ -827,8 +844,7 @@ fn swept_at<T: geom_core::Decide + topo::AtRestPolicy>(h: T) -> Lofted<T> {
 /// re-value with it to the `f64` build's bits. At `Dual`, a sweep whose
 /// start frame's height is the variable carries it into every station:
 /// each wall value's derivative is what the `f64` builds a unit apart
-/// differ by. (At `Sym` the sweep's path frames are computed in `f64` and
-/// enter as unknowns, so its walls re-value to nothing.)
+/// differ by.
 #[test]
 fn a_placement_in_t_stays_a_function_of_its_parameter() {
     use geom_core::Dual64;
@@ -884,6 +900,60 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
              {d} against {want}"
         );
     }
+}
+
+/// **A swept station is a function of the start frame at `Sym`.** The
+/// path is a constant of the model and so is each station's roll
+/// reference, selected from the path alone: both enter as literals, so
+/// every station's placement re-values with the start frame's height to
+/// the `f64` stations' bits. Red where the reference enters as an
+/// unknown: a station that turns then re-values to nothing.
+#[test]
+fn a_swept_stations_placement_re_values_with_its_start_frame() {
+    use sweep::sweep_places;
+    use sweep::test_support::{ELBOW_STATIONS, elbow_path};
+    let (h0, h1) = (1.0, 1.25);
+    let symbol = ParamSymbol::new(0x2e2);
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let tol = Tol::witness();
+    let want: Vec<Vec<Option<u64>>> =
+        sweep_places::<f64>(at_height(h1), &elbow_path(), ELBOW_STATIONS, tol)
+            .expect("the f64 stations")
+            .iter()
+            .map(|p| {
+                p.placement()
+                    .components()
+                    .iter()
+                    .map(|c| Some(c.to_bits()))
+                    .collect()
+            })
+            .collect();
+    let at_h1 = |s: ParamSymbol| (s == symbol).then_some(h1);
+    let (got, _) = with_session(budget, || {
+        sweep_places::<S>(
+            at_height(S::param(symbol, h0)),
+            &elbow_path(),
+            ELBOW_STATIONS,
+            tol,
+        )
+        .expect("the stations at Sym")
+        .iter()
+        .map(|p| {
+            p.placement()
+                .components()
+                .iter()
+                .map(|c| revalue(c.node(), &at_h1).map(f64::to_bits))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        got, want,
+        "every station's placement re-values with the start frame's height"
+    );
 }
 
 /// Each parameter's one `f64`, `None` where it has none.

@@ -36,6 +36,10 @@ refuses typed"). Two cases hit this:
   (`crates/editor-core/tests/e6_drive_over_a_loft_at_interval.rs`: the
   arc row still bisects to its leaf budget). Sections whose values are
   all points still loft through the lifted `f64` skin.
+  (`work/scalar/f64-built-data-is-built-at-t.md`, 2026-11-21, builds a
+  family of one in `T` too, so point sections refuse here as wide ones
+  do. The rows that stood on the lifted skin are listed in that unit's
+  PR, 7292.)
   (S3 retired `ArcWeightNotAPoint`: the weight is held in `T` and
   stops at the carrier's door, `CarrierWeightNotAPoint`, until S4/S5.)
 - **More sections than `v_degree + 1`.** The interior averaged knots

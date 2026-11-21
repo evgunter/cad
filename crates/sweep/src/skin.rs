@@ -1522,7 +1522,7 @@ pub fn loft_geometry<L: SectionLoop>(
 /// sections one at a time or by count — section and placement counts,
 /// the degree, each section's profile door, and the loop and segment
 /// counts every section must share. What it returns is the canonical
-/// form [`skin_validated`] skins, so a caller can decide something
+/// form the walls are built from, so a caller can decide something
 /// about the validated sections (the loft's stacking door) before any
 /// wall is built, and each section's structure record, which a lane
 /// scalar's sections are validated along ([`validate_guided`]).
@@ -1679,23 +1679,94 @@ fn skin_strips<T: SpanLocate>(
     })
 }
 
-/// [`loft_geometry`]'s second half: the walls skinned over sections
-/// [`validate_loft`] already accepted, at `params` where the caller
-/// states them (a path sweep's path parameters) and otherwise at
-/// [`loft_parameters`]' answer — one pass over the compatible strips
-/// serves both the parameters and the walls.
-pub(crate) fn skin_validated<T: SpanLocate>(
-    validated: Vec<ValidatedProfile<T>>,
-    places: &[SketchPlane<T>],
+/// The v each section sits at: `shares` where the caller states them (a
+/// path sweep's station shares `i / (stations − 1)`, structure, the same
+/// constants at every scalar) and otherwise [`loft_parameters`]' answer
+/// over the compatible strips.
+fn section_parameters<T: SpanLocate>(
+    strips: &[Vec<Vec<NurbsCurve3<T>>>],
+    shares: Option<&[f64]>,
+) -> Result<Vec<T>, SkinError> {
+    match shares {
+        Some(shares) => Ok(shares.iter().map(|share| T::from_f64(*share)).collect()),
+        None => strip_parameters(strips),
+    }
+}
+
+/// **The walls a loft body stands on**, `[loop][segment][slab]`, and the
+/// v each section sits at.
+///
+/// At v-degree ≥ 2, and through two sections, each segment has one
+/// wall, skinned through every section at those parameters
+/// ([`skin_on`]'s body). At v-degree 1 through three or more sections
+/// it has one wall per slab: the skin there is not C¹ at an interior
+/// section by its knot structure, which is where DESIGN \[topology\]
+/// lets the kernel cut ("the kernel adds none, except where a face or
+/// edge carrier is not C¹ by its knot structure"), and a degree-1 skin's
+/// control rows are its sections. So slab `s` is sections `s` and
+/// `s + 1` on `v ∈ [0, 1]`: their poles and weights as the section
+/// curves hold them, with no arithmetic and no carrier through every
+/// section built to be cut. Adjacent slabs share their section's row
+/// bit for bit, and no body wall holds a section's parameter as a
+/// knot: the parameters still say where along the stack the skin puts
+/// each section ([`loft_geometry`]'s walls hold them).
+///
+/// # Errors
+///
+/// [`skin_on`]'s past its parameter check, and
+/// [`compatible_strips`]' answer is the caller's to have taken.
+#[allow(clippy::type_complexity)]
+pub(crate) fn body_walls<T: SpanLocate>(
+    strips: &[Vec<Vec<NurbsCurve3<T>>>],
     v_degree: usize,
-    params: Option<&[f64]>,
-) -> Result<LoftGeometry<T>, SkinError> {
-    let compat = compatible_strips(&validated, places)?;
-    let params = match params {
-        Some(params) => params.iter().map(|v| T::from_computed(*v)).collect(),
-        None => strip_parameters(&compat)?,
+    shares: Option<&[f64]>,
+) -> Result<(Vec<Vec<Vec<Arc<NurbsSurface<T>>>>>, Vec<T>), SkinError> {
+    let params = section_parameters(strips, shares)?;
+    let walls = strips
+        .iter()
+        .map(|lp| {
+            lp.iter()
+                .map(|strip| {
+                    if v_degree == 1 && strip.len() >= 3 {
+                        strip.windows(2).map(section_slab).collect()
+                    } else {
+                        skin_with(strip, v_degree, &params).map(|w| vec![Arc::new(w)])
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<_, _>>()?;
+    Ok((walls, params))
+}
+
+/// The ruled wall between two compatible section curves, `pair[0]` its
+/// row `v = 0` and `pair[1]` its row `v = 1`: their poles and weights
+/// copied, the `u` structure `pair[0]`'s.
+fn section_slab<T: SpanLocate>(pair: &[NurbsCurve3<T>]) -> Result<Arc<NurbsSurface<T>>, SkinError> {
+    let [lower, upper] = pair else {
+        unreachable!("`windows(2)` yields pairs")
     };
-    skin_strips(validated, compat, v_degree, &params)
+    let n = lower.control().len();
+    if upper.control().len() != n
+        || upper.knots_f64_interim().knots() != lower.knots_f64_interim().knots()
+    {
+        return Err(SkinError::SectionShapeMismatch {
+            section: 1,
+            expected: n,
+            found: upper.control().len(),
+            what: "compatible control points",
+        });
+    }
+    let two = core::num::NonZeroUsize::MIN.saturating_add(1);
+    let knots_v =
+        geom_core::spline::Knots::new(vec![(T::zero(), two), (T::one(), two)], 1).map_err(built)?;
+    let rows = |c: &NurbsCurve3<T>, i: usize| (c.control()[i], c.weights()[i]);
+    let (control, weights) = (0..n)
+        .flat_map(|i| [rows(lower, i), rows(upper, i)])
+        .unzip();
+    NurbsSurface::new(lower.knot_values().clone(), knots_v, control, weights)
+        .map(Arc::new)
+        .map_err(built)
 }
 
 /// **What v-parameters will a loft put my sections at?** — the
@@ -2042,7 +2113,9 @@ impl PathCarry {
     /// coordinate origin, `None` for the identity.
     ///
     /// Station `i`'s frame is `Fᵢ`, aimed along the tangent `tᵢ` read at
-    /// `T` with its roll from the station's reference
+    /// `T` with its roll from the station's reference (selected from
+    /// the path alone, so a constant of the model as the path is, and
+    /// entered as one)
     /// ([`RigidMotion::from_aim_and_reference`], under
     /// `sweep_station_roll`), and its rotation is `Cᵢ = Fᵢ∘F₀⁻¹`. A
     /// station the `f64` carry selected on one straight span with its
@@ -2057,14 +2130,8 @@ impl PathCarry {
         let o = Point3::origin();
         let read = |station: usize, s: f64| read_tangent(&path, station, s, band);
         let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
-            RigidMotion::from_aim_and_reference(
-                o,
-                t,
-                r.map(T::from_computed),
-                SWEEP_STATION_ROLL,
-                band,
-            )
-            .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
+            RigidMotion::from_aim_and_reference(o, t, r.map(T::from_f64), SWEEP_STATION_ROLL, band)
+                .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
         };
         let first = &self.stations[0];
         let (p0, t0) = read(0, first.at)?;

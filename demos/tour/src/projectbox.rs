@@ -126,7 +126,7 @@ pub fn square_wire(tol: Tol) -> ConstructedLoop<f64> {
 /// `√2 WIRE_H / R ≈ 0.25`. [`standing_spring`] asserts the walls'
 /// convex hulls clear the boss top as well.
 pub fn spring<S: Scalar>(
-    wire: &[ConstructedLoop<f64>],
+    wire: &[ConstructedLoop<S>],
     per_turn: u32,
     tol: Tol,
 ) -> Result<pncad::topo::Body<S>, LoftError> {
@@ -146,10 +146,9 @@ pub fn spring<S: Scalar>(
         .fold(f64::NEG_INFINITY, f64::max);
     let path = coil(BOSS_Z.1 + depth);
     let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
-    // The wire and the spine are built in `f64`, so they enter `S` as
-    // the computed values they are, and the start frame is minted at
-    // `S` from the spine's.
-    let wire: Vec<_> = wire.iter().map(|lp| lp.lift_computed()).collect();
+    // The spine is built in `f64`, so its start point and tangent enter
+    // `S` as the computed values they are, and the start frame is
+    // minted at `S` from them.
     let (t0, _) = path.domain();
     let (p, d) = path.ders1(t0);
     let place = SketchPlane::from_frame(frame_across(
@@ -157,7 +156,7 @@ pub fn spring<S: Scalar>(
         d.map(S::from_computed),
         tol,
     ));
-    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body.into_body())
+    sweep_body::<S>(wire, place, &path, stations, 3, tol).map(|l| l.body.into_body())
 }
 
 /// The continuum volume of a wire of cross-section `area` swept along
