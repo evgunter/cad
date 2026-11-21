@@ -2,12 +2,13 @@
 id: main-red-offer-rows-false-offers-since-the-told-quantity-type
 kind: issue
 title: Main red (slow set): offer_rows::every_offered_tolerance_passes_just_below_it makes false offers on three rows since PR 7159 (the told-quantity type)
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
 refs: [7159]
 branch: scalar/main-red-since-the-told-quantity-type
+closed: 2026-11-21
 ---
 
 
@@ -55,3 +56,7 @@ Each compares the offer the text quotes (`test_utils::offer::offered_below`) wit
 ## 2026-11-21: dispatched (SCALAR)
 
 One unit for this row and `work/green/main-red-three-source-censuses-red-since-the-told-quantity-type.md`. Difficulty letter **M**; review tier **single, FULL**: the census repairs are mechanical, but what the offer rows should pin under the told rule is a judgement a second reader should check.
+
+## 2026-11-21: closed (SCALAR)
+
+The rows were wrong, not the text. Every quoted offer is the told rule's offered bound (four figures, on the side that works) of the kernel's own margin, `Band::offer_deciding`; the rows held it to the raw `|m|/K` (1e-4, 1e-6), a spelling the rule no longer makes. The two spellings in one message: the row's `want` was `offer_deciding` of the row's model margin (2.99999999999986e-10, told 2.999e-11), the sentence's was of the measured margin (3.0000000000031634e-10, told 3e-11), on either side of a grid point. Now each row holds the quoted number to the told offer of a margin within the precision its pose's margin is known to (`topo::test_support::offers_a_margin_within`), or, where the measured margin is in hand, equal to `offer_deciding` of it; `the_corners_offer_executes` runs just below the quoted number. `sweep`'s `every_sphere_offer_passes_just_below_it` held the same shape and takes the same check.
