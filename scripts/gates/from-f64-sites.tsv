@@ -35,6 +35,7 @@ crates/geom-brep/src/curve_face/plane_crossing.rs	1	constant	band.zero()	the ban
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
 crates/geom-brep/src/curve_pair/pose.rs	4	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/curve_pair/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a slanted touch keeps its extreme within it
 crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/curve_pair/pose/window.rs	4	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/curve_pair/span.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line, and off one)
