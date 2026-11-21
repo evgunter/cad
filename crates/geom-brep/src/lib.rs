@@ -94,6 +94,7 @@ pub mod ladder {
     pub use geom_core::ladder::*;
 }
 pub mod locus;
+pub mod locus_certificate;
 pub mod mapped;
 pub(crate) mod memo;
 #[cfg(any(test, feature = "test-support"))]
@@ -218,6 +219,7 @@ pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
+pub use locus_certificate::{Certified, LocusCertificate};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 #[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};
