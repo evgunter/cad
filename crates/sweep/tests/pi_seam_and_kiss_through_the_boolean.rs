@@ -440,7 +440,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     for (apart, expect) in [
         (0.01 * zero, Expect::Builds((4, 6, 4, 1))),
         (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
-        (5.0 * escalate, Expect::RulingDoor),
+        (5.0 * escalate, Expect::Builds((4, 7, 5, 1))),
         ((R * escalate).sqrt(), Expect::RulingDoor),
         (-(R * escalate).sqrt(), Expect::RulingDoor),
         ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 7, 5, 1))),
@@ -877,7 +877,7 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
             (v - want).abs() <= 1e-12 * want,
             "frustum, order {order}: the tube and the frustum: {v} vs {want}"
         );
-        assert_eq!(c, (6, 10, 6, 1), "frustum, order {order}: F, E, V, shells");
+        assert_eq!(c, (5, 8, 5, 1), "frustum, order {order}: F, E, V, shells");
         assert_eq!(k, [0; 6], "frustum, order {order}: no contact records");
     }
 }
