@@ -457,7 +457,8 @@ pub(crate) fn face_cover_unproven<T: Decide>(
 ///
 /// - **Sphere**: its six axis poles `c ± r·eᵢ`, the only critical
 ///   points of `xᵢ` on it.
-/// - **Torus**: along each axis `e` with a part `ê` off the torus axis,
+/// - **Torus**: along each axis `e` with a part `ê` off the torus axis
+///   (read as `a × (e × a)`, which keeps its direction however small),
 ///   its two extremes `c ± (R·ê + r·e)` (the other two critical points
 ///   are saddles, never a patch's interior extreme); along the torus
 ///   axis, whose extremes are the top and bottom circles, eight points
@@ -492,7 +493,11 @@ pub(crate) fn face_extreme_points<T: Decide>(
             let (big, small) = (major_radius.abs(), minor_radius.abs());
             let mut at = Vec::new();
             for e in axes {
-                let off = e - axis * axis.dot(e);
+                // `e`'s part off the axis, `a × (e × a)`: each component a
+                // product, or a sum of squares where `e − a(a·e)` would
+                // cancel to `1 − (a·e)²`, so its direction is conditioned
+                // however near `e` the axis lies.
+                let off = axis.cross(e.cross(axis));
                 if crate::validate::is_direction(&off) {
                     let reach = off * (big / off.norm()) + e * small;
                     at.extend([center + reach, center - reach]);
