@@ -69,3 +69,7 @@ What closes it: fixtures whose rays meet a near-coplanar triangle short
 of the aimed vertex, chosen for the class and not for a mesh accident (a
 fixture that states the triangle, so it does not move with a carrier's
 rounding), and both pins lifted.
+
+## 2026-11-20 — the one-segment ring (PROFILE)
+
+Evidence from PROFILE's `circle-lowers-to-one-segment` (branch `profile/circle-lowers-to-one-segment`). The gallery ring's tube circles are `circle()`s, which now lower to one full-turn segment, so the bumped ring meshes from other chord points. Both ring rows of `crates/viewer/tests/index_memo.rs` lose their aimed point as a mesh vertex: `a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex` (already pinned here) now stops at its premise ("the aimed point is a vertex of the bumped ring's mesh"), and `the_ring_grazing_ray_answers_the_corner_it_grazes`, green until now, stops at its own ("the chord point is a vertex of the bumped ring's mesh"). Both are pinned red at every ε row to those premises, naming this row. Closing it now means finding the two witnesses afresh on the one-segment ring's mesh: a mesh vertex the `+y` ray grazes with an off-corner Möller–Trumbore quotient in its candidate set, and a near-coplanar candidate answering short of an aimed vertex.

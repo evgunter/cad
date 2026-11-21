@@ -937,8 +937,25 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
 /// is still there). Parked here rather than beside `pick.rs`'s own
 /// rows because it needs the gallery ring, which only the viewer's
 /// test corpus loads.
+///
+/// **Pinned to its premise's stop at every ε row**
+/// (`work/vgeom/the-wide-candidate-row-lost-its-near-coplanar-triangle-before-the-vertex.md`):
+/// the ring's tube circles are one segment each, so the tube meshes
+/// from other chord points and the chord point is no vertex of it.
 #[test]
 fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the ring's grazing ray",
+        &["the probe's premise: the chord point is a vertex of the bumped ring's mesh"],
+        the_ring_grazing_ray_answers_the_corner_it_grazes_row,
+    );
+}
+
+/// The row [`the_ring_grazing_ray_answers_the_corner_it_grazes`] runs,
+/// under its pin.
+fn the_ring_grazing_ray_answers_the_corner_it_grazes_row() {
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
@@ -1078,14 +1095,16 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// rounding, the cap and band triangulations around the vertex with
 /// them, and on that mesh this ray's near-coplanar candidates answer at
 /// the vertex and `0.031` beyond it, none short of it, so the class the
-/// row carries has no fixture here.
+/// row carries has no fixture here. With the ring's tube circles one
+/// segment each the aimed point is no vertex of the mesh at all, and
+/// the row stops at that premise.
 #[test]
 fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &test_utils::pinned_red::EVERY_ROW,
         "the ring's wide candidate",
-        &["the wide candidate still answers 0.031 short of the vertex"],
+        &["the probe's premise: the aimed point is a vertex of the bumped ring's mesh"],
         a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row,
     );
 }

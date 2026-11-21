@@ -513,8 +513,10 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     let camera = Camera::framing(scene.bounds(), aspect).expect("the ring frames");
 
     // Aim at the centroid of some triangle of the drawn tessellation
-    // whose surface faces the camera — derived from the mesh itself,
-    // not from knowledge of the ring's dimensions.
+    // whose surface faces the camera and where no drawn edge answers the
+    // cursor (inside the pick radius an edge beats the face, and a
+    // triangle beside the wall's seam has one) — derived from the mesh
+    // itself, not from knowledge of the ring's dimensions.
     let part = index.parts().first().expect("one part at least");
     let mesh = part.mesh();
     let eye = camera.eye();
@@ -535,11 +537,17 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
                 && ndc[0].abs() < 0.9
                 && ndc[1].abs() < 0.9
             {
-                cursor = Some([
+                let at = [
                     (ndc[0] + 1.0) * 0.5 * viewport.width_px,
                     (1.0 - ndc[1]) * 0.5 * viewport.height_px,
-                ]);
-                break 'outer;
+                ];
+                let edge = index
+                    .edge_at(session.evaluation().expect("landed"), &camera, viewport, at)
+                    .expect("a framed cursor un-projects");
+                if edge.is_none() {
+                    cursor = Some(at);
+                    break 'outer;
+                }
             }
         }
     }

@@ -1492,15 +1492,25 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     // A cursor aimed at the centroid of a drawn triangle, taken from the
     // scene's OWN position buffer. The pane centre would not do: the
     // gallery body is a ring, and the middle of the pane looks through
-    // the hole — an honest miss, and not what this walk is about.
+    // the hole — an honest miss, and not what this walk is about. The
+    // first triangle whose centroid no drawn edge answers: inside the
+    // pick radius an edge beats the face, and a triangle beside the
+    // wall's seam has one.
     let corners = scene.positions();
     assert!(corners.len() >= 3, "the scene draws triangles");
-    let target = Point3::new(
-        f64::from(corners[0][0] + corners[1][0] + corners[2][0]) / 3.0,
-        f64::from(corners[0][1] + corners[1][1] + corners[2][1]) / 3.0,
-        f64::from(corners[0][2] + corners[1][2] + corners[2][2]) / 3.0,
-    );
-    let centre = cursor_of(&camera, target, pane);
+    let centre = corners
+        .chunks_exact(3)
+        .map(|t| {
+            let mean = |a: usize| f64::from(t[0][a] + t[1][a] + t[2][a]) / 3.0;
+            cursor_of(&camera, Point3::new(mean(0), mean(1), mean(2)), pane)
+        })
+        .find(|&at| {
+            index
+                .edge_at(evaluation(&session), &camera, pane, at)
+                .expect("a framed cursor un-projects")
+                .is_none()
+        })
+        .expect("some drawn triangle's centroid is clear of every drawn edge");
 
     // 3. Hover, then click — through the event stream and the input
     //    mapping, exactly as the viewport does.
