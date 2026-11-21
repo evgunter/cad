@@ -128,3 +128,13 @@ of the row here drew a failing seed (only this one was captured).
 The same row drew `CAD_FUZZ_SEED=0xd5b1cddf2406ff5f` (`CAD_FUZZ_EFFORT=1`)
 in the reviewer's run and failed its 1e-12 pass, `1 readings
 contradicted`. Replayed alone it fails and reaches no `half_angle` walk.
+
+## 2026-11-21 — two more seeds (ONEHOME, the reviews of PRs 7208 and 7277)
+
+The same row (`curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`)
+drew two more seeds, and both are red on main too:
+- `CAD_FUZZ_SEED=0xa67275b2cf5bde2e` (`CAD_FUZZ_EFFORT=1`), in 7208's
+  run: `3 readings contradicted`, a `Recedes` on a far ellipse. It
+  reproduces on `c8c00a2a33`.
+- `CAD_FUZZ_SEED=0x917ed9c53b80de98` (`CAD_FUZZ_EFFORT=10`), in the
+  review of PR 7277: red on main.
