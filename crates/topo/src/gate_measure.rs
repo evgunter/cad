@@ -569,6 +569,10 @@ pub fn walk_event(pair: (FaceKey, FaceKey), splits: usize, secs: f64, refused: b
     WALK.with(|w| {
         if let Some(w) = w.borrow_mut().as_mut() {
             let kind = w.pending.take();
+            if let Some(sp) = w.pending_split.take() {
+                let n = w.events.len();
+                w.splits.insert(n, sp);
+            }
             w.events.push((
                 pair.0,
                 pair.1,
