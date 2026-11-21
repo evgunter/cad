@@ -10854,7 +10854,9 @@ pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
+impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::CertifiedBounds>
+    AtRestBody<T>
+{
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`]. Every decision
     /// it takes is a check ([`geom_core::k_stats::checking`]): it reads a
@@ -10867,10 +10869,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     pub(crate) fn validate(
         built: crate::finish::Built<T>,
         tol: Tol,
-    ) -> Result<Self, Vec<ValidationError>>
-    where
-        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
-    {
+    ) -> Result<Self, Vec<ValidationError>> {
         crate::finish::count_finish();
         let crate::finish::Built { body, records } = built;
         let sign = std::sync::Arc::new(
@@ -10908,10 +10907,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     pub(crate) fn validate_assembled(
         assembled: crate::finish::Assembled<T>,
         tol: Tol,
-    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>>
-    where
-        T: crate::props::CertifiedPolicy<Finished = Self> + geom_core::CertifiedBounds,
-    {
+    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>> {
         crate::finish::count_finish();
         let crate::finish::Assembled {
             body,
