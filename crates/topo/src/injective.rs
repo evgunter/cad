@@ -5913,6 +5913,11 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             present(x, &[], &alone.vertices, band),
             present(y, &[], &alone.vertices, band),
         );
+        if std::env::var_os("CV_SIGN").is_some() {
+            let d = |p: &Result<Presentation<'_>, Unpresented>| match p { Ok(Presentation::Of(q)) => format!("Of({:?} x={:?} y={:?})", q.zero, q.x, q.y), Ok(Presentation::Vacuous) => "Vacuous".into(), Err(e) => format!("{e:?}") };
+            let sg = if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry) { planes_through(x, &alone, rx, ry).into_iter().map(|(psi, on)| (sign_on(&psi, Some(&on), rx, Some(ry), band), sign_on(&psi, Some(&on), ry, Some(rx), band))).collect::<Vec<_>>() } else { Vec::new() };
+            eprintln!("CVALONE {:?} {:?} | {} | {} | {sg:?}", x.face, y.face, d(&rx), d(&ry));
+        }
         if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
             && planes_through(x, &alone, rx, ry)
                 .into_iter()
