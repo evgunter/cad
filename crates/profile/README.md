@@ -575,9 +575,15 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. A segment also records the unit directions its
   construction made, a line's director and an arc's radial at each
-  end: the verb that drew the segment holds them exactly, a table's are
-  decided once at validate, and a door that needs one reads it here and
-  never divides the difference of two vertices by its own length. The
+  end. The verb that drew the segment records them: a construction
+  that has the direction holds it exactly, and a hop between two
+  points is given its director by the one mint, which that hop's
+  junction checks read too (the axis where a component of the chord is
+  identically zero, DESIGN [scalars]'s structural question, signed by a
+  reading of the other component; the chord over its length
+  otherwise). A table's are minted the same way, once at validate. A
+  door that needs a direction reads it here, and the mint is the one
+  place that divides the difference of two vertices by its length. The
   form is redundant (the vertices lie on the
   carrier, a recorded direction agrees with them, Δθ agrees with them
   mod 2π, 0 < |Δθ| ≤ 2π), and those

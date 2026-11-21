@@ -565,9 +565,10 @@ mass has no valid build" — is not sayable about any macroscopic box.
   driver's replay): the numeric value as today plus a DAG node id.
   Parameters are symbols; every `Real` op mints one hash-consed node
   (structural sharing is free and deterministic — D9). Float
-  literals are atoms keyed by their bits. Nothing in the kernel
-  changes: `Sym<T>` is one more scalar in the Real-generic pipeline,
-  and no funnel site is edited.
+  literals are atoms keyed by their bits. `Sym<T>` is one more scalar
+  in the Real-generic pipeline, and no funnel site is edited; a
+  construction asks one thing of it beyond arithmetic and decisions,
+  the structural question below.
 - **The identity test, on demand.** A `decide` site first asks the
   DAG whether the margin's expression is identically zero: the
   node's POLYNOMIAL NORMAL FORM in the parameter symbols, with
@@ -579,6 +580,27 @@ mass has no valid build" — is not sayable about any macroscopic box.
   exceeding a stated term/degree budget is FROZEN into an atom —
   cancellation past that point is lost, soundness is not (an atom is
   an unknown function; the margin falls to the numeric path).
+- **The structural question.** A construction may ask the tier
+  whether a value is zero as a function of the document's variables,
+  to choose between two spellings of one real value: the exact axis
+  `(0, ±1)` for a hop `(W, 0) → (W, H)` where the general form is the
+  chord over its length (DESIGN [scalars]). The answer is not a
+  decision: no count, no record, nothing deferred, and the same in an
+  eager and in a deferring session. It is the normal form and the
+  retry ladder with every rule that reads a value switched off (the
+  certified read at `min` / `max` / `select`, and the
+  registered-identity door, whose entries are witnessed against
+  values), under rules and a term budget that are kernel constants
+  and not the session's, so it is a function of the expression DAG
+  alone: one document gets one answer at every valuation and in every
+  symbolic lane. A numeric scalar is never asked: it holds no
+  expression, and the general spelling is taken. A sign reading cannot
+  stand in for it: a decision
+  reads the value first and asks the tier only where the value reads
+  no definite sign, so `(x + w) − w − x` is asked about where it
+  rounds to 0 and not where it rounds to `2.8e-17`. A `Sym<T>` run's
+  value channel is the plain `T` run's except where a construction
+  chose a closed spelling on this answer.
 - **What "identically zero" buys.** `carrier.eval(t0) − start` with
   both built from the profile vertex P(p): the zero polynomial.
   `y₁ − y₂` with both `h`: zero. `|(Q − P) × d|` with `Q = P + t·d`:

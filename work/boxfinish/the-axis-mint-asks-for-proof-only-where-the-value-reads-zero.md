@@ -73,3 +73,114 @@ lane's sketch was a non-deciding query on `geom_core::Decide`
 **Closed when** the mint's branch is the same at every valuation of
 one document in every lane it runs in, the two probes above are green
 as ordinary rows, and `axis_or` reads no sign it then throws away.
+
+## Weighed (fork 272, 2026-11-15): three designers agree after five rounds
+
+**The structural question.** `geom_core::is_exact_zero` becomes "is
+this value zero at every point its scalar stands for", and is not a
+decision. `f64` answers yes at 0; `Interval` only at `[0, 0]`; `Dual`
+only where the value and every derivative are 0; `Sym` only where the
+tier's normal form proves the expression zero, with every rule that
+reads a value off (the certified read at `min` / `max` / `select`; the
+registered-identity door) and with rules and a term budget fixed for
+the kernel. At `Sym` nothing reads "exactly zero" off the number, so a
+new caller cannot write the defect the corpus rows caught. Its one
+licence is to choose between two spellings of one real value.
+
+**The mint, one function.** Where one component of the vector is zero
+by the question, the axis, signed by a reading of the other component;
+otherwise the vector over its length, and no reading. The `line_to`
+verb calls it and records the director, and that hop's junction checks
+read the same value (today `path::chord_director` and validation spell
+the hop's direction twice). Validation calls it only for a table. An
+arc's radial uses it. `sym::aside` and the discarded readings go.
+
+**The sign reading** is a new fact (vertex separation decides the
+length, not which way the line points). It is kept; it sits outside
+the cross-lane verdict log under its audit row, since the `f64` witness
+and the leaf can take different arms, and the re-valuation instrument
+still records it; where it does not decide, the escalation propagates
+as the verb's error, with no fallback to the quotient.
+
+**The other sites.**
+- `literal_sign` (a bulge's sign) is a fact about a value: an ordinary
+  recorded decision.
+- `is_exact_zero`'s other callers (about two dozen) are audited in the
+  same change: a read of a literal the kernel wrote answers as today; a
+  choice of spelling on a computed value changes only where two values
+  agree by coincidence or an identity rounds; a branch that changes
+  what is built (a bulge of zero lowering to a line, which repeats
+  validation's straightness decision) becomes a margined decision.
+- The readers of "was this Zero proven" (`MarginDiag::proven`,
+  `deferred::discharge`) and the unproven-coincidence lint stay as they
+  are; a construction's registered identities count as established.
+- `[verdicts.consumers]`' "Zero takes the closed form" is amended for
+  every lane choice, with an audit to follow.
+
+**Rejected as final states, by all three:** PR 6990's spelling (a
+decision reads the value first by design); taking the axis rule out
+(the slab's wall turns over the box); making the value channel exact
+(`h/|h|` still needs a sign); a tagged direction type; a separate
+query beside `is_exact_zero` (two functions that must agree at `Sym`).
+
+**What it costs.** Every `is_exact_zero` caller's answer at `Sym` and
+`Dual` can change the day it lands, so the audit is part of the
+change. With the symbolic tier switched off by its dial the driver
+runs plain `Interval`, and a literal-zero component there stores the
+axis, so that replay is no longer the pre-E12 one byte for byte on such
+a profile. The question needs a memo of its own.
+
+**To trace before building** (none changes the answer): how an
+escalation taken outside the verdict log reaches the subdivision
+driver; one run of the value-free walk on the corpus's hop identities;
+one measured run of the lint; the per-caller audit. Deferred, to be
+measured on a real document first: a "constant ratio" form of the
+question, which would make a 45° side with a boxed size exact.
+
+**How the rounds went.** The first reports agreed on a question that
+is not a decision and split on four things; the box-certified reads
+and where the mint lives closed in round 1, the lint and the sign
+reading in round 2. One door or two crossed over three times before
+all three settled on one in round 4, and the budget in round 5. The
+reports are on `boxfinish/fork-identity-reports`
+(`probe/fork-identity/round0` to `round4`), by label.
+
+## Revised on Ev's first answer (2026-11-15): the question has an answer only at the symbolic scalar
+
+Ev, on `[ev]` PR 6993: "this makes sense at the symbolic tier but sits
+uncomfortably with the eps allowance for numeric tiers".
+
+Each of the three designers, asked alone, moved to the same narrower
+answer, and each called the discomfort right: at a numeric scalar the
+design's only zero is the band's (`[verdicts]`: bit-equality is never
+the test), and "`f64`: yes at 0; `Interval`: only `[0, 0]`" would have
+ratified a second one, which is this row's own defect one scalar down
+(`(x + w) − w − x` reads `0.0` at one valuation and `2.8e-17` at the
+next).
+
+**What stands now, replacing the section above where they differ:**
+- The structural question (is this value zero as a function of the
+  document's variables) is answered only by `Sym`, from the expression,
+  by value-free rules under a kernel-fixed budget. `f64`, `Interval`
+  and `Dual` hold no expression and answer no, so a numeric lane always
+  takes the general spelling: the quotient, which is what PR 6990
+  already does and which at `f64` is the axis but for a zero's sign.
+- So the `Dual` clause goes (the quotient carries its derivative), and
+  so does "every caller audited in the same change": the mint's change
+  no longer touches `is_exact_zero`.
+- `geom_core::is_exact_zero` is not the door and gets no ratified
+  text. The designers audited its callers (17 to 22 sites, counted
+  three ways): none asks whether a computed quantity vanishes by
+  identity. They are in-band tags, bit-for-bit comparisons of two
+  stored copies, and a few branches that change what is built decided
+  by bit-equality
+  (`work/decide/is-exact-zero-reads-tags-copies-and-decisions-off-a-number.md`).
+- Unchanged from the section above: the value-reading rules off and
+  the fixed budget; the mint as one function called by the `line_to`
+  verb and by validation for tables; the one kept sign reading, outside
+  the verdict log; the lint; the `[verdicts.consumers]` amendment.
+
+**The cost named by one designer:** with the symbolic tier switched
+off, a plain-`Interval` side between literal-equal coordinates stays
+as wide as rounding makes it; that lane already refuses identities
+over a box.
