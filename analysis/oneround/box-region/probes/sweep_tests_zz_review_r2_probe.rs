@@ -564,3 +564,37 @@ fn review_r2_boolean_trimmed_sphere_faces_near_the_box() {
         }
     }
 }
+
+/// REVIEW PROBE: a slender frustum, whose cone's apex stands far past
+/// the box while the body sits at the origin. Stage 1 hulls the apex.
+#[test]
+fn review_r2_a_slender_frustum_at_the_origin() {
+    let tol = Tol::witness();
+    let id = RigidMotion::<f64>::identity();
+    for (what, taper) in [("apex 100 m off", 0.1), ("apex 10 km off", 1e-3), ("apex 1000 km off", 1e-5)] {
+        for rev in [Revolution::Full, Revolution::Partial(2.0)] {
+            // radius 1 at y = 0, radius 1 + taper at y = 10: the apex is
+            // 10 / taper below.
+            let got = try_revolved_about_y_at::<f64>(
+                vec![
+                    (Point2::new(0.5, 0.0), 0.0),
+                    (Point2::new(1.0, 0.0), 0.0),
+                    (Point2::new(1.0 + taper, 10.0), 0.0),
+                    (Point2::new(0.5, 10.0), 0.0),
+                ],
+                rev,
+                tol,
+            );
+            match got {
+                Ok(body) => {
+                    let gate = gate_word(&body, tol);
+                    let ask = mean_us(200, || {
+                        let _ = topo::session_box_at(&body, &id, tol);
+                    });
+                    println!("FRUSTUM {what} {rev:?}: gate {} | ask {ask:.1} us", gate.chars().take(150).collect::<String>());
+                }
+                Err(e) => println!("FRUSTUM {what} {rev:?}: revolve refuses: {}", format!("{e}").chars().take(260).collect::<String>()),
+            }
+        }
+    }
+}

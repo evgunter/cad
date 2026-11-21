@@ -19,6 +19,8 @@ rows pin, not to the fold:
 2. Hosted CI ran none of the slow rows this PR re-asserts (MINOR 2).
 3. Seven mutants survive the box rows, two of them verdict-changing on
    valid bodies (MINOR 3).
+4. A fast-suite fixture reaches stage 2, against the PR body's word, and
+   so does any slender cone at the origin (MINOR 7).
 
 ## What I executed, and what I only read
 
@@ -44,13 +46,17 @@ my own (and a second worktree and target dir at the merge base):
   `sweep` and `editor-core` (`probes/run-mutant-rows.sh`: every
   session-box row, the two `tcost_k3_certificate` rows, the modules that
   hold the tests the PR body names under (a), slow set included).
-- The f64 cost of the ask and of the structural gate, head and base.
+- The cost of the ask and of the structural gate, head and base, at
+  `f64` and (two bodies, stage 1 only) at Interval.
+- Mutants 12, 8 and 6 over the whole fast set of the three crates.
+- `editor-core`'s `m10_sym_profile_interval` (the re-baselined ledger).
+- Slender frusta at the origin, at the gate, with the ask timed.
 - `scripts/gates/cover-kind-match.sh` with `GATE_BASE` at the merge base.
 - The CI run resolved to steps, and the kernel job's log read at the
   slow-set step.
 
-ONLY READ: the Interval and `Sym<f64>` lanes of the fold; the editor-core
-row; `pncad-py`'s tags and census; the plate ledger; the PR's whole-suite
+ONLY READ: the `Sym<f64>` lane and stages 2 and 3 at Interval; the
+editor-core row's text; `pncad-py`'s tags and census; the PR's whole-suite
 differential (three hours a row here; not re-run); the slow set at
 ε = 1e-6 and 1e-12 (not run); every claim about ε other than 1e-9.
 
@@ -154,12 +160,13 @@ mine are caught: the door reading stages 2 and 3 off the unmoved body
 
 These survive all 228 rows. Mutants 12, 8 and 6 I also ran over the
 whole fast set of `topo`, `sweep` and `editor-core` (10 045 tests):
-FASTSET_RESULT
+12 and 8 survive every one of them; 6 is caught by one test that is not
+a box row, by accident of its fixture (MINOR 7).
 
 | mutant | what it does | shown to change a verdict |
 |---|---|---|
 | 12: the placement filter of `face_extreme_points` dropped (`cover.rs:520`) | every candidate pole counts as a point of the face | yes: the in-box ball wedge above is then refused as **past** the box by 200 m, a false finding; a dimple past the box by 5 m reads 65 m |
-| 6: stage 2 reads the stage-1 bound again | `face_cover` never admits | yes: every dimple whose ball pokes out is refused as a limit |
+| 6: stage 2 reads the stage-1 bound again | `face_cover` never admits | yes: every dimple whose ball pokes out is refused as a limit; red on no box row, and on one fast test by accident (MINOR 7) |
 | 8: the gate drops `SessionBoxUncovered` | a body with an uncovered face that tier 3 passes is admitted | no test reaches `validate.rs:6669` or `:11038` |
 | 15: an uncovered face counts as within at stage 1 | the move and placing doors admit it | not shown |
 | 7: a Zero margin read as past | a body within the band of the box's edge refuses | not shown |
@@ -212,7 +219,37 @@ subject (a certificate split across rounds; a refusing arm returning no
 properties) now runs at 1e-12 only, in the nightly. The fixture was left
 as it is rather than stood where its net fits the box.
 
-### NOTE 7. Bodies truly past the box that refuse as a limit. DEMONSTRATED, sure
+### MINOR 7. A suite fixture does reach stage 2, and a slender cone reaches it at the origin. DEMONSTRATED, sure; its last paragraph unsure
+
+The PR body: "Stages 2 and 3 … run only on bodies whose carriers reach
+past the box; in the suites only this PR's rows and the two
+`tcost_k3_certificate` rows below reach them." Under mutant 6 the fast
+test `sweep revolve_axis_gaps::a_kink_in_a_pocket_has_the_outer_loops_reading`
+goes red with "reaches 3999002.2 m past the 1e3 m session box": its
+near-collinear kink revolves to a cone whose apex stands about 4 000 km
+off, `face_cover_unproven` hulls a cone's apex always (`cover.rs:428`),
+and the body is finished at the head only because stage 2 then reads
+the apex out. So that sentence is wrong, and so is the instrument that
+produced it, or the reading of it.
+
+The class is any cone face whose apex lies past the box, wherever the
+body stands. A ring of radius 1 m and height 10 m at the origin, its
+outer wall tapered 1 mm over that height (apex 10 km off): admitted, and
+its ask costs 500–730 µs against 145–165 µs for the same ring tapered
+0.1 m (apex 100 m off). Such a body also logs stage 2's decisions
+(`cone_may_hold_apex`'s lift and vertex reads) at every finish, move and
+placement, so C6's "the common path logs what main's did" does not hold
+for it. Nothing pinned moved in the fast set; the `tools (k-lint…)` job
+was skipped in hosted CI.
+
+Unsure, and where I would look: stage 2 reads the apex out only where
+every loop's lift is decided closed in the chart. A cone face whose loop
+winds the axis (a seamless frustum wall, two ring loops, as an imported
+file can state it) "may hold" the apex, keeps it in its hull, and would
+then refuse as a limit at the origin. The revolve door seams its walls,
+so I could not build one; step-import is where to look.
+
+### NOTE 8. Bodies truly past the box that refuse as a limit. DEMONSTRATED, sure
 
 36 of 365. Spindle faces (23: the apple, the lemon, the frustum's cap)
 by design: no inside read. Torus parts (13: the part on a cylinder, the
@@ -221,7 +258,7 @@ body may lie inside the box" of a body that is tens of metres past it. Refused, 
 less complete than the PR body's account of it suggests. I did not trace
 which placement declines.
 
-### NOTE 8. An undecided box margin admits. BY-INSPECTION, sure
+### NOTE 9. An undecided box margin admits. BY-INSPECTION, sure
 
 `within` and stage 2 (`session_box.rs:301`, `:355`) admit on anything but
 a definite Negative, an escalation included. The merge base did the
@@ -229,7 +266,7 @@ same, on points. The README now says "in the box only where its cover
 is"; an escalated cover margin is not that. At `f64` no finite body
 reaches it. Unexercised at Interval.
 
-### NOTE 9. The predicate decides on the region before it answers. BY-INSPECTION, likely
+### NOTE 10. The predicate decides on the region before it answers. BY-INSPECTION, likely
 
 Stages 2 and 3 run band decisions (a sphere's chart trim, the ring-torus
 test, each placement) on a body whose carriers already reach past the
@@ -237,7 +274,7 @@ box. I found no way for that to admit a body past the box beyond the
 band, and say so only because the README's "before anything is decided"
 is being read strictly elsewhere in this PR.
 
-### NOTE 10. Off this unit: a finished body turned rigidly stops being finished. DEMONSTRATED at both commits, sure
+### NOTE 11. Off this unit: a finished body turned rigidly stops being finished. DEMONSTRATED at both commits, sure
 
 In the differential, the gate on the moved image refuses with one
 non-box finding where the unmoved body is finished: the two spindles and
@@ -268,7 +305,7 @@ turn a past-the-box refusal into a limit.
 Negative or uncovered: stage 2. There Positive, Zero or escalated:
 admitted; Negative: `Unshown`; a face with no cover: `Uncovered`. Then a
 point definitely past: `OutsideSessionBox`; otherwise the limit. No path
-admits an uncovered face. See NOTE 8 and MINOR 4.
+admits an uncovered face. See NOTE 9 and MINOR 4.
 
 **C4. The placing door equals asking the image.** Held: 756 of 756 agree
 on the box.
@@ -289,9 +326,11 @@ placement of such a body, not "1 to 4%". **(c)** MAJOR 1. "Nothing moved the oth
 differential.
 
 **C6.** One `session_box_reach` sample where stage 1 admits: true by
-reading. The ledger's call columns are unmoved in the diff; that its
-form counts grew because the reach's expression now holds each face's
-supports is consistent with the code and unverified (MINOR 2).
+reading. But stage 1 does not admit every body at the origin (MINOR 7).
+The ledger passes at the head and its call columns are unmoved in the
+diff; that its form counts grew because the reach's expression now holds
+each face's supports is consistent with the code, and I did not trace
+the four increments.
 
 **C7.** MINOR 3. On the third example: with the placing door reading
 faces, a copy is admitted only where its cover is in the box, so no
@@ -348,7 +387,7 @@ whole; `cover.rs` whole).
    it. A row per kind with the extreme off every candidate would.
 8. **Q4, unsure.** `OutsideSessionBox`'s doc still ends "Reported alone,
    before any check reads a margin on the geometry"; stages 2 and 3 read
-   margins on it first (NOTE 9).
+   margins on it first (NOTE 10).
 
 Ratings:
 - Idiom and structure: 4. One fold, small functions, typed refusals;

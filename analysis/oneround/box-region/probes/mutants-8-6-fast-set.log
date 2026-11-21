@@ -1,0 +1,5 @@
+== mutant 8
+     Summary [ 432.214s] 10045 tests run: 10045 passed, 2002 skipped
+== mutant 6
+        FAIL [   0.277s] ( 5222/10045) sweep::all revolve_axis_gaps::a_kink_in_a_pocket_has_the_outer_loops_reading
+     Summary [ 423.253s] 10045 tests run: 10044 passed, 1 failed, 2002 skipped
