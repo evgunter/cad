@@ -8022,8 +8022,28 @@ mod properties_pane_tests {
     /// accepted, the copy still draws the face and a sketch on it lands
     /// on the copy. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
+    ///
+    /// Pinned red at the default ε: the filleted body the copy is
+    /// re-pointed onto refuses tessellation at the display δ
+    /// (`CertificateExceeded`), so the copy draws nothing
+    /// (`work/tesslane/a-filleted-one-segment-hole-rims-band-exceeds-its-mesh-certificate.md`).
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
+        test_utils::pinned_red::row(
+            pncad::tolerance::witness().eps(),
+            &[1e-9],
+            "the re-pointed copy's filleted body",
+            &[
+                "the re-pointed copy still draws the held face",
+                "Tessellate(CertificateExceeded",
+            ],
+            a_held_face_on_a_copy_a_feature_re_points_stays_held_row,
+        );
+    }
+
+    /// The row [`a_held_face_on_a_copy_a_feature_re_points_stays_held`]
+    /// runs, under its pin.
+    fn a_held_face_on_a_copy_a_feature_re_points_stays_held_row() {
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top));
         let rim = {
