@@ -3374,3 +3374,104 @@ fn a_touch_parted_about_its_roots_in_the_band_escalates() {
         );
     }
 }
+
+/// The dense probe's draws 4009 and 3534: an ellipse, thin enough that its
+/// two branches near the vertex lie within the zero band of each other, a
+/// segment over it, and the ellipse's span starting where the segment
+/// passes its lower branch. The parameters are `(a, b, tp, h, ψ, slope)`,
+/// the segment's span, the ellipse's and the band's escalation; the band's
+/// zero is `10⁻⁹`.
+type EndBeside = ((f64, f64, f64, f64, f64, f64), (f64, f64), (f64, f64), f64);
+
+const ENDS_BESIDE: [EndBeside; 2] = [
+    (
+        (
+            2.787_675_995_494_126_4e-4,
+            2.652_877_017_520_002e-9,
+            0.017_491_853_781_884_382,
+            3.983_433_183_545_985_3e-10,
+            5.543_433_140_289_637,
+            3.636_210_170_338_833_8e-6,
+        ),
+        (-4.404_556_639_837_989_4e-5, 4.000_262_738_647_992e-5),
+        (-0.017_214_096_000_831_052, 0.237_233_763_601_089_75),
+        1.141_210_283_307_668e-9,
+    ),
+    (
+        (
+            3.028_392_812_942_928_7e-5,
+            1.051_763_246_728_499_9e-10,
+            -0.080_179_951_251_481_8,
+            5.167_982_586_682_236e-10,
+            3.157_872_755_428_347_2,
+            2.510_686_135_774_541_7e-5,
+        ),
+        (-1.936_647_351_942_556_5e-5, 5.923_051_467_095_790_4e-6),
+        (-0.556_556_645_285_915_6, 0.072_380_780_941_249_42),
+        1.000_476_734_340_513_8e-9,
+    ),
+];
+
+/// **A root's meeting beside a span end's meeting is never dropped.** The
+/// two draws of [`ENDS_BESIDE`]: the ellipse's span starts within the zero
+/// band of the segment, the end's meeting, and the residual's root on the
+/// other branch, `1.4·10⁻⁹` m from it past the escalation, is a second
+/// meeting, the distance between them rising to `~10⁻⁸` m. Both roots are
+/// read (module docs, "The spans' ends, and deflation"). The root on the
+/// end's side lies just past the ellipse's span, `1.2·10⁻⁹` m from the
+/// end's meeting, outside its ring. It reads its gap in the band
+/// (`curve_carrier_gap`, draw 4009), or its place past the span against a
+/// gap read zero (`curve_pair_meet_window_contact`, draw 3534), and the
+/// pair refuses. Never fewer than two meetings, in either order. Red where
+/// the found end meeting is taken for a root and its reflection
+/// `2θ_hi − θ_J` offered, main's deflation: that lands beside the end on
+/// the other branch and rings onto it, and one meeting is answered.
+#[test]
+fn a_roots_meeting_beside_a_span_ends_meeting_is_read() {
+    for ((a, b, tp, h, psi, slope), span_l, span_k, escalate) in ENDS_BESIDE {
+        let band = Band::new(1e-9, escalate).unwrap();
+        let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let l = line(
+            [a * tp.cos(), b * tp.sin(), h],
+            [psi.cos(), psi.sin(), slope],
+        );
+        let (sl, sk) = (Span::new(&l, span_l), Span::new(&k, span_k));
+        for (order, got) in [
+            ("segment first", meet(&sl, &sk, band)),
+            ("ellipse first", meet(&sk, &sl, band)),
+        ] {
+            assert!(
+                !matches!(&got, Ok(m) if m.points.len() < 2),
+                "a = {a:e}, {order}: fewer than two meetings: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment ending at a near tangency reads its end's meeting once.** A
+/// circle of radius `10⁻³` m and a line in its plane `10⁻¹⁴` m inside it,
+/// the segment ending over the tangency: its end meets the circle there,
+/// and the residual's two roots, `±4.5·10⁻⁹` m along, both lie within the
+/// escalation of that meeting and ring onto it. One meeting, at the end,
+/// in either order.
+#[test]
+fn a_segment_ending_at_a_near_tangency_reads_its_ends_meeting_once() {
+    let r = 1e-3;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let l = line([0.0, r - 1e-14, 0.0], [1.0, 0.0, 0.0]);
+    let (sl, sc) = (
+        Span::new(&l, (0.0, 1e-4)),
+        Span::new(&c, (FRAC_PI_2 - 0.5, FRAC_PI_2 + 0.5)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sl, &sc, band())),
+        ("circle first", meet(&sc, &sl, band())),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 1, "{order}: one meeting: {m:?}");
+        assert!(
+            m.points[0].point.x.abs() < 1e-9,
+            "{order}: at the end: {m:?}"
+        );
+    }
+}

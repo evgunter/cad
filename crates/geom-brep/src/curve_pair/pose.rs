@@ -604,15 +604,26 @@
 //! root comes from a square root whose rounding is about `√ulp` of the
 //! radius, and its gap from its twin escalates where the found meeting
 //! decides it exactly. The arms whose equation is the meeting's are the
-//! in-plane ones: a circle's or an
-//! ellipse's signed distance from a line in its plane, and a circle's
-//! distance from a circle in its plane. Their first harmonics,
-//! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
-//! so the other root is `2θ_hi − θ_J`, linear in the found one's angle
-//! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
-//! and the reflection of a meeting of two circles in one plane across
-//! their line of centres. Two found meetings leave a first harmonic
-//! none. Two lines' crossing is solved linearly, with no square root to
+//! in-plane ones: a circle's distance from a circle in its plane. Its
+//! first harmonic, `c₀ + A·cos(θ − θ_hi)`, has its two roots symmetric
+//! about `θ_hi`, so the other root is `2θ_hi − θ_J`, linear in the found
+//! one's angle `θ_J`: the reflection of a meeting of two circles in one
+//! plane across their line of centres. Two found meetings leave that
+//! harmonic none.
+//!
+//! **A line and a conic in its plane do not divide out.** A meeting the
+//! ends find is a span's end within the zero band of the other span, which
+//! need not lie at a root of the residual: on a thin ellipse near its
+//! vertex an end on one branch is the zero band's, and its reflection
+//! `2θ_hi − θ_J` lands on the other branch beside it, while the second
+//! root lies farther along. So with a found meeting the arm reads both of
+//! its roots, `θ_hi ± φ₀` (`Slant::roots`, which decides no gap between
+//! them), and a root within the band of a found meeting's point rings
+//! onto it (`curve_pair_meet_same`). Near a tangent both ring onto the
+//! one found meeting. Two that land apart, neither ringing, are read as
+//! two candidates, and `stretches` reads the point between them.
+//!
+//! Two lines' crossing is solved linearly, with no square root to
 //! condition, so it lands inside a found joint's ring and is not read
 //! again: that form divides nothing out.
 //!
@@ -1558,8 +1569,18 @@ fn line_conic<T: Decide>(
             }),
         }))
     };
-    let found: Vec<T> = known.iter().map(|c| c.tb).collect();
-    Ok(match owed(&k, &range, &found, band)? {
+    // A meeting the ends found is in the zero band of the other span but
+    // need not lie at a root of `R`, so with one found both roots are read
+    // (`Slant::roots`, which decides no gap between them), and ringing
+    // drops the one within the band of a found meeting's point (module
+    // docs, "The spans' ends, and deflation").
+    let harmonic = if known.is_empty() {
+        owed(&k, &range, &[], band)?
+    } else {
+        let (lo, hi) = level.roots();
+        Harmonic::Cross(vec![lo, hi])
+    };
+    Ok(match harmonic {
         Harmonic::Apart => Pose::Apart,
         // A touch whose extreme is within the zero is one run, read at the
         // extreme; otherwise the zero set may part about the two roots,
@@ -2381,7 +2402,8 @@ enum Harmonic<T> {
 /// **A first harmonic's roots along `k` still owed**, `found` the angles
 /// of the meetings already found (module docs, "deflation"): none
 /// found, every root ([`harmonic_roots`]); one, the other, `2θ_hi − θ_J`;
-/// two, none.
+/// two, none. Two circles in one plane read it with their found
+/// meetings; a line and a conic in its plane, with none.
 fn owed<T: Decide>(
     k: &dyn Conic<T>,
     r: &Range<T>,
