@@ -1691,3 +1691,20 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **two designers on the spiric fork** (problem at `~/.local/share/cad-work/germ-spiric-fork/problem.md`). Two Opus designers under the Fable outage; no design-fork log row.
 
   The far-frame re-pose unit is next, after U3b merges.
+- 2026-11-21 19:30 — **PR 7299 (U3b) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Confirmed, with the designers:**
+    - U3b collapsed main's per-family co-surface direction, regressing a near-crest parallel leg: it grazes or escalates inside about √(Kε/r) of the crest, where main landed.
+    - Commit 3e748d3791 narrowed the C5 co-surface sentence Ev ratified in PR 6567 and deleted PR 6624's "whichever way" clause, without sign-off, and the spiric path skips `same_record`.
+  - **MINORs:**
+    - classify lets an `Apart` carrier with its ends on opposite sides pass;
+    - a mutant row doesn't reproduce;
+    - an escalated spiric window becomes a landing;
+    - faults are set aside rather than failing loud.
+
+  **Fix pass sent** (U3b session unarchived): restore main's direction and the C5 text and record check; the MINORs; retitle (the ring path is parked).
+
+  **Spiric fork: two Opus designers converged in one round on R.** S1 moved from A after probing S2's crest counterexample numerically. R is:
+  - the region's question is D3's co-surface outcome, so `curve_pair::on_surface` owns one direction table per curve-family pair on the transversality rule (cut with the plane transversal to the surface all along its curve), and the edge's section becomes one geom-brep reading;
+  - separately, build the `(Spiric, Plane)` arm by the section reduction (`P ∩ Q` against the torus through the built line × torus door), for the slit, the plane split and the planar walk.
+
+  It adds ratified text (the table rule), so it goes to Ev as an `[ev]` PR. No design-fork log row (two Opus designers, Fable outage).
