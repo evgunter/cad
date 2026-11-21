@@ -1281,17 +1281,21 @@ fn boundary_reach_below<T: Decide>(
     pivot: geom_core::Point3<T>,
 ) -> Result<Lever<T>, ChartRegionError> {
     let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
-    let mut far: Option<Lever<T>> = None;
-    for member in view.boundary() {
-        let BoundaryMember::Edge { ek, edge, .. } = member else {
-            return Err(ChartRegionError::Corrupt);
-        };
-        let reach = crate::cover::edge_reach_bounds(body, ek, edge, pivot)
-            .ok_or(ChartRegionError::Corrupt)?
-            .below();
-        far = Some(far.map_or(reach, |x| x.max(reach)));
-    }
-    far.ok_or(ChartRegionError::Corrupt)
+    let reaches = view
+        .boundary()
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { ek, edge, .. } => {
+                crate::cover::edge_reach_bounds(body, ek, edge, pivot)
+                    .map(geom_brep::LeverBounds::below)
+                    .ok_or(ChartRegionError::Corrupt)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    reaches
+        .into_iter()
+        .reduce(Lever::max)
+        .ok_or(ChartRegionError::Corrupt)
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order

@@ -68,8 +68,17 @@ impl<T: Decide> Rim<T> {
     /// a circle, so one read bounds it from both sides; poison where the
     /// circle has no cover.
     fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
-        let circle = geom::Curve3::circle(self.center, self.axis, self.radius, self.u_ref);
-        geom_brep::ExtentBall::of_cover_from(circle.cover().as_ref().ok(), pivot).lever()
+        let circle = geom::Circle::new(
+            geom::Frame {
+                origin: self.center,
+                axis: self.axis,
+                u_ref: self.u_ref,
+            },
+            self.radius,
+        );
+        let turn = geom::cover::ParamWindow::new(T::zero(), circle.period().length());
+        let cover = geom::Curve3::Circle(circle).cover_over(turn).ok();
+        geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
     }
 }
 
