@@ -5935,6 +5935,78 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
+/// **The normal of a plane through a vertex that parts two faces each
+/// presented as a quadrant there** ([`Zero::Point`]), from their wedges:
+/// each face leaves the vertex into the cone its two corner axes span,
+/// `a₁, a₂` and `b₁, b₂` (the jet's columns at the corner, turned into
+/// the rectangle). A plane through the vertex parts the cones strictly,
+/// `n·aᵢ > 0 > n·bⱼ`, exactly where no point of the hull of
+/// `{a₁, a₂, −b₁, −b₂}` is the origin (Gordan), which is where the
+/// cones share no ray. The hull's point nearest the origin is then such
+/// an `n`, the one that leans furthest from all four axes; the
+/// difference of the wedges' bisectors is the hull's centroid, which a
+/// separable pair of thin wedges set at a wide angle to it need not have
+/// on that side. `None` for any other presentation, or where `n` parts
+/// nothing at `f64`.
+///
+/// It chooses a direction and decides nothing: [`sign_on`] reads each
+/// face's sign at the band, so a plane that does not part the faces
+/// certifies nothing, and a poor `n` costs a certificate, never a wrong
+/// one.
+fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
+    let axes = |p: &Presented<'_>| {
+        let Zero::Point(s, t, _) = p.zero else {
+            return None;
+        };
+        let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
+        let (x, y) = (p.bound(su), p.bound(sv));
+        let (fx, fy, _) = p.jet_on((x, x), (y, y));
+        Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?])
+    };
+    let ([a1, a2], [b1, b2]) = (axes(px)?, axes(py)?);
+    let g = [a1, a2, -b1, -b2];
+    let n = nearest_in_hull(&g)?;
+    g.iter().all(|d| n.dot(*d) > 0.0).then(|| unit(n)).flatten()
+}
+
+/// **The point of the hull of `g` nearest the origin**, `None` for an
+/// empty `g`: the nearest point of each vertex, edge and triangle of
+/// `g` that lies on it, the least of them. The nearest point of the hull
+/// lies inside one of its faces, where it is that face's own nearest
+/// point. A hull holding the origin has none of its faces nearest, so
+/// what this returns there is a face's, which the caller's sign test
+/// rejects.
+fn nearest_in_hull(g: &[Vec3<f64>]) -> Option<Vec3<f64>> {
+    let mut best: Option<Vec3<f64>> = None;
+    let mut keep = |p: Vec3<f64>| {
+        if best.is_none_or(|b| p.dot(p) < b.dot(b)) {
+            best = Some(p);
+        }
+    };
+    for (i, &a) in g.iter().enumerate() {
+        keep(a);
+        for (j, &b) in g.iter().enumerate().skip(i + 1) {
+            let e = b - a;
+            let t = -a.dot(e) / e.dot(e);
+            if t > 0.0 && t < 1.0 {
+                keep(a + e * t);
+            }
+            for &c in g.iter().skip(j + 1) {
+                let f = c - a;
+                let (ee, ef, ff) = (e.dot(e), e.dot(f), f.dot(f));
+                let (ae, af) = (a.dot(e), a.dot(f));
+                let det = ee * ff - ef * ef;
+                let s = (ef * af - ff * ae) / det;
+                let t = (ef * ae - ee * af) / det;
+                if s > 0.0 && t > 0.0 && s + t < 1.0 {
+                    keep(a + e * s + f * t);
+                }
+            }
+        }
+    }
+    best
+}
+
 /// **The planes through the shared cell, built from the shared edges'
 /// own carriers**, each with the cells it vanishes on ([`On`]):
 ///
@@ -5949,13 +6021,15 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// - through two line edges with a common end, at a shared vertex: `n`
 ///   their stored directions' cross product, `q` a point of the first.
 ///   It lists both and their ends;
-/// - at a shared vertex alone, through the vertex, `n` across the faces'
-///   two headings. It lists the vertex.
+/// - at a shared vertex alone, through the vertex: where both faces are
+///   presented as quadrants there, `n` the plane leaning furthest from
+///   both wedges ([`wedges_apart`]); then `n` across the faces' two
+///   headings. Each lists the vertex.
 ///
 /// Every value is computed at the lane scalar from the stored carrier,
 /// so each member of a family has its own `n` and `q` in these
 /// enclosures, normal to its own edge and on it: the plane vanishes on
-/// the listed cells for every member. The headings and the bisector only
+/// the listed cells for every member. The headings, the bisector and the wedges only
 /// choose a direction; any direction is exact. A shared vertex off the
 /// lines a plane was built through is not listed.
 fn planes_through(
@@ -6017,44 +6091,48 @@ fn planes_through(
     let plane = || {
         let lines = lines?;
         let q0 = pmid(anchor(x, near)?);
-        let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
+        let headings = || Some((heading(px, q0)?, heading(py, q0)?));
         match (lines.as_slice(), rims.as_slice()) {
             ([], []) => {
                 let v = *near.vertices.first()?;
-                let on = On {
-                    edges: Vec::new(),
-                    vertices: vec![v],
-                    whole: true,
-                };
                 let q = *b.vertices.get(&v)?;
-                Some((
-                    Psi::Linear {
-                        n: lift(unit(hx - hy)?),
-                        q,
-                    },
-                    on,
-                ))
+                let at_vertex = |n: Vec3<f64>| {
+                    let on = On {
+                        edges: Vec::new(),
+                        vertices: vec![v],
+                        whole: true,
+                    };
+                    (Psi::Linear { n: lift(n), q }, on)
+                };
+                Some(
+                    wedges_apart(px, py)
+                        .into_iter()
+                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
+                        .map(at_vertex)
+                        .collect(),
+                )
             }
             ([(q, d)], [r]) => {
+                let (hx, hy) = headings()?;
                 let m = lift(bisector(hx, hy, unit(vmid(*d))?)?);
                 let n = m - *d * (m.dot(*d) / d.dot(*d));
-                Some((Psi::Linear { n, q: *q }, through(&[*r])))
+                Some(vec![(Psi::Linear { n, q: *q }, through(&[*r]))])
             }
             ([(q, d), (_, e)], [r, s])
                 if !near.vertices.is_empty() && r.ends.iter().any(|v| s.ends.contains(v)) =>
             {
-                Some((
+                Some(vec![(
                     Psi::Linear {
                         n: d.cross(*e),
                         q: *q,
                     },
                     through(&[*r, *s]),
-                ))
+                )])
             }
             _ => None,
         }
     };
-    plane().into_iter().collect()
+    plane().unwrap_or_default()
 }
 
 /// **Whether two planar conics' stored frames hold one plane, as one
