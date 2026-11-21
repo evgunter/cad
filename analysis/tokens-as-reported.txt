@@ -6,3 +6,4 @@ B: after round 1, subagent_tokens 175262, 2 tool uses, 90 s
 C: after round 1, subagent_tokens 243642, 40 tool uses (cumulative), 866 s
 A: after round 2, subagent_tokens 194095, 4 tool uses, 75 s
 B: after round 2, subagent_tokens 192706, 2 tool uses, 73 s
+C: after round 2, subagent_tokens 275324, 45 tool uses (cumulative), 1114 s
