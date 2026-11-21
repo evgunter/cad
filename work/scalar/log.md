@@ -298,3 +298,43 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
   `T: AtRestPolicy` because seven types hold a lane in a field; and the
   unit's measure-first item (which callers a dual instantiates) was not
   measured.
+
+- 2026-11-21 — **PR 7190's two reviews are in and adjudicated**: one
+  APPROVE-WITH-FIXES, one NOT-MERGEABLE-AS-IS, on head `f216849172`.
+  The orchestrator sides with the harder verdict: the title is not yet
+  true. Fix pass dispatched to the implementer (`fix-list-7190.md`,
+  thirteen items). Nothing argued down; one deferral is the
+  orchestrator's own (below).
+  - Held in both: `Certifies` is sealed and carries no bracket right;
+    a dual's policy lanes are uninhabited; nothing moved at a
+    certifying scalar.
+  - Did not hold, both demonstrated by compile probe: the ten public
+    `…LaneOf` traits are unsealed, so a downstream crate hands a dual
+    (or an `f64`) a lane of its own making at public doors; and
+    certification still compiles at a dual — sixteen interiors take a
+    lane by value at `T: Decide`, `run_fitted_checks` runs its checks
+    before asking for the lane, and the lane-free projected interiors
+    certify at `Dual64` outright.
+  - **Deferred by the orchestrator**: the lane-free interiors in files
+    that also declare body data (`PcurveCache::{certify,
+    certify_projected}`, `projected_envelope`, `spline_incidence`
+    behind the incidence readers). Closing them needs to know what a
+    dual does where construction reads a certification's answer, which
+    DL5.3 does not say and the unit's unmeasured item (which of these a
+    dual instantiates today) would inform. The two filed rows go to P1
+    and must say this.
+  - **Class — a second name that does not carry the bound.** DL5.3
+    closes interiors by making "every function that names a lane"
+    carry `Certifies`; a trait alias for the lane (`impl XOf<T>`) names
+    the lane without the bound, so the compiler stops asking. A brief
+    that closes something "by type" should ask the reviewer for the
+    probe that builds the excluded thing, as both did here.
+  - **Class — "bodies did not move" as a goal.** The unit said each
+    mixed caller is a function to split; the implementation put the
+    split at leaf calls so no body changed. Minimal diff was bought
+    with the defect. (`docs/prompts/implementer-discipline.md` already
+    says the final state is weighed, not the diff.)
+  - **For Ev, when a channel is open** (filed as a design row by the
+    fix pass): at `Interval`, `Sym` and `Probe` three lanes are an
+    `Option` of a type with no constructor there — DL5.3's forbidden
+    shape at scalars other than a dual.
