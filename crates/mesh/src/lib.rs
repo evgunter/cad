@@ -84,9 +84,9 @@
 //!
 //! **Invariant (ratified via PR #32, and the memo-key contract): per-face
 //! tessellation is a pure function of (face surface, loops — each
-//! edge's carrier, interval, direction and lineage identity
-//! — per-edge chord points and parameters, the stored pcurves, δ, and
-//! the ambient ε and k).** A face whose inputs are unchanged
+//! edge's carrier, interval, direction and lineage identity, and the
+//! identity of the face across it — per-edge chord points and
+//! parameters, the stored pcurves, δ, and the ambient ε and k).** A face whose inputs are unchanged
 //! re-tessellates identically and its patch can be reused across
 //! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
 //! keys each face by the bits its lane reads (stated per lane in
@@ -94,9 +94,13 @@
 //! lane's fresh one takes, so its mesh is byte-identical to
 //! [`fn@tessellate`]'s. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, each adjacent
-//! face's lattice and the half-edge's image on it, δ) — adjacent faces
-//! enter only through their target and the one chord rule in
-//! [`chords`], which that module states.
+//! face's lattice and the half-edge's image on it, δ). Adjacent faces
+//! enter a face's tessellation in two ways and no other: through the
+//! chord points, by their target and the one chord rule in [`chords`],
+//! which that module states; and on the trimmed lane through WHICH face
+//! lies across each edge, which its shared-side rule reads (the chord
+//! pass's holders, `trimmed::faces_across`) and the memo key folds as an
+//! identity, never as the face's own geometry.
 //!
 //! # Structure kept, structure dropped
 //!

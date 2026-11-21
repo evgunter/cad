@@ -61,15 +61,15 @@ use geom_brep::{NoSpeedBound, Pcurve};
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use topo::{Body, EdgeKey};
+use topo::{Body, EdgeKey, FaceKey};
 
 use crate::chart_table::{AnalyticRow, ChartRow};
 use crate::nurbs_cert::{FaceBounds, face_bound};
 use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step};
 use crate::types::TessellateError;
 
-/// The chord pass's output: every edge's chord-point ids and the
-/// parameter schedule they were sampled at.
+/// The chord pass's output: every edge's chord-point ids, the
+/// parameter schedule they were sampled at, and the faces holding them.
 ///
 /// One value rather than two, because they are ONE derivation and
 /// every consumer that reads the ids at a parameter reads both — the
@@ -81,6 +81,38 @@ pub(crate) struct ChordPass {
     pub ids: HashMap<EdgeKey, Vec<u32>>,
     /// The matching per-edge chord parameters (endpoints included).
     pub params: HashMap<EdgeKey, Vec<f64>>,
+    /// **The faces holding each edge's chord points**: the face its
+    /// `he_plus` bounds, then the face its `he_minus` bounds (one face
+    /// twice on an edge one face's loops use twice, a seam). Read once
+    /// per body, here, and through [`ChordPass::across`] only: the
+    /// trimmed lane's shared-side rule reads it
+    /// (`trimmed::faces_across`), and so the memo key folds it
+    /// (`memo::EdgeInputs::across`), off this one copy.
+    pub holders: HashMap<EdgeKey, [FaceKey; 2]>,
+}
+
+impl ChordPass {
+    /// **The face across edge `ek` from face `fk`**, off
+    /// [`ChordPass::holders`]: the holder that is not `fk`, or `None`
+    /// where `fk` holds both halves (a seam, whose sides between its
+    /// points are `fk`'s own).
+    ///
+    /// # Errors
+    ///
+    /// `MissingEntity` where the pass holds no such edge.
+    pub(crate) fn across(
+        &self,
+        ek: EdgeKey,
+        fk: FaceKey,
+    ) -> Result<Option<FaceKey>, TessellateError> {
+        let holders = self
+            .holders
+            .get(&ek)
+            .ok_or(TessellateError::MissingEntity {
+                what: "the faces holding an edge",
+            })?;
+        Ok(holders.iter().copied().find(|&f| f != fk))
+    }
 }
 
 /// Computes every edge's chord-point ids (minting interior points into
@@ -102,6 +134,7 @@ pub(crate) fn compute_chords(
     // Each face's lattice, read once for the whole pass.
     let mut lattices = HashMap::new();
     let mut counts: HashMap<EdgeKey, usize> = HashMap::new();
+    let mut holders = HashMap::new();
     for (ek, _) in body.edges() {
         let curve = certified(body, ek)?;
         let (t0, t1) = curve.params();
@@ -191,11 +224,28 @@ pub(crate) fn compute_chords(
         ts.push(t1);
         chords.insert(ek, ids);
         params.insert(ek, ts);
+        holders.insert(ek, edge_holders(body, ek)?);
     }
     Ok(ChordPass {
         ids: chords,
         params,
+        holders,
     })
+}
+
+/// The faces edge `ek`'s two halves bound, `he_plus`'s first
+/// ([`ChordPass::holders`]).
+fn edge_holders(body: &Body<f64>, ek: EdgeKey) -> Result<[FaceKey; 2], TessellateError> {
+    let edge = body
+        .get_edge(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
+    let face = |he| {
+        body.face_of_half_edge(he)
+            .ok_or(TessellateError::MissingEntity {
+                what: "the face across an edge",
+            })
+    };
+    Ok([face(edge.he_plus)?, face(edge.he_minus)?])
 }
 
 /// Chord count for a B-spline carrier from the hull-bounded sagitta
