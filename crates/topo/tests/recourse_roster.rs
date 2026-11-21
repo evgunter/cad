@@ -406,6 +406,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("GERM_SENSE"),
     NameCarrier::Const("GERM_SIDE"),
     NameCarrier::Const("WINDING_PREDICATE"),
+    NameCarrier::Const("TANGENT_SECTOR_ORDER2"),
     NameCarrier::Const("TANGENT_SECTOR_WITNESS"),
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),

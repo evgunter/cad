@@ -229,7 +229,7 @@ pub(crate) fn tessellate_curved(
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
-    if crate::walk::pinches(body, face.outer, fk)? {
+    if crate::walk::pinches(body, face.outer)? {
         return Err(TessellateError::MissingEntity {
             what: PINCHED_FACE_ROUTED_HERE,
         });
@@ -1435,7 +1435,7 @@ mod tests {
             .expect("the bore");
         let outer = body.get_face(fk).unwrap().outer;
         assert!(
-            crate::walk::pinches(&body, outer, fk).unwrap(),
+            crate::walk::pinches(&body, outer).unwrap(),
             "the bore's loop passes the slit's ends twice"
         );
         let Ok(Shape::Rectangle(rectangle)) =

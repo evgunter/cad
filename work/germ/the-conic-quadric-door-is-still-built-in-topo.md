@@ -2,13 +2,14 @@
 id: the-conic-quadric-door-is-still-built-in-topo
 kind: issue
 title: "[topo.homes] arm 1: route's ConicQuadric door (boolean/conic_quadric) takes no Body and is still built in topo"
-status: review
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
 parent: curve-surface-crossing-has-no-kind-pair-table
 pr: 7209
 branch: germ/conic-quadric-door
+closed: 2026-11-20
 ---
 
 
@@ -28,3 +29,7 @@ behaviour change, ahead of the first-harmonic arm's Part 2.
 `ConicQuadricRefusal::door_refusal` and names no `BooleanError`, and
 its own move is `the-trace-still-reads-the-root-doors-in-topo`
 (ONEDOOR).
+
+## Closed (2026-11-20, PR 7209)
+
+The conic × quadric door is `geom_brep::curve_face::conic_quadric`, with no behaviour change: git detects it as a rename, and its 26 K names are renamed `bool_conic_* → conic_quadric_*`. The refusal type is `ConicQuadricRefusal`, mapped back one for one at topo's boundary, and the Sphere and Cone mappings now have caller rows. Style review: mergeable; the fix pass re-pointed open rows' citations. U3a takes on unifying the three per-door refusal spines and moving pose answers out of the door API.

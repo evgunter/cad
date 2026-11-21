@@ -106,6 +106,7 @@ pub mod offset_meters;
 pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
+pub mod patch_carrier;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod plane_eq;
@@ -250,6 +251,7 @@ pub use pair_section::{
 /// roster that samples every arm.
 #[cfg(any(test, feature = "test-support"))]
 pub use pair_section::{CarryErrorKind, CarryRefusalKind};
+pub use patch_carrier::patch_distance_sup;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

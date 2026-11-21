@@ -57,3 +57,5 @@ PR 6092. Every rectangle lane lays its round-zero cells, hull blocks, refined ne
 **The rest of the acceptance moved to Ev's `[ev]` PR 6102.** The whole 9×9 patch still stops at `Wall` (pad 8.64e-4, against main's 2.87e-3), because the work bound stays per face as DESIGN `[tolerance.measure]` ratifies. What bounds the work is that PR's question (row `the-measurement-work-bound-attaches-to-the-question`), so "the whole patch no longer stops at Wall" goes with it.
 
 **The trade:** one-span faces read 2–4.6× wider per round, and the extreme-weight hypar sits at 31% of the A2 tripwire. Rows filed on the way are listed in PR 6092's body.
+
+- 2026-11-20 — **Note (EXCH, whole-patch promotion):** the conic quarter torus now imports as two torus walls (stage-1 recognition promotes each 9 × 9-span wall before the C⁰-knot split), so the split-conic case this row measured is carried by `the_conic_quarter_elliptic_tube_answers_a_bracket_holding_pappus` in the same file: the same file with the minor profile an ellipse of semi-axes `r` and `0.75 r`, which no kind promotes, 162 one-span walls. `the_conic_quarter_torus_answers_a_bracket_holding_pappus` is gone. (EXCH lane A)
