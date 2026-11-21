@@ -4618,7 +4618,6 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
     }
 }
 
-
 /// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
 /// values) at one that does not (`geom-core` README, DL5.3).

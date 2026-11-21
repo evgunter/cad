@@ -730,7 +730,6 @@ impl<T: geom_core::Certifies + CertifiedBounds> RegionLane<T> {
     }
 }
 
-
 /// **A [`RegionLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
 /// values) at one that does not (`geom-core` README, DL5.3). Sealed: the lane and

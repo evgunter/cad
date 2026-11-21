@@ -450,7 +450,7 @@ impl<T: DoorScalar> Shell<T> {
     /// validation is a certified claim, so a
     /// [`topo::ShellDoor`] has one constructor
     /// ([`topo::ShellDoor::certified`]) and it is bounded on
-    /// `Decide + CertifiedBounds + AtRestPolicy`: holding the value IS
+    /// `CertifiedPolicy + CertifiedBounds`: holding the value IS
     /// the right, and passing it here is how this door asks for more
     /// of the scalar than the rest of the vocabulary does without
     /// asking it of every other door on this block. The one seam that

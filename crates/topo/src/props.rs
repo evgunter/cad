@@ -1534,7 +1534,6 @@ pub(crate) type IntervalRead = Result<(SignReading<Interval>, Option<SignLimit>)
 /// [`rounding_bound`]'s allowance for the rounded operations of one term.
 const ROUNDING_TERMS: f64 = 16.0;
 
-
 /// The interval signature of a closed form read about a centre
 /// ([`QuadLane`]'s `closed_form`).
 type ClosedFormAt<T> = fn(
@@ -6317,7 +6316,7 @@ fn shell_role_refusal(
 /// certifying scalar that has no row here. This type
 /// carries that fact to the passes that run at both kinds of scalar:
 /// its one constructor is [`QuadLane::certified`], at
-/// `Decide + CertifiedBounds`, so holding a value IS the statement that
+/// `Certifies + CertifiedBounds`, so holding a value IS the statement that
 /// the scalar it is parameterised by can certify. A pass holding `None`
 /// runs the closed form alone — it instantiates no quadrature code, and
 /// a face that needed the quadrature refuses typed. Nothing dispatches
@@ -6483,7 +6482,9 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         about: Option<Point3<Interval>>,
         height: Option<f64>,
     ) -> Result<LaneRun, PropsError> {
-        (self.cut_face_rounds)(body, surface, same_sense, loops, band, tol, window, about, height)
+        (self.cut_face_rounds)(
+            body, surface, same_sense, loops, band, tol, window, about, height,
+        )
     }
 
     fn rederive(
@@ -6598,7 +6599,6 @@ impl<T: CertifiedPolicy + geom_core::CertifiedBounds> ShellDoor<T> {
         }
     }
 }
-
 
 impl<T: geom_core::Certifies + AtRestPolicy> Clone for ShellDoor<T> {
     fn clone(&self) -> Self {
@@ -6924,16 +6924,18 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of every door beside it — nine doors, one policy, no trait
-    /// apiece.
+    /// of every door beside it: ten doors, one policy. No door is a
+    /// trait a scalar implements; each door's value is held through a
+    /// sealed `…Of` trait whose implementors are the door and
+    /// [`geom_core::NoLane`].
     fn offset_fit_lane() -> Option<Self::OffsetFitLane>;
 
     /// What this scalar holds [`AtRestPolicy::fitted_lane`]'s lane as: the
     /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
     type FittedLane: geom_brep::FittedLaneOf<Self>;
 
-    /// **This scalar's fitted-pcurve door, or `None` where it may not
-    /// certify** — the ONE seam the `Some` comes from, read by every
+    /// **This scalar's fitted-pcurve door** (a dual's holder has no
+    /// values, so `None` is the only answer its type has) — the ONE seam the `Some` comes from, read by every
     /// consumer: the pcurve mint ([`crate::mint_pcurves`]: its general
     /// image, its chart-foot rim arms and its `certify_general` call)
     /// and the tier-3 pcurve pass ([`crate::pcurves::validate_pcurves`],
@@ -7098,8 +7100,8 @@ pub trait AtRestPolicy: Decide {
     /// door where the scalar certifies, [`geom_core::NoLane`] at a dual.
     type ShellDoor: ShellDoorOf<Self>;
 
-    /// **This scalar's shell door, or `None` where it may not form the
-    /// call** — the ONE seam the `Some` comes from, read by the verb
+    /// **This scalar's shell door** (a dual's holder has no values, so
+    /// `None` is the only answer its type has) — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Shell::run_shell` and, above it, the document
     /// layer's shell lowering.
     ///
@@ -7118,8 +7120,8 @@ pub trait AtRestPolicy: Decide {
     /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
     type QuadLane: QuadLaneOf<Self>;
 
-    /// **This scalar's quadrature lane, or `None` where it may not
-    /// certify** — the lane a door that reads shell roles outside the
+    /// **This scalar's quadrature lane** (a dual's holder has no values,
+    /// so `None` is the only answer its type has) — the lane a door that reads shell roles outside the
     /// validator reads them through ([`crate::pieces`]), the same one
     /// the at-rest gate makes check 7 and check 10 through. Certification
     /// rights, as [`AtRestPolicy::shell_door`]: `None` reads closed forms
@@ -7276,11 +7278,14 @@ pub trait AtRestPolicy: Decide {
     ) -> crate::FlushAtRest;
 }
 
-/// **A scalar whose policy holds the lanes themselves**: every scalar
-/// that certifies. A certified door names its lanes by their
-/// constructors and hands them to passes that hold
-/// [`AtRestPolicy::QuadLane`] and [`AtRestPolicy::RegionLane`]; this
-/// bound says the two spellings are one type.
+/// **A scalar whose policy holds the quadrature and region lanes
+/// themselves**: every scalar that certifies. A certified door names
+/// those two lanes by their constructors and hands them to passes and
+/// certificates that hold [`AtRestPolicy::QuadLane`] and
+/// [`AtRestPolicy::RegionLane`]; this bound says the two spellings are
+/// one type. It equates two of the ten doors, the two a certified door
+/// constructs; the other eight are read from the policy wherever they
+/// are held.
 pub trait CertifiedPolicy:
     geom_core::Certifies + AtRestPolicy<QuadLane = QuadLane<Self>, RegionLane = crate::RegionLane<Self>>
 {

@@ -4,7 +4,7 @@ kind: issue
 title: pcurve_cache.rs, certify.rs, projected.rs and ssi/certify.rs hold a body's data beside its certification, so the Certifies gate cannot list them
 status: open
 opened: 2026-11-20
-priority: P2
+priority: P1
 cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
 ---
@@ -30,3 +30,15 @@ With `Certifies` written on the functions only of `projected.rs` and `ssi/certif
 Each file apart into the data a body holds (bounded by what the data means, a dual included) and the certification that reads it (bounded `Certifies`, listed in the gate). The four are other programs' ground (`work.py territory`: `pcurve_cache.rs` PCERT, `certify.rs` SELECT, `ssi/certify.rs` SSIARITH and SSIEDGE), so the split is theirs to schedule or to hand over.
 
 Not checked: which of the first-wave callers a dual instantiates today, as opposed to admits by bound.
+
+## What is left, as of the fix pass on PR 7190 (2026-11-20)
+
+Closed since this was filed: the lane traits are sealed, and every function that takes a lane by value is declared over `Certifies` and listed by name in `scripts/gates/certification-interiors.sh` (`run_fitted_checks`, `PcurveCache::certify_fitted`, `certify_stated_bound`, `run_checks`). The gate credits a sole `CertifiedBounds` or `CertifiedEnclosure`, so a file closed that way can be listed whole.
+
+Still open, and it is this row:
+
+(a) **Certification that runs at a dual with no lane at all.** `PcurveCache::certify` and `PcurveCache::certify_projected` are `T: Decide` and build a certificate for a projected row on the plane and conic arms without asking for a lane ("a circle's projected row certifies here at every scalar", `pcurve_cache.rs`, `certify`'s doc); `projected::projected_envelope` builds the envelope terms on those arms the same way. One reviewer of PR 7190 built both doors at `Dual64`. The lane is asked only on the net arm (`projected_hull`). Closing it is a choice the row's owner makes: either those arms move behind the fitted lane (a dual then refuses a projected row it certifies today), or a dual's projected row is said to carry no certificate, as its edges do (`Real::Carries`).
+
+(b) **Unmeasured: which of these a dual instantiates today.** Everything above is by bound. Nobody has built a dual test binary and read its mono items for `certify`, `certify_projected`, `projected_envelope`, `chart_image`, `chart_iso_family`, `edge_nurbs::{tube_image, edge_piece}` or `ProjectedImage`'s methods. It prices (a): a routine no dual build reaches takes the bound for free.
+
+(c) The four files themselves, apart into data and certification, so each certification half is listed whole.

@@ -19,8 +19,10 @@
 //! with one constructor ([`FittedLane::certified`]), declared over
 //! [`geom_core::Certifies`], so holding one IS the statement that the
 //! scalar it is parameterised by certifies. A scalar that does not has
-//! no such type, and a pass that runs at every scalar holds a
-//! [`FittedLaneOf`], which at a dual is [`geom_core::NoLane`]:
+//! no such type. A pass that runs at every scalar holds a
+//! [`FittedLaneOf`], a sealed trait whose two implementors are the lane
+//! and [`geom_core::NoLane`]: of that holder the statement is that it is
+//! the lane or it has no values.
 //!
 //! ```compile_fail,E0277
 //! use geom_brep::FittedLane;
@@ -32,7 +34,7 @@
 //! code beside the fence is a statement and not a check.
 //!
 //! **Where the `Some` comes from.** One seam answers it —
-//! `geom_core::Certifies::fitted_lane`, DL3's per-scalar policy home
+//! `topo::AtRestPolicy::fitted_lane`, DL3's per-scalar policy home
 //! (`docs/DUAL-DESIGN.md`) — and every consumer reads that seam: the
 //! pcurve mint (`topo::mint_pcurves`, its general-image derivation,
 //! its chart-foot rim arms and its `certify_general` and

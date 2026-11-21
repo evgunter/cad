@@ -3976,9 +3976,11 @@ fn plan_reanchors<T: Decide>(
                                     scalar: T::NAME,
                                 })?;
                             let (t, at) =
-                                carrier_foot(foot.carrier_foot(spline, point, t_old), spline).map_err(|error| {
-                                    ReplaceFaceError::ReanchorInconclusive { edge, error }
-                                })?;
+                                carrier_foot(foot.carrier_foot(spline, point, t_old), spline)
+                                    .map_err(|error| ReplaceFaceError::ReanchorInconclusive {
+                                        edge,
+                                        error,
+                                    })?;
                             let (lo, hi) = spline.domain();
                             let clamped = at == lo || at == hi;
                             (t, clamped.then_some(at))
@@ -6251,8 +6253,11 @@ mod from_computed_rows {
             .unwrap();
             let point = Point3::new(x, S::from_f64(0.125), S::zero());
             let foot = geom_brep::SplineFoot::certified();
-            let (t, _) = carrier_foot(foot.carrier_foot(&segment, point, S::from_f64(0.5)), &segment)
-                .unwrap();
+            let (t, _) = carrier_foot(
+                foot.carrier_foot(&segment, point, S::from_f64(0.5)),
+                &segment,
+            )
+            .unwrap();
             vec![t]
         });
         assert_eq!(
@@ -6286,8 +6291,11 @@ mod from_computed_rows {
             .unwrap();
             let point = Point3::new(S::from_f64(5.0), S::from_f64(0.125), S::zero());
             let foot = geom_brep::SplineFoot::certified();
-            let (t, _) = carrier_foot(foot.carrier_foot(&segment, point, S::from_f64(0.5)), &segment)
-                .unwrap();
+            let (t, _) = carrier_foot(
+                foot.carrier_foot(&segment, point, S::from_f64(0.5)),
+                &segment,
+            )
+            .unwrap();
             vec![t]
         });
         assert_eq!(

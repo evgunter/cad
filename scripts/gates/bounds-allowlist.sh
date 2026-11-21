@@ -20,6 +20,16 @@
 # bound fails here until it is ratified into that rule AND cited into the
 # list below.
 #
+# THE GATE FIRES ON A SPELLING, NOT ON A READ. The rule asks an entry of
+# "a bracket read in code that also decides". What this instrument can
+# see is a bracket DOOR beside another bound term on one parameter: it
+# does not read bodies, so it fires on a function that names the pair
+# only to call one that does, and a pin moves when such a function
+# gains the name. Several comments below say of a counted bound that it
+# "reads no bracket": that is the argument for the pin, made by a
+# reader of the file, and no check here stands behind it. The rule's
+# text is not to be read as claiming the gate checks reads.
+#
 # NOTHING CHECKS THAT CITATION, and the ledger says the same of itself
 # (`real.rs`: "New entries are appended here, and nothing checks that").
 # An entry naming a ratification that does not exist, or naming the

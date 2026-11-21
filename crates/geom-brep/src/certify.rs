@@ -2385,6 +2385,15 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// let _ = EdgeCurve::<Dual64>::certify;
     /// ```
     ///
+    /// nor can a caller generic in a scalar that only decides:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_brep::EdgeCurve;
+    /// fn at<T: geom_core::Decide>() {
+    ///     let _ = EdgeCurve::<T>::certify;
+    /// }
+    /// ```
+    ///
     /// The row differs from the one below, which builds, in the bound
     /// alone: a door generic over a deciding scalar, dual included,
     /// cannot certify through a lane it was handed.

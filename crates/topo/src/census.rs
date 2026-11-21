@@ -6518,9 +6518,16 @@ fn planar_face_pairs<T: crate::props::AtRestPolicy>(
                             b: fb.key,
                             reason,
                         };
-                        match in_band_reading(body, geo, |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
-                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
-                        }, (fa, fb), err, band) {
+                        match in_band_reading(
+                            body,
+                            geo,
+                            |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                                lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                            },
+                            (fa, fb),
+                            err,
+                            band,
+                        ) {
                             InBand::Overlap(margin) => found.same_side.push(FoundPair {
                                 a: fa.key,
                                 b: fb.key,

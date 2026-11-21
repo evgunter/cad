@@ -2425,7 +2425,7 @@ fn find_match<T: crate::props::AtRestPolicy>(
 ) -> Result<Option<(Slot, Slot)>, BooleanError> {
     // Unused germ slots of one record side (half tied to germ slot —
     // the mint facing is honest data for every lane, struts included).
-    fn slots<T: crate::props::AtRestPolicy>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
+    fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
     // Each germ's partners along its own line, kept with the scan

@@ -1279,16 +1279,17 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// exposure; this one states it rather than leaving a reader to assume
 /// the gate is stronger than it is.
 ///
-/// **On the second — the bracket bound is necessary, and the door
-/// admits a dual because it means something at one.** Dropping
-/// [`Bounds`] does not compile: the callees require it. The door does
-/// not write [`Certifies`], because the seat is construction code:
+/// **On the second — there is no read here to show necessary.** The
+/// header names [`Bounds`] only so that its callees' bounds are
+/// satisfiable, so this entry rests on theirs (the delegation rule) and
+/// argues nothing of its own about a bracket. Which scalars the door
+/// admits is the scope rule's question, and its answer is that the
+/// seat is construction code: a blend, a boolean or a sweep built at a
+/// [`Dual`](crate::Dual) carries its tangents, so the door means
+/// something there and does not write [`Certifies`]. (That a dual
+/// build exists is evidence of that, not the argument:
 /// `editor_core::eval::wire`'s blend lowering runs beneath
-/// `evaluate<T>`, a mixed pass the dual corpus instantiates at
-/// [`Dual`](crate::Dual), and a blend built at a dual carries its
-/// tangents. This is the `separation` entry's discriminator, not the
-/// M9-2 one: a generic mixed pass does call this door, so it keeps its
-/// lane.
+/// `evaluate<T>`, which the dual corpus instantiates.)
 ///
 /// The seam did not widen here; it acquired a file. The refusing-lane
 /// question is answered where it was already answered: the PR 12 entry
@@ -1298,7 +1299,8 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// SEAT-9 allows for has nothing in it** — the allowance stands and
 /// covers nothing. What it was written for was the shell door's own
 /// header: `verbs::run`'s shell arm delegates to `topo::shell_open`,
-/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` (already
+/// which is `CertifiedPolicy + `[`CertifiedBounds`] on its finished
+/// body's scalar (already
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
@@ -1457,10 +1459,16 @@ pub mod bounds_allowlist {
     //! bound *suffices*, or that a tighter one breaks a caller, is not
     //! it: which scalars a function admits is the scope rule's question,
     //! answered by what the function means and before any entry is
-    //! weighed. Entries written to the earlier standard argue the same
-    //! necessity in its words ("the weakest bound that works", with a
-    //! dropped term shown failing): a dropped bracket term that stops the
-    //! code compiling is the read shown necessary.
+    //! weighed. That a dropped bracket term stops the code compiling is
+    //! not the demonstration either: it shows the bound is needed to
+    //! name a callee, not that a read is. An entry that says what is
+    //! read and what the read is for has made the argument; an entry
+    //! that reads no bracket itself and carries the bound to call one
+    //! that does rests on its callee's entry (the delegation rule,
+    //! below) and says so; an entry that does neither is OWED its
+    //! argument, not discharged, and
+    //! `work/scalar/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
+    //! lists the ones found.
     //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
     //! for the reasons rather than restating them.
     //!
@@ -1480,12 +1488,12 @@ pub mod bounds_allowlist {
     //! item boxes through the certified box constructors (`face_box`,
     //! `edge_box`, a vertex point widened by the sweep pad) and
     //! `census::Candidates` drives the tree's queries, deciding nothing —
-    //! the exact sweeps that follow decide. The weakest bound that works
-    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
-    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
-    //! census is decision code on the same scalar. Sole `Bounds` fails —
-    //! the sweeps call the funnel — and sole `Decide` fails — no box can
-    //! be read without the bracket, so there is no tree to query. The
+    //! the exact sweeps that follow decide. The read is necessary: the
+    //! tree's boxes are `f64` brackets read through `Bounds::lo`/`hi`
+    //! (`bvh::Aabb::from_points`), and without them there is no tree to
+    //! query; the census is decision code on the same scalar, so the
+    //! bracket door stands beside `Decide`. The read decides nothing: a
+    //! box only prunes, and the sweeps decide through the funnel. The
     //! bound rides the three `validate` doors that reach the census
     //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
     //! and the `via` they share) as a REACHABILITY ride only: those
@@ -1527,8 +1535,9 @@ pub mod bounds_allowlist {
     //! boxes do not clear, through `Decide`. Its one box-level answer is
     //! the pruning grant, in the disjointness direction the #571 rule
     //! allows: a box miss can only clear a pair, never make one meet. The
-    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads
-    //! no box, and sole `Bounds` cannot call the arms. It reads no bound
+    //! read is necessary (the ring boxes are brackets read through
+    //! `Bounds::lo`/`hi`) and stands beside `Decide` because the arms
+    //! that follow decide on the same scalar. It reads no bound
     //! its callers do not already carry (`tier3_local_checks_marked`, under
     //! the at-rest validator's own entry).
     //!
@@ -1576,10 +1585,11 @@ pub mod bounds_allowlist {
     //! argument, and the `Decide` half is still what the `props_quad_*`
     //! funnel needs while the bracket half is still what the crossing into
     //! certification arithmetic reads.
-    //! The weakest bound that works is unchanged and so is the evidence
-    //! that the next tighter one fails: drop the bracket term and the
-    //! windowed walk cannot form `Interval::from_certified`; drop
-    //! `Decide` and no round can be accepted. The certificate type is
+    //! The read is unchanged: the windowed walk crosses each stored
+    //! value into certification arithmetic through
+    //! `Interval::from_certified`, which is the bracket read, and
+    //! `Decide` is what accepts a round. No bracket of `T` is branched
+    //! on. The certificate type is
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
     //! are the walk's, scalar for scalar.
@@ -1597,10 +1607,9 @@ pub mod bounds_allowlist {
     //! the cells, the enclosures, the funnelled `d − c` and the bracket
     //! are computed. The `Decide` half is what places a cell's or a
     //! witness station's point at `T` through the point-in-face doors.
-    //! No bracket of `T` is branched on. The weakest bound that works is
-    //! this one: drop the bracket term and no lift into interval
-    //! arithmetic can be formed; drop `Decide` and no station can be
-    //! placed.
+    //! No bracket of `T` is branched on. The read is the lift into
+    //! interval arithmetic and nothing else; `Decide` is what places a
+    //! station.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
@@ -1736,9 +1745,9 @@ pub mod bounds_allowlist {
     //! IS `chart_image` at that bound, and whether it climbs, its rungs and
     //! its breaks are structure read in `f64` (the wall's held knot lines,
     //! the miss at the scalar's midpoint), which [`Real`](super::Real) offers no read for
-    //! but `Bounds::lo`/`hi`; drop `Bounds` (the next tighter bound) and
-    //! neither the first rung's call nor those reads compile, and dropping
-    //! `CertifiedEnclosure` fails that call likewise.
+    //! but `Bounds::lo`/`hi`. Those reads place rungs and breaks and decide
+    //! nothing; `CertifiedEnclosure` is `chart_image`'s, which the first
+    //! rung calls.
     //!
     //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
     //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's
@@ -1846,10 +1855,10 @@ pub mod bounds_allowlist {
     //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
     //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
     //! counts the file's bracket reads over the code view against the
-    //! two disclosed here and reds on a third. The weakest bound that works is this one, checked
-    //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
-    //! alone does NOT compile, because the certified quadrature reads
-    //! [`Bounds`](super::Bounds) as well.
+    //! two disclosed here and reds on a third. The door itself carries
+    //! [`Bounds`](super::Bounds) beside [`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! for its callee: the certified quadrature it hands the body to
+    //! reads both, under the M5 PR 11 entry.
     //!
     //! **Why the obligation had to become literal at all**, since the door
     //! was already closed to a dual before this row and by construction: it
@@ -2058,9 +2067,13 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// not read it. A body that also reads a bracket names the bracket door
 /// beside it, and that read is what the [`Bounds`] scope rule asks about.
 ///
-/// Sealed: `f64`, [`crate::Interval`], `k_stats::Probe` (feature
-/// `probe`) and [`crate::Sym`] over a scalar that certifies. A
-/// [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
+/// Sealed, and implemented once, for every scalar that decides and has
+/// a [`CertifiedEnclosure`]: `f64`, [`crate::Interval`], `k_stats::Probe`
+/// (feature `probe`) and [`crate::Sym`] over a scalar with both bracket
+/// doors. At `Sym<Sym<f64>>` it means what it means at `Sym<f64>`: the
+/// symbolic tier certifies as the scalar under it does and changes only
+/// how an identically-zero margin decides, however deep it is nested.
+/// A [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
 /// (`docs/DUAL-DESIGN.md` DL1), over any base:
 ///
 /// ```compile_fail,E0277
@@ -2091,19 +2104,12 @@ mod certifies_seal {
     pub trait Sealed {}
 }
 
-impl certifies_seal::Sealed for f64 {}
-impl Certifies for f64 {}
-
-impl certifies_seal::Sealed for crate::Interval {}
-impl Certifies for crate::Interval {}
-
-#[cfg(feature = "probe")]
-impl certifies_seal::Sealed for crate::k_stats::Probe {}
-#[cfg(feature = "probe")]
-impl Certifies for crate::k_stats::Probe {}
-
-impl<T: Certifies> certifies_seal::Sealed for crate::Sym<T> {}
-impl<T: Certifies> Certifies for crate::Sym<T> {}
+/// One roster, not two: a scalar certifies exactly when it decides and
+/// its computations answer a certified bracket ([`CertifiedEnclosure`]).
+/// The bound still grants neither: code at `T: Certifies` can name no
+/// method of either trait's bracket doors.
+impl<T: CertifiedEnclosure> certifies_seal::Sealed for T {}
+impl<T: crate::predicate::Decide + certifies_seal::Sealed> Certifies for T {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
