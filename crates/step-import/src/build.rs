@@ -1748,9 +1748,9 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
                     unreachable!("a spline carrier's data is not analytic")
                 }
             };
-            // A conic stores its centre or its anchor, and the two read
-            // as one value: the tag says which.
-            let anchored = carrier.conic().is_some_and(|k| k.anchor().is_some());
+            // An ellipse stores its centre or its anchor, and the two
+            // read as one value: the tag says which, by the datum's name.
+            let anchored = carrier.data().named(geom::CurveDatum::Anchor).is_some();
             core::iter::once(tag | (u64::from(anchored) << 8))
                 .chain(
                     data.into_iter()

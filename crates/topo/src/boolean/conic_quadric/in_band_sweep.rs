@@ -751,7 +751,7 @@ fn near_gap_family(ratio: Option<f64>, born: Born) -> Vec<geom::Curve3<f64>> {
             out.push(match (ratio, born) {
                 (None, Born::Centred) => tangent_circle(1.0, rho, depth, g, b),
                 (None, Born::Anchored) => {
-                    geom::Curve3::Circle(geom::Circle::anchored(at, axis, toward, rho))
+                    unreachable!("a circle is held at its centre")
                 }
                 (Some(k), Born::Centred) => geom::Curve3::Ellipse(geom::Ellipse::new(
                     geom::Frame::new(at - toward * rho, axis, toward),
@@ -807,8 +807,8 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
 /// ellipses at each ratio, the door answers at least the measured count,
 /// each root true, and refuses the rest `Meter`, typed.
 ///
-/// Born anchored at the point that grazes the wall, every pose of every
-/// family certifies: the walk and its running meter read each carrier's
+/// Held on its arc at the point that grazes the wall, every pose of every
+/// ellipse family certifies (a circle is held at its centre only): the walk and its running meter read each carrier's
 /// own point, which stands at its anchor's scale. Born with their
 /// centre, 1500 m off, the same poses certify 7 (circle, ellipse 1.25 /
 /// 0.999 / 1.001) and 1 (ellipse 0.8): the point is summed from terms
@@ -817,13 +817,14 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
 #[test]
 fn the_near_gap_families_certify_by_their_stored_form() {
     for (ratio, centred, anchored) in [
-        (None, 7, 40),
-        (Some(1.25), 7, 40),
-        (Some(0.999), 7, 40),
-        (Some(1.001), 7, 40),
-        (Some(0.8), 1, 40),
+        (None, 7, None),
+        (Some(1.25), 7, Some(40)),
+        (Some(0.999), 7, Some(40)),
+        (Some(1.001), 7, Some(40)),
+        (Some(0.8), 1, Some(40)),
     ] {
-        for (born, floor) in [(Born::Centred, centred), (Born::Anchored, anchored)] {
+        let forms = [(Born::Centred, Some(centred)), (Born::Anchored, anchored)];
+        for (born, floor) in forms.into_iter().filter_map(|(b, f)| Some((b, f?))) {
             let got = certified_near_gap(&near_gap_family(ratio, born));
             assert!(
                 got >= floor,

@@ -1430,7 +1430,7 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
     match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
         Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(delta))),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(|f| f.translated(delta))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.translated(delta)),
         Curve3::Spiric {
             frame: carrier_frame,
             major_radius,

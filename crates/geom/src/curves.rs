@@ -250,7 +250,7 @@ impl<T: SpanLocate> Curve3<T> {
                 point(*origin, *o) && vec(*dir, *d)
             }
             (Self::Circle(c), Self::Circle(k)) => {
-                c.same_placement(k, frame) && same(c.radius(), k.radius())
+                frame(&c.frame(), &k.frame()) && same(c.radius(), k.radius())
             }
             (Self::Ellipse(e), Self::Ellipse(k)) => {
                 e.same_placement(k, frame, same)
@@ -607,8 +607,9 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
-    /// The point at parameter zero of a circle or an ellipse born
-    /// anchored ([`crate::curves::conic`], "The two stored forms").
+    /// The stored point of an ellipse held on its arc
+    /// ([`crate::curves::conic`], "Where a conic is held"): a point of
+    /// the ellipse, at the anomaly [`Self::Phase`] states.
     Anchor,
     /// Where on an anchored ellipse its anchor sits: the in-plane unit
     /// direction `(cos θ₀, sin θ₀, 0)` of the anchor's eccentric anomaly
@@ -657,6 +658,21 @@ pub enum CurveData<'a, T: Real> {
     Nurbs(&'a Arc<NurbsCurve3<T>>),
     /// A periodic cubic, unread.
     Periodic(&'a Arc<PeriodicNurbs3<T>>),
+}
+
+impl<T: Real> CurveData<'_, T> {
+    /// **The stored datum named `datum`**, where the carrier's walk
+    /// holds one: how a reader asks which point a conic stores (its
+    /// [`CurveDatum::Center`] or its [`CurveDatum::Anchor`]) or reads an
+    /// anchor's [`CurveDatum::Phase`], by the datum's name. `None` on a
+    /// spline kind, whose data are not walked as fields.
+    #[must_use]
+    pub fn named(self, datum: CurveDatum) -> Option<crate::DatumValue<T>> {
+        match self {
+            Self::Analytic(data) => data.into_iter().find(|(d, _)| *d == datum).map(|(_, v)| v),
+            Self::Nurbs(_) | Self::Periodic(_) => None,
+        }
+    }
 }
 
 /// **A straight line** `origin + dir·t`: what [`Curve3::as_line`] reads
@@ -1144,18 +1160,18 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            // The one point a conic stores, named for what it is.
             Curve3::Circle(c) => {
-                let (datum, at, axis, u_ref) = c.stored();
+                let f = c.frame();
                 AnalyticData::new([
-                    (datum, Point(at)),
-                    (D::Axis, Direction(axis)),
+                    (D::Center, Point(f.origin())),
+                    (D::Axis, Direction(f.axis())),
                     (D::Radius, Scalar(c.radius())),
-                    (D::URef, Direction(u_ref)),
+                    (D::URef, Direction(f.u_ref())),
                 ])
             }
+            // The one point an ellipse stores, named for what it is.
             Curve3::Ellipse(e) => {
-                let (datum, at, axis, u_ref) = e.stored();
+                let (datum, at, axis, u_ref, phase) = e.stored();
                 let walk = [
                     (datum, Point(at)),
                     (D::Axis, Direction(axis)),
@@ -1163,9 +1179,9 @@ impl<T: Real> Curve3<T> {
                     (D::SemiV, Scalar(e.semi_v())),
                     (D::URef, Direction(u_ref)),
                 ];
-                // An anchored ellipse stores where on itself its anchor
-                // sits; one born with a centre stores no such thing.
-                match e.stored_phase() {
+                // An ellipse held on its arc stores where on itself its
+                // anchor sits; one held at its centre stores no such thing.
+                match phase {
                     Some(phase) => {
                         let [a, b, c, d, f] = walk;
                         AnalyticData::new([a, b, c, d, f, (D::Phase, Direction(phase))])
@@ -1383,8 +1399,8 @@ impl<T: Decide> Curve3<T> {
         )))
     }
 
-    /// **[`Curve3::ellipse`] for an ellipse born anchored**
-    /// ([`Ellipse::anchored`]): `anchor` its vertex at `θ = 0`, `toward`
+    /// **[`Curve3::ellipse`] for an ellipse held on its arc**
+    /// ([`Ellipse::anchored`]): `anchor` its vertex on the seam, `toward`
     /// the principal direction from the centre to it, `semi_u` along
     /// that direction. The same two refusals under the same row.
     ///
@@ -1571,7 +1587,7 @@ impl<T: Real> Curve3<T> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
             Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(by))),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(|f| f.translated(by))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.translated(by)),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,

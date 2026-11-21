@@ -3380,12 +3380,6 @@ mod conic_tests {
             1.6,
             0.7,
         )));
-        conics.push(Box::new(geom::Circle::anchored(
-            Point3::new(-0.6, 0.2, 0.5),
-            n,
-            toward,
-            1.1,
-        )));
         // The axis the surfaces' frames hold, so the running and plain
         // forms read one vector.
         let c = Point3::new(0.3, -0.1, 0.4);
@@ -3453,8 +3447,8 @@ mod conic_tests {
     /// the point's miss off the same sum taken exactly on the stored
     /// anchor, frame and sizes and on the two sines as computed
     /// (`v_ref = axis × u_ref` exactly), with the sines' own ulp, read to
-    /// first order, on top: a far-centred ellipse and a far-centred
-    /// circle about their anchors and round the turn, and a small pair.
+    /// first order, on top: two far-centred ellipses (one of equal
+    /// semi-axes) about their anchors and round the turn, and a small pair.
     /// The bound stays within 16 `u` of the terms it sums, the anchor's
     /// coordinate and the two offsets, so a far semi-axis enters it only
     /// through the offset it multiplies. Red with the sines uncharged.
@@ -3466,9 +3460,9 @@ mod conic_tests {
         let at = Point3::new(3.7, -1.2, 0.6);
         let conics: [Box<dyn Conic<f64>>; 4] = [
             Box::new(geom::Ellipse::anchored(at, n, toward, 1e6, 1e4)),
-            Box::new(geom::Circle::anchored(at, n, toward, 1500.0)),
+            Box::new(geom::Ellipse::anchored(at, n, toward, 1500.0, 1500.0)),
             Box::new(geom::Ellipse::anchored(at, n, toward, 0.4, 0.9)),
-            Box::new(geom::Circle::anchored(at, n, toward, 0.7)),
+            Box::new(geom::Ellipse::anchored(at, n, toward, 0.7, 0.7)),
         ];
         let q3 = |v: Vec3<f64>| [Q::of(v.x), Q::of(v.y), Q::of(v.z)];
         for conic in &conics {
@@ -3480,7 +3474,7 @@ mod conic_tests {
                 ax[2].mul(&ur[0]).sub(&ax[0].mul(&ur[2])),
                 ax[0].mul(&ur[1]).sub(&ax[1].mul(&ur[0])),
             ];
-            let zero = conic.anchor().expect("born anchored");
+            let zero = at;
             let zero_q = q3(zero - Point3::origin());
             for t in [
                 0.0, 1e-9, -3e-7, 1e-4, -2.5e-3, 0.04, -0.7, 1.3, 2.0, -3.1, 3.1,
