@@ -120,8 +120,9 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
-/// The funnel site of a planar corner's convexity: how far the second
-/// edge's far end stands on the first edge's face side, metres.
+/// The funnel site of a plane face's convexity in a cell: how far one
+/// line edge, at its far end or over the cell's reach, stands on another's
+/// face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a collapse of its face's chart, a
 /// cone's apex or a sphere's pole: its distance from that point, metres.
@@ -2346,7 +2347,9 @@ fn partial_zero(
 
 /// The planar presentation: the plane's chart through an affine map in
 /// which one line edge is `y = 0` and the face `y ≥ 0`, or two line edges
-/// at a convex corner are the positive axes.
+/// at a convex corner are the positive axes, and a further line edge
+/// across the face from them, where the cell holds one, caps the
+/// rectangle: a strip between two lines, or a strip's end.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -2418,157 +2421,279 @@ fn present_plane<'a>(
         );
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
-    match edges.as_slice() {
-        [e] => {
-            if !piece.local.vertices.is_empty() {
-                return Err(Unpresented::Local);
-            }
-            let ((p, ta), (q, tb)) = segment(*e)?;
-            let a = [q.x - p.x, q.y - p.y];
-            let bv = toward_face(a, orientation);
-            let len2 = a[0].powi(2) + a[1].powi(2);
-            let d = [cell_u - p.x, cell_v - p.y];
-            let x = (d[0] * a[0] + d[1] * a[1]) / len2;
-            let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
-            // Wholly on the edge's non-face side holds none of the face:
-            // every vertex and every other edge is clear of the cell's
-            // ball, so the plane's disk inside the ball meets the
-            // boundary only in a whole chord of this edge, and the
-            // disk's half off the face side is all outside the face. The
-            // cell lies in that half. A `len2` holding zero leaves `y`
-            // uncertified, and a zero-length edge bounds no half.
-            if y.is_certified() && y.hi() <= 0.0 {
-                return Ok(Presentation::Vacuous);
-            }
-            let len = len2.sqrt();
-            let inside = (x * len).min((at(1.0) - x) * len);
-            if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
-                return Err(Unpresented::Local);
-            }
-            let zero = if near_edges.contains(e) {
-                Zero::Side(
-                    Side::YLo,
-                    Along::over(piece.surface, b, *e, true, || {
-                        segment_params(ta, tb, (x.lo(), x.hi()))
-                    }),
-                )
-            } else {
-                Zero::None
-            };
-            Ok(Presentation::Of(Box::new(Presented {
-                surface: piece.surface,
-                map: Map::Affine {
-                    o: [p.x, p.y],
-                    a,
-                    b: bv,
-                },
-                x: (x.lo(), x.hi()),
-                y: (0.0, y.hi()),
-                zero,
-                corner: false,
-                cache: Cache::default(),
-            })))
-        }
-        [e1, e2] => {
-            let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
-                return Err(Unpresented::Local);
-            };
-            let Some(&vtx) = r1.ends.iter().find(|v| r2.ends.contains(v)) else {
-                return Err(Unpresented::Local);
-            };
-            if piece.local.vertices.iter().any(|&w| w != vtx) {
-                return Err(Unpresented::Local);
-            }
-            let ((p1, s1), (q1, f1)) = segment(*e1)?;
-            let ((p2, s2), (q2, f2)) = segment(*e2)?;
-            // Each edge's chart point at the vertex, its far point, and
-            // its traversal direction.
-            let start1 = if r1.uses[0].plus {
-                r1.ends[0]
-            } else {
-                r1.ends[1]
-            };
-            let start2 = if r2.uses[0].plus {
-                r2.ends[0]
-            } else {
-                r2.ends[1]
-            };
-            // Each edge's parameters at the vertex and its far end ride
-            // with its points.
-            let ((o, v1), (far1, w1)) = if start1 == vtx {
-                ((p1, s1), (q1, f1))
-            } else {
-                ((q1, f1), (p1, s1))
-            };
-            let ((_, v2), (far2, w2)) = if start2 == vtx {
-                ((p2, s2), (q2, f2))
-            } else {
-                ((q2, f2), (p2, s2))
-            };
-            let t1 = [q1.x - p1.x, q1.y - p1.y];
-            let t2 = [q2.x - p2.x, q2.y - p2.y];
-            let a = [far1.x - o.x, far1.y - o.y];
-            let bv = [far2.x - o.x, far2.y - o.y];
-            let n1 = toward_face(t1, orientation);
-            let n2 = toward_face(t2, orientation);
-            let lean = |n: [Interval; 2], w: [Interval; 2]| {
-                (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
-            };
-            if interval_sign_as(lean(n1, bv), SELF_INTERSECTION_CORNER, band)
-                != Some(Sign::Positive)
-                || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
-                    != Some(Sign::Positive)
-            {
-                return Err(Unpresented::Local);
-            }
+    // A point's coordinates in the frame `o + x·a + y·b`.
+    let coords =
+        |o: Point2<Interval>, a: [Interval; 2], bv: [Interval; 2], pt: Point2<Interval>| {
             let det = a[0] * bv[1] - a[1] * bv[0];
-            let d = [cell_u - o.x, cell_v - o.y];
-            let x = (d[0] * bv[1] - d[1] * bv[0]) / det;
-            let y = (a[0] * d[1] - a[1] * d[0]) / det;
-            if x.hi() <= 0.0 || y.hi() <= 0.0 {
-                return Ok(Presentation::Vacuous);
-            }
-            let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
-            let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
-            if interval_sign_as((at(1.0) - x) * la, SELF_INTERSECTION_SPAN, band)
-                != Some(Sign::Positive)
-                || interval_sign_as((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN, band)
-                    != Some(Sign::Positive)
-            {
-                return Err(Unpresented::Local);
-            }
-            let z1 = near_edges.contains(e1);
-            let z2 = near_edges.contains(e2);
-            // Each edge over its coordinate, 0 at the vertex and 1 at its
-            // far end, out to `hi`.
-            let on = |e: usize, (v, w): (Interval, Interval), hi: Interval| {
-                Along::over(piece.surface, b, e, true, || {
-                    segment_params(v, w, (0.0, hi.hi()))
-                })
-            };
-            let (on1, on2) = (on(*e1, (v1, w1), x), on(*e2, (v2, w2), y));
-            let zero = match (z1, z2) {
-                (true, true) => Zero::Corner((Side::YLo, on1), (Side::XLo, on2)),
-                (true, false) => Zero::Side(Side::YLo, on1),
-                (false, true) => Zero::Side(Side::XLo, on2),
-                (false, false) if near_vertices.contains(&vtx) => {
-                    Zero::Point(Side::XLo, Side::YLo, vtx)
+            let d = [pt.x - o.x, pt.y - o.y];
+            (
+                (d[0] * bv[1] - d[1] * bv[0]) / det,
+                (a[0] * d[1] - a[1] * d[0]) / det,
+            )
+        };
+    // The height over `x` of the line through two points given in a
+    // frame; `None` where their run along `x` does not decide it.
+    let height = |(x0, y0): (Interval, Interval), (x1, y1): (Interval, Interval), x: Interval| {
+        let run = x1 - x0;
+        (run.is_certified() && (run.lo() > 0.0 || run.hi() < 0.0))
+            .then(|| y0 + (y1 - y0) / run * (x - x0))
+    };
+    // How far `w` stands along the unit of `n`.
+    let lean = |n: [Interval; 2], w: [Interval; 2]| {
+        (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
+    };
+    let positive =
+        |x: Interval, site: &'static str| interval_sign_as(x, site, band) == Some(Sign::Positive);
+    // **The face's part of the cell where the face is convex there**: the
+    // intersection of the half-planes of the line edges the cell holds,
+    // read inside a parallelogram `R` two of whose sides lie on one edge
+    // or on a corner's two edges, and whose far sides are the cell's
+    // reach or a further edge of the cell, the one across the face from
+    // them. Every point of `R` off the face is a point of the plane
+    // `R`'s reading holds too, so `R` need only hold the face's part.
+    // The face is convex in the cell where each corner in it is convex
+    // and each further edge stands on the face side of the edges it
+    // caps, and they on its: every vertex and every other edge is clear
+    // of the cell's ball, so the plane's disk inside the ball meets the
+    // boundary only in these edges' whole chords, and the region between
+    // them, on each one's face side, is the face's part of the disk.
+    //
+    // One line edge `e` as `y = 0`, the face `y ≥ 0`; `far`, a line the
+    // cell holds with no end in it, across the face from `e` (a strip).
+    let along = |e: usize, far: Option<usize>| -> Result<Presentation<'a>, Unpresented> {
+        if !piece.local.vertices.is_empty() {
+            return Err(Unpresented::Local);
+        }
+        let ((p, ta), (q, tb)) = segment(e)?;
+        let a = [q.x - p.x, q.y - p.y];
+        let bv = toward_face(a, orientation);
+        let len2 = a[0].powi(2) + a[1].powi(2);
+        let d = [cell_u - p.x, cell_v - p.y];
+        let x = (d[0] * a[0] + d[1] * a[1]) / len2;
+        let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
+        // Wholly on the edge's non-face side holds none of the face: the
+        // disk's half off the face side is all outside the face. The cell
+        // lies in that half. A `len2` holding zero leaves `y`
+        // uncertified, and a zero-length edge bounds no half.
+        if y.is_certified() && y.hi() <= 0.0 {
+            return Ok(Presentation::Vacuous);
+        }
+        let len = len2.sqrt();
+        let inside = (x * len).min((at(1.0) - x) * len);
+        if !positive(inside, SELF_INTERSECTION_SPAN) {
+            return Err(Unpresented::Local);
+        }
+        let top = match far {
+            None => y.hi(),
+            Some(f) => {
+                let ((pf, _), (qf, _)) = segment(f)?;
+                let to = |pt| coords(p, a, bv, pt);
+                let h = height(to(pf), to(qf), x).ok_or(Unpresented::Local)?;
+                let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
+                let on_e = [p.x + x * a[0] - pf.x, p.y + x * a[1] - pf.y];
+                if !(positive(h * len, SELF_INTERSECTION_CORNER)
+                    && positive(lean(nf, on_e), SELF_INTERSECTION_CORNER))
+                {
+                    return Err(Unpresented::Local);
                 }
-                (false, false) => Zero::None,
-            };
-            Ok(Presentation::Of(Box::new(Presented {
-                surface: piece.surface,
-                map: Map::Affine {
-                    o: [o.x, o.y],
-                    a,
-                    b: bv,
-                },
-                x: (0.0, x.hi()),
-                y: (0.0, y.hi()),
-                zero,
-                corner: false,
-                cache: Cache::default(),
-            })))
+                h.hi().min(y.hi())
+            }
+        };
+        let zero = if near_edges.contains(&e) {
+            Zero::Side(
+                Side::YLo,
+                Along::over(piece.surface, b, e, true, || {
+                    segment_params(ta, tb, (x.lo(), x.hi()))
+                }),
+            )
+        } else {
+            Zero::None
+        };
+        Ok(Presentation::Of(Box::new(Presented {
+            surface: piece.surface,
+            map: Map::Affine {
+                o: [p.x, p.y],
+                a,
+                b: bv,
+            },
+            x: (x.lo(), x.hi()),
+            y: (0.0, top),
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        })))
+    };
+    // Two line edges at a convex corner `vtx` as the positive axes, `e1`
+    // along `x`; `cap`, the line at `e2`'s far end and that vertex,
+    // across the face from `e1` (a strip's end).
+    let corner = |e1: usize,
+                  e2: usize,
+                  vtx: VertexKey,
+                  cap: Option<(usize, VertexKey)>|
+     -> Result<Presentation<'a>, Unpresented> {
+        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
+            return Err(Unpresented::Local);
+        };
+        let held = |w: VertexKey| w == vtx || cap.is_some_and(|(_, v)| w == v);
+        if !piece.local.vertices.iter().all(|&w| held(w)) {
+            return Err(Unpresented::Local);
+        }
+        let ((p1, s1), (q1, f1)) = segment(e1)?;
+        let ((p2, s2), (q2, f2)) = segment(e2)?;
+        // Each edge's chart point at the vertex, its far point, and
+        // its traversal direction.
+        let start1 = if r1.uses[0].plus {
+            r1.ends[0]
+        } else {
+            r1.ends[1]
+        };
+        let start2 = if r2.uses[0].plus {
+            r2.ends[0]
+        } else {
+            r2.ends[1]
+        };
+        // Each edge's parameters at the vertex and its far end ride
+        // with its points.
+        let ((o, v1), (far1, w1)) = if start1 == vtx {
+            ((p1, s1), (q1, f1))
+        } else {
+            ((q1, f1), (p1, s1))
+        };
+        let ((_, v2), (far2, w2)) = if start2 == vtx {
+            ((p2, s2), (q2, f2))
+        } else {
+            ((q2, f2), (p2, s2))
+        };
+        let t1 = [q1.x - p1.x, q1.y - p1.y];
+        let t2 = [q2.x - p2.x, q2.y - p2.y];
+        let a = [far1.x - o.x, far1.y - o.y];
+        let bv = [far2.x - o.x, far2.y - o.y];
+        let n1 = toward_face(t1, orientation);
+        let n2 = toward_face(t2, orientation);
+        if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
+            && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
+        {
+            return Err(Unpresented::Local);
+        }
+        let det = a[0] * bv[1] - a[1] * bv[0];
+        let d = [cell_u - o.x, cell_v - o.y];
+        let x = (d[0] * bv[1] - d[1] * bv[0]) / det;
+        let y = (a[0] * d[1] - a[1] * d[0]) / det;
+        if x.hi() <= 0.0 || y.hi() <= 0.0 {
+            return Ok(Presentation::Vacuous);
+        }
+        let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
+        let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
+        if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
+            return Err(Unpresented::Local);
+        }
+        let z1 = near_edges.contains(&e1);
+        let z2 = near_edges.contains(&e2);
+        let top = match cap {
+            None => {
+                if !positive((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN) {
+                    return Err(Unpresented::Local);
+                }
+                y.hi()
+            }
+            Some((f, end)) => {
+                // A shared vertex at the far corner is on no zero side.
+                if near_vertices.contains(&end) && !z2 {
+                    return Err(Unpresented::Local);
+                }
+                let rf = b.edges.get(f).ok_or(Unpresented::Local)?;
+                let ((pf, _), (qf, _)) = segment(f)?;
+                let startf = if rf.uses[0].plus {
+                    rf.ends[0]
+                } else {
+                    rf.ends[1]
+                };
+                let (atf, farf) = if startf == end { (pf, qf) } else { (qf, pf) };
+                let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
+                let reach = iv((0.0, x.hi()));
+                let to = |pt| coords(o, a, bv, pt);
+                let h = height(to(atf), to(farf), reach).ok_or(Unpresented::Local)?;
+                let on_e1 = [o.x + reach * a[0] - atf.x, o.y + reach * a[1] - atf.y];
+                // Convex at the far corner, and `cap` and `e1` each on
+                // the other's face side over the reach.
+                if !(positive(
+                    lean(n2, [farf.x - atf.x, farf.y - atf.y]),
+                    SELF_INTERSECTION_CORNER,
+                ) && positive(
+                    lean(nf, [o.x - atf.x, o.y - atf.y]),
+                    SELF_INTERSECTION_CORNER,
+                ) && positive(h * lb, SELF_INTERSECTION_CORNER)
+                    && positive(lean(nf, on_e1), SELF_INTERSECTION_CORNER))
+                {
+                    return Err(Unpresented::Local);
+                }
+                h.hi().min(y.hi())
+            }
+        };
+        // Each edge over its coordinate, 0 at the vertex and 1 at its
+        // far end, out to `hi`; on its edge only where `hi` stops there.
+        let on = |e: usize, (v, w): (Interval, Interval), hi: f64| {
+            Along::over(piece.surface, b, e, hi <= 1.0, || {
+                segment_params(v, w, (0.0, hi))
+            })
+        };
+        let (on1, on2) = (on(e1, (v1, w1), x.hi()), on(e2, (v2, w2), top));
+        let zero = match (z1, z2) {
+            (true, true) => Zero::Corner((Side::YLo, on1), (Side::XLo, on2)),
+            (true, false) => Zero::Side(Side::YLo, on1),
+            (false, true) => Zero::Side(Side::XLo, on2),
+            (false, false) if near_vertices.contains(&vtx) => {
+                Zero::Point(Side::XLo, Side::YLo, vtx)
+            }
+            (false, false) => Zero::None,
+        };
+        Ok(Presentation::Of(Box::new(Presented {
+            surface: piece.surface,
+            map: Map::Affine {
+                o: [o.x, o.y],
+                a,
+                b: bv,
+            },
+            x: (0.0, x.hi()),
+            y: (0.0, top),
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        })))
+    };
+    let meet = |e: usize, f: usize| {
+        let (r, s) = (b.edges.get(e)?, b.edges.get(f)?);
+        r.ends.iter().find(|v| s.ends.contains(v)).copied()
+    };
+    match *edges.as_slice() {
+        [e] => along(e, None),
+        [e1, e2] => match meet(e1, e2) {
+            Some(vtx) => corner(e1, e2, vtx, None),
+            // Across the face from each other, anchored on the shared one.
+            None => match (near_edges.contains(&e1), near_edges.contains(&e2)) {
+                (true, true) => Err(Unpresented::Local),
+                (false, true) => along(e2, Some(e1)),
+                _ => along(e1, Some(e2)),
+            },
+        },
+        // An edge `m` with a neighbour at each end, the neighbours apart:
+        // read at one of `m`'s corners, the other neighbour, not shared,
+        // capping it.
+        [e1, e2, e3] => {
+            for (m, n1, n2) in [(e1, e2, e3), (e2, e3, e1), (e3, e1, e2)] {
+                let (Some(v1), Some(v2)) = (meet(m, n1), meet(m, n2)) else {
+                    continue;
+                };
+                if v1 == v2 || meet(n1, n2).is_some() {
+                    return Err(Unpresented::Local);
+                }
+                return match (near_edges.contains(&n1), near_edges.contains(&n2)) {
+                    (_, false) => corner(n1, m, v1, Some((n2, v2))),
+                    (false, true) => corner(n2, m, v2, Some((n1, v1))),
+                    (true, true) => Err(Unpresented::Local),
+                };
+            }
+            Err(Unpresented::Local)
         }
         _ => Err(Unpresented::Local),
     }
