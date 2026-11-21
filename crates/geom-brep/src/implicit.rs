@@ -865,8 +865,16 @@ pub fn circle_arc_residual_range<T: Real>(
 #[must_use]
 pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<(T, T)> {
     if let Some(h) = conic_residual_harmonics(s, conic) {
-        let reach = h.a1 + h.a2 + h.noise;
-        return Some((h.c0 - reach, h.c0 + reach));
+        // The computed form's extremes, each within the form's rounding.
+        let swing = h.a1 + h.a2;
+        let extreme = |value: T| Rounded {
+            value,
+            error: h.noise,
+        };
+        return Some((
+            extreme(h.c0 - swing).lower_end(),
+            extreme(h.c0 + swing).upper_end(),
+        ));
     }
     conic_arc_residual_range(s, conic, T::zero(), geom::conic_period::<T>().length())
 }
@@ -887,8 +895,8 @@ pub fn circle_residual_extremes<T: Real>(
         // the frame's defect (`CircleSphereHarmonic`).
         let h = circle_sphere_harmonic(circle, sc, r);
         return Some((
-            h.lo - h.lo_error - h.frame_error,
-            h.hi + h.hi_error + h.frame_error,
+            h.lo.with_charge(h.frame_error).lower_end(),
+            h.hi.with_charge(h.frame_error).upper_end(),
         ));
     }
     conic_residual_extremes(s, circle)
@@ -1910,16 +1918,12 @@ pub struct CircleSphereHarmonic<T> {
     pub e_u: T,
     /// `e·v̂`, the phase's sine component (metres).
     pub e_v: T,
-    /// The lower extreme `c₀ − A₁` (metres of residual).
-    pub lo: T,
-    /// The upper extreme `c₀ + A₁`.
-    pub hi: T,
-    /// A first-order running bound ([`geom_core::Rounded`]) on the
-    /// rounding of [`Self::lo`] against the factored form evaluated
-    /// exactly on the stored inputs.
-    pub lo_error: T,
-    /// The same bound on [`Self::hi`].
-    pub hi_error: T,
+    /// The lower extreme `c₀ − A₁` (metres of residual), with a
+    /// first-order running bound on its rounding against the factored
+    /// form evaluated exactly on the stored inputs.
+    pub lo: Rounded<T>,
+    /// The upper extreme `c₀ + A₁`, with the same bound.
+    pub hi: Rounded<T>,
     /// The same bound on the vector `(e_u, e_v)`, as the sum of its two
     /// components' (metres): the phase `φ` is off by at most this over
     /// `|(e_u, e_v)|`, to first order.
@@ -1938,12 +1942,12 @@ pub struct CircleSphereHarmonic<T> {
 impl<T: Real> CircleSphereHarmonic<T> {
     /// The constant term `c₀ = (lo + hi)/2`.
     pub fn c0(&self) -> T {
-        geom::mid_param(self.lo, self.hi)
+        geom::mid_param(self.lo.value, self.hi.value)
     }
 
     /// The amplitude `A₁ = (hi − lo)/2 ≥ 0`.
     pub fn a1(&self) -> T {
-        (self.hi - self.lo) / T::from_f64(2.0)
+        (self.hi.value - self.lo.value) / T::from_f64(2.0)
     }
 }
 
@@ -1983,21 +1987,14 @@ pub fn circle_sphere_harmonic<T: Real>(
     // `a + b + ab − c²` on `n̂ × û`, so `‖GᵀG − I‖₂` is the larger of
     // `max(|a|, |b|) + |c|` and that middle entry's magnitude.
     let (a, b, c) = (unit_defect(u_ref), unit_defect(axis), dot(n, u));
-    let middle = (a.value + b.value + a.value * b.value - c.value.powi(2)).abs()
-        + a.error
-        + b.error
-        + a.value.abs() * b.error
-        + b.value.abs() * a.error
-        + two * c.value.abs() * c.error;
+    let middle = (a + b + a * b - c.square()).magnitude();
     let defect = (a.magnitude().max(b.magnitude()) + c.magnitude()).max(middle);
     let e_sq = e.map(|x| x.value.powi(2));
     CircleSphereHarmonic {
         e_u: e_u.value,
         e_v: e_v.value,
-        lo: lo.value,
-        hi: hi.value,
-        lo_error: lo.error,
-        hi_error: hi.error,
+        lo,
+        hi,
         phase_error: e_u.error + e_v.error,
         frame_error: (e_sq[0] + e_sq[1] + e_sq[2] + radius.powi(2)) * defect / (two * s_radius),
     }
@@ -2264,25 +2261,25 @@ mod tests {
             };
             assert!(
                 brackets(
-                    h.lo,
-                    h.lo_error,
+                    h.lo.value,
+                    h.lo.error,
                     q.sub(&two_rho.mul(&sq_hi)),
                     q.sub(&two_rho.mul(&sq_lo))
                 ),
                 "pose {k}: lo {} ± {} misses the exact factored form",
-                h.lo,
-                h.lo_error
+                h.lo.value,
+                h.lo.error
             );
             assert!(
                 brackets(
-                    h.hi,
-                    h.hi_error,
+                    h.hi.value,
+                    h.hi.error,
                     q.add(&two_rho.mul(&sq_lo)),
                     q.add(&two_rho.mul(&sq_hi))
                 ),
                 "pose {k}: hi {} ± {} misses the exact factored form",
-                h.hi,
-                h.hi_error
+                h.hi.value,
+                h.hi.error
             );
             for (v, exact) in [(h.e_u, &eu), (h.e_v, &ev)] {
                 let (lo, hi) = (Dyadic::of(v - h.phase_error), Dyadic::of(v + h.phase_error));
@@ -2293,7 +2290,10 @@ mod tests {
                 );
             }
             let l = (Point3::from_array(c) - Point3::from_array(sc)).norm() + rho + r;
-            for (name, v, err) in [("lo", h.lo, h.lo_error), ("hi", h.hi, h.hi_error)] {
+            for (name, v, err) in [
+                ("lo", h.lo.value, h.lo.error),
+                ("hi", h.hi.value, h.hi.error),
+            ] {
                 let d = (v * 2.0 * r + r * r).sqrt();
                 let ceiling =
                     16.0 * u * l * (d + r + (d - r).abs()) / (2.0 * r) + 4.0 * u * v.abs();
@@ -2302,6 +2302,102 @@ mod tests {
                     "pose {k}: {name}'s bound {err} exceeds its ceiling {ceiling}"
                 );
             }
+        }
+    }
+
+    /// **A conic's residual extremes are its computed form's, each within
+    /// the form's rounding.** A circle of radius 2 about `(3, 1, 7)` against
+    /// the plane `z = 0`, tilted so its height swings: the extremes read
+    /// are `c₀ ∓ A₁`, each moved outward by the form's noise, which is not
+    /// zero; and they hold the sampled residual.
+    #[test]
+    fn a_conics_extremes_are_its_forms_within_its_rounding() {
+        let circle = geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(3.0, 1.0, 7.0),
+                Vec3::new(0.6, 0.0, 0.8),
+                Vec3::new(0.8, 0.0, -0.6),
+            ),
+            2.0,
+        );
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let h = conic_residual_harmonics(&plane, &circle).unwrap();
+        assert!(h.noise > 0.0, "the form carries its rounding");
+        let (lo, hi) = conic_residual_extremes(&plane, &circle).unwrap();
+        let swing = h.a1 + h.a2;
+        assert_eq!(
+            lo,
+            (h.c0 - swing) - h.noise,
+            "the lower extreme, within its rounding"
+        );
+        assert_eq!(
+            hi,
+            (h.c0 + swing) + h.noise,
+            "the upper extreme, within its rounding"
+        );
+        for i in 0..256 {
+            let t = core::f64::consts::TAU * f64::from(i) / 256.0;
+            let f = implicit_residual(&plane, geom::Conic::point_at(&circle, t));
+            assert!(
+                lo <= f && f <= hi,
+                "the residual {f} at {t} past [{lo}, {hi}]"
+            );
+        }
+    }
+
+    /// **A circle's residual extremes against a sphere are its extremes'
+    /// enclosure, the frame's charge included.** A frame whose axis leans
+    /// `2⁻²⁸` off unit (its defect charged, `frame_error` past `10⁻¹⁰`):
+    /// the range read is the lower extreme's lower end and the upper
+    /// extreme's upper end, each widened by the frame's charge, and it
+    /// holds the residual of the circle the frame evaluates at every
+    /// sampled angle.
+    #[test]
+    fn a_circles_extremes_on_a_sphere_are_their_enclosure() {
+        let circle = geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2f64.powi(-28), 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            1.3,
+        );
+        let (sc, r) = (Point3::new(1.1, 0.4, -0.7), 0.9);
+        let h = circle_sphere_harmonic(&circle, sc, r);
+        assert!(
+            h.frame_error > 1e-10,
+            "the defect is charged: {}",
+            h.frame_error
+        );
+        let sphere = Surface::Sphere {
+            center: sc,
+            radius: r,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (lo, hi) = circle_residual_extremes(&sphere, &circle).unwrap();
+        let charge = |x: Rounded<f64>| x.error + h.frame_error;
+        assert_eq!(
+            lo,
+            h.lo.value - charge(h.lo),
+            "the lower extreme's lower end"
+        );
+        assert_eq!(
+            hi,
+            h.hi.value + charge(h.hi),
+            "the upper extreme's upper end"
+        );
+        for i in 0..256 {
+            let t = core::f64::consts::TAU * f64::from(i) / 256.0;
+            let f = implicit_residual(&sphere, geom::Conic::point_at(&circle, t));
+            assert!(
+                lo <= f && f <= hi,
+                "the residual {f} at {t} past [{lo}, {hi}]"
+            );
         }
     }
 

@@ -109,6 +109,7 @@ pub mod patch_bound;
 pub mod patch_carrier;
 pub mod pcurve;
 pub mod pcurve_cache;
+pub(crate) mod piece;
 pub mod plane_eq;
 pub mod props;
 pub mod quartic;

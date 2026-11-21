@@ -94,7 +94,7 @@ use crate::half_angle::{
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
 pub use crate::rows::FirstHarmonicRows;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
 use geom_core::Indeterminate;
 use geom_core::k_stats::decide;
@@ -226,7 +226,7 @@ pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 /// `c₀` and `A₁` read off it — and the phase's two components.
 ///
 /// Each comes with a bound on its error as the door evaluated it:
-/// `lo_noise` and `hi_noise` in metres of residual (their rounding, and
+/// the extremes' in metres of residual (their rounding, and
 /// any term the caller dropped to reach this form, which must bound the
 /// residual's error at every `θ` where it is not specific to one
 /// extreme), and `phase_noise` in the units of `(cos_part, sin_part)`.
@@ -235,20 +235,24 @@ pub type FirstHarmonicRoots<T> = Roots<T, 2, OnCarrier>;
 /// already moves the roots by no more than that over `|R′|`, the
 /// phase's share included.
 pub struct FirstHarmonic<T> {
-    /// The least residual, `c₀ − A₁`.
-    pub lo: T,
-    /// The greatest residual, `c₀ + A₁`.
-    pub hi: T,
+    /// The least residual, `c₀ − A₁`, with the bound on its error.
+    pub lo: Rounded<T>,
+    /// The greatest residual, `c₀ + A₁`, with the bound on its error.
+    pub hi: Rounded<T>,
     /// The phase's cosine component.
     pub cos_part: T,
     /// The phase's sine component.
     pub sin_part: T,
-    /// The bound on `lo`'s error, in metres of residual.
-    pub lo_noise: T,
-    /// The bound on `hi`'s error, in metres of residual.
-    pub hi_noise: T,
     /// The bound on the phase components' error, in their units.
     pub phase_noise: T,
+}
+
+impl<T: Decide> FirstHarmonic<T> {
+    /// An upper bound on `|R|` over the turn: the larger extreme's
+    /// magnitude, its bound included.
+    pub fn most(&self) -> T {
+        self.lo.magnitude().max(self.hi.magnitude())
+    }
 }
 
 /// **The certified roots of a first-harmonic residual along a carrier
@@ -315,18 +319,17 @@ fn harmonic_crossing<T: Decide>(
     band: Band,
 ) -> Result<Harmonic<T>, RootRefusal> {
     let FirstHarmonic {
-        lo: lo_value,
-        hi: hi_value,
+        lo,
+        hi,
         cos_part,
         sin_part,
-        lo_noise,
-        hi_noise,
         phase_noise,
     } = *h;
+    let (lo_value, hi_value) = (lo.value, hi.value);
     let two = T::from_f64(2.0);
     // The extremes are what every decision below reads, so their error
     // is what the representation must resolve.
-    let noise = lo_noise.max(hi_noise);
+    let noise = lo.error.max(hi.error);
     match decide(rows.noise(), Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise() }.into()),
@@ -341,15 +344,15 @@ fn harmonic_crossing<T: Decide>(
             },
         );
     }
-    let lo = extreme_sign(rows.extreme(), lo_value, lo_noise, band)?;
-    if lo == Sign::Positive {
+    let lo_sign = extreme_sign(rows.extreme(), lo, band)?;
+    if lo_sign == Sign::Positive {
         return Ok(Harmonic::Miss);
     }
-    let hi = extreme_sign(rows.extreme(), hi_value, hi_noise, band)?;
-    if hi == Sign::Negative {
+    let hi_sign = extreme_sign(rows.extreme(), hi, band)?;
+    if hi_sign == Sign::Negative {
         return Ok(Harmonic::Miss);
     }
-    if (lo, hi) != (Sign::Negative, Sign::Positive) {
+    if (lo_sign, hi_sign) != (Sign::Negative, Sign::Positive) {
         return Err(Unsettled::Tangency.into());
     }
     // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
@@ -358,7 +361,7 @@ fn harmonic_crossing<T: Decide>(
     // moves the root itself; `|R′| = √(−lo·hi)` at both roots.
     let swing = hi_value - lo_value;
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
-    let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
+    let at_root = (hi_value * lo.error - lo_value * hi.error) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
     match decide(rows.root_slack(), Margin::of(slack), band) {
@@ -418,5 +421,58 @@ pub fn door_answer<T: geom_core::Real, X: core::fmt::Debug>(
         Ok(found) => found.map_err(Some),
         Err(DoorRefusal::Escalated(_)) => Err(None),
         Err(other) => panic!("the door refused outside its decision: {other:?}"),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// **The most residual charges the larger extreme's bound.** `−0.5`
+    /// within `0.25` and `0.6` within `0.1`: the most is `0.75`, the
+    /// lower extreme's magnitude, which its value alone would put below
+    /// the upper's.
+    #[test]
+    fn the_most_residual_charges_the_extremes_bound() {
+        let h = FirstHarmonic {
+            lo: Rounded {
+                value: -0.5,
+                error: 0.25,
+            },
+            hi: Rounded {
+                value: 0.6,
+                error: 0.1,
+            },
+            cos_part: 1.0,
+            sin_part: 0.0,
+            phase_noise: 0.0,
+        };
+        assert_eq!(h.most(), 0.75, "the larger magnitude, bound included");
+    }
+
+    /// **An extreme is read with its bound.** A first harmonic from
+    /// `−1.05·10⁻⁸` to `1`, each extreme within `10⁻⁹`, at `ε = 10⁻⁹`:
+    /// the least extreme's upper end, `−0.95·10⁻⁸`, lies in the band's
+    /// gap, so the door escalates. Read on the value alone the extreme is
+    /// definitely negative and two roots are certified on a sign the
+    /// reading does not hold.
+    #[test]
+    fn an_extreme_is_read_with_its_bound() {
+        let at = |value: f64| Rounded { value, error: 1e-9 };
+        let h = FirstHarmonic {
+            lo: at(-1.05e-8),
+            hi: at(1.0),
+            cos_part: 1.0,
+            sin_part: 0.0,
+            phase_noise: 0.0,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let got = first_harmonic_roots(&h, 1.0, -1.0, 1.0, &crate::rows::CONIC_QUADRIC_FIRST, band);
+        assert!(
+            matches!(got, Err(DoorRefusal::Escalated(_))),
+            "{:?}: an extreme whose bound reaches the gap is read definite",
+            got.map(|r| r.map(|_| ()))
+        );
     }
 }

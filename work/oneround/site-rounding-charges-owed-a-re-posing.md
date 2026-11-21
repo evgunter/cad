@@ -74,6 +74,16 @@ re-posing that empties a file lowers or drops its row in the same change.
   and `window`'s polynomials read locally since PR 6525),
   `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
+- `geom_brep::curve_pair::pose::Level::jet_at`: the level `X²/A² + Y²/B² − 1`
+  is read exact by `pose::window` and by the coplanar subdivision. It
+  charges nothing, but it is the same debt: it divides by the squared
+  semi-axes, so its rounding as a length grows with the aspect, which
+  the admission rule does not cover. Measured under PR 7221 at 0.77
+  (height) and 1.5 (level times `L`) zero bands on the far needle; the
+  thin far `b` pose is unbuilt; PR 6565's touch arm reads the same jet.
+  Whether a definite verdict goes wrong at an admitted (ε, K) is not
+  known without a probe. So it has its own row at P1:
+  `the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
   decision at the band, levered.
