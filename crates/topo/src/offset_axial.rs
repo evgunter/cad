@@ -2455,10 +2455,10 @@ fn mint_carrier<T: Decide>(
                     }
                 }
             }
-            Surface::Torus { center, .. } => match geom_brep::plane_torus_section(
+            _ => match geom_brep::plane_torus_section(
                 &cap.new,
                 &wall.new,
-                frame.region.reach_from(*center),
+                frame.region.reach_from(torus_centre(&wall.new)),
                 band,
             )
             .map_err(section_refused)?
@@ -2473,7 +2473,6 @@ fn mint_carrier<T: Decide>(
                     )
                 }
             },
-            _ => unreachable!("{edge:?}: the rim's wall was read a ring torus or a sphere above"),
         };
         // Which curve: a sphere's one circle straddles the trace and
         // needs no choosing; of a torus's two, the one the OLD rim's
@@ -2700,6 +2699,15 @@ fn tube_centre_offset<T: Real>(
         T::zero(),
     )
     .norm()
+}
+
+/// A ring torus's centre, the point its section's datum is read at:
+/// its axis line's origin.
+fn torus_centre<T: Real>(torus: &Surface<T>) -> Point3<T> {
+    torus
+        .axis_line()
+        .unwrap_or_else(|| unreachable!("the rim's wall was read a ring torus"))
+        .origin
 }
 
 /// **Whether a profile line `n·(ρ, h) = c` crosses the axis at a
