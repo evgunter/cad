@@ -1758,7 +1758,8 @@ impl Corner<'_> {
 
 /// **The faces across the edges of face `fk`'s loops (its outer loop and
 /// its rings) at each boundary mesh id**: for every edge of a loop, the
-/// face its other half-edge bounds, at each of the edge's chord ids
+/// face across it ([`ChordPass::across`], a view over the chord pass's
+/// [`ChordPass::holders`]), at each of the edge's chord ids
 /// (`crate::chords`), ends included, so a vertex's id holds the faces
 /// across both edges meeting there. Two polygon points that one face here
 /// holds both of are two points that face's own triangulation may join.
@@ -1770,6 +1771,10 @@ impl Corner<'_> {
 /// once by this one triangulation. A one-face full-turn cone wall
 /// reaches that arm: its development holds the seam's two copies on the
 /// sector's two rays ([`singular_row_shape`]).
+///
+/// This is an input of the face, and the memo key folds it: each edge's
+/// face across, renumbered by first appearance along the walk
+/// (`memo::EdgeInputs::across`), read off the same holders.
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
@@ -1783,18 +1788,10 @@ fn faces_across(
     for (lk, _, _) in face.loops() {
         sides.extend(crate::walk::loop_half_edges(body, lk, fk)?);
     }
-    for (hek, ek, _) in sides {
-        let other = body
-            .mate(hek)
-            .and_then(|mate| body.get_half_edge(mate))
-            .and_then(|he| body.get_loop(he.parent_loop))
-            .ok_or(TessellateError::MissingEntity {
-                what: "the face across an edge",
-            })?
-            .face;
-        if other == fk {
+    for (_, ek, _) in sides {
+        let Some(other) = chords.across(ek, fk)? else {
             continue;
-        }
+        };
         let ids = chords.ids.get(&ek).ok_or(TessellateError::MissingEntity {
             what: "edge chords",
         })?;

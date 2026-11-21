@@ -89,3 +89,24 @@ So the candidate this row asks for closes most of the planar instances,
 and the rest want a candidate chosen against both wedges' edges (a
 plane strictly separating two convex cones at their common apex, when
 it exists), or a reading of their own.
+
+## Instances in the per-solid census (EMBED trace lane, 2026-11-21)
+
+Traced on main `c2a0c41f40` with the at-rest gate and prints of
+`departure`'s separators (`embed/trace-cone-torus-measure`). Two pairs
+sharing a vertex alone, both faces presented by a `Zero::Point`, split
+to depth 40 with `planes_through`'s one plane signing the plane face and
+not the curved one, and no carrier or graph separator:
+- `band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval`
+  (`Interval`, plane `3v1` against a chamfer's cone `16v1` at `19v1`):
+  `planes = [(Some(Positive), None)]`, the cone's cell
+  `u ∈ (3.926991, 3.926991 + 9e-13)`, `v ∈ (0.42371, 0.42426)`;
+- `band_planar_cut_off_interval::the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms`
+  (`Interval`, plane `3v1` against sphere `10v3` at `16v1`): the same,
+  the sphere's cell `v ∈ (−2.2e-15, 0)` by `6.1e-3` in `u`.
+
+Both curved cells are anisotropic by many orders, the shape this row
+describes. That the plane leans along the long side is not printed, so
+the match is unchecked. Assigned here by shape, 14 tests: the vertex,
+plane/cone bucket (4: the chamfers, three at `Interval`), plane/sphere
+(9) and sphere/plane (1). Two traced. Valid bodies.
