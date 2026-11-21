@@ -446,11 +446,15 @@ This section is where that rule's parts live.
   door, never a site's own constant. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits is re-minted in a
-  well-conditioned form: a conic stores the point its mint holds and
-  where that point sits on it; the point may be its centre only where
-  no semi-axis is longer than the session box's extent, and is
-  otherwise a point of the arc it serves, its parameter zero there.
-  Every reading of where a conic is starts from the stored point. No
+  well-conditioned form: a conic is one of a family of placements
+  behind the one `Conic` reading, held about its centre or about a
+  point of the arc it serves with its parameter zero there; its
+  construction fixes which, the same at every size, and a construction
+  whose centre runs off at a pose it can reach holds the arc. At `f64`
+  a point is summed by short chords from a point of the curve, a
+  centre-held conic's from its seam vertex; at the enclosure scalars a
+  centre-held conic is read about its centre, each stored term once.
+  Every reading of where a conic is goes through the conic. No
   `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every

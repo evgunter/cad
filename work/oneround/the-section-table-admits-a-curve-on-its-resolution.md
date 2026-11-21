@@ -1,7 +1,7 @@
 ---
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
-title: A conic stores one point and where it sits on the curve; the centre only within the box's size, a section's vertex where its mint holds it
+title: A conic is held about its centre or about a point of its arc, a family of two placements fixed by its construction
 status: dispatched
 opened: 2026-10-12
 priority: P1
@@ -145,41 +145,43 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 
 ## The stored form (2026-11-21)
 
-The rule is `crates/geom-core/README.md`, "Float rounding": a conic
-stores the point its mint holds and where that point sits on it. This
+The rule is `crates/geom-core/README.md`, "Float rounding". This
 replaces "Re-scoped" above and the one-stored-form text of PR 7194,
 which was built (step B, parked on `oneround/anchored-conic-one-form`)
 and measured before it was set aside; the measurements are in
 `work/oneround/log.md`, 2026-11-21.
 
-- **One type, one evaluator.** A conic holds a point `O` and a pair
-  `k`: `(0, 0)` where `O` is the centre, `(cos θ₀, sin θ₀)` where `O`
-  is the curve's point at θ₀. Every point is
-  `O + u·a·(cos θ − k_u) + v·b·(sin θ − k_v)`. Nothing records how a
-  conic was made.
-- **The limit is the conic's size.** The centre may be stored only
-  where no semi-axis is longer than the session box's extent. A larger
-  conic stores a point of the arc it serves, with its parameter zero
-  there. The door that takes a centre refuses a conic past the limit
-  whose handed centre is itself past the box: those digits are already
-  lost.
-- **Inside the limit a mint stores what it holds.** A circle or
-  ellipse made from a centre keeps that centre, exactly, at every
-  scalar. A section computed at its vertex keeps that vertex.
-- **Readers start from the stored point.** Covers, extents, chart
-  images and the inverse go through the conic; none restates the curve
-  as `centre + size·direction`. A reader that needs only directions
-  reads the axis and the seam, and derives no position
+- **A family of two placements.** `Circle` and `Ellipse` each hold
+  their directions and sizes once, and a placement: `Centre(point)`, or
+  `OnArc(point)` with, for an ellipse, where on the ellipse the point
+  sits. Each holds only its own numbers. Only the conic's module
+  matches on it; `Curve3`'s conic kinds stay two. A centre-held
+  conic's parameter is the angle from its seam; an arc-held one's is
+  zero at its stored point.
+- **The construction fixes the placement, the same at every size.** A
+  construction handed a centre holds it. One that holds a point of the
+  arc holds that. One whose centre runs off at a pose it can reach (a
+  cylinder cut toward its axis, the equal-cylinder bisector) holds the
+  arc always, and holding a centre there is a kernel bug. Nothing
+  converts one placement to the other.
+- **Reading.** An arc-held conic sums short chords from its stored
+  point at every scalar. A centre-held one sums chords from its seam
+  vertex at `f64`, and reads `centre + size·direction` at the
+  enclosure scalars, each stored term once. Its centre is the stored
+  value: the same number, range or symbolic node.
+- **Readers go through the conic.** Covers, extents, chart images and
+  the inverse; none restates the curve as `centre + size·direction`. A
+  reader that needs only directions derives no position
   (`a-conics-points-are-restated-in-centre-form-outside-its-evaluator`).
-- **A move maps `O`; a reversal flips `k`'s second entry; a re-seam of
-  a centre-stored conic permutes its directions.** A large conic
-  stored on its arc is not re-seamed: another part of it is another
-  mint.
+- **A move, a mirror and a scaling map the stored point and keep the
+  placement.** A reversal flips the axis, and an arc-held ellipse's
+  phase with it. A re-seam turns a centre-held conic about its centre;
+  an arc-held one has none.
 
-This unit (PR 7203) is the part of that already built: the two births
-private to `conic.rs`, the pair stored, the plane-cone section stored
-at the vertex its mint computes. What remains is on two rows that PR
-files: `one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
-readers, and the centre door's limit) and
-`a-section-conic-is-anchored-at-a-general-point-of-its-arc` (large
-conics served away from a vertex).
+This unit (PR 7203) holds the two placements as a private tag beside
+an unread field; the tag becomes the placement. What remains is on two
+rows that PR files:
+`one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
+readers) and
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc` (the
+constructions whose centre runs off).
