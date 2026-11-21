@@ -163,7 +163,8 @@ before its `#[test]`.
   told something false about it.
 
 **M2. `gap`'s floor refusal changed what it returns, after the measured
-head, and nothing measured it.** BY-INSPECTION, likely. The body says
+head, and nothing measured it.** DEMONSTRATED for the bounds at ε 1e-12;
+BY-INSPECTION for the refusal kinds, likely. The body says
 `gap`'s cell and floor came to share `Reading::apart` after `2e4c57bb`
 and were not re-measured.
 - **What changed** (`gap.rs:237`, `:524`).
@@ -182,10 +183,30 @@ and were not re-measured.
   `*_critical_gap_straddle`) and its margin move. No answer moves: it is
   a refusal either way.
 - **Reach of my differential.** The default suite moves no count at
-  `*_critical_gap_floor`, `*_critical_gap_straddle` or `*_critical_gap`
-  at either ε. The one floor move in the slow rows is M0's path change,
-  and no `*_straddle` count moves anywhere. So this arm is not
-  evidenced, and nothing pins it.
+  `*_critical_gap` at either ε. The selected slow rows at 1e-12 do.
+  - **`section_cert_rows::every_torus_touch_holds_against_a_sampling_oracle`**,
+    `ct_critical_gap`:
+
+    | | Negative | Zero | Escalation | Positive |
+    |---|---|---|---|---|
+    | Base | 316 | 754 | 191,394 | 9,614,132 |
+    | Head | 0 | 1,178 | 191,240 | 9,614,178 |
+
+  - **`torus_gap::no_tube_circle_pose_at_scale_reads_the_wrong_verdict`**,
+    `tt_critical_gap`: Zero 10 → 14, escalation 6,658 → 6,654.
+  - **Why these are the floor's bounds.** The gap row's other read, the
+    tangent margin `D_hi.max(|ρ₁ − ρ₂|)`, is non-negative and its value
+    is unchanged. So a Negative there can only be the floor's lower
+    bound, and the moves are the floor's bounds: Negative and
+    escalation to Zero (the clamp), and escalation to Positive (the
+    upper bound's new `u·|D − L|`).
+  - **What that means for the refusal.** Where an old lower bound was
+    `Err`, `floor_refusal` returned the gap row's escalation; now it
+    returns a straddle. Neither the straddle door nor the refusal's
+    predicate is in my census, which logs only `classify`.
+  - **No answer moves.** Every test passes, and no row downstream of
+    the gap moves a count.
+  - **Pinning.** Nothing pins this arm.
 - **What the body owes.** It does not mention that the floor's refusal
   kind can change.
 
@@ -359,6 +380,21 @@ sign-change loop stays in five other places:
 `curve_face::composite` keeps its own `BISECTIONS = 64`, a different
 loop, as the body says. "One bisection" is one per crate, not one.
 
+**N13. At 1e-12, `gap`'s clear rows move counts, not only bits.**
+DEMONSTRATED, sure. The body files `*_critical_gap_clear` under "margin
+bits only, with the same counts". That holds in the default suite at
+both ε. In the selected slow rows at 1e-12 it does not: the clamped
+`apart` turns millions of Negative clear reads into Zero.
+- `every_torus_touch_holds_against_a_sampling_oracle`,
+  `ct_critical_gap_clear`: Negative 8,634,308 → 4,304,340, Zero
+  663,988 → 5,765,396, escalation 6,123,348 → 5,351,908, Positive
+  60,544 unchanged.
+- `no_tube_circle_pose_at_scale_reads_the_wrong_verdict`,
+  `tt_critical_gap_clear`: likewise.
+
+Only Positive is acted on, and it is unchanged. The numbers are in
+`probe/slow-moves-eps1e-12.tsv`.
+
 **N12. The brief names a file that no longer exists.** sure. It speaks
 of `conic_quadric/mod.rs` 3→6. After main's move the file is
 `crates/geom-brep/src/curve_face/conic_quadric.rs`, and the row is
@@ -377,8 +413,9 @@ All of these are oracles.
 
 - **C1 — holds for answers, not for every acted verdict** (DEMONSTRATED:
   my differential, at the frozen head). In the default suite it holds as
-  stated. In one selected slow row, acted cell verdicts in the sweep move
-  (M0).
+  stated. In one selected slow row, acted cell verdicts in the sweep
+  move (M0). At 1e-12 the floor refusal's bounds move, which changes
+  which refusal is returned (M2).
   - **What moves.**
     - At both ε and in both lanes, the only count moves are at
       `chart_singularity_pole_plane` (f64 in 12 tests, `Interval` in 1),
