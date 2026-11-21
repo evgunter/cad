@@ -2943,10 +2943,8 @@ pub(super) fn frame_reading<T: Decide>(
     cover_a: impl FnOnce() -> crate::cover::FaceCovered<T>,
     cover_b: impl FnOnce() -> crate::cover::FaceCovered<T>,
 ) -> Result<geom_core::Point3<T>, &'static str> {
-    let curved = match sa {
-        geom::Surface::Plane { .. } => cover_b(),
-        _ => cover_a(),
-    };
+    let plane_first = matches!(sa, geom::Surface::Plane { .. });
+    let curved = if plane_first { cover_b() } else { cover_a() };
     curved
         .map(|cover| geom_brep::ExtentBall::of_cover(&cover).center())
         .map_err(|_| "a germ face pair's curved face has no cover")
