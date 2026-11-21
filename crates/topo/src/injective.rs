@@ -1941,6 +1941,9 @@ fn present_chart<'a>(
             });
         }
     }
+    if std::env::var_os("CV_SIGN").is_some() && matches!(piece.surface, Surface::Cone { .. }) {
+        eprintln!("CVCHART face={:?} cell={cell:?} sheet={sheet:?} local={:?} ext={:?} clips={:?} outside={:?} edges={:?}", piece.face, piece.local.edges, b.extent, clips.iter().map(|c| (c.side, c.at, c.edges.clone())).collect::<Vec<_>>(), outside, piece.local.edges.iter().map(|&i| b.edges.get(i).map(|e| (e.key, e.uses.iter().map(|u| u.iso).collect::<Vec<_>>()))).collect::<Vec<_>>());
+    }
     if !inside && !outside.is_empty() {
         return if vacuous(b, piece.surface, cell, &outside) {
             Ok(Presentation::Vacuous)
@@ -5676,7 +5679,11 @@ fn sign_on(
             band,
         ),
         Zero::Side(s, a) => {
-            if !zero_on(*s, a, false) {
+            let z = zero_on(*s, a, false);
+            if std::env::var_os("CV_SIGN").is_some() {
+                eprintln!("CVSIGN side={s:?} along={a:?} on={on:?} zero_on={z} across={:?} departs={:?} x={:?} y={:?} fy={fy:?} grad={grad:?}", across(s.axis()), departs(*s), p.x, p.y);
+            }
+            if !z {
                 return None;
             }
             departs(*s)
