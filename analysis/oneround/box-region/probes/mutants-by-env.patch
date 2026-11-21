@@ -1,0 +1,204 @@
+diff --git a/crates/topo/src/cover.rs b/crates/topo/src/cover.rs
+index 7318d69c52..8472a27014 100644
+--- a/crates/topo/src/cover.rs
++++ b/crates/topo/src/cover.rs
+@@ -422,9 +422,15 @@ pub(crate) fn face_cover_unproven<T: Decide>(
+             carrier
+         }
+         Surface::Cylinder { axis, .. } if !crate::validate::is_direction(axis) => carrier,
++        Surface::Plane { .. } | Surface::Cylinder { .. } if crate::session_box::r2_mutant(16) => {
++            and_trim(carrier, boundary())
++        }
+         Surface::Plane { .. } | Surface::Cylinder { .. } => {
+             and_trim(carrier, boundary().map(Cover::convex))
+         }
++        Surface::Cone { .. } if crate::session_box::r2_mutant(10) => {
++            and_trim(carrier, boundary().map(Cover::convex))
++        }
+         Surface::Cone { apex, .. } => match Cover::points(vec![*apex]) {
+             Some(at_apex) => and_trim(carrier, boundary().map(|b| b.hull(at_apex).convex())),
+             None => carrier,
+@@ -484,7 +490,11 @@ pub(crate) fn face_extreme_points<T: Decide>(
+             for e in axes {
+                 let off = e - axis * axis.dot(e);
+                 if crate::validate::is_direction(&off) {
+-                    let reach = off * (big / off.norm()) + e * small;
++                    let reach = if crate::session_box::r2_mutant(14) {
++                        off * (big / off.norm()) - e * small
++                    } else {
++                        off * (big / off.norm()) + e * small
++                    };
+                     at.extend([center + reach, center - reach]);
+                 } else {
+                     let across = axis.cross(u_ref);
+@@ -501,6 +511,9 @@ pub(crate) fn face_extreme_points<T: Decide>(
+                         (half, zero - half),
+                     ];
+                     for (cos, sin) in compass {
++                        if crate::session_box::r2_mutant(11) {
++                            break;
++                        }
+                         let ring = center + (u_ref * cos + across * sin) * big;
+                         at.extend([ring + e * small, ring - e * small]);
+                     }
+@@ -518,7 +531,7 @@ pub(crate) fn face_extreme_points<T: Decide>(
+     candidates
+         .into_iter()
+         .filter(|&q| {
+-            constraint(|| {
++            crate::session_box::r2_mutant(12) || constraint(|| {
+                 use crate::contain::{CurvedPlacement, FaceContainment as F};
+                 match crate::contain::curved_face_placement(body, face, q, band) {
+                     Ok(CurvedPlacement::Trim(Some(F::In | F::OnEdge(_) | F::OnVertex(_)))) => {
+diff --git a/crates/topo/src/session_box.rs b/crates/topo/src/session_box.rs
+index b32bcae0f3..8934dc5bbc 100644
+--- a/crates/topo/src/session_box.rs
++++ b/crates/topo/src/session_box.rs
+@@ -40,6 +40,14 @@ use crate::cover::EdgeUncovered;
+ use crate::entity::{EdgeKey, FaceKey};
+ use crate::validate::ValidationError;
+ 
++/// REVIEW r2: a planted mutant, chosen at run time by `R2_MUTANT`.
++pub(crate) fn r2_mutant(n: u32) -> bool {
++    std::env::var("R2_MUTANT")
++        .ok()
++        .and_then(|s| s.parse::<u32>().ok())
++        == Some(n)
++}
++
+ /// **`body`'s largest `|coordinate|`, bounded from below**: each vertex's
+ /// point and each certified edge's largest `|coordinate|` over its own
+ /// span, every one a coordinate of a point of the body. The fold's
+@@ -106,7 +114,13 @@ fn reads_at<T: Decide>(
+         body,
+         |p| map.transform_point(p),
+         |curve| placed_edge(&iso, curve).map(Some),
+-        |surface| crate::transform::surface_at(motion, surface).map(Some),
++        |surface| {
++            if r2_mutant(5) {
++                Ok(None)
++            } else {
++                crate::transform::surface_at(motion, surface).map(Some)
++            }
++        },
+         edge_cover_where,
+     )
+ }
+@@ -244,7 +258,8 @@ pub(crate) const SESSION_BOX_POINT: &str = "session_box_point";
+ /// [`ValidationError::SessionBoxUncovered`]).
+ pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
+     let reads = unmoved_reads(body, edge_cover_where);
+-    if within(reads.cover, band) {
++    let stage1 = if r2_mutant(1) { Ok(reads.points) } else { reads.cover };
++    if within(stage1, band) {
+         return Ok(());
+     }
+     past_its_carriers(body, reads.points, band)
+@@ -267,6 +282,7 @@ pub(crate) fn asked_before_the_checks<T: Decide>(
+ ) -> Result<Option<ValidationError>, Vec<ValidationError>> {
+     match in_session_box(body, band) {
+         Ok(()) => Ok(None),
++        Err(ValidationError::SessionBoxUncovered { .. }) if r2_mutant(8) => Ok(None),
+         Err(uncovered @ ValidationError::SessionBoxUncovered { .. }) => Ok(Some(uncovered)),
+         Err(finding) => Err(vec![finding]),
+     }
+@@ -287,18 +303,22 @@ pub(crate) fn in_session_box_at<T: Decide>(
+     band: Band,
+ ) -> Result<(), crate::MoveError> {
+     let reads = reads_at(body, motion).map_err(crate::MoveError::Map)?;
+-    if within(reads.cover, band) {
++    let stage1 = if r2_mutant(1) { Ok(reads.points) } else { reads.cover };
++    if within(stage1, band) {
+         return Ok(());
+     }
+     let image = crate::transform::map_isometry(body, &crate::Isometry::Proper(*motion))
+         .map_err(crate::MoveError::Map)?;
+-    past_its_carriers(&image, reads.points, band)
++    past_its_carriers(if r2_mutant(13) { body } else { &image }, reads.points, band)
+         .map_err(|finding| crate::MoveError::NotFinished(crate::NotFinished::new(vec![finding])))
+ }
+ 
+ /// Whether a cover's reach decides its region in the box: anything but a
+ /// definitely negative margin, and no face left uncovered.
+ fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
++    if r2_mutant(15) && cover.is_err() {
++        return true;
++    }
+     cover.is_ok_and(|reach| {
+         past(crate::validate::decide_reported(
+             SESSION_BOX_REACH,
+@@ -323,6 +343,10 @@ fn past(
+             sign: Sign::Negative,
+             margin,
+         }) => Some(margin),
++        Ok(geom_core::Decided {
++            sign: Sign::Zero,
++            margin,
++        }) if r2_mutant(7) => Some(margin),
+         _ => None,
+     }
+ }
+@@ -340,12 +364,25 @@ fn past_its_carriers<T: Decide>(
+ ) -> Result<(), ValidationError> {
+     let mut cover = Ok(points_only(body, |p| p));
+     for (face, _) in body.faces() {
+-        cover = match (cover, crate::cover::face_cover(body, face, band)) {
++        let own = if r2_mutant(6) {
++            let f = body.proven_face(face);
++            let bounded = matches!(
++                f.outer().1.boundary,
++                crate::entity::LoopBoundary::Cycle { .. }
++            );
++            crate::cover::face_cover_unproven(f.surface(), bounded, || {
++                crate::cover::boundary_cover(body, f)
++            })
++        } else {
++            crate::cover::face_cover(body, face, band)
++        };
++        cover = match (cover, own) {
+             (Ok(far), Ok(c)) => Ok(far.max(cover_reach(&c))),
+             (Ok(_), Err(_)) => Err(face),
+             (Err(first), _) => Err(first),
+         };
+     }
++    let cover_as_point = cover.as_ref().ok().copied();
+     let unshown = match cover {
+         Ok(reach) => match past(crate::validate::decide_reported(
+             SESSION_BOX_REACH,
+@@ -358,18 +395,30 @@ fn past_its_carriers<T: Decide>(
+         Err(face) => ValidationError::SessionBoxUncovered { face },
+     };
+     let origin = Point3::origin();
+-    let inside = body
+-        .faces()
+-        .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
+-        .map(|q| (q - origin).norm_inf())
+-        .fold(points, T::max);
++    let inside = if r2_mutant(2) {
++        points
++    } else {
++        body.faces()
++            .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
++            .map(|q| (q - origin).norm_inf())
++            .fold(points, T::max)
++    };
++    let inside = match cover_as_point {
++        Some(c) if r2_mutant(3) => inside.max(c),
++        _ => inside,
++    };
+     match past(crate::validate::decide_reported(
+         SESSION_BOX_POINT,
+         box_margin(inside),
+         band,
+     )) {
+         Some(margin) => Err(ValidationError::OutsideSessionBox { margin }),
+-        None => Err(unshown),
++        None => Err(match unshown {
++            ValidationError::SessionBoxUnshown { margin } if r2_mutant(4) => {
++                ValidationError::OutsideSessionBox { margin }
++            }
++            other => other,
++        }),
+     }
+ }
+ 

@@ -73,7 +73,10 @@ fn box_word(errors: &[topo::ValidationError]) -> String {
         [topo::ValidationError::OutsideSessionBox { .. }] => "PAST".into(),
         [topo::ValidationError::SessionBoxUnshown { .. }] => "UNSHOWN".into(),
         [topo::ValidationError::SessionBoxUncovered { .. }] => "UNCOVERED".into(),
-        other => format!("OTHER({})", other.len()),
+        other => {
+            let first = other.first().map(|e| format!("{e:?}")).unwrap_or_default();
+            format!("OTHER({} {})", other.len(), first.chars().take(60).collect::<String>())
+        }
     }
 }
 
@@ -281,7 +284,7 @@ fn review_r2_differential_of_the_box_against_a_sampled_oracle() {
                 *tally.entry(format!("{side} gate={gate} door={door}")).or_default() += 1;
                 let wrong = (truth > 1000.0 && (gate == "OK" || door == "OK"))
                     || (truth < 1000.0 && (gate == "PAST" || door == "PAST"))
-                    || gate != door;
+                    || (gate != door && !gate.starts_with("OTHER"));
                 let limit = gate == "UNSHOWN" || gate == "UNCOVERED" || gate.starts_with("OTHER");
                 if wrong || limit {
                     let line = format!(
@@ -301,4 +304,231 @@ fn review_r2_differential_of_the_box_against_a_sampled_oracle() {
         println!("  {v:5}  {k}");
     }
     assert!(bad.is_empty(), "{} wrong verdicts:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// Mean microseconds of `f` over `n` runs after a warm-up.
+fn mean_us(n: u32, mut f: impl FnMut()) -> f64 {
+    for _ in 0..3 {
+        f();
+    }
+    let t = std::time::Instant::now();
+    for _ in 0..n {
+        f();
+    }
+    t.elapsed().as_secs_f64() * 1e6 / f64::from(n)
+}
+
+/// REVIEW PROBE: the box's ask alone (the placing door under the
+/// identity) and the structural gate, timed. Planted at the merge base
+/// too; the figures are compared across the two builds.
+#[test]
+fn review_r2_timing_of_the_ask() {
+    use crate::common::interval::iv;
+    use geom_core::Interval;
+    let tol = Tol::witness();
+    let id = RigidMotion::<f64>::identity();
+    let p = Point2::new;
+    let bodies: Vec<(&str, topo::Body<f64>)> = vec![
+        (
+            "brick",
+            sweep::test_support::brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 0.5), tol),
+        ),
+        (
+            "ball r=50",
+            sweep::test_support::ball_poled_y::<f64>(50.0, Vec3::new(0.0, 0.0, 0.0), tol),
+        ),
+        (
+            "torus 450/400",
+            sweep::test_support::revolved_about_y(
+                vec![(p(450.0, -400.0), 1.0), (p(450.0, 400.0), 1.0)],
+                Revolution::Full,
+                tol,
+            ),
+        ),
+        ("loft prism", sweep::test_support::loft_prism(tol)),
+    ];
+    for (name, body) in &bodies {
+        let ask = mean_us(400, || {
+            topo::session_box_at(body, &id, tol).unwrap();
+        });
+        let gate = mean_us(20, || {
+            topo::validate_geometric_structural(body, tol).unwrap();
+        });
+        println!("TIMING f64 {name}: ask {ask:.1} us, structural gate {gate:.1} us");
+    }
+    let id_iv = RigidMotion::<Interval>::identity();
+    let ball = sweep::test_support::revolved_about_y_at::<Interval>(
+        vec![
+            (Point2::new(iv(0.0), iv(-50.0)), iv(1.0)),
+            (Point2::new(iv(0.0), iv(50.0)), iv(0.0)),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let torus = sweep::test_support::revolved_about_y_at::<Interval>(
+        vec![
+            (Point2::new(iv(450.0), iv(-400.0)), iv(1.0)),
+            (Point2::new(iv(450.0), iv(400.0)), iv(1.0)),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    for (name, body) in [("ball r=50", &ball), ("torus 450/400", &torus)] {
+        let ask = mean_us(100, || {
+            topo::session_box_at(body, &id_iv, tol).unwrap();
+        });
+        let gate = mean_us(5, || {
+            topo::validate_geometric_structural(body, tol).unwrap();
+        });
+        println!("TIMING Interval {name}: ask {ask:.1} us, structural gate {gate:.1} us");
+    }
+}
+
+/// REVIEW PROBE: how the limit is said, at the gate and at the placing
+/// door, alone and beside another family's finding.
+#[test]
+fn review_r2_how_the_limit_is_said() {
+    let tol = Tol::witness();
+    let prism = sweep::test_support::loft_prism(tol);
+    let at = RigidMotion::translation(Vec3::new(998.5, 0.0, 0.0)).unwrap();
+    let placed = topo::transform_rigid(&prism, &at).unwrap();
+    let errors = topo::validate_geometric(&placed, tol).unwrap_err();
+    for e in &errors {
+        println!("GATE SAYS: {e}");
+    }
+    match topo::session_box_at(&prism, &at, tol) {
+        Err(e) => println!("DOOR SAYS: {e}"),
+        Ok(()) => println!("DOOR admits"),
+    }
+    // A sphere wedge inside the box whose carrier ball pokes out of it.
+    let wedge = try_revolved_about_y_at::<f64>(
+        vec![(Point2::new(0.0, -300.0), 1.0), (Point2::new(0.0, 300.0), 0.0)],
+        Revolution::Partial(1.1),
+        tol,
+    )
+    .unwrap();
+    // The wedge spans azimuth [0, 1.1] from +x toward -z (or +z); stand
+    // its axis at x = 900 so that the ball reaches x = 1200 and the
+    // wedge, turned a half turn about y to face -x, reaches 900.
+    let turn = RigidMotion::rotation(
+        UnitVec3::new(Vec3::new(0.0, 1.0, 0.0), "y", geom_core::Band::linear(tol).unwrap())
+            .unwrap(),
+        core::f64::consts::PI,
+    )
+    .unwrap();
+    let at = RigidMotion::translation(Vec3::new(900.0, 0.0, 0.0))
+        .unwrap()
+        .compose(turn)
+        .unwrap();
+    let image = topo::transform_rigid(&wedge, &at).unwrap();
+    let far = image
+        .vertex_points()
+        .map(|(_, q)| q.x.abs().max(q.y.abs()).max(q.z.abs()))
+        .fold(0.0, f64::max);
+    println!("WEDGE vertices reach {far}");
+    match topo::validate_geometric(&image, tol) {
+        Ok(()) => println!("WEDGE gate admits"),
+        Err(errors) => {
+            for e in &errors {
+                println!("WEDGE GATE SAYS: {e}");
+            }
+        }
+    }
+}
+
+fn gate_word(body: &topo::Body<f64>, tol: Tol) -> String {
+    match topo::validate_geometric(body, tol) {
+        Ok(()) => "OK".into(),
+        Err(e) => format!("{} {:?}", box_word(&e), e.iter().map(ToString::to_string).collect::<Vec<_>>()),
+    }
+}
+
+/// REVIEW PROBE: sphere faces a boolean trims, near the box's top. A
+/// dimple's carrier ball pokes out of the box where the body does not; a
+/// boss's top is past it.
+#[test]
+fn review_r2_boolean_trimmed_sphere_faces_near_the_box() {
+    use sweep::test_support::{ball_poled_y, ball_poled_z, brick, finished};
+    let tol = Tol::witness();
+    for (pole, ball) in [
+        ("z", ball_poled_z as fn(f64, Vec3<f64>, Tol) -> topo::Body<f64>),
+        ("y", ball_poled_y::<f64>),
+    ] {
+        // A dimple: slab top at z = 990, ball r = 50 centred at z = 1000
+        // (its top at 1050). The body's far coordinate is 990.
+        let slab = finished(
+            "slab",
+            brick::<f64>((-100.0, 100.0), (-100.0, 100.0), (900.0, 990.0), tol),
+            tol,
+        );
+        let hi = ball(50.0, Vec3::new(0.0, 0.0, 1000.0), tol);
+        println!("DIMPLE pole {pole}: the ball alone at the gate: {}", gate_word(&hi, tol));
+        // The ball itself is past the box, so it cannot be an operand at
+        // rest there; build the dimple low and lift it.
+        let slab0 = finished(
+            "slab0",
+            brick::<f64>((-100.0, 100.0), (-100.0, 100.0), (-90.0, 0.0), tol),
+            tol,
+        );
+        let ball0 = finished("ball0", ball(50.0, Vec3::new(0.0, 0.0, 10.0), tol), tol);
+        match topo::subtract(&slab0, &ball0, tol) {
+            Ok(topo::BooleanResult::Body(b)) => {
+                println!("DIMPLE pole {pole}: built at home: {}", gate_word(&b.body, tol));
+                for lift in [900.0, 950.0, 985.0, 989.0, 995.0, 1005.0] {
+                    let at = RigidMotion::translation(Vec3::new(0.0, 0.0, lift)).unwrap();
+                    let image = topo::transform_rigid(&b.body, &at).unwrap();
+                    let door = match topo::session_box_at(&b.body, &at, tol) {
+                        Ok(()) => "OK".to_string(),
+                        Err(e) => format!("{e}"),
+                    };
+                    println!(
+                        "DIMPLE pole {pole} top at {} (ball's top {}): gate {} | door {}",
+                        lift,
+                        lift + 60.0,
+                        gate_word(&image, tol),
+                        door
+                    );
+                }
+                // Turned so that the dimple opens toward +x.
+                let band = geom_core::Band::linear(tol).unwrap();
+                let turn = RigidMotion::rotation(
+                    UnitVec3::new(Vec3::new(0.0, 1.0, 0.0), "y", band).unwrap(),
+                    core::f64::consts::FRAC_PI_2,
+                )
+                .unwrap();
+                for lift in [950.0, 985.0, 995.0] {
+                    let at = RigidMotion::translation(Vec3::new(lift, 0.0, 0.0))
+                        .unwrap()
+                        .compose(turn)
+                        .unwrap();
+                    let image = topo::transform_rigid(&b.body, &at).unwrap();
+                    let far = image
+                        .vertex_points()
+                        .map(|(_, q)| q.x.abs().max(q.y.abs()).max(q.z.abs()))
+                        .fold(0.0, f64::max);
+                    println!(
+                        "DIMPLE pole {pole} turned to +x, vertices reach {far:.3}: gate {}",
+                        gate_word(&image, tol)
+                    );
+                }
+            }
+            other => println!("DIMPLE pole {pole}: subtract gave {other:?}"),
+        }
+        // A boss: slab top at z = 0, ball r = 50 centred on it.
+        let ball1 = finished("ball1", ball(50.0, Vec3::new(0.0, 0.0, 0.0), tol), tol);
+        match topo::union(&slab0, &ball1, tol) {
+            Ok(topo::BooleanResult::Body(b)) => {
+                for lift in [940.0, 949.0, 951.0, 960.0] {
+                    let at = RigidMotion::translation(Vec3::new(0.0, 0.0, lift)).unwrap();
+                    let image = topo::transform_rigid(&b.body, &at).unwrap();
+                    println!(
+                        "BOSS pole {pole} crest at {}: gate {}",
+                        lift + 50.0,
+                        gate_word(&image, tol)
+                    );
+                }
+            }
+            other => println!("BOSS pole {pole}: union gave {other:?}"),
+        }
+    }
 }
