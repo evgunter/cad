@@ -21,6 +21,9 @@
 //!   cell-pair counts printed;
 //! - a windowed tube holds across its caps' circles, where each cap's
 //!   two semicircles meet on the walls' seams;
+//! - a three-arc disc's filleted rim holds across the joints of its
+//!   band's foot parallel, as built, turned and far from the origin, and
+//!   two such discs through each other at a joint read `Violated`;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -1585,6 +1588,123 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             }
         }
     }
+}
+
+/// **The three-arc disc, its top rim filleted**: the disc of radius
+/// `0.5` and height `1` whose circle is authored as three equal arcs,
+/// its top rim filleted at `0.1`, then moved by `m`. The band is one
+/// torus face whose foot parallel is three arcs, joined at the wall's
+/// three seams, at azimuths `0`, `2π/3` and `4π/3`.
+fn filleted_arc_disc<T: Scalar>(m: Option<&geom_core::Affine3<f64>>) -> topo::AtRestBody<T> {
+    use sweep::blend::fillet_edges;
+    use sweep::test_support::{arc_polygon, finished, prism_at};
+    let at = T::from_f64;
+    let verts = arc_polygon(3, 0.5, Point2::new(0.0, 0.0))
+        .into_iter()
+        .map(|(p, bulge)| (p.map(at), at(bulge)))
+        .collect();
+    let disc = finished(
+        "the disc",
+        prism_at(verts, T::zero(), T::one(), tol()),
+        tol(),
+    );
+    let rim: Vec<topo::EdgeKey> = disc
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                disc.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if (mid(center.z) - 1.0).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rim.len(), 3, "the rim is three arcs");
+    let filleted = fillet_edges(&disc, &rim, at(0.1), tol())
+        .map_err(|e| e.error)
+        .expect("the rim fillets")
+        .body;
+    match m {
+        Some(m) => moved(&filleted, m),
+        None => filleted,
+    }
+}
+
+/// A rigid turn of one radian about a generic axis through a point off
+/// the origin, and a placement a hundred units from the origin.
+fn generic_poses() -> [(&'static str, Option<geom_core::Affine3<f64>>); 3] {
+    use geom_core::{Affine3, Vec3};
+    [
+        ("as built", None),
+        (
+            "turned about a generic axis",
+            Some(Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(0.48, -0.6, 0.64),
+                1.0,
+            )),
+        ),
+        (
+            "a hundred units from the origin",
+            Some(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+        ),
+    ]
+}
+
+/// **A rim band whose foot parallel is split at the wall's seams holds
+/// across the joints.** On the band's chart the parallel is three edges
+/// of one line, each ending at the vertex the next starts at, their
+/// stored ends at a joint two readings of one point (equal at one joint
+/// of the body as built, an ulp apart at another). A cell beside the
+/// line across a joint is covered by the two edges together: below the
+/// parallel it holds none of the band, above it the parallel is its
+/// side. Holds at both scalars, as built, turned about a generic axis
+/// and a hundred units from the origin. Red if a side is read against
+/// one edge of its line alone (the wall against the band then runs out
+/// of depth at a joint), or if two edges are joined only where their
+/// stored ends agree.
+#[test]
+fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
+    for (what, m) in generic_poses() {
+        let [report, _] = holds_at_both(
+            &format!("the three-arc disc's filleted rim, {what}"),
+            filleted_arc_disc::<f64>(m.as_ref()).into_body(),
+            filleted_arc_disc::<Interval>(m.as_ref()).into_body(),
+        );
+        println!("[joint] {what}: {:?}", report.receipt);
+    }
+}
+
+/// **Two filleted discs through each other at a joint read violated.**
+/// The second, grafted in as a solid of its own, is moved `0.02` along
+/// `y` and `0.01` up, so the two bands pass through each other at
+/// azimuths `0`, where each has a joint, and `π`. Faces of two solids share nothing, so the
+/// crossing is decided by distance; the row pins that the joint reading
+/// leaves a crossing beside a joint to be found. A crossing of two faces
+/// that share the joint is no kernel operation's to build; the joint's
+/// own guards are `injective`'s unit rows.
+#[test]
+fn two_filleted_discs_through_each_other_at_a_joint_read_violated() {
+    fn folded_at<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let disc = filleted_arc_disc::<T>(None);
+        let mut folded = disc.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.0, 0.02, 0.01)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&disc, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    let folded = folded_at::<f64>();
+    let report = injective(&folded, None, BUDGET);
+    same_class(
+        "the folded discs",
+        &report,
+        &injective(&folded_at::<Interval>(), None, BUDGET),
+    );
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two discs cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
 }
 
 /// The unit disc on the `xy` sketch plane, at `T`.

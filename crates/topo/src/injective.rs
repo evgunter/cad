@@ -1730,13 +1730,15 @@ fn run_through(
 ) -> Vec<usize> {
     let joints = joints(b, surface, on_line, held);
     let mut run = vec![ei];
-    while let Some(next) = joints.iter().find_map(|&(i, j, _)| {
-        match (run.contains(&i), run.contains(&j)) {
-            (true, false) => Some(j),
-            (false, true) => Some(i),
-            _ => None,
-        }
-    }) {
+    while let Some(next) =
+        joints
+            .iter()
+            .find_map(|&(i, j, _)| match (run.contains(&i), run.contains(&j)) {
+                (true, false) => Some(j),
+                (false, true) => Some(i),
+                _ => None,
+            })
+    {
         run.push(next);
     }
     run
@@ -7715,6 +7717,64 @@ mod presentation_rows {
         }
     }
 
+    /// **A joint is read by each edge's low and high end along the
+    /// line, not by its curve's start and end**: the first edge stored
+    /// against its loop (its curve runs down the line, the loop runs it
+    /// backward), so its start is its high end, the joint. Red if an
+    /// edge's ends are taken in the curve's order.
+    #[test]
+    fn a_joint_is_read_at_an_edges_high_end_whichever_way_its_curve_runs() {
+        let mut b = stepped([0.5, up()], [5, 5], 0.5);
+        b.edges[0] = Rim {
+            uses: vec![Use {
+                plus: false,
+                ..rim(1, [5, 1], Axis::V, 0.5, (0.5, 0.5), (0.2, 0.5)).uses[0].clone()
+            }],
+            ..rim(1, [5, 1], Axis::V, 0.5, (0.5, 0.5), (0.2, 0.5))
+        };
+        let s = cylinder();
+        assert_eq!(chart(&s, &b, &[0, 1], BELOW.0, BELOW.1), Read::Vacuous);
+        assert!(matches!(
+            chart(&s, &b, &[0, 1], ABOVE.0, ABOVE.1),
+            Read::Of(..)
+        ));
+    }
+
+    /// **A zero side across a joint lies on its edges**
+    /// ([`Along::on_edges`]): both edges of the line shared, the cell
+    /// above it across the joint, the two stored ends an ulp apart. Red
+    /// if the zero side's cover is read without the joint (the side is
+    /// then taken to run past its edges, and a plane holding both no
+    /// longer vanishes on it by membership).
+    #[test]
+    fn a_zero_side_across_a_joint_lies_on_its_edges() {
+        let b = stepped([0.5, up()], [5, 5], 0.5);
+        let (s, local) = (
+            cylinder(),
+            Local {
+                edges: vec![0, 1],
+                vertices: Vec::new(),
+            },
+        );
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: ABOVE.0,
+            v: ABOVE.1,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(p)) = present_chart(&piece, &[0, 1], &[], band()) else {
+            panic!("the cell above presents")
+        };
+        let Zero::Side(Side::YLo, along) = &p.zero else {
+            panic!("the line is the zero side: {:?}", p.zero)
+        };
+        assert!(along.on_edges);
+    }
+
     /// **Edges that share no vertex are not joined**: the two edges end
     /// at two vertices, an ulp apart, so the face may come through
     /// between them, and neither cell is read. Where their stored ranges
@@ -7756,12 +7816,7 @@ mod presentation_rows {
         let s = cylinder();
         let line = iv0(0.5);
         assert!(
-            vacuous(
-                &b,
-                &s,
-                BELOW,
-                &[(Side::YLo, line, 0), (Side::YLo, line, 1)]
-            ),
+            vacuous(&b, &s, BELOW, &[(Side::YLo, line, 0), (Side::YLo, line, 1)]),
             "the control: both edges with the face above"
         );
         assert!(!vacuous(
