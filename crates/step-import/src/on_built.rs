@@ -78,6 +78,7 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
             .into_iter()
             .map(|p| line_distance_sup(p, line.origin, line.dir))
             .fold(0.0_f64, max_bound),
+        (Curve3::Circle(printed), Curve3::Circle(built)) => arc_on_circle(printed, trim, built),
         (printed, built) => {
             let (Some(printed), Some(built)) = (Conic::of(printed), Conic::of(built)) else {
                 return None;
@@ -232,6 +233,90 @@ pub(crate) fn segment_distance_sup(
 /// [`segment_distance_sup`] of an exact point.
 pub(crate) fn point_segment_sup(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     segment_distance_sup(pt(p), (pt(a), pt(b)))
+}
+
+/// **A printed circle's arc on a built circle**, over the arc's trim
+/// `[t0, t1]` alone (module docs). Write a printed point as
+/// `P(θ) = c₁ + r₁(cos θ·u + sin θ·v)`. Its height over the built plane,
+/// `h = (P − c₂)·n`, and its squared distance from the built centre,
+/// `S = |P − c₂|²`, are each `α + β cos θ + γ sin θ`, a sinusoid whose
+/// extremes over an interval of θ lie at the interval's ends or at
+/// `α ± √(β² + γ²)` where its critical angle lies inside; both critical
+/// values are taken wherever the angle is within a slack of the trim, so
+/// the candidates bound each quantity over the trim. The distance from
+/// the built circle is `hypot(h, ρ − r₂)` with `ρ² = S − h²`, so it is
+/// at most `hypot(max |h|, max(r₂ − ρ_min, ρ_max − r₂))`, with
+/// `ρ_min² ≥ S_min − max h²` and `ρ_max² ≤ S_max`. The circles' frames
+/// and their `f64` closed forms are read as exact; every sum is outward.
+fn arc_on_circle(
+    printed: &geom::Circle<f64>,
+    (t0, t1): (f64, f64),
+    built: &geom::Circle<f64>,
+) -> f64 {
+    let iv = Interval::point;
+    let (c1, u, n1, r1) = (
+        printed.frame.origin,
+        printed.frame.u_ref,
+        printed.frame.axis,
+        printed.radius(),
+    );
+    let v = n1.cross(u);
+    let (c2, n, r2) = (built.frame.origin, built.frame.axis, built.radius());
+    let off = sub(pt(c1), pt(c2));
+    let (u, v, n) = (vc(u), vc(v), vc(n));
+    let dot = geom_core::interval::dot;
+    let r = iv(r1);
+    // h = α + β cos θ + γ sin θ; S = A + B cos θ + C sin θ.
+    let (alpha, beta, gamma) = (dot(&off, &n), r * dot(&u, &n), r * dot(&v, &n));
+    let big_a = geom_core::interval::norm_sq(&off) + r.sqr();
+    let (big_b, big_c) = (iv(2.0) * r * dot(&off, &u), iv(2.0) * r * dot(&off, &v));
+    let at = |theta: f64| {
+        let (sn, cs) = theta.sin_cos();
+        (iv(cs), iv(sn))
+    };
+    let period = geom::conic_period::<f64>().length();
+    let slack = 1e-6;
+    let inside = |theta: f64| {
+        let d = (theta - t0).rem_euclid(period);
+        t1 - t0 >= period - slack || d <= (t1 - t0) + slack || d >= period - slack
+    };
+    let extremes = |a: Interval, b: Interval, c: Interval| {
+        let mut values = Vec::with_capacity(4);
+        for t in [t0, t1] {
+            let (cs, sn) = at(t);
+            values.push(a + b * cs + c * sn);
+        }
+        let amp = (b.sqr() + c.sqr()).sqrt();
+        let mid = |x: Interval| 0.5 * x.lo() + 0.5 * x.hi();
+        let peak = mid(c).atan2(mid(b));
+        if inside(peak) {
+            values.push(a + amp);
+        }
+        if inside(peak + core::f64::consts::PI) {
+            values.push(a - amp);
+        }
+        values
+    };
+    let hs = extremes(alpha, beta, gamma);
+    let ss = extremes(big_a, big_b, big_c);
+    let h_max = hs.iter().map(|h| h.mag()).fold(0.0_f64, max_bound);
+    let s_min = ss
+        .iter()
+        .map(|x| x.lo())
+        .fold(f64::INFINITY, geom_core::interval::min_bound);
+    let s_max = ss.iter().map(|x| x.hi()).fold(0.0_f64, max_bound);
+    let inner = iv(s_min) - iv(h_max).sqr();
+    let rho_min = if inner.lo() > 0.0 {
+        inner.sqrt().lo()
+    } else {
+        0.0
+    };
+    let rho_max = iv(s_max).sqrt().hi();
+    let radial = (iv(r2) - iv(rho_min))
+        .hi()
+        .max((iv(rho_max) - iv(r2)).hi())
+        .max(0.0);
+    (iv(h_max).sqr() + iv(radial).sqr()).sqrt().hi()
 }
 
 /// **A conic as `c + cos θ·A + sin θ·B`** (module docs): its centre, its
