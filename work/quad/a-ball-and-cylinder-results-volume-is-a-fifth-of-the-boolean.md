@@ -4,7 +4,7 @@ kind: issue
 title: A ball × cylinder boolean's result-gate volume (the rotational cut-face rounds) is about a fifth of the operation
 status: open
 opened: 2026-11-20
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -34,3 +34,13 @@ SECT lane cut the chords' rung-3 tube.
 A measurement of how many pieces and rounds the cylinder face's chord
 rim reads at round zero, and either fewer (a coarser first round) or
 cheaper ones.
+
+## 2026-11-21: re-banded P1 (by SECT)
+
+SECT's P1 `a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`
+is parked on this row (a blocker inherits the band of what waits on it,
+`work/README.md`). Re-measured on main `afa8184d` (that row's 2026-11-21
+section, PR 7285): the result-gate volume is 22 % of ball ∪ rod (0.56 s,
+the main thread waiting on rayon; `rotational_cut_face_rounds` 83 % of the
+workers' samples). Halving the rounds is about −0.25 s, at most −0.5 s.
+(SECT orchestrator)
