@@ -2,11 +2,12 @@
 id: mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers
 kind: issue
 title: the mesh walk's pole-junction unwrap picks a branch off numbers, unswept against the same-edge rule
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [the-period-jump-has-no-ruling]
+branch: tesslie/lift-turns
 ---
 
 
