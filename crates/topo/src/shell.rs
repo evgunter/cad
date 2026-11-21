@@ -4607,8 +4607,17 @@ fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds
     };
     let report = embedded(&side, band, GATE_BUDGETS);
     if std::env::var_os("CV_CAVITY_F64").is_some() {
-        let kinds: Vec<String> = cavity.faces().map(|(k, f)| format!("{k:?}={:?}", cavity.get_surface(f.surface))).collect();
-        eprintln!("CAVITY faces={} {:?} verdict={:?} receipt={:?}", cavity.faces().count(), kinds, report.verdict, report.receipt);
+        let kinds: Vec<String> = cavity
+            .faces()
+            .map(|(k, f)| format!("{k:?}={:?}", cavity.get_surface(f.surface)))
+            .collect();
+        eprintln!(
+            "CAVITY faces={} {:?} verdict={:?} receipt={:?}",
+            cavity.faces().count(),
+            kinds,
+            report.verdict,
+            report.receipt
+        );
     }
     match report.verdict {
         Embedding::Embedded => Ok(()),

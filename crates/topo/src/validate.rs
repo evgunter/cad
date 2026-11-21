@@ -10924,8 +10924,16 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
             return None;
         }
         let measure_clock = std::time::Instant::now();
+        crate::gate_measure::walk_start();
         let measure_report = embedded(&side, band, GATE_BUDGETS);
         let measure_secs = measure_clock.elapsed();
+        crate::gate_measure::walk_finish(&measure_report, measure_secs.as_secs_f64());
+        crate::gate_measure::continue_cost(
+            &side,
+            band,
+            &measure_report,
+            measure_secs.as_secs_f64(),
+        );
         crate::gate_measure::log(body, &side.faces, &measure_report, measure_secs);
         crate::gate_measure::decompose(
             body,
