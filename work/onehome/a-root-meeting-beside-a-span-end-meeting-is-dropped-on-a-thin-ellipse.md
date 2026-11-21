@@ -66,7 +66,7 @@ both roots `θ_hi ± φ₀` are read (`Slant::roots`), and ringing drops any
 within the band of the found meeting's point. Reading both roots
 whenever a meeting is found breaks the deflation's own premise: where
 the found meeting is a root, its twin from the square root lands
-`~√ulp·r` off and past the span's end, and 12 sweep rows refuse on
+`~√ulp·r` off and past the span's end, and 14 sweep rows refuse on
 `curve_pair_span_past_reach_straddle`.
 
 **What it answers now.** Both draws are never fewer than two meetings.

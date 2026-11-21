@@ -2542,9 +2542,9 @@ enum Harmonic<T> {
 /// the found one, but on the conic's other branch. An angle not decided
 /// within the ring is read past it, so both roots are read.
 ///
-/// The ring in angle is `e/|C′|max`, `e` the band's escalation: an angle within it of `θ_J` runs at
-/// most `e` of arc, so its point is within `e` of the found one, a chord
-/// no longer than that arc.
+/// The ring in angle is `e/|C′|max`, `e` the band's escalation: an
+/// angle within it of `θ_J` runs at most `e` of arc, so its point is
+/// within `e` of the found one, a chord no longer than that arc.
 fn reflected<T: Decide>(
     k: &dyn Conic<T>,
     r: &Range<T>,
