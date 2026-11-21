@@ -151,7 +151,7 @@ red of main's.
     So no straddle becomes a gate rejection, and the body describes a
     transition that never happens. Nothing in my 1e-12 counts shows one.
 
-- **D4 (M5): partly confirmed.**
+- **D4 (M5): confirmed.**
   - The m1 pin `the_deflated_reading_charges_the_slope_twice_the_noise`
     is red on m1 by arithmetic. At θ = π/4, perturbing `c₂` by `noise`
     moves `F′` by `2·noise·|sin 2θ| = 2·noise`, which is past a
