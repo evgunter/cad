@@ -73,8 +73,7 @@ pub fn ellipse_torus_roots<T: Decide>(
         geom::Curve3::Ellipse(..),
         Some(conic),
         &geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
@@ -86,6 +85,7 @@ pub fn ellipse_torus_roots<T: Decide>(
                    a surface that is not a torus",
         ));
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     torus_walk(
         &conic,
         (center, axis, major_radius, minor_radius),
@@ -273,8 +273,7 @@ mod tests {
                 // The door's noise in residual metres, and the least slope
                 // of the true distance per metre of arc at a crossing.
                 let geom::Surface::Torus {
-                    center,
-                    axis,
+                    frame,
                     major_radius,
                     minor_radius,
                     ..
@@ -282,6 +281,7 @@ mod tests {
                 else {
                     unreachable!("a torus")
                 };
+                let (center, axis) = (frame.origin(), frame.axis());
                 let conic = e.conic().unwrap();
                 let h = crate::conic_torus_harmonics(
                     &conic,
@@ -367,10 +367,12 @@ mod tests {
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01);
         let e = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.5);
         let ball = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.5,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         for (carrier, surface) in [(&circle, &ring), (&e, &ball)] {
             let got = ellipse_torus_roots(carrier, 0.0, 1.0, surface, band());
@@ -570,12 +572,15 @@ mod torus_rows {
 
     impl Pose {
         fn build(&self) -> (geom::Curve3<f64>, geom::Surface<f64>) {
+            // The pose's stated bits where they are a frame already, which
+            // its oracle reads; squared where not.
+            let (o, n, u) = (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::from_array(self.n),
+                Vec3::from_array(self.u),
+            );
             let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::from_array(self.n),
-                    Vec3::from_array(self.u),
-                ),
+                geom::Frame::admitted(o, n, u).unwrap_or_else(|| geom::Frame::new(o, n, u)),
                 self.semi[0],
                 self.semi[1],
             ));
@@ -1046,18 +1051,12 @@ mod torus_rows {
                     let (
                         geom::Curve3::Ellipse(
                             ellipse @ geom::Ellipse {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        axis,
-                                        u_ref,
-                                    },
+                                frame: carrier_frame_18,
                                 ..
                             },
                         ),
                         geom::Surface::Torus {
-                            center: hub,
-                            axis: t_axis,
+                            frame,
                             major_radius,
                             minor_radius,
                             ..
@@ -1066,6 +1065,12 @@ mod torus_rows {
                     else {
                         unreachable!("the pose is an ellipse and a torus")
                     };
+                    let (center, axis, u_ref) = (
+                        carrier_frame_18.origin(),
+                        carrier_frame_18.axis(),
+                        carrier_frame_18.u_ref(),
+                    );
+                    let (hub, t_axis) = (frame.origin(), frame.axis());
                     let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                     let (answer, roots) = match ellipse_torus_roots(&e, t0, t1, &s, band) {
                         Ok(Ok(CircleRoots::Certified(found))) => {
@@ -1082,8 +1087,8 @@ mod torus_rows {
                             let r = crate::conic_torus_residual(
                                 &conic,
                                 geom::Line {
-                                    origin: *hub,
-                                    dir: *t_axis,
+                                    origin: hub,
+                                    dir: t_axis,
                                 },
                                 *major_radius,
                                 *minor_radius,
@@ -1101,11 +1106,11 @@ mod torus_rows {
                          \"t_axis\": {}, \"R\": {major_radius:?}, \"r\": {minor_radius:?}, \
                          \"t0\": {t0:?}, \"t1\": {t1:?}, \"answer\": \"{answer}\", \"roots\": {roots:?}, \
                          \"residuals\": {bounds:?}}}",
-                        pt(*center),
-                        v(*axis),
-                        v(*u_ref),
-                        pt(*hub),
-                        v(*t_axis),
+                        pt(center),
+                        v(axis),
+                        v(u_ref),
+                        pt(hub),
+                        v(t_axis),
                     )
                     .unwrap();
                 }

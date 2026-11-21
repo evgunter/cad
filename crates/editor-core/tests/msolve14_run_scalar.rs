@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7e2d_2c34_0060_0c3e),
-    (1e-6, 0x3772_357e_797b_666c),
-    (1e-12, 0x6477_f71e_7306_a056),
+    (1e-9, 0x49aa_a7be_d3c8_eae9),
+    (1e-6, 0xcb88_5110_3f96_3ea8),
+    (1e-12, 0x34c6_123b_5cf3_4184),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -885,6 +885,13 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// origin became the wall's middle from construction data, where the
 /// fitted centroid had stood to rounding: the digest hashes the stored
 /// planes' origins, so it moved; the solved poses did not.
+///
+/// RE-PINNED when the carriers held their frames as rigid motions: the
+/// digest feeds every carrier's `Debug`, and a surface variant now holds
+/// its frame. Corpus-wide the stored data is main's bits except the
+/// blends' squared frames (a chamfer plane's normal renormalized, a
+/// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
+/// body on both trees.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

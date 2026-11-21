@@ -626,9 +626,11 @@ mod region_rows {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let plane = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
         };
         let region = |b: &crate::body::Body<f64>| {
             let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);

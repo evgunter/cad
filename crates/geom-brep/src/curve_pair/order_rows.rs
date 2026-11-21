@@ -626,8 +626,8 @@ fn turned(v: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
 fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
     let k_ = c.conic().unwrap();
     let f = k_.frame();
-    let origin = at + turned(f.origin - at, k, t);
-    let (axis, u) = (turned(f.axis, k, t), turned(f.u_ref, k, t));
+    let origin = at + turned(f.origin() - at, k, t);
+    let (axis, u) = (turned(f.axis(), k, t), turned(f.u_ref(), k, t));
     match c {
         Curve3::Circle(_) => Curve3::circle(origin, axis, k_.semi_axes().0, u),
         _ => {
@@ -658,7 +658,7 @@ fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let vertex = a.eval(sa.1);
     let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
     let tangent = tangent.normalize();
-    let normal = a.conic().unwrap().frame().axis;
+    let normal = a.conic().unwrap().frame().axis();
     let mut bad = Vec::new();
     let whole = [
         Vec3::new(1.0, 0.0, 0.0),
@@ -723,7 +723,7 @@ fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_o
     let vertex = a.eval(sa.0);
     let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
     let tangent = tangent.normalize();
-    let normal = a.conic().unwrap().frame().axis;
+    let normal = a.conic().unwrap().frame().axis();
     let cross = tangent.cross(normal).normalize();
     let mut bad = Vec::new();
     for (label, k, t) in [
@@ -1099,12 +1099,12 @@ fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
     let vertex = a.eval(sa.1);
     let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
     let tangent = tangent.normalize();
-    let normal = a.conic().unwrap().frame().axis;
+    let normal = a.conic().unwrap().frame().axis();
     let cross = tangent.cross(normal).normalize();
     let posed = |t: f64, d: f64| {
         let turned = spun(&b0, vertex, cross, t);
         let shared = normal
-            .cross(turned.conic().unwrap().frame().axis)
+            .cross(turned.conic().unwrap().frame().axis())
             .normalize();
         let b = turned.translated(shared * d).unwrap();
         let gap = span_gap(&a, sa, &b, sb);
@@ -1173,7 +1173,7 @@ fn the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order() {
         let vertex = a.eval(pivot);
         let (_, tangent) = a.conic().unwrap().jet_at(pivot);
         let tangent = tangent.normalize();
-        let normal = a.conic().unwrap().frame().axis;
+        let normal = a.conic().unwrap().frame().axis();
         for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
             .iter()
             .enumerate()
@@ -1266,7 +1266,7 @@ fn the_needle_far_from_the_origin_reads_as_at_it() {
     let vertex = a0.eval(sa.1);
     let (_, tangent) = a0.conic().unwrap().jet_at(sa.1);
     let tangent = tangent.normalize();
-    let normal = a0.conic().unwrap().frame().axis;
+    let normal = a0.conic().unwrap().frame().axis();
     let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
     let far = a0.eval(sa.0);
     let (_, far_tangent) = a0.conic().unwrap().jet_at(sa.0);

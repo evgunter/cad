@@ -275,11 +275,12 @@ pub fn conic_quadric_roots<T: Decide>(
         (
             &geom::Curve3::Circle(circle),
             &geom::Surface::Sphere {
-                center: s_center,
+                frame: sphere_frame,
                 radius: s_radius,
                 ..
             },
         ) => {
+            let s_center = sphere_frame.origin();
             // `A₂ ≡ 0`: the first harmonic, in its factored form.
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             return first_harmonic_roots(
@@ -304,12 +305,12 @@ pub fn conic_quadric_roots<T: Decide>(
         (
             _,
             &geom::Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             return cone_roots(&conic, (apex, axis, half_angle), (t0, t1), surface, band);
         }
         _ => {}
@@ -359,21 +360,22 @@ fn quadric_ladder<T: Decide>(
     (t0, t1): (T, T),
 ) -> Option<QuadricLadder<'static, T>> {
     let (h, arm, quadric): (_, fn(Indeterminate) -> ConicQuadricRefusal, _) = match *surface {
-        geom::Surface::Sphere { center, radius, .. } => (
-            crate::conic_sphere_harmonics(conic, center, radius),
-            ConicQuadricRefusal::Sphere,
-            (center, None, radius),
-        ),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (
-            crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
-            ConicQuadricRefusal::Cylinder,
-            (origin, Some(axis), radius),
-        ),
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (
+                crate::conic_sphere_harmonics(conic, center, radius),
+                ConicQuadricRefusal::Sphere,
+                (center, None, radius),
+            )
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (
+                crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
+                ConicQuadricRefusal::Cylinder,
+                (origin, Some(axis), radius),
+            )
+        }
         _ => return None,
     };
     // The harmonics' rounding, in residual metres: the term bound is in
@@ -586,7 +588,7 @@ fn through_the_apex<T: Decide>(
     // and `|ε₁| ≤ 2δ·speed/per`. `δ` carries the point's own rounding.
     let delta = off_apex.norm()
         + geom_core::running::direction_rounding(
-            (conic.frame().origin - apex).norm() + conic.speed_hi(),
+            (conic.frame().origin() - apex).norm() + conic.speed_hi(),
         );
     let (e0, e1) = (
         delta.powi(2) / h.per,
@@ -784,28 +786,20 @@ mod tests {
         let ellipse =
             geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));
         let sphere = geom::Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            axis: z,
-            u_ref: x,
         };
         let wall = geom::Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            u_ref: x,
         };
         let plane = geom::Surface::Plane {
-            origin: o,
-            normal: z,
-            u_ref: x,
+            frame: geom::Frame::new(o, z, x),
         };
         let torus = geom::Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 1.0,
             minor_radius: 0.25,
-            u_ref: x,
         };
         for (carrier, surface) in [
             (&line, &sphere),

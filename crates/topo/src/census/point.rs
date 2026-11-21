@@ -70,12 +70,18 @@ enum Locus<T: Real> {
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
     let carrier = body.face(f)?.surface();
     match *carrier {
-        geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
-        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere {
-            center,
-            radius,
-            arm: geom_brep::uniform_curvature_arm(carrier),
-        }),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(Surface::Plane { origin, normal })
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Some(Surface::Sphere {
+                center,
+                radius,
+                arm: geom_brep::uniform_curvature_arm(carrier),
+            })
+        }
         _ => None,
     }
 }
@@ -147,7 +153,7 @@ fn circle_plane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
-    let (c, a, r) = (circle.frame.origin, circle.frame.axis, circle.radius());
+    let (c, a, r) = (circle.frame.origin(), circle.frame.axis(), circle.radius());
     let arm = geom_brep::circle_curvature_arm(circle);
     let d = plane_across(a, n);
     let (toward, sin) = d.direction_and_length();
@@ -435,14 +441,7 @@ mod tests {
         let band = Band::new(1e-12, 1e-11).unwrap();
         let mut errors = Vec::new();
         let at = match circle_plane(
-            &geom::Circle::new(
-                geom::Frame {
-                    origin: c,
-                    axis: a,
-                    u_ref: plane_across(a, n).normalize(),
-                },
-                1.0,
-            ),
+            &geom::Circle::new(geom::Frame::new(c, a, plane_across(a, n).normalize()), 1.0),
             (c - n * sin, n),
             band,
             &mut errors,

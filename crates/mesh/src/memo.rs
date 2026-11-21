@@ -1340,10 +1340,12 @@ mod tests {
             eps: 1e-9,
             k: 10.0,
             surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
             loops: vec![vec![edge(1.0, [10, 11, 12]), edge(2.0, [12, 13, 10])]],
@@ -1372,9 +1374,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center: frame.0,
-                    axis: frame.1,
-                    u_ref: frame.2,
+                    frame: geom::Frame::new(frame.0, frame.1, frame.2),
                     major_radius: 1.2,
                     minor_radius: 0.225,
                     offset: 0.05,
@@ -1408,10 +1408,12 @@ mod tests {
             "the surface's kind",
             |f| {
                 f.surface = Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(
+                        Point3::origin(),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 }
             },
             [true, true, true],
@@ -1679,10 +1681,8 @@ mod tests {
             Vec3::new(c, 0.0, -s),
         );
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let image = |start, end| {
@@ -1732,11 +1732,25 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(
+                        datum,
+                        geom::SurfaceDatum::Normal
+                            | geom::SurfaceDatum::Axis
+                            | geom::SurfaceDatum::URef
+                    ) || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;
@@ -1769,11 +1783,21 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(datum, geom::CurveDatum::Axis | geom::CurveDatum::URef)
+                        || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;

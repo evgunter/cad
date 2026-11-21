@@ -46,10 +46,12 @@ const EPS_ROWS: [f64; 3] = [1e-6, 1e-9, 1e-12];
 /// The unit-axis wall of radius `r` about the `z` axis.
 fn wall(r: f64) -> geom::Surface<f64> {
     geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 

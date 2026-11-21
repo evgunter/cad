@@ -1205,16 +1205,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let &geom::Surface::Plane {
-                        origin: chart_origin,
-                        normal: chart_normal,
-                        ..
-                    } = y.proven_face(face).surface()
-                    else {
+                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).surface() else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
                         });
                     };
+                    let (chart_origin, chart_normal) = (frame.origin(), frame.axis());
                     let side = |w: VertexKey, p: Point3<T>| {
                         vertex_face_side(
                             (x, tips),
@@ -3129,7 +3125,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // f″ per kind (the residual's second derivative along the
             // ray, constant for these kinds).
             let f2 = match surface {
-                geom::Surface::Cylinder { axis, radius, .. } => {
+                geom::Surface::Cylinder { frame, radius, .. } => {
+                    let axis = frame.axis();
                     let d_ax = dir.dot(axis);
                     (dir.norm_squared() - d_ax.powi(2)) / radius
                 }
@@ -3269,12 +3266,10 @@ fn conic_clearance<T: Decide>(
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
     if let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = *surface
     {
+        let (apex, axis) = (frame.origin(), frame.axis());
         let h = geom_brep::conic_cone_harmonics(
             conic,
             geom::Line {
@@ -4391,10 +4386,8 @@ mod spline_off_carrier_rows {
 
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4428,11 +4421,9 @@ mod spline_off_carrier_rows {
             1,
         );
         let torus = |major_radius: f64| Surface::Torus {
-            center: Point3::new(0.0, 0.0, 10.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 10.0), Vec3::unit_z(), Vec3::unit_x()),
             major_radius,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let b = band();
         assert!(
@@ -4547,11 +4538,9 @@ mod spline_off_carrier_review_rows {
     #[test]
     fn a_sheet_on_a_spindle_across_its_apex_stays_unread() {
         let spindle = Surface::Spindle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 0.5,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let (c, s) = (0.5_f64, 0.0_f64);
         let at = |deg: f64| {
@@ -4587,9 +4576,7 @@ mod spline_off_carrier_review_rows {
     fn a_plane_a_sphere_and_a_ring_torus_read_a_sheet_off_them_and_not_one_on_them() {
         let w = core::f64::consts::FRAC_1_SQRT_2;
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), Vec3::unit_x()),
         };
         let flat = revolved(&[(1.0, 0.5, 1.0), (2.0, 0.5, 1.0)]);
         let raised = revolved(&[(1.0, 1.0, 1.0), (2.0, 1.0, 1.0)]);
@@ -4597,10 +4584,8 @@ mod spline_off_carrier_review_rows {
         assert!(spline_off_carrier(&raised, &plane, band()));
 
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
-            axis: Vec3::unit_z(),
         };
         let cap = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, w), (0.0, 1.0, 1.0)]);
         let wall = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, 1.0)]);
@@ -4608,11 +4593,9 @@ mod spline_off_carrier_review_rows {
         assert!(spline_off_carrier(&wall, &sphere, band()));
 
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let tube = revolved(&[(2.5, 0.0, 1.0), (2.5, 0.5, w), (2.0, 0.5, 1.0)]);
         let above = revolved(&[(2.0, 1.0, 1.0), (2.0, 2.0, 1.0)]);
@@ -4628,10 +4611,8 @@ mod spline_off_carrier_review_rows {
         let d = 0.5 * b.escalate();
         assert!(b.zero() < d, "the band has room between its edges");
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let s = revolved(&[(1.0 + d, 0.0, 1.0), (1.0 + d, 1.0, 1.0)]);
         assert!(!spline_off_carrier(&s, &cylinder, b));
@@ -4642,10 +4623,8 @@ mod spline_off_carrier_review_rows {
     #[test]
     fn a_sheet_on_the_cones_mirror_nappe_stays_unread() {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let mirror = revolved(&[(1.0, -1.0, 1.0), (2.0, -2.0, 1.0)]);
         assert!(!spline_off_carrier(&mirror, &cone, band()));
@@ -7104,8 +7083,8 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, origin: center, .. }, .. })
-                                if a.z.abs() > 0.9 && center.z > 0.1
+                            geom::Curve3::Circle(geom::Circle { frame, .. })
+                                if frame.axis().z.abs() > 0.9 && frame.origin().z > 0.1
                         )
                 )
             })
@@ -7271,10 +7250,12 @@ mod wall_root_tests {
         let mid = (b.zero() + b.escalate()) / 2.0;
         let d = (1.0 - 2.0 * mid).sqrt();
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let got = line_quadric_roots(
             geom::Line {
@@ -7328,10 +7309,12 @@ mod edge_span_tests {
     fn the_axis_parallel_rung_reads_the_edges_own_span() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
@@ -7922,18 +7905,20 @@ mod clearance_rows {
             0.207_528_397_062_063_02,
         ));
         let s = geom::Surface::Sphere {
-            center: Point3::new(
-                -0.426_972_420_046_788_4,
-                -0.567_049_134_604_379_2,
-                -0.732_997_401_751_036_8,
+            frame: geom::Frame::new(
+                Point3::new(
+                    -0.426_972_420_046_788_4,
+                    -0.567_049_134_604_379_2,
+                    -0.732_997_401_751_036_8,
+                ),
+                axis,
+                Vec3::new(
+                    0.272_625_811_677_447_04,
+                    -0.320_994_777_005_651_3,
+                    0.906_993_671_390_437_7,
+                ),
             ),
             radius: 2.466_073_624_731_285_6e-5,
-            axis,
-            u_ref: Vec3::new(
-                0.272_625_811_677_447_04,
-                -0.320_994_777_005_651_3,
-                0.906_993_671_390_437_7,
-            ),
         };
         let conic = e.conic().unwrap();
         let v = 3.0 * FRAC_PI_2;
@@ -8008,19 +7993,15 @@ mod clearance_rows {
                 let kind = rng.below(3);
                 let s = match kind {
                     0 => geom::Surface::Sphere {
-                        center: hub,
+                        frame: geom::Frame::new(hub, n, (x - n * x.dot(n)).normalize()),
                         radius: r,
-                        axis: n,
-                        u_ref: (x - n * x.dot(n)).normalize(),
                     },
                     1 => {
                         let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         geom::Surface::Cylinder {
-                            origin: hub,
-                            axis: w,
+                            frame: geom::Frame::new(hub, w, outward),
                             radius: r,
-                            u_ref: outward,
                         }
                     }
                     _ => {
@@ -8029,11 +8010,13 @@ mod clearance_rows {
                         let ring = r * rng.range(1.5, 10.0);
                         let axis = outward.cross(w).normalize();
                         geom::Surface::Torus {
-                            center: hub + outward * ring,
-                            axis,
+                            frame: geom::Frame::new(
+                                hub + outward * ring,
+                                axis,
+                                (x - axis * x.dot(axis)).normalize(),
+                            ),
                             major_radius: ring,
                             minor_radius: r,
-                            u_ref: (x - axis * x.dot(axis)).normalize(),
                         }
                     }
                 };
@@ -8483,10 +8466,8 @@ mod arc_end_rows {
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
         let reach = (q - geom_core::Point3::origin()).norm();
         let sphere = geom::Surface::Sphere {
-            center: geom_core::Point3::origin(),
+            frame: geom::Frame::new(geom_core::Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: reach,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let line = geom::Curve3::line(
             geom_core::Point3::origin(),
@@ -8572,7 +8553,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -9200,9 +9181,7 @@ mod spline_face_rows {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: Surface::Plane {
-                        origin: p,
-                        normal: (q - p).cross(x_hat).normalize(),
-                        u_ref: x_hat,
+                        frame: geom::Frame::new(p, (q - p).cross(x_hat).normalize(), x_hat),
                     },
                     sense: true,
                 },
@@ -9306,13 +9285,10 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                ..
-            }) = carrier
-            else {
+            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = carrier else {
                 panic!("an ellipse")
             };
+            let axis = frame.axis();
             for t in [0.4, 1.3, 2.9] {
                 let (p, d) = carrier.ders1(t);
                 let p = p + axis.cross(d).normalize() * (0.5 * z);
@@ -9490,10 +9466,12 @@ mod line_root_lane_tests {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let d = (1.0 - 2.0 * in_the_gap(band)).sqrt();
         let sphere = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
         };
         let line = geom::Line {
             origin: Point3::new(d, -2.0, 0.0),
@@ -9511,10 +9489,12 @@ mod line_root_lane_tests {
     fn the_cone_root_lane_escalates_as_its_own_decision() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let cone = geom::Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let line = geom::Line {
             origin: Point3::new(in_the_gap(band), -1.0, 0.0),
@@ -9573,10 +9553,12 @@ mod conic_root_lane_tests {
     #[test]
     fn the_sphere_arc_lane_escalates_as_its_own_decision() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
         assert_eq!(
@@ -9592,10 +9574,12 @@ mod conic_root_lane_tests {
     #[test]
     fn the_cylinder_arc_lane_escalates_as_its_own_decision() {
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
         assert_eq!(
@@ -9613,10 +9597,12 @@ mod conic_root_lane_tests {
     #[test]
     fn the_cone_arc_lane_escalates_as_its_own_decision() {
         let cone = geom::Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = 1.0 + core::f64::consts::SQRT_2 * in_the_gap();
         assert_eq!(
@@ -9640,11 +9626,13 @@ mod review_5993_rows {
 
     fn torus() -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 1.0, 0.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.9,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

@@ -330,9 +330,7 @@ fn what_no_reading_explains_stays_the_gates() {
     assert!(gates(&got), "a straddling enclosure: {got:?}");
     let spiric = EdgeCurveSpec {
         carrier: geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
@@ -355,10 +353,12 @@ fn what_no_reading_explains_stays_the_gates() {
 #[test]
 fn a_chord_carries_the_tables_reading_of_the_plane() {
     let cone = geom::Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 2.0),
-        axis: Vec3::new(0.0, 0.0, -1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::unit_x(),
+        ),
         half_angle: 0.5_f64.atan(),
-        u_ref: Vec3::unit_x(),
     };
     let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 1.0), 1.0);
     for (tilt, want) in [
@@ -367,9 +367,7 @@ fn a_chord_carries_the_tables_reading_of_the_plane() {
     ] {
         let n = Vec3::new(f64::sin(tilt), 0.0, f64::cos(tilt));
         let cut = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            normal: n,
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), n, Vec3::unit_y()),
         };
         let got = match section_case(
             FaceKey::default(),
@@ -394,11 +392,9 @@ fn a_chord_carries_the_tables_reading_of_the_plane() {
 #[test]
 fn a_torus_square_to_its_axis_is_read_square() {
     let torus = geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     for (origin, normal, u_ref, want) in [
         (
@@ -415,9 +411,7 @@ fn a_torus_square_to_its_axis_is_read_square() {
         ),
     ] {
         let cut = geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin, normal, u_ref),
         };
         match section_case(
             FaceKey::default(),

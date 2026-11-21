@@ -565,15 +565,11 @@ mod thin_ellipse_rows {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p0, true).unwrap();
         let wall = body.add_surface(Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         });
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: axis,
-            u_ref: major,
+            frame: geom::Frame::new(Point3::origin(), axis, major),
         });
         let arc = body
             .mev(

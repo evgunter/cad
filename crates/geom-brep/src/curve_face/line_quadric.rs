@@ -91,46 +91,32 @@ pub fn line_quadric_roots<T: Decide>(
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
     Ok(Some(LineRoots::Roots(match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => match line_wall_roots(
-            line,
-            geom::Line { origin, dir: axis },
-            radius,
-            span,
-            band,
-            About::Start,
-        )
-        .map_err(LineQuadricRefusal::Wall)?
-        {
-            WallRoots::Two(ts, _) => two(ts),
-            WallRoots::Tangent => Err(Unsettled::Tangency),
-            WallRoots::AxisParallel => return Ok(Some(LineRoots::Constant)),
-            WallRoots::Miss => Ok(CircleRoots::Miss),
-        },
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            match line_wall_roots(line, frame.axis_line(), radius, span, band, About::Start)
+                .map_err(LineQuadricRefusal::Wall)?
+            {
+                WallRoots::Two(ts, _) => two(ts),
+                WallRoots::Tangent => Err(Unsettled::Tangency),
+                WallRoots::AxisParallel => return Ok(Some(LineRoots::Constant)),
+                WallRoots::Miss => Ok(CircleRoots::Miss),
+            }
+        }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => door_refusal(line_torus_roots(
             line,
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
+            frame.axis_line(),
             major_radius,
             minor_radius,
             band,
         ))
         .map_err(LineQuadricRefusal::Torus)?
         .map(Roots::widen),
-        geom::Surface::Sphere { center, radius, .. } => {
-            match line_sphere_roots(line, center, radius, band, About::Start)
+        geom::Surface::Sphere { frame, radius, .. } => {
+            match line_sphere_roots(line, frame.origin(), radius, band, About::Start)
                 .map_err(LineQuadricRefusal::Sphere)?
             {
                 WallRoots::Two(ts, _) => two(ts),
@@ -139,24 +125,24 @@ pub fn line_quadric_roots<T: Decide>(
             }
         }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => line_cone_roots(
-            line,
-            (
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-            ),
-            (t0, t1),
-            band,
-        )
-        .map_err(LineQuadricRefusal::Cone)?
-        .map(ConeRoots::edge),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            line_cone_roots(
+                line,
+                (
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                ),
+                (t0, t1),
+                band,
+            )
+            .map_err(LineQuadricRefusal::Cone)?
+            .map(ConeRoots::edge)
+        }
         geom::Surface::Plane { .. }
         | geom::Surface::Spindle { .. }
         | geom::Surface::Nurbs(_)
@@ -1590,11 +1576,13 @@ pub mod fixtures {
     #[must_use]
     pub fn torus_about_y(rr: f64, rm: f64) -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: rr,
             minor_radius: rm,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

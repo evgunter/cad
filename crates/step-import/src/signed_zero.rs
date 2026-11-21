@@ -84,15 +84,15 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         }
         Curve3::Circle(
             conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_2,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_2.origin(),
+                carrier_frame_2.axis(),
+                carrier_frame_2.u_ref(),
+            );
             let radius = conic_k.radius();
             Curve3::circle(
                 plus_zero_point(center),
@@ -103,22 +103,18 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         }
         Curve3::Ellipse(
             ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_1,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_1.origin(),
+                carrier_frame_1.axis(),
+                carrier_frame_1.u_ref(),
+            );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame {
-                    origin: plus_zero_point(center),
-                    axis: plus_zero(axis),
-                    u_ref: plus_zero(u_ref),
-                },
+                geom::Frame::new(plus_zero_point(center), plus_zero(axis), plus_zero(u_ref)),
                 semi_u,
                 semi_v,
             ))

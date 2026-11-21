@@ -14,6 +14,15 @@ pub fn upper(margin: MarginDiag) -> f64 {
     }
 }
 
+/// **Whether the witness band is the one the carrier-frame cost rows
+/// pin**, ε ≤ 1e-12 (PR 7131): there a row pinned to the refusal a
+/// stored frame's polar read or a frame squared from stated directions
+/// costs reads that refusal, and at every other ε it builds.
+#[must_use]
+pub fn at_the_frame_cost_band(tol: Tol) -> bool {
+    tol.eps() <= 1e-12
+}
+
 /// The lower end of a reporting margin: the point margin, or the
 /// enclosure's lower end; `NaN` for a poisoned reading. A measured
 /// miss's floor reads here: at an enclosure scalar limb 2 refuses on

@@ -187,18 +187,12 @@ pub fn circle_torus_roots<T: Decide>(
     let (
         &geom::Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_9,
                 ..
             },
         ),
         &geom::Surface::Torus {
-            center: t_center,
-            axis: t_axis,
+            frame: torus_frame,
             major_radius,
             minor_radius,
             ..
@@ -210,6 +204,12 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_9.origin(),
+        carrier_frame_9.axis(),
+        carrier_frame_9.u_ref(),
+    );
+    let (t_center, t_axis) = (torus_frame.origin(), torus_frame.axis());
     let radius = circle.radius();
     // The door reads only a ring, asked of the convention before any pose:
     // its harmonics take the witness, whose floor on `|F|` per metre and
@@ -541,16 +541,10 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        circle:
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        u_ref,
-                        ..
-                    },
-                ..
-            },
+        circle: circle @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
         w_perp,
         offset,
         h0,
@@ -558,6 +552,7 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let (center, u_ref) = (carrier_frame.origin(), carrier_frame.u_ref());
     let radius = circle.radius();
     let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
@@ -734,11 +729,7 @@ mod tests {
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
         let carrier = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
         circle_torus_roots(&carrier, t0, t1, torus, band)
@@ -761,11 +752,13 @@ mod tests {
 
     fn torus<T: geom_core::Real>() -> geom::Surface<T> {
         geom::Surface::Torus {
-            center: Point3::new(T::zero(), T::zero(), T::zero()),
-            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            frame: geom::Frame::new(
+                Point3::new(T::zero(), T::zero(), T::zero()),
+                Vec3::new(T::zero(), T::zero(), T::one()),
+                Vec3::new(T::one(), T::zero(), T::zero()),
+            ),
             major_radius: T::from_f64(R),
             minor_radius: T::from_f64(RT),
-            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
         }
     }
 
@@ -1635,11 +1628,13 @@ mod tests {
     ) -> (u32, Vec<(f64, Option<Unsettled>)>) {
         let (mut answered, mut refused) = (0, Vec::new());
         let far_torus = geom::Surface::Torus {
-            center: Point3::from_array(far),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::from_array(far),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: R,
             minor_radius: RT,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         for alpha in [0.3_f64, 1.9, 3.4, 5.1] {
             for &depth in depths {
@@ -1868,11 +1863,9 @@ mod tests {
             let w = |i: usize| Vec3::new(v[i], v[i + 1], v[i + 2]);
             let (eps, rho) = (v[0], v[1]);
             let torus = geom::Surface::Torus {
-                center: p(11),
-                axis: w(14),
+                frame: geom::Frame::new(p(11), w(14), w(14).orthonormal_basis().0),
                 major_radius: v[17],
                 minor_radius: v[18],
-                u_ref: w(14).orthonormal_basis().0,
             };
             let band = Band::new(eps, 10.0 * eps).unwrap();
             match roots_of(p(2), w(5), rho, w(8), v[19], v[20], &torus, band) {
@@ -2015,14 +2008,12 @@ mod tests {
         let p = |i: usize| Point3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
         let w = |i: usize| Vec3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
         let torus = geom::Surface::Torus {
-            center: p(12),
-            axis: w(15),
-            major_radius: at(v[18]),
-            minor_radius: at(v[19]),
-            u_ref: {
+            frame: geom::Frame::new(p(12), w(15), {
                 let (e, _) = Vec3::new(v[15], v[16], v[17]).orthonormal_basis();
                 Vec3::new(at(e.x), at(e.y), at(e.z))
-            },
+            }),
+            major_radius: at(v[18]),
+            minor_radius: at(v[19]),
         };
         match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
             Ok(Ok(CircleRoots::Certified(found))) => {

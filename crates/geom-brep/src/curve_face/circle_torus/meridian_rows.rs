@@ -45,11 +45,9 @@ struct Torus {
 impl Torus {
     fn surface(self) -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: self.c,
-            axis: self.a,
+            frame: geom::Frame::new(self.c, self.a, unit_perp(self.a)),
             major_radius: self.big,
             minor_radius: self.small,
-            u_ref: unit_perp(self.a),
         }
     }
 

@@ -188,29 +188,29 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
         Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_2,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_2.origin(),
+                carrier_frame_2.axis(),
+                carrier_frame_2.u_ref(),
+            );
             let radius = circle.radius();
             (center, axis, u_ref, radius, radius)
         }
         Curve3::Ellipse(
             ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_1,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_1.origin(),
+                carrier_frame_1.axis(),
+                carrier_frame_1.u_ref(),
+            );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, u_ref, semi_u, semi_v)
         }

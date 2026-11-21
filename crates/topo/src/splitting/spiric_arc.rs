@@ -80,9 +80,7 @@ impl<T: Decide> SpiricArc<T> {
     fn point(&self, v: T) -> Point3<T> {
         let o = self.oval;
         geom::Curve3::Spiric {
-            center: o.center,
-            axis: o.axis,
-            u_ref: o.u_ref,
+            frame: geom::Frame::new(o.center, o.axis, o.u_ref),
             major_radius: o.major,
             minor_radius: o.minor,
             offset: o.offset,
@@ -365,9 +363,7 @@ mod tests {
         let b = k.bounds(&p);
         let speed = b.reach / b.h;
         let c = geom::Curve3::Spiric {
-            center: k.oval.center,
-            axis: k.oval.axis,
-            u_ref: k.oval.u_ref,
+            frame: geom::Frame::new(k.oval.center, k.oval.axis, k.oval.u_ref),
             major_radius: k.oval.major,
             minor_radius: k.oval.minor,
             offset: k.oval.offset,

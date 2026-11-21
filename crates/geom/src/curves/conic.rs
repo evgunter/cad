@@ -33,11 +33,11 @@
 //!   **eccentric anomaly**, not arc length and not the polar angle of the
 //!   point: `|dP/dθ|² = semi_u²sin²θ + semi_v²cos²θ` varies between the
 //!   two semi-axes.
-//! - **A unit frame, unchecked.** Nothing that reads a conic normalizes
-//!   its frame, and nothing can afford to: the sizes are the lengths
-//!   every speed and curvature bound is stated at, so a non-unit `u_ref`
-//!   rescales the curve without rescaling the bound. A caller
-//!   synthesising a frame owes the normalization.
+//! - **A unit frame, by its type.** The frame is a `RigidMotion`, its
+//!   axes unit and square by the mint that made it, so nothing that reads
+//!   a conic normalizes it: the sizes are the lengths every speed and
+//!   curvature bound is stated at, and the frame's axes carry no length
+//!   of their own to rescale them by.
 //! - **Non-negative sizes.** A radius and both semi-axes are lengths,
 //!   in metres, and a negative one is unrepresentable: the fields are
 //!   private and the constructors ([`Circle::new`], [`Ellipse::new`])
@@ -182,7 +182,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
     /// the conic is the unit circle and its parameter the polar angle.
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
-        self.unit_of(p - self.frame().origin)
+        self.unit_of(p - self.frame().origin())
     }
 
     /// **The vector `w` in the conic's unit coordinates**:
@@ -190,7 +190,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// rather than a point.
     fn unit_of(&self, w: Vec3<T>) -> (T, T) {
         let (f, (a, b)) = (self.frame(), self.semi_axes());
-        (w.dot(f.u_ref) / a, w.dot(f.v_ref()) / b)
+        (w.dot(f.u_ref()) / a, w.dot(f.v_ref()) / b)
     }
 
     /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
@@ -198,7 +198,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// be unit: the pair is linear in it.
     fn along(&self, n: Vec3<T>) -> (T, T) {
         let (f, (a, b)) = (self.frame(), self.semi_axes());
-        (a * f.u_ref.dot(n), b * f.v_ref().dot(n))
+        (a * f.u_ref().dot(n), b * f.v_ref().dot(n))
     }
 
     /// **The parameter of `p` within half a turn of `span`'s middle**:
@@ -216,7 +216,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
         let (a, b) = self.semi_axes();
         let f = self.frame();
-        (f.u_ref * a, f.v_ref() * b)
+        (f.u_ref() * a, f.v_ref() * b)
     }
 
     /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
@@ -310,8 +310,8 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
 /// arithmetic, `v_ref` crossed there in [`Vec3::cross`]'s order.
 fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
     use geom_core::running::{cross, exact_vec};
-    let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
-    let c = exact_vec(Vec3::new(f.origin.x, f.origin.y, f.origin.z));
+    let (n, u) = (exact_vec(f.axis()), exact_vec(f.u_ref()));
+    let c = exact_vec(Vec3::new(f.origin().x, f.origin().y, f.origin().z));
     (c, u, cross(n, u))
 }
 
@@ -388,7 +388,7 @@ impl<T: Real> Circle<T> {
     /// spelling of a circle's point, which [`Curve3::circle_at`] and
     /// [`Conic::jet_at`] both reach.
     pub(crate) fn point_on(&self, at: &azimuth::AzimuthFrame<T>) -> Point3<T> {
-        self.frame.origin + at.radial.0 * self.radius
+        self.frame.origin() + at.radial.0 * self.radius
     }
 
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
@@ -420,7 +420,7 @@ impl<T: Real> Conic<T> for Circle<T> {
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = azimuth::basis(&self.frame, theta);
-        (self.frame.u_ref * (-c) + v_ref * (-s)) * self.radius
+        (self.frame.u_ref() * (-c) + v_ref * (-s)) * self.radius
     }
 
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
@@ -451,7 +451,7 @@ impl<T: Real> Conic<T> for Circle<T> {
         MajorFrame {
             major: self.radius,
             minor: self.radius,
-            major_dir: self.frame.u_ref,
+            major_dir: self.frame.u_ref(),
             phase: T::zero(),
         }
     }
@@ -528,7 +528,7 @@ impl<T: Real> Ellipse<T> {
     #[must_use]
     pub fn section_frame(&self, axis: Vec3<T>) -> MajorFrame<T> {
         let f = &self.frame;
-        self.frame_turned_where(f.v_ref().dot(axis).abs() - f.u_ref.dot(axis).abs())
+        self.frame_turned_where(f.v_ref().dot(axis).abs() - f.u_ref().dot(axis).abs())
     }
 
     /// The frame as stored where `turn ≤ 0`, else
@@ -538,7 +538,7 @@ impl<T: Real> Ellipse<T> {
         MajorFrame {
             major: e.semi_u,
             minor: e.semi_v,
-            major_dir: e.frame.u_ref,
+            major_dir: e.frame.u_ref(),
             phase: turn.select_le_zero(T::zero(), T::pi() * T::from_f64(0.5)),
         }
     }
@@ -547,17 +547,33 @@ impl<T: Real> Ellipse<T> {
     /// stored where `turn ≤ 0`, read without a branch. `θ = s + π/2` reads
     /// `center + v·(semi_v·cos s) − u_ref·(semi_u·sin s)` with
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
-    /// adds no length to the frame, and the semi-axes swap. Built through
-    /// [`Self::new`], so a poison `turn`, which hulls the two sizes to
-    /// poison, panics there rather than storing it.
+    /// adds no length to the frame, and the semi-axes swap. The turned
+    /// frame keeps its axis bit for bit. At an `Inexact` witness kind
+    /// (`f64`, `Probe` and the duals and forms over them) its seam is
+    /// `v_ref().normalize()` as given, not re-squared to the axis
+    /// ([`Frame::quarter_turned_renormalized`], which decides nothing):
+    /// the merge base's bits, a rounding apart from the frame's own `v`
+    /// (`a_quarter_turned_seam_is_the_base_formula_bit_for_bit`). At
+    /// an `Exact` kind (`Interval` and the duals and forms over it) it
+    /// takes the exact turn ([`Frame::quarter_turned`], a permutation of
+    /// the frame's axes), which encloses the same turned rotation and adds
+    /// no width, where re-squaring there would widen every entry by the
+    /// squaring's own. Built through [`Self::new`], so a poison `turn`,
+    /// which hulls the two sizes to poison, panics there rather than
+    /// storing it.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
         Self::new(
-            Frame {
-                u_ref: Vec3::select(turn, f.u_ref, f.v_ref().normalize()),
-                ..f
-            },
+            Frame::select_le_zero(
+                turn,
+                f,
+                if T::WITNESS == geom_core::Witness::Inexact {
+                    f.quarter_turned_renormalized()
+                } else {
+                    f.quarter_turned()
+                },
+            ),
             turn.select_le_zero(self.semi_u, self.semi_v),
             turn.select_le_zero(self.semi_v, self.semi_u),
         )
@@ -585,10 +601,7 @@ impl<T: Real> Ellipse<T> {
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
         let e = self.quarter_turned_where(turn);
-        e.with_frame(Frame {
-            u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
-            ..e.frame
-        })
+        e.with_frame(Frame::select_le_zero(back, e.frame, e.frame.half_turned()))
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
@@ -607,26 +620,26 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn point_at(&self, theta: T) -> Point3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.origin + (self.frame.u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s))
+        self.frame.origin() + (self.frame.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
+        self.frame.u_ref() * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
     }
 
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
         let ((s, c), v_ref) = self.basis(theta);
-        let u_ref = self.frame.u_ref;
+        let u_ref = self.frame.u_ref();
         (
-            self.frame.origin + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
+            self.frame.origin() + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
         )
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
+        self.frame.u_ref() * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
     }
 
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
@@ -713,19 +726,19 @@ mod tests {
         let o = Point3::origin();
         match carrier {
             Curve3::Circle(k) => {
-                let (u, r) = (k.frame.u_ref, k.radius());
-                let v = k.frame.axis.cross(u);
+                let (u, r) = (k.frame.u_ref(), k.radius());
+                let v = k.frame.axis().cross(u);
                 [
-                    (k.frame.origin + (u * c + v * s) * r) - o,
+                    (k.frame.origin() + (u * c + v * s) * r) - o,
                     (u * (-s) + v * c) * r,
                     (u * (-c) + v * (-s)) * r,
                 ]
             }
             Curve3::Ellipse(k) => {
-                let (u, (a, b)) = (k.frame.u_ref, k.semi_axes());
-                let v = k.frame.axis.cross(u);
+                let (u, (a, b)) = (k.frame.u_ref(), k.semi_axes());
+                let v = k.frame.axis().cross(u);
                 [
-                    (k.frame.origin + (u * (a * c) + v * (b * s))) - o,
+                    (k.frame.origin() + (u * (a * c) + v * (b * s))) - o,
                     u * (-(a * s)) + v * (b * c),
                     u * (-(a * c)) + v * (-(b * s)),
                 ]

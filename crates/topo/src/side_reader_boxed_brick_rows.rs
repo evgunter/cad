@@ -46,9 +46,14 @@ fn brick_at(top: Boxed, right: Boxed, inside_out: bool, tol: Tol) -> Body<Boxed>
         tol,
     );
     for (face, _) in twin.faces() {
-        let Surface::Plane { normal, u_ref, .. } = *twin.proven_face(face).surface() else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = *twin.proven_face(face).surface()
+        else {
             panic!("a brick's face is planar");
         };
+        let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
         let corner = body.proven_face(face).edges()[0].ends[0];
         let origin = *body
             .get_vertex(corner)
@@ -58,9 +63,11 @@ fn brick_at(top: Boxed, right: Boxed, inside_out: bool, tol: Tol) -> Body<Boxed>
             face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin,
-                    normal: normal.map(|x| iv(if inside_out { -x } else { x })),
-                    u_ref: u_ref.map(iv),
+                    frame: geom::Frame::new(
+                        origin,
+                        normal.map(|x| iv(if inside_out { -x } else { x })),
+                        u_ref.map(iv),
+                    ),
                 },
                 sense: true,
             },
