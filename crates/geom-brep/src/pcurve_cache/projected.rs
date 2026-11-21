@@ -1279,12 +1279,12 @@ fn piece_sector<T: Decide>(
         return Ok(None);
     }
     let b = image.frame_box(k, t0, t1);
-    if !positive_as("pcurve_projected_sector", b.x.0, band)? {
+    if !positive_as("pcurve_projected_sector", Margin::of(b.x.0), band)? {
         return Ok(Some(SectorChannel::Azimuth));
     }
     if let ProjectedChart::Torus { major } = image.chart {
         let (tx, _) = image.tube_box(k, &b, major);
-        if !positive_as("pcurve_projected_sector", tx.0, band)? {
+        if !positive_as("pcurve_projected_sector", Margin::of(tx.0), band)? {
             return Ok(Some(SectorChannel::Tube));
         }
     }
@@ -1298,7 +1298,7 @@ fn piece_sector<T: Decide>(
 /// ([`piece_sector`]).
 fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1: T, band: Band) {
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive_as("pcurve_projected_sector", x, band))
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_sector", Margin::of(x), band))
             .0
             .unwrap_or(false)
     };
@@ -1702,9 +1702,11 @@ fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool 
         return false;
     };
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive_as("pcurve_projected_outside", x, band))
-            .0
-            .unwrap_or(false)
+        geom_core::k_stats::detached(|| {
+            positive_as("pcurve_projected_outside", Margin::of(x), band)
+        })
+        .0
+        .unwrap_or(false)
     };
     clear(t0 - b) || clear(a - t1)
 }
@@ -1935,23 +1937,26 @@ impl Meters<geom_core::Interval> {
 /// The one decision every condition of this module reads: whether
 /// `value` decides positive. Not positive (zero or negative) is
 /// `Ok(false)`; the band's undecided answer escalates.
-fn positive_as<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
-    Ok(decide(name, Margin::of(value), band)? == Sign::Positive)
+fn positive_as<T: Decide, A: geom_core::MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(decide(name, margin, band)? == Sign::Positive)
 }
 
-/// [`positive_as`] as a check-4 verdict: `value` when it decides positive,
-/// `refused` when it does not, an escalation at `check` (its sample the
-/// piece or span `at`) when the band cannot tell.
-fn require_positive_as<T: Decide>(
-    name: &'static str,
-    value: T,
-    band: Band,
+/// A [`positive_as`] verdict as check 4's: `ok` when it decided positive,
+/// `refused` when it did not, an escalation at `check` (its sample the
+/// piece or span `at`) when the band could not tell.
+fn checked<R>(
+    verdict: Result<bool, Indeterminate>,
     check: PcurveCheck,
     at: usize,
     refused: PcurveCertifyError,
-) -> Result<T, PcurveCertifyError> {
-    match positive_as(name, value, band) {
-        Ok(true) => Ok(value),
+    ok: R,
+) -> Result<R, PcurveCertifyError> {
+    match verdict {
+        Ok(true) => Ok(ok),
         Ok(false) => Err(refused),
         Err(cause) => Err(PcurveCertifyError::Escalated {
             check: super::general(check),
@@ -1961,23 +1966,40 @@ fn require_positive_as<T: Decide>(
     }
 }
 
-/// A piece's sector condition on `channel`: `value` (the hull's lower
-/// bound of `x′`, or of the tube's `X′`) decides positive.
-fn holds<T: Decide>(
+/// [`positive_as`] of `value` as a check-4 verdict ([`checked`]): `value`
+/// when it decides positive.
+fn require_positive_as<T: Decide>(
+    name: &'static str,
     value: T,
+    band: Band,
+    check: PcurveCheck,
+    at: usize,
+    refused: PcurveCertifyError,
+) -> Result<T, PcurveCertifyError> {
+    checked(
+        positive_as(name, Margin::of(value), band),
+        check,
+        at,
+        refused,
+        value,
+    )
+}
+
+/// A piece's sector condition on `channel`: `margin` (the lower bound
+/// of `x′`, or of the tube's `X′`) decides positive.
+fn holds<T: Decide, A: geom_core::MarginTerms>(
+    margin: Margin<T, A>,
     band: Band,
     piece: usize,
     channel: SectorChannel,
 ) -> Result<(), PcurveCertifyError> {
-    require_positive_as(
-        "pcurve_projected_sector",
-        value,
-        band,
+    checked(
+        positive_as("pcurve_projected_sector", margin, band),
         PcurveCheck::Sector,
         piece,
         sector_refused(piece, channel),
+        (),
     )
-    .map(drop)
 }
 
 /// Piece `k`'s sector condition off the hull: its azimuth channel, and
@@ -1989,11 +2011,19 @@ pub(super) fn hull_sector<T: Decide>(
     chart: &ProjectedChart<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    let x_lo = T::from_computed(piece.x_lo);
-    holds(x_lo, band, k, SectorChannel::Azimuth)?;
+    holds(
+        Margin::<T>::bound(piece.x_lo),
+        band,
+        k,
+        SectorChannel::Azimuth,
+    )?;
     if matches!(chart, ProjectedChart::Torus { .. }) {
-        let tube_lo = T::from_computed(piece.tube_lo);
-        holds(tube_lo, band, k, SectorChannel::Tube)?;
+        holds(
+            Margin::<T>::bound(piece.tube_lo),
+            band,
+            k,
+            SectorChannel::Tube,
+        )?;
     }
     Ok(())
 }
@@ -2841,10 +2871,10 @@ fn met_floors<T: Decide>(
     let mut floors: Option<(T, (T, T), usize)> = None;
     for &k in met {
         let b = image.frame_box(k, t0, t1);
-        holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+        holds(Margin::of(b.x.0), band, k, SectorChannel::Azimuth)?;
         if let ProjectedChart::Torus { major } = image.chart {
             holds(
-                image.tube_box(k, &b, major).0.0,
+                Margin::of(image.tube_box(k, &b, major).0.0),
                 band,
                 k,
                 SectorChannel::Tube,
@@ -2855,7 +2885,7 @@ fn met_floors<T: Decide>(
             None => (rho, b.z, k),
             Some((r, (lo, hi), at)) => {
                 let lower = geom_core::k_stats::detached(|| {
-                    positive_as("pcurve_projected_floor_pick", r - rho, band)
+                    positive_as("pcurve_projected_floor_pick", Margin::of(r - rho), band)
                 })
                 .0
                 .unwrap_or(false);
@@ -2955,10 +2985,10 @@ fn line_off_cone_sup<T: Decide>(
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
             Ok::<bool, Indeterminate>(
-                !positive_as("pcurve_projected_lever_ceiling", ceiling, band)?
+                !positive_as("pcurve_projected_lever_ceiling", Margin::of(ceiling), band)?
                     || positive_as(
                         "pcurve_projected_lever_spread_ratio",
-                        (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
+                        Margin::of((ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling),
                         band,
                     )?,
             )

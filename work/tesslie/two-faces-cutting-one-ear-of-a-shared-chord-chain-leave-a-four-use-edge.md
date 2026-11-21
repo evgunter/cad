@@ -2,10 +2,12 @@
 id: two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge
 kind: issue
 title: two faces that both cut the same ear of a shared chord chain leave an edge of four triangles that only check_mesh sees
-status: dispatched
+status: closed
 opened: 2026-10-28
 branch: tesslie/four-use-edge
 rides_with: a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles
+closed: 2026-11-21
+pr: 7198
 ---
 
 
@@ -88,3 +90,7 @@ twice and none on three consecutive points, so the ear test cannot fire:
 `a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md` measures it
 on the cone arm (cured there by a rule on the side, not the triangle) and
 counts it on the cylinder and sphere arms, which still read the ear.
+
+## Closed (TESSLIE, PR 7198, 2026-11-21)
+
+Rode `a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles`. The ear is the nearest case of the shared-side rule, which now runs on every trimmed arm, and the fold census refuses any over-used side on every lane, which is the backstop this row asked for.

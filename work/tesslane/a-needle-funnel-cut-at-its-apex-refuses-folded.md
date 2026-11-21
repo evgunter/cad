@@ -1,7 +1,7 @@
 ---
 id: a-needle-funnel-cut-at-its-apex-refuses-folded
 kind: issue
-title: A needle funnel cut 1e-5 above its apex refuses FoldedTriangle or BoundaryEar at every δ tried: its upper half's cone face
+title: A needle funnel cut 1e-5 above its apex refuses FoldedTriangle or UnclearedSharedSide (then BoundaryEar) at every δ tried: its upper half's cone face
 status: open
 opened: 2026-11-16
 priority: P3
@@ -51,3 +51,5 @@ neighbouring plane cap to hold both ends of most sides there (the
 `BoundaryEar` cell). Related to
 `a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md` (the same
 geometry, accepted meshes) and not the same row: these refuse.
+
+(TESSLIE, PR 7198, 2026-11-21) `TessellateError::BoundaryEar` is renamed `UnclearedSharedSide` (Python tag `uncleared_shared_side`), because the trimmed lane's rule is now about a shared side, not an ear. The cells above that say `BoundaryEar` were measured under the old name and rule; they are not re-measured here.
