@@ -67,8 +67,9 @@ when the step opens it, the arrival side when its binder fixes it (which
 may be a later step), then the fit's answer — the fillet circle, or, on
 an anchor-fit refusal, the overrunning candidate circle and its tangent
 points. A step refused between its two sides still has the first. The
-record is filed against the fillet step and a refusal against the step
-that refused, so a refused fit's record is the last one of its step
+record is filed against the fillet step, and so is a refusal of its
+fit, though the step fixing its arrival raises it (`PathError::Deferred`
+names that step), so a refused fit's record is the last one of its step
 with no fillet circle. The editor draws the record in its construction
 colour and marks each refused corner (`CornerRefusal::at`); nothing
 decides on it. Two refusal classes
@@ -80,6 +81,12 @@ decides on it. Two refusal classes
 - `Path(PathError)` — a well-typed chain whose geometry refuses under
   this binding. Legal at rest; it surfaces as the node's typed
   evaluation error.
+
+A refusal's `step` is the step it is about. One a later step raises
+about an earlier step — a fillet resolved where its arrival is fixed, a
+fillet arc's stored form or an arc read back where the loop closes — is
+`PathError::Deferred`, at the earlier step, and its sentence names the
+step that raised it.
 
 Record → replay bit-identity is pinned for every closing verb the suites
 author (`tests/common/mod.rs::pinned`).

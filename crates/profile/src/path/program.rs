@@ -3384,9 +3384,9 @@ impl<T: Real> Carrier<T> {
 /// **What one fillet step constructs** — every fillet verb's, the bare
 /// `fillet(r)` included: the sides its fit was handed, each recorded
 /// when it is bound, and the fit's answer once it has one. The record
-/// is filed against the fillet step, which may differ from the step a
-/// refusal names: an arrival a later binder fixes is recorded, and
-/// refused, at that binder.
+/// is filed against the fillet step, and so is the refusal of its fit,
+/// though a later binder fixes the arrival and raises it
+/// ([`PathError::Deferred`]).
 #[derive(Clone, Debug)]
 pub struct FilletConstruction<T: Real> {
     /// The fillet step, in program order.
