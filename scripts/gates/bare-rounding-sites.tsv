@@ -103,8 +103,8 @@ crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
 crates/geom/src/cover/tests.rs	test	4	oracle
 crates/geom/src/curves.rs	test	3	oracle
-crates/geom/src/curves/conic.rs	prod	10	far-centre
-crates/geom/src/curves/conic.rs	test	3	oracle
+crates/geom/src/curves/conic.rs	prod	14	far-centre
+crates/geom/src/curves/conic.rs	test	5	oracle
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/frame.rs	prod	4	re-pose
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle

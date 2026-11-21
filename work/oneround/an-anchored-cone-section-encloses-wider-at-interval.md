@@ -2,11 +2,12 @@
 id: an-anchored-cone-section-encloses-wider-at-interval
 kind: issue
 title: An anchored cone section's enclosures are a third wider at Interval than the centre-born one's
-status: open
+status: closed
 opened: 2026-11-20
 priority: P2
 cost: M
 refs: [the-section-table-admits-a-curve-on-its-resolution]
+closed: 2026-11-21
 ---
 
 
@@ -88,3 +89,29 @@ Handing a turned seam back centre-born is not taken: it is a second way
 to be born, chosen by the sign of a quantity that straddles at
 `Interval`. The two rows stay red until then, with their bars as they
 are.
+
+## Closed by the phase
+
+An anchored ellipse now stores where on itself its anchor sits, and a
+re-seam turns the seam and that phase and leaves the anchor where it is
+(`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`). The centre
+is derived once from the anchor. The same rows, widths in m³, bars
+untouched:
+
+| row, op | centre-born base | anchored, no phase | anchored, with the phase |
+|---|---|---|---|
+| certified scalar, cone ∪ box | 4.86e-11 | 6.26e-11 | 3.22e-11 |
+| certified scalar, box ∪ cone | 7.78e-11 | 1.06e-10 | 5.39e-11 |
+| certified scalar, cone ∖ box | 4.83e-12 | (not reached) | 2.68e-12 |
+| point maps, cone ∪ box | 2.02e-11 | 2.63e-11 | 1.15e-11 |
+| point maps, box ∪ cone | 3.00e-11 | 4.02e-11 | 1.64e-11 |
+| point maps, cone ∖ box | 2.09e-12 | 2.85e-12 | 9.31e-13 |
+
+Both rows pass at ε = 1e-9 and 1e-6, and the point-maps row builds
+again at ε = 1e-12. The certified-scalar row at ε = 1e-12 is red on
+`onehome/carrier-frames` at `ec8749552` without this unit
+(`VolumeUncomputable`, an enclosure of 1.094e-12 against a zero band of
+1e-12) and red here one step earlier (the join's certification, ±1.058e-12);
+`main`'s row no longer expects that refusal, and it is not this row's.
+`conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor`
+holds the centre's width through a re-seam at `Interval`.

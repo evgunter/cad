@@ -253,7 +253,7 @@ impl<T: SpanLocate> Curve3<T> {
                 c.same_placement(k, frame) && same(c.radius(), k.radius())
             }
             (Self::Ellipse(e), Self::Ellipse(k)) => {
-                e.same_placement(k, frame)
+                e.same_placement(k, frame, same)
                     && same(e.semi_u(), k.semi_u())
                     && same(e.semi_v(), k.semi_v())
             }
@@ -610,6 +610,10 @@ pub enum CurveDatum {
     /// The point at parameter zero of a circle or an ellipse born
     /// anchored ([`crate::curves::conic`], "The two stored forms").
     Anchor,
+    /// Where on an anchored ellipse its anchor sits: the in-plane unit
+    /// direction `(cos θ₀, sin θ₀, 0)` of the anchor's eccentric anomaly
+    /// from the seam.
+    Phase,
     /// A `Nurbs` carrier's control net — the datum this read checks
     /// (its knots and weights are held at the scalar too, and refused
     /// non-finite on their value channel at construction).
@@ -637,6 +641,7 @@ impl CurveDatum {
             Self::MinorRadius => "minor_radius",
             Self::Offset => "offset",
             Self::Anchor => "anchor",
+            Self::Phase => "phase",
             Self::Control => "control",
         }
     }
@@ -1151,13 +1156,22 @@ impl<T: Real> Curve3<T> {
             }
             Curve3::Ellipse(e) => {
                 let (datum, at, axis, u_ref) = e.stored();
-                AnalyticData::new([
+                let walk = [
                     (datum, Point(at)),
                     (D::Axis, Direction(axis)),
                     (D::SemiU, Scalar(e.semi_u())),
                     (D::SemiV, Scalar(e.semi_v())),
                     (D::URef, Direction(u_ref)),
-                ])
+                ];
+                // An anchored ellipse stores where on itself its anchor
+                // sits; one born with a centre stores no such thing.
+                match e.stored_phase() {
+                    Some(phase) => {
+                        let [a, b, c, d, f] = walk;
+                        AnalyticData::new([a, b, c, d, f, (D::Phase, Direction(phase))])
+                    }
+                    None => AnalyticData::new(walk),
+                }
             }
             Curve3::Spiric {
                 frame,
@@ -1521,7 +1535,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
             // The seam is kept, so the point at parameter zero is too.
             Curve3::Circle(c) => Curve3::Circle(c.placed(Frame::reversed)),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.placed(Frame::reversed)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.reversed()),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
