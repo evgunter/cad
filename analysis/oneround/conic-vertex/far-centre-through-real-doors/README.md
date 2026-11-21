@@ -97,7 +97,8 @@ right-to-spacing being zero everywhere:
 In that table each reading is judged against the exact oracle run on
 **its own** conic: the centre-sum against the circle about the stored
 centre, the chord against the circle through `fl(centre + u_ref·a)` (the
-oracle reads that anchored conic's derived centre). So judged, no cell
+oracle takes an anchored conic's stored point exactly and its centre as
+that point less `u_ref·a`). So judged, no cell
 holds a wrong definite verdict: 18,432 decisions, 0 wrong.
 
 ### The chord reading judged against the stored centre's circle

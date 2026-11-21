@@ -1,0 +1,408 @@
+diff --git a/crates/geom-brep/src/curve_face/conic_oracle/exact.rs b/crates/geom-brep/src/curve_face/conic_oracle/exact.rs
+index 6e854928d..f5eba62da 100644
+--- a/crates/geom-brep/src/curve_face/conic_oracle/exact.rs
++++ b/crates/geom-brep/src/curve_face/conic_oracle/exact.rs
+@@ -275,6 +275,9 @@ pub struct Truth {
+ ///
+ /// On any other carrier or surface: the oracle reads these kinds only.
+ #[allow(clippy::panic)]
++#[doc(hidden)]
++pub static CV_POLAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++
+ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
+     let (center, axis, (a, b), u_ref) = match *carrier {
+         geom::Curve3::Circle(circle) => {
+@@ -333,6 +336,23 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
+     let u = dd3(u_ref);
+     let big_a = scaled(u, Dd::of(a));
+     let big_b = scaled(cross(dd3(axis), u), Dd::of(b));
++    // TEMPORARY PROBE: the frame read as the polar factor of its stored
++    // `(u, v, w)`, `M·(I − ½(MᵀM − I))`, to first order in `MᵀM − I`.
++    let (big_a, big_b) = if CV_POLAR.load(std::sync::atomic::Ordering::Relaxed) {
++        let v_ref = carrier.conic().map(|c| c.frame().v_ref()).unwrap_or_else(|| unreachable!());
++        let m = [dd3(u_ref), dd3(v_ref), dd3(axis)];
++        let col = |j: usize| -> V3 {
++            let mut out = m[j];
++            for (i, mi) in m.iter().enumerate() {
++                let g = dot(*mi, m[j]).sub(Dd::of(if i == j { 1.0 } else { 0.0 })).scale(0.5);
++                out = core::array::from_fn(|k| out[k].sub(mi[k].mul(g)));
++            }
++            out
++        };
++        (scaled(col(0), Dd::of(a)), scaled(col(1), Dd::of(b)))
++    } else {
++        (big_a, big_b)
++    };
+     // A carrier born anchored is its anchor less `A·cos θ₀ + B·sin θ₀`,
+     // exactly: the centre its frame holds is that difference rounded.
+     let w = match carrier.conic().and_then(geom::Conic::anchor) {
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index fa49dd415..5d7e84e45 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -476,6 +476,50 @@ fn offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (T, T) {
+     (-(T::from_f64(2.0) * sh.powi(2) - (T::one() - c0)), s - s0)
+ }
+ 
++/// TEMPORARY PROBE SWITCH. `CV_CHORD=f64`: a centre-held conic is read by
++/// chords from `fl(centre + u·a)` at every scalar but `interval` and
++/// `symbolic`; `CV_CHORD=all`: at every scalar.
++fn cv_chord<T: Real>() -> bool {
++    static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
++    let m = *MODE.get_or_init(|| match std::env::var("CV_CHORD").as_deref() {
++        Ok("f64") => 1,
++        Ok("all") => 2,
++        Ok("exact") => 3,
++        _ => 0,
++    });
++    m == 2 || (m == 1 && T::NAME != "interval" && T::NAME != "symbolic")
++}
++
++/// TEMPORARY PROBE SWITCH. `CV_CHORD=exact`: a centre-held conic is read
++/// by chords from `centre + u·a` held as an error-free `(hi, lo)`, at
++/// every scalar but `interval` and `symbolic`.
++fn cv_exact<T: Real>() -> bool {
++    std::env::var("CV_CHORD").as_deref() == Ok("exact") && T::NAME != "interval" && T::NAME != "symbolic"
++}
++
++/// `centre + u·a` per coordinate as `(hi, lo)`: TwoProd (Dekker), TwoSum,
++/// one rounded sum of the two error terms, renormalized.
++fn cv_vertex<T: Real>(c: Point3<T>, u: Vec3<T>, a: T) -> (Point3<T>, Vec3<T>) {
++    let one = |c: T, u: T| -> (T, T) {
++        let split = |x: T| {
++            let t = x * T::from_f64(134_217_729.0);
++            let hi = t - (t - x);
++            (hi, x - hi)
++        };
++        let p = u * a;
++        let ((uh, ul), (ah, al)) = (split(u), split(a));
++        let e1 = ((uh * ah - p) + uh * al + ul * ah) + ul * al;
++        let s = c + p;
++        let bb = s - c;
++        let e2 = (c - (s - bb)) + (p - bb);
++        let lo = e1 + e2;
++        let hi = s + lo;
++        (hi, lo - (hi - s))
++    };
++    let ((hx, lx), (hy, ly), (hz, lz)) = (one(c.x, u.x), one(c.y, u.y), one(c.z, u.z));
++    (Point3::new(hx, hy, hz), Vec3::new(lx, ly, lz))
++}
++
+ /// A sine or a cosine as computed, charged an ulp.
+ fn transcendental<T: Real>(x: T) -> Rounded<T> {
+     Rounded {
+@@ -631,6 +675,16 @@ impl<T: Real> Circle<T> {
+     }
+ }
+ 
++impl<T: Real> Circle<T> {
++    fn read_anchor(&self) -> Option<Point3<T>> {
++        match self.born {
++            Born::Anchored => Some(self.at.origin()),
++            Born::Centred if cv_chord::<T>() => Some(self.at.origin() + self.at.u_ref() * self.radius),
++            Born::Centred => None,
++        }
++    }
++}
++
+ impl<T: Real> Conic<T> for Circle<T> {
+     fn frame(&self) -> Frame<T> {
+         match self.born {
+@@ -646,7 +700,12 @@ impl<T: Real> Conic<T> for Circle<T> {
+     }
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
+-        match self.anchor() {
++        if self.born == Born::Centred && cv_exact::<T>() {
++            let (hi, lo) = cv_vertex(self.at.origin(), self.at.u_ref(), self.radius);
++            let (ku, kv) = offsets(theta, (T::one(), T::zero()));
++            return hi + (lo + (self.at.u_ref() * ku + self.at.v_ref() * kv) * self.radius);
++        }
++        match self.read_anchor() {
+             None => self.at.origin() + self.azimuth(theta).radial.0 * self.radius,
+             Some(zero) => {
+                 let (ku, kv) = offsets(theta, (T::one(), T::zero()));
+@@ -716,7 +775,13 @@ impl<T: Real> Conic<T> for Circle<T> {
+     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.at);
+         let r = Rounded::exact(self.radius);
+-        match self.anchor() {
++        if self.born == Born::Centred && cv_exact::<T>() {
++            let (hi, lo) = cv_vertex(self.at.origin(), self.at.u_ref(), self.radius);
++            let (hi, lo) = (exact_point(hi), geom_core::running::exact_vec(lo));
++            let (ku, kv) = running_offsets(theta, (T::one(), T::zero()));
++            return core::array::from_fn(|i| hi[i] + (lo[i] + (u[i] * ku + v[i] * kv) * r));
++        }
++        match self.read_anchor() {
+             None => {
+                 let (sin, cos) = running_sin_cos(theta);
+                 core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
+@@ -1039,6 +1104,22 @@ impl<T: Real> Ellipse<T> {
+     }
+ }
+ 
++impl<T: Real> Ellipse<T> {
++    fn read_phase(&self) -> (T, T) {
++        match self.born {
++            Born::Anchored => self.phase,
++            Born::Centred => (T::one(), T::zero()),
++        }
++    }
++    fn read_anchor(&self) -> Option<Point3<T>> {
++        match self.born {
++            Born::Anchored => Some(self.at.origin()),
++            Born::Centred if cv_chord::<T>() => Some(self.at.origin() + self.at.u_ref() * self.semi_u),
++            Born::Centred => None,
++        }
++    }
++}
++
+ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn frame(&self) -> Frame<T> {
+         match self.born {
+@@ -1061,13 +1142,18 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn point_at(&self, theta: T) -> Point3<T> {
+-        match self.anchor() {
++        if self.born == Born::Centred && cv_exact::<T>() {
++            let (hi, lo) = cv_vertex(self.at.origin(), self.at.u_ref(), self.semi_u);
++            let (ku, kv) = offsets(theta, (T::one(), T::zero()));
++            return hi + (lo + (self.at.u_ref() * (self.semi_u * ku) + self.at.v_ref() * (self.semi_v * kv)));
++        }
++        match self.read_anchor() {
+             None => {
+                 let ((s, c), v_ref) = self.basis(theta);
+                 self.at.origin() + (self.at.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+             }
+             Some(anchor) => {
+-                let (ku, kv) = offsets(theta, self.phase);
++                let (ku, kv) = offsets(theta, self.read_phase());
+                 let (u, v) = (self.at.u_ref(), self.at.v_ref());
+                 anchor + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
+             }
+@@ -1158,7 +1244,14 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+         let (c, u, v) = running_frame(&self.at);
+         let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
+-        match self.anchor() {
++        if self.born == Born::Centred && cv_exact::<T>() {
++            let (hi, lo) = cv_vertex(self.at.origin(), self.at.u_ref(), self.semi_u);
++            let (hi, lo) = (exact_point(hi), geom_core::running::exact_vec(lo));
++            let (ku, kv) = running_offsets(theta, (T::one(), T::zero()));
++            let (ku, kv) = (a * ku, b * kv);
++            return core::array::from_fn(|i| hi[i] + (lo[i] + (u[i] * ku + v[i] * kv)));
++        }
++        match self.read_anchor() {
+             None => {
+                 let (sin, cos) = running_sin_cos(theta);
+                 let (ac, bs) = (a * cos, b * sin);
+@@ -1166,7 +1259,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+             }
+             Some(zero) => {
+                 let zero = exact_point(zero);
+-                let (ku, kv) = running_offsets(theta, self.phase);
++                let (ku, kv) = running_offsets(theta, self.read_phase());
+                 let (ku, kv) = (a * ku, b * kv);
+                 core::array::from_fn(|i| zero[i] + (u[i] * ku + v[i] * kv))
+             }
+diff --git a/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs b/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
+index 847c070c0..39ce9f74e 100644
+--- a/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
++++ b/crates/topo/src/boolean/conic_quadric/in_band_sweep.rs
+@@ -832,3 +832,195 @@ fn the_near_gap_families_certify_by_their_stored_form() {
+         }
+     }
+ }
++
++/// TEMPORARY PROBE 3.
++#[derive(Default)]
++struct Cell {
++    right: usize,
++    wrong: usize,
++    refused: usize,
++    worst: f64,
++}
++
++impl Cell {
++    fn judge(&mut self, got: &Result<Vec<f64>, ()>, truth: &[f64], a: f64, eps: f64, near: &dyn Fn(f64) -> f64) {
++        match got {
++            Err(()) => self.refused += 1,
++            Ok(roots) => {
++                let judge = eps + 8.0 * a * (f64::EPSILON / 2.0);
++                let offs: Vec<f64> = roots
++                    .iter()
++                    .map(|&t| truth.iter().map(|&x| (near(t) - near(x)).abs() * a).fold(f64::INFINITY, f64::min))
++                    .collect();
++                if roots.len() == truth.len() && offs.iter().all(|&o| o <= judge) {
++                    self.right += 1;
++                } else {
++                    self.wrong += 1;
++                    self.worst = self.worst.max(if roots.len() == truth.len() { offs.iter().fold(0.0, |m, &o| m.max(o)) } else { f64::INFINITY });
++                }
++            }
++        }
++    }
++    fn show(&self) -> String {
++        format!("{}/{}/{} worst {:.2e}", self.right, self.wrong, self.refused, self.worst)
++    }
++}
++
++fn probe3_door(c: &geom::Curve3<f64>, t0: f64, t1: f64, w: &geom::Surface<f64>, band: Band) -> Result<Vec<f64>, ()> {
++    match conic_quadric_roots(c, t0, t1, w, band) {
++        Ok(Ok(CircleRoots::Certified(f))) => Ok(f.roots()[..f.count()].to_vec()),
++        Ok(Ok(CircleRoots::Miss)) => Ok(Vec::new()),
++        _ => Err(()),
++    }
++}
++
++fn probe3_truths(c: &geom::Curve3<f64>, w: &geom::Surface<f64>, t0: f64, t1: f64, near: &dyn Fn(f64) -> f64) -> [Vec<f64>; 2] {
++    [false, true].map(|polar| {
++        exact::CV_POLAR.store(polar, std::sync::atomic::Ordering::Relaxed);
++        let t = exact::truth(c, w);
++        exact::CV_POLAR.store(false, std::sync::atomic::Ordering::Relaxed);
++        t.roots.iter().map(|&x| near(x)).filter(|x| *x >= t0 && *x <= t1).collect()
++    })
++}
++
++#[test]
++fn probe3() {
++    use geom::Conic as _;
++    let mode = std::env::var("CV_CHORD").unwrap_or_else(|_| "off".into());
++    let set = std::env::var("CV_SET").expect("CV_SET");
++    let mut out = String::new();
++    let depths = [-0.5e-6, -0.6e-6, -0.7e-6, -0.8e-6, -0.9e-6, -1e-6, -1.1e-6, -1.2e-6, -1.5e-6, -2e-6];
++    let tilts = [(1.2_f64, 0.7), (1.1, 0.7), (1.2, 0.6), (1.3, 0.8)];
++    if set == "size" || set == "round" {
++        for eps in [1e-9, 1e-12] {
++            let band = Band::new(eps, 10.0 * eps).unwrap();
++            let rhos: &[f64] = if set == "size" { &[10.0, 100.0, 500.0, 900.0, 1000.0, 1500.0, 1e4] } else { &[1500.0, 1e4] };
++            let ratios: &[Option<f64>] = if set == "size" { &[None, Some(1.25), Some(0.999), Some(1.001), Some(0.8)] } else { &[None] };
++            let rounds: &[f64] = if set == "size" { &[0.0] } else { &[0.0, 0.5, 2.0] };
++            for &rho in rhos {
++                for &ratio in ratios {
++                    for &th0 in rounds {
++                        // forms: (label, judged against the stored centre?)
++                        let forms: &[&str] = if mode == "off" { &["centre-sum", "twin", "arc-held"] } else { &["switched"] };
++                        for form in forms {
++                            let (mut stored, mut polar, mut own) = (Cell::default(), Cell::default(), Cell::default());
++                            let mut apart = 0.0_f64;
++                            for d in depths {
++                                let depth = d * (eps / 1e-9);
++                                for (g, b) in tilts {
++                                    let (at, axis, toward) = graze_point(Point3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, g.cos(), g.sin()), (depth, b));
++                                    let u_rot = if th0 == 0.0 { toward } else { toward * th0.cos() - axis.cross(toward) * th0.sin() };
++                                    let frame = geom::Frame::new(at - toward * rho, axis, u_rot);
++                                    let centred = match ratio {
++                                        None => geom::Curve3::Circle(geom::Circle::new(frame, rho)),
++                                        Some(k) => geom::Curve3::Ellipse(geom::Ellipse::new(frame, rho, rho * k)),
++                                    };
++                                    let f = centred.conic().unwrap().frame();
++                                    let c = match (*form, ratio) {
++                                        ("centre-sum" | "switched", _) => centred.clone(),
++                                        ("arc-held", None) => geom::Curve3::Circle(geom::Circle::anchored(at, axis, toward, rho)),
++                                        ("arc-held", Some(k)) => geom::Curve3::Ellipse(geom::Ellipse::anchored(at, axis, toward, rho, rho * k)),
++                                        (_, None) => geom::Curve3::Circle(geom::Circle::anchored(f.origin() + f.u_ref() * rho, f.axis(), f.u_ref(), rho)),
++                                        (_, Some(k)) => geom::Curve3::Ellipse(geom::Ellipse::anchored(f.origin() + f.u_ref() * rho, f.axis(), f.u_ref(), rho, rho * k)),
++                                    };
++                                    let arc_held_at = if *form == "arc-held" { 0.0 } else { th0 };
++                                    let (t0, t1) = (arc_held_at - 1.0, arc_held_at + 1.0);
++                                    let near = move |x: f64| { let mut y = x; while y - arc_held_at > PI { y -= TAU; } while y - arc_held_at < -PI { y += TAU; } y };
++                                    let w = wall(1.0);
++                                    let got = probe3_door(&c, t0, t1, &w, band);
++                                    if *form == "arc-held" {
++                                        let [o, _] = probe3_truths(&c, &w, t0, t1, &near);
++                                        own.judge(&got, &o, rho, eps, &near);
++                                    } else {
++                                        let [s, p] = probe3_truths(&centred, &w, t0, t1, &near);
++                                        if s.len() == p.len() { for (x, y) in s.iter().zip(&p) { apart = apart.max((x - y).abs() * rho); } }
++                                        stored.judge(&got, &s, rho, eps, &near);
++                                        polar.judge(&got, &p, rho, eps, &near);
++                                    }
++                                }
++                            }
++                            let label = if *form == "switched" { format!("switch-{mode}") } else { (*form).to_string() };
++                            if *form == "arc-held" {
++                                out += &format!("P3 {set} eps {eps:e} rho {rho:e} ratio {ratio:?} seam {th0} {label}: own {}\n", own.show());
++                            } else {
++                                out += &format!("P3 {set} eps {eps:e} rho {rho:e} ratio {ratio:?} seam {th0} {label}: stored {} | polar {} | truths apart {apart:.2e}\n", stored.show(), polar.show());
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    } else {
++        let file = std::fs::read_to_string(std::env::var("CV_IN").expect("CV_IN")).unwrap();
++        for (eps, k) in [(1e-9, 10.0), (1e-9, 1.002), (1e-12, 10.0), (1e-12, 2.81)] {
++            let band = Band::new(eps, k * eps).unwrap();
++            for line in file.lines().filter(|l| l.starts_with("EDGE ")) {
++                let wd: Vec<&str> = line.split_whitespace().collect();
++                let (door, d, kind) = (wd[1], wd[2], wd[5]);
++                let n: Vec<f64> = wd[6..19].iter().map(|h| f64::from_bits(u64::from_str_radix(h, 16).unwrap())).collect();
++                let (o, ax, ur) = (Point3::new(n[0], n[1], n[2]), Vec3::new(n[3], n[4], n[5]), Vec3::new(n[6], n[7], n[8]));
++                let frame = geom::Frame::admitted(o, ax, ur).expect("bit for bit");
++                let (a, b, t0, t1) = (n[9], n[10], n[11], n[12]);
++                assert_eq!(kind, "circle");
++                let _ = b;
++                let centred = geom::Curve3::Circle(geom::Circle::new(frame, a));
++                let tm = 0.5 * (t0 + t1);
++                let near = move |x: f64| { let mut y = x; while y - tm > PI { y -= TAU; } while y - tm < -PI { y += TAU; } y };
++                let aligned = [ax.x, ax.y, ax.z, ur.x, ur.y, ur.z].iter().all(|x| *x == 0.0 || x.abs() == 1.0);
++                let forms: &[&str] = if mode == "off" { &["centre-sum", "twin"] } else { &["switched"] };
++                for form in forms {
++                    let c = if *form == "twin" { geom::Curve3::Circle(geom::Circle::anchored(frame.origin() + frame.u_ref() * a, frame.axis(), frame.u_ref(), a)) } else { centred.clone() };
++                    let (mut stored, mut polar, mut own) = (Cell::default(), Cell::default(), Cell::default());
++                    let p = centred.eval(tm);
++                    let n_hat = (frame.origin() - p).normalize();
++                    let t_hat = centred.deriv(tm).normalize();
++                    for m in [0.3, 0.6, 1.0, 2.0, 5.0, 20.0, 100.0, 500.0] {
++                        for sgn in [-1.0, 1.0] {
++                            for g in [1.2_f64, 1.1, 1.3] {
++                                let depth = sgn * m * k * eps;
++                                let axis = t_hat * g.sin() + n_hat.cross(t_hat) * g.cos();
++                                let w = geom::Surface::Cylinder { frame: geom::Frame::new(p - n_hat * (1.0 + depth), axis, n_hat), radius: 1.0 };
++                                let got = probe3_door(&c, t0, t1, &w, band);
++                                let [s, pl] = probe3_truths(&centred, &w, t0, t1, &near);
++                                stored.judge(&got, &s, a, eps, &near);
++                                polar.judge(&got, &pl, a, eps, &near);
++                                if *form == "twin" {
++                                    let [o, _] = probe3_truths(&c, &w, t0, t1, &near);
++                                    own.judge(&got, &o, a, eps, &near);
++                                }
++                            }
++                        }
++                    }
++                    let label = if *form == "switched" { format!("switch-{mode}") } else { (*form).to_string() };
++                    out += &format!("P3 doors eps {eps:e} K {k} {door} D {d} aligned {aligned} {label}: stored {} | polar {} | own {}\n", stored.show(), polar.show(), own.show());
++                }
++            }
++        }
++    }
++    std::fs::write(std::env::var("CV_OUT").expect("CV_OUT"), out).unwrap();
++}
++
++#[test]
++fn probe3_conditioning() {
++    use geom::Conic as _;
++    let rho = 1500.0;
++    for (depth, g, b) in [
++        (-2.2275268165499354e-8, 1.2546003706691626, 5.870495587448265),
++        (4.3131436790936147e-7, 1.5655932971058697, 4.7628240842869465),
++        (-3.4093494596693404e-8, 4.918663138591604, 2.7053608505752993),
++    ] {
++        let c = tangent_circle(1.0, rho, depth, g, b);
++        let f = c.conic().unwrap().frame();
++        let t0 = exact::truth(&c, &wall(1.0));
++        for (name, dir) in [("x (the wall's normal at the graze)", Vec3::new(1.0, 0.0, 0.0)), ("y", Vec3::new(0.0, 1.0, 0.0)), ("z (the wall's axis)", Vec3::new(0.0, 0.0, 1.0))] {
++            let o = f.origin();
++            let step = 64.0 * f64::EPSILON * 1024.0;
++            let moved = Point3::new(o.x + dir.x * step, o.y + dir.y * step, o.z + dir.z * step);
++            let shift = ((moved.x - o.x).powi(2) + (moved.y - o.y).powi(2) + (moved.z - o.z).powi(2)).sqrt();
++            let c2 = geom::Curve3::circle(moved, f.axis(), rho, f.u_ref());
++            let t1 = exact::truth(&c2, &wall(1.0));
++            let moves: Vec<String> = t0.roots.iter().zip(&t1.roots).map(|(x, y)| format!("{:.3e}", arc_between(*x, *y, rho) / shift)).collect();
++            eprintln!("P3C depth {depth:e}: shift {shift:e} m along {name}: roots move {moves:?} m per m (roots {} -> {})", t0.roots.len(), t1.roots.len());
++        }
++    }
++}

@@ -1,0 +1,350 @@
+P3 size eps 1e-9 rho 1e1 ratio None seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e1 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e1 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e1 ratio Some(1.25) seam 0 centre-sum: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 3.80e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(1.25) seam 0 twin: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 3.80e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(1.25) seam 0 arc-held: own 32/0/8 worst 0.00e0
+P3 size eps 1e-9 rho 1e1 ratio Some(0.999) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.82e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.82e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e1 ratio Some(1.001) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.66e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.66e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e1 ratio Some(0.8) seam 0 centre-sum: stored 39/0/1 worst 0.00e0 | polar 39/0/1 worst 0.00e0 | truths apart 6.06e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(0.8) seam 0 twin: stored 39/0/1 worst 0.00e0 | polar 39/0/1 worst 0.00e0 | truths apart 6.06e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(0.8) seam 0 arc-held: own 39/0/1 worst 0.00e0
+P3 size eps 1e-9 rho 1e2 ratio None seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e2 ratio Some(1.25) seam 0 centre-sum: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 2.40e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.25) seam 0 twin: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 2.40e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.25) seam 0 arc-held: own 32/0/8 worst 0.00e0
+P3 size eps 1e-9 rho 1e2 ratio Some(0.999) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e2 ratio Some(1.001) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e2 ratio Some(0.8) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.94e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.8) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.94e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 5e2 ratio None seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 5e2 ratio Some(1.25) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.17e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.25) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.17e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.25) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 5e2 ratio Some(0.999) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 5e2 ratio Some(1.001) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 5e2 ratio Some(0.8) seam 0 centre-sum: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.84e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.8) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.84e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 9e2 ratio None seam 0 centre-sum: stored 33/0/7 worst 0.00e0 | polar 33/0/7 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 9e2 ratio Some(1.25) seam 0 centre-sum: stored 33/0/7 worst 0.00e0 | polar 33/0/7 worst 0.00e0 | truths apart 2.10e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.25) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.10e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.25) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 9e2 ratio Some(0.999) seam 0 centre-sum: stored 33/0/7 worst 0.00e0 | polar 33/0/7 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 9e2 ratio Some(1.001) seam 0 centre-sum: stored 33/0/7 worst 0.00e0 | polar 33/0/7 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 9e2 ratio Some(0.8) seam 0 centre-sum: stored 21/0/19 worst 0.00e0 | polar 21/0/19 worst 0.00e0 | truths apart 3.30e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.8) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.30e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e3 ratio None seam 0 centre-sum: stored 28/0/12 worst 0.00e0 | polar 28/0/12 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e3 ratio Some(1.25) seam 0 centre-sum: stored 28/0/12 worst 0.00e0 | polar 28/0/12 worst 0.00e0 | truths apart 2.34e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.25) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.34e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.25) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e3 ratio Some(0.999) seam 0 centre-sum: stored 28/0/12 worst 0.00e0 | polar 28/0/12 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e3 ratio Some(1.001) seam 0 centre-sum: stored 28/0/12 worst 0.00e0 | polar 28/0/12 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e3 ratio Some(0.8) seam 0 centre-sum: stored 15/0/25 worst 0.00e0 | polar 15/0/25 worst 0.00e0 | truths apart 3.66e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.8) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.66e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1.5e3 ratio None seam 0 centre-sum: stored 7/0/33 worst 0.00e0 | polar 7/0/33 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio None seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.25) seam 0 centre-sum: stored 7/0/33 worst 0.00e0 | polar 7/0/33 worst 0.00e0 | truths apart 3.49e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.25) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.49e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.25) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.999) seam 0 centre-sum: stored 7/0/33 worst 0.00e0 | polar 7/0/33 worst 0.00e0 | truths apart 4.38e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.999) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.38e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.001) seam 0 centre-sum: stored 7/0/33 worst 0.00e0 | polar 7/0/33 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.001) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.8) seam 0 centre-sum: stored 1/0/39 worst 0.00e0 | polar 1/0/39 worst 0.00e0 | truths apart 5.48e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.8) seam 0 twin: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.48e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e4 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio None seam 0 twin: stored 22/18/0 worst 2.17e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio None seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e4 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 2.33e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.25) seam 0 twin: stored 28/12/0 worst 1.74e-9 | polar 21/19/0 worst 3.65e-9 | truths apart 2.33e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.25) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e4 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.999) seam 0 twin: stored 22/18/0 worst 2.18e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.999) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e4 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 2.90e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.001) seam 0 twin: stored 22/18/0 worst 2.17e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.90e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.001) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-9 rho 1e4 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 3.63e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.8) seam 0 twin: stored 20/20/0 worst 2.72e-9 | polar 20/20/0 worst 5.71e-9 | truths apart 3.63e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.8) seam 0 arc-held: own 40/0/0 worst 0.00e0
+P3 size eps 1e-12 rho 1e1 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.70e-10
+P3 size eps 1e-12 rho 1e1 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.70e-10
+P3 size eps 1e-12 rho 1e1 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e1 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.20e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.20e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e1 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.93e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.93e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e1 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.49e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.49e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e1 ratio Some(0.8) seam 0 centre-sum: stored 10/0/30 worst 0.00e0 | polar 10/0/30 worst 0.00e0 | truths apart 7.23e-11
+P3 size eps 1e-12 rho 1e1 ratio Some(0.8) seam 0 twin: stored 10/0/30 worst 0.00e0 | polar 10/0/30 worst 0.00e0 | truths apart 7.23e-11
+P3 size eps 1e-12 rho 1e1 ratio Some(0.8) seam 0 arc-held: own 10/0/30 worst 0.00e0
+P3 size eps 1e-12 rho 1e2 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.66e-10
+P3 size eps 1e-12 rho 1e2 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.66e-10
+P3 size eps 1e-12 rho 1e2 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e2 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.59e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.59e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e2 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.67e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.67e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e2 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.65e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.65e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e2 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.25e-9
+P3 size eps 1e-12 rho 1e2 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.25e-9
+P3 size eps 1e-12 rho 1e2 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 5e2 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 5e2 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 3.70e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 3.70e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 5e2 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 5e2 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.63e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.63e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 5e2 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.83e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.83e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 9e2 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.31e-9
+P3 size eps 1e-12 rho 9e2 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.31e-9
+P3 size eps 1e-12 rho 9e2 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 9e2 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 6.63e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 6.63e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 9e2 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.32e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.32e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 9e2 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.30e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.30e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 9e2 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.04e-8
+P3 size eps 1e-12 rho 9e2 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.04e-8
+P3 size eps 1e-12 rho 9e2 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e3 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e3 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.37e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.37e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e3 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.23e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.23e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e3 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e3 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.16e-8
+P3 size eps 1e-12 rho 1e3 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.16e-8
+P3 size eps 1e-12 rho 1e3 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1.5e3 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.10e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.10e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.73e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.73e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e4 ratio None seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio None seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio None seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e4 ratio Some(1.25) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.34e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.25) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.34e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.25) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e4 ratio Some(0.999) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.999) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.999) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e4 ratio Some(1.001) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.17e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.001) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.17e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.001) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-12 rho 1e4 ratio Some(0.8) seam 0 centre-sum: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.15e-7
+P3 size eps 1e-12 rho 1e4 ratio Some(0.8) seam 0 twin: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.15e-7
+P3 size eps 1e-12 rho 1e4 ratio Some(0.8) seam 0 arc-held: own 0/0/40 worst 0.00e0
+P3 size eps 1e-9 rho 1e1 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.25) seam 0 switch-f64: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 3.80e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.82e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.66e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(0.8) seam 0 switch-f64: stored 39/0/1 worst 0.00e0 | polar 39/0/1 worst 0.00e0 | truths apart 6.06e-12
+P3 size eps 1e-9 rho 1e2 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.25) seam 0 switch-f64: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 2.40e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.8) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.94e-11
+P3 size eps 1e-9 rho 5e2 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.25) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.17e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.8) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.84e-10
+P3 size eps 1e-9 rho 9e2 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.25) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.10e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.8) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.30e-10
+P3 size eps 1e-9 rho 1e3 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.25) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.34e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.8) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.66e-10
+P3 size eps 1e-9 rho 1.5e3 ratio None seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.25) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.49e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.999) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.38e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.001) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.8) seam 0 switch-f64: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.48e-10
+P3 size eps 1e-9 rho 1e4 ratio None seam 0 switch-f64: stored 22/18/0 worst 2.17e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.25) seam 0 switch-f64: stored 28/12/0 worst 1.74e-9 | polar 21/19/0 worst 3.65e-9 | truths apart 2.33e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.999) seam 0 switch-f64: stored 22/18/0 worst 2.18e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.001) seam 0 switch-f64: stored 22/18/0 worst 2.17e-9 | polar 20/20/0 worst 4.57e-9 | truths apart 2.90e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.8) seam 0 switch-f64: stored 20/20/0 worst 2.72e-9 | polar 20/20/0 worst 5.71e-9 | truths apart 3.63e-9
+P3 size eps 1e-12 rho 1e1 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.70e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.20e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.93e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.49e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.8) seam 0 switch-f64: stored 10/0/30 worst 0.00e0 | polar 10/0/30 worst 0.00e0 | truths apart 7.23e-11
+P3 size eps 1e-12 rho 1e2 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.66e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.59e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.67e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.65e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.25e-9
+P3 size eps 1e-12 rho 5e2 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 3.70e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.63e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.83e-9
+P3 size eps 1e-12 rho 9e2 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.31e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 6.63e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.32e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.30e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.04e-8
+P3 size eps 1e-12 rho 1e3 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.37e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.23e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.16e-8
+P3 size eps 1e-12 rho 1.5e3 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.10e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.73e-8
+P3 size eps 1e-12 rho 1e4 ratio None seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.25) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.34e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.999) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.001) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.17e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.8) seam 0 switch-f64: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.15e-7
+P3 size eps 1e-9 rho 1e1 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.25) seam 0 switch-exact: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 3.80e-12
+P3 size eps 1e-9 rho 1e1 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.82e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.66e-11
+P3 size eps 1e-9 rho 1e1 ratio Some(0.8) seam 0 switch-exact: stored 39/0/1 worst 0.00e0 | polar 39/0/1 worst 0.00e0 | truths apart 6.06e-12
+P3 size eps 1e-9 rho 1e2 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.25) seam 0 switch-exact: stored 32/0/8 worst 0.00e0 | polar 32/0/8 worst 0.00e0 | truths apart 2.40e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.06e-11
+P3 size eps 1e-9 rho 1e2 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.94e-11
+P3 size eps 1e-9 rho 5e2 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.25) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.17e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.47e-10
+P3 size eps 1e-9 rho 5e2 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 1.84e-10
+P3 size eps 1e-9 rho 9e2 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.25) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.10e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.63e-10
+P3 size eps 1e-9 rho 9e2 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.30e-10
+P3 size eps 1e-9 rho 1e3 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.25) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.34e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 2.92e-10
+P3 size eps 1e-9 rho 1e3 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.66e-10
+P3 size eps 1e-9 rho 1.5e3 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.25) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 3.49e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.38e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 4.37e-10
+P3 size eps 1e-9 rho 1.5e3 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 40/0/0 worst 0.00e0 | truths apart 5.48e-10
+P3 size eps 1e-9 rho 1e4 ratio None seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 30/10/0 worst 2.91e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.25) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 30/10/0 worst 2.33e-9 | truths apart 2.33e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.999) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 30/10/0 worst 2.91e-9 | truths apart 2.91e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(1.001) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 30/10/0 worst 2.91e-9 | truths apart 2.90e-9
+P3 size eps 1e-9 rho 1e4 ratio Some(0.8) seam 0 switch-exact: stored 40/0/0 worst 0.00e0 | polar 30/10/0 worst 3.64e-9 | truths apart 3.63e-9
+P3 size eps 1e-12 rho 1e1 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.70e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.20e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.93e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.49e-10
+P3 size eps 1e-12 rho 1e1 ratio Some(0.8) seam 0 switch-exact: stored 10/0/30 worst 0.00e0 | polar 10/0/30 worst 0.00e0 | truths apart 7.23e-11
+P3 size eps 1e-12 rho 1e2 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.66e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.59e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.67e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.65e-10
+P3 size eps 1e-12 rho 1e2 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.25e-9
+P3 size eps 1e-12 rho 5e2 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 3.70e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.64e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 4.63e-9
+P3 size eps 1e-12 rho 5e2 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 5.83e-9
+P3 size eps 1e-12 rho 9e2 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.31e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 6.63e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.32e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 8.30e-9
+P3 size eps 1e-12 rho 9e2 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.04e-8
+P3 size eps 1e-12 rho 1e3 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.37e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.23e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.22e-9
+P3 size eps 1e-12 rho 1e3 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.16e-8
+P3 size eps 1e-12 rho 1.5e3 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.10e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.38e-8
+P3 size eps 1e-12 rho 1.5e3 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.73e-8
+P3 size eps 1e-12 rho 1e4 ratio None seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.25) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 7.34e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.999) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.18e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(1.001) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 9.17e-8
+P3 size eps 1e-12 rho 1e4 ratio Some(0.8) seam 0 switch-exact: stored 0/0/40 worst 0.00e0 | polar 0/0/40 worst 0.00e0 | truths apart 1.15e-7

@@ -1,0 +1,13 @@
+P3C depth -2.2275268165499354e-8: shift 1.4551915228366852e-11 m along x (the wall's normal at the graze): roots move ["1.529e4", "1.529e4"] m per m (roots 2 -> 2)
+P3C depth -2.2275268165499354e-8: shift 1.4551915228366852e-11 m along y: roots move ["3.236e0", "3.204e0"] m per m (roots 2 -> 2)
+P3C depth -2.2275268165499354e-8: shift 1.4551915228366852e-11 m along z (the wall's axis): roots move ["8.644e-6", "0.000e0"] m per m (roots 2 -> 2)
+P3C depth 4.3131436790936147e-7: shift 1.4551915228366852e-11 m along x (the wall's normal at the graze): roots move ["3.616e5", "4.681e2", "1.959e5", "5.571e5"] m per m (roots 4 -> 4)
+P3C depth 4.3131436790936147e-7: shift 1.4551915228366852e-11 m along y: roots move ["6.169e2", "9.069e1", "1.932e3", "1.224e3"] m per m (roots 4 -> 4)
+P3C depth 4.3131436790936147e-7: shift 1.4551915228366852e-11 m along z (the wall's axis): roots move ["0.000e0", "0.000e0", "0.000e0", "0.000e0"] m per m (roots 4 -> 4)
+P3C depth -3.4093494596693404e-8: shift 1.4551915228366852e-11 m along x (the wall's normal at the graze): roots move ["1.857e4", "1.857e4"] m per m (roots 2 -> 2)
+P3C depth -3.4093494596693404e-8: shift 1.4551915228366852e-11 m along y: roots move ["4.813e0", "4.761e0"] m per m (roots 2 -> 2)
+P3C depth -3.4093494596693404e-8: shift 1.4551915228366852e-11 m along z (the wall's axis): roots move ["0.000e0", "0.000e0"] m per m (roots 2 -> 2)
+test boolean::conic_quadric::in_band_sweep::probe3_conditioning ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3223 filtered out; finished in 0.01s
+

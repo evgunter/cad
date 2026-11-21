@@ -92,7 +92,7 @@ Three of its poses taken apart (`probes.patch`, `probe2_radius_1500_pose`):
 
 "The two exact circles" are the one about the stored centre and the one
 through `fl(centre + u_ref·a)` (the oracle run on an anchored conic at
-that point, which reads its derived centre). With the switch the door's
+that point; it takes the stored point exactly). With the switch the door's
 roots on the centre-held conic equal the anchored conic's own (to 1e-22
 rad) and lie within 4e-14 m of that second circle's exact roots. The two
 circles differ by the rounding of the seam vertex, `ulp(1500)` = 2.3e-13
