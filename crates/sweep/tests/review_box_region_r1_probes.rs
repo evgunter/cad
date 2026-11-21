@@ -245,3 +245,83 @@ fn probe_c1_analytic_reach_oracle() {
     }
     println!("n {n}: admitted past {admitted_past}, refused inside {refused_inside}, past but not Outside {limit_past}");
 }
+
+/// A barrel: the zone `|y| ≤ 30` of a radius-50 sphere about the origin,
+/// capped by two plane discs. Its sphere's poles (`y = ±50`) are not on
+/// its zone face.
+fn barrel(tol: Tol) -> topo::Body<f64> {
+    revolved_about_y(
+        vec![
+            (Point2::new(0.0, -30.0), 0.0),
+            (Point2::new(40.0, -30.0), 1.0 / 3.0),
+            (Point2::new(40.0, 30.0), 0.0),
+            (Point2::new(0.0, 30.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    )
+}
+
+/// **A sphere zone whose carrier's pole is past the box and whose face is
+/// inside it is admitted** (reviewer r1). The barrel centred at
+/// `y = 965` reaches `y = 995` (its top disc); its sphere's ball reaches
+/// 1015 m, past the box, and its `+y` pole is not on the face. So stage 1
+/// (the ball) does not admit it, stage 2 (the zone's own cover) does,
+/// and the inside read must drop the pole. At `y = 975` its disc is past
+/// by 5 m and it is refused as past the box. *Breaks if* stage 2 never
+/// admits, or a candidate the face does not hold is kept.
+#[test]
+fn a_zone_whose_pole_alone_is_past_the_box_is_admitted() {
+    let tol = Tol::witness();
+    let home = barrel(tol);
+    for (f, _) in home.faces() {
+        println!("face surface {:?}", home.face(f).map(|v| v.surface().clone()));
+    }
+    assert_eq!(gate(&home, tol), "Ok", "the barrel at the origin");
+    let at = RigidMotion::translation(Vec3::new(0.0, 965.0, 0.0)).unwrap();
+    let image = topo::transform_rigid(&home, &at).unwrap();
+    assert_eq!(gate(&image, tol), "Ok", "the barrel at 965 m: its face is in the box");
+    assert_eq!(door(&home, &at, tol), "Ok", "placed at 965 m");
+    let far = RigidMotion::translation(Vec3::new(0.0, 975.0, 0.0)).unwrap();
+    let image = topo::transform_rigid(&home, &far).unwrap();
+    assert!(gate(&image, tol).starts_with("Outside(5"), "{}", gate(&image, tol));
+    assert!(door(&home, &far, tol).starts_with("Outside(5"), "{}", door(&home, &far, tol));
+}
+
+/// **An arc edge whose interior alone is past the box refuses past it**
+/// (reviewer r1). A cylinder of radius 100 about `(cx, 0)`, its circle
+/// four quarter arcs whose ends sit on the diagonals, extruded 1 m: at
+/// `cx = 905` its `+x` arc reaches 1005 m at its middle, on no vertex
+/// (the vertices reach 975.7 m) and on no face extreme (a cylinder has
+/// none). Refused past the box by 5 m; at `cx = 895` it is admitted.
+/// *Breaks if* stage 3 drops the edges' own points.
+#[test]
+fn an_arc_whose_middle_alone_is_past_the_box_refuses_past_it() {
+    let tol = Tol::witness();
+    let b = (PI / 8.0).tan();
+    let at = |cx: f64| {
+        let d = 100.0 / 2.0_f64.sqrt();
+        let lp = profile::test_support::bulge_loop(vec![
+            (Point2::new(cx + d, -d), b),
+            (Point2::new(cx + d, d), b),
+            (Point2::new(cx - d, d), b),
+            (Point2::new(cx - d, -d), b),
+        ]);
+        let pf = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .expect("a valid circle");
+        sweep::extrude(
+            &pf,
+            sweep::Extrusion::Distance { depth: 1.0, side: sweep::ExtrudeSide::Along },
+            tol,
+        )
+    };
+    match at(905.0) {
+        Err(e) => {
+            let said = format!("{e:?}");
+            assert!(said.contains("OutsideSessionBox { margin: MarginDiag(Value(-5"), "{said}");
+        }
+        Ok(_) => panic!("the arc's middle is 5 m past the box"),
+    }
+    assert!(at(895.0).is_ok(), "inside the box");
+}

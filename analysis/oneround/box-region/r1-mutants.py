@@ -46,9 +46,9 @@ MUTANTS = {
  # Placement filter accepts every candidate (a candidate not on the face kept).
  "placement_keeps_all": (CV,
    "                    _ => Err(()),\n                }\n            })\n            .is_some()",
-   "                    _ => Ok(()),\n                }\n            })\n            .is_some()"),
+   "                    _ => Ok::<(), ()>(()),\n                }\n            })\n            .is_some()"),
 }
-FILTER = ("test(session_box) | test(/review_box_region_r1_probes::probe_(c2|spindle)/) | "
+FILTER = ("test(session_box) | test(/a_zone_whose_pole/) | test(/an_arc_whose_middle/) | test(/review_box_region_r1_probes::probe_(c2|spindle)/) | "
           "test(a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement) | "
           "test(/tcost_k3_certificate::a_(multi_solid_certificate_split|refusing_arm)/)")
 env = dict(os.environ, CARGO_TARGET_DIR="/home/user/tgt-mut")
