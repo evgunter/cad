@@ -6,6 +6,9 @@ status: open
 opened: 2026-11-18
 priority: P2
 refs: [7079, 7099, the-graft-holds-a-placed-copy-twice, vertex-on-edge-is-answered-from-the-claim-not-from-coordinates]
+cost: X
+points: 48
+design: true
 ---
 
 Filed by the ONEHOME orchestrator: stage 2 of fork 288 (PR 7079,
@@ -57,3 +60,7 @@ times, is in PR 7206's body.
   vertex's face side (`bool_vertex_face_side`), and at `Sym` the result's
   junction and volume (`props_chart_junction_closed`,
   `props_cylinder_circle_off_axis`).
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged, when Ev chose to split stage 2 off as its own program (PR 7282, "splitting it off sounds good!"). Priced `X`, 48 points: the 9–30 PR estimate above, read as about six hard rows' work, since most of the 630–860 reads move behind the door mechanically, module by module, and the hard part is the door, the frame table and the result's survivors. `design: true`: how the door is staged, and whether the fused aggregate body is a cache or goes (`the-graft-holds-a-placed-copy-twice`), are open until stage 2 is planned.

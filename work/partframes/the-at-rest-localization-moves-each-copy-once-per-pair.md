@@ -15,4 +15,8 @@ Since stage 1 of fork 288, the at-rest localization (`crates/editor-core/src/che
 
 Measured over the corpus's default checks at `f64`, debug build, median of three runs: 361.1 s before, 388.8 s after (+7.7%). The most-affected documents are near +9–10%: die_composed, axis_projection, revolves_on_one_axis.
 
-This is stage 2's cached-copy question (`work/onehome/a-body-records-its-parts-in-their-frames.md`; PR 7079: "a moved copy may be kept as a cache, answering a reading only where it gives what the record read through the motion gives"). Either the placed door takes a cache of the image beside the record, or stage 2's reading through the relative motion makes the move go away.
+This is stage 2's cached-copy question (`work/partframes/a-body-records-its-parts-in-their-frames.md`; PR 7079: "a moved copy may be kept as a cache, answering a reading only where it gives what the record read through the motion gives"). Either the placed door takes a cache of the image beside the record, or stage 2's reading through the relative motion makes the move go away.
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged (Ev, PR 7282: stage 2 split off): it is stage 2's cached-copy question.
