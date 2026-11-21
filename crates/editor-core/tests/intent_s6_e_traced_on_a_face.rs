@@ -325,19 +325,42 @@ fn extruded_by(doc: ProfileDoc, outline: RecipeNodeId, h: f64) -> (ProfileDoc, R
 /// centred at `centre` on the frame at `(0, 0, lift)` spun about its `x`
 /// by `by`**: the document and the cylinder. The frame is the box top's
 /// chart at its identity orientation, slid down its `z`, so it turns by
-/// nothing but `by`.
+/// nothing but `by`; the slide and the spin read the one chart, as a
+/// profile's frame seat admits a chart's moves.
 fn turned_cylinder(
     doc: ProfileDoc,
     (base, h): (RecipeNodeId, f64),
     by: Formula,
     (centre, lift): ([f64; 2], f64),
 ) -> (ProfileDoc, RecipeNodeId) {
-    let chart = Operand::Pose(Box::new(PoseDef::FaceChart {
-        face: pick(Operand::output(base, 0), cap(base, CapEnd::End)),
-        orient: editor_core::Orientation::IDENTITY,
-        spin: fixture::ang(0.0),
-        slides: [len(0.0), len(0.0)],
-    }));
+    // The chart, lowered once: the slide and the spin move it, read as
+    // the one variable a profile's frame seat stands on.
+    let mut doc = doc;
+    let probe = Node::Profile(ProfileProgram {
+        loops: Vec::new(),
+        ids: Vec::new(),
+        on: Some(editor_core::DrawnOn {
+            frame: Operand::Pose(Box::new(PoseDef::FaceChart {
+                face: pick(Operand::output(base, 0), cap(base, CapEnd::End)),
+                orient: editor_core::Orientation::IDENTITY,
+                spin: fixture::ang(0.0),
+                slides: [len(0.0), len(0.0)],
+            })),
+            faces: Vec::new(),
+        }),
+    });
+    let Ok(Node::Profile(lowered)) = editor_core::edit::lower_node_into(&mut doc, &probe) else {
+        panic!("the chart lowers")
+    };
+    let chart = lowered.on.expect("drawn on the chart").frame;
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::RenameVar {
+            var: chart.into(),
+            name: Some(VarName::new("top_chart").expect("a name")),
+        },
+    );
+    let chart = Operand::Var(chart);
     let at_origin = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(chart.clone()),
         along: RoleRead::through(chart, PoseRole::Z),

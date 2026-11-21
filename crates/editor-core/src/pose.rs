@@ -329,14 +329,20 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     /// **A face's chart** (D10 `[placement]`; `REFERENCES.md` DM1): the
     /// frame a plane placement onto the face gives under the same
     /// orientation, spin and slides, computed by that placement's own
-    /// code (`mate::value::face_chart`). Its `z` is the face's outward
+    /// code (`mate::value::FaceChart`). Its `z` is the face's outward
     /// normal; its `x` and origin are the face's space's under `orient`,
     /// carried onto the face by the least turn, then turned by `spin`
     /// about the normal and moved by `slides`, along the two target axes
     /// the orientation leaves ([`crate::mate::face_chart_slides`]).
-    /// Within the band
-    /// about the least turn's pole it refuses typed, naming the
-    /// orientation to write ([`PoseConstruction::FaceChartBackwards`]).
+    ///
+    /// It stands in a profile's frame seat alone, there or under slides,
+    /// spins and flips that read nothing else
+    /// ([`PoseConstruction::FaceChartUnseated`] anywhere else), and decides
+    /// nothing there: what stands in it (the profile's loops, each sweep
+    /// of it, the faces it traces) is carried over its own reach, and
+    /// within the band about the least turn's pole that carriage refuses
+    /// typed, naming the orientation to write
+    /// ([`PoseConstruction::FaceChartBackwards`]).
     FaceChart {
         /// The face, a `Face` read of a planar face.
         face: R,
@@ -1178,7 +1184,7 @@ impl core::fmt::Display for PoseReadFault {
 
 /// **A construction that refuses its degenerate case**
 /// ([`crate::NodeErrorKind::PoseDegenerate`]).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PoseConstruction {
     /// [`PoseDef::Through`]: the point lies on the axis.
     Through,
@@ -1197,16 +1203,19 @@ pub enum PoseConstruction {
         /// the face's outward normal: the one to write.
         write: crate::Orientation,
     },
-    /// [`PoseDef::FaceChart`]: the face and the slides stand too far
-    /// from the space's origin for the least turn to be decided over
-    /// them: the two halves of the lever
-    /// ([`crate::mate::LeverRefusal::OutOfRange`]).
+    /// [`PoseDef::FaceChart`]: no lever is formed for what the chart
+    /// carries: its reach is not in hand
+    /// ([`crate::mate::LeverRefusal::Shape`]), or it, the slides and the
+    /// face stand too far from the space's origin for the least turn to
+    /// be decided over them ([`crate::mate::LeverRefusal::OutOfRange`]).
     FaceChartUnleverable {
-        /// The written slides' lengths, summed.
-        parts: f64,
-        /// The face's plane's distance from the space's origin.
-        datum: f64,
+        /// Why.
+        refusal: Box<crate::mate::LeverRefusal>,
     },
+    /// [`PoseDef::FaceChart`] read anywhere but a profile's frame seat,
+    /// where nothing it carries is levered, or moved there by a read of
+    /// anything but the chart.
+    FaceChartUnseated,
 }
 
 impl core::fmt::Display for PoseConstruction {
@@ -1232,16 +1241,16 @@ impl core::fmt::Display for PoseConstruction {
                      orientation {write}"
                 );
             }
-            Self::FaceChartUnleverable { parts, datum } => {
+            Self::FaceChartUnleverable { refusal } => {
                 return write!(
                     f,
-                    "the face's chart stands too far from its space's origin for its turn to be \
-                     decided: {}",
-                    crate::mate::LeverRefusal::OutOfRange {
-                        parts: *parts,
-                        datum: *datum
-                    }
+                    "the face's chart's turn cannot be levered over what it carries: {refusal}"
                 );
+            }
+            Self::FaceChartUnseated => {
+                "a face's chart stands in a profile's frame seat alone, where what is drawn on it \
+                 is carried over its own reach. Recourse: draw a profile on the chart itself, \
+                 writing its spin and slides there, or read the face as a plane"
             }
         })
     }

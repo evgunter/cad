@@ -264,7 +264,7 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
         form: ProfileForm<T>,
         /// The frame the profile is drawn on, at the lane, where it is
         /// drawn on one.
-        frame: Option<RigidMotion<T>>,
+        frame: Option<trace::OnFrame<T>>,
     },
     /// An assertion over a value, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
@@ -366,7 +366,7 @@ where
             frame,
             ..
         } => {
-            let value = wire_profile(program, pre, form, frame.as_ref(), tol)?;
+            let value = wire_profile(id, program, pre, form, frame.clone(), tol)?;
             let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces);
             return Ok(
                 OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
@@ -1578,11 +1578,12 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(NodeErrorKind::Profile)
 }
 
-fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
+fn wire_profile<T: crate::mate::SolveScalar + geom_core::Bounds + super::ProfileLane>(
+    id: RecipeNodeId,
     program: &ProfileProgram,
     pre: &ProfilePre,
     form: &ProfileForm<T>,
-    frame: Option<&RigidMotion<T>>,
+    frame: Option<trace::OnFrame<T>>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
     let plane = profile::SketchPlane::xy();
@@ -1596,12 +1597,20 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         }
         ProfileForm::Lane(resolved) => lane_profile::<T>(resolved, plane, pre, tol)?,
     };
+    // The profile stands in the frame it is drawn on, carried over its
+    // own loops' reach.
+    let frame = frame
+        .map(|on| {
+            let reach = super::anchor::loops_reach(&validated, id);
+            super::anchor::DrawnFrame::carrying(on, reach, tol)
+        })
+        .transpose()?;
     Ok(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
-        frame: frame.map(|f| super::Frame::Map(Arc::new(*f))),
+        frame,
     }))
 }
 
@@ -1673,7 +1682,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// The body and the name table (profile refs in canonical numbering).
 /// The body stands in the profile's frame, `lift` along the profile's
 /// `z` where it is lifted ([`super::ProfileValue::lifted`]).
-fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
+fn wire_swept<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1697,11 +1706,8 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // A lifted sweep stands `by` along its profile's `z`, a placement
     // of its own, so it asks where it stands as a placed copy does.
     let framed = match lift {
-        None => vp.framed(body, tol)?,
-        Some(by) => vp
-            .lifted(body, by)
-            .map_err(NodeErrorKind::Motion)?
-            .asked_where_it_stands(tol)?,
+        None => vp.framed(body, id, tol)?,
+        Some(by) => vp.lifted(body, by, id, tol)?.asked_where_it_stands(tol)?,
     };
     Ok(OpOut::plain(ValuePayload::Body(framed), out.table))
 }
@@ -1713,7 +1719,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
 /// negative, the extrude is the sweep of `|d|` whose start cap sits `d`
 /// along the profile's `z`. Its zero and its band are the sweep's to
 /// refuse.
-fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_extrude<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     results: &Results<T>,
@@ -1744,7 +1750,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// — the document semantics (the axis slots, the full-vs-partial
 /// classification), and the generic lowering from there. The axis's
 /// lift, the node's `axis` output, is read by the pose evaluator.
-fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_revolve<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     results: &Results<T>,
@@ -4890,7 +4896,7 @@ fn need_count(
 /// functions of them, and the structure is selected on the sections'
 /// value channel (`sweep::loft_profiles`). At `Interval` a section wider
 /// than a point lofts the family it spans.
-fn wire_loft<T: Decide + topo::AtRestPolicy>(
+fn wire_loft<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     ids: &[crate::SectionId],
@@ -4942,7 +4948,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // with that section's id.
     let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(values[0].framed(Arc::new(built.body), tol)?),
+        ValuePayload::Body(values[0].framed(Arc::new(built.body), id, tol)?),
         table,
     ))
 }

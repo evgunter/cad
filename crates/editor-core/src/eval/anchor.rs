@@ -389,25 +389,119 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// **The frame the profile is drawn on**, where it is drawn on one
     /// ([`crate::DrawnOn`]): a sweep of it is built in the profile's own
     /// coordinates and stands in that frame of its space.
-    pub(crate) frame: Option<super::Frame<T>>,
+    pub(crate) frame: Option<DrawnFrame<T>>,
 }
 
-impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
-    /// **A body swept from this profile**, built in the profile's own
-    /// coordinates: in the frame the profile is drawn on, or its own.
+/// **The frame a profile is drawn on, carrying the profile**: the
+/// frame as its seat reads it, carried over the profile's own loops'
+/// reach, so every reader of the profile reads a decided frame. A body
+/// that comes to stand in it later (a sweep of the profile) is carried
+/// again over its own reach ([`Self::carry`]); the frame's value reads
+/// no arm, so each carriage stands it in this one frame, and only the
+/// verdict is its own.
+#[derive(Debug, Clone)]
+pub(crate) struct DrawnFrame<T: geom_core::Real> {
+    on: super::wire::trace::OnFrame<T>,
+    frame: super::Frame<T>,
+}
+
+impl<T: crate::mate::SolveScalar> DrawnFrame<T> {
+    /// **`on` carrying a profile whose loops reach `reach`** from its
+    /// origin.
     ///
     /// # Errors
     ///
-    /// Where it stands in its space past the session box
-    /// ([`super::Framed::asked_where_it_stands`]).
+    /// The frame's refusal of the carriage.
+    pub(crate) fn carrying(
+        on: super::wire::trace::OnFrame<T>,
+        reach: Result<f64, crate::mate::LeverRefusal>,
+        tol: geom_core::Tol,
+    ) -> Result<Self, super::NodeErrorKind> {
+        let frame = super::Frame::Map(std::sync::Arc::new(on.carry(reach, tol)?));
+        Ok(Self { on, frame })
+    }
+
+    /// The frame, as the profile's carriage decided it.
+    pub(crate) fn frame(&self) -> &super::Frame<T> {
+        &self.frame
+    }
+
+    /// **The frame, carrying a body that reaches `reach`** from its
+    /// origin: the same frame, decided over that reach.
+    ///
+    /// # Errors
+    ///
+    /// The frame's refusal of the carriage.
+    pub(crate) fn carry(
+        &self,
+        reach: Result<f64, crate::mate::LeverRefusal>,
+        tol: geom_core::Tol,
+    ) -> Result<super::Frame<T>, super::NodeErrorKind> {
+        self.on.carry(reach, tol)?;
+        Ok(self.frame.clone())
+    }
+}
+
+/// **How far a profile's loops reach from its origin**: each line
+/// segment to its farther end, each arc to its carrier's far side.
+pub(crate) fn loops_reach<T: crate::mate::SolveScalar>(
+    validated: &profile::ValidatedProfile<T>,
+    profile: crate::RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    let from_origin = |p: geom_core::Point2<T>| {
+        crate::mate::SolveScalar::upper((p - geom_core::Point2::origin()).norm())
+    };
+    let reach = validated
+        .loops()
+        .iter()
+        .flat_map(profile::ValidatedLoop::segments)
+        .map(|s| match s.kind {
+            profile::SegmentKind::Line => from_origin(s.start).max(from_origin(s.end)),
+            profile::SegmentKind::Arc { arc, .. } => {
+                from_origin(arc.centre) + crate::mate::SolveScalar::upper(arc.radius)
+            }
+        })
+        .fold(0.0_f64, f64::max);
+    if reach.is_finite() {
+        Ok(reach)
+    } else {
+        Err(crate::mate::LeverRefusal::Shape {
+            shape: profile,
+            refusal: crate::mate::ReachRefusal::NoFiniteBound,
+        })
+    }
+}
+
+impl<T: geom_core::Real> ProfileValue<T> {
+    /// **The frame the profile is drawn on**, in its space's coordinates,
+    /// as the profile's own carriage decided it; `None` for a profile
+    /// drawn on no frame.
+    #[must_use]
+    pub fn drawn_frame(&self) -> Option<&geom_core::RigidMotion<T>> {
+        self.frame.as_ref().and_then(|d| d.frame.map())
+    }
+}
+
+impl<T: topo::AtRestPolicy + crate::mate::SolveScalar> ProfileValue<T> {
+    /// **A body swept from this profile**, built in the profile's own
+    /// coordinates: in the frame the profile is drawn on, carrying the
+    /// body over its reach, or its own. `sweep` is the sweep's node.
+    ///
+    /// # Errors
+    ///
+    /// The frame's refusal to carry the body; where it stands in its
+    /// space past the session box ([`super::Framed::asked_where_it_stands`]).
     pub(crate) fn framed(
         &self,
         body: std::sync::Arc<T::Leaf>,
+        sweep: crate::RecipeNodeId,
         tol: geom_core::Tol,
     ) -> Result<super::Framed<T>, super::NodeErrorKind> {
         match &self.frame {
-            Some(frame) => {
-                super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol)
+            Some(drawn) => {
+                let reach = swept_reach(&body, geom_core::Point3::<T>::origin(), sweep, tol)?;
+                super::Framed::in_frame_leaf(body, drawn.carry(reach, tol)?)
+                    .asked_where_it_stands(tol)
             }
             None => Ok(super::Framed::own_leaf(body)),
         }
@@ -415,20 +509,35 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
 
     /// **A body swept from this profile, lifted `by` along its `z`**:
     /// built in the profile's own coordinates, and standing `by` along
-    /// the profile's `z` in the frame it is drawn on, or its own.
+    /// the profile's `z` in the frame it is drawn on, carrying the lifted
+    /// body over its reach, or its own. `sweep` is the sweep's node.
     ///
     /// # Errors
     ///
-    /// The lift's or the composition's overflow.
+    /// The frame's refusal to carry the body; the lift's or the
+    /// composition's overflow.
     pub(crate) fn lifted(
         &self,
         body: std::sync::Arc<T::Leaf>,
         by: T,
-    ) -> Result<super::Framed<T>, geom_core::RigidMotionError> {
+        sweep: crate::RecipeNodeId,
+        tol: geom_core::Tol,
+    ) -> Result<super::Framed<T>, super::NodeErrorKind> {
+        let motion = super::NodeErrorKind::Motion;
         let lift =
-            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))?;
-        let map = match self.frame.as_ref().and_then(super::Frame::map) {
-            Some(on) => on.compose(lift)?,
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))
+                .map_err(motion)?;
+        let map = match &self.frame {
+            Some(drawn) => {
+                // The lifted body's reach from the frame's origin: the
+                // body's from the point the lift carries there.
+                let about = geom_core::Point3::new(T::zero(), T::zero(), -by);
+                let reach = swept_reach(&body, about, sweep, tol)?;
+                match drawn.carry(reach, tol)?.map() {
+                    Some(on) => on.compose(lift).map_err(motion)?,
+                    None => lift,
+                }
+            }
             None => lift,
         };
         Ok(super::Framed::in_frame_leaf(
@@ -436,6 +545,30 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
             super::Frame::Map(std::sync::Arc::new(map)),
         ))
     }
+}
+
+/// **How far a swept body reaches from `about`**, in its own
+/// coordinates, as a placement reads its copy's ([`crate::mate::part_reach_from`]).
+fn swept_reach<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    about: geom_core::Point3<T>,
+    sweep: crate::RecipeNodeId,
+    tol: geom_core::Tol,
+) -> Result<Result<f64, crate::mate::LeverRefusal>, super::NodeErrorKind> {
+    let band = super::wire::band(tol)?;
+    Ok(crate::mate::part_reach_from(body, about, band)
+        .map(crate::mate::SolveScalar::upper)
+        .and_then(|hi| {
+            if hi.is_finite() {
+                Ok(hi)
+            } else {
+                Err(crate::mate::ReachRefusal::NoFiniteBound)
+            }
+        })
+        .map_err(|refusal| crate::mate::LeverRefusal::Shape {
+            shape: sweep,
+            refusal,
+        }))
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

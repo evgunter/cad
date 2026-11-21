@@ -1104,6 +1104,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
                 "face_chart_unleverable"
             }
+            pncad::document::pose::PoseConstruction::FaceChartUnseated => "face_chart_unseated",
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,
