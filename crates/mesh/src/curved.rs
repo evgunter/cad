@@ -229,7 +229,7 @@ pub(crate) fn tessellate_curved(
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
-    if crate::walk::pinches(body, face.outer, fk)? {
+    if crate::walk::pinches(body, face.outer)? {
         return Err(TessellateError::MissingEntity {
             what: PINCHED_FACE_ROUTED_HERE,
         });
@@ -292,7 +292,7 @@ pub(crate) fn tessellate_curved(
     // then has): from the loop's STORED TRAVERSAL order, which
     // interior-left ties to the outward normal, and on the wrap strip,
     // whose loop walks one edge both ways and so has no order to read,
-    // from the sense itself (`walk::wrap_strip`). `revert` reverses the
+    // from the loop's stored lift (`walk::wrap_strip`). `revert` reverses the
     // loops AND flips `sense` together, so folding the bit in here as
     // well would double-count the reversal and emit inward-wound
     // triangles.
@@ -1435,7 +1435,7 @@ mod tests {
             .expect("the bore");
         let outer = body.get_face(fk).unwrap().outer;
         assert!(
-            crate::walk::pinches(&body, outer, fk).unwrap(),
+            crate::walk::pinches(&body, outer).unwrap(),
             "the bore's loop passes the slit's ends twice"
         );
         let Ok(Shape::Rectangle(rectangle)) =
