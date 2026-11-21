@@ -239,26 +239,31 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
-    let trims = core.fit_arc_fillet(
-        resolver,
-        meta.bound_at,
-        [
-            pending.side(),
-            arc_fillet::FilletSide {
-                anchor,
-                carrier: arc_fillet::SideCarrier::Circle { centre, winding },
-            },
-        ],
-        pending.radius(),
-        tol,
-    )?;
-    core.emit_fillet_in(&trims, &meta, pending.run())?;
-    // The carrier run to the anchor follows the fillet arc tangentially
-    // by construction, so the arc's outgoing joint is declared exactly
-    // when that run exists; on an exact fit the fillet arc ends the
-    // side at the anchor itself and the outgoing direction stays free.
-    let follows = (trims.fit_out == Sign::Positive).then_some(super::ArrivalCarrier::AuthoredArc);
-    core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
+    let trims = core.resolving(meta.bound_at, |core| {
+        let trims = core.fit_arc_fillet(
+            resolver,
+            meta.bound_at,
+            [
+                pending.side(),
+                arc_fillet::FilletSide {
+                    anchor,
+                    carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+                },
+            ],
+            pending.radius(),
+            tol,
+        )?;
+        core.emit_fillet_in(&trims, &meta, pending.run())?;
+        // The carrier run to the anchor follows the fillet arc
+        // tangentially by construction, so the arc's outgoing joint is
+        // declared exactly when that run exists; on an exact fit the
+        // fillet arc ends the side at the anchor itself and the
+        // outgoing direction stays free.
+        let follows =
+            (trims.fit_out == Sign::Positive).then_some(super::ArrivalCarrier::AuthoredArc);
+        core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
+        Ok(trims)
+    })?;
     let tip = if trims.fit_out == Sign::Positive {
         let head = core.head()?;
         let radius = arrival_radius.unwrap_or_else(|| (anchor - centre).norm());
@@ -340,30 +345,35 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
     let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
-    let trims = core.fit_arc_fillet(
-        resolver,
-        meta.bound_at,
-        [
-            pending.side(),
-            arc_fillet::FilletSide {
-                anchor: start_pos,
-                carrier: arc_fillet::SideCarrier::Circle { centre, winding },
-            },
-        ],
-        pending.radius(),
-        tol,
-    )?;
-    core.emit_fillet_in(&trims, &meta, pending.run())?;
+    let trims = core.resolving(meta.bound_at, |core| {
+        let trims = core.fit_arc_fillet(
+            resolver,
+            meta.bound_at,
+            [
+                pending.side(),
+                arc_fillet::FilletSide {
+                    anchor: start_pos,
+                    carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+                },
+            ],
+            pending.radius(),
+            tol,
+        )?;
+        core.emit_fillet_in(&trims, &meta, pending.run())?;
+        Ok(trims)
+    })?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
         // interior segment and the run itself closes the loop.
-        core.emit_fillet_arc(
-            &trims,
-            Some(super::ArrivalCarrier::AuthoredArc),
-            meta.bound_at,
-            tol,
-        )?;
+        core.resolving(meta.bound_at, |core| {
+            core.emit_fillet_arc(
+                &trims,
+                Some(super::ArrivalCarrier::AuthoredArc),
+                meta.bound_at,
+                tol,
+            )
+        })?;
         let head = core.head()?;
         let arc = super::side_arc(
             head,
@@ -398,8 +408,11 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         // other fillet arc, so the close re-reads its STORED form too —
         // the seam junction check below reads the resolver's computed
         // carrier and says nothing about what was stored.
-        let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
-        core.close_leaving(Some(trims.fillet().decided()), FirstSeg::Arc)?;
+        let leaving = core.resolving(meta.bound_at, |core| {
+            let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
+            core.close_leaving(Some(trims.fillet().decided()), FirstSeg::Arc)?;
+            Ok(leaving)
+        })?;
         debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
         seam_joint(
             core,

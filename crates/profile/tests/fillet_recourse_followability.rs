@@ -593,7 +593,7 @@ fn the_offset_lever_recourse_reaches_the_caller_at_its_own_site() {
     // The definite sibling below the band, carrying the same story.
     let short = lever_lens(big, least - 50.0 * eps).expect_err("below the least lever");
     assert!(
-        matches!(short, PathError::FilletOffsetLeverTooShort { .. }),
+        matches!(short.refusal(), PathError::FilletOffsetLeverTooShort { .. }),
         "expected the definite sibling, got {short:?}"
     );
     // The sentence's own request, followed at the site it fired at.
@@ -776,7 +776,7 @@ fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
     let radius = 0.5 * tol().eps() / theta;
     let err = bend(0.0, theta, radius).expect_err("an arc shorter than ε refuses at the door");
     assert!(
-        matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
+        matches!(err.refusal(), PathError::FilletArcFlattenedInStorage { .. }),
         "the window's refusal is the flattening one, got {err:?}"
     );
     carries(&err, FILLET_FLATTENED_RECOURSE, "the flattening refusal");
@@ -836,7 +836,7 @@ fn the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_sc
     // the row well inside it at whatever ε the run committed.
     let shift = 1e3 * tol().eps() / f64::EPSILON;
     let err = far_bend(shift, 0.5, 0.2).expect_err("a far scene refuses at the door");
-    let (scale, radius) = match &err {
+    let (scale, radius) = match err.refusal() {
         PathError::FilletCarrierBelowSceneResolution { scale, radius, .. } => (
             crate::common::told(scale),
             radius.as_given().expect("the authored radius"),
@@ -859,7 +859,12 @@ fn the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_sc
     // Lever 2: a smaller radius, on a scene where the magnitude is the
     // radius itself rather than the coordinates.
     let huge = 64.0 * tol().eps() / f64::EPSILON;
-    if let Err(e @ PathError::FilletCarrierBelowSceneResolution { .. }) = bend(0.0, 1e-3, huge) {
+    if let Err(e) = bend(0.0, 1e-3, huge)
+        && matches!(
+            e.refusal(),
+            PathError::FilletCarrierBelowSceneResolution { .. }
+        )
+    {
         carries(
             &e,
             FILLET_SCENE_RESOLUTION_RECOURSE,

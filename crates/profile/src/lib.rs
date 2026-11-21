@@ -186,7 +186,7 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcForm, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ChainShape,
-    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, EscalatedAt, FormLowered,
+    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, Deferral, EscalatedAt, FormLowered,
     FormTarget, LegFit, LineTarget, OntoTarget, Open, OrderFault, PartialPath, PathError,
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, ShapeFault, ShapeFaultKind,
     Start, StepForm, Sweep, TangentArcTarget, TurnLever, Via, chain_shape, chain_states, circle,

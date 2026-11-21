@@ -1565,9 +1565,12 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
                 step: error.step,
-                structure: match error.kind {
-                    profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
-                    _ => None,
+                structure: match &error.kind {
+                    profile::ReplayErrorKind::Path(source) => match source.refusal() {
+                        profile::PathError::Structure(r) => Some(r.clone()),
+                        _ => None,
+                    },
+                    profile::ReplayErrorKind::Transition { .. } => None,
                 },
             }
         })?;

@@ -49,7 +49,7 @@ pub fn segment_bits<T: Real>(segment: &Segment<T>) -> String {
 /// assertion carries the refusal in its message, so an empty slice
 /// reads as the wrong refusal rather than as a silent zero.
 pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
-    match err {
+    match err.refusal() {
         PathError::NoCornerOfPair { corners, .. } => corners,
         _ => &[],
     }

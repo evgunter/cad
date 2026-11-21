@@ -579,6 +579,56 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     );
 }
 
+/// **A fillet refused steps after it is pointed at by its own step.**
+/// The fillet at step 2 is built, and its arc, half ε long, is refused
+/// where the close at step 8 re-reads its stored form: the preview and
+/// the door both name step 2, whose radius the recourse edits, and say
+/// that step 8 raised it.
+#[test]
+fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door() {
+    let tol = Tol::witness();
+    let theta = 1e-3;
+    let steps = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::Angle(0.0),
+        Step::Fillet {
+            radius: 0.5 * tol.eps() / theta,
+        },
+        Step::At(Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin())),
+        Step::Angle(theta),
+        Step::Line(1.0),
+        Step::LineTo(Target::Point(Point2::new(8.0, 2.0))),
+        Step::LineTo(Target::Point(Point2::new(4.0, 3.0))),
+        Step::LineTo(Target::Start),
+    ];
+    let cut = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
+        .expect("the steps before the refused close still draw");
+    let refusal = cut.loops[0]
+        .end
+        .refusal()
+        .expect("the flattened fillet is refused");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
+                if rendered.starts_with(
+                    "the fillet bound at step 2 cannot be stored where the loop closes, at step 8: "
+                )
+        ),
+        "{refusal}",
+    );
+
+    let mut session = session(tol);
+    let out = session.perform(SessionOp::AddProfile {
+        loops: vec![shape(&steps)],
+    });
+    let said = format!("{:?}", out.refusal);
+    assert!(
+        said.contains("Geometry { loop_: 0, step: 2,") && said.contains("at step 8: "),
+        "the door files it at the fillet too: {said}",
+    );
+}
+
 /// **The lattice, not the form, decides where a verb is offered** —
 /// and the kernel's complete-loop verbs are offered only where a loop
 /// can begin.

@@ -1525,19 +1525,22 @@ pub fn drawn(
         .iter()
         .filter_map(|replayed| replayed.as_ref().err())
         .flat_map(|refused| match &refused.kind {
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
-                corners, ..
-            }) => corners.iter().map(|c| c.at).collect(),
-            // The turn refusal names its corner where the door derived
-            // one before its turn gate (the arc door).
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerForFillet {
-                reason:
-                    PathNoCornerReason::TurnWithinTolerance {
-                        corner: Some(at), ..
-                    },
-                ..
-            }) => vec![*at],
-            _ => Vec::new(),
+            ReplayErrorKind::Path(source) => match source.refusal() {
+                pncad::profile::PathError::NoCornerOfPair { corners, .. } => {
+                    corners.iter().map(|c| c.at).collect()
+                }
+                // The turn refusal names its corner where the door
+                // derived one before its turn gate (the arc door).
+                pncad::profile::PathError::NoCornerForFillet {
+                    reason:
+                        PathNoCornerReason::TurnWithinTolerance {
+                            corner: Some(at), ..
+                        },
+                    ..
+                } => vec![*at],
+                _ => Vec::new(),
+            },
+            ReplayErrorKind::Transition { .. } => Vec::new(),
         })
         .collect();
     (

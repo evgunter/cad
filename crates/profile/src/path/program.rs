@@ -2515,10 +2515,13 @@ impl core::fmt::Display for Takes {
 ///
 /// The `step` index is into the program slice; for a program that ENDS
 /// without closing it is the length (one past the last step), and the
-/// kind's `verb` is then `None`.
+/// kind's `verb` is then `None`. A refusal a later step raises about an
+/// earlier one ([`PathError::Deferred`]: a fillet resolved where its
+/// arrival is fixed, a stored form re-read where the loop closes) is
+/// at the earlier step, whose arguments the refusal's recourse edits.
 #[derive(Clone, Debug)]
 pub struct ReplayError<T: Real> {
-    /// The index of the offending step.
+    /// The index of the step the refusal is about.
     pub step: usize,
     /// The refusal class.
     pub kind: ReplayErrorKind<T>,
@@ -2552,6 +2555,15 @@ pub enum ReplayErrorKind<T: Real> {
 }
 
 impl<T: Real> ReplayError<T> {
+    /// What the step at `applying` refused, at the step it is about.
+    fn raised_at(applying: usize, kind: ReplayErrorKind<T>) -> Self {
+        let step = match &kind {
+            ReplayErrorKind::Path(source) => source.step().unwrap_or(applying),
+            ReplayErrorKind::Transition { .. } => applying,
+        };
+        Self { step, kind }
+    }
+
     fn transition(step: usize, state: TipState, verb: Verb) -> Self {
         Self {
             step,
@@ -3699,7 +3711,7 @@ fn walk<T: ArcCarrierScalar>(
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied =
-            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })?;
+            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError::raised_at(i, kind))?;
         if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
             return Err(ReplayError {
                 step: 0,
