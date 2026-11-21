@@ -42,8 +42,8 @@ use crate::splitting::Escalation;
 use crate::contact::GlueClass;
 
 use crate::face_normal::NormalDecision;
-pub use crate::solid_contain::WallRung;
 use geom_brep::PlaneRung;
+pub use geom_brep::curve_face::line_quadric::WallRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
@@ -180,13 +180,13 @@ pub enum BooleanDecision {
     /// the same reading in band, told without the carrier.
     BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
-    /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
-    /// `bool_ray_sphere_disc`).
+    /// quadratic's discriminant (`curve_face::line_quadric::line_sphere_roots`,
+    /// `curve_face_pose_disc`).
     SphereRoots,
     /// Where an arc crosses a sphere: the conic × quadric door's rows
     /// (`conic_quadric`) — on a circle, or an ellipse whose second
     /// harmonic is in the zero band, its first-harmonic arm's extremes
-    /// (`bool_conic_quadric_first_extreme`), read for a constant
+    /// (`curve_face_pose_extreme`), read for a constant
     /// residual and for either end of the range; otherwise the
     /// half-angle quartic's rows.
     ArcSphereRoots,
@@ -197,7 +197,7 @@ pub enum BooleanDecision {
     /// the half-angle quartic's rows.
     ArcCylinderRoots,
     /// Where a straight edge crosses a cone: the line × cone quadratic's
-    /// rungs (`reduce::line_cone_roots`) — its leading coefficient, its
+    /// rungs (`curve_face::line_quadric`) — its leading coefficient, its
     /// discriminant read as the depth its vertex reaches, and each
     /// root's slack.
     ConeRoots,
@@ -364,7 +364,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question

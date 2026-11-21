@@ -885,12 +885,13 @@ fn crossings<T: Decide>(
                             axis,
                             ..
                         },
-                    radius,
+                    ..
                 },
             ),
             _,
         ) => {
-            let (ce, ae, re) = (*center, *axis, *radius);
+            let radius = arc.radius();
+            let (ce, ae, re) = (*center, *axis, radius);
             let e1 = {
                 let d = p0 - ce;
                 d.normalize()
@@ -978,26 +979,31 @@ fn rides<T: Decide>(
     match (locus, curve.carrier()) {
         (
             Locus::Rim(rim),
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }),
-        ) => same_circle(
-            Rim {
-                center: *center,
-                axis: *axis,
-                radius: *radius,
-                u_ref: *u_ref,
-            },
-            rim,
-            band,
-        )
-        .map(|one| one.is_some()),
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            ),
+        ) => {
+            let radius = circle.radius();
+            same_circle(
+                Rim {
+                    center: *center,
+                    axis: *axis,
+                    radius,
+                    u_ref: *u_ref,
+                },
+                rim,
+                band,
+            )
+            .map(|one| one.is_some())
+        }
         // Both ends on the line, an identity: either end decided off it
         // answers "not riding", whatever the other read
         // ([`read_identity`]).
@@ -1051,20 +1057,25 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => Some(Rim {
-                center,
-                axis,
-                radius,
-                u_ref,
-            }),
+            geom::Curve3::Circle(
+                circle @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            ) => {
+                let radius = circle.radius();
+                Some(Rim {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                })
+            }
             _ => None,
         })
         .collect()
@@ -1080,9 +1091,12 @@ const RIM_PHASES: core::num::NonZeroU32 = match core::num::NonZeroU32::new(geom_
 
 /// **The routing itself**: the wedge the two faces' material subtends
 /// across the rim, read by the whole-edge fold
-/// ([`geom_brep::edge_wedge_over`]) at stations around the circle — the
+/// ([`geom_brep::edge_wedge_over_as`]) at stations around the circle — the
 /// same fold tier 3's check 4 reads an edge by, so a new wedge row cannot
-/// reach one and miss the other.
+/// reach one and miss the other. The routing reads the class and never
+/// the side, so the crease's sign and the end are recorded as checks
+/// ([`geom_brep::edge_wedge_over_as`] at [`geom_core::k_stats::Role::Check`]):
+/// another sign there can only refuse.
 ///
 /// The fold reads the class at every station before anything material:
 /// a sphere cut by a plane at 53° has aligned normals at its rim, and a
@@ -1097,7 +1111,8 @@ const RIM_PHASES: core::num::NonZeroU32 = match core::num::NonZeroU32::new(geom_
 ///   concave here; what the rim reads of it is only whether it holds all
 ///   the way round, which reversing the circle cannot change;
 /// - the π seam, either bend ⇒ [`RimRouting::Seam`]; the two ends ⇒
-///   [`RimRouting::Cusp`]; the lamina ⇒ [`RimRouting::Lamina`];
+///   [`RimRouting::Cusp`], which the boolean routes alike; the lamina ⇒
+///   [`RimRouting::Lamina`];
 /// - stations that disagree, about the class, the sign, the pairing or
 ///   the end ⇒ [`RimRouting::Mixed`], naming them by phase: a rim that
 ///   is a corner in one place and a tangency in another is not one
@@ -1145,7 +1160,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         RIM_PHASES,
     );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over(&walk, reach, band) {
+    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_core::k_stats::Role::Check) {
         V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
         V::End { end, .. } => Ok(RimRouting::Cusp(end)),

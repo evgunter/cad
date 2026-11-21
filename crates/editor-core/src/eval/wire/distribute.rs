@@ -86,25 +86,18 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             .map_err(NodeErrorKind::unfinished(self.node))
     }
 
-    /// **Its body taken in `into`'s frame**: `own`, its body already
-    /// taken in its own frame ([`Self::taken`]), where the two are one
-    /// frame; else `own` moved into it ([`topo::FinishedBody::moved`]),
-    /// still finished.
-    pub(super) fn taken_in(
+    /// **Its body placed in `into`'s frame** ([`topo::Placed`]): `own`,
+    /// its body already taken in its own frame ([`Self::taken`]), under
+    /// the motion into `into`, or alone where the two are one frame. The
+    /// door it is handed to moves it.
+    pub(super) fn placed_in<'a>(
         &self,
-        into: &crate::eval::Framed<T>,
-        own: &Arc<T::Finished>,
-        tol: Tol,
-    ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match into.relative(&self.body).map_err(NodeErrorKind::Motion)? {
-            None => Ok(Arc::clone(own)),
-            Some(map) => {
-                crate::eval::counters::rigid_map();
-                topo::FinishedBody::moved(&**own, &map, tol)
-                    .map(Arc::new)
-                    .map_err(|findings| NodeErrorKind::NotFinished { findings })
-            }
-        }
+        into: &crate::eval::Frame<T>,
+        own: &'a Arc<T::Finished>,
+    ) -> Result<topo::Placed<'a, T::Finished>, NodeErrorKind> {
+        self.body
+            .placed_in(into, own)
+            .map_err(NodeErrorKind::Motion)
     }
 
     /// Its names as the seat's table spells them: each holder's
@@ -206,14 +199,14 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Computed in the first result's frame that is its space's, else the
-    // first's ([`crate::eval::Framed::computing_among`]), each other read
-    // into it.
-    let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
+    // Computed in its first result's frame
+    // ([`crate::eval::Framed::computing_among`]), each grafted into it
+    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    let frame = crate::eval::Framed::computing_among(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
     )
-    .cloned();
+    .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     // What the graft holds: each piece result's own records, re-keyed
@@ -232,16 +225,14 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             ValuePayload::Body(body) => (body.clone(), topo::BooleanResultKind::OperandA),
             _ => unreachable!("a boolean of one piece makes a body or nothing"),
         };
-        let first = computing.get_or_insert_with(|| body.clone());
-        let read_in = first.read_in(&body, tol)?;
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut fused, &read_in).map_err(NodeErrorKind::Boolean)?;
+        let keys = crate::eval::Framed::graft_into(&frame, &mut fused, &body, tol)
+            .map_err(NodeErrorKind::from)?;
         let arrival = names::narrow(named.len(), names::Numbered::InputPosition)
             .map_err(NodeErrorKind::Naming)?;
         crate::product::carry_contacts(
             &fused,
             &mut held,
-            &read_in.records().carried_from(arrival),
+            &body.holding().records().carried_from(arrival),
             &keys,
         )
         .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
@@ -290,7 +281,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         findings,
     } = fused;
     let fused = Arc::new(fused);
-    let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
     // census of that `⊔` runs at this door, over the pieces made here

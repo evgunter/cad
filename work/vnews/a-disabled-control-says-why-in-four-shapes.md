@@ -25,7 +25,7 @@ been answered with — when there is such a sentence.**
 
 That line is the unit's one composition of the rule. Every other
 document that states it quotes it verbatim — `work/vnews/log.md`,
-`work/vdoc/a-disabled-controls-reason-has-one-home.md` and the
+`work/chrome/a-disabled-controls-reason-has-one-home.md` and the
 disposition rows — rather than re-wording it, and in particular the
 qualifier never travels without the rule. A rule about one composition
 that is itself composed five ways would be its own first

@@ -19,11 +19,15 @@ One carrier answers "is this parameter on the curve" two ways:
   polynomial extension it returns as [`Self::ders1`] does") answer a
   parameter outside the domain with the end span's extension, which the
   module calls documented garbage-out (`nurbs.rs:52-58`).
-- **The curve-pair polish iterates there.** `polish::pair`
-  (`crates/geom-brep/src/curve_pair/polish.rs:51`) takes Gauss–Newton steps
-  with no hold to the domain; the across-planes candidate calls it with
-  `keep = |_| true` (`crates/geom-brep/src/curve_pair/pose.rs:892`), so an
-  iterate past the domain is read on the extension.
+- **The curve-pair polish iterates there where nothing holds it.**
+  `polish::pair_held`
+  (`crates/geom-brep/src/curve_pair/polish.rs:69`) takes Gauss–Newton
+  steps held to each span's parameters where the span has ends, and with
+  no hold on an endless span. The across-planes candidate calls it with
+  `keep = |_| true` (`crates/geom-brep/src/curve_pair/pose.rs:999`), so on
+  an endless span an iterate past the domain is read on the extension.
+  (Before PR 7137 the pose's polish was the unheld `polish::pair`, which
+  that PR deleted.)
 - **A window refuses past its span.**
   `a_window_restricted_past_its_span_refuses_at_every_scalar`
   (`crates/geom-core/src/spline/blossom.rs:801`): "The piece's polynomial

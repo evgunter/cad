@@ -382,7 +382,10 @@ fn map_approx<T: Real>(
 /// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
 /// carrier has no outward side, and keeping its parameter keeps every
 /// edge's range and its forward half-edge.
-fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
+pub(crate) fn map_carrier<T: Real>(
+    iso: &Isometry<T>,
+    c: &Curve3<T>,
+) -> Result<Curve3<T>, TransformError> {
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
@@ -402,14 +405,8 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
         // the ellipse's axis ordering transfers unchanged, so no
         // re-decision is needed (the constructor decided at mint; this is
         // evaluation-lane data motion).
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: frame(&c.frame),
-            ..c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: frame(&e.frame),
-            ..e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(frame(&c.frame))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(frame(&e.frame))),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no
@@ -474,6 +471,35 @@ pub fn transform_rigid<T: Decide>(
     motion: &RigidMotion<T>,
 ) -> Result<Body<T>, TransformError> {
     map_isometry(body, &Isometry::Proper(*motion))
+}
+
+/// **One surface read at a rigid motion**: `motion ∘ s`, the datum a
+/// body moved by `motion` ([`transform_rigid`]) holds in its place, to
+/// the bit. A reader that relates two bodies through their relative
+/// motion maps the carriers it reads and leaves the body as it is
+/// (`[placement.frame]`).
+///
+/// # Errors
+///
+/// [`TransformError`], as [`transform_rigid`] refuses the surface.
+pub fn surface_at<T: Real>(
+    motion: &RigidMotion<T>,
+    s: &Surface<T>,
+) -> Result<Surface<T>, TransformError> {
+    map_surface(&motion.to_affine(), Hand::Proper, s)
+}
+
+/// **One curve carrier read at a rigid motion**: `motion ∘ c` on `c`'s
+/// own parameter, as [`surface_at`] reads a surface.
+///
+/// # Errors
+///
+/// [`TransformError`], as [`transform_rigid`] refuses the carrier.
+pub fn carrier_at<T: Real>(
+    motion: &RigidMotion<T>,
+    c: &Curve3<T>,
+) -> Result<Curve3<T>, TransformError> {
+    map_carrier(&Isometry::Proper(*motion), c)
 }
 
 /// The chart image `image` on `surface` of `body` under a map of `hand`:

@@ -745,7 +745,9 @@ where
 /// the tree only changes candidate GENERATION, so both strategies
 /// produce bit-identical results; the differential suite runs full
 /// ops through both and pins exactly that. Production wrappers pass
-/// [`SweepStrategy::Realized`].
+/// [`SweepStrategy::Realized`]. It is the placed door
+/// ([`boolean_placed`]) over two operands already in the computing
+/// frame, so the two are one implementation.
 ///
 /// # Panics
 ///
@@ -767,12 +769,170 @@ pub fn boolean_op_with<F: crate::FinishedBody>(
 where
     F::Scalar: Decide + Bounds,
 {
-    if op == BooleanOp::Subtract
-        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)?
-    {
-        return Ok(result);
+    boolean_placed(op, (Placed::own(a), Placed::own(b)), inputs, strategy, tol)
+        .map(|(result, _)| result)
+        .map_err(|refusal| match refusal {
+            PlacedBooleanError::Boolean(error) => error,
+            PlacedBooleanError::Placed { .. } => {
+                unreachable!("an operand in the computing frame is taken unmoved")
+            }
+        })
+}
+
+/// **A finished operand where it stands** (`[placement.frame]`): its
+/// seat ([`crate::Seat`]: its body untouched and the motion into the
+/// operation's computing frame, `None` where it is in that frame), and
+/// the finished body the seat reads. The door that takes it is the one
+/// that moves it ([`Placed::taken`]), so a caller reads no operand into
+/// another's frame itself.
+///
+/// The placement is the seat's: a seat holds the body as construction
+/// data (`&Body`), which a reader needs and a move does not carry, so
+/// the finished body whose verdicts the move carries
+/// ([`crate::FinishedBody::moved`]) rides beside it, the seat reading
+/// that same body.
+#[derive(Debug)]
+pub struct Placed<'a, F: crate::FinishedBody> {
+    held: &'a F,
+    seat: crate::Seat<'a, F::Scalar>,
+}
+
+impl<F: crate::FinishedBody> Clone for Placed<'_, F> {
+    fn clone(&self) -> Self {
+        *self
     }
-    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+}
+
+impl<F: crate::FinishedBody> Copy for Placed<'_, F> {}
+
+impl<'a, F: crate::FinishedBody> Placed<'a, F> {
+    /// `held` in the computing frame already.
+    #[must_use]
+    pub fn own(held: &'a F) -> Self {
+        Self::new(held, None)
+    }
+
+    /// `held` under `motion` into the computing frame.
+    #[must_use]
+    pub fn at(held: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+        Self::new(held, Some(motion))
+    }
+
+    /// `held` under `motion` into the computing frame, `None` where it is
+    /// in that frame.
+    #[must_use]
+    pub fn new(held: &'a F, motion: Option<geom_core::RigidMotion<F::Scalar>>) -> Self {
+        Self {
+            held,
+            seat: crate::Seat::from_motion(held, motion),
+        }
+    }
+
+    /// The finished body as it is held.
+    #[must_use]
+    pub fn body(&self) -> &'a F {
+        self.held
+    }
+
+    /// **The operand in the computing frame**: its body as it is held
+    /// where it is in that frame, else moved once through its seat's
+    /// motion ([`crate::FinishedBody::moved`]: its verdict carried, the
+    /// session box asked of the image).
+    ///
+    /// # Errors
+    ///
+    /// The move's refusal: the image reaches past the session box.
+    pub fn taken(&self, tol: Tol) -> Result<std::borrow::Cow<'a, F>, crate::NotFinished> {
+        match self.seat.motion() {
+            None => Ok(std::borrow::Cow::Borrowed(self.held)),
+            Some(motion) => self.held.moved(motion, tol).map(std::borrow::Cow::Owned),
+        }
+    }
+}
+
+impl<'a, F: crate::FinishedBody> From<&'a F> for Placed<'a, F> {
+    fn from(body: &'a F) -> Self {
+        Self::own(body)
+    }
+}
+
+/// **The two operands a placed pair Boolean read**, each in the computing frame ([`boolean_placed`]): an operand in that
+/// frame as it is held, else its image there. A namer that compares the
+/// result's geometry with an operand's reads it here, where the run
+/// read it.
+#[derive(Debug)]
+pub struct PairTaken<'p, F: crate::FinishedBody> {
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
+}
+
+/// **Why a placed Boolean did not run** ([`boolean_placed`]).
+#[derive(Debug)]
+pub enum PlacedBooleanError {
+    /// An operand's image in the computing frame reaches past the
+    /// session box ([`Placed::taken`]).
+    Placed {
+        /// Which operand.
+        operand: super::Operand,
+        /// The move's findings.
+        findings: crate::NotFinished,
+    },
+    /// The Boolean refused ([`boolean_op_with`]).
+    Boolean(BooleanError),
+}
+
+/// **The pair Boolean over two placed operands**: each taken into the
+/// computing frame by its placement ([`Placed::taken`], `a` first), then
+/// the shared pipeline over the two (module docs; a subtract whose tool
+/// is cut by material first, `nary::cut_by_material`), returned with the
+/// two it read ([`PairTaken`]). The moves are the
+/// door's, so an operand's data is read into another's frame here and
+/// nowhere in its caller; [`boolean_op_with`] is this door over two
+/// operands in the computing frame.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
+/// # Errors
+///
+/// [`PlacedBooleanError::Placed`]: an operand's image past the box;
+/// [`PlacedBooleanError::Boolean`]: as [`boolean_op_with`].
+pub fn boolean_placed<'p, F: crate::FinishedBody>(
+    op: BooleanOp,
+    (a, b): (Placed<'p, F>, Placed<'p, F>),
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<(BooleanResult<F::Scalar>, PairTaken<'p, F>), PlacedBooleanError>
+where
+    F::Scalar: Decide + Bounds,
+{
+    let taken = |placed: Placed<'p, F>, operand| {
+        placed
+            .taken(tol)
+            .map_err(|findings| PlacedBooleanError::Placed { operand, findings })
+    };
+    let read = PairTaken {
+        a: taken(a, super::Operand::A)?,
+        b: taken(b, super::Operand::B)?,
+    };
+    let (a, b) = (&*read.a, &*read.b);
+    let result = match op {
+        BooleanOp::Subtract => super::nary::cut_by_material(a, b, inputs, strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+        BooleanOp::Union | BooleanOp::Intersect => None,
+    };
+    let result = match result {
+        Some(result) => result,
+        None => boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+    };
+    Ok((result, read))
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
@@ -1963,7 +2123,9 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify_known, of_carried, of_pair_section};
+    use super::section_cert::{
+        Side, certify_section_pair, classify_known, of_carried, of_pair_section,
+    };
     use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
@@ -2009,7 +2171,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         ),
     };
     let torn = core::cell::RefCell::new(None);
-    let verdict = certify(
+    let verdict = certify_section_pair(
         &section,
         evented,
         band,
@@ -2132,7 +2294,14 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
-            if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+            // The box test prunes which face pairs the section
+            // certificate reads, and decides nothing: its outcome is
+            // marked, so two runs whose pruning differs part there.
+            if !geom_core::k_stats::mark_outcome(
+                "bool_walk_pairs_boxes",
+                fa.bbox.overlaps(&fb.bbox),
+            ) || !admit(fa, fb)
+            {
                 continue;
             }
             // The overlap is a world-axis one; a pair apart along a
@@ -2265,7 +2434,10 @@ struct Evidence<'r> {
 impl<'r> Evidence<'r> {
     /// What `red` holds for the certificates, its touches read once
     /// into `events` ([`event_pairs`]).
-    fn of<T: Real>(red: &'r BooleanReduction<T>, events: &'r BTreeSet<(FaceKey, FaceKey)>) -> Self {
+    fn of<T: crate::props::AtRestPolicy>(
+        red: &'r BooleanReduction<T>,
+        events: &'r BTreeSet<(FaceKey, FaceKey)>,
+    ) -> Self {
         Self {
             rest: &red.rest_contacts,
             settled: &red.coincident,
@@ -2606,7 +2778,9 @@ fn ball_against_plane<T: Decide>(
 /// the scaffolding's choice (the side each null edge's new vertex
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
-fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
+fn event_pairs<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+) -> BTreeSet<(FaceKey, FaceKey)> {
     contact_face_pairs(&red.a, &red.b, &red.contacts, &red.null_edges)
 }
 
@@ -3785,7 +3959,7 @@ const PIECE_OFF_CARRIER: &str = "a piece of an edge reads off the curved face's 
 ///
 /// [`BooleanError::JoinDesync`] where a ring tie's vertex does not
 /// resolve in its clone.
-pub(super) fn ledger<T: Decide>(
+pub(super) fn ledger<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     decls: &Glue<T>,
     scaffold: [&BTreeSet<FaceKey>; 2],
@@ -5994,8 +6168,8 @@ struct SphereRecut<T: Real> {
     representative: FaceKey,
     /// The sphere's center — the rotation's fixed point.
     center: Point3<T>,
-    /// Its radius (the alignment trilean's lever arm).
-    radius: T,
+    /// Its curvature arm (the alignment trilean's lever arm).
+    arm: geom_core::Lever<T>,
     /// The stored polar axis (rotation source direction).
     axis: Vec3<T>,
     /// The escape plane's normal, or the escape circle's axis (rotation
@@ -6515,7 +6689,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         "bool_sphere_escape_parallel",
                         Margin::levered(
                             align.cross(n).norm(),
-                            geom_core::Lever::curvature_radius(radius),
+                            geom_brep::uniform_curvature_arm(x_surface),
                         ),
                         band,
                     )
@@ -6562,7 +6736,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     operand: x_is,
                     representative,
                     center,
-                    radius,
+                    arm: geom_brep::uniform_curvature_arm(x_surface),
                     axis,
                     align,
                     u_ref,
@@ -6600,24 +6774,29 @@ fn sphere_pair_cut<T: Decide>(
         ));
     };
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: foot,
-                    axis: normal,
-                    u_ref,
-                },
-            radius: rho,
-        }))) => Ok(SphereCutIn {
-            operand,
-            face: holder,
-            center,
-            radius,
-            foot,
-            rho,
-            normal,
-            u_ref,
-        }),
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: foot,
+                        axis: normal,
+                        u_ref,
+                    },
+                ..
+            },
+        ))) => {
+            let rho = circle.radius();
+            Ok(SphereCutIn {
+                operand,
+                face: holder,
+                center,
+                radius,
+                foot,
+                rho,
+                normal,
+                u_ref,
+            })
+        }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
@@ -6765,15 +6944,12 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub(super) fn recut_lean<T: Decide>(
     axis: Vec3<T>,
     align: Vec3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(
-            axis.cross(align).norm(),
-            geom_core::Lever::curvature_radius(radius),
-        ),
+        Margin::levered(axis.cross(align).norm(), arm),
         band,
     )
     .map(|_| ())
@@ -6795,36 +6971,29 @@ fn recut_turn<T: Decide>(
     a: geom_core::UnitVec3<T>,
     b: geom_core::UnitVec3<T>,
     center: Point3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     tol: Tol,
     operand: Operand,
     representative: FaceKey,
 ) -> Result<geom_core::RigidMotion<T>, BooleanError> {
-    geom_core::RigidMotion::least_turn(
-        a,
-        b,
-        center,
-        geom_core::Lever::curvature_radius(radius),
-        RECUT_TURN,
-        band,
-        tol,
-    )
-    .map_err(|e| match e {
-        geom_core::TurnError::IllConditioned { .. }
-        | geom_core::TurnError::ConditioningUndecided(_) => {
-            BooleanError::FallbackExtentUnsupported {
-                operand,
-                face: representative,
-                what: "a sphere group whose stored polar axis stands so near opposed to its \
+    geom_core::RigidMotion::least_turn(a, b, center, arm, RECUT_TURN, band, tol).map_err(
+        |e| match e {
+            geom_core::TurnError::IllConditioned { .. }
+            | geom_core::TurnError::ConditioningUndecided(_) => {
+                BooleanError::FallbackExtentUnsupported {
+                    operand,
+                    face: representative,
+                    what: "a sphere group whose stored polar axis stands so near opposed to its \
                        escape normal that the re-chart's turn, levered at the radius, passes \
                        the run's rounding reach: the turn is not determined at ε",
+                }
             }
-        }
-        _ => BooleanError::ClassificationInvariant {
-            what: "re-cut rotation does not mint a turn",
+            _ => BooleanError::ClassificationInvariant {
+                what: "re-cut rotation does not mint a turn",
+            },
         },
-    })
+    )
 }
 
 /// The decision name of a re-cut's turn ([`recut_turn`]).
@@ -6878,7 +7047,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .clone();
             let ball = carve(src, solid, &[shell])
                 .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-            recut_lean(r.axis, r.align, r.radius, band)?;
+            recut_lean(r.axis, r.align, r.arm, band)?;
             // The alignment turn and the seam spin, each MINTED as the
             // turn between two unit witnesses (`RigidMotion::least_turn`,
             // the quaternion of `(1 + a·b, a × b)`: algebraic, no
@@ -6898,18 +7067,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            let turn = |a, b| {
-                recut_turn(
-                    a,
-                    b,
-                    r.center,
-                    r.radius,
-                    band,
-                    tol,
-                    operand,
-                    r.representative,
-                )
-            };
+            let turn =
+                |a, b| recut_turn(a, b, r.center, r.arm, band, tol, operand, r.representative);
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
             // `seam`; the sign that keeps the turn at most a quarter is
@@ -7258,9 +7417,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let (t0, t1) = curve.params();
                 let carrier = curve.carrier();
-                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
+                let &geom::Curve3::Circle(conic_k) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
+                let cr = conic_k.radius();
                 let uncertified = || {
                     refuse(
                         "a boundary arc of the sphere face meets the cut's meridian plane where \
@@ -8379,7 +8539,7 @@ mod tests {
             a,
             b,
             geom_core::Point3::new(zero, zero, zero),
-            d(1.0, 0.0),
+            geom_core::test_support::fixture_lever(d(1.0, 0.0)),
             band,
             geom_core::Tol::witness(),
             crate::boolean::Operand::A,

@@ -774,10 +774,12 @@ class TestStepExport(unittest.TestCase):
         and each record row spells out its own payload.
 
         The exported box states no assembly and needs no re-minting, so
-        two of the three lists are empty and the third is not: the
-        assembly record is kept whether or not the file states one,
-        which is what makes `instances` an answer rather than a
-        leftover.
+        its promotions are empty and its ledger holds only the lines the
+        build anchors at their own point nearest the origin where the
+        file printed another point of the same line (`carrier_built`,
+        moved by nothing); the assembly record is kept whether or not the
+        file states one, which is what makes `instances` an answer rather
+        than a leftover.
         """
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
@@ -785,7 +787,9 @@ class TestStepExport(unittest.TestCase):
         self.assertIsInstance(report.body, pncad.Body)
         self.assertIsInstance(report.measure(PINNED), pncad.MassMeasurement)
         self.assertGreater(report.eps_in, 0.0)
-        self.assertEqual(report.normalizations, [])
+        for row in report.normalizations:
+            self.assertEqual(row.kind, "carrier_built", row)
+            self.assertEqual(row.moved_by, 0.0, row)
         self.assertEqual(report.promotions, [])
         self.assertEqual(len(report.instances), 1, "one row per solid")
 

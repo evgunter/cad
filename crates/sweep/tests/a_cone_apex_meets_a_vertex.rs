@@ -109,7 +109,7 @@ fn four_ops(what: &str, a: Operand, b: Operand, share: f64, lattice: (Point3<f64
 /// `ResultPinchedAtConeApex` by name, and every other op builds and is
 /// held: a cone face cut along two rulings on both sides of its wrap seam
 /// is two lobes meeting only at the apex, which props cannot yet measure
-/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+/// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
 fn four_ops_pinching(
     what: &str,
     (a, ra, va): Operand,
@@ -507,7 +507,7 @@ fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {
 /// either order**: the box `[0, 2] × [0.55, 1] × [−2, 2.3]`, its top
 /// holding the apex and its edge along `z` there passing through it.
 /// Read box first, that edge's root at the apex is placed on the cone
-/// face's apex vertex (`boolean::reduce::line_cone_roots`), as the apex
+/// face's apex vertex (`geom_brep::curve_face::line_quadric::line_cone_roots`), as the apex
 /// vertex splits it cone first, so every op builds either way round at
 /// its closed form, the box holding half the cone above `y = 0.55`.
 #[test]

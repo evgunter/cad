@@ -656,3 +656,258 @@ fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
         );
     }
 }
+
+/// **A profile whose step reads the index is a family, and each
+/// member's walls are named by that member's profile pieces** (D10
+/// `[repetition]`; `[recipe.doors]`): the edit door admits the step,
+/// the profile is evaluated once per member, the extrude reading it is
+/// a family of three bodies, and each body's walls are
+/// `Member { (k), of: Lateral(piece) }` over the profile's own step
+/// ids. Red if the door refuses the step outside any member, if the
+/// profile is evaluated once, or if a member's walls are named by
+/// anything but the generic member machinery over the pieces.
+#[test]
+fn a_profile_reading_the_index_is_a_family_named_by_its_pieces() {
+    let doc = ProfileDoc::empty_derived("g-profile-family", Tol::witness());
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    // The start corner's x slides left by a tenth per member.
+    let x = Formula::add(
+        fixture::len(-0.5),
+        Formula::mul(fixture::scalar_of(k), fixture::len(-0.1)).unwrap(),
+    )
+    .unwrap();
+    let doc = fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: profile,
+            slot: editor_core::SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: editor_core::StepArg::PointX,
+            },
+            value: x.into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0;
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let profiles = ev.value(profile).unwrap().members.as_ref();
+    assert_eq!(
+        profiles.map(|m| m.members.len()),
+        Some(3),
+        "the profile is evaluated once per member"
+    );
+    assert_eq!(bodies(&ev, ext), 3, "one extruded body per member");
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{profile} is a profile")
+    };
+    let steps = &program.ids[0];
+    let walls: std::collections::BTreeSet<(Vec<(VarId, u32)>, editor_core::StepId)> =
+        fixture::table(&ev, ext)
+            .iter()
+            .filter_map(|(name, _)| match name.path.as_slice() {
+                [RoleSeg::Member { at, of }] => match of.path.as_slice() {
+                    [RoleSeg::Lateral(run)] => match run.pieces() {
+                        [editor_core::ProfileEdgeRef::Piece { step, .. }] => {
+                            Some((at.clone(), *step))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+    for member in 0..3 {
+        for step in &steps[1..] {
+            assert!(
+                walls.contains(&(vec![(k, member)], *step)),
+                "member {member} names the wall of step {step:?}: {walls:?}"
+            );
+        }
+    }
+    assert_every_name_is_a_members(&ev, ext);
+}
+
+/// Every name `ext`'s table holds is a member's: a family names
+/// nothing outside its members.
+fn assert_every_name_is_a_members(ev: &Evaluation<f64>, ext: RecipeNodeId) {
+    for (name, _) in fixture::table(ev, ext).iter() {
+        assert!(
+            matches!(name.path.as_slice(), [RoleSeg::Member { .. }]),
+            "a family's name is a member's: {name:?}"
+        );
+    }
+}
+
+/// `doc`'s profile `profile`, its step `step`'s `arg` written `formula`.
+fn written_at(
+    doc: ProfileDoc,
+    profile: RecipeNodeId,
+    step: u32,
+    arg: editor_core::StepArg,
+    formula: Formula,
+) -> ProfileDoc {
+    fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: profile,
+            slot: editor_core::SlotId::Profile {
+                loop_: 0,
+                step,
+                arg,
+            },
+            value: formula.into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0
+}
+
+/// **A member whose values leave a fillet run undrawn names no wall for
+/// it, and the others do**: a corner fillet whose radius reads `k`
+/// (0.3, 1.15, 2), at 2 both runs fitting `Zero`. Each member is named
+/// by its own evaluation, through the generic member machinery. Red if
+/// the members share one naming (member 2 would name the runs), or the
+/// family names anything outside its members.
+#[test]
+fn a_members_own_values_decide_which_pieces_it_names() {
+    use editor_core::{LoopProgram, ProfileEdgeRef, ProgramStep, ProgramTarget};
+    use profile::PieceRole;
+    let doc = ProfileDoc::empty_derived("g-profile-family-fit", Tol::witness());
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let toward = |dx, dy| ProgramStep::Toward {
+        dx: fixture::scl(dx),
+        dy: fixture::scl(dy),
+    };
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At(fixture::len2([0.0, 0.0])),
+                toward(1.0, 0.0),
+                ProgramStep::Fillet(fixture::len(0.3)),
+                toward(0.0, 1.0),
+                ProgramStep::FarEndTo(fixture::len2([2.0, 2.0])),
+                ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.0, 2.0]))),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let radius = Formula::add(
+        fixture::len(0.3),
+        Formula::mul(fixture::scalar_of(k), fixture::len(0.85)).unwrap(),
+    )
+    .unwrap();
+    let doc = written_at(doc, profile, 2, editor_core::StepArg::Radius, radius);
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    assert_eq!(bodies(&ev, ext), 3, "one extruded body per member");
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{profile} is a profile")
+    };
+    let fillet = program.ids[0][2];
+    let named = |member: u32, role: PieceRole| {
+        fixture::table(&ev, ext)
+            .iter()
+            .any(|(name, _)| match name.path.as_slice() {
+                [RoleSeg::Member { at, of }] if at.as_slice() == [(k, member)] => {
+                    match of.path.as_slice() {
+                        [RoleSeg::Lateral(run)] => run
+                            .pieces()
+                            .contains(&ProfileEdgeRef::Piece { step: fillet, role }),
+                        _ => false,
+                    }
+                }
+                _ => false,
+            })
+    };
+    for member in [0, 1] {
+        for role in [PieceRole::RunIn, PieceRole::Arc, PieceRole::RunOut] {
+            assert!(
+                named(member, role),
+                "member {member} names its fillet's {role:?}"
+            );
+        }
+    }
+    assert!(named(2, PieceRole::Arc), "member 2 names its fillet's arc");
+    for role in [PieceRole::RunIn, PieceRole::RunOut] {
+        assert!(
+            !named(2, role),
+            "member 2's {role:?} fits Zero: no wall names it"
+        );
+    }
+    assert_every_name_is_a_members(&ev, ext);
+}
+
+/// **A member whose profile refuses refuses the family, naming the
+/// member, and its reader is poisoned**: the start corner of a unit
+/// square at `x = −0.5 + 0.6·k` crosses the right side at `k = 2`.
+/// Red if the bad member is dropped, the family is built from the
+/// others, or the refusal names no member.
+#[test]
+fn a_profile_member_that_refuses_refuses_the_family() {
+    let doc = ProfileDoc::empty_derived("g-profile-family-bad", Tol::witness());
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    let x = Formula::add(
+        fixture::len(-0.5),
+        Formula::mul(fixture::scalar_of(k), fixture::len(0.6)).unwrap(),
+    )
+    .unwrap();
+    let doc = written_at(doc, profile, 0, editor_core::StepArg::PointX, x);
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    match ev.result(profile).and_then(|r| r.error()).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::MemberRefused { at, source }) => {
+            assert_eq!(at.as_slice(), [(k, 2)], "named at k = 2: {source:?}");
+            assert!(
+                matches!(
+                    **source,
+                    editor_core::NodeErrorKind::Profile(profile::ProfileError::NonSimple { .. })
+                ),
+                "the member's loop crosses itself: {source:?}"
+            );
+        }
+        other => panic!("the crossing member refuses the family: {other:?}"),
+    }
+    assert!(
+        matches!(ev.result(ext), Some(editor_core::NodeResult::Poisoned { through }) if *through == profile),
+        "the extrude is poisoned through the profile: {:?}",
+        ev.result(ext)
+    );
+}

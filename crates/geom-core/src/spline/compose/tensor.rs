@@ -206,6 +206,29 @@ impl<'a> SurfaceCertData<'a> {
             coords,
         })
     }
+
+    /// The patch's homogeneous channels `w·x`, `w·y`, `w·z` and its
+    /// weight channel `w`, each Bézier-decomposed per knot-span cell on
+    /// the surface's own breaks ([`super::patch::PatchSpans::decompose`]):
+    /// the operands [`super::patch::canonical_patch_composite`] reads.
+    pub fn bernstein_channels(&self) -> ([super::patch::PatchSpans; 3], super::patch::PatchSpans) {
+        use super::patch::PatchSpans;
+        let nv = self.kv.control_count();
+        let channel = |d: usize| {
+            let grid = TensorCoeffs::from_fn(self.ku, self.kv, |i, j| {
+                let k = i * nv + j;
+                Interval::point(self.weights[k]) * self.coords[d][k]
+            });
+            PatchSpans::decompose(&grid, &[], &[])
+        };
+        let weight = TensorCoeffs::from_fn(self.ku, self.kv, |i, j| {
+            Interval::point(self.weights[i * nv + j])
+        });
+        (
+            [channel(0), channel(1), channel(2)],
+            PatchSpans::decompose(&weight, &[], &[]),
+        )
+    }
 }
 
 // ---------------------------------------------------------------------

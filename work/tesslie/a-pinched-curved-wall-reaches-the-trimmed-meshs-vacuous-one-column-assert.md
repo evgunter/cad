@@ -2,10 +2,14 @@
 id: a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert
 kind: issue
 title: A curved wall pinched at one vertex reaches trimmed.rs's 'vacuous' one-column repeated-id debug_assert at delta 0.02
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: tesslie/nu-2-repeat
+rides_with: the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta
+closed: 2026-11-20
+pr: 7200
 ---
 
 
@@ -50,3 +54,7 @@ witness that the case it guards is reachable.
 ## Moved to TESSLIE (the mesh answers Ok, or panics, where it should refuse or mesh right) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## Closed (TESSLIE, PR 7200, 2026-11-20)
+
+Rode `the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta`, which has the same cause: the repeated id is the pinch vertex, read at two UV images an ulp apart. `CURVED_POSE="3 1 0 ab S"` now meshes, passing check_mesh and check_volume at δ 0.05, 0.02, 5e-3 and 1e-3.

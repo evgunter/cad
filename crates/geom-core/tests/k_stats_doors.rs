@@ -32,7 +32,7 @@
 use geom_core::NonzeroSign;
 use geom_core::Tol;
 use geom_core::k_stats::{
-    Bracket, Escalation, Magnitude, Verdict, decide, decide_flagged, decide_magnitude,
+    Bracket, Escalation, Magnitude, Role, Verdict, decide, decide_flagged, decide_magnitude,
     decide_negative, decide_nonzero, decide_positive, decide_reported, gate_measured,
 };
 use geom_core::{
@@ -82,27 +82,33 @@ fn the_doors_share_one_verdict_stream_in_decision_order() {
         vec![
             Verdict {
                 predicate: "door_a",
-                sign: Sign::Positive
+                sign: Sign::Positive,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "door_b",
-                sign: Sign::Negative
+                sign: Sign::Negative,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "door_c",
-                sign: Sign::Positive
+                sign: Sign::Positive,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "door_r",
-                sign: Sign::Zero
+                sign: Sign::Zero,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "door_g",
-                sign: Sign::Zero
+                sign: Sign::Zero,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "door_h",
-                sign: Sign::Negative
+                sign: Sign::Negative,
+                role: Role::Choice,
             },
         ]
     );
@@ -201,26 +207,32 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
             Verdict {
                 predicate: "gate_a",
                 sign: Sign::Positive,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "gate_b",
                 sign: Sign::Negative,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "gate_c",
                 sign: Sign::Negative,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "gate_d",
                 sign: Sign::Zero,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "gate_e",
                 sign: Sign::Negative,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "gate_f",
                 sign: Sign::Positive,
+                role: Role::Choice,
             },
         ],
         "gating leaves the verdict channel exactly as `decide` left it"
@@ -389,10 +401,12 @@ fn the_magnitude_door_reads_zero_and_positive() {
             Verdict {
                 predicate: "mag_a",
                 sign: Sign::Zero,
+                role: Role::Choice,
             },
             Verdict {
                 predicate: "mag_b",
                 sign: Sign::Positive,
+                role: Role::Choice,
             },
         ]
     );

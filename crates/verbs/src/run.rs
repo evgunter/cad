@@ -8,9 +8,8 @@ use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
-    BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, GlueVerdict, NaryMember,
-    NaryRun, ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
-    SweepStrategy, boolean_op_with, nary_boolean_apart, split,
+    BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, GlueVerdict, ShellDoorOf,
+    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -187,6 +186,14 @@ pub enum VerbError<T: Real> {
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
     Boolean(BooleanError),
+    /// A placed operand's image in the computing frame reaches past the
+    /// session box (`topo::Placed::taken`).
+    Placed {
+        /// Which operand.
+        operand: topo::Operand,
+        /// The move's findings.
+        findings: topo::NotFinished,
+    },
     /// The extrude door refused.
     Extrude(ExtrudeError),
     /// The revolve door refused.
@@ -211,6 +218,7 @@ impl<T: Real> VerbError<T> {
         match self {
             Self::Blend(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Boolean(refusal) => write!(f, "{}", read_at(refusal, at)),
+            Self::Placed { findings, .. } => write!(f, "{}", read_at(findings, at)),
             Self::Extrude(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Revolve(refusal) => write!(f, "{}", read_at(refusal, at)),
             Self::Split(refusal) => write!(f, "{}", read_at(refusal, at)),
@@ -268,7 +276,9 @@ impl Boolean {
     ///
     /// Both bodies come in borrowed, in operand order, finished
     /// ([`topo::AtRestPolicy::Finished`]: the door's operands are finished
-    /// bodies, and the result it hands back is one too). `sweep` is the
+    /// bodies, and the result it hands back is one too), each where it
+    /// stands ([`topo::Placed`]: a body alone is in the computing frame),
+    /// and the door moves each one not in it ([`topo::boolean_placed`]). `sweep` is the
     /// candidate-generation strategy — a property of the RUN, not of
     /// the operation (both strategies produce bit-identical results;
     /// the kernel's differential suite pins it), which is why it rides
@@ -277,20 +287,33 @@ impl Boolean {
     /// # Errors
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
-    /// verbatim (`topo::boolean_op_with` enumerates the cases).
-    pub fn run_pair<F: topo::FinishedBody>(
+    /// verbatim (`topo::boolean_op_with` enumerates the cases);
+    /// [`VerbError::Placed`] where an operand's image past the session
+    /// box refuses its move, naming which.
+    ///
+    /// The run comes back with the two operands it read, each in the
+    /// computing frame (`topo::PairTaken`), which a namer that compares
+    /// the result's geometry with an operand's reads.
+    pub fn run_pair<'p, F: topo::FinishedBody>(
         &self,
-        a: &F,
-        b: &F,
+        a: impl Into<topo::Placed<'p, F>>,
+        b: impl Into<topo::Placed<'p, F>>,
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> Result<PairOut<F::Scalar>, VerbError<F::Scalar>>
+    ) -> Result<PlacedPairOut<'p, F>, VerbError<F::Scalar>>
     where
         F::Scalar: DoorScalar,
     {
         let Self { op, inputs } = self;
-        match boolean_op_with(*op, a, b, inputs, sweep, tol).map_err(VerbError::Boolean)? {
-            BooleanResult::Empty => Ok(PairOut::Empty),
+        let (result, read) = topo::boolean_placed(*op, (a.into(), b.into()), inputs, sweep, tol)
+            .map_err(|refusal| match refusal {
+                topo::PlacedBooleanError::Placed { operand, findings } => {
+                    VerbError::Placed { operand, findings }
+                }
+                topo::PlacedBooleanError::Boolean(error) => VerbError::Boolean(error),
+            })?;
+        let out = match result {
+            BooleanResult::Empty => PairOut::Empty,
             BooleanResult::Body(bb) => {
                 // Exhaustive destructure, deliberately: a field
                 // grown onto `BooleanBody` breaks this door at
@@ -304,7 +327,7 @@ impl Boolean {
                     verdicts,
                     holdings,
                 } = bb;
-                Ok(PairOut::Out(VerbOut {
+                PairOut::Out(VerbOut {
                     body,
                     record: VerbRecord::Boolean {
                         kind,
@@ -313,33 +336,53 @@ impl Boolean {
                         holdings: Box::new(holdings),
                     },
                     coincidences,
-                }))
+                })
             }
-        }
+        };
+        let topo::PairTaken { a, b } = read;
+        Ok(PlacedPairOut { out, a, b })
     }
+}
+
+/// **What [`Boolean::run_pair`] returns**: the pair's outcome and the two
+/// operands it read, each in the computing frame (`topo::PairTaken`).
+#[derive(Debug)]
+pub struct PlacedPairOut<'p, F: topo::FinishedBody> {
+    /// The pair's outcome.
+    pub out: PairOut<F::Scalar>,
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
 }
 
 impl Members {
     /// **Run this union or intersect over its member bodies**, in list
     /// order, one body per member of the payload.
     ///
-    /// The bodies come in borrowed and finished, as at
-    /// [`Boolean::run_pair`]. What comes back is the kernel's own run
+    /// The bodies come in borrowed, finished and placed, as at
+    /// [`Boolean::run_pair`] (`topo::nary_placed` moves each one not in
+    /// the computing frame). What comes back is the kernel's own run
     /// (`topo::NaryRun`): every judgement and every fold step, each a
     /// pair boolean's body and record, which a consumer names from, and
-    /// how the operation ended. A refusal is carried there verbatim
-    /// (`NaryEnd::Refused`), after what ran before it, so this door has
-    /// no refusal of its own.
+    /// how the operation ended, with the members it read in its computing
+    /// frame (`topo::NaryTaken`). A refusal is carried there verbatim
+    /// (`NaryEnd::Refused`), after what ran before it.
     ///
     /// # Panics
     ///
     /// Where `bodies` does not hold one body per member: a wiring bug.
-    pub fn run_members<F: topo::FinishedBody>(
+    ///
+    /// # Errors
+    ///
+    /// The first member whose image past the session box refuses its
+    /// move, by its place, with the box's finding.
+    pub fn run_members<'m, F: topo::FinishedBody>(
         &self,
-        bodies: &[&F],
+        bodies: &[topo::Placed<'m, F>],
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> NaryRun<F::Scalar>
+    ) -> topo::NaryPlacedRun<'m, F::Scalar>
     where
         F::Scalar: DoorScalar,
     {
@@ -351,12 +394,12 @@ impl Members {
                 bodies.len()
             );
         }
-        let members: Vec<NaryMember<'_, F::Scalar>> = bodies
+        let members: Vec<topo::NaryPlaced<'m, '_, F::Scalar>> = bodies
             .iter()
             .zip(members)
-            .map(|(&body, inputs)| NaryMember { body, inputs })
+            .map(|(&placed, inputs)| topo::NaryPlaced { placed, inputs })
             .collect();
-        nary_boolean_apart(*op, &members, apart, sweep, tol)
+        topo::nary_placed(*op, &members, apart, sweep, tol)
     }
 }
 
@@ -444,7 +487,7 @@ impl<T: DoorScalar> Shell<T> {
     /// validation is a certified claim, so a
     /// [`topo::ShellDoor`] has one constructor
     /// ([`topo::ShellDoor::certified`]) and it is bounded on
-    /// `Decide + CertifiedBounds + AtRestPolicy`: holding the value IS
+    /// `CertifiedPolicy + CertifiedBounds`: holding the value IS
     /// the right, and passing it here is how this door asks for more
     /// of the scalar than the rest of the vocabulary does without
     /// asking it of every other door on this block. The one seam that
@@ -473,7 +516,7 @@ impl<T: DoorScalar> Shell<T> {
         &self,
         operand: &T::Finished,
         tol: Tol,
-        door: ShellDoor<T>,
+        door: T::ShellDoor,
     ) -> Result<VerbOut<T>, VerbError<T>> {
         let Self { thickness, open } = self;
         // Exhaustive destructure, deliberately: a field grown onto

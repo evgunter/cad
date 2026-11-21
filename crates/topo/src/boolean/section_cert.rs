@@ -432,7 +432,7 @@ pub(crate) struct Component<T: Real> {
     /// a box of its uniqueness tube holds both the witness and a piece of
     /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
-    /// (`certify`): a face's placement margins are lengths read at a
+    /// (`certify_section_pair`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
     /// component nearest `w`, which lies on the surface (its own foot),
     /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
@@ -507,7 +507,7 @@ pub(crate) struct Touch<T: Real> {
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
-    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
     pub apex: bool,
 }
 
@@ -719,12 +719,12 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 /// region, which the section value reads a pair with no bounded side
 /// over (two cylinders), and the band.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn classify<T: Decide>(
+pub(crate) fn classify<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     classify_known(
@@ -740,12 +740,12 @@ pub(crate) fn classify<T: Decide>(
 
 /// [`classify`] with what the boolean knows of a spline pair handed in
 /// (`known`, read by the spline pair's arm alone).
-pub(crate) fn classify_known<T: Decide>(
+pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
     known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
@@ -756,7 +756,7 @@ pub(crate) fn classify_known<T: Decide>(
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
         | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, region, None, band) {
+            match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
                     of_pair_section(&Ok(section), band, marched)
                 }
@@ -817,11 +817,11 @@ pub(crate) fn classify_known<T: Decide>(
 /// `Corner` region reaching the sides they end on, cleared by W1′ where
 /// one bounds its face), its refusals mapped by name. With no lane it is
 /// R-lane.
-fn spline_pair<T: Decide>(
+fn spline_pair<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     known: geom_brep::KnownPair<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let read = geom_brep::spline_pair_section(f, g, known, lane, band);
@@ -838,10 +838,10 @@ fn spline_pair<T: Decide>(
 /// whole; any other pose is C3's whole reading, which a curved partner
 /// does not have (intractable). With no lane a plane's pose the hull
 /// does not decide, and every curved partner's, is R-lane.
-fn spline_implicit<T: Decide>(
+fn spline_implicit<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let whole = |s: &geom_brep::PairSection<T>| Some(s.read_whole(lane, band));
@@ -2017,7 +2017,7 @@ pub(super) fn of_carried<T: Decide>(
 /// # Errors
 ///
 /// The pair's [`Refusal`].
-pub(crate) fn certify<T: Decide>(
+pub(crate) fn certify_section_pair<T: Decide>(
     section: &Section<T>,
     evented: bool,
     band: Band,

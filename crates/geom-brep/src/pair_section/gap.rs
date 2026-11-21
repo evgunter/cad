@@ -260,7 +260,7 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
     let ddp = core.circle.frame.origin - p;
-    let big = core.circle.radius;
+    let big = core.circle.radius();
     let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
     let (anchor, spread) = spine.anchor();
     let size = (core.circle.frame.origin - Point3::origin()).norm()
@@ -366,7 +366,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// offset, `D′/R`; levered by the core radius it is the point
     /// deviation that turning the core by that angle moves.
     fn slope(&self, slope: T, d_hi: T) -> Margin<T> {
-        let big = self.core.circle.radius;
+        let big = self.core.circle.radius();
         Margin::levered(slope / (T::from_f64(2.0) * d_hi * big), self.core_lever)
     }
 
@@ -377,7 +377,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
     /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
     fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
-        let big = self.core.circle.radius;
+        let big = self.core.circle.radius();
         let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
         let far = r.reach + reach;
         match (self.spine, r.kink) {
@@ -420,7 +420,7 @@ impl<T: Decide> Sweep<'_, T> {
     }
 
     fn cell(&self, far: bool, (lo, m, hi): (T, T, T), w: T) -> Cell<T> {
-        let big = self.core.circle.radius;
+        let big = self.core.circle.radius();
         let two = T::from_f64(2.0);
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
@@ -487,7 +487,7 @@ impl<T: Decide> Sweep<'_, T> {
     /// gap `Zero` with its own ends turning. `G` over a window is its
     /// Taylor bound about the turn, its value read back through `√`.
     fn turn_window(&self, far: bool, (lo, hi): (T, T), w: T) -> Option<Gap<T>> {
-        let big = self.core.circle.radius;
+        let big = self.core.circle.radius();
         let (two, six) = (T::from_f64(2.0), T::from_f64(6.0));
         let slope = |phi: T| read(self.core, self.spine, far, phi).g1;
         let (mut a, mut b) = (lo, hi);
@@ -575,7 +575,7 @@ pub(crate) fn critical_gap<T: Decide>(
                     origin: core.circle.frame.origin,
                     dir: core.circle.frame.axis,
                 },
-                radius: core.circle.radius,
+                radius: core.circle.radius(),
             })
             .as_ref(),
         )
@@ -622,7 +622,7 @@ pub(crate) fn critical_gap<T: Decide>(
             Climb::Passed => return Step::Settled,
             Climb::Undecided(r) => r,
         };
-        let reach = core.circle.radius * w;
+        let reach = core.circle.radius() * w;
         let floored = matches!(
             decide(rows.floor(), Margin::of(reach * T::from_f64(4.0)), band),
             Ok(Sign::Zero)

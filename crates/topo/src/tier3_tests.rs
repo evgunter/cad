@@ -1031,14 +1031,14 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let x = Vec3::unit_x();
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let circle = |center, axis, radius, u_ref| {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
             radius,
-        })
+        ))
     };
     let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
         center: o,
@@ -1078,11 +1078,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
         (
-            "circle, NaN radius",
-            circle(o, z, nan, x),
-            Some(V::Poisoned(vec![D::Radius])),
-        ),
-        (
             "circle, infinite center",
             circle(Point3::new(0.0, inf, 0.0), z, 1.0, x),
             Some(V::Poisoned(vec![D::Center])),
@@ -1095,16 +1090,6 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Value, Lower)),
-        ),
-        (
-            "ellipse, negative major with u_ref flipped",
-            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, -x), -0.5, 0.3)),
-            Some(V::Unrepresentable(D::SemiU, Value, Lower)),
-        ),
-        (
-            "circle, negative radius",
-            circle(o, z, -1.0, x),
             Some(V::Unrepresentable(D::Radius, Value, Lower)),
         ),
         (
@@ -1166,7 +1151,8 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
 /// **The carrier poison read reads every scalar**: each scalar of each
 /// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
 /// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
-/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// datum the walk ([`geom::Curve3::data`]) says owns it, except a
+/// conic's size, which its constructor refuses. The walk's
 /// scalars must be exactly the builder's, so a walk that drops a field
 /// reds on the count, and a fold that skips a datum reds on that
 /// datum's rows.
@@ -1195,6 +1181,24 @@ fn the_carrier_poison_read_reads_every_scalar() {
         for (i, &(datum, _)) in walked.iter().enumerate() {
             let mut poisoned = base.clone();
             poisoned[i] = f64::NAN;
+            // A conic's size is no stored datum when it is NaN: its
+            // constructor refuses it (`geom::Circle::new`,
+            // `geom::Ellipse::new`), so no carrier at rest holds one.
+            let size = match at_rest {
+                geom::Curve3::Circle(_) => datum == geom::CurveDatum::Radius,
+                geom::Curve3::Ellipse(_) => {
+                    matches!(datum, geom::CurveDatum::SemiU | geom::CurveDatum::SemiV)
+                }
+                _ => false,
+            };
+            if size {
+                assert!(
+                    std::panic::catch_unwind(|| (kind.build)(&poisoned)).is_err(),
+                    "{at_rest:?}: a NaN {} is refused at construction",
+                    datum.name()
+                );
+                continue;
+            }
             assert_eq!(
                 poisoned_curve_datums(&(kind.build)(&poisoned)),
                 vec![datum],
@@ -2092,14 +2096,14 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
                 -Vec3::unit_z()
             };
             (
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
+                geom::Curve3::Circle(geom::Circle::new(
+                    geom::Frame {
                         origin: center,
                         axis,
                         u_ref,
                     },
                     radius,
-                }),
+                )),
                 0.0,
                 std::f64::consts::PI,
             )
@@ -2450,8 +2454,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/rim_wedge.rs",
         &[
-            ("edge_wedge_over(", 1),
-            ("edge_wedge_over_as(", 0),
+            ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 1),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],
@@ -2910,8 +2914,8 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
-            (quoted - offered).abs() <= 1e-9 * offered,
-            "{label}: offers {quoted:e}, wants {offered:e}"
+            geom_core::test_support::is_told_offer_of(quoted, offered),
+            "{label}: offers {quoted:e}, wants {offered:e} told as a bound"
         );
     }
     // The end read's own stop, as the fold raises it, through check 4's
@@ -4299,5 +4303,41 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
             (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12,
             "the concave edge is the inner corner's: {a:?} {b:?}"
         );
+    }
+}
+
+/// **Tier 3 and tier 2 record every decision as a check**
+/// (`geom_core::k_stats::Role`): each reads a body already built, so
+/// another sign can only refuse it. A decision either recorded as a
+/// choice would be read by the first-turn reading as a turn that built
+/// something.
+#[test]
+fn tier_three_and_tier_two_record_every_decision_as_a_check() {
+    use geom_core::k_stats::{Bracket, Role};
+    let tol = Tol::witness();
+    let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 3.0), tol);
+    let bracket = Bracket::open();
+    assert!(
+        crate::AtRestBody::validate(body.clone().into(), tol).is_ok(),
+        "tier 3 passes the brick"
+    );
+    let tier3 = bracket.finish();
+    let bracket = Bracket::open();
+    assert!(
+        crate::Replay::of(body.into()).is_ok(),
+        "tier 2 passes the brick"
+    );
+    let tier2 = bracket.finish();
+    // Tier 2 is combinatorial and decides nothing on a brick; its scope
+    // is held for what it reads on a body that has curves to replay.
+    assert!(!tier3.verdicts.is_empty(), "tier 3 decides something");
+    for (what, log) in [("tier 3", tier3), ("tier 2", tier2)] {
+        let choices: Vec<_> = log
+            .verdicts
+            .iter()
+            .filter(|v| v.role == Role::Choice)
+            .map(|v| v.predicate)
+            .collect();
+        assert!(choices.is_empty(), "{what} recorded choices: {choices:?}");
     }
 }

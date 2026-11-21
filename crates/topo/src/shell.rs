@@ -1578,7 +1578,7 @@ pub fn shell<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open(body, thickness, &[], tol)
 }
@@ -1611,14 +1611,14 @@ pub fn shell_open<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open_at(body, thickness, open_faces, tol)
 }
 
 /// [`shell_open`] at its scalar: the body of the door
 /// ([`crate::ShellDoor`] holds it).
-pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     operand: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
@@ -4603,7 +4603,7 @@ const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
 /// did not certify. It asks where [`CavityGate::at`] says it does. Faces
 /// of different solids are read too: their cavities are eroded apart,
 /// so a pair of them is never touching and is decided by distance.
-fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     cavity: &Body<T>,
     band: Band,
 ) -> Result<(), ShellError<T>> {

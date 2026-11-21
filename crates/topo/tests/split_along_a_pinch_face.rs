@@ -34,7 +34,7 @@ fn a_plane_through_a_pinch_puts_each_brick_on_its_side() {
     // The pinch's record is a touch between the two sides, and neither
     // side holds a face of the cut for it to lie on, so the split's carry
     // has no rule that retires it
-    // (`work/wirehold/a-record-the-split-parts-has-no-consumption-rule.md`):
+    // (`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`):
     // the door refuses it, never drops it.
     assert!(
         matches!(

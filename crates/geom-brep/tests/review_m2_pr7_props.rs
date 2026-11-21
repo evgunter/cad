@@ -242,14 +242,14 @@ fn rim_edge(
         )
     } else {
         LoopEdge::hand_built(
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            }),
+            )),
             u0,
             u1,
             up,
@@ -608,8 +608,8 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let _ = origin;
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Circle(geom::Circle { radius, .. }) = &mut lp.edges[0].carrier {
-        *radius += 0.05;
+    if let Curve3::Circle(c) = &mut lp.edges[0].carrier {
+        *c = geom::Circle::new(c.frame, c.radius() + 0.05);
     }
     assert!(
         matches!(

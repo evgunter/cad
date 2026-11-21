@@ -199,18 +199,37 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
+    carrier_desc_on(f.record(), f.surface())
+}
+
+/// [`face_carrier_desc`] of a face read from another operand's frame
+/// ([`crate::Seat`]): the description of its surface mapped through the
+/// seat's motion, which is to the bit the description a body moved by
+/// that motion holds.
+#[must_use]
+pub fn seated_carrier_desc<T: Decide>(
+    seat: crate::Seat<'_, T>,
+    face: FaceKey,
+) -> Option<CarrierDesc<T>> {
+    let f = seat.body().face(face)?;
+    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+}
+
+/// The description of a face whose record is `record` on `surface`.
+fn carrier_desc_on<T: Decide>(
+    record: &crate::entity::Face,
+    surface: &geom::Surface<T>,
+) -> Option<CarrierDesc<T>> {
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.sense();
-    match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane(plane_desc_of(
-            f.record(),
-            *origin,
-            *normal,
-        ))),
+    let outward = record.sense;
+    match surface {
+        geom::Surface::Plane { origin, normal, .. } => {
+            Some(CarrierDesc::Plane(plane_desc_of(record, *origin, *normal)))
+        }
         geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
             center: *center,
             radius: *radius,
@@ -1499,11 +1518,6 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
-            // The wrap strip's period, a whole turn signed by the face's
-            // side, folded under `interior_is_left` rather than through
-            // `PolygonOrientation::to_interior`
-            // (`work/onecopy/polygon-orientation-callers-fold-the-interior-side-by-hand.md`).
-            ("crates/mesh/src/walk.rs", "turn"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`

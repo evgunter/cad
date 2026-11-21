@@ -51,7 +51,7 @@ is the class.
 
 The same sentence cites `work/view/one-line-one-subject-…`; the row
 moved to `work/vnews/` in the 2026-09-17 re-scope.
-`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
+`work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
 table names `crates/viewer/src/frame.rs:657` and `:704` and owns that
 half. A lane taking this row **announces the crossing and strikes those
 two table lines, or leaves the path alone and repairs only the gate
@@ -88,7 +88,7 @@ that fork — the gate-free wording `joined_subject`'s doc already used.
 **The path half was taken, and the crossing is announced.** Both
 `frame.rs` citations of `one-line-one-subject-…` (in `frame_status`'s
 and `joined_subject`'s docs) now say `work/vnews/`, and that line is
-struck from `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
+struck from `work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
 table in the same PR, so the two halves cannot both land. The pass also
 repointed the module header's `work/view/startup-notices-need-holding-to-badge.md`,
 which moved to `work/vseam/` after VDOC's sweep ran; that row records it.

@@ -266,7 +266,7 @@ pub fn judged_within(
 /// - an enclosure that met it is held to [`resolution_pad`], the widest
 ///   the resolution admits;
 /// - one that stopped short of it (at the work wall on a fine ε,
-///   `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`)
+///   `work/quad/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`)
 ///   has no ceiling of that kind, whose premise is that every face met
 ///   the resolution. It reads [`Verdict::Unmet`] where the checks pass,
 ///   the enclosure holds the closed form and it is no wider than

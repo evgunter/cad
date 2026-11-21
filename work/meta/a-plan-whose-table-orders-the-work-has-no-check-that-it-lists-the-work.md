@@ -15,7 +15,7 @@ close-out (2026-09-16), which is why it is a row rather than a fix.
 
 ## What happened, twice
 
-`work/census/plan.md` carries a table it calls *the slate*, and its
+`work/bind/plan.md` carries a table it calls *the slate*, and its
 `## Order` section reasons over that table — which row runs next, and
 why. The table is a hand-written second copy of
 `ls work/census/*.md` plus each file's `status`, and nothing re-derives

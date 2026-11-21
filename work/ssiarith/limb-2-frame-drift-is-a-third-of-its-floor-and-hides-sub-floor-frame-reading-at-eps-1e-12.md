@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [rigid-map-row-asks-a-sampled-residual-for-sub-ulp-agreement-at-eps-1e-12, plane-nurbs-limbs-under-translation-drift-with-the-coordinates]
+refs: [plane-nurbs-limbs-under-translation-drift-with-the-coordinates]
 ---
 
 ## What

@@ -101,3 +101,17 @@ pinned (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`):
 - `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`,
   `d ∖ a`: census `(6, 10, 7, 1)`, two v-f records and one or two e-e
   records at the seam meridian.
+
+## 2026-11-20 — a torus less a disc on a parallel reaches the same gate (SECT)
+
+Measured on `sect/closed-edge-on-torus` (main `d44f46d3`), at the
+default ε, 1e-6 and 1e-12: the torus `R = 2, r = 1` revolved about `y`
+from two semicircles, less the puck `r = 2.5`, `y ∈ [0, √3/2]`, whose
+top rim is the torus's parallel at tube angle `π/3`, refuses
+`EdgeInFace { gap: Curved }`, raised by `slit.rs` `part_riders`
+(`refused(EdgeInFaceGap::Curved)` after `edge_is_line`). The result is
+pinched along the rim: the puck's corner removes a quadrant whose wall
+and top both run into the tube there, leaving two wedges of material
+(30° and 60° in the meridian half-plane) that meet only along the
+circle. The other five ops build `SOUND` at their Pappus forms
+(`∩ = 13.381483883`).

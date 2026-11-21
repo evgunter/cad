@@ -1,16 +1,17 @@
 //! **The carry places a record by lineage, and reads geometry only where
-//! an op divided one of its cells** (D1's carry clause). A record whose
-//! carriers no census reading covers, a straight edge against a
-//! cylinder's wall, rides `plate ∪ rod`'s records into later ops: an op
-//! that keeps both cells lands it unread, and an op that divides one
-//! puts the pieces to the census's record confirm, which refuses
-//! `Unread`. The record is bookkeeping (the plate's far bottom edge
-//! touches nothing); what it stands in for is a record minted where it
-//! was read, whose carriers the census has no lane for.
+//! an op divided one of its cells** (D1's carry clause). A planted
+//! record of a straight edge against a cylinder's wall rides
+//! `plate ∪ rod`'s records into later ops: an op that keeps both cells
+//! lands it unread, and an op that divides one puts the pieces to the
+//! census's record confirm, which reads the pair through the curve ×
+//! face crossing reading (`census::point::edge_face`). The record is
+//! bookkeeping (the plate's far bottom edge touches nothing), so the
+//! confirm reads it stale, at the carry where an op divided a cell and
+//! at the gate of every body handed it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind;
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
@@ -92,20 +93,22 @@ fn rested() -> (topo::BooleanBody<f64>, ContactRecords) {
     (u, one)
 }
 
-/// `plate ∪ rod` finished holding `one` as its records.
-fn holding(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> AtRestBody<f64> {
+/// `plate ∪ rod` handed to the gate with `one` as its records.
+fn holding(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> Result<(), topo::NotFinished> {
     topo::finish(
         topo::Built::of(Body::clone(&u.body)).recording(one.clone()),
         tol(),
     )
-    .unwrap_or_else(|e| panic!("plate ∪ rod finishes holding the record: {e:?}"))
+    .map(|_| ())
 }
 
-/// The records a side of a split holds, an empty side holding none.
-fn side_records(part: &topo::SplitPart<f64>) -> ContactRecords {
-    part.body()
-        .map(|b| topo::FinishedBody::records(b).clone())
-        .unwrap_or_default()
+/// The gate's refusal of the planted record: the census confirms no
+/// touch where it lies.
+fn stale(findings: &topo::NotFinished) -> bool {
+    matches!(
+        findings.as_slice(),
+        [topo::ValidationError::StaleContactDeclaration { .. }]
+    )
 }
 
 fn carried(
@@ -127,7 +130,11 @@ fn carried(
     )
 }
 
-/// An op that keeps both cells lands the record unread. Red on the
+/// An op that keeps both cells lands the record by lineage, unread by
+/// the carry, and the op's gate, which confirms every record it is
+/// handed, refuses it: `ResultInvalid`, the census's stale finding, not
+/// a carry refusal. The gate refuses the same record on `plate ∪ rod`
+/// itself, so no finished operand can hold it into a split. Red on the
 /// carry that confirms every pair, kept ones included: there each op
 /// refused `CarryRefused { Carried(A), Unread }`.
 #[test]
@@ -139,69 +146,38 @@ fn a_record_no_reading_covers_lands_by_lineage_through_an_op_that_keeps_its_cell
         ("∪ a far block", topo::BooleanOp::Union, &far),
         ("∖ a hole in the plate", topo::BooleanOp::Subtract, &hole),
     ] {
-        match carried(op, &u, &one, tool) {
-            Ok(BooleanResult::Body(r)) => assert_eq!(
-                r.contacts().edge_face().count(),
-                1,
-                "{what}: the record lands: {:?}",
-                r.contacts()
+        let got = carried(op, &u, &one, tool).map(|_| ());
+        assert!(
+            matches!(
+                &got,
+                Err(topo::BooleanError::ResultInvalid { findings }) if stale(findings)
             ),
-            other => panic!("{what}: {:?}", other.map(|_| ())),
-        }
+            "{what}: the record lands and the gate reads it stale: {got:?}"
+        );
     }
-    let plane = topo::test_support::split_plane(
-        Point3::new(0.0, 0.0, 0.9),
-        Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
-    let split = topo::split(&holding(&u, &one), &plane, tol())
-        .unwrap_or_else(|r| panic!("a split above both cells: the record lands: {r:?}"));
-    let (below, above) = (side_records(&split.below), side_records(&split.above));
-    assert_eq!(
-        (below.edge_face().count(), above.len()),
-        (1, 0),
-        "a split above both cells: the record lands below: {below:?} {above:?}"
+    let got = holding(&u, &one);
+    assert!(
+        matches!(&got, Err(findings) if stale(findings)),
+        "the gate refuses the record on `plate ∪ rod`: {got:?}"
     );
 }
 
 /// An op that divides one of the record's cells puts each piece to the
-/// census's record confirm, which has no reading for a line against a
-/// cylinder. A notch across the plate's bottom edge divides the edge;
-/// a split across the rod divides its wall and the edge.
+/// census's record confirm, which reads a line against a cylinder: the
+/// plate's bottom edge touches the rod's wall nowhere, so each piece
+/// reads stale, and a notch across the edge drops it from the result.
 #[test]
-fn a_record_no_reading_covers_refuses_where_an_op_divides_one_of_its_cells() {
+fn a_record_an_op_divides_is_read_and_found_stale() {
     let (u, one) = rested();
     let notch = block("notch", (-1.0, -0.5), (-2.5, -1.5), (-0.5, 0.5));
-    let got = carried(topo::BooleanOp::Subtract, &u, &one, &notch).map(|_| ());
-    assert!(
-        matches!(
-            got,
-            Err(topo::BooleanError::CarryRefused {
-                row: topo::RefusedRow::Carried(topo::Operand::A),
-                refusal: topo::CarryRefusal::Unread {
-                    record: 0,
-                    cells: [Cell::Edge(_), Cell::Face(_)],
-                },
-            })
+    let got = carried(topo::BooleanOp::Subtract, &u, &one, &notch);
+    match got {
+        Ok(BooleanResult::Body(r)) => assert_eq!(
+            r.contacts().edge_face().count(),
+            0,
+            "∖ a notch across the edge: the stale record is dropped: {:?}",
+            r.contacts()
         ),
-        "∖ a notch across the edge: {got:?}"
-    );
-    let plane = topo::test_support::split_plane(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        tol(),
-    );
-    let got = topo::split(&holding(&u, &one), &plane, tol()).map(|_| ());
-    assert!(
-        matches!(
-            got,
-            Err(topo::SplitError::Finish(topo::SplitFinishError::Carry {
-                refusal: topo::CarryRefusal::Unread {
-                    record: 0,
-                    cells: [Cell::Edge(_), Cell::Face(_)],
-                },
-            }))
-        ),
-        "a split across both cells: {got:?}"
-    );
+        other => panic!("∖ a notch across the edge: {:?}", other.map(|_| ())),
+    }
 }
