@@ -1682,3 +1682,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-21, 07:18Z — (ONEROUND orchestrator) A note from another program: `demos/tour` does not build under `--features probe` on main: `bodies.rs` destructures `Circle { radius, .. }` and PR 7183 made a conic's sizes private. The nightly's k-probe sweep needs that build. The row is `work/green/main-red-the-tours-probe-build-destructures-a-circles-private-radius.md`; the fix (read through the accessor) is yours.
 - 2026-11-21 13:28 — **U3b dispatched**, stacked on U3a's branch, as cloud session `session_01BJC3B56pNrGKigN6ME68bY` (branch `germ/crossing-consumers`). It follows spec §U3b: the ring path, classify, `on_surface` and region move onto `pose`/`cross`. Tier **single, FULL**. It goes ahead of U3a's merge because U3a's final round is over-refusal and contract fixes that do not reshape the reading. The U3a reviews' lessons are carried into the brief.
 - 2026-11-21 14:06 — **PR 7226 (U3a) merged** (`194acb6efb`). Its final round sizes a past touch's window by its Kε reach and places an endless span without ends. I read the delta diff. The U3a session is archived. U3b, stacked, is told to merge main and target it. State PR 7295 merged. The kind-pair row gains a progress note: U0, U1, U1b, U2 and U3a are done; U3b is in flight; U4 and U5 remain.
+- 2026-11-21 18:45 — **U3b reported** (PR 7299, frozen at `444bc41373`, `gate ok` green, base main). Ten mutants red. `under` is retired, but a spiric edge is still read by its leg across its plane, routed through `cross`. The ring-path move is parked on `germ/crossing-consumers-ring-path-parked`. Two blocker rows are filed:
+  - the plane pose's offset loses digits at far frames, so the ring path can't drop its charge: 22 to 376 wrong of 2000 at far 1e4 to 1e6;
+  - the region's spiric fork: refusing the edge reds ten plane × torus rows.
+
+  **Dispatched in parallel:**
+  - U3b's FULL review, including whether the kept leg reading is one method through `cross` or `under` renamed;
+  - **two designers on the spiric fork** (problem at `~/.local/share/cad-work/germ-spiric-fork/problem.md`). Two Opus designers under the Fable outage; no design-fork log row.
+
+  The far-frame re-pose unit is next, after U3b merges.
