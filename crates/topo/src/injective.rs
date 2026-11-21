@@ -5960,7 +5960,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let py = present(y, &ey, &near.vertices, band);
     if std::env::var_os("CV_TRACE").is_some() {
         let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
-            Ok(Presentation::Of(q)) => format!("Of(zero={} x={:?} y={:?})", match &q.zero { Zero::None=>"None".to_string(), Zero::Side(s,_)=>format!("Side({s:?})"), Zero::Past(s,_)=>format!("Past({s:?})"), Zero::Corner(..)=>"Corner".into(), Zero::Curve(s,c)=>format!("Curve({s:?},past={:?})", c.past), Zero::Point(..)=>"Point".into()}, q.x, q.y),
+            Ok(Presentation::Of(q)) => format!("Of(zero={} x={:?} y={:?})", match &q.zero { Zero::None=>"None".to_string(), Zero::Side(s,_)=>format!("Side({s:?})"), Zero::Through(s,_)=>format!("Through({s:?})"), Zero::Past(s,_)=>format!("Past({s:?})"), Zero::Corner(..)=>"Corner".into(), Zero::Curve(s,c)=>format!("Curve({s:?},past={:?})", c.past), Zero::Point(..)=>"Point".into()}, q.x, q.y),
             Ok(Presentation::Vacuous) => "Vacuous".into(),
             Err(e) => format!("Err({e:?})"),
         };
