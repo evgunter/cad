@@ -129,12 +129,12 @@ fn a_placed_operand_past_the_box_refuses_naming_it() {
 
 /// **Under a boxed motion, the placed door builds what the pair door
 /// builds over the operand moved by hand, bit for bit**, at `Interval`:
-/// B turned `0.3 ± 1e-12` rad about `z` and shifted half a unit along
+/// B turned `0.3 ± ε/1000` rad about `z` and shifted half a unit along
 /// each axis, so no face of B lies on a face of A, and each of `∪ ∩ ⊖`
-/// builds, the same enclosure either way. (At `± 1e-9` the turn's width
-/// already refuses a crossing's endpoint certificate, both ways.)
-#[test]
-fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
+/// builds, the same enclosure either way. (At a width of `ε` the turn
+/// already refuses a crossing's endpoint certificate, both ways.) One
+/// row per operation.
+fn boxed_placement_builds_alike(op: BooleanOp) {
     use geom_core::{Interval, Real as _};
     let tol = Tol::witness();
     let fin = |what, x, y, z| finished(what, brick::<Interval>(x, y, z, tol), tol);
@@ -151,8 +151,11 @@ fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
         band,
     )
     .expect("a unit");
+    // A thousandth of the session's ε: a boxed turn the band decides
+    // at every ε the suites run.
+    let width = tol.eps() * 1e-3;
     let turn =
-        RigidMotion::rotation(z, Interval::from_bounds(0.3 - 1e-12, 0.3 + 1e-12)).expect("a turn");
+        RigidMotion::rotation(z, Interval::from_bounds(0.3 - width, 0.3 + width)).expect("a turn");
     let motion = RigidMotion::translation(Vec3::new(
         Interval::from_f64(0.5),
         Interval::from_f64(0.5),
@@ -173,29 +176,40 @@ fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
         ),
         Err(e) => format!("refused {e}"),
     };
-    for op in OPS {
-        let inputs = BooleanInputs::default();
-        let by_hand = match b.moved(&motion, tol) {
-            Ok(moved) => {
-                topo::boolean_op_with(op, &a, &moved, &inputs, SweepStrategy::Realized, tol)
-                    .map_err(|e| format!("{e:?}"))
-            }
-            Err(e) => Err(format!("move {e:?}")),
-        };
-        let placed = topo::boolean_placed(
-            op,
-            (Placed::own(&a), Placed::at(&b, motion)),
-            &inputs,
-            SweepStrategy::Realized,
-            tol,
-        )
-        .map(|(result, _)| result)
-        .map_err(|e| match e {
-            topo::PlacedBooleanError::Placed { findings, .. } => format!("move {findings:?}"),
-            topo::PlacedBooleanError::Boolean(e) => format!("{e:?}"),
-        });
-        let (by_hand, placed) = (shown(by_hand), shown(placed));
-        assert!(placed.contains(" faces "), "{op:?} builds: {placed}");
-        assert_eq!(by_hand, placed, "{op:?}");
-    }
+    let inputs = BooleanInputs::default();
+    let by_hand = match b.moved(&motion, tol) {
+        Ok(moved) => topo::boolean_op_with(op, &a, &moved, &inputs, SweepStrategy::Realized, tol)
+            .map_err(|e| format!("{e:?}")),
+        Err(e) => Err(format!("move {e:?}")),
+    };
+    let placed = topo::boolean_placed(
+        op,
+        (Placed::own(&a), Placed::at(&b, motion)),
+        &inputs,
+        SweepStrategy::Realized,
+        tol,
+    )
+    .map(|(result, _)| result)
+    .map_err(|e| match e {
+        topo::PlacedBooleanError::Placed { findings, .. } => format!("move {findings:?}"),
+        topo::PlacedBooleanError::Boolean(e) => format!("{e:?}"),
+    });
+    let (by_hand, placed) = (shown(by_hand), shown(placed));
+    assert!(placed.contains(" faces "), "{op:?} builds: {placed}");
+    assert_eq!(by_hand, placed, "{op:?}");
+}
+
+#[test]
+fn a_boxed_placement_unites_as_its_moved_body_does_at_interval() {
+    boxed_placement_builds_alike(BooleanOp::Union);
+}
+
+#[test]
+fn a_boxed_placement_intersects_as_its_moved_body_does_at_interval() {
+    boxed_placement_builds_alike(BooleanOp::Intersect);
+}
+
+#[test]
+fn a_boxed_placement_subtracts_as_its_moved_body_does_at_interval() {
+    boxed_placement_builds_alike(BooleanOp::Subtract);
 }
