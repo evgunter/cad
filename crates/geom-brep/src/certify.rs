@@ -2380,7 +2380,7 @@ impl<T: geom_core::TangentTransport> EdgeCurve<T> {
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier: the
     /// mint ([`EdgeCurve::mint`]'s steps, in its order) and every check
@@ -2389,10 +2389,17 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// name this door:
     ///
     /// ```compile_fail,E0599
-    /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
-    /// use geom_core::{Band, Dual64, Point3, Real};
-    /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
+    /// use geom_brep::EdgeCurve;
+    /// use geom_core::Dual64;
+    /// let _ = EdgeCurve::<Dual64>::certify;
+    /// ```
+    ///
+    /// nor can a caller generic in a scalar that only decides:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_brep::EdgeCurve;
+    /// fn at<T: geom_core::Decide>() {
+    ///     let _ = EdgeCurve::<T>::certify;
     /// }
     /// ```
     ///
@@ -2403,7 +2410,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// ```
     /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
     /// use geom_core::{Band, Point3, Real};
-    /// fn at<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    /// fn at<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     ///     spec: EdgeCurveSpec<T>,
     ///     p: Point3<T>,
     ///     band: Band,
@@ -2677,12 +2684,21 @@ pub struct StatedImage<T: Real> {
 /// [`crate::curved_nurbs_limbs`], [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
 /// (an `OnPair`'s incidence alone), with [`crate::analytic_edge_limbs`]'s
 /// verdict. Its fields are private and no other constructor exists. A
-/// scalar that may not certify cannot write the value:
+/// scalar that does not certify has no such type: the lane is declared
+/// over [`geom_core::Certifies`], so a function that names it carries
+/// the bound, and a pass that runs at every scalar holds a
+/// [`NurbsLaneOf`], which at a dual is [`geom_core::NoLane`].
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_brep::NurbsLane;
 /// use geom_core::Dual64;
 /// let _ = NurbsLane::<Dual64>::certified();
+/// ```
+///
+/// ```compile_fail,E0277
+/// use geom_brep::NurbsLane;
+/// use geom_core::Dual64;
+/// fn names_it(_lane: Option<NurbsLane<Dual64>>) {}
 /// ```
 ///
 /// and a caller at any scalar cannot hand a door limbs it made up — a
@@ -2751,7 +2767,7 @@ pub struct StatedImage<T: Real> {
 /// ```
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct NurbsLane<T: Real> {
+pub struct NurbsLane<T: geom_core::Certifies> {
     /// The residual × NURBS lanes' one door at `T`
     /// (`edge_nurbs::residual_nurbs_limbs`): [`crate::plane_nurbs_limbs`]
     /// for a plane, [`crate::curved_nurbs_limbs`] for a sphere, cylinder
@@ -2825,7 +2841,7 @@ pub struct NurbsLane<T: Real> {
     chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Result<f64, crate::ChartArmRefusal>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certification lane, and the only constructor there is: the
     /// limbs' free functions instantiated at `T`.
     #[must_use]
@@ -2904,7 +2920,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 /// holds none.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct SplineFoot<T: Real> {
+pub struct SplineFoot<T: geom_core::Certifies> {
     foot: fn(
         &geom::NurbsCurve3<T>,
         Point3<T>,
@@ -2912,7 +2928,7 @@ pub struct SplineFoot<T: Real> {
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
 }
 
-impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> SplineFoot<T> {
     /// The foot, instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
@@ -2933,7 +2949,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
     }
 }
 
-impl<T: Real> NurbsLane<T> {
+impl<T: geom_core::Certifies> NurbsLane<T> {
     /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
     /// the projection carries its own distance and certifies nothing;
     /// the caller decides that distance.
@@ -3074,7 +3090,7 @@ impl<T: Real> NurbsLane<T> {
     }
 }
 
-impl<T: Real> SplineFoot<T> {
+impl<T: geom_core::Certifies> SplineFoot<T> {
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
     /// the parameter of a point moved along the carrier, read on the
     /// branch it was moved from. The foot carries its own residuals and
@@ -3092,6 +3108,112 @@ impl<T: Real> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+}
+
+/// **A [`NurbsLane`] as a pass that runs at every scalar holds it**: the
+/// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Dual64, Point3};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::NurbsLaneOf<Dual64> for Mine {
+///     fn surface_foot(
+///         self,
+///         _s: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`NurbsLane::surface_foot`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
+    }
+}
+
+impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
+    fn surface_foot(
+        self,
+        _surface: &geom::NurbsSurface<T>,
+        _point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+}
+
+/// **A [`SplineFoot`] as a pass that runs at every scalar holds it**
+/// ([`NurbsLaneOf`]'s shape and seal).
+///
+/// ```compile_fail,E0277
+/// use geom_core::Point3;
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::SplineFootOf<f64> for Mine {
+///     fn carrier_foot(
+///         self,
+///         _c: &geom::NurbsCurve3<f64>,
+///         _p: Point3<f64>,
+///         _seed: f64,
+///     ) -> Result<geom::Projection3<f64>, geom::ProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait SplineFootOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`SplineFoot::carrier_foot`].
+    ///
+    /// # Errors
+    /// The door's own.
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> SplineFootOf<T> for SplineFoot<T> {
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        (self.foot)(carrier, point, seed)
+    }
+}
+
+impl<T: Real> SplineFootOf<T> for geom_core::NoLane {
+    fn carrier_foot(
+        self,
+        _carrier: &geom::NurbsCurve3<T>,
+        _point: Point3<T>,
+        _seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        match self {}
     }
 }
 
@@ -4618,7 +4740,7 @@ impl<'a, T: Real> StatedChart<'a, T> {
 /// has the one constructor, so it is the door the mint takes through the
 /// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
 /// alike. `outer` is the span's outer ends, `f64` structure (C6).
-fn stated_bound<T: Decide>(
+fn stated_bound<T: geom_core::Certifies>(
     spec: &EdgeCurveSpec<T>,
     (surface, door): (&Surface<T>, StatedDoor<'_, T>),
     outer: (f64, f64),
@@ -5047,7 +5169,7 @@ impl<T: Real> ReadSpec<T> {
 /// between check 2 and the canonical description, then the sampled
 /// checks and C2's limbs through `lane`.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-fn run_checks<T: Decide + geom_core::CertifiedBounds>(
+fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
@@ -6011,7 +6133,7 @@ mod wiring_rows {
 
     /// `Ok(())` when the fields hold the lane's certified functions;
     /// otherwise the first wrong field's name.
-    fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_nurbs_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -6105,8 +6227,8 @@ mod wiring_rows {
     }
 
     /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
-    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
-    {
+    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds + geom_core::Certifies>()
+    -> Result<(), &'static str> {
         let foot = SplineFoot::<T>::certified();
         if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `SplineFoot::seeded_foot`");

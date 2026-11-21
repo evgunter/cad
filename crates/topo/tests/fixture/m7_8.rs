@@ -112,7 +112,7 @@ where
 /// described-NURBS face is a separate one.
 pub fn edge_findings<T>(body: &Body<T>) -> usize
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy,
 {
     match topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()) {
         Ok(()) => 0,

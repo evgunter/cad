@@ -3056,7 +3056,7 @@ pub(super) fn projected_envelope<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
     parts: super::Parts,
 ) -> Result<(EnvelopeTerms<T>, super::ImageName), PcurveCertifyError> {
     let mut terms = EnvelopeTerms::new();
@@ -3437,7 +3437,7 @@ pub(super) fn check_4_terms<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
     parts: super::Parts,
 ) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
     let super::Pcurve::Projected(image) = pcurve else {
@@ -3466,7 +3466,7 @@ pub(super) fn run_projected_checks<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: Option<impl crate::FittedLaneOf<T>>,
 ) -> Result<super::PcurveCertificate<T>, PcurveCertifyError> {
     use super::{EnvelopeStatement, Record};
     let Pcurve::Projected(image) = pcurve else {
