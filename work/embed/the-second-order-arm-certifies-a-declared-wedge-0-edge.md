@@ -48,6 +48,34 @@ the arm lands, the kiss row flips from a refusal to `Holds`.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
 
+## Census: 35 cylinder/cylinder tests at the at-rest gate, and 4 at a vertex (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+Traced from the per-solid census (`measure/gate/census-c2a0c41f40.json`
+on `embed/gate-measure`, bucket "second order, edge, cylinder/cylinder"),
+on `embed/trace-cylinder-measure` with `CV_TRACE=1`. All 35 refuse at
+the sweep's `Outcome::Cusp` past `CUSP_DEPTH` (`CVR cusp depth=10`),
+both faces presented `Of(Side)` on the shared edge: this row's ground
+exactly, on valid bodies built legal at rest on purpose
+(`a_knife_edge_fillet_builds_where_its_ball_is_defined` 9,
+`m10_2_measure` 4, `a_swept_cusp_is_legal_at_rest` 4,
+`wedge_end_doors` 3, `topo r2_probes` 2, `blend_recourse_followability`
+2, `two_wedge_ends_on_one_line` 2, 9 singletons). Cheapest:
+`editor-core::all m10_2_measure::a_split_half_of_a_cusp_extrude_gathers`
+(0.10 s). With the at-rest gate these are 35 finished bodies refused at
+their door, which is P0's description; the priority above predates the
+gate.
+
+Four tests of the cylinder/cylinder vertex bucket look like the same
+ground at a vertex the pair shares alone, read by departure, not by the
+cusp test: `review_4831_probes` p1 (a bore inside a tall disc touching
+its wall), p8, p10, and `a_closed_conic_in_the_partners_face::a_kept_rim_leaving_along_the_dropped_faces_boundary_c…`.
+Both faces are presented `Of(Point)`; the one plane `planes_through`
+builds at the vertex signs one face and gives `None` on the other at
+depth 40. The fixtures are tangent poses, so the two walls share a
+tangent plane at the vertex; that they do is read off the fixtures,
+unchecked, and so is whether `the-vertex-alone-plane-leans-along-a-cells-long-metric-side-so-an-anisotropic-pair-splits`
+is the nearer cause for any of them.
+
 ## Instances in the per-solid census (EMBED trace lane, 2026-11-21)
 
 **19 tests refuse `Uncertified { SecondOrder }` at an edge** in the
