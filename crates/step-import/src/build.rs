@@ -3015,6 +3015,170 @@ mod tests {
         );
     }
 
+    /// A closed solid whose lid is the folded pair: two unit cylinders
+    /// about `z`, their axes `2c₀` apart so the walls cross along two
+    /// rulings 2 cm apart, capped below by one plane and above by two,
+    /// `z = 1` over the first lobe and a plane turned `fold` about the
+    /// chord over the second. Faces: the two lids (0, 1), the floor (2),
+    /// the two walls (3, 4). Edge 1 is the chord, the lids' crease, and
+    /// its ends are the lids' only shared vertices.
+    fn folded_lid(fold: f64) -> SolidSpec {
+        let (w, h) = (0.01_f64, 1.0_f64);
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let cusp = |side: f64, height: f64| Point3::new(c0, side * w, height);
+        let vertices = BTreeMap::from([
+            (1, cusp(1.0, 0.0)),
+            (2, cusp(-1.0, 0.0)),
+            (3, cusp(1.0, h)),
+            (4, cusp(-1.0, h)),
+        ]);
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        let second = Point3::new(2.0 * c0, 0.0, 0.0);
+        // The folded lid's plane through the chord, and the ellipse the
+        // second wall cuts it in.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let rim = |centre: Point3<f64>| {
+            Curve3::Circle(geom::Circle::new(geom::Frame::new(centre, z, x), 1.0))
+        };
+        let lid_rim = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(second + z * (h - c0 * fold.tan()), n, away),
+            1.0 / fold.cos(),
+            1.0,
+        ));
+        let (first_span, second_span) = ((phi, 2.0 * pi - phi), (phi - pi, pi - phi));
+        let edges = [
+            (1, (4, 3), Curve3::line(cusp(-1.0, h), y), (0.0, 2.0 * w)),
+            (2, (3, 4), rim(Point3::new(0.0, 0.0, h)), first_span),
+            (3, (4, 3), lid_rim, second_span),
+            (4, (1, 2), rim(Point3::origin()), first_span),
+            (5, (2, 1), rim(second), second_span),
+            (6, (1, 3), Curve3::line(cusp(1.0, 0.0), z), (0.0, h)),
+            (7, (2, 4), Curve3::line(cusp(-1.0, 0.0), z), (0.0, h)),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                    curve: None,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, surface: Surface<f64>, bound: &[(u64, bool)]| FaceSpec {
+            id,
+            surface,
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: bound
+                    .iter()
+                    .map(|&(edge, forward)| crate::entities::EdgeUse { edge, forward })
+                    .collect(),
+            }],
+            band: false,
+        };
+        let plane = |origin: Point3<f64>, normal: Vec3<f64>| Surface::Plane {
+            origin,
+            normal,
+            u_ref: y,
+        };
+        let wall = |origin: Point3<f64>| Surface::Cylinder {
+            origin,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![
+                face(
+                    10,
+                    plane(Point3::new(c0, 0.0, h), z),
+                    &[(2, true), (1, true)],
+                ),
+                face(
+                    11,
+                    plane(Point3::new(c0, 0.0, h), n),
+                    &[(3, true), (1, false)],
+                ),
+                face(12, plane(Point3::origin(), -z), &[(4, false), (5, false)]),
+                face(
+                    13,
+                    wall(Point3::origin()),
+                    &[(4, true), (7, true), (2, false), (6, false)],
+                ),
+                face(
+                    14,
+                    wall(second),
+                    &[(5, true), (6, true), (3, false), (7, false)],
+                ),
+            ],
+            edges,
+            vertices,
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **The folded lid imports whole.** Through the build, the
+    /// assembly and the at-rest gate, a solid whose two lids fold `1e-5`
+    /// along a 2 cm chord finishes as five faces and seven edges, at a
+    /// file ε of `1e-6` and at one as fine as the run's: the built
+    /// body's own readings, which lever the crease at its two faces'
+    /// vertices, 2 cm, accept what the import read over the lids' 4 m
+    /// run. Folded `1e-7` the lids are one plane to a `1e-6` file, and
+    /// the crease refuses. Red against the lids' vertices or the chord's
+    /// own length for the import's reach (the `1e-5` fold refuses).
+    #[test]
+    fn the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart() {
+        let tol = Tol::witness();
+        let import = |fold: f64, eps_in: f64| {
+            let record = crate::entities::SolidRecord {
+                id: 1,
+                outer: folded_lid(fold),
+                voids: Vec::new(),
+            };
+            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(eps_in))
+                .and_then(|(body, _, _)| crate::gate(body, Some(1), tol))
+        };
+        for eps_in in [1e-6, 1e-9] {
+            let done = import(1e-5, eps_in)
+                .unwrap_or_else(|e| panic!("a 1e-5 fold at a file ε of {eps_in:e}: {e}"));
+            assert_eq!(
+                (done.faces().count(), done.edges().count()),
+                (5, 7),
+                "at a file ε of {eps_in:e}"
+            );
+        }
+        assert!(
+            matches!(
+                import(1e-7, 1e-6),
+                Err(StepImportError::Interpretation {
+                    id: 1,
+                    refusal: crate::interpret::Refusal::Touching {
+                        reading: STEP_PLANES_CROSS,
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "one plane to the file over the lids' run"
+        );
+    }
+
     /// **A wrap edge is the surface's own generator through the printed
     /// seam**: a cylinder's ruling at the printed azimuth (not its chart's
     /// `u = 0`), and a torus's two isos through a point, each on the torus.
