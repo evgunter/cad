@@ -108,7 +108,7 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
         c.pad,
         band().zero()
     );
-    let rule = |evented, place| certify(&s, evented, band(), |_| Sheet::Not, place);
+    let rule = |evented, place| certify_section_pair(&s, evented, band(), |_| Sheet::Not, place);
     assert_eq!(rule(false, at(IN, IN)), Err(Refusal::Loop), "in both");
     assert_eq!(
         rule(false, at(None, None)),
@@ -136,13 +136,13 @@ fn a_loop_inside_a_plane_and_a_wall_is_never_cleared() {
     );
     let edge = |_, wide: Band| [if d > wide.zero() { OUT } else { None }, IN];
     assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, edge),
+        certify_section_pair(&s, false, band(), |_| Sheet::Not, edge),
         Err(Refusal::Undecided),
         "a witness inside its pad of an edge does not clear"
     );
     let far = read(&plane(p(1000.0, 1000.0, -0.1), v(0.0, 0.0, 1.0)), &dome());
     assert_eq!(
-        certify(&far, false, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&far, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Loop),
         "the plane stored a kilometre off reads the same loop: {far:?}"
     );
@@ -179,7 +179,7 @@ fn a_loop_hugging_the_walls_sides_is_a_loop() {
             "d {d:e}: a loop reads as reaching: {s:?}"
         );
         assert_eq!(
-            certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
+            certify_section_pair(&s, false, band(), |_| Sheet::Not, at(None, None)),
             Err(Refusal::Undecided),
             "d {d:e}: a loop placed nowhere is not cleared"
         );
@@ -221,7 +221,7 @@ fn a_loop_beside_an_open_branch_is_not_cleared_by_an_event() {
     let open = parts.iter().filter(|c| c.reaches == Some(Side::G)).count();
     assert_eq!((loops, open, *single), (1, 1, false), "{s:?}");
     assert_eq!(
-        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),
         "an evented pair with a loop beside an open branch"
     );
@@ -296,7 +296,7 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
             "closed {closed}: one branch from one u side to the other: {built:?}"
         );
         assert_eq!(
-            certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
+            certify_section_pair(&s, false, band(), |_| Sheet::Not, at(None, None)),
             want,
             "closed {closed}: {s:?}"
         );
@@ -319,7 +319,7 @@ fn a_plane_cutting_a_wall_in_one_open_branch_is_cleared() {
         let s = read(&f, &g);
         assert_eq!(lone(&s).reaches, Some(side), "{s:?}");
         assert_eq!(
-            certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+            certify_section_pair(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
             Ok(vec![Cleared::Reaches(side)])
         );
     }
@@ -340,7 +340,7 @@ fn a_plane_on_a_walls_side_is_cleared() {
         "a region: {s:?}"
     );
     assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
+        certify_section_pair(&s, false, band(), |_| Sheet::Not, at(None, None)),
         Ok(vec![Cleared::Reaches(Side::G)])
     );
 }
@@ -526,7 +526,7 @@ fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
             "d {d:e}: the door refuses the pole: {door:?}"
         );
         let s = read(&tilted, &revolved_dome());
-        let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
+        let verdict = certify_section_pair(&s, false, band(), |_| Sheet::Not, at(None, None));
         assert!(
             !matches!(&verdict, Ok(c) if c.iter().any(|c| matches!(c, Cleared::Reaches(_)))),
             "d {d:e}: the loop through the apex is cleared by reaching a side: {s:?} {verdict:?}"
@@ -559,7 +559,7 @@ fn a_sphere_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
     );
     assert_eq!(lone(&s).reaches, Some(Side::G), "{s:?}");
     assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::Reaches(Side::G)])
     );
 }
@@ -581,7 +581,7 @@ fn a_cylinder_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
     );
     assert_eq!(lone(&s).reaches, Some(Side::F), "{s:?}");
     assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::Reaches(Side::F)])
     );
 }

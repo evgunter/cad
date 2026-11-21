@@ -457,8 +457,10 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
 
 /// **A long edge's own rounding is the limit**: a 12 km ruling of a
 /// skew cylinder, where a plane through its axis cuts it, at the gate's
-/// finest band, rounds at about `ulp(12000)` in the cylinder's frame, so
-/// limb 2's bound cannot clear `1e-12` m. It refuses as the kernel's
+/// finest band, rounds at about `ulp(12000)` in each operand's frame, so
+/// limb 2's bound cannot clear `1e-12` m against either; the limbs read
+/// the pair by kind, the plane first, so the refusal names the plane. It
+/// refuses as the kernel's
 /// approximation limit, never as a miss, with a bound within
 /// [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`] of the net's own width,
 /// and its story names shorter edges.
@@ -484,7 +486,7 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
     let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");
     };
-    assert_eq!(operand, geom::SurfaceKind::Cylinder);
+    assert_eq!(operand, geom::SurfaceKind::Plane);
     assert!(
         bound > 1e-12,
         "the bound does not clear the band: {bound:e}"
