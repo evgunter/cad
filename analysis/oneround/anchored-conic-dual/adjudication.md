@@ -23,7 +23,7 @@ TALLY CANDIDATES: none. Neither review raises a MAJOR. Fair pair: one brief, no 
 
 ## Adjudication
 
-Sent to the implementer as G1 to G10 in one message at 08:05Z.
+Sent to the implementer as G1 to G10 in one message at 08:02Z.
 
 | finding | call | item |
 |---|---|---|
