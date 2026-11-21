@@ -361,11 +361,14 @@ fn plane_of<T: Decide>(
 ) -> Option<(Point3<T>, Vec3<T>, OutwardNormal<T>)> {
     let face = seat.body().get_face(k)?;
     match seat.surface(seat.body().face_surface(k)?)? {
-        Surface::Plane { origin, normal, .. } => Some((
-            origin,
-            normal,
-            OutwardNormal::from_chart(normal, face.sense),
-        )),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((
+                origin,
+                normal,
+                OutwardNormal::from_chart(normal, face.sense),
+            ))
+        }
         _ => None,
     }
 }
@@ -411,7 +414,7 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             };
             if let Some((origin, normal, outward)) = plane_of(seat, k) {
                 let Some(reach) = reach(|s| match s {
-                    Surface::Plane { origin, .. } => Some(*origin),
+                    Surface::Plane { frame } => Some(frame.origin()),
                     _ => None,
                 }) else {
                     return Carrier::Other("a face with no cover");
@@ -431,40 +434,25 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             };
             let round = topo::Round::of(&surface, face.sense);
             match (&surface, round) {
-                (
-                    Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    },
-                    Some(round),
-                ) => {
-                    let Some(reach) = reach(|s| match s {
-                        Surface::Cylinder { origin, .. } => Some(*origin),
-                        _ => None,
-                    }) else {
+                (Surface::Cylinder { frame, radius, .. }, Some(round)) => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    let Some(reach) = reach(|s| s.frame().map(|f| f.origin())) else {
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
-                        axis: geom::Line {
-                            origin: *origin,
-                            dir: *axis,
-                        },
+                        axis: geom::Line { origin, dir: axis },
                         radius: *radius,
                         reach,
                         round,
                     }
                 }
-                (Surface::Sphere { center, .. }, Some(round)) => {
-                    let Some(reach) = reach(|s| match s {
-                        Surface::Sphere { center, .. } => Some(*center),
-                        _ => None,
-                    }) else {
+                (Surface::Sphere { frame, .. }, Some(round)) => {
+                    let center = frame.origin();
+                    let Some(reach) = reach(|s| s.frame().map(|f| f.origin())) else {
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Sphere {
-                        center: *center,
+                        center,
                         reach,
                         round,
                     }

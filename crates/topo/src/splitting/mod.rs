@@ -124,9 +124,11 @@ impl<T: Real> SplitPlane<T> {
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Plane {
-            origin: self.origin,
-            normal: self.normal.get(),
-            u_ref: geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+            frame: geom::Frame::new(
+                self.origin,
+                self.normal.get(),
+                geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+            ),
         }
     }
 }

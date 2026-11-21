@@ -1222,7 +1222,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let (Some(place_bottom), Some(place_top)) = (places.first(), places.last()) else {
         return Err(LoftError::SectionStructure);
     };
-    let (bplace, tplace) = (place_bottom.placement(), place_top.placement());
 
     // ---- The walls, one per segment per slab ([`slab_walls`]). Slab
     // boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
@@ -1271,13 +1270,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let (bq, tq) = (&q_at[0], &q_at[k - 1]);
     // Loop `li`'s segment `j` placed at section `i`, from `q_from`.
     let rim_spec = |i: usize, li: usize, j: usize, q_from| {
-        placed_segment_spec(
-            &loops_at[i][li][j],
-            places[i].placement(),
-            places[i].normal().get(),
-            q_from,
-            tol,
-        )
+        placed_segment_spec(&loops_at[i][li][j], places[i].frame(), q_from, tol)
     };
     let wall_surface = |li: usize, j: usize, s: usize| FaceSurface::New {
         surface: Surface::Nurbs(Arc::clone(&walls[li][j][s])),
@@ -1299,7 +1292,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
     let bottom_cap = FaceSurface::New {
-        surface: cap_plane(bplace, false, CapEnd::Start),
+        surface: cap_plane(place_bottom.frame(), false, CapEnd::Start),
         sense: true,
     };
     // A one-segment loop (D1's full turn) is swept whole in phases 1–2:
@@ -1557,7 +1550,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     body.set_face_surface(
         top_face,
         FaceSurface::New {
-            surface: cap_plane(tplace, false, CapEnd::End),
+            surface: cap_plane(place_top.frame(), false, CapEnd::End),
             sense: true,
         },
     )?;

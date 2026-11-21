@@ -22,7 +22,7 @@
 //! The halving and the two readings over the pieces are
 //! [`super::pieced_arc`]'s.
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed};
 
 use crate::splitting::pieced_arc::{PieceBall, PiecedArc, Ray};
 use crate::validate::{decide, definitely_positive as positive};
@@ -37,9 +37,8 @@ const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
 /// [`SpiricArc`] can only be built from one.
 #[derive(Clone, Copy)]
 pub(crate) struct Oval<T: geom_core::Real> {
-    pub(crate) center: Point3<T>,
-    pub(crate) axis: Vec3<T>,
-    pub(crate) u_ref: Vec3<T>,
+    /// The stored spiric's frame, carried.
+    pub(crate) frame: geom::Frame<T>,
     pub(crate) major: T,
     pub(crate) minor: T,
     pub(crate) offset: T,
@@ -80,9 +79,7 @@ impl<T: Decide> SpiricArc<T> {
     fn point(&self, v: T) -> Point3<T> {
         let o = self.oval;
         geom::Curve3::Spiric {
-            center: o.center,
-            axis: o.axis,
-            u_ref: o.u_ref,
+            frame: o.frame,
             major_radius: o.major,
             minor_radius: o.minor,
             offset: o.offset,
@@ -216,7 +213,7 @@ impl<T: Decide> PiecedArc<T> for SpiricArc<T> {
 mod tests {
     use super::*;
     use crate::splitting::pieced_arc::{ArcHit, ArcRows};
-    use geom_core::{Interval, Tol};
+    use geom_core::{Interval, Tol, Vec3};
 
     const ROWS: ArcRows = crate::rows::TEST_SPIRIC_ARC;
 
@@ -226,9 +223,11 @@ mod tests {
         let f = T::from_f64;
         SpiricArc::new(
             Oval {
-                center: Point3::new(f(0.0), f(0.0), f(0.0)),
-                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
-                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+                frame: geom::Frame::new(
+                    Point3::new(f(0.0), f(0.0), f(0.0)),
+                    Vec3::new(f(0.0), f(0.0), f(1.0)),
+                    Vec3::new(f(1.0), f(0.0), f(0.0)),
+                ),
                 major: f(2.0),
                 minor: f(0.5),
                 offset: f(0.8),
@@ -344,9 +343,11 @@ mod tests {
     /// The oval `(R, r, o)` in the `x = o` plane, its axis `z`.
     fn oval(big: f64, r: f64, o: f64) -> Oval<f64> {
         Oval {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major: big,
             minor: r,
             offset: o,
@@ -365,9 +366,7 @@ mod tests {
         let b = k.bounds(&p);
         let speed = b.reach / b.h;
         let c = geom::Curve3::Spiric {
-            center: k.oval.center,
-            axis: k.oval.axis,
-            u_ref: k.oval.u_ref,
+            frame: k.oval.frame,
             major_radius: k.oval.major,
             minor_radius: k.oval.minor,
             offset: k.oval.offset,

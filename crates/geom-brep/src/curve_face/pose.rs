@@ -542,11 +542,12 @@ fn plane<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
-    let geom::Surface::Plane { origin, normal, .. } = *surface else {
+    let geom::Surface::Plane { frame, .. } = *surface else {
         return Err(PoseRefusal::Fault(
             "the plane arm was handed a surface that is not a plane",
         ));
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let carrier = span.carrier();
     let (t0, t1) = span.params();
     match (carrier.conic(), carrier) {
@@ -693,32 +694,31 @@ fn line<T: Decide>(
         ));
     };
     match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => line_wall(span, line, (geom::Line { origin, dir: axis }, radius), band),
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            line_wall(span, line, (geom::Line { origin, dir: axis }, radius), band)
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             line_sphere(span, line, (center, radius), band)
         }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => line_cone(
-            span,
-            line,
-            (
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-            ),
-            band,
-        ),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            line_cone(
+                span,
+                line,
+                (
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                ),
+                band,
+            )
+        }
         // A line never lies on a torus: no ruling of a ring torus is a
         // line.
         geom::Surface::Torus { .. } => Ok(Pose::Isolated(Form(Formed::LineTorus))),
@@ -1180,11 +1180,12 @@ fn conic_quadric<T: Decide>(
         (
             &geom::Curve3::Circle(circle),
             &geom::Surface::Sphere {
-                center: s_center,
+                frame: sphere_frame,
                 radius: s_radius,
                 ..
             },
         ) => {
+            let s_center = sphere_frame.origin();
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             let first = super::circle_roots::FirstHarmonic {
                 lo: h.lo,
@@ -1200,12 +1201,12 @@ fn conic_quadric<T: Decide>(
         (
             _,
             &geom::Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let h = door::cone_harmonics(&conic, (apex, axis, half_angle));
             let noise = door::cone_noise(&h);
             if let Some(through) = conic_apex(span, &conic, (apex, axis, half_angle), &h, band)? {
@@ -1559,8 +1560,7 @@ fn conic_torus<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     use super::circle_torus as door;
     let geom::Surface::Torus {
-        center: t_center,
-        axis: t_axis,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -1570,6 +1570,7 @@ fn conic_torus<T: Decide>(
             "the conic × torus arm was handed a surface that is not a torus",
         ));
     };
+    let (t_center, t_axis) = (frame.origin(), frame.axis());
     // The doors read only a ring, asked of the convention before any
     // pose: their harmonics take the witness, whose floor on `|F|` per
     // metre and whose meridian bound lean on `R − r > 0`.

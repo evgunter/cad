@@ -19,10 +19,12 @@ fn band() -> Band {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -293,10 +295,12 @@ fn a_sampled_carrier_through_the_pole_places_it_on_the_edge() {
 #[test]
 fn a_cone_rim_holds_its_apex_on_one_side() {
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: FRAC_PI_4,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let rim = Curve3::circle(
         Point3::new(0.0, 0.0, 1.0),
@@ -340,10 +344,12 @@ fn the_cap_reads_alike_at_interval() {
     let lift = |p: Point3<f64>| Point3::new(i(p.x), i(p.y), i(p.z));
     let vlift = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
     let sphere = Surface::Sphere {
-        center: lift(Point3::new(0.0, 0.0, 0.0)),
+        frame: geom::Frame::new(
+            lift(Point3::new(0.0, 0.0, 0.0)),
+            vlift(Vec3::new(0.0, 0.0, 1.0)),
+            vlift(Vec3::new(1.0, 0.0, 0.0)),
+        ),
         radius: i(1.0),
-        axis: vlift(Vec3::new(0.0, 0.0, 1.0)),
-        u_ref: vlift(Vec3::new(1.0, 0.0, 0.0)),
     };
     let z = 0.5_f64;
     let rim = Curve3::circle(
@@ -404,10 +410,12 @@ fn a_small_face_far_from_the_poles_reads_them_outside_at_a_coarse_band() {
 /// The unit cone about `+Z` with its apex at the origin, half-angle π/4.
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: FRAC_PI_4,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -599,17 +607,10 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
 fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            u_ref,
-            ..
-        },
-        ..
-    }) = rim.clone()
-    else {
+    let Curve3::Circle(geom::Circle { frame, .. }) = rim.clone() else {
         unreachable!()
     };
+    let (center, u_ref) = (frame.origin(), frame.u_ref());
     let p0 = center + u_ref * 0.8;
     let w = p0 - Point3::new(0.0, 0.0, 0.0);
     let axis = w.cross(Vec3::new(0.0, 0.0, 1.0));
