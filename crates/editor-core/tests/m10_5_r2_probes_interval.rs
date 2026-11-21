@@ -1261,7 +1261,7 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
         matches!(
             report.verdict(),
             ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                refusal: EngineRefusal::Budget(_),
+                refusal: EngineRefusal::Budget { .. },
                 ..
             }) | ClearanceVerdict::Violated(_)
         ),
@@ -1368,7 +1368,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
         matches!(
             frontier.verdict(),
             ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                refusal: EngineRefusal::Budget(_),
+                refusal: EngineRefusal::Budget { .. },
                 ..
             })
         ),
