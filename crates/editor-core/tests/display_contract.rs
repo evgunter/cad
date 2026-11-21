@@ -2888,6 +2888,25 @@ fn maintenance_display_says_what_the_edit_did() {
             ],
         ),
         (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Run,
+            },
+            vec!["this edit kept the pieces it names but joined or broke their run"],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Corner,
+            },
+            vec![
+                "this edit kept the pieces it names but continued one into the other at the \
+                 corner it names",
+            ],
+        ),
+        (
             Maintenance::StrandedAppearance {
                 body: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
                 name: spoken_face_name(),

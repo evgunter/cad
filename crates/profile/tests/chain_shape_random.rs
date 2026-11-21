@@ -20,7 +20,9 @@
 //!   redraw tells them apart;
 //! - where the replay leaves the tip at a state, or closes, the shape
 //!   lands there too; and a closed chain's pieces are the record's
-//!   where every fillet fits `Positive`, a superset in order otherwise.
+//!   where every fillet fits `Positive`, a superset in order otherwise;
+//!   there, a piece continues the one before it where the replay
+//!   constructed their joint onto one carrier ([`joint_agrees`]).
 //!
 //! Any other geometry refusal ends the comparison for that chain: it
 //! says nothing about the shape past it. The run asserts it compared
@@ -38,8 +40,8 @@ test_utils::gated_to![
 use geom_core::{Point2, Sign, Tol};
 use profile::{
     ArcData, ArcForm, ArcMode, ArcSide, ArcSweep, PathErrorKind, ReplayError, ReplayErrorKind,
-    ShapeFault, ShapeFaultKind, SpecForms, Step, StepForm, Target, TargetKind, TipState, Verb,
-    arc_specs_at, chain_shape, replay, replay_recording,
+    Segment, ShapeFault, ShapeFaultKind, SpecForms, Step, StepForm, Target, TargetKind, TipState,
+    Verb, arc_specs_at, chain_shape, replay, replay_recording,
 };
 use test_utils::fuzz::Rng;
 
@@ -306,6 +308,56 @@ enum Compared {
     Geometry,
 }
 
+/// Whether `piece` of `steps` is a straight segment by construction,
+/// at every value: a straight leg, a straight fillet run, a rectangle's
+/// side. An arc can be straight at some values (a zero bulge), which is
+/// a coincidence, not a construction.
+fn straight(steps: &[Step<f64>], piece: profile::Piece) -> bool {
+    use profile::PieceRole as R;
+    matches!(
+        (piece.role, steps[piece.step].form()),
+        (
+            R::Leg,
+            StepForm::Line | StepForm::LineTo(_) | StepForm::ContinueTo(_) | StepForm::FarEndTo,
+        ) | (R::RunIn, StepForm::Fillet | StepForm::FilletArc(_))
+            | (R::RunOut, StepForm::Fillet | StepForm::ArcFillet(_))
+            | (R::Piece(_), StepForm::Rectangle)
+    )
+}
+
+/// The joint at the start of piece `k` of a generic closed chain, its
+/// segment `k` of `lp`, against whether the shape says the piece
+/// continues the one before: between two pieces straight by
+/// construction, exactly where the replay constructed the joint and
+/// they run one way; between two arcs, only where it constructed the
+/// joint on one circle, as a split circle's stations are (a coarse
+/// grid can also put two arcs on one circle by value); and never
+/// otherwise.
+fn joint_agrees(
+    steps: &[Step<f64>],
+    shape: &profile::ChainShape,
+    lp: &profile::ConstructedLoop<f64>,
+    k: usize,
+) -> bool {
+    let (v, segs) = (lp.vertices(), lp.segments());
+    let n = segs.len();
+    let p = (k + n - 1) % n;
+    let continues = shape.continues[k];
+    let constructed = lp.constructed_joints().binary_search(&k).is_ok();
+    match (&segs[p], &segs[k]) {
+        (Segment::Line, Segment::Line)
+            if straight(steps, shape.pieces[p]) && straight(steps, shape.pieces[k]) =>
+        {
+            let (a, b) = (v[k] - v[p], v[(k + 1) % n] - v[k]);
+            continues == (constructed && a.x * b.x + a.y * b.y > 0.0)
+        }
+        (Segment::Arc(a), Segment::Arc(b)) => {
+            !continues || (constructed && a.centre.equals_exactly(b.centre) && a.radius == b.radius)
+        }
+        _ => !continues,
+    }
+}
+
 /// One prefix compared: `Err` with what disagreed.
 fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
     let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
@@ -318,7 +370,7 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
         ))
     };
     match (&shape, &replayed) {
-        (Ok(shape), Ok((_, record))) => {
+        (Ok(shape), Ok((lp, record))) => {
             let generic = record
                 .fillets
                 .iter()
@@ -327,6 +379,15 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
             let ordered = record.pieces.iter().all(|p| rest.any(|q| q == p));
             if (generic && shape.pieces != record.pieces) || !ordered {
                 return say("the pieces differ");
+            }
+            let disagrees =
+                || (0..shape.continues.len()).find(|&k| !joint_agrees(steps, shape, lp, k));
+            if let Some(k) = generic.then(disagrees).flatten() {
+                return say(&format!(
+                    "the shape says piece {k} continues the one before it ({}), against the \
+                     replay's construction: {:?}",
+                    shape.continues[k], shape.continues
+                ));
             }
             Ok(Compared::Closed)
         }
@@ -567,6 +628,142 @@ fn each_order_refusal_refuses_at_the_replay_and_the_shape_alike() {
                 "{what}: the replay refuses the order, got {:?}",
                 other.err()
             ),
+        }
+    }
+}
+
+/// **Each joint a chain constructs onto one carrier, by name**: the
+/// shape's `continues` on chains that reach each row of it, held
+/// against the replay's own construction ([`joint_agrees`]). A
+/// straight piece departing along a straight piece's own ray continues
+/// it (a line off a leg end, `.tangent()` then a line, `continue_to`,
+/// a fillet's run in off its leg); a direction bound by a `turn`, a
+/// director or a `line_to`'s target is a corner, as is a line leaving
+/// an arc, and every station of a split circle continues it.
+#[test]
+fn each_continuation_the_shape_reads_is_the_replays_construction() {
+    let p = Point2::new;
+    let east = Step::Toward { dx: 1.0, dy: 0.0 };
+    let north = Step::Toward { dx: 0.0, dy: 1.0 };
+    let close = [
+        Step::LineTo(Target::Point(p(0.0, 2.0))),
+        Step::LineTo(Target::Start),
+    ];
+    let side = |middle: &[Step<f64>]| -> Vec<Step<f64>> {
+        let mut steps = vec![Step::At(p(0.0, 0.0)), east, Step::Line(1.0)];
+        steps.extend_from_slice(middle);
+        steps.extend_from_slice(&[north, Step::Line(2.0)]);
+        steps.extend_from_slice(&close);
+        steps
+    };
+    type Row = (&'static str, Vec<Step<f64>>, Vec<bool>);
+    let rows: Vec<Row> = vec![
+        (
+            "a station kept on a side",
+            side(&[Step::Line(1.0)]),
+            vec![false, true, false, false, false],
+        ),
+        (
+            "a declared continuation",
+            side(&[Step::ContinueTo(Target::Point(p(2.0, 0.0)))]),
+            vec![false, true, false, false, false],
+        ),
+        (
+            "a tangent kept",
+            side(&[Step::Tangent, Step::Line(1.0)]),
+            vec![false, true, false, false, false],
+        ),
+        (
+            "a line_to's end continued",
+            [
+                vec![
+                    Step::At(p(0.0, 0.0)),
+                    Step::LineTo(Target::Point(p(1.0, 0.0))),
+                    Step::Line(1.0),
+                    north,
+                    Step::Line(2.0),
+                ],
+                close.to_vec(),
+            ]
+            .concat(),
+            vec![false, true, false, false, false],
+        ),
+        (
+            "a turn",
+            side(&[Step::Turn(0.5), Step::Line(1.0)]),
+            vec![false; 5],
+        ),
+        (
+            "a fillet's run in off its leg",
+            [
+                vec![
+                    Step::At(p(0.0, 0.0)),
+                    east,
+                    Step::Line(1.0),
+                    Step::Fillet { radius: 0.5 },
+                    north,
+                    Step::At(p(2.0, 0.5)),
+                    Step::Line(1.5),
+                ],
+                close.to_vec(),
+            ]
+            .concat(),
+            vec![false, true, false, false, false, false],
+        ),
+        (
+            "a fillet opened at the entry",
+            [
+                vec![
+                    Step::At(p(0.0, 0.0)),
+                    east,
+                    Step::Fillet { radius: 0.5 },
+                    north,
+                    Step::FarEndTo(p(2.0, 2.0)),
+                ],
+                close.to_vec(),
+            ]
+            .concat(),
+            vec![false; 5],
+        ),
+        (
+            "a line off an arc",
+            vec![
+                Step::At(p(0.0, 0.0)),
+                east,
+                Step::ArcTo(ArcData::Sweep {
+                    r: 1.0,
+                    side: ArcSide::Left,
+                    angle: core::f64::consts::FRAC_PI_2,
+                }),
+                Step::Line(1.0),
+                Step::LineTo(Target::Start),
+            ],
+            vec![false; 3],
+        ),
+        (
+            "a split circle",
+            vec![Step::CircleSplit {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+                n: 4,
+                phase: 0.0,
+            }],
+            vec![true; 4],
+        ),
+    ];
+    for (what, steps, want) in rows {
+        let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
+        let shape =
+            chain_shape(&forms).unwrap_or_else(|e| panic!("{what}: the shape walks: {e:?}"));
+        assert_eq!(shape.continues, want, "{what}: the shape's continuations");
+        let (lp, record) = replay_recording(&steps, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the chain replays: {e:?}"));
+        assert_eq!(shape.pieces, record.pieces, "{what}: every piece is drawn");
+        for k in 0..want.len() {
+            assert!(
+                joint_agrees(&steps, &shape, &lp, k),
+                "{what}: joint {k} is the replay's construction"
+            );
         }
     }
 }

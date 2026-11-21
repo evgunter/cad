@@ -15,9 +15,11 @@
 //! A value edit moves no piece's locator: which loop is outer, which
 //! way a loop runs and how many segments a step draws are decisions
 //! about geometry, not about what the author made. (It can change which
-//! pieces one swept wall holds — runs are decided on the values, N1
+//! pieces one swept wall holds — the body's runs follow the values, N1
 //! "Swept walls over a run" — and then a run wall's name vanishes with
-//! an N3 offer; no row here edits pieces into or out of collinearity.)
+//! an N3 offer.) A reshaping that joins or breaks a run its structure
+//! constructs reports the wall and corner names it took, as it reports
+//! an undrawn piece's (DM7, "What a reshaping strands").
 //!
 //! The fixture most rows share is `edit_ruled_carve`'s sunk rod: a
 //! block with a rod's section standing on its top edge, whose two
@@ -207,10 +209,19 @@ fn opened_face(doc: &editor_core::ProfileDoc, shell: RecipeNodeId) -> StableName
 }
 
 fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
+    paint_in(doc, crate::fixture::painted_in(doc, name), name)
+}
+
+/// `name` painted in the read `body`.
+fn paint_in(
+    doc: &editor_core::ProfileDoc,
+    body: editor_core::VarId,
+    name: &StableName,
+) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
-            body: crate::fixture::painted_in(doc, name),
+            body,
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -2153,10 +2164,61 @@ fn drawable_roles<S: std::fmt::Debug>(lp: &LoopProgram<S>) -> Vec<Vec<PieceRole>
     }
 }
 
+/// The sweep a reshaping's report is measured through.
+#[derive(Clone, Copy, Debug)]
+enum Through {
+    /// A unit extrude: walls `Lateral`, struts `LateralEdge`.
+    Extrude,
+    /// A quarter turn about the profile's `y` axis, which its left
+    /// side lies on: walls `Band`, rims `BandRim`, and the meridians,
+    /// axis edge and poles of a partial revolve.
+    Revolve,
+}
+
+impl Through {
+    fn node(self, profile: RecipeNodeId) -> editor_core::AuthoredNode {
+        match self {
+            Self::Extrude => Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+            Self::Revolve => Node::Revolve {
+                profile: profile.into(),
+                axis_through: [len(0.0), len(0.0)],
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+                angle: ang(std::f64::consts::FRAC_PI_2),
+            },
+        }
+    }
+
+    /// The wall over `piece` alone, and the edge at its start.
+    fn wall_and_strut(self, node: RecipeNodeId, piece: ProfileEdgeRef) -> [StableName; 2] {
+        let ProfileEdgeRef::Piece { step, role } = piece else {
+            panic!("a program's piece: {piece:?}")
+        };
+        let vertex = editor_core::ProfileVertexRef::Piece { step, role };
+        match self {
+            Self::Extrude => [
+                fname(node, RoleSeg::Lateral(piece.into())),
+                fixture::ename(node, RoleSeg::LateralEdge(vertex)),
+            ],
+            Self::Revolve => [
+                fname(node, RoleSeg::Band(piece.into())),
+                fixture::ename(node, RoleSeg::BandRim(vertex)),
+            ],
+        }
+    }
+}
+
 /// Every face and edge name `ext`'s evaluation in `doc` publishes, plus
-/// the lateral wall and strut of every role each step of `profile` can
-/// draw — drawn under the current values or not.
-fn held_candidates(doc: &ProfileDoc, profile: RecipeNodeId, ext: RecipeNodeId) -> Vec<StableName> {
+/// the wall and strut over every role each step of `profile` can draw,
+/// as `through` names them — drawn under the current values or not.
+fn held_candidates(
+    doc: &ProfileDoc,
+    profile: RecipeNodeId,
+    ext: RecipeNodeId,
+    through: Through,
+) -> Vec<StableName> {
     let mut out = std::collections::BTreeSet::new();
     let ev = fixture::run(doc, &EvalOptions::default());
     for (n, _) in table(&ev, ext).iter() {
@@ -2170,24 +2232,21 @@ fn held_candidates(doc: &ProfileDoc, profile: RecipeNodeId, ext: RecipeNodeId) -
     for (lp, ids) in p.loops.iter().zip(&p.ids) {
         for (roles, &step) in drawable_roles(lp).iter().zip(ids) {
             for &role in roles {
-                out.insert(wall_by(ext, step, role));
-                out.insert(fixture::ename(
-                    ext,
-                    RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece { step, role }),
-                ));
+                out.extend(through.wall_and_strut(ext, ProfileEdgeRef::Piece { step, role }));
             }
         }
     }
     out.into_iter().collect()
 }
 
-/// Every name in `names` hung on a carrier: a face painted, the edges
-/// in one fillet node's selection.
+/// Every name in `names` hung on a carrier: a face painted in `ext`'s
+/// body, the edges in one fillet node's selection.
 fn hang(doc: ProfileDoc, ext: RecipeNodeId, names: &[StableName]) -> ProfileDoc {
+    let body = doc.output(ext, 0).expect("the sweep's body");
     let doc = names
         .iter()
         .filter(|n| n.kind == EntityKind::Face)
-        .fold(doc, |doc, n| paint(&doc, n));
+        .fold(doc, |doc, n| paint_in(&doc, body, n));
     let edges: Vec<StableName> = names
         .iter()
         .filter(|n| n.kind == EntityKind::Edge)
@@ -2196,7 +2255,7 @@ fn hang(doc: ProfileDoc, ext: RecipeNodeId, names: &[StableName]) -> ProfileDoc 
     if edges.is_empty() {
         return doc;
     }
-    insert(doc, Node::fillet(ext, len(0.01), edges)).0
+    insert(doc, Node::fillet(body, len(0.01), edges)).0
 }
 
 /// One loop's ids, every step kept where it is.
@@ -2208,11 +2267,12 @@ fn as_is(ids: &[StepId]) -> Vec<Option<StepId>> {
 type KeepMap = dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>;
 
 /// What [`report_matches_resolution`] counted: the names the
-/// reshaping reported, and the held names it left `Vanished` by a value
-/// alone and rightly did not report.
-#[derive(Debug, Clone, Copy)]
+/// reshaping reported, what it said each lost, and the held names it
+/// left `Vanished` by a value alone and rightly did not report.
+#[derive(Debug, Clone)]
 struct Report {
     reported: usize,
+    took: Vec<editor_core::Took>,
     by_value: usize,
 }
 
@@ -2235,10 +2295,35 @@ fn report_matches_resolution(
     new: Vec<LoopProgram<Formula>>,
     keep: &KeepMap,
 ) -> Report {
-    let (doc, profile, ext) = extruded(label, old);
+    report_through(label, Through::Extrude, old, new, keep)
+}
+
+/// [`report_matches_resolution`], `old` swept `through`.
+fn report_through(
+    label: &str,
+    through: Through,
+    old: Vec<LoopProgram<Formula>>,
+    new: Vec<LoopProgram<Formula>>,
+    keep: &KeepMap,
+) -> Report {
+    let doc = ProfileDoc::empty_derived(label, tol());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: old,
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, ext) = insert(doc, through.node(profile));
     let (doc, _, bystander) = extrude_of(doc, vec![corner_at(false, (10.0, 10.0), 1.0, 0.5)]);
-    let held = held_candidates(&doc, profile, ext);
-    let bystanders = held_candidates(&doc, fixture::swept(&doc, bystander), bystander);
+    let held = held_candidates(&doc, profile, ext, through);
+    let bystanders = held_candidates(
+        &doc,
+        fixture::swept(&doc, bystander),
+        bystander,
+        Through::Extrude,
+    );
     let ids = keep(&doc, profile);
     let kept: std::collections::BTreeSet<StepId> =
         ids.iter().flatten().flatten().copied().collect();
@@ -2305,13 +2390,17 @@ fn report_matches_resolution(
     };
     // Beside its strands, a reshaping retires the anonymous variables
     // the arguments it rewrote were written in, which names nothing.
+    let mut took = Vec::new();
     let reported: std::collections::BTreeSet<StableName> = applied
         .maintenance
         .iter()
         .filter_map(|m| match m {
-            Maintenance::Strand { name, .. }
-            | Maintenance::StrandedSelection { name, .. }
-            | Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
+            Maintenance::Strand { name, took: t, .. }
+            | Maintenance::StrandedSelection { name, took: t, .. }
+            | Maintenance::StrandedAppearance { name, took: t, .. } => {
+                took.push(*t);
+                Some(name.name().clone())
+            }
             Maintenance::AnonymousVarRemoved { var, .. } => {
                 assert!(
                     var.name().is_none(),
@@ -2351,22 +2440,25 @@ fn report_matches_resolution(
     }
     Report {
         reported: reported.len(),
+        took,
         by_value: left,
     }
 }
 
 /// **Inserting a fillet after a kept leg joins the leg's wall into a
-/// run, and the reshaping does not report the leg's own wall name.**
-/// Pinned red on
-/// `work/doctail/a-reshaping-that-joins-a-kept-piece-into-a-run-reports-nothing.md`:
-/// the fillet's run in is a segment of its own after the sharp
-/// square's bottom leg, the extrude names the bottom wall by the run of
-/// both, and the held `Lateral([leg])` stops resolving while the door,
-/// which reads only which pieces are drawn, reports nothing.
+/// run, and the reshaping reports the leg's own wall name** (DM7):
+/// the fillet's run in continues the sharp square's bottom leg, so the
+/// sweep names the bottom wall by the run of both, and the held
+/// `Lateral([leg])`, which stops resolving, is reported `Took::Run`
+/// while the leg is still drawn. Over four radii and scales on one
+/// loop, either loop of two, a loop authored clockwise, and a revolve
+/// whose bottom band and meridians the run in joins. A door that reads
+/// only which pieces are drawn reports nothing for the leg's wall.
 #[test]
-fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
+fn a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall() {
     type Case = (
         String,
+        Through,
         Vec<LoopProgram<Formula>>,
         Vec<LoopProgram<Formula>>,
         Box<KeepMap>,
@@ -2378,6 +2470,7 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
         .map(|(s, r)| -> Case {
             (
                 format!("insert s={s} r={r}"),
+                Through::Extrude,
                 vec![corner_at(false, (0.0, 0.0), s, r)],
                 vec![corner_at(true, (0.0, 0.0), s, r)],
                 Box::new(|d, p| vec![sharp_to_filleted(&ids_of(d, p)[0])]),
@@ -2386,6 +2479,7 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
         .collect();
     cases.push((
         "two loops, hole filleted".to_owned(),
+        Through::Extrude,
         vec![outer(false), hole(false)],
         vec![outer(false), hole(true)],
         Box::new(|d, p| {
@@ -2395,6 +2489,7 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
     ));
     cases.push((
         "two loops, outer filleted".to_owned(),
+        Through::Extrude,
         vec![outer(false), hole(false)],
         vec![outer(true), hole(false)],
         Box::new(|d, p| {
@@ -2402,21 +2497,128 @@ fn a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported() {
             vec![sharp_to_filleted(&ids[0]), as_is(&ids[1])]
         }),
     ));
-    for (label, old, new, keep) in cases {
-        let says =
-            format!("{label}: a held name is reported exactly when the edit took its referent");
-        test_utils::pinned_red::row(
-            tol().eps(),
-            &test_utils::pinned_red::EVERY_ROW,
-            &label,
-            &[
-                says.as_str(),
-                "role: Leg })] }\n  left: false\n right: true",
-            ],
-            std::panic::AssertUnwindSafe(|| {
-                report_matches_resolution(&label, old, new, &*keep);
-            }),
+    cases.push((
+        "clockwise".to_owned(),
+        Through::Extrude,
+        vec![corner_cw(false)],
+        vec![corner_cw(true)],
+        Box::new(|d, p| vec![sharp_to_filleted(&ids_of(d, p)[0])]),
+    ));
+    cases.push((
+        "revolved about the left side".to_owned(),
+        Through::Revolve,
+        vec![corner(false)],
+        vec![corner(true)],
+        Box::new(|d, p| vec![sharp_to_filleted(&ids_of(d, p)[0])]),
+    ));
+    for (label, through, old, new, keep) in cases {
+        let n = report_through(&label, through, old, new, &*keep);
+        assert!(
+            n.took.contains(&editor_core::Took::Run),
+            "{label}: the leg's wall, its run joined, is reported: {n:?}"
         );
+    }
+}
+
+/// [`corner`] authored clockwise: [`corner_at`]'s steps mirrored in the
+/// diagonal, so its left side is drawn first and the fillet sits at
+/// its top-left corner.
+fn corner_cw(filleted: bool) -> LoopProgram<Formula> {
+    let LoopProgram::Chain(steps) = corner(filleted) else {
+        unreachable!("a corner is a chain")
+    };
+    let flip = |p: &[Formula; 2]| [p[1].clone(), p[0].clone()];
+    LoopProgram::Chain(
+        steps
+            .into_iter()
+            .map(|step| match step {
+                ProgramStep::At(p) => ProgramStep::At(flip(&p)),
+                ProgramStep::Toward { dx, dy } => ProgramStep::Toward { dx: dy, dy: dx },
+                ProgramStep::LineTo(ProgramTarget::Point(p)) => {
+                    ProgramStep::LineTo(ProgramTarget::Point(flip(&p)))
+                }
+                other => other,
+            })
+            .collect(),
+    )
+}
+
+/// A unit-high box whose bottom side is two legs, `1` then `2` long,
+/// with the second continuing the first, or turned off it by a
+/// director (`bent`): one bottom wall over a run, or two walls with a
+/// corner between them.
+fn stationed(bent: bool) -> LoopProgram<Formula> {
+    let toward = |dx: f64, dy: f64| ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    };
+    let mut steps = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        toward(1.0, 0.0),
+        ProgramStep::Line(len(1.0)),
+    ];
+    if bent {
+        steps.push(toward(1.0, 0.2));
+    }
+    steps.extend([
+        ProgramStep::Line(len(2.0)),
+        toward(0.0, 1.0),
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    LoopProgram::Chain(steps)
+}
+
+/// **A reshaping that joins two walls into a run, or breaks a run in
+/// two, reports what it took, whole** (DM7): every piece stays drawn,
+/// so only the partition's runs and corners move. Breaking the
+/// bottom's run (a director inserted between its legs) takes the run's
+/// wall and rims; joining it (the director dropped) takes each leg's
+/// own wall and rims, `Took::Run`, and the strut and cap vertices at
+/// the corner that became a station, `Took::Corner`. The struts a break
+/// adds and the corners either keeps are not reported. Through an
+/// extrude, and a revolve about the left side, where the bottom's walls
+/// are bands, its rims meridians and its strut a latitude rim. (The
+/// bottom laid on the axis instead puts a vertex on it or off it by the
+/// reshaping's values, which resolution diagnoses and no report says.)
+#[test]
+fn a_reshaping_that_joins_or_breaks_a_run_reports_it_whole() {
+    let breaks = |d: &ProfileDoc, p: RecipeNodeId| {
+        let o = &ids_of(d, p)[0];
+        let k = |i: usize| Some(o[i]);
+        vec![vec![k(0), k(1), k(2), None, k(3), k(4), k(5), k(6), k(7)]]
+    };
+    let joins = |d: &ProfileDoc, p: RecipeNodeId| {
+        let o = &ids_of(d, p)[0];
+        vec![[0, 1, 2, 4, 5, 6, 7, 8].map(|i| Some(o[i])).to_vec()]
+    };
+    for through in [Through::Extrude, Through::Revolve] {
+        let n = report_through(
+            &format!("{through:?}: broken"),
+            through,
+            vec![stationed(false)],
+            vec![stationed(true)],
+            &breaks,
+        );
+        assert!(
+            n.took.contains(&editor_core::Took::Run)
+                && n.took.iter().all(|t| *t == editor_core::Took::Run),
+            "{through:?}: a broken run reports its wall and rims, and nothing else: {n:?}"
+        );
+        let n = report_through(
+            &format!("{through:?}: joined"),
+            through,
+            vec![stationed(true)],
+            vec![stationed(false)],
+            &joins,
+        );
+        for took in [editor_core::Took::Run, editor_core::Took::Corner] {
+            assert!(
+                n.took.contains(&took),
+                "{through:?}: a join reports {took:?}: {n:?}"
+            );
+        }
     }
 }
 
@@ -2604,7 +2806,7 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
         counts
             .iter()
             .find(|(l, _)| l == label)
-            .map(|(_, n)| *n)
+            .map(|(_, n)| n.clone())
             .unwrap_or_else(|| panic!("row {label} ran"))
     };
     // A kept piece the new structure cannot draw is reported on these

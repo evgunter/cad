@@ -88,7 +88,7 @@ pub use role::{
     SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
     meridian_vertex,
 };
-pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
+pub(crate) use role::{Carry, Referent, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};

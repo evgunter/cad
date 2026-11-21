@@ -906,6 +906,41 @@ impl ProfileVertexRef {
             Self::Section { .. } => None,
         }
     }
+
+    /// The piece that starts here.
+    pub(crate) fn piece(&self) -> ProfileEdgeRef {
+        match *self {
+            Self::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
+            Self::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
+        }
+    }
+}
+
+/// **What a name's profile locator denotes of a profile's partition**
+/// ([`crate::ProfilePartition`], REFERENCES.md DM7), read whole: the
+/// run an extrude's or a revolve's wall, rim, meridian or axis edge is
+/// swept over, the corner its strut, cap vertex, latitude rim or pole
+/// sits at, and the piece a loft pairs, whose seams sit at its
+/// pieces' starts.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Referent {
+    /// A piece.
+    Piece(ProfileEdgeRef),
+    /// The run one swept wall is built over.
+    Wall(PieceRun),
+    /// A vertex between two swept walls.
+    Corner(ProfileVertexRef),
+}
+
+impl Referent {
+    /// The pieces it rests on: a corner, the piece that starts there.
+    pub(crate) fn pieces(&self) -> Vec<ProfileEdgeRef> {
+        match self {
+            Self::Piece(piece) => vec![*piece],
+            Self::Wall(run) => run.pieces().to_vec(),
+            Self::Corner(vertex) => vec![vertex.piece()],
+        }
+    }
 }
 
 /// Which meridian of a revolve (the M2 band/pole/seam taxonomy).
@@ -1974,6 +2009,13 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
+    /// A segment that carries a profile locator ([`locator_seg`]),
+    /// whole, before its locators are passed through
+    /// [`SegRewrite::edge`] and [`SegRewrite::vertex`].
+    fn located(&mut self, seg: &RoleSeg) {
+        let _ = seg;
+    }
+
     /// A loft section's id the segment carries directly. Required, with
     /// no identity default: a rewriter that moves a name between
     /// documents maps its section ids or refuses, and one that keeps a
@@ -2252,6 +2294,9 @@ impl RoleSeg {
         w: &mut Deep<'_, 's, W>,
     ) -> Result<RoleSeg, Stopped<'s, W::Error>> {
         use RoleSeg as R;
+        if matches!(self, locator_seg!()) {
+            w.w.located(self);
+        }
         Ok(match self {
             // Neither a locator nor a name: verbatim.
             inert_seg!() => self.clone(),
@@ -2484,6 +2529,16 @@ impl StableName {
         walk.spelled
     }
 
+    /// **What this name's profile locators denote**, at every level
+    /// it carries ([`Referent`]): what a `SetProgram` asks of each name
+    /// the document holds (REFERENCES.md DM7), whether the new
+    /// program's partition still holds what the old one's did.
+    pub(crate) fn referents(&self) -> std::collections::BTreeSet<Referent> {
+        let mut walk = Referents::default();
+        let Ok(_) = self.clone().rewrite_path(&mut walk);
+        walk.0
+    }
+
     fn step_pieces_outside(
         &self,
         part: &dyn Fn(&StableName) -> bool,
@@ -2568,6 +2623,68 @@ impl SegRewrite for StepPieces<'_> {
         Ok(index)
     }
 }
+/// [`StableName::referents`]'s walk: every locator segment read whole,
+/// every carried name descended, nothing rewritten.
+#[derive(Default)]
+struct Referents(std::collections::BTreeSet<Referent>);
+
+impl SegRewrite for Referents {
+    type Error = core::convert::Infallible;
+
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
+        Ok(s)
+    }
+
+    fn located(&mut self, seg: &RoleSeg) {
+        use RoleSeg as R;
+        let out = &mut self.0;
+        match seg {
+            R::Lateral(run)
+            | R::RimEdge(_, run)
+            | R::Band(run)
+            | R::BandPi(run)
+            | R::Meridian(_, run)
+            | R::AxisEdge(run) => {
+                out.insert(Referent::Wall(run.clone()));
+            }
+            R::LateralEdge(v)
+            | R::CapVertex(_, v)
+            | R::BandRim(v)
+            | R::BandRimPi(v)
+            | R::MeridianVertex(_, v)
+            | R::Pole(v) => {
+                out.insert(Referent::Corner(*v));
+            }
+            R::LoftWall(es) => out.extend(es.iter().map(|&(_, e)| Referent::Piece(e))),
+            R::LoftSectionEdge(_, e) => {
+                out.insert(Referent::Piece(*e));
+            }
+            R::LoftSeam(vs) => out.extend(vs.iter().map(|(_, v)| Referent::Piece(v.piece()))),
+            R::LoftSectionVertex(_, v) => {
+                out.insert(Referent::Piece(v.piece()));
+            }
+            // Only the segments above carry a locator ([`locator_seg`]).
+            _ => {}
+        }
+    }
+
+    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        _: &StableName,
+        _: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        Ok(None)
+    }
+
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
+    }
+}
+
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a
 /// PATTERN rather than a predicate.
 ///
@@ -2798,6 +2915,76 @@ mod tests {
             section.spelled_outside(&|_| false).steps.is_empty(),
             "a section has no step"
         );
+    }
+
+    /// **Every locator segment is read whole for what it denotes of a
+    /// partition** (REFERENCES.md DM7): each run-carrying segment as
+    /// its run, each vertex an extrude or a revolve builds only at a
+    /// corner as that corner, and a loft's pairings as their pieces,
+    /// on the name's own path and inside a name it carries.
+    #[test]
+    fn each_locator_segment_denotes_its_run_its_corner_or_its_piece() {
+        #![allow(clippy::expect_used)]
+        use super::{CapEnd, MeridianEnd as M, PieceRun, Referent};
+        let piece = |step: u64| ProfileEdgeRef::Piece {
+            step: StepId::new(0, step),
+            role: PieceRole::Leg,
+        };
+        let run = PieceRun::new(vec![piece(3), piece(4)]).expect("two pieces");
+        let v = piece(4).start();
+        let section = crate::node::SectionId::new(0, 2);
+        let wall = Referent::Wall(run.clone());
+        let corner = Referent::Corner(v);
+        let rows: Vec<(RoleSeg, Vec<Referent>)> = vec![
+            (RoleSeg::Lateral(run.clone()), vec![wall.clone()]),
+            (
+                RoleSeg::RimEdge(CapEnd::End, run.clone()),
+                vec![wall.clone()],
+            ),
+            (RoleSeg::Band(run.clone()), vec![wall.clone()]),
+            (RoleSeg::BandPi(run.clone()), vec![wall.clone()]),
+            (RoleSeg::Meridian(M::Start, run.clone()), vec![wall.clone()]),
+            (RoleSeg::AxisEdge(run.clone()), vec![wall.clone()]),
+            (RoleSeg::LateralEdge(v), vec![corner.clone()]),
+            (RoleSeg::CapVertex(CapEnd::Start, v), vec![corner.clone()]),
+            (RoleSeg::BandRim(v), vec![corner.clone()]),
+            (RoleSeg::BandRimPi(v), vec![corner.clone()]),
+            (RoleSeg::MeridianVertex(M::End, v), vec![corner.clone()]),
+            (RoleSeg::Pole(v), vec![corner]),
+            (
+                RoleSeg::LoftWall(vec![(section, piece(3))]),
+                vec![Referent::Piece(piece(3))],
+            ),
+            (
+                RoleSeg::LoftSectionEdge(section, piece(3)),
+                vec![Referent::Piece(piece(3))],
+            ),
+            (
+                RoleSeg::LoftSeam(vec![(section, v)]),
+                vec![Referent::Piece(piece(4))],
+            ),
+            (
+                RoleSeg::LoftSectionVertex(section, v),
+                vec![Referent::Piece(piece(4))],
+            ),
+            (RoleSeg::OutputBody, vec![]),
+        ];
+        for (seg, want) in rows {
+            let kind = if matches!(seg, RoleSeg::Lateral(_) | RoleSeg::Band(_)) {
+                EntityKind::Face
+            } else {
+                EntityKind::Edge
+            };
+            let name = StableName {
+                kind,
+                node: N,
+                path: vec![seg.clone()],
+            };
+            let want: std::collections::BTreeSet<Referent> = want.into_iter().collect();
+            assert_eq!(name.referents(), want, "{seg:?}");
+            let outer = carried(RecipeNodeId::new(0, 9), crate::VarId::new(1, 9), name);
+            assert_eq!(outer.referents(), want, "{seg:?}, carried");
+        }
     }
 
     /// `carried` takes the INNER name's kind, which is the one field
