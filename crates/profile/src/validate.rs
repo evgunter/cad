@@ -2177,7 +2177,8 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     }
 
     let shared_end = match shared[..] {
-        [v] => Some(v),
+        [_] if sj == si + 1 => Some(seg::SharedEnds::EndToStart),
+        [_] => Some(seg::SharedEnds::StartToEnd),
         _ => None,
     };
     let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
@@ -2204,6 +2205,7 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
             CKind::Tangency => {
                 return Err(ProfileError::TangentialContact { first, second });
             }
+            CKind::SharedVertex => {}
             CKind::Touch => {
                 let mut discounted = false;
                 for &v in &shared {
