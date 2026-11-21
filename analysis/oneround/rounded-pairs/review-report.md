@@ -9,7 +9,9 @@ base-vs-base control clean, every test passing on both sides), the
 default suite moves no acted verdict at any touched row. One slow row
 does move acted cell verdicts in `gap`'s sweep at the band's edge (M0).
 The sweep reads a few more cells, and everything downstream of it stays
-bit-identical. That refutes C1 as worded, but not its substance. The fixes are bounded: one doc comment spliced onto the wrong test,
+bit-identical. That refutes C1 as worded, but not its substance.
+
+The fixes are bounded: one doc comment spliced onto the wrong test,
 one unmeasured change to the gap floor's refusal kind, and a new
 charge door the bare-rounding gate cannot see. Also two read-claims of the
 body: the window jets are cited to an admission rule whose premise the
@@ -437,12 +439,14 @@ All of these are oracles.
   - **Bit-only moves.** The Taylor rows (`*_sub_monotone`,
     `*_root_slack`, `section_ruling_monotone`, `coplanar_sub_*`,
     `pose_touch_spread`), the gap's `clear` and `critical_gap` rows, and
-    `first_noise` move bits only, as the body says.
+    `first_noise` move bits only in the default suite, as the body says.
+    In the 1e-12 slow rows the gap rows move counts too (M2, N13).
   - **Interval reach.** `*_critical_gap_*`, `ring_outer_meet_overlap` and
     the census `*_charged` rows are barely reached or not reached at
     `Interval` (the `critical_gap` rows never). So "both lanes" is
     vacuous there.
-  - **Not covered**: M2's floor arm is not reached.
+  - **Not covered**: the default suite does not reach M2's floor arm;
+    the 1e-12 slow rows do.
 
 - **C2 — holds for every consumer I found.** DEMONSTRATED for the
   counts, BY-INSPECTION for the consumers, likely.
