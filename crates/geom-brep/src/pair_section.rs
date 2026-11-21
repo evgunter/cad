@@ -3253,8 +3253,8 @@ impl<T: Decide> CarriedComponent<T> {
             Ok(NonzeroSign::Negative) => {}
             Err(diag) => return Err(SiteRefusal::Escalated(diag)),
         }
-        let reach = T::from_computed(2.0 * band.zero());
-        let past = |meter| Margin::of(span.end_gap(t, SpanEnd::Stop, meter).value() + reach);
+        let reach = 2.0 * band.zero();
+        let past = |meter| span.end_gap(t, SpanEnd::Stop, meter).less(-reach);
         let decided = |(sign, margin): (NonzeroSign, _)| Decided {
             sign: match sign {
                 NonzeroSign::Positive => Sign::Positive,

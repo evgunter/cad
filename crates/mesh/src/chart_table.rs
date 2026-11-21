@@ -455,9 +455,11 @@ impl<'a> AnalyticRow<'a> {
     /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`.
     /// The sphere's is the chart's own at the box's mid latitude,
     /// `(u·cos v, v)` to the nearest power of two: there a small face's
-    /// boundary circle is near round, so an ear on it usually has the
-    /// face's interior points in its circumcircle and the CDT does not cut
-    /// it. Every other chart's is its lattice's realized spacing: a ruled
+    /// boundary circle is near round, so a triangle on its points alone
+    /// (an ear, or a side across several chord steps) usually has the
+    /// face's interior points in its circumcircle and the CDT does not
+    /// make it, which leaves the trimmed lane's shared-side cure less to
+    /// split. Every other chart's is its lattice's realized spacing: a ruled
     /// lattice square in 3-D is a strip of aspect about `1/lever` in the
     /// chart, and a torus's is `√(r/(R + r))`.
     pub(crate) fn metric(

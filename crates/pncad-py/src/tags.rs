@@ -2316,10 +2316,10 @@ pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
 /// to — `CurvePromotion::kind`.
 ///
 /// The exhaustive match is why it is a map rather than a literal:
-/// the recognizer's kinds (the line's #388 follow-up landed; the
-/// named exclusions — ellipse, helix, open arcs — are still to come)
-/// each land here when their follow-up does, and each stops this
-/// crate compiling until it has a word of its own.
+/// the recognizer's kinds (the line's #388 follow-up landed, and open
+/// arcs promote as `circle`; the named exclusions — ellipse, helix —
+/// are still to come) each land here when their follow-up does, and
+/// each stops this crate compiling until it has a word of its own.
 pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
     match kind {
         PromotedCurveKind::Circle => "circle",
@@ -2527,7 +2527,8 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
-        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::UnclearedSharedSide { .. } => "uncleared_shared_side",
+        TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
         TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
