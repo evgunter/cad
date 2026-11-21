@@ -2924,6 +2924,9 @@ fn promoted_kind_tags_are_stable() {
     for (kind, word) in [
         (pncad::step_import::PromotedKind::Plane, "plane"),
         (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+        (pncad::step_import::PromotedKind::Cone, "cone"),
+        (pncad::step_import::PromotedKind::Sphere, "sphere"),
+        (pncad::step_import::PromotedKind::Torus, "torus"),
     ] {
         assert_eq!(promoted_kind_tag(&kind), word);
         assert_eq!(
@@ -3017,7 +3020,13 @@ fn import_report_row_tags_are_stable() {
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
-    for kind in [PromotedKind::Plane, PromotedKind::Cylinder] {
+    for kind in [
+        PromotedKind::Plane,
+        PromotedKind::Cylinder,
+        PromotedKind::Cone,
+        PromotedKind::Sphere,
+        PromotedKind::Torus,
+    ] {
         assert_eq!(
             normalization_kind_tag(&NormalizationKind::SurfacePromotion {
                 to: kind,
@@ -5612,7 +5621,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_kind_tag",
-        values: &["cylinder", "plane"],
+        values: &["cone", "cylinder", "plane", "sphere", "torus"],
         delegates: &[],
     },
     TagEntry {
@@ -6097,7 +6106,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
-            "boundary_ear",
+            "boundary_bounds_no_region",
             "certificate_exceeded",
             "domain_unread",
             "empty_loop",
@@ -6106,6 +6115,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
+            "overused_side",
             "pinch_wedge",
             "resolution_overflow",
             "rounding_unresolved",
@@ -6116,12 +6126,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_band_unformable",
             "triangulation",
             "trim_loop_orientation",
+            "uncleared_shared_side",
             "unresolved_winding",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+            "wrap_strip_turn",
         ],
         delegates: &[],
     },
@@ -6621,6 +6633,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // A coincidence: the kind a NURBS patch was promoted to, and a trace
+    // step's fault on a torus carrier.
+    ("torus", 2),
     // One fact at two doors: a step reading a face's trace refused
     // (`TraceRefusal`), carried by the evaluation's node error and by
     // the program's own check alike.

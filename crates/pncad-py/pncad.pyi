@@ -613,7 +613,9 @@ class StepImportError(PncadError):
     sits on a surface whose recognition estimator is ill-conditioned at
     the file's own tolerance, so no answer exists at the interpretation
     budget — and `promoted_kind` carries beside it which analytic
-    kind's estimator declined, `plane` or `cylinder`. The two lead
+    kind's estimator declined, one of `plane`, `cylinder`, `cone`,
+    `sphere` and `torus` (the cylinder's is the one estimator with a
+    conditioning margin, so it is the one that declines). The two lead
     different places: a plane that will not certify is a flatness
     question at the import tolerance, a cylinder that will not is an
     ill-conditioned axis and wants more of the patch. The face and

@@ -576,3 +576,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   `the-split-rules-wedge-sign-can-read-the-fold-as-a-choice`.
 - (DOCTAIL first-turn lane)
 - 2026-11-20 — `the-line-roots-door-is-still-built-in-topo` moved to `work/germ/`: GERM claimed it for the curve × surface crossing reading's U1 (the line × quadric door's move into `geom_brep::curve_face::line_quadric`, no behaviour change).
+- 2026-11-20 — `the-conic-quadric-door-is-still-built-in-topo` moved to `work/germ/`: GERM claimed it for the curve × surface crossing reading's U2 (the conic × quadric door's move into `geom_brep::curve_face::conic_quadric`, no behaviour change).

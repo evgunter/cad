@@ -95,7 +95,7 @@ certified roots 157,518 bands off; the PR answers `Uncertain`).
 `circle_roots::half_angle_roots` takes the subdivision's optional
 `RootSlack` meter (PR of `an-edge-crossing-a-cone-face-has-no-root-lane`).
 The conic × quadric door's cone arm hands it one
-(`bool_conic_cone_root_slack`, the residual read by
+(`conic_quadric_cone_root_slack`, the residual read by
 `geom_brep::conic_cone_residual`); the door's sphere and wall ladder arm
 and `circle_torus::circle_torus_roots` still pass `None`, and what this
 row asks of them is unchanged.
@@ -109,6 +109,6 @@ the band at `ε = 1e-12` (321 root placements of 9,000 poses, up to
 and the conic × quadric ladder arm the same way (123 of 3,000 shallow
 poses, up to 74 `Kε`). Both doors now hand the subdivision a meter
 (`bool_circle_torus_sub_root_slack` on `F` itself through
-`geom_brep::conic_torus_implicit`; `bool_conic_quadric_sub_root_slack`
+`geom_brep::conic_torus_implicit`; `conic_quadric_sub_root_slack`
 through `geom_brep::conic_quadric_residual`), and both sweeps read 0
 wrong after. The measurements and what newly refuses are in that item.

@@ -103,6 +103,8 @@ pub(crate) enum Quadric<T: Real> {
     Sphere {
         centre: Point3<T>,
         radius: T,
+        /// The sphere's curvature arm, read off the surface.
+        arm: Lever<T>,
     },
     /// `axis` from the apex.
     Cone {
@@ -113,7 +115,6 @@ pub(crate) enum Quadric<T: Real> {
     Torus {
         axis: geom::Line<T>,
         major: T,
-        minor: T,
     },
 }
 
@@ -128,36 +129,30 @@ impl<T: Decide> Quadric<T> {
             geom::Surface::Sphere { center, radius, .. } => Some(Self::Sphere {
                 centre: center,
                 radius,
+                arm: geom_brep::uniform_curvature_arm(surface),
             }),
             geom::Surface::Cone { half_angle, .. } => Some(Self::Cone {
                 axis: surface.axis_line()?,
                 half_angle,
             }),
-            geom::Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => Some(Self::Torus {
+            geom::Surface::Torus { major_radius, .. } => Some(Self::Torus {
                 axis: surface.axis_line()?,
                 major: major_radius,
-                minor: minor_radius,
             }),
             _ => None,
         }
     }
 
-    /// The length a dimensionless reading at `p` is levered by: the
-    /// cylinder's or the sphere's radius, the radius of the cone's parallel through `p`, or
-    /// the torus's tube radius or its parallel's through `p`, whichever
-    /// is smaller.
-    pub(crate) fn lever(&self, p: Point3<T>) -> Lever<T> {
-        match *self {
-            Self::Cylinder { radius, .. } => Lever::curvature_radius(radius.abs()),
-            Self::Sphere { radius, .. } => Lever::curvature_radius(radius),
-            Self::Cone { axis, .. } => Lever::curvature_radius(axis.distance(p)),
-            Self::Torus { axis, minor, .. } => {
-                Lever::curvature_radius(minor).min(Lever::curvature_radius(axis.distance(p)))
-            }
+    /// The length a dimensionless reading at `p` on `surface`, the
+    /// surface this quadric is of, is levered by: the cylinder's or the
+    /// sphere's radius, the radius of the cone's parallel through `p`,
+    /// or the torus's tube radius or its parallel's through `p`,
+    /// whichever is smaller.
+    pub(crate) fn lever(&self, surface: &geom::Surface<T>, p: Point3<T>) -> Lever<T> {
+        let arm = geom_brep::curvature_lever_arm(surface, p);
+        match self {
+            Self::Cylinder { .. } | Self::Sphere { .. } | Self::Cone { .. } => arm,
+            Self::Torus { .. } => arm.min(geom_brep::parallel_curvature_arm(surface, p)),
         }
     }
 
@@ -169,7 +164,7 @@ impl<T: Decide> Quadric<T> {
     fn chart_normal(&self, p: Point3<T>) -> Vec3<T> {
         match *self {
             Self::Cylinder { axis, radius } => axis.offset(p) / radius,
-            Self::Sphere { centre, radius } => (p - centre) / radius,
+            Self::Sphere { centre, radius, .. } => (p - centre) / radius,
             Self::Cone {
                 axis: line @ geom::Line { dir: axis, .. },
                 half_angle,
@@ -246,7 +241,11 @@ impl<T: Decide> Quadric<T> {
             Self::Cylinder { axis, .. } => {
                 self.ruled_paths(axis, (from, to), resolution(&[from, to, axis.origin]), band)
             }
-            Self::Sphere { centre, radius } => {
+            Self::Sphere {
+                centre,
+                radius,
+                arm,
+            } => {
                 let slack = resolution(&[from, to, centre]);
                 let a = (from - centre) / radius;
                 let b = (to - centre) / radius;
@@ -254,10 +253,7 @@ impl<T: Decide> Quadric<T> {
                 let (axis, sine) = m.direction_and_length();
                 if decide(
                     "split_ring_path_span",
-                    Margin::levered(
-                        charge(sine, slack / radius),
-                        Lever::curvature_radius(radius),
-                    ),
+                    Margin::levered(charge(sine, slack / radius), arm),
                     band,
                 )? != Sign::Positive
                 {
@@ -727,14 +723,20 @@ impl<T: Decide> Carrier<T> {
             .collect()
     }
 
-    /// The length the lean of `path`'s arrival at `q` is levered by: the
-    /// arm the path states ([`Path::reach`], a spline wall's), else a
-    /// quadric's own at `q` ([`Quadric::lever`]). `None` for a path on a
-    /// spline wall that states none, which says nothing.
-    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Option<Lever<T>> {
+    /// The length the lean of `path`'s arrival at `q` on `surface`, the
+    /// surface this carrier is of, is levered by: the arm the path states
+    /// ([`Path::reach`], a spline wall's), else a quadric's own at `q`
+    /// ([`Quadric::lever`]). `None` for a path on a spline wall that
+    /// states none, which says nothing.
+    pub(crate) fn lean_lever(
+        &self,
+        surface: &geom::Surface<T>,
+        q: Point3<T>,
+        path: &Path<T>,
+    ) -> Option<Lever<T>> {
         match (path.reach, self) {
             (Some(reach), _) => Some(reach),
-            (None, Self::Quadric(quadric)) => Some(quadric.lever(q)),
+            (None, Self::Quadric(quadric)) => Some(quadric.lever(surface, q)),
             (None, Self::Wall(_)) => None,
         }
     }
@@ -1228,6 +1230,7 @@ impl<T: Decide> Quadric<T> {
         };
         let radius = circle.radius();
         let (k, n, radius) = (*k, *n, radius);
+        let arm = geom_brep::circle_curvature_arm(circle);
         let Some(LoopArc::Conic(conic)) = LoopArc::of(carrier, params) else {
             return Ok(None);
         };
@@ -1248,7 +1251,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), Lever::curvature_radius(radius)),
+            Margin::levered(n.dot(axis), arm),
             band,
         )? == Sign::Zero
         {
@@ -1267,7 +1270,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), Lever::curvature_radius(radius)),
+            Margin::levered(n.cross(axis).norm(), arm),
             band,
         )? != Sign::Zero
         {
@@ -1582,7 +1585,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let across = p.circle.frame.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
-                        Margin::levered(across, Lever::curvature_radius(p.circle.radius())),
+                        Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
                     )? == Sign::Zero
                     {
                         return Ok(None);

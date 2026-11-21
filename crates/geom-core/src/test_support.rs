@@ -121,14 +121,7 @@ pub fn refused_point(x: f64) -> crate::Interval {
     p
 }
 
-/// **A fixture's length as a lever arm**: a test's arm with no geometry
-/// behind it (a hand-stated row, a probe at a stated scale). The one
-/// door for it, counted by `scripts/gates/lever-sources.sh`; production
-/// code builds its levers from their sources (`crate::Lever`).
-#[must_use]
-pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
-    crate::Lever(length)
-}
+pub use crate::predicate::fixture_lever;
 
 /// **The least turn's conditioning edge at `arm`**: the chord from the
 /// pole, `2·arm/R`, below which [`RigidMotion::least_turn`] refuses

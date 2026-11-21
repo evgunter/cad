@@ -165,6 +165,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pair_section.rs"]
 mod pair_section;
+#[path = "patch_distance_sup_fuzz.rs"]
+mod patch_distance_sup_fuzz;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]

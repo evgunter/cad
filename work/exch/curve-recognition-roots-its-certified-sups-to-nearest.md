@@ -2,10 +2,12 @@
 id: curve-recognition-roots-its-certified-sups-to-nearest
 kind: issue
 title: recognize_curve roots a certified sup and a lower bound to nearest, so each can land an ulp on the unsafe side
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
+closed: 2026-11-20
+branch: exch/arc-map-obligation
 ---
 
 
@@ -34,3 +36,21 @@ sup as an `Interval`, take `.sqrt()` through
 `geom_core::interval::certification::Certification`, and read `.mag()`
 or `.lo()`. The file would then join `certification-doors.sh`'s
 importer list, which holds it to that gate's rules.
+
+## Closed
+
+EXCH unit B (`exch/arc-map-obligation`). Both arms compute their metre
+conversions of the composites' sups at `Interval` and read them
+outward: the line roots its cylinder sup through `Certification::sqrt`
+and reads `.mag()`; the circle's INV-C1 `δ_s = S/r`, INV-C2's lower
+bound (the root's `.lo()`, taken only while `r − δ_s` is certified
+positive), `m`, the hypot and an open arc's overrun term are interval
+operations read on the safe side. The distances the line's coverage
+and the straight map's Greville hull compare are formed at `Interval`
+too, but the quantities they compare — the line's direction and chord
+length, the Greville abscissae `ξᵢ` and positions `ℓ(ξᵢ)`, the
+coverage's azimuths, `total` and overrun angle — are `f64` closed forms
+treated as exact (`docs/DESIGN.md` `[simple.conditioned]`), stated at
+each claim site (`recognize_curve` module docs, INV-C2; `straight_map`;
+`arc_residual`). `recognize_curve.rs` joined `certification-doors.sh`'s
+importer list.

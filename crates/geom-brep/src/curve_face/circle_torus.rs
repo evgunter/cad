@@ -701,6 +701,10 @@ fn parallel_axes_roots<T: Decide>(
 mod meridian_rows;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod in_band_sweep;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod shallow_sweep;
 

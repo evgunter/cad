@@ -683,7 +683,7 @@ pub(super) fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| geom_brep::parting(k - kb, u, l.length()),
+            |l| geom_brep::parting(k - kb, u, l),
             band,
         )
         .map(Some)

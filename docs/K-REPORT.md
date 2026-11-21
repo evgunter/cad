@@ -4013,3 +4013,30 @@ not tell apart), `bool_ray_cylinder_disc` (6 in each `m5-` and `m7-`)
 and `bool_ray_sphere_disc` (1 and 2). The other eleven appear in no
 committed CSV. The committed CSVs and the addenda above keep the old
 spellings.
+
+## Census note (2026-11-20): the conic × quadric door takes its module's prefix
+
+Not a sweep and not a threshold change — a **rename**, recorded here
+because the census is the thing it changes. `[topo.homes]` arm 1 moved
+the conic × quadric door (a circle or an ellipse against a sphere, a
+cylinder wall or a cone: the arm switch, the first-harmonic arm, the
+half-angle ladder and the cone arm's readings through the apex) out of
+`topo::boolean::conic_quadric` to
+`geom_brep::curve_face::conic_quadric`, and a K name's prefix is the
+module that decides the margin. Margins, bands, outcomes and order are
+untouched; only the `predicate` column moves. Every one of the
+twenty-six is one site and one population, renamed one to one, and none
+of the new spellings was decided anywhere at the merge base
+(`git grep -ohE '"conic_quadric_[a-z0-9_]+"' <base> -- crates` finds
+only fuzz-stream labels, which are not K names).
+
+| old | new |
+|---|---|
+| `bool_conic_quadric_X`, X in `second_harmonic`, `sub_root_slack` (the module's own rows) | `conic_quadric_X` |
+| `bool_conic_quadric_first_X`, X in `noise`, `constant`, `extreme`, `root_slack` (`geom_brep::rows::CONIC_QUADRIC_FIRST`) | `conic_quadric_first_X` |
+| `bool_conic_quadric_X`, X in `pole`, `pole_conditioning`, `ladder_noise`, `disc`, `shape`, `depth`, `odd`, `split`, `split_lead`, `sub_clear`, `sub_monotone`, `sub_side`, `sub_width` (`geom_brep::rows::CONIC_QUADRIC_LADDER`) | `conic_quadric_X` |
+| `bool_conic_cone_X`, X in `root_slack`, `apex`, `on_surface`, `apex_spread`, `deflated_depth`, `deflated_side`, `deflated_clear` | `conic_quadric_cone_X` |
+
+No committed CSV holds either spelling (`docs/k-report-data/*.csv.gz`,
+none of the twenty-six old or new). The addenda above keep the old
+spellings (`bool_conic_quadric_sub_clear` in the lily walls table).

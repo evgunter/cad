@@ -3838,14 +3838,7 @@ fn spans_of(
                 };
             };
             let controls = projected::piece_controls(twin_net, piece);
-            let (boxed, support, z, far) = projected::part_floors(&controls);
-            // The support's divisor may not certify (a chord through the
-            // axis): the box's floor stands alone then.
-            let rho = if support.is_certified() {
-                boxed.max(support)
-            } else {
-                boxed
-            };
+            let (rho, far, z) = projected::part_reach(&controls);
             let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             #[cfg(test)]
@@ -3856,23 +3849,14 @@ fn spans_of(
                 upper(far, ok),
                 (lower(z.0, ok), upper(z.1, ok)),
             );
-            let point = |x: f64| geom_core::Interval::from_bounds(x, x);
-            let meters_sup = if f_sup.is_finite()
-                && rho_lo.is_finite()
-                && rho_hi.is_finite()
-                && z.0.is_finite()
-                && z.1.is_finite()
-            {
-                meters
-                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        lower(lever, true) > 0.0
-                    })
-                    // `+∞` off the cone and the sheet only: on them the
-                    // apex reading always reads.
-                    .map_or(f64::INFINITY, |m| upper(m, true))
-            } else {
-                f64::NAN
-            };
+            let meters_sup = meters.part_bound(
+                f_sup,
+                (rho_lo, rho_hi),
+                z,
+                projected::ConeLocus::Nappe,
+                |lever| lower(lever, true),
+                |m| upper(m, true),
+            );
             // A Bézier part interpolates its end controls, so they are
             // its points at its ends.
             let floors = match (ok, controls.first(), controls.last()) {
@@ -10892,10 +10876,14 @@ fn net_bound_refusal<T: Decide>(
     // the bound decides positive or escalates.
     let unshown = |bound: f64| {
         let bound = if bound.is_finite() { bound } else { f64::MAX };
-        let decided = |x: T| {
-            geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
+        let decided = |x: f64| {
+            geom_core::k_stats::decide_reported(
+                "pcurve_net_bound_straddle",
+                Margin::<T>::bound(x),
+                band,
+            )
         };
-        match (decided(T::zero()), decided(T::from_computed(bound))) {
+        match (decided(0.0), decided(bound)) {
             (Ok(lower), Ok(upper)) => {
                 geom_core::k_stats::straddle("pcurve_net_bound_straddle", lower, upper, band)
             }
@@ -11861,7 +11849,7 @@ fn derive_class_zero<T: Decide>(
                                 "pcurve_sphere_chart_meridian_frame",
                                 Margin::levered(
                                     d_hat.dot(along),
-                                    geom_core::Lever::curvature_radius(radius),
+                                    crate::uniform_curvature_arm(surface),
                                 ),
                                 band,
                                 |d| match d.sign {

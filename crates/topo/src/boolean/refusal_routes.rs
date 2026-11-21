@@ -186,7 +186,7 @@ pub enum BooleanDecision {
     /// Where an arc crosses a sphere: the conic × quadric door's rows
     /// (`conic_quadric`) — on a circle, or an ellipse whose second
     /// harmonic is in the zero band, its first-harmonic arm's extremes
-    /// (`bool_conic_quadric_first_extreme`), read for a constant
+    /// (`conic_quadric_first_extreme`), read for a constant
     /// residual and for either end of the range; otherwise the
     /// half-angle quartic's rows.
     ArcSphereRoots,

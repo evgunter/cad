@@ -790,7 +790,7 @@ fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<
 }
 
 fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
-    let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
+    let reach = Reach::fixture(map.transform_point(Point3::origin()), r);
     let walls = |phi: f64| sliver_walls(map, r, phi);
     // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
     for s in gap_sines(r, r / 8.0) {
@@ -848,7 +848,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
         {
             let what = format!("{frame}, r {r:e}, φ {phi:e}");
             let (a, b) = sliver_walls(&map, r, phi);
-            let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
+            let reach = Reach::fixture(map.transform_point(Point3::origin()), r);
             let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
             let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
             else {

@@ -183,6 +183,7 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
+pub mod loop_points;
 pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
 pub(crate) mod meeting;

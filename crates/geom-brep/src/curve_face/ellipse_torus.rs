@@ -1,5 +1,6 @@
 //! **The ellipse × torus root door**: the certified crossings of an
-//! ELLIPSE carrier with a torus. Like `topo`'s conic × quadric door it
+//! ELLIPSE carrier with a torus. Like the conic × quadric door
+//! ([`super::conic_quadric`]) it
 //! owns no root machinery: it reads the
 //! residual's harmonics from their one home and hands them to the shared
 //! certified subdivision ([`super::circle_roots`]), whose answer it gives.

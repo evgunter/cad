@@ -271,15 +271,25 @@ pub fn crossings<T: Decide>(
     settle(net, params, band, &creases, meetings, &residual)
 }
 
-/// The composite's rows over `[a, b]`, one piece per knot span, and an
-/// upper bound on the form's distance divisor over the net's hull
-/// (`projected::Meters::divisor`; one for the plane).
-fn composite_rows<T: Real>(
-    net: &NurbsCurve3<T>,
+/// [`framed_form`]'s answer: the points' coordinates in the chart frame,
+/// the canonical form and its metres conversion.
+pub(crate) type FramedForm = ([Vec<Interval>; 3], CanonicalSurface, Meters<Interval>);
+
+/// A surface's canonical form and its metres conversion, with `points`
+/// written in its chart frame in certification arithmetic, coordinate by
+/// coordinate: the operands a composite against the surface reads, for
+/// a carrier's net or a patch's ([`crate::patch_carrier`]) alike.
+///
+/// # Errors
+///
+/// [`CompositeRefusal::Unread`] off an analytic chart or for a point that
+/// does not certify; [`CompositeRefusal::FaceDegenerate`] where the chart
+/// frame does not.
+pub(crate) fn framed_form<T: Real>(
     surface: &Surface<T>,
-    (a, b): (f64, f64),
+    points: &[Point3<T>],
     cross: &impl Fn(T) -> Interval,
-) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
+) -> Result<FramedForm, CompositeRefusal> {
     let unread = CompositeRefusal::Unread;
     let (origin, frame) = crate::pcurve_cache::projected::chart_frame(surface)
         .ok_or(unread("a spline face has no canonical form"))?;
@@ -304,8 +314,7 @@ fn composite_rows<T: Real>(
             "the face's chart frame does not certify",
         ));
     }
-    let framed: Vec<Vec3<Interval>> = net
-        .control()
+    let framed: Vec<Vec3<Interval>> = points
         .iter()
         .map(|&p| {
             let g = point(p) - o;
@@ -372,6 +381,20 @@ fn composite_rows<T: Real>(
             return Err(unread("a spindle sheet's face has no composite lane yet"));
         }
     };
+    Ok((coords, form, meters))
+}
+
+/// The composite's rows over `[a, b]`, one piece per knot span, and an
+/// upper bound on the form's distance divisor over the net's hull
+/// (`projected::Meters::divisor`; one for the plane).
+fn composite_rows<T: Real>(
+    net: &NurbsCurve3<T>,
+    surface: &Surface<T>,
+    (a, b): (f64, f64),
+    cross: &impl Fn(T) -> Interval,
+) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
+    let unread = CompositeRefusal::Unread;
+    let (coords, form, meters) = framed_form(surface, net.control(), cross)?;
     // The net's hull in the chart frame bounds every point of the span,
     // so the divisor read over it bounds every point's.
     let divisor = meters

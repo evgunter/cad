@@ -95,8 +95,9 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, 
 
 use crate::certify::NurbsLane;
 
+use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::{EntersMaterial, LeverEscalation, OutwardNormal, enters_material_reported};
-use crate::implicit::{curvature_lever_arm, implicit_outward_normal};
+use crate::implicit::implicit_outward_normal;
 
 /// Which of an edge's two half-edges walks it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -2861,12 +2861,7 @@ fn plan_edge<'s, T: Decide>(
         let held = body.get_surface(other_key).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
         });
-        let extent = geom_brep::edge_extent_inf(
-            &old_carrier,
-            t0,
-            t1,
-            (old_carrier.eval(t0), old_carrier.eval(t1)),
-        );
+        let extent = geom_brep::edge_extent_inf(&old_carrier, t0, t1);
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
                 (edge, start, end, sides),
@@ -3297,7 +3292,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1);
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -4221,7 +4216,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
 fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
-    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
+    geom_brep::edge_extent_inf(carrier, t0, t1)
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -4238,6 +4233,24 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
         .map(|d| !past_eps(&d))
         .map_err(|kept| {
             let (Kept::InBand(source) | Kept::Blocked(source)) = kept;
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
+/// [`gap_within_eps`] of a gap read as an `f64` bound: `ε − gap`, the
+/// gap the margin's subtracted bound ([`Margin::less`]). A gap that is no
+/// number reads no sign, as [`decided`] keeps a margin that is not finite.
+fn bound_within_eps<T: Decide>(
+    gap: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let gap = if gap.is_finite() { gap } else { f64::NAN };
+    let margin = Margin::of(eps_of::<T>(tol)).less(gap);
+    geom_core::k_stats::decide_reported(GAP_WITHIN_EPS, margin, band)
+        .map(|d| !past_eps(&d))
+        .map_err(|cause| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = Kept::of(cause);
             ReplaceFaceError::Escalated { source }
         })
 }
@@ -4308,7 +4321,12 @@ const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
 
 /// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
 fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
-    Margin::of(T::from_f64(tol.eps()) - gap)
+    Margin::of(eps_of::<T>(tol) - gap)
+}
+
+/// The run's ε at `T`, the file's one read of it on the chain.
+fn eps_of<T: Decide>(tol: Tol) -> T {
+    T::from_f64(tol.eps())
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
@@ -4399,13 +4417,14 @@ fn corner_of_root<T: Decide>(
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(held_end(end))),
+        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(held_end(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
             ..
         }) => Err(ReplaceFaceError::ReanchorPastCarrierEnd {
             edge,
+            // The field is the walking re-anchor's measured gap too, in `T`.
             gap: T::from_computed(near_gap),
         }),
         Ok(SplineRoot::Short { near: false, .. }) => {

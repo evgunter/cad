@@ -14,7 +14,7 @@ refs: [the-half-angle-ladder-certifies-in-band-configurations]
 Found by the review of PR 4600 (GERM's half-angle meters) and
 confirmed on its fix pass. In `crates/geom-brep/src/curve_face/circle_roots.rs`,
 `certified_subdivision`, the width row (`rows.width`, e.g.
-`bool_conic_quadric_sub_width`) answers `Uncertain` for a piece that is
+`conic_quadric_sub_width`) answers `Uncertain` for a piece that is
 neither clear nor monotone once it is narrower than the band's arc —
 the guard the function's docs name for a double root. Mutated to
 `if false && !definitely(rows.width, speed_hi * (r - l))`, the whole

@@ -51,8 +51,8 @@
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
 //! built, an arc leaves two coincident arcs the census does not read,
-//! and a curved face would carry a slit or a ring that is neither meshed
-//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! and a curved face would carry a slit or a ring, and a zero-area ring
+//! there is not measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
 //! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
 //! a line on a plane, cylinder or cone and a circle or an ellipse on a
@@ -182,11 +182,11 @@ pub enum EdgeInFaceGap {
     /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
     /// The face is no plane: the parting would leave a slit or a
-    /// zero-area ring in a curved face, which the chart walk does not
-    /// mesh and the curved mass-properties lane does not measure
-    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
-    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
-    /// It retires when both read it: the parting itself builds there.
+    /// zero-area ring in a curved face. A slit meshes (the trimmed lane
+    /// takes a face that passes one point at two vertices); a zero-area
+    /// ring is not measured by the curved mass-properties lane
+    /// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when that row closes: the parting itself builds there.
     CurvedFace,
     /// The face is a spline, which holds the edge where both its ends lie
     /// on the face and its midpoint reads inside it, as far as this
@@ -303,8 +303,8 @@ impl EdgeInFaceGap {
                  backs (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
             }
             Self::CurvedFace => {
-                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
-                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
+                "the face is curved, and a zero-area ring in a curved face is not measured \
+                 (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`)"
             }
             Self::SplineFace => {
                 "the face is a spline, which holds the edge's ends and its midpoint, and whether \
@@ -460,9 +460,8 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
         }
-        // A slit or a zero-area ring in a curved face is neither meshed
-        // nor measured, so the parting refuses on any face it would part
-        // that is no plane.
+        // A zero-area ring in a curved face is not measured, so the
+        // parting refuses on any face it would part that is no plane.
         let plane =
             |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
@@ -2056,7 +2055,7 @@ fn walls_inside<T: Decide>(
             // metres. Bent alike, the two sheets are one to that order
             // ([`coplanar_wall_inside`]). On a curved face a wall going
             // in, or bent as the face is, would part the edge there,
-            // which is neither meshed nor measured: it refuses
+            // which may leave a zero-area ring there, not measured: it refuses
             // `CurvedFace`. A wall bending away leaves the face's material
             // alone.
             Sign::Zero => {
@@ -2072,7 +2071,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {

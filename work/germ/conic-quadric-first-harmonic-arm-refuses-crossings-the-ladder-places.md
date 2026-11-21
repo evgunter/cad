@@ -10,7 +10,7 @@ refs: [circle-cylinder-square-arm-root-slack-charges-the-whole-term-bound, 4042]
 ---
 
 
-Found by the lane that gave `boolean::conic_quadric` one arm switch
+Found by the lane that gave `curve_face::conic_quadric` one arm switch
 (`conic-quadric-doors-choose-their-first-harmonic-arm-two-ways`).
 
 ## What
