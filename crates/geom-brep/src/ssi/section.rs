@@ -44,7 +44,7 @@ use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CurveCertData, canonical_composite};
 use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{RingRefinement, restrict_segment};
-use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
@@ -168,9 +168,9 @@ impl Pieces {
     /// The curve's pieces: every interior knot raised to multiplicity
     /// `p` (exact in ℝ, applied in interval arithmetic), so the control
     /// net is the pieces' Bernstein coefficients end to end.
-    fn of(curve: &NurbsCurve3<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> Option<Self> {
-        let n = [normal.x, normal.y, normal.z].map(Interval::point);
-        let o = [origin.x, origin.y, origin.z].map(Interval::point);
+    fn of(curve: &NurbsCurve3<f64>, plane: &geom::Frame<f64>) -> Option<Self> {
+        let (origin, [_, _, normal]) = super::residual::certified_frame(plane);
+        let (n, o) = (normal.to_array(), origin.to_array());
         let control: Vec<[Interval; 3]> = curve
             .control()
             .iter()
@@ -595,7 +595,9 @@ pub(crate) fn magnitude(i: Interval) -> f64 {
 /// **Plane × one NURBS curve**: whether the curve lies in the plane
 /// (`On`), or where it crosses it (module docs).
 ///
-/// `normal` is the plane's unit normal and `origin` a point on it.
+/// `plane` is the plane's frame: its normal and origin are read as every
+/// certified partner read takes a stored frame, the enclosure of its
+/// polar factor ([`super::residual::certified_frame`]).
 /// `speed` is a certified sup of the curve's speed `‖C′‖`, which
 /// crosses `floor_meters` into the curve's parameter; `arm` is the lever
 /// arm a crossing's slope is levered by, in metres.
@@ -614,15 +616,14 @@ pub(crate) fn magnitude(i: Interval) -> f64 {
 /// sign along it is not resolved within its halvings.
 pub fn boundary_section(
     curve: &NurbsCurve3<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
+    plane: &geom::Frame<f64>,
     speed: SupSpeed<f64>,
     floor_meters: f64,
     arm: f64,
     band: Band,
 ) -> Result<BoundarySection, SsiError> {
     section_within(
-        (curve, origin, normal),
+        (curve, plane),
         speed,
         (floor_meters, arm, band),
         SIDE_SIGN_HALVINGS,
@@ -681,12 +682,12 @@ const UNSUPPORTED: SsiError = SsiError::UnsupportedCertificate {
 
 /// [`boundary_section`], its sign read within `halvings`.
 fn section_within(
-    (curve, origin, normal): (&NurbsCurve3<f64>, Point3<f64>, Vec3<f64>),
+    (curve, plane): (&NurbsCurve3<f64>, &geom::Frame<f64>),
     speed: SupSpeed<f64>,
     (floor_meters, arm, band): (f64, f64, Band),
     halvings: usize,
 ) -> Result<BoundarySection, SsiError> {
-    let pieces = Pieces::of(curve, origin, normal).ok_or(UNSUPPORTED)?;
+    let pieces = Pieces::of(curve, plane).ok_or(UNSUPPORTED)?;
     read_section(curve, &pieces, speed, (floor_meters, arm, band), halvings)
 }
 
@@ -951,6 +952,39 @@ mod tests {
         );
     }
 
+    /// **The boundary section reads its plane on the polar factor**
+    /// (decision 1, PR 7131), the carrier the `Interval` lift reads: a
+    /// segment between two points a near-graze `≤ 1e-12` off a tilted
+    /// plane 10 to 20 km out along its seam, on 4,096 frames placed out to
+    /// 10 km. The section's `h` at each control point holds the point's
+    /// double-double height over the polar plane
+    /// ([`crate::ssi::residual::polar_truth`]). Red under the stored
+    /// origin and normal lifted as points (the old `Pieces::of`; first at
+    /// draw 36), and under that normal renormalized at the scalar (draw
+    /// 104).
+    #[test]
+    fn the_boundary_section_reads_its_plane_on_the_polar_factor() {
+        use crate::ssi::residual::polar_truth::{height, holds, poses};
+        for (n, (frame, p)) in poses(4096, 1e4).into_iter().enumerate() {
+            let q = p + frame.v_ref() * 1e3;
+            let segment = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                vec![p, q],
+                vec![1.0, 1.0],
+            )
+            .unwrap();
+            let pieces = super::Pieces::of(&segment, &frame).expect("a segment's pieces");
+            let (_, h, _) = &pieces.pieces[0];
+            for (k, c) in [p, q].into_iter().enumerate() {
+                assert!(
+                    holds(h[k], height(&frame, c)),
+                    "draw {n}, control {k}: {:?} misses the polar truth",
+                    h[k]
+                );
+            }
+        }
+    }
+
     /// One Bézier piece of `h`.
     fn piece(c: &[f64]) -> Vec<Interval> {
         c.iter().map(|&x| Interval::from_certified(x)).collect()
@@ -1111,7 +1145,14 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let read = |halvings| {
             super::section_within(
-                (&side, Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+                (
+                    &side,
+                    &geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                ),
                 SupSpeed::new(1.0),
                 (1e-9, 1.0, band),
                 halvings,

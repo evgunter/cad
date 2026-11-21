@@ -1135,10 +1135,10 @@ fn plane_wall_section<'w, 's>(
     let Surface::Plane { frame, .. } = *plane else {
         unreachable!("the spline lane is handed a plane")
     };
-    let (origin, normal) = (frame.origin(), frame.axis());
+    let origin = frame.origin();
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
-    let carrier = match level_row(wall, origin, normal, extent, band)? {
+    let carrier = match level_row(wall, frame, extent, band)? {
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
         None => {
@@ -1298,11 +1298,11 @@ fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
 /// row at the plane's one root along a column, extracted exactly.
 fn level_row(
     wall: &NurbsSurface<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
+    frame: geom::Frame<f64>,
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
+    let (origin, normal) = (frame.origin(), frame.axis());
     // A net whose height depends on its `v` alone holds the plane along
     // a row of fixed `v`: the wall's own rows first, then its columns.
     for (net, fixed) in [
@@ -1341,8 +1341,7 @@ fn level_row(
         let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
-            origin,
-            normal,
+            &frame,
             SupSpeed::new(speed),
             band.zero(),
             extent.length(),
@@ -1449,8 +1448,7 @@ fn plane_spline_root(
     let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
-        origin,
-        normal,
+        &frame,
         SupSpeed::new(speed),
         band.zero(),
         extent.length(),

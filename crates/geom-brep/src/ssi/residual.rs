@@ -38,7 +38,7 @@ use geom_core::spline::compose::CanonicalSurface;
 use geom_core::{Bounds, Interval, Point3, Vec3};
 
 use super::enclose::Box3;
-use crate::pcurve_cache::projected::{Meters, chart_frame};
+use crate::pcurve_cache::projected::Meters;
 
 /// **A plane, cylinder, sphere or torus as a wall's partner** (module
 /// docs).
@@ -117,6 +117,24 @@ const NOT_A_PARTNER: &str = concat!(
     " is an implicit partner here"
 );
 
+/// **A stored `f64` frame as every certified partner read takes it**: its
+/// origin, and the columns `u_ref`, `v_ref`, `axis` of the enclosure of
+/// its polar factor ([`geom::Frame::map_scalar`] to [`Interval`], decision
+/// 1 of PR 7131), the rotation the `Interval` lift reads the carrier on.
+/// Never the stored entries lifted as points and squared at the scalar,
+/// which is a second carrier a rounding of turn away, and near a graze of
+/// a far partner more than the band apart.
+pub(crate) fn certified_frame(frame: &geom::Frame<f64>) -> (Vec3<Interval>, [Vec3<Interval>; 3]) {
+    let motion = frame
+        .map_scalar(<Interval as geom_core::Real>::from_f64)
+        .motion();
+    let o = motion.origin();
+    (
+        Vec3::new(o.x, o.y, o.z),
+        [motion.u().get(), motion.v().get(), motion.w().get()],
+    )
+}
+
 impl ImplicitForm {
     /// **The kind of `surface`, where an implicit form is minted from
     /// it**: the one test of the partner kinds (`implicit_partners!`
@@ -171,14 +189,10 @@ impl ImplicitForm {
             }
             _ => return Err(NOT_A_PARTNER),
         };
-        let (origin, [u_ref, _, axis]) =
-            chart_frame(surface).ok_or("only an analytic surface has a chart frame")?;
-        let vector = |v: Vec3<f64>| v.map(Interval::point);
-        let (u_ref, axis) = (vector(u_ref), vector(axis));
-        let e2 = axis.normalize();
-        let radial = u_ref - e2 * u_ref.dot(e2);
-        let e0 = radial.normalize();
-        let frame = [e0, e2.cross(e0), e2];
+        let stored = surface
+            .frame()
+            .ok_or("only an analytic surface has a chart frame")?;
+        let (origin, frame) = certified_frame(&stored);
         if !frame
             .iter()
             .all(|v| v.x.is_certified() && v.y.is_certified() && v.z.is_certified())
@@ -187,7 +201,7 @@ impl ImplicitForm {
         }
         Ok(Self {
             surface: surface.clone(),
-            origin: vector(Vec3::new(origin.x, origin.y, origin.z)),
+            origin,
             frame,
             form,
             lift: Interval::point(0.0),
@@ -615,6 +629,122 @@ impl<'a> ImplicitWall<'a> {
     }
 }
 
+/// **The polar factor's truth, in double-double**, for the rows that pin
+/// a certified partner read to the carrier decision 1 names: a stored
+/// frame's polar factor `R = M(I − ½G + O(G²))`, `G = MᵀM − I`, its
+/// columns in double-double (the `O(G²)` term is about `u²`, far below
+/// a double-double's last place at these scales), and a point's height
+/// over that plane. Independent of the `Interval` arithmetic it judges.
+#[cfg(test)]
+pub(crate) mod polar_truth {
+    use geom_core::{Interval, Point3};
+
+    /// A double-double `hi + lo`.
+    #[derive(Clone, Copy)]
+    pub(crate) struct Dd(f64, f64);
+
+    fn two_sum(a: f64, b: f64) -> Dd {
+        let s = a + b;
+        let v = s - a;
+        Dd(s, (a - (s - v)) + (b - v))
+    }
+
+    fn add(a: Dd, b: Dd) -> Dd {
+        let Dd(s, e) = two_sum(a.0, b.0);
+        let Dd(h, l) = two_sum(s, e + a.1 + b.1);
+        Dd(h, l)
+    }
+
+    fn mul(a: Dd, b: Dd) -> Dd {
+        let p = a.0 * b.0;
+        let e = a.0.mul_add(b.0, -p) + (a.0 * b.1 + a.1 * b.0);
+        let Dd(h, l) = two_sum(p, e);
+        Dd(h, l)
+    }
+
+    fn of(x: f64) -> Dd {
+        Dd(x, 0.0)
+    }
+
+    /// The stored motion's columns `u`, `v`, `w`.
+    fn columns(frame: &geom::Frame<f64>) -> [[f64; 3]; 3] {
+        let m = frame.motion();
+        [m.u().get(), m.v().get(), m.w().get()].map(|c| [c.x, c.y, c.z])
+    }
+
+    /// The polar factor's column `j`, in double-double.
+    pub(crate) fn column(frame: &geom::Frame<f64>, j: usize) -> [Dd; 3] {
+        let c = columns(frame);
+        let dot = |a: usize, b: usize| {
+            (0..3).fold(of(0.0), |acc, k| add(acc, mul(of(c[a][k]), of(c[b][k]))))
+        };
+        let g = |a: usize, b: usize| {
+            let d = dot(a, b);
+            if a == b { add(d, of(-1.0)) } else { d }
+        };
+        let half = of(-0.5);
+        std::array::from_fn(|k| {
+            (0..3).fold(of(c[j][k]), |acc, i| {
+                add(acc, mul(half, mul(of(c[i][k]), g(i, j))))
+            })
+        })
+    }
+
+    /// `p − origin` along the polar factor's column `j`: `p`'s height
+    /// over the polar plane at `j = 2`.
+    pub(crate) fn coordinate(frame: &geom::Frame<f64>, p: Point3<f64>, j: usize) -> Dd {
+        let c = column(frame, j);
+        let o = frame.origin();
+        let d = [two_sum(p.x, -o.x), two_sum(p.y, -o.y), two_sum(p.z, -o.z)];
+        (0..3).fold(of(0.0), |acc, k| add(acc, mul(d[k], c[k])))
+    }
+
+    /// `p`'s height over the polar plane through the stored origin.
+    pub(crate) fn height(frame: &geom::Frame<f64>, p: Point3<f64>) -> Dd {
+        coordinate(frame, p, 2)
+    }
+
+    /// Whether the enclosure holds the double-double, decided exactly
+    /// on its two parts.
+    pub(crate) fn holds(i: Interval, x: Dd) -> bool {
+        use geom_core::Bounds;
+        let above = |e: f64| {
+            let Dd(s, r) = two_sum(x.0, -e);
+            s + (r + x.1) >= 0.0
+        };
+        let below = |e: f64| {
+            let Dd(s, r) = two_sum(x.0, -e);
+            s + (r + x.1) <= 0.0
+        };
+        above(i.lo()) && below(i.hi())
+    }
+
+    /// `n` tilted frames placed out to `reach` metres and a point on
+    /// each a near-graze `h` off the stored plane, `reach` out along its
+    /// seam: a seeded LCG, so a red names its draw.
+    pub(crate) fn poses(n: usize, reach: f64) -> Vec<(geom::Frame<f64>, Point3<f64>)> {
+        use geom_core::Vec3;
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        (0..n)
+            .map(|_| {
+                let axis = Vec3::new(next(), next(), next() + 2.0);
+                let seam = Vec3::new(next() + 2.0, next(), next());
+                let origin = Point3::new(next() * reach, next() * reach, next() * reach);
+                let frame = geom::Frame::new(origin, axis, seam);
+                let (a, b, h) = (reach * (1.0 + next()), reach * next(), 1e-12 * next());
+                let p = origin + frame.u_ref() * a + frame.v_ref() * b + frame.axis() * h;
+                (frame, p)
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -674,5 +804,35 @@ mod tests {
             floor.hi() <= off * (1.0 + 1e-6) && floor.lo() > 0.0,
             "the floor {floor:?} against the distance {off:e}"
         );
+    }
+
+    /// **A partner form reads a stored frame on its polar factor**
+    /// (decision 1, PR 7131): the carrier the `Interval` lift reads, so
+    /// one certification never reads two shapes of one partner. 4,096
+    /// tilted frames placed out to 10 km, each with a point a near-graze
+    /// `≤ 1e-12` off its stored plane 10 to 20 km out along the seam: each
+    /// of the point's framed coordinates holds its double-double truth
+    /// on the polar factor ([`super::polar_truth`]). Red under the stored
+    /// entries lifted as points and squared at the scalar (the old
+    /// `ImplicitForm::of`; first at draw 456), and under them read raw,
+    /// unsquared (draw 36).
+    #[test]
+    fn a_partner_form_reads_a_stored_frame_on_its_polar_factor() {
+        use super::polar_truth::{coordinate, holds, poses};
+        for (n, (frame, p)) in poses(4096, 1e4).into_iter().enumerate() {
+            for surface in [
+                Surface::Plane { frame },
+                Surface::Cylinder { frame, radius: 1e4 },
+            ] {
+                let form = ImplicitForm::of(&surface).expect("a partner");
+                let q = form.framed_point(p);
+                for (j, x) in [q.x, q.y, q.z].into_iter().enumerate() {
+                    assert!(
+                        holds(x, coordinate(&frame, p, j)),
+                        "draw {n}, column {j}: {x:?} misses the polar truth"
+                    );
+                }
+            }
+        }
     }
 }
