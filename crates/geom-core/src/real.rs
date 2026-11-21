@@ -327,11 +327,13 @@ pub trait Real:
     /// **This scalar with its tangent removed**: the value channel a
     /// place is evaluated on and a decision reads (DL5.2, the crate
     /// README). At a dual it is the base scalar (`f64` at `Dual<f64>`,
-    /// [`crate::Interval`] at `Dual<Interval>`); at `f64`, `Interval`,
-    /// [`crate::Probe`] and [`crate::Sym`] it is the scalar itself, which
-    /// carries no tangent (a `Sym`'s symbols are an identity over the
-    /// document's unknowns, which a decision reads, not a tangent). It
-    /// is its own value channel, so a second read is the identity.
+    /// [`crate::Interval`] at `Dual<Interval>`); at `f64`, `Interval` and
+    /// [`crate::Probe`] it is the scalar itself, which carries no
+    /// tangent; at [`crate::Sym`] it is the `Sym` over its numeric
+    /// channel's value, node for node (the symbols are an identity over
+    /// the document's unknowns, which a decision reads, not a tangent),
+    /// so the scalar itself over `f64` or `Interval`. It is its own
+    /// value channel, so a second read is the identity.
     type Value: crate::Decide<Value = Self::Value>;
 
     /// The read down to [`Real::Value`]: a dual's value part, bit for

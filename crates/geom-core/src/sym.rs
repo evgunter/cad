@@ -5265,7 +5265,22 @@ impl<T: Real> Neg for Sym<T> {
     }
 }
 
-impl<T: Decide> Real for Sym<T> {
+/// `F` over a symbolic scalar: what [`Real::view`] at `Sym<T>` hands to
+/// `T`'s, so a `Sym`'s view borrows wherever its numeric channel's does.
+struct SymOf<F>(core::marker::PhantomData<F>);
+
+impl<F: crate::value_view::OverScalar> crate::value_view::OverScalar for SymOf<F> {
+    type At<S: Real> = F::At<Sym<S>>;
+
+    fn map<S: Real, U: Real>(x: &F::At<Sym<S>>, f: impl Fn(S) -> U) -> F::At<Sym<U>> {
+        F::map(x, |s: Sym<S>| Sym {
+            value: f(s.value),
+            node: s.node,
+        })
+    }
+}
+
+impl<T: Real> Real for Sym<T> {
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
@@ -5279,18 +5294,24 @@ impl<T: Decide> Real for Sym<T> {
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
 
-    /// The symbolic scalar itself: its identity over the unknowns is
-    /// what a decision at it reads.
-    type Value = Self;
+    /// The symbolic scalar over its numeric channel's value: the
+    /// identity over the unknowns is what a decision at it reads, so it
+    /// is kept, node for node. Over `f64` or `Interval` that is the
+    /// scalar itself.
+    type Value = Sym<T::Value>;
 
-    fn value(self) -> Self {
-        self
+    fn value(self) -> Sym<T::Value> {
+        Sym {
+            value: self.value.value(),
+            node: self.node,
+        }
     }
 
+    /// The numeric channel's view, node for node: borrowed where it is.
     fn view<F: crate::value_view::OverScalar>(
         x: &F::At<Self>,
-    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
-        crate::value_view::ValueView::Same(x)
+    ) -> crate::value_view::ValueView<'_, F::At<Sym<T::Value>>> {
+        T::view::<SymOf<F>>(x)
     }
 
     fn from_f64(x: f64) -> Self {
@@ -5435,10 +5456,7 @@ impl<T: Decide> Real for Sym<T> {
 
 /// The bracket is the value channel's, verbatim: the DAG carries no
 /// numbers of its own and is never read here.
-impl<T: Bounds> Bounds for Sym<T>
-where
-    Self: Real,
-{
+impl<T: Bounds> Bounds for Sym<T> {
     fn lo(self) -> f64 {
         Bounds::lo(self.value)
     }
@@ -5451,10 +5469,7 @@ where
 /// Certification delegates: whether the computation was defined on the
 /// whole box is a question about the numeric channel, and the symbolic
 /// tier neither widens nor narrows the answer.
-impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T>
-where
-    Self: Real,
-{
+impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
     }
@@ -5475,7 +5490,7 @@ where
 /// Span selection is STRUCTURE selection and reads the value channel;
 /// the hull mints a `Hull` node keyed by the two operands' ids (never by
 /// their forms — see [`SymOp::Hull`]).
-impl<T: Decide> SpanLocate for Sym<T> {
+impl<T: SpanLocate> SpanLocate for Sym<T> {
     fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
         self.value.locate_spans(knots)
     }
