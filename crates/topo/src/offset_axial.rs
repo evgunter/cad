@@ -294,6 +294,7 @@ use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
+use geom_brep::LeverBounds;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::k_stats::decide;
 use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
@@ -650,7 +651,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         .collect();
     let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedChart<T>> = Vec::new();
-        let mut arms: Vec<Lever<T>> = Vec::new();
+        let mut arms: Vec<LeverBounds<T>> = Vec::new();
         let mut here = None;
         // The group's corners in vertex-arena order, as `at_vertex` holds them.
         let mut rows: Vec<usize> = group
@@ -1222,18 +1223,18 @@ fn classify<T: Decide>(
 }
 
 /// The arm of every edge ending at a vertex — the lengths this door's
-/// conditioning is levered by.
-///
-/// A line reads its chord ([`geom_brep::edge_extent_inf`], whose two
-/// bounds are equal on a line), as in the planar door; so does every
-/// carrier but a circle. A circle reads its arc length: a full revolve's
-/// rim arc runs half a turn and a chart with ONE seam closes on itself,
-/// whose chord is exactly zero, and a zero arm makes every meter read
-/// `Zero` and calls a transversal corner degenerate.
+/// conditioning is levered by: each edge's reach from the corner, where
+/// the corner's transversality is read ([`crate::cover::edge_reach_bounds`]).
+/// That reading acts on every sign (a definite transversality serves the
+/// branch root, a Zero the tangent foot), so each reach is held from
+/// both sides, exact on a line and a circle arc, and read at both bounds
+/// where they differ. A closed one-seam arc reaches its diameter from its
+/// vertex, never its zero chord.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-) -> Result<Vec<Lever<T>>, ReplaceFaceError<T>> {
+) -> Result<Vec<LeverBounds<T>>, ReplaceFaceError<T>> {
+    let corner = body.resolve_vertex_point(vertex, crate::live::Proven);
     let mut out = Vec::new();
     for he in body.vertex_orbit_linked(vertex) {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
@@ -1244,22 +1245,16 @@ fn corner_arms<T: Decide>(
             EntityId::HalfEdge(he),
             "edge",
         );
-        let Some(curve) = body.edge_curve_linked(key, edge).certified() else {
+        if body.edge_curve_linked(key, edge).certified().is_none() {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge: key,
                 what: "it has no curve to move",
             });
+        }
+        let Some(reach) = crate::cover::edge_reach_bounds(body, key, edge, corner) else {
+            unreachable!("{key:?}: a certified curve is no null scaffolding")
         };
-        let (t0, t1) = curve.params();
-        out.push(match curve.carrier() {
-            Curve3::Circle(circle) => {
-                let radius = circle.radius();
-                // Unsourced lever: the arc's length, an angular span times its radius, is
-                // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-                Lever::unsourced((t1 - t0).abs() * radius)
-            }
-            carrier => geom_brep::edge_extent_inf(carrier, t0, t1),
-        });
+        out.push(reach);
     }
     Ok(out)
 }
@@ -1306,7 +1301,7 @@ fn solve_corner<T: Decide>(
     vertex: VertexKey,
     here: Point3<T>,
     at: &[&MovedChart<T>],
-    arms: &[Lever<T>],
+    arms: &[LeverBounds<T>],
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
@@ -1325,7 +1320,10 @@ fn solve_corner<T: Decide>(
             .filter_map(|c| plane_of(&c.new))
             .map(|(n, o)| (n, n.dot(vec_of(o))))
             .collect();
-        return crate::offset_together::solve_planar_corner(vertex, &planes, arms, band);
+        // The planar solve claims a corner only on a definite
+        // transversality and refuses where none is: each reach from below.
+        let arms: Vec<Lever<T>> = arms.iter().map(|arm| arm.below()).collect();
+        return crate::offset_together::solve_planar_corner(vertex, &planes, &arms, band);
     }
 
     let h_old = frame.station(here);
@@ -1718,7 +1716,7 @@ fn cap_pair_corner<T: Decide>(
     old: (T, T),
     circle: &Profile<T>,
     caps: ((Vec3<T>, T), (Vec3<T>, T)),
-    arms: &[Lever<T>],
+    arms: &[LeverBounds<T>],
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Option<Point3<T>>, ReplaceFaceError<T>> {
@@ -1745,9 +1743,10 @@ fn cap_pair_corner<T: Decide>(
     // re-decided (one derivation, the module's own law).
     let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
     for &arm in arms {
-        match decide(
-            "offset_axial_cap_pair",
-            Margin::levered(sine.abs(), arm),
+        match crate::validate::decide_levered(
+            ("offset_axial_cap_pair", "offset_axial_cap_pair_straddle"),
+            sine.abs(),
+            arm,
             band,
         ) {
             Ok(Sign::Positive) => {}
@@ -1788,7 +1787,12 @@ fn cap_pair_corner<T: Decide>(
         .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
     let mut resolvable = true;
     for &arm in arms {
-        match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+        match crate::validate::decide_levered(
+            ("offset_axial_corner", "offset_axial_corner_straddle"),
+            det.abs(),
+            arm,
+            band,
+        ) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 resolvable = false;
@@ -1952,7 +1956,7 @@ fn tangent_foot<T: Decide>(
 /// off any foot.
 fn solve_pairs<T: Decide>(
     profiles: &[Profile<T>],
-    arms: &[Lever<T>],
+    arms: &[LeverBounds<T>],
     (rho_old, h_old): (T, T),
     vertex: VertexKey,
     band: Band,
@@ -1969,7 +1973,12 @@ fn solve_pairs<T: Decide>(
         };
         let mut resolvable = true;
         for &arm in arms {
-            match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+            match crate::validate::decide_levered(
+                ("offset_axial_corner", "offset_axial_corner_straddle"),
+                det.abs(),
+                arm,
+                band,
+            ) {
                 Ok(Sign::Positive) => {}
                 Ok(_) => {
                     resolvable = false;
@@ -3311,8 +3320,85 @@ mod tests {
         arm: f64,
     ) -> Result<Option<(f64, f64)>, ReplaceFaceError<f64>> {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let arms = [geom_core::test_support::fixture_lever(arm)];
+        let arms = [LeverBounds::Exact(geom_core::test_support::fixture_lever(
+            arm,
+        ))];
         solve_pairs(profiles, &arms, (10.0, 0.0), VertexKey::default(), band)
+    }
+
+    /// **A half-turn rim's arms are its reach from the corner.** At a
+    /// half-disc cap's corner (radius 1) the arc reaches the diameter 2
+    /// from its own end, and so does the chord the line edge runs: the
+    /// arc length (`π`) is no read of either. Red where the circle arm
+    /// reads its arc length or its chord from anywhere but the corner.
+    #[test]
+    fn a_half_turn_rims_corner_arms_are_its_reach_from_the_corner() {
+        let (body, _, end) = crate::test_support_fixtures::half_disc_cap(0.0, Tol::witness());
+        let vertex = body
+            .vertices
+            .keys()
+            .find(|&v| {
+                body.resolve_vertex_point(v, crate::live::Proven)
+                    .distance(end)
+                    < 1e-12
+            })
+            .expect("the cap's corner at the arc's end");
+        let arms: Vec<(f64, f64)> = corner_arms(&body, vertex)
+            .unwrap()
+            .into_iter()
+            .map(|arm| (arm.below().length(), arm.above().length()))
+            .collect();
+        assert_eq!(arms.len(), 2, "the corner's two edges: {arms:?}");
+        for arm in arms {
+            assert!(
+                (arm.0 - 2.0).abs() < 1e-12 && (arm.1 - 2.0).abs() < 1e-12,
+                "an arm off the reach 2 from either side: {arm:?}"
+            );
+        }
+    }
+
+    /// **The corner's transversality acts on its Zero** (the review of the
+    /// arc-length arm): a station line `ρ = 11 − δ` against the unit
+    /// profile circle, `δ = 8·10⁻¹²`, its transversality `4·10⁻⁶`, under
+    /// the band `(10⁻⁵, 10⁻⁴)`. Levered at the half-turn rim's reach from
+    /// its corner (2, [`corner_arms`]) it reads Zero, and the pair answers
+    /// its tangent foot; levered at the rim's arc length (`π`) it reads in
+    /// band and the solve escalates. So the lever is the reach, read from
+    /// both sides (exact on a circle), not a bound from one. Red where the
+    /// arm is the arc length.
+    #[test]
+    fn a_tangent_corner_answers_its_foot_at_the_rims_reach() {
+        let band = Band::new(1e-5, 1e-4).unwrap();
+        let delta = 8e-12;
+        let pair = [station(11.0 - delta), CIRCLE];
+        let (body, _, end) = crate::test_support_fixtures::half_disc_cap(0.0, Tol::witness());
+        let vertex = body
+            .vertices
+            .keys()
+            .find(|&v| {
+                body.resolve_vertex_point(v, crate::live::Proven)
+                    .distance(end)
+                    < 1e-12
+            })
+            .expect("the cap's corner at the arc's end");
+        let arms = corner_arms(&body, vertex).unwrap();
+        let foot = solve_pairs(&pair, &arms, (11.0, 4e-6), VertexKey::default(), band)
+            .unwrap()
+            .expect("the tangent pair answers its foot");
+        assert!(
+            (foot.0 - (11.0 - delta)).abs() < 1e-9 && foot.1.abs() < 1e-9,
+            "the foot on the station line: {foot:?}"
+        );
+        let arc_length = [LeverBounds::Exact(geom_core::test_support::fixture_lever(
+            core::f64::consts::PI,
+        ))];
+        assert!(
+            matches!(
+                solve_pairs(&pair, &arc_length, (11.0, 4e-6), VertexKey::default(), band),
+                Err(ReplaceFaceError::Escalated { .. })
+            ),
+            "at the arc length the transversality is in band"
+        );
     }
 
     const CIRCLE: Profile<f64> = Profile::Circle {
