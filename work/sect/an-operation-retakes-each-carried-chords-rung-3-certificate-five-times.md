@@ -2,10 +2,11 @@
 id: an-operation-retakes-each-carried-chords-rung-3-certificate-five-times
 kind: issue
 title: An operation re-takes each carried chord's rung-3 certificate five times, and the repeats are a fifth of a ball × cylinder boolean
-status: open
+status: closed
 opened: 2026-10-30
 priority: P3
 cost: M
+closed: 2026-11-20
 ---
 
 
@@ -61,3 +62,12 @@ so `certify_branch` does not run) the rung-3 certificate is 15 % of a
 2.43 s operation, still on 40 calls; what the repeats cost now is
 `tube_bounds`'s hulls and limb 2's key rendering
 (`limb2_memo::rendered` formats the whole 501-point carrier per call).
+
+## Closed (2026-11-20)
+
+By `a-certificate-is-read-by-its-support`: ball ∪ rod's 40 rung-3 calls
+on 8 inputs are 12, none on an input already certified. The 4 left
+past one per chord are the partner operand's chord run the other way
+(a reversed carrier on the negated interval), filed with the
+restriction question
+(`a-chords-locus-certificate-is-not-its-section-components-cut-to-its-span`).
