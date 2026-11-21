@@ -1,0 +1,10 @@
+SYMPROBE round_trip_sign Some(Zero) Some(Zero) Some(Zero)
+SYMPROBE center.x = Sym { value: Interval(DInterval { lo: 2.0349339353127216, hi: 2.725167074788289, dec: Com }), node: SymId(4882613072376908171245050256024296805) }
+SYMPROBE rim = Sym { value: Interval(DInterval { lo: 0.30002056569594276, hi: 1.0093065195477002, dec: Com }), node: SymId(23722191224643525062354919022121087443) }
+SYMPROBE radius = Sym { value: Interval(DInterval { lo: 0.5465909090909088, hi: 0.7236111111111114, dec: Com }), node: SymId(336671177450829572653835067550136860562) }
+SYMPROBE rim-radius sign None
+SYMPROBE point_at(0).x - q_from.x sign Some(Zero) ; point_at(0).x = Sym { value: Interval(DInterval { lo: 1.775533108866441, hi: 2.183654729109276, dec: Com }), node: SymId(296746786224337727856447817076315560646) }
+ARCBALL centre_read Point3 { x: 1.0, y: 0.0, z: 10000000.0 } zero_point Point3 { x: 1.0, y: 0.0, z: 0.0 }
+ARCBALL t -0.00045 evaluator Point3 { x: 1.0, y: -0.00044999998481250013, z: 1.0124999829140626 }
+ARCBALL t -0.00045 centre_form_by_hand Point3 { x: 1.0, y: -0.00044999998481250013, z: 1.0124999824911356 }
+ARCBALL mid Point3 { x: 1.0, y: 0.0, z: 0.5062499912455678 } radius 0.5062501912455183 gap_evaluator 0.5062501916684451 gap_centre_form 0.5062501912455183

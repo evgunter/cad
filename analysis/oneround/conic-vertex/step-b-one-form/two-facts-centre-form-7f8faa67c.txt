@@ -1,0 +1,16 @@
+SYMPROBE round_trip_sign Some(Zero) Some(Zero) Some(Zero)
+SYMPROBE center.x = Sym { value: Interval(DInterval { lo: 2.3170454545454544, hi: 2.443055555555556, dec: Com }), node: SymId(9662604709541122910758549267056833588) }
+SYMPROBE rim = Sym { value: Interval(DInterval { lo: 0.5920454545454543, hi: 0.668055555555556, dec: Com }), node: SymId(194752228669135623874558203394335317549) }
+SYMPROBE radius = Sym { value: Interval(DInterval { lo: 0.5465909090909088, hi: 0.7236111111111114, dec: Com }), node: SymId(336671177450829572653835067550136860562) }
+SYMPROBE rim-radius sign Some(Zero)
+SYMPROBE point_at(0).x - q_from.x sign Some(Zero) ; point_at(0).x = Sym { value: Interval(DInterval { lo: 1.7755331088664412, hi: 2.1836547291092763, dec: Com }), node: SymId(237610073983216806189615254303241454333) }
+SYMPROBE round_trip_sign Some(Zero) Some(Zero) Some(Zero)
+SYMPROBE center.x = Sym { value: Interval(DInterval { lo: 2.3170454545454544, hi: 2.443055555555556, dec: Com }), node: SymId(9662604709541122910758549267056833588) }
+SYMPROBE rim = Sym { value: Interval(DInterval { lo: 0.5920454545454543, hi: 0.668055555555556, dec: Com }), node: SymId(194752228669135623874558203394335317549) }
+SYMPROBE radius = Sym { value: Interval(DInterval { lo: 0.5465909090909088, hi: 0.7236111111111114, dec: Com }), node: SymId(336671177450829572653835067550136860562) }
+SYMPROBE rim-radius sign None
+SYMPROBE point_at(0).x - q_from.x sign None ; point_at(0).x = Sym { value: Interval(DInterval { lo: 1.7755331088664412, hi: 2.1836547291092763, dec: Com }), node: SymId(237610073983216806189615254303241454333) }
+ARCBALL centre_read Point3 { x: 1.0, y: 0.0, z: 10000000.0 } zero_point Point3 { x: 1.0, y: 0.0, z: 0.0 }
+ARCBALL t -0.00045 evaluator Point3 { x: 1.0, y: -0.00044999998481250013, z: 1.0124999824911356 }
+ARCBALL t -0.00045 centre_form_by_hand Point3 { x: 1.0, y: -0.00044999998481250013, z: 1.0124999824911356 }
+ARCBALL mid Point3 { x: 1.0, y: 0.0, z: 0.5062499912455678 } radius 0.5062501912455183 gap_evaluator 0.5062501912455183 gap_centre_form 0.5062501912455183
