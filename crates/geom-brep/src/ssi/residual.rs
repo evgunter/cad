@@ -125,9 +125,7 @@ const NOT_A_PARTNER: &str = concat!(
 /// which is a second carrier a rounding of turn away, and near a graze of
 /// a far partner more than the band apart.
 pub(crate) fn certified_frame(frame: &geom::Frame<f64>) -> (Vec3<Interval>, [Vec3<Interval>; 3]) {
-    let motion = frame
-        .map_scalar(<Interval as geom_core::Real>::from_f64)
-        .motion();
+    let motion = frame.map_scalar(Interval::from_certified).motion();
     let o = motion.origin();
     (
         Vec3::new(o.x, o.y, o.z),

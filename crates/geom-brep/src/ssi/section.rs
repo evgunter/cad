@@ -973,7 +973,7 @@ mod tests {
                 vec![1.0, 1.0],
             )
             .unwrap();
-            let pieces = super::Pieces::of(&segment, &frame).expect("a segment's pieces");
+            let pieces = super::Pieces::of(&segment, &frame).unwrap();
             let (_, h, _) = &pieces.pieces[0];
             for (k, c) in [p, q].into_iter().enumerate() {
                 assert!(
