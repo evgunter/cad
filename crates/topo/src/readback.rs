@@ -591,7 +591,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
     match edge_carrier_ref(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {
             origin: *origin,
-            axis: *dir,
+            axis: dir.get(),
             u_ref: None,
             sense: true,
         }),

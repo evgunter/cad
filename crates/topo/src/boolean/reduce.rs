@@ -3109,10 +3109,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let f2 = match surface {
                 geom::Surface::Cylinder { frame, radius, .. } => {
                     let axis = frame.axis();
-                    let d_ax = dir.dot(axis);
-                    (dir.norm_squared() - d_ax.powi(2)) / radius
+                    let d_ax = dir.get().dot(axis);
+                    (dir.get().norm_squared() - d_ax.powi(2)) / radius
                 }
-                geom::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
+                geom::Surface::Sphere { radius, .. } => dir.get().norm_squared() / radius,
                 // Post-gate/pre-check unreachable kinds keep the
                 // frontier door.
                 _ => return Err(frontier()),
@@ -3251,7 +3251,7 @@ fn conic_clearance<T: Decide>(
         frame, half_angle, ..
     } = *surface
     {
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         let h = geom_brep::conic_cone_harmonics(
             conic,
             geom::Line {

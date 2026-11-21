@@ -608,7 +608,8 @@ fn ray_to<T: Decide>(
     let crossings = kernel::ray_crossings(
         surface,
         face.sense,
-        &geom::Ray::new(origin, dir),
+        // A rigid map of the unit heading: unit over the reals.
+        &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
         reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
     )
@@ -733,7 +734,8 @@ pub fn trace_marks(
             let Ok(crossings) = kernel::ray_crossings(
                 surface,
                 face.sense,
-                &geom::Ray::new(origin, dir),
+                // A rigid map of the unit heading: unit over the reals.
+        &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
                 reach,
                 band,
             ) else {

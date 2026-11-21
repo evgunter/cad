@@ -16,6 +16,7 @@
 //! ([`crate::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
+use geom_core::UnitVec3;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
@@ -753,7 +754,8 @@ fn aimed_ray<T: Decide>(
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::starting(aim, -out, start),
+        // `along² + across² = 1` over the orthonormal `normal`, `b1`, `b2`.
+        &geom::Ray::starting(aim, -UnitVec3::constructed(out), start),
         reach,
         band,
         AIMED_ROWS,

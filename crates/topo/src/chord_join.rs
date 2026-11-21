@@ -2503,7 +2503,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let (ruling_hat, len) = ruling.dir.direction_and_length();
+            let (ruling_hat, len) = ruling.dir.get().direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2789,7 +2789,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         let Some(geom::Line { dir, .. }) = line.as_line() else {
             unreachable!("{face:?}: a cone's section ruling through its apex is a line")
         };
-        let z = apex.onto_nappe_of(dir, to);
+        let z = apex.onto_nappe_of(dir.get(), to);
         let into = apex.turn(from, z).min(apex.turn(z, to));
         match decide("germ_apex", Margin::levered(into, arm), band)
             .map_err(ApexRulingFault::Escalated)?

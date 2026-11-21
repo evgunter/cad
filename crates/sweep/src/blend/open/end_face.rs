@@ -38,6 +38,7 @@
 //! clear of it is read against the sliver itself: wholly inside it,
 //! crossing it, or neither certified.
 
+use geom_core::UnitVec3;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
@@ -400,8 +401,8 @@ impl<T: Bounds> SectionFrame<T> {
     fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => self
-                .scaled(origin + dir * ta - center)
-                .max(self.scaled(origin + dir * tb - center)),
+                .scaled(origin + dir.get() * ta - center)
+                .max(self.scaled(origin + dir.get() * tb - center)),
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
                 Some(k) => self.scaled(k.frame().origin() - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
@@ -423,7 +424,7 @@ impl<T: Bounds> SectionFrame<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let at = |p: Point3<T>| self.unit(p - center);
-                let (a, b) = (at(origin + dir * ta), at(origin + dir * tb));
+                let (a, b) = (at(origin + dir.get() * ta), at(origin + dir.get() * tb));
                 let (ex, ey) = (b.0 - a.0, b.1 - a.1);
                 let s = (T::zero() - (a.0 * ex + a.1 * ey) / (ex.powi(2) + ey.powi(2)))
                     .max(T::zero())
@@ -532,7 +533,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         // from `center` as `q0·q0 − b²` does.
         let (b, rho) = geom::Line {
             origin: self.center,
-            dir: e,
+            // The chord over its own length: unit over the reals.
+            dir: UnitVec3::constructed(e),
         }
         .height_and_distance(pa);
         let d2 = rho.powi(2);
@@ -633,7 +635,7 @@ fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Op
     };
     let side = |(x, _): Piece<'_, T>, (y, window): Piece<'_, T>| {
         let geom::Line { origin, dir } = x.as_line()?;
-        let (low, high) = piece_along(y, window, origin, n.cross(dir).normalize())?;
+        let (low, high) = piece_along(y, window, origin, n.cross(dir.get()).normalize())?;
         Some(low.max(T::zero() - high))
     };
     match (round(a.0), round(b.0)) {
@@ -680,8 +682,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let mut least = (section.minor() * (section.scaled(q) - T::one()))
             .min(b.axis.cross(ua).normalize().dot(q))
             .min(ub.cross(b.axis).normalize().dot(q));
-        let ray = Curve3::line(self.center, q);
-        let span = (T::zero(), T::one());
+        let (ray, reach) = geom::Line::chord(self.center, p);
+        let (ray, span) = (Curve3::Line(ray), (T::zero(), reach));
         for (rim, window) in &b.rims {
             least = least.min(apart((&ray, span), (rim, *window), b.axis)?);
         }

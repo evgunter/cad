@@ -17,6 +17,7 @@
 //! cylinder's radius change beside a cap across its axis. There the
 //! door transports, at every scalar; everywhere else it derives.
 
+use geom_core::UnitVec3;
 use core::cell::OnceCell;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use std::collections::BTreeMap;
@@ -1101,14 +1102,14 @@ fn plane_plane<T: Decide>(
             what: "the two planes are parallel",
         }));
     }
-    let dir = dir.normalize();
+    let dir = UnitVec3::squared(dir);
     let mid = old.mid_point(t0, t1);
     // Three planes: the two given, and the one across `dir` through the
     // old middle.
     let o = Point3::origin();
-    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.dot(mid - o));
-    let det = n1.dot(n2.cross(dir));
-    let x = (n2.cross(dir) * d1 + dir.cross(n1) * d2 + n1.cross(n2) * d3) / det;
+    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.get().dot(mid - o));
+    let det = n1.dot(n2.cross(dir.get()));
+    let x = (n2.cross(dir.get()) * d1 + dir.get().cross(n1) * d2 + n1.cross(n2) * d3) / det;
     Ok(Ok(Curve3::line(o + x, dir)))
 }
 
@@ -1138,7 +1139,7 @@ pub(crate) fn analytic_root<T: Decide>(
     ) = (surface, carrier)
     {
         let (q, m) = (plane_frame.origin(), plane_frame.axis());
-        let sine = dir.dot(m);
+        let sine = dir.get().dot(m);
         if graze(sine.abs())? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }

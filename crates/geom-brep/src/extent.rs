@@ -65,6 +65,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
+use geom_core::UnitVec3;
 use geom::cover::{Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
@@ -97,7 +98,7 @@ pub enum Forgets<T: Real> {
     /// A point of a plane, anywhere in the plane of this normal.
     Plane(Vec3<T>),
     /// A point of an axis, anywhere along this direction.
-    Axis(Vec3<T>),
+    Axis(UnitVec3<T>),
 }
 
 /// **A datum re-anchored within an extent**: `datum` slid along the
@@ -134,7 +135,7 @@ pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -
         }
         geom::Surface::Cylinder { frame, .. } => {
             *frame =
-                frame.with_origin(anchored_at(frame.origin(), Forgets::Axis(frame.axis()), at));
+                frame.with_origin(anchored_at(frame.origin(), Forgets::Axis(frame.axis_unit()), at));
         }
         _ => {}
     }
@@ -443,7 +444,7 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// rounding.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     match carrier {
-        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.get().norm(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
             Some(k) => k.speed_hi(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -984,7 +985,7 @@ impl<T: Real> Reach<T> {
     pub(crate) fn turn_lever(
         &self,
         hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
+        (n, a): (Vec3<T>, UnitVec3<T>),
         c: T,
         cos: T,
     ) -> Lever<T> {
@@ -996,7 +997,7 @@ impl<T: Real> Reach<T> {
                 }
                 .offset(*at);
                 let off_axis = off_perp.norm();
-                let m = n - a * n.dot(a);
+                let m = n - a.get() * n.dot(a.get());
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
                 let along_normal =
                     (off_perp.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
@@ -1014,7 +1015,7 @@ impl<T: Real> Reach<T> {
         &self,
         (foot, shift): (Point3<T>, T),
         hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
+        (n, a): (Vec3<T>, UnitVec3<T>),
         (c, cos): (T, T),
     ) -> Lever<T> {
         Lever::of_consumed_extent(
@@ -1053,8 +1054,8 @@ impl<T: Real> Reach<T> {
             Self::Face { at, .. } => axis.foot(*at),
             Self::Ball(ball) => ball.foot_on(axis),
             Self::Measured { .. } | Self::Region(_) => {
-                let (lo, hi) = self.range_along(axis.origin, axis.dir);
-                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.norm_squared())
+                let (lo, hi) = self.range_along(axis.origin, axis.dir.get());
+                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.get().norm_squared())
             }
         }
     }

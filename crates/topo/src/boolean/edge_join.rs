@@ -427,7 +427,7 @@ pub(super) fn singular_at<T: Decide>(
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
+    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::UnitVec3<T>| {
         geom::Line { origin, dir: axis }.distance(p)
     };
     let arm = match *s {
@@ -436,11 +436,11 @@ pub(super) fn singular_at<T: Decide>(
             (p - apex).norm()
         }
         geom::Surface::Sphere { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             off_axis(center, axis)
         }
         geom::Surface::Torus { frame, .. } | geom::Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             off_axis(center, axis)
         }
         _ => return Ok(false),

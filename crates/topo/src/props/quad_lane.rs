@@ -756,7 +756,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
-        Curve3::Line(geom::Line { dir, .. }) => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Line(geom::Line { dir, .. }) => (dir.get().norm() * Interval::point(span)).mag(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
             Some(k) => (k.speed_hi() * Interval::point(span)).mag(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -1504,7 +1504,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<f64, PropsError> {
     Ok(match carrier {
         Curve3::Line(geom::Line { dir, .. }) => {
-            (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
+            (Interval::from_certified(dir.get().norm()) * Interval::from_certified(t1 - t0)).mag()
         }
         // The control polygon bounds the spline's arc length
         // (the convex-hull/variation-diminishing fact).

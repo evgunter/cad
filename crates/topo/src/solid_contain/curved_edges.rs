@@ -226,7 +226,7 @@ pub(super) fn read<T: Decide>(
             let mut found: Vec<(T, Result<Gap, Indeterminate>)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
-                match passes(&span, ray, q + d * t, band) {
+                match passes(&span, ray, q + d.get() * t, band) {
                     Passes::Inside(s, gap) => found.push((s, gap)),
                     Passes::End(s) => {
                         clear = false;
@@ -320,7 +320,7 @@ fn narrow<T: Decide>(
                 };
                 let faces = [face, fe.across];
                 for seed in [m.span.0, m.span.1] {
-                    match passes(&span, ray, q + d * seed, band) {
+                    match passes(&span, ray, q + d.get() * seed, band) {
                         Passes::Inside(s, gap) => {
                             // A second edge by a gap nothing placed is no
                             // wedge shown: both are marked where no

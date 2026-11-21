@@ -53,6 +53,7 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! localizes nothing, and the door stays.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
@@ -165,9 +166,9 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = axis.normalize();
+        let a = UnitVec3::squared(axis);
         let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
-        (a * h, off)
+        (a.get() * h, off)
     };
     match *surface {
         geom::Surface::Sphere { frame, radius, .. } => {

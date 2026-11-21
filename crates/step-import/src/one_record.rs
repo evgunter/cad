@@ -269,10 +269,10 @@ fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) ->
         turns,
         half_angles,
     } = datums(a, b)?;
-    if !on_axis && la.dir.dot(lb.dir) <= 0.0 && half_angles.is_some() {
+    if !on_axis && la.dir.get().dot(lb.dir.get()) <= 0.0 && half_angles.is_some() {
         return None;
     }
-    let tilt = la.dir.cross(lb.dir).norm();
+    let tilt = la.dir.get().cross(lb.dir.get()).norm();
     let apart = if on_axis {
         reach.axes_apart(la, lb)
     } else {

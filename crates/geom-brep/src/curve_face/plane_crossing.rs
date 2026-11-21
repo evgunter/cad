@@ -327,7 +327,7 @@ pub fn span_plane_meet<T: Decide>(
                     let offset = geom::plane_offset(
                         plane_origin,
                         plane_normal,
-                        line.origin + line.dir * geom::mid_param(t0, t1),
+                        line.origin + line.dir.get() * geom::mid_param(t0, t1),
                     );
                     return Ok(Some(SpanPlaneMeet::Parallel { offset }));
                 }

@@ -93,6 +93,7 @@
 //! within that tolerance, over `ψ`'s lean across the partner, of the
 //! vertex: the stored vertex's own tolerance, not a new one.
 
+use geom_core::UnitVec3;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::{Curve3, Surface};
@@ -2043,7 +2044,7 @@ fn present_chart<'a>(
     // bound of its canonical domain. A vertex is at it by the one reading
     // of that incidence.
     if let &Surface::Sphere { frame, radius, .. } = piece.surface {
-        let (center, axis) = (frame.origin(), frame.axis());
+        let (center, axis) = (frame.origin(), frame.axis_unit());
         use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
         let half = Interval::pi() * at(0.5);
         let poles = sphere_poles(
@@ -2723,7 +2724,7 @@ impl Trig {
             Psi::Linear { n, q } => Some(linear(n, q)),
             Psi::Carrier(Implicit::Plane { o, n }) => Some(linear(n, o)),
             Psi::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let (w0, w1, w2) = radial(o, axis);
+                let (w0, w1, w2) = radial(o, axis.get());
                 let mut k = square3(w0, w1, w2);
                 k[0] = k[0] - r.powi(2);
                 // Q = ρ² − r² = ψ·(ρ + r), and ρ + r ≥ r.
@@ -2741,8 +2742,8 @@ impl Trig {
                 sin,
                 nappe,
             }) => {
-                let (w0, w1, w2) = radial(apex, axis);
-                let h = |w: Vec3<Interval>| w.dot(axis);
+                let (w0, w1, w2) = radial(apex, axis.get());
+                let h = |w: Vec3<Interval>| w.dot(axis.get());
                 let (h0, h1, h2) = (h(self.c - apex), h(self.a), h(self.b));
                 let (cc, ss) = (cos.powi(2), sin.powi(2));
                 let (rho, height) = (square3(w0, w1, w2), square(h0, h1, h2));
@@ -5283,7 +5284,7 @@ enum Implicit {
     },
     Cylinder {
         o: Point3<Interval>,
-        axis: Vec3<Interval>,
+        axis: UnitVec3<Interval>,
         r: Interval,
     },
     Sphere {
@@ -5292,7 +5293,7 @@ enum Implicit {
     },
     Cone {
         apex: Point3<Interval>,
-        axis: Vec3<Interval>,
+        axis: UnitVec3<Interval>,
         cos: Interval,
         sin: Interval,
         nappe: Interval,
@@ -5382,7 +5383,7 @@ impl Psi {
                     dir: axis,
                 }
                 .offset(p);
-                radial * (cos / radial.norm()) - axis * (nappe * sin)
+                radial * (cos / radial.norm()) - axis.get() * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m - t * slope,
         }
@@ -5763,7 +5764,7 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
             }
         }
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             Implicit::Cylinder {
                 o: origin,
                 axis,
@@ -5780,9 +5781,9 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let (sin, cos) = half_angle.sin_cos();
-            let positive = nappe(piece.boundary, apex, axis, band)?;
+            let positive = nappe(piece.boundary, apex, axis.get(), band)?;
             Implicit::Cone {
                 apex,
                 axis,
@@ -6009,7 +6010,7 @@ fn planes_through(
         .iter()
         .map(|r| match r.arc.as_ref()? {
             (line @ Curve3::Line(geom::Line { dir, .. }), (t0, t1)) => {
-                Some((line.eval(at(geom::mid_param(t0.lo(), t1.hi()))), *dir))
+                Some((line.eval(at(geom::mid_param(t0.lo(), t1.hi()))), dir.get()))
             }
             _ => None,
         })

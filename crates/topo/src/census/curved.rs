@@ -257,7 +257,7 @@ pub(super) fn edge_tangent_at<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<EdgeTangent<T>>> {
     if let Some(line) = super::edge_line(body, e) {
-        return Some(Some(EdgeTangent::Straight(line.dir.normalize())));
+        return Some(Some(EdgeTangent::Straight(line.dir.get().normalize())));
     }
     let r = read(body, e, band, errors)?;
     Some(on_interior_at(body, &r, q, band, errors)?.map(|(t, _)| {

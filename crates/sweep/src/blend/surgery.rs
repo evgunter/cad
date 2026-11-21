@@ -206,6 +206,7 @@
 //! [`SourceFaces::kef_minted`], the one face-destroying door of this
 //! file and of the two open bands under `open/`.
 
+use geom_core::UnitVec3;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use topo::construction::Construct;
@@ -2589,8 +2590,8 @@ pub(super) fn piece_along<T: Decide + Bounds>(
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
             let (la, lb) = (
-                (origin + dir * ta - c).dot(u),
-                (origin + dir * tb - c).dot(u),
+                (origin + dir.get() * ta - c).dot(u),
+                (origin + dir.get() * tb - c).dot(u),
             );
             Some((la.min(lb), la.max(lb)))
         }
@@ -3209,7 +3210,7 @@ fn strip_clearance<T: Decide + Bounds>(
         let t = point_of(body, chord.to)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
-        let d = (t - o).normalize();
+        let d = UnitVec3::squared((t - o));
         let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
@@ -3218,7 +3219,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 .map(|p| (*p - o).dot(u))
                 .fold(T::zero(), |acc: T, h| acc.min(h))
         };
-        let (low_d, high_d) = (along(d), -along(-d));
+        let (low_d, high_d) = (along(d.get()), -along(-d.get()));
         let across = -along(-m);
         for &edge in &boundary {
             if opens.iter().any(|op| op.edge() == edge)
@@ -3246,7 +3247,7 @@ fn strip_clearance<T: Decide + Bounds>(
                 )
             };
             let (lo_m, hi_m) = reach(m).ok_or_else(unread)?;
-            let (lo_d, hi_d) = reach(d).ok_or_else(unread)?;
+            let (lo_d, hi_d) = reach(d.get()).ok_or_else(unread)?;
             let margin = (lo_m - across)
                 .max(-hi_m)
                 .max(lo_d - high_d)
@@ -3808,7 +3809,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
         for &(o, u) in wedge {
             windows = match carrier {
                 Clippable::Line(line) => {
-                    let (a, b) = ((line.origin - o).dot(u), line.dir.dot(u));
+                    let (a, b) = ((line.origin - o).dot(u), line.dir.get().dot(u));
                     windows
                         .into_iter()
                         .filter_map(|clip| {
@@ -3976,7 +3977,7 @@ impl<'a, T: Real> Clippable<'a, T> {
     /// Length per unit of parameter.
     fn speed(self) -> T {
         match self {
-            Self::Line(line) => line.dir.norm(),
+            Self::Line(line) => line.dir.get().norm(),
             Self::Circle(c) => c.radius(),
         }
     }
@@ -6173,7 +6174,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
         ContactCarrier::Chord | ContactCarrier::SeamLine | ContactCarrier::Generator => {
             let len = p0.distance(p1);
-            (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
+            // The chord over its own length: unit over the reals.
+            (
+                Curve3::line(p0, UnitVec3::constructed((p1 - p0) / len)),
+                T::zero(),
+                len,
+            )
         }
         // ONE construction for the three arc kinds, deliberately: a corner
         // arc, a band's slit and a section are the same short arc about a stored

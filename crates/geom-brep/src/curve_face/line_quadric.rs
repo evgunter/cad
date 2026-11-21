@@ -191,7 +191,7 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis_unit());
             cone_roots(
                 line,
                 (
@@ -216,7 +216,7 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis_unit());
             match line_torus_roots(
                 line,
                 geom::Line {
@@ -357,7 +357,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     let geom::Line { origin, dir: axis } = wall;
     let w0 = q - origin;
     let w0p = wall.offset(q);
-    let dp = d - axis * d.dot(axis);
+    let dp = d.get() - axis.get() * d.get().dot(axis.get());
     let a2 = dp.norm_squared();
     let shift = match about {
         About::Start => T::zero(),
@@ -367,7 +367,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     };
     let w = w0p + dp * shift;
     Centred::new(
-        (w0, d, shift, w),
+        (w0, d.get(), shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
     )
@@ -383,15 +383,15 @@ pub(super) fn sphere_quadratic<T: Decide>(
 ) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let w0 = q - center;
-    let a2 = d.norm_squared();
+    let a2 = d.get().norm_squared();
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / a2,
+        About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
     };
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        (w0, d.get(), shift, w),
+        [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)],
         radius,
     )
 }
@@ -558,15 +558,15 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     } = cone;
     let w0 = q - apex;
     let shift = line.param_within(apex, run);
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     let cos2 = half_angle.cos().powi(2);
-    let (da, wa) = (d.dot(axis), w.dot(axis));
+    let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
     let coeffs = [
-        da.powi(2) - d.norm_squared() * cos2,
-        da * wa - w.dot(d) * cos2,
+        da.powi(2) - d.get().norm_squared() * cos2,
+        da * wa - w.dot(d.get()) * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero())
+    Centred::new((w0, d.get(), shift, w), coeffs, T::zero())
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -679,14 +679,14 @@ pub fn line_torus_roots<T: Decide>(
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
     let w0 = q - center;
-    let e = d.dot(axis);
-    let b = w0.dot(d);
+    let e = d.get().dot(axis.get());
+    let b = w0.dot(d.get());
     // The component of `q − c` perpendicular to the ray: its norm is the
     // line's distance from the centre and its axial part is the height
     // at the line's closest approach.
-    let perp = w0 - d * b;
+    let perp = w0 - d.get() * b;
     let m = perp.norm_squared();
-    let n = perp.dot(axis);
+    let n = perp.dot(axis.get());
     let rr = major_radius.powi(2);
     let big_m = m + rr - minor_radius.powi(2);
     let p = two * big_m - four * rr * (T::one() - e.powi(2));
@@ -864,7 +864,7 @@ fn cone_roots<T: Decide>(
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let disc = centred.disc();
     let (roots, _) = centred.roots(disc);
-    let speed = line.dir.norm();
+    let speed = line.dir.get().norm();
     let mut placed = [(T::zero(), T::zero()); 2];
     for (t, at) in roots.into_iter().zip(&mut placed) {
         let slack = centred.slack_at(t - centred.shift, disc);

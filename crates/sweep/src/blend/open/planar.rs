@@ -43,6 +43,7 @@
 //! The other open band is [`super::ruled`]; what the two share, and the
 //! seam both rest on, is stated at [`super`].
 
+use geom_core::UnitVec3;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use topo::construction::Construct;
@@ -446,7 +447,7 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
             for (wall, l) in walls.iter_mut().zip([p1, p2]) {
                 let f = other(l);
                 let (a, b) = (trim(l, f)?, trim(odd, f)?);
-                *wall = line_meet(a, b, a.dir.cross(b.dir));
+                *wall = line_meet(a, b, a.dir.get().cross(b.dir.get()));
                 feet[slot(f)?] = Foot::At(*wall);
             }
             // The chord the odd strip leaves in `E`, between its two
@@ -454,19 +455,19 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
             // `s` in from it, toward the vertex.
             let pierce = |f: FaceKey| -> Result<Point3<T>, BlendError> {
                 let l = trim(odd, f)?;
-                Ok(l.origin + l.dir * ((p - l.origin).dot(n_e) / l.dir.dot(n_e)))
+                Ok(l.origin + l.dir.get() * ((p - l.origin).dot(n_e) / l.dir.get().dot(n_e)))
             };
             let (g1, g2) = (pierce(other(p1))?, pierce(other(p2))?);
-            let d = (g2 - g1).normalize();
+            let d = UnitVec3::squared((g2 - g1));
             let w = p - g1;
-            let w = (w - d * w.dot(d)).normalize();
+            let w = (w - d.get() * w.dot(d.get())).normalize();
             let chord_trim = geom::Line {
                 origin: g1 + w * radius,
                 dir: d,
             };
             let on_chord = |l: &Link<T>| -> Result<(EdgeKey, Point3<T>), BlendError> {
                 let a = trim(l, host)?;
-                Ok((l.edge, line_meet(a, chord_trim, a.dir.cross(d))))
+                Ok((l.edge, line_meet(a, chord_trim, a.dir.get().cross(d.get()))))
             };
             let host_feet = [on_chord(p1)?, on_chord(p2)?];
             feet[slot(host)?] = Foot::PerEdge(host_feet);
@@ -553,7 +554,7 @@ fn chamfer_feet<T: Decide + Bounds>(
         // is the support's own normal up to a nonzero scale — and
         // `line_meet`'s ratio is invariant under that scale, so no
         // second reading of the face's stored plane is needed.
-        feet[slot] = line_meet(a, b, a.dir.cross(b.dir));
+        feet[slot] = line_meet(a, b, a.dir.get().cross(b.dir.get()));
     }
     Ok(feet)
 }
@@ -835,7 +836,7 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         l.edge,
         (l.face_a, l.face_b),
         (q_a, q_b),
-        along,
+        along.get(),
         section,
         &l.blend.surface,
     )?;

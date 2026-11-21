@@ -1010,7 +1010,7 @@ pub(crate) fn joint_arm<T: Real>(
 /// stored latitude. `None` on a plane or a spline chart, which has no
 /// axis.
 fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> Option<T> {
-    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
+    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::UnitVec3<T>| {
         geom::Line { origin, dir: axis }.distance(vertex)
     };
     match *chart.surface() {
@@ -1018,11 +1018,11 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
         Surface::Sphere { frame, .. }
         | Surface::Torus { frame, .. }
         | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(off_axis(center, axis))
         }
         Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             Some(off_axis(apex, axis))
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,

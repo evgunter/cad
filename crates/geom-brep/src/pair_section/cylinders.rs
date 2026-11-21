@@ -265,11 +265,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let lines = [
             geom::Line {
                 origin: o1,
-                dir: f1.axis(),
+                dir: f1.axis_unit(),
             },
             geom::Line {
                 origin: o2,
-                dir: f2.axis(),
+                dir: f2.axis_unit(),
             },
         ];
         let region = reach.ball();
@@ -355,14 +355,14 @@ impl<T: Decide> CylinderCylinderPose<T> {
             return Ok((stance, RegionPlacement::Straddles));
         }
         let (a1, a2) = (l1.dir, l2.dir);
-        let cross = a1.cross(a2);
+        let cross = a1.get().cross(a2.get());
         let (normal, sin) = cross.direction_and_length();
         let f1 = reach.foot_on(l1);
         let w = reach.foot_on(l2) - f1;
         let gap = w.dot(normal);
         // The common perpendicular's foot on the first axis, from the
         // reach's pivot there.
-        let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
+        let foot = f1 + a1.get() * (w.cross(a2.get()).dot(cross) / sin.powi(2));
         let e = gap.abs();
         let reach_d = read(CcDecision::CrossingGap, e - (r1 + r2), band)?;
         let nest = match reach_d.sign {
@@ -430,7 +430,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
 
     /// The axes as the operands store them (unit only to their
     /// rounding), in that order.
-    pub fn axes(&self) -> [Vec3<T>; 2] {
+    pub fn axes(&self) -> [geom_core::UnitVec3<T>; 2] {
         self.lines.map(|l| l.dir)
     }
 
@@ -470,7 +470,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
             pick(foot.y, other.y),
             pick(foot.z, other.z),
         );
-        let (axis, partner) = (pick3(a1, a2), pick3(a2, a1));
+        let (axis, partner) = (pick3(a1.get(), a2.get()), pick3(a2.get(), a1.get()));
         let frame = geom::Frame::new(foot, axis, normal);
         let v = frame.v_ref();
         Some(RuledCylinders {
@@ -511,7 +511,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let [p, q] = parallel_rulings(foot, across, self.lines[0].dir, self.radii);
+        let [p, q] = parallel_rulings(foot, across, self.lines[0].dir.get(), self.radii);
         Some(match (gap.sign, nest.map(|n| n.sign)) {
             (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => ParallelSection::Empty,
             (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
@@ -592,7 +592,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let (normals, _) = bisector_normals(((self.lines[0].dir), (self.lines[1].dir)));
+        let (normals, _) = bisector_normals(((self.lines[0].dir).get(), (self.lines[1].dir).get()));
         Some((foot, normals))
     }
 
@@ -645,9 +645,9 @@ fn region_span<T: Decide>(
     band: Band,
 ) -> Option<(T, T)> {
     let to = region.center() - origin;
-    let t = to.dot(dir);
+    let t = to.dot(dir.get());
     let off = (to.norm_squared() - t.powi(2)).max(T::zero()).sqrt();
-    let foot = ExtentBall::point(origin + dir * t);
+    let foot = ExtentBall::point(origin + dir.get() * t);
     if placement(foot, region, band) == RegionPlacement::Outside {
         return None;
     }
@@ -937,7 +937,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             margin,
                         });
                     }
-                    let [e1, e2] = bisector_ellipses(foot, (axis, (pose.lines[1].dir)), r1, band)?;
+                    let [e1, e2] = bisector_ellipses(foot, (axis.get(), (pose.lines[1].dir).get()), r1, band)?;
                     let (bisector, ends) =
                         bisector_nodes(&pose, normal, [&e1, &e2], &against, band);
                     nodes = bisector;

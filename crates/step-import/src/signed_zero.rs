@@ -80,7 +80,7 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
     use geom::Curve3;
     match c {
         Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(plus_zero_point(origin), plus_zero(dir))
+            Curve3::line_stated(plus_zero_point(origin), plus_zero(dir.get()))
         }
         // A conic's frame is carried with each `−0` entry folded: the
         // stored rotation within one kind, never squared again.

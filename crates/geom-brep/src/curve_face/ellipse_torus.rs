@@ -92,7 +92,7 @@ const TORUS_ROOT_SLACK: &str = "ellipse_torus_root_slack";
 /// meters reads ON the surface.
 pub(super) fn torus_walk<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    torus: (geom_core::Point3<T>, geom_core::UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     floor: T,
@@ -113,7 +113,7 @@ pub(super) fn torus_walk<T: Decide>(
 /// this module's rows, which show the meter is what decides).
 fn torus_walk_metered<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    torus: (geom_core::Point3<T>, geom_core::UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     floor: T,

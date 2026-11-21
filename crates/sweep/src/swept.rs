@@ -606,8 +606,8 @@ impl<T: Real> Unit2<T> {
 /// sketch plane's own normal
 /// ([`Unit3::from_frame`]), or, on the vector arm alone, the user's
 /// vector normalized once ([`Unit3::normalized`]). It is unwrapped where
-/// a [`Surface`] or [`Curve3`] stores it: those carriers take bare
-/// vectors, so the witness stops at the sweep doors' seam.
+/// a [`Surface`] stores it, and carried on as the kernel's witness where
+/// a line does ([`Unit3::unit`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit3<T: Real>(Vec3<T>);
 
@@ -615,6 +615,13 @@ impl<T: Real> Unit3<T> {
     /// The direction, for a carrier that stores bare vectors.
     pub(crate) fn get(self) -> Vec3<T> {
         self.0
+    }
+
+    /// **The direction as the kernel's witness**, for a carrier that
+    /// stores one (a line's direction): unit by this type's own
+    /// construction, its bits kept.
+    pub(crate) fn unit(self) -> UnitVec3<T> {
+        UnitVec3::constructed(self.0)
     }
 
     /// A frame's decided axis.
@@ -869,7 +876,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             let (dir, span) = sketch_chord(seg);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::line(q_from, place.direction(dir).get()),
+                carrier: Curve3::line(q_from, place.direction(dir).unit()),
                 param_start: T::zero(),
                 param_end: span,
             }

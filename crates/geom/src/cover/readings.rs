@@ -145,7 +145,7 @@ impl<T: SpanLocate> Curve3<T> {
         let non_finite = || Uncovered::new(entity, Unknown::NonFinite);
         match self {
             Curve3::Line(Line { origin, dir }) => {
-                Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
+                Cover::segment(*origin + dir.get() * window.lo, *origin + dir.get() * window.hi)
                     .ok_or_else(non_finite)
             }
             Curve3::Circle(circle) => {

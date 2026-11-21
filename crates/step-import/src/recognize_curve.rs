@@ -409,7 +409,7 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
     if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
         return None;
     }
-    let line = Curve3::line(plus_zero_point(first), plus_zero(dir));
+    let line = Curve3::line_stated(plus_zero_point(first), plus_zero(dir));
     Some((line, residual, length))
 }
 
@@ -455,7 +455,7 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    Some((Curve3::line(plus_zero_point(first), plus_zero(dir)), hull))
+    Some((Curve3::line_stated(plus_zero_point(first), plus_zero(dir)), hull))
 }
 
 /// An upper bound on `|p − q|`, rounded outward.
@@ -502,11 +502,7 @@ pub(crate) fn try_circle(
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
     };
-    let off = geom::Line {
-        origin: s0,
-        dir: chord_dir,
-    }
-    .offset(s1);
+    let off = geom::Line::stated(s0, chord_dir).offset(s1);
     let sagitta = off.norm();
     if !sagitta.is_finite() {
         return Ok(None);

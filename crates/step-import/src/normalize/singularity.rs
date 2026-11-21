@@ -41,7 +41,7 @@ use geom::{ChartInverse, Curve3, Surface};
 use geom_brep::chart_singularity::{self as home, Lies, Unread};
 use geom_brep::curve_pair::{self, Span, SpanEnd};
 use geom_brep::props::LoopEdge;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, UnitVec3, Vec3};
 
 use super::surgery::{
     self, At, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
@@ -62,7 +62,7 @@ enum Chart {
         frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         u_ref: Vec3<f64>,
     },
     /// A cone: the apex.
@@ -70,7 +70,7 @@ enum Chart {
         /// The stored frame, carried back by [`Chart::surface`].
         frame: geom::Frame<f64>,
         apex: Point3<f64>,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         half_angle: f64,
         u_ref: Vec3<f64>,
     },
@@ -80,7 +80,7 @@ impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
             Surface::Sphere { frame, radius } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Sphere {
                     frame,
                     center,
@@ -90,7 +90,7 @@ impl Chart {
                 })
             }
             Surface::Cone { frame, half_angle } => {
-                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Cone {
                     frame,
                     apex,
@@ -104,6 +104,10 @@ impl Chart {
     }
 
     fn axis(self) -> Vec3<f64> {
+        self.axis_unit().get()
+    }
+
+    fn axis_unit(self) -> UnitVec3<f64> {
         match self {
             Self::Sphere { axis, .. } | Self::Cone { axis, .. } => axis,
         }
@@ -807,7 +811,7 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center, radius, axis.get(), d,
             )),
             from: if k == 0 { 0.0 } else { core::f64::consts::PI },
             sign: if k == 0 { 1.0 } else { -1.0 },
@@ -931,7 +935,7 @@ fn interior(
         .filter(|&(j, _)| j != k)
         .map(|(_, s)| *s)
         .collect();
-    let (axis, origin) = (chart.axis(), chart.origin());
+    let (axis, origin) = (chart.axis_unit(), chart.origin());
     // The azimuth: the surface's own u_ref, unless the face holds the
     // other pole too. Then its loop bounds a pole-free hole, and the
     // azimuth is that of the loop's centroid, which the hole surrounds:
@@ -1028,7 +1032,7 @@ fn strut_tip(
         &spec.carrier,
         geom::Line {
             origin: chart.origin(),
-            dir: chart.axis(),
+            dir: chart.axis_unit(),
         },
         crate::signed_zero::plus_zero_point,
         crate::signed_zero::plus_zero,

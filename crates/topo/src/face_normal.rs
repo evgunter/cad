@@ -243,7 +243,7 @@ fn carrier_desc_on<T: Decide>(
         }),
         geom::Surface::Cylinder { frame, radius, .. } => Some(CarrierDesc::Cylinder {
             origin: frame.origin(),
-            axis: frame.axis(),
+            axis: frame.axis_unit(),
             radius: *radius,
             outward,
         }),
@@ -253,7 +253,7 @@ fn carrier_desc_on<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Torus {
                 center,
                 axis,
@@ -265,7 +265,7 @@ fn carrier_desc_on<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Cone {
                 apex,
                 axis,
@@ -628,7 +628,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
@@ -715,7 +715,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
         geom::Surface::Cylinder { frame, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { frame, .. } => {
@@ -723,7 +723,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             clear(Margin::norm3(p - center))?
         }
         geom::Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             cone_axis_clearance(
                 geom::Line {
                     origin: apex,
@@ -733,14 +733,14 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
                 band,
             )
             .map_err(|_| FootNormalError::NoFoot { band })?;
-            clear(Margin::of((p - apex).dot(axis)))?;
+            clear(Margin::of((p - apex).dot(axis.get())))?;
         }
         geom::Surface::Torus {
             frame,
             major_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let radial = geom::Line {
                 origin: center,
                 dir: axis,

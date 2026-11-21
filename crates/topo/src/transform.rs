@@ -56,6 +56,7 @@
 //!   fit net by the full affine map, `d` negated under a reflection,
 //!   the window and the certificate carried (`map_approx`).
 
+use geom_core::UnitVec3;
 use std::sync::Arc;
 
 use geom::Curve3;
@@ -415,7 +416,11 @@ pub(crate) fn map_carrier<T: Real>(
     let frame = |f: &geom::Frame<T>| map_frame(map, hand, motion, f, true);
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(map.transform_point(origin), map_vec(map, dir))
+            // A rigid map's image of a unit direction is unit.
+            Curve3::line(
+                map.transform_point(origin),
+                UnitVec3::constructed(map_vec(map, dir.get())),
+            )
         }
         // A rigid map preserves the sizes and the frame's orthonormality —
         // the ellipse's axis ordering transfers unchanged, so no
@@ -812,7 +817,8 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
                 place: *map * place,
                 axis: geom::Line {
                     origin: map.transform_point(axis.origin),
-                    dir: hand.axial(map, axis.dir),
+                    // A rigid map's image of a unit direction is unit.
+                    dir: UnitVec3::constructed(hand.axial(map, axis.dir.get())),
                 },
                 angle,
             },

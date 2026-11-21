@@ -18,6 +18,7 @@
 //! a tangency, or two crossings the band cannot order graze the carrier,
 //! and refuse.
 
+use geom_core::UnitVec3;
 use geom::{Curve3, Surface, SurfaceKind};
 use geom_brep::curve_face::{CrossRefusal, CrossWhy, OnSpan, Pose, PoseRefusal, cross};
 use geom_brep::curve_pair::{MeetKind, Span, SpanEnd};
@@ -239,7 +240,7 @@ pub fn ray_crossings<T: Decide>(
     let span = Span::new(&carrier, (ray.start(), ray.from_start(reach)));
     meetings(&span, surface, &[SpanEnd::Start], band)?
         .into_iter()
-        .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+        .map(|(t, point)| crossing(surface, sense, t, point, dir.get(), arm, band))
         .collect()
 }
 
@@ -261,7 +262,7 @@ pub fn circle_crossings<T: Decide>(
     // The circle on the frame its stated directions square to; the
     // crossings' velocity reads that same frame, so it is the carrier's.
     let frame = geom::Frame::new(center, axis, u_ref);
-    let (axis, u_ref, v_ref) = (frame.axis(), frame.u_ref(), frame.v_ref());
+    let (axis, u_ref, v_ref) = (frame.axis_unit(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));

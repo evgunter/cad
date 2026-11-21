@@ -171,7 +171,7 @@ pub(super) fn split<T: Decide>(v: Vec3<T>, n: Vec3<T>) -> (Vec3<T>, T) {
 fn nearest_offset<T: Decide>(depth: Around<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
         Around::Line(geom::Line { origin, dir: axis }) => {
-            let a = axis.normalize();
+            let a = axis.get().normalize();
             (split(p - origin, a).0, split(q - p, a).0)
         }
         Around::Point(center) => (p - center, q - p),
@@ -335,7 +335,7 @@ pub(super) fn across<T: Decide>(
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
                 (Around::Line(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
-                    unit(axis.normalize().cross(q - p))
+                    unit(axis.get().normalize().cross(q - p))
                 }
                 _ => None,
             })
@@ -346,11 +346,11 @@ pub(super) fn across<T: Decide>(
             Around::Line(geom::Line { origin: o, dir: a }),
             Around::Line(geom::Line { origin: p, dir: b }),
         ) => {
-            vec![off(p, o, a), off(o, p, b)]
+            vec![off(p, o, a.get()), off(o, p, b.get())]
         }
         (Around::Line(geom::Line { origin, dir: axis }), Around::Point(center))
         | (Around::Point(center), Around::Line(geom::Line { origin, dir: axis })) => {
-            vec![off(center, origin, axis)]
+            vec![off(center, origin, axis.get())]
         }
         (Around::Point(c), Around::Point(d)) => vec![unit(d - c)],
         _ => Vec::new(),

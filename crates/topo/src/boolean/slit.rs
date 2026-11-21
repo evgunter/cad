@@ -1512,7 +1512,7 @@ fn conic_or_line_on<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_between(
                 &points,
                 geom::Line {

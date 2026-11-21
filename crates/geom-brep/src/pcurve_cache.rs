@@ -5843,7 +5843,7 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
             c: origin,
             a: Vec3::zero(),
             b: Vec3::zero(),
-            l: dir,
+            l: dir.get(),
         }),
         Curve3::Circle(_) | Curve3::Ellipse(_) => carrier.conic().map(|k| {
             let (a, b) = k.semi_axis_vectors();
@@ -6922,10 +6922,10 @@ pub fn ruling_miss<T: Real>(
             } else {
                 reach
             };
-            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
+            Margin::metered(reach, InfSpeed::new(dir.get().cross(axis).norm()))
         }
         Ruling::Generator { apex, g } => {
-            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
+            let off = |t: T| (origin + dir.get() * t - apex).cross(g).norm();
             #[cfg(test)]
             if mutants::ruling_unplaced() {
                 return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
@@ -9991,7 +9991,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - p0.y) / pl.y;
-            hull = hull.max((*cp - (origin + dir * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
@@ -11642,7 +11642,7 @@ fn derive_class_zero<T: Decide>(
                     // the line by its distance from the generator.
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-                    let (h0, hs) = (w.dot(axis), dir.dot(axis));
+                    let (h0, hs) = (w.dot(axis), dir.get().dot(axis));
                     // Read off the origin, the nappe names the same image
                     // from any origin on the line: `radial · sign h` is one
                     // direction at every point of a ruling through the
@@ -11665,11 +11665,11 @@ fn derive_class_zero<T: Decide>(
                                     Decided {
                                         sign: Sign::Positive,
                                         ..
-                                    } => (radial(dir), Nappe::Pos, false),
+                                    } => (radial(dir.get()), Nappe::Pos, false),
                                     Decided {
                                         sign: Sign::Negative,
                                         ..
-                                    } => (radial(dir), Nappe::Neg, false),
+                                    } => (radial(dir.get()), Nappe::Neg, false),
                                     // The apex plane meets the cone at
                                     // its radius `h·tan α = 0`: the apex
                                     // alone.
@@ -11740,7 +11740,7 @@ fn derive_class_zero<T: Decide>(
                                 c: w.dot(g),
                                 a: T::zero(),
                                 b: T::zero(),
-                                l: dir.dot(g),
+                                l: dir.get().dot(g),
                             },
                         },
                         Derivation::ConeRuling {
@@ -13036,7 +13036,7 @@ fn torus_oblique_circle<T: Decide>(
     let (c, n) = (frame.origin(), frame.axis());
     let (center, axis, u_ref) = (
         torus_frame.origin(),
-        torus_frame.axis(),
+        torus_frame.axis_unit(),
         torus_frame.u_ref(),
     );
     let radius = circle.radius();
@@ -13048,7 +13048,7 @@ fn torus_oblique_circle<T: Decide>(
     .offset(c);
     let gates = [
         ("pcurve_torus_villarceau_offset", Margin::of(w_r.norm() - r)),
-        ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis))),
+        ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis.get()))),
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
@@ -13056,7 +13056,7 @@ fn torus_oblique_circle<T: Decide>(
             // honest extent is the Villarceau circle's own radius, gated
             // equal to `R` only within the band, so it would move bits.
             Margin::levered(
-                n.cross(axis).norm() - r / big,
+                n.cross(axis.get()).norm() - r / big,
                 geom_core::Lever::unsourced(big),
             ),
         ),
@@ -13152,15 +13152,15 @@ fn torus_oblique_circle<T: Decide>(
         .map(geom_core::NonzeroSign::unit)
         .map_err(reread)
     };
-    let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
-    let sense = decided_sense("pcurve_chart_orientation", axis.cross(d))?;
+    let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis.get())?;
+    let sense = decided_sense("pcurve_chart_orientation", axis.get().cross(d))?;
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
     // Read through `Azimuth::principal`, so a direction of no length (an
     // undefined `t0`) reads `0` here as everywhere.
     let t0 = Azimuth::of(d.dot(form.b), d.dot(form.a)).principal(band);
-    let cv = axis.cross(u_ref);
+    let cv = axis.get().cross(u_ref);
     // The tube angle, `vl·(t − t0)` from the carrier's own parameter, is
     // an angle of the chart like the azimuth: placed in the window at the
     // span's midpoint, levered at the tube's radius.
@@ -13219,7 +13219,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             crate::implicit::cone_elevation(
                 geom::Line {
                     origin: apex,
-                    dir: frame.axis(),
+                    dir: frame.axis_unit(),
                 },
                 half_angle,
                 None,
@@ -13452,7 +13452,7 @@ mod incidence {
         let k = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let [ox, oy, oz] = exact_vec(origin - geom_core::Point3::origin());
-                let [dx, dy, dz] = exact_vec(dir);
+                let [dx, dy, dz] = exact_vec(dir.get());
                 let m = Rounded::exact(mid);
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
@@ -13550,7 +13550,7 @@ mod incidence {
     /// A point as the anchored read takes it: a line through it, whose
     /// origin is the frame's anchor and whose direction nothing reads.
     pub(super) fn point_probe<T: geom_core::Real>(point: geom_core::Point3<T>) -> Curve3<T> {
-        Curve3::line(point, geom_core::Vec3::new(T::one(), T::zero(), T::zero()))
+        Curve3::line(point, geom_core::UnitVec3::exact_x())
     }
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):

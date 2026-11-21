@@ -346,7 +346,7 @@ pub(super) fn bisector_datum<T: Decide>(
             what: "an equal cylinder pair's pierced face is no cylinder",
         });
     };
-    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis_unit());
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
     let (radial_hat, _) = radial.direction_and_length();

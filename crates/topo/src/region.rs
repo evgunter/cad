@@ -1091,7 +1091,7 @@ impl<T: Decide> Course<T> for Line<T> {
     }
 
     fn heading(&self, _: Point3<T>) -> Vec3<T> {
-        self.line.dir
+        self.line.dir.get()
     }
 
     fn curve(&self) -> SurfaceCurve<T> {

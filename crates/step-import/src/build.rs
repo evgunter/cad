@@ -617,7 +617,13 @@ fn read_section(
     let canonical;
     let seed = if plane_normals(sa, sb).is_some() {
         let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
-        canonical = Curve3::line(Point3::origin(), tangent);
+        // The printed carrier's tangent, its bits kept where it is unit
+        // to rounding (a printed line's), squared where it is not.
+        canonical = Curve3::Line(geom::Line {
+            origin: Point3::origin(),
+            dir: geom_core::UnitVec3::stated(tangent)
+                .unwrap_or_else(|| geom_core::UnitVec3::squared(tangent)),
+        });
         (&canonical, (0.0, 0.0))
     } else {
         (&spec.carrier, (spec.t0, spec.t1))
@@ -1112,7 +1118,7 @@ fn deferred_carrier(
         };
         // The plane's curve between two points is the segment; the printed
         // carrier only has to lie on it.
-        let segment = Curve3::line(p_start, dir);
+        let segment = Curve3::line_stated(p_start, dir);
         if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&segment, spec)) != Read::Zero {
             return Err(unbuilt(
                 file,
@@ -1186,7 +1192,7 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {
             let origin = frame.origin();
-            vec![Curve3::line(origin + radial * radius, axis)]
+            vec![Curve3::line_stated(origin + radial * radius, axis)]
         }
         Surface::Cone {
             frame, half_angle, ..
@@ -1197,7 +1203,7 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             // kernel's cone is the complete double-nappe locus).
             let (s, c) = half_angle.sin_cos();
             let c = if along < 0.0 { -c } else { c };
-            vec![Curve3::line(apex, axis * c + radial * s)]
+            vec![Curve3::line_stated(apex, axis * c + radial * s)]
         }
         Surface::Sphere {
             frame: carrier_frame,
@@ -1464,7 +1470,7 @@ fn iso_of_wall(
                             column,
                             running: Running::Chord { from, to, len },
                         };
-                        return Ok(Some(chosen(wall, Curve3::line(origin, dir), map)));
+                        return Ok(Some(chosen(wall, Curve3::line_stated(origin, dir), map)));
                     }
                     None => {}
                 }
@@ -1577,7 +1583,7 @@ fn cap_row(
                 }) = line_on_column(&iso, (p_start, p_end), file)
                 {
                     let (dir, len) = chord.direction_and_length();
-                    let line = Curve3::line(origin, dir);
+                    let line = Curve3::line_stated(origin, dir);
                     if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
                         continue;
                     }
@@ -1799,15 +1805,12 @@ fn line_on_column(
         });
     }
     iso.constant_weight()?;
-    let line = geom::Line {
-        origin: first,
-        dir: last - first,
-    };
+    let (line, length) = geom::Line::chord(first, last);
     control
         .iter()
         .all(|&p| {
             line.param(p).is_finite()
-                && zero(STEP_ISO_STRAIGHT, line.distance_within(p, (0.0, 1.0)))
+                && zero(STEP_ISO_STRAIGHT, line.distance_within(p, (0.0, length)))
         })
         .then_some(LineOnColumn::Locus)
 }
@@ -2500,7 +2503,7 @@ fn rebuilt_in_surface(
         .map(|f| gap_to(&carrier, p_start + dir * (len * f)))
         .fold(0.0_f64, f64::max);
     if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero {
-        Curve3::line(p_start, dir)
+        Curve3::line_stated(p_start, dir)
     } else {
         carrier
     }

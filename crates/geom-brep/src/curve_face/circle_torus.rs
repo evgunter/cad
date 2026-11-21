@@ -143,6 +143,7 @@
 //!   width, refused `Unsettled` (module docs of [`super::circle_roots`],
 //!   "The half-angle ladder, and the subdivision that answers").
 
+use geom_core::UnitVec3;
 use geom::Conic;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -283,7 +284,7 @@ pub(super) fn torus_method<T: Decide>(
 }
 
 /// A torus's centre, axis and radii, or `None` for another kind.
-fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, Vec3<T>, T, T)> {
+fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, UnitVec3<T>, T, T)> {
     match *torus {
         geom::Surface::Torus {
             frame,
@@ -291,7 +292,7 @@ fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some((center, axis, major_radius, minor_radius))
         }
         _ => None,
@@ -312,9 +313,9 @@ pub(super) struct Axes<T: geom_core::Real> {
 /// [`Axes`] of `circle` against the torus `(center, axis)`.
 pub(super) fn axes<T: Decide>(
     circle: &geom::Circle<T>,
-    (t_center, t_axis): (Point3<T>, Vec3<T>),
+    (t_center, t_axis): (Point3<T>, UnitVec3<T>),
 ) -> Axes<T> {
-    let tilt = circle.radius() * circle.frame.axis().cross(t_axis).norm();
+    let tilt = circle.radius() * circle.frame.axis().cross(t_axis.get()).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
@@ -383,7 +384,7 @@ pub(super) fn meridian<T: Decide>(
 /// ring's `floor` on `|F|` per metre.
 fn circle_walk<T: Decide>(
     circle: &geom::Circle<T>,
-    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+    (t_center, t_axis, major_radius, minor_radius): (Point3<T>, UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     torus: &geom::Surface<T>,
     floor: T,

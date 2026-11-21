@@ -272,7 +272,7 @@ fn corner_stations<T: Decide>(
         origin: apex,
         dir: axis,
     } = axis;
-    let station = |p: Point3<T>| (p - apex).dot(axis);
+    let station = |p: Point3<T>| (p - apex).dot(axis.get());
     let stations: Vec<T> = data
         .boundary()
         .map(|member| {

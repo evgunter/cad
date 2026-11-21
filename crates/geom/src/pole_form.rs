@@ -18,7 +18,7 @@
 //! carriers ([`sphere_meridian`], [`cone_generator`]). It says what the
 //! cut is, not where a door makes it.
 
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Real, UnitVec3, Vec3};
 
 use crate::Curve3;
 
@@ -51,10 +51,14 @@ pub fn half_turn_curve<T: Real>(
     vector: impl Fn(Vec3<T>) -> Vec3<T>,
 ) -> Option<Curve3<T>> {
     let crate::Line { origin, dir: axis } = axis;
-    let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis));
-    let turn = |w: Vec3<T>| vector(half_turn(w, axis));
+    let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis.get()));
+    let turn = |w: Vec3<T>| vector(half_turn(w, axis.get()));
     match *carrier {
-        Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
+        // A half turn is rigid: the image of a unit direction is unit.
+        Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(
+            place(o),
+            UnitVec3::constructed(turn(dir.get())),
+        )),
         Curve3::Circle(c) => Some(Curve3::circle(
             place(c.frame.origin()),
             turn(c.frame.axis()),
@@ -90,7 +94,8 @@ pub fn cone_generator<T: Real>(axis: crate::Line<T>, half_angle: T, d: Vec3<T>) 
         dir: axis,
     } = axis;
     let (s, c) = half_angle.sin_cos();
-    Curve3::line(apex, axis * c + d * s)
+    // `axis ⊥ d`, both unit: the ruling is unit over the reals.
+    Curve3::line(apex, UnitVec3::constructed(axis.get() * c + d * s))
 }
 
 #[cfg(test)]

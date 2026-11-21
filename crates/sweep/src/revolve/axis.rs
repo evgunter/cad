@@ -242,7 +242,7 @@ impl<T: Real> AxisFrame<T> {
     pub(super) fn line3(&self) -> geom::Line<T> {
         geom::Line {
             origin: self.origin3,
-            dir: self.axis.get(),
+            dir: self.axis,
         }
     }
 

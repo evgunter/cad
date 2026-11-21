@@ -431,10 +431,7 @@ fn try_cylinder(
     let pa = sample(3.0 / 8.0);
     let pb = sample(6.0 / 8.0);
     // Project ⊥ axis into the plane through p0.
-    let plane = geom::Line {
-        origin: p0,
-        dir: axis,
-    };
+    let plane = geom::Line::stated(p0, axis);
     let proj = |p: Point3<f64>| plane.square_foot(p);
     let (q0, qa, qb) = (proj(p0), proj(pa), proj(pb));
     // Conditioning margin: the sagitta of the middle sample over the
@@ -444,11 +441,7 @@ fn try_cylinder(
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
     };
-    let off = geom::Line {
-        origin: q0,
-        dir: chord_dir,
-    }
-    .offset(qa);
+    let off = geom::Line::stated(q0, chord_dir).offset(qa);
     let sagitta = off.norm();
     if !sagitta.is_finite() {
         return Ok(None);
@@ -727,11 +720,7 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
     let c = s.map(CurvatureSample::centre);
     // A core whose three points are collinear at the band is a straight
     // spine — a cylinder's limit, `R` running off to infinity: no torus.
-    let sagitta = geom::Line {
-        origin: c[0],
-        dir: c[2] - c[0],
-    }
-    .distance(c[1]);
+    let sagitta = geom::Line::chord(c[0], c[2]).0.distance(c[1]);
     if !sagitta.is_finite() || file.read(STEP_RECOGNIZED_CONDITIONING, sagitta) == Read::Zero {
         return None;
     }

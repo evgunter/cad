@@ -302,7 +302,7 @@ fn clear_of_singular(
             clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
         }
         Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,

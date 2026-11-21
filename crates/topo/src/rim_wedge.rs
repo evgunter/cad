@@ -39,6 +39,7 @@
 //! rim is found geometrically — a boundary edge of each face riding
 //! the same circle carrier, decided on the carrier's own data.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
@@ -55,7 +56,7 @@ pub(crate) struct Rim<T: Real> {
     /// The circle's centre.
     pub center: Point3<T>,
     /// The unit axis.
-    pub axis: Vec3<T>,
+    pub axis: UnitVec3<T>,
     /// The radius.
     pub radius: T,
     /// The unit reference direction where the parameter is zero.
@@ -215,7 +216,7 @@ fn same_circle<T: Decide>(
                 // one extent's read is; their union's (the larger)
                 // would move verdicts by a shorter arm.
                 Margin::levered(
-                    ra.axis.cross(rb.axis).norm(),
+                    ra.axis.get().cross(rb.axis.get()).norm(),
                     geom_core::Lever::unsourced(ra.radius + rb.radius),
                 ),
             ),
@@ -589,7 +590,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
-            rim.center + geom::Frame::new(rim.center, rim.axis, rim.u_ref).radial(s) * rim.radius
+            rim.center + geom::Frame::new(rim.center, rim.axis.get(), rim.u_ref).radial(s) * rim.radius
         }
     }
 }
@@ -607,7 +608,7 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
         Locus::Line(line) => line.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
-            let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
+            let th = d.dot(rim.axis.get().cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
             let tau = geom::conic_period::<T>().length();
             th - tau * (th / tau).floor()
         }
@@ -701,8 +702,8 @@ fn reach_as<T: Decide>(
             let p = curve.carrier().eval(mid);
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {
-                Locus::Rim(rim) => rim.axis.cross(p - rim.center),
-                Locus::Line(line) => line.dir,
+                Locus::Rim(rim) => rim.axis.get().cross(p - rim.center),
+                Locus::Line(line) => line.dir.get(),
             };
             let cos = along.dot(tangent) / (along.norm() * tangent.norm());
             let name = match locus {
@@ -756,7 +757,7 @@ fn curve_sense<T: Decide>(
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, .. })) => {
             let axis = frame.axis();
-            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
+            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis.get())), band)
         }
         _ => Ok(geom_core::Sign::Positive),
     }
@@ -825,16 +826,16 @@ fn crossings<T: Decide>(
                 Locus::Line(geom::Line { origin, dir }) => {
                     // The closest approach of the segment's line to the
                     // locus.
-                    if maybe_nonzero(w.cross(dir).norm()) {
+                    if maybe_nonzero(w.cross(dir.get()).norm()) {
                         candidates.push(crate::census::segment_cross_point(
                             (p0, p1),
-                            (origin, origin + dir),
+                            (origin, origin + dir.get()),
                         ));
                     }
                 }
                 Locus::Rim(rim) => {
-                    let nw = rim.axis.dot(w);
-                    let h0 = rim.axis.dot(p0 - rim.center);
+                    let nw = rim.axis.get().dot(w);
+                    let h0 = rim.axis.get().dot(p0 - rim.center);
                     if maybe_nonzero(nw) {
                         candidates.push(p0 + w * (-h0 / nw));
                     }
@@ -888,24 +889,24 @@ fn crossings<T: Decide>(
             };
             match locus {
                 Locus::Line(line @ geom::Line { origin, dir }) => {
-                    let ad = ae.dot(dir);
+                    let ad = ae.dot(dir.get());
                     if maybe_nonzero(ad) {
-                        candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
+                        candidates.push(origin + dir.get() * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
                         let foot = line.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
-                            candidates.push(foot - dir * half);
-                            candidates.push(foot + dir * half);
+                            candidates.push(foot - dir.get() * half);
+                            candidates.push(foot + dir.get() * half);
                         }
                     }
                 }
                 Locus::Rim(rim) => {
                     // n·(p(φ) − c) = A cos φ + B sin φ + C.
                     let n = rim.axis;
-                    let (qa, qb, qc) = (n.dot(e1) * re, n.dot(e2) * re, n.dot(ce - rim.center));
+                    let (qa, qb, qc) = (n.get().dot(e1) * re, n.get().dot(e2) * re, n.get().dot(ce - rim.center));
                     let rr = (qa.powi(2) + qb.powi(2)).sqrt();
                     if maybe_nonzero(rr) {
                         let ratio = -qc / rr;
@@ -973,7 +974,7 @@ fn rides<T: Decide>(
         ) => {
             let (center, axis, u_ref) = (
                 carrier_frame_27.origin(),
-                carrier_frame_27.axis(),
+                carrier_frame_27.axis_unit(),
                 carrier_frame_27.u_ref(),
             );
             let radius = circle.radius();
@@ -1050,7 +1051,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
             ) => {
                 let (center, axis, u_ref) = (
                     carrier_frame_26.origin(),
-                    carrier_frame_26.axis(),
+                    carrier_frame_26.axis_unit(),
                     carrier_frame_26.u_ref(),
                 );
                 let radius = circle.radius();
@@ -1136,7 +1137,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     if s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some() {
         return Ok(RimRouting::SplineFace);
     }
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let face = |surface, sense| geom_brep::SideFace { surface, sense };
     let walk = geom_brep::WedgeWalk::around_circle(
         face(s_plus, sense_plus),

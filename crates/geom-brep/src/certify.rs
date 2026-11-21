@@ -58,6 +58,7 @@
 //! never disagree with the vertices by more than ε without failing
 //! loudly.
 
+use geom_core::UnitVec3;
 use geom::Curve3;
 use geom::Surface;
 use geom_core::period::{Exact, Extent, NotForward, Turn, TurnRows, TurnUndecided, Within};
@@ -1933,7 +1934,8 @@ impl<T: Real> EdgeCurveSpec<T> {
                     vec: p1 - p0,
                 },
             )),
-            carrier: Curve3::line(p0, (p1 - p0) / len),
+            // The chord over its own length: unit over the reals.
+            carrier: Curve3::line(p0, UnitVec3::constructed((p1 - p0) / len)),
             param_start: T::zero(),
             param_end: len,
         }
@@ -1972,7 +1974,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(start - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: frame.axis(),
+                        dir: frame.axis_unit(),
                     },
                     angle: t1 - t0,
                 },
@@ -2157,7 +2159,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(p - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: UnitVec3::exact_z(),
                     },
                     // A whole revolution, an angle by construction.
                     angle: geom_core::period::Period::<T>::angle().length(),
@@ -4566,7 +4568,7 @@ fn decide_turn<T: Decide>(
         (None, line) => {
             forward(Margin::of(span))?;
             if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
+                matches!(dir.get().checked_direction(), Err(geom_core::NoDirection::Zero))
             }) {
                 forward(Margin::metered(
                     span,

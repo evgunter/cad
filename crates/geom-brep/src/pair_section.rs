@@ -319,7 +319,7 @@ impl<T: Decide> CylinderSpherePose<T> {
         };
         let (origin, axis, u_ref) = (
             cylinder_frame.origin(),
-            cylinder_frame.axis(),
+            cylinder_frame.axis_unit(),
             cylinder_frame.u_ref(),
         );
         let center = sphere_frame.origin();
@@ -329,7 +329,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                     cylinder: cylinder.clone(),
                     sphere: sphere.clone(),
                     cylinder_first,
-                    axis,
+                    axis: axis.get(),
                     u_ref,
                     foot,
                     center,
@@ -378,7 +378,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                 .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
-        let (off, d) = square_part(center - origin, axis);
+        let (off, d) = square_part(center - origin, axis.get());
         let foot = center - off;
         let coaxial = pose(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {

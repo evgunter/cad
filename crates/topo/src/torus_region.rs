@@ -477,9 +477,9 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 minor_radius: minor,
                 ..
             } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 let w = y - center;
-                match row(w.dot(axis.cross(u_ref)))? {
+                match row(w.dot(axis.get().cross(u_ref)))? {
                     Sign::Positive => {}
                     Sign::Negative => return Ok(None),
                     Sign::Zero => return Err(RayFault::Graze),

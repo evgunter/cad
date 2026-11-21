@@ -520,11 +520,9 @@ fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3
 /// length.
 fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     let chord = b - a;
-    let t = geom::Line {
-        origin: a,
-        dir: chord,
-    }
-    .param_within(p, (0.0, 1.0));
+    // The foot's fraction of the chord, `Line::param_within` over `(0, 1)`
+    // spelled out: the chord is read as itself, not squared.
+    let t = ((p - a).dot(chord) / chord.norm_squared()).max(0.0).min(1.0);
     if !t.is_finite() {
         return f64::NAN;
     }

@@ -37,6 +37,7 @@
 //! a caller hands [`Charted::record`] are one record's stays the
 //! caller's: each reads both off one face.
 
+use geom_core::UnitVec3;
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3};
@@ -353,10 +354,10 @@ impl<T: Decide> SurfaceCurve<T> {
         let f = *chart.frame();
         let start = surface.eval(uv.x, uv.y);
         let (dir, opening) = match chart.arm() {
-            ChartArm::Cylinder { .. } => (f.axis(), None),
+            ChartArm::Cylinder { .. } => (f.axis_unit(), None),
             ChartArm::Cone { .. } => {
                 let g = start - f.origin();
-                (g.normalize(), Some(opening))
+                (UnitVec3::squared(g), Some(opening))
             }
             _ => return Err(Self::refused("ruling", surface)),
         };
@@ -391,7 +392,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             geom::Line {
                 origin: apex,
-                dir: g.normalize(),
+                dir: UnitVec3::squared(g),
             },
             toward.x,
             Some(opening),
@@ -483,7 +484,7 @@ impl<T: Decide> SurfaceCurve<T> {
             chart,
             shape: Shape::Line(geom::Line {
                 origin: start,
-                dir: f.u_ref().normalize(),
+                dir: UnitVec3::squared(f.u_ref()),
             }),
             plane: (start, f.v_ref().normalize()),
             section: Section::Whole,

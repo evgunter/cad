@@ -542,7 +542,7 @@ fn mapped_self_description(
 ) -> Option<MappedCurve<f64>> {
     match carrier {
         Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| {
+            line_frame(*origin, dir.get()).map(|place| {
                 MappedCurve::whole(MappedSource::PlacedSegment {
                     segment: geom_brep::SketchSegment::Line {
                         a: Point2::new(t0, 0.0),
@@ -558,7 +558,7 @@ fn mapped_self_description(
             vec: p_end - p_start,
         })),
         Curve3::Circle(geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(0.0, 0.0),
                 place: Affine3::translation(p_start - Point3::origin()),

@@ -610,6 +610,66 @@ impl<T: Decide> UnitVec3<T> {
 
 /// Negation is exact at every scalar, so the negated direction is unit
 /// by the same decision.
+impl<T: Real> UnitVec3<T> {
+    /// **A direction unit over the reals by its caller's construction,
+    /// adopted as its bits at every scalar**: a rigid image of a unit
+    /// vector, or `a·cos α + d·sin α` over an orthonormal pair `a ⊥ d`,
+    /// unit for every value its inputs stand for, so an enclosure of it
+    /// encloses a unit vector and a lane's derivative is the unit
+    /// vector's. The premise is the construction's, named at the call,
+    /// as [`RigidMotion`](super::RigidMotion)'s mints name theirs; it is
+    /// not a "check that it is already unit" door, and a caller holding
+    /// a vector it merely believes is unit has a decision to make
+    /// ([`UnitVec3::new`]) or a stated `f64` to adopt
+    /// ([`UnitVec3::stated`]).
+    ///
+    /// It fails loud on a premise its value refutes: where the bracket
+    /// of `v·v − 1` lies wholly beyond the rounding [`UnitVec3::stated`]
+    /// charges, a debug assertion. Nothing is squared, so no bit moves.
+    #[must_use]
+    pub fn constructed(v: Vec3<T>) -> Self {
+        debug_assert!(
+            {
+                let n = v.dot(v);
+                match ((n - T::one()).told_reading().ends(), n.told_reading().ends()) {
+                    (Some((lo, hi)), Some((_, top))) => {
+                        let charge = crate::rounding_charge(top.abs() + 1.0);
+                        !(lo > charge || hi < -charge)
+                    }
+                    _ => true,
+                }
+            },
+            "a constructed direction is not unit to rounding"
+        );
+        Self(v)
+    }
+}
+
+impl UnitVec3<f64> {
+    /// **A stated `f64` direction adopted as its bits**: `v` itself where
+    /// it is unit within its own rounding, and `None` where it is not.
+    /// Within its rounding is the frame door's column test
+    /// ([`RigidMotion::check_rigid`](super::RigidMotion::check_rigid)):
+    /// the defect `|v·v − 1|`, measured, at most
+    /// [`crate::rounding_charge`] of its terms `v·v + 1`, which is
+    /// [`crate::SHORT_CHAIN_ULPS`] half-ulps of 2. A non-finite
+    /// component, or a defect beyond the charge, is no unit direction.
+    ///
+    /// It decides nothing and squares nothing: a direction that is unit
+    /// to rounding keeps every bit, so a reading pinned to the stated
+    /// bits reads them, where [`UnitVec3::squared`] would move the last
+    /// place. A direction the type then carries to another scalar goes
+    /// through [`UnitVec3::map_scalar`]: the polar unit enclosure at
+    /// `Interval`, poison into a lane.
+    #[must_use]
+    pub fn stated(v: Vec3<f64>) -> Option<Self> {
+        let finite = v.x.is_finite() && v.y.is_finite() && v.z.is_finite();
+        let n = v.dot(v);
+        let charge = crate::rounding_charge(n + 1.0);
+        (finite && charge.is_finite() && (n - 1.0).abs() <= charge).then_some(Self(v))
+    }
+}
+
 impl<T: Real> Neg for UnitVec3<T> {
     type Output = Self;
 

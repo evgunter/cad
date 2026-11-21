@@ -62,7 +62,7 @@
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
 use geom_core::ladder::{IdentityLadder, Kept};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, UnitVec3, Vec3};
 
 use geom_core::k_stats::decide_reported;
 
@@ -269,7 +269,7 @@ pub enum CarrierDesc<T: geom_core::Real> {
         /// A point on the axis.
         origin: Point3<T>,
         /// The unit axis direction.
-        axis: Vec3<T>,
+        axis: UnitVec3<T>,
         /// The radius (positive).
         radius: T,
         /// Whether the face's outward normal points AWAY from the
@@ -287,7 +287,7 @@ pub enum CarrierDesc<T: geom_core::Real> {
         /// The centre.
         center: Point3<T>,
         /// The unit axis of revolution.
-        axis: Vec3<T>,
+        axis: UnitVec3<T>,
         /// The major radius: centre to tube centre (positive).
         major_radius: T,
         /// The minor radius: the tube radius (positive).
@@ -305,7 +305,7 @@ pub enum CarrierDesc<T: geom_core::Real> {
         /// The apex.
         apex: Point3<T>,
         /// The unit axis direction.
-        axis: Vec3<T>,
+        axis: UnitVec3<T>,
         /// The half-angle between the axis and the generators, radians.
         half_angle: T,
         /// Whether the face's outward normal points AWAY from the axis
@@ -503,7 +503,7 @@ fn ladder_reading<T: Decide>(
                 outward: w2,
             },
         ) => data_rungs(
-            &cylinder_data((*p1, *a1, *r1), (*p2, *a2, *r2), arm),
+            &cylinder_data((*p1, a1.get(), *r1), (*p2, a2.get(), *r2), arm),
             *w1 == *w2,
             band,
         ),
@@ -572,7 +572,7 @@ fn ladder_reading<T: Decide>(
                 outward: w2,
             },
         ) => data_rungs(
-            &cone_data((*p1, *a1, *t1), (*p2, *a2, *t2), arm),
+            &cone_data((*p1, a1.get(), *t1), (*p2, a2.get(), *t2), arm),
             *w1 == *w2,
             band,
         ),
@@ -727,7 +727,7 @@ pub fn cylinder_data_at<T: Decide>(
                 radius: r2,
                 ..
             },
-        ) => Some(cylinder_datum((p1, a1, r1), (p2, a2, r2), arm)),
+        ) => Some(cylinder_datum((p1, a1.get(), r1), (p2, a2.get(), r2), arm)),
         _ => None,
     }
 }
@@ -752,7 +752,7 @@ fn cone_data<T: Decide>(
 
 /// A torus description's data as the pair's coincidence reads them.
 fn torus<T: geom_core::Real>(
-    (center, axis, major_radius, minor_radius): (Point3<T>, Vec3<T>, T, T),
+    (center, axis, major_radius, minor_radius): (Point3<T>, UnitVec3<T>, T, T),
 ) -> crate::TorusData<T> {
     crate::TorusData {
         center,
@@ -960,9 +960,9 @@ fn reading<T: Decide>(
             // The datum's offset and radius ([`cylinder_offset`],
             // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at
             // the reach widened by that offset, not the datum's sine.
-            let apart = cylinder_offset(o1, a1, pivot).value();
+            let apart = cylinder_offset(o1, a1.get(), pivot).value();
             let arm = reach.lever_from_within(pivot, apart);
-            let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
+            let core = apart + Margin::levered(line_tilt(a1.get(), a2.get()), arm).value();
             (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
         }
         (
@@ -981,7 +981,7 @@ fn reading<T: Decide>(
         ) => {
             let apart = (p1 - p2).norm();
             let arm = reach.lever_from_within(p1, apart);
-            let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
+            let core = apart + Margin::levered(line_tilt(a1.get(), a2.get()) + (t1 - t2).abs(), arm).value();
             (CONE_REACH, core)
         }
         _ => return None,

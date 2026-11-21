@@ -340,7 +340,7 @@ impl<T: Real> MappedSource<T> {
                 angle,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotate_point_about_axis(axis.origin, axis.dir, u * angle, p)
+                Affine3::rotate_point_about_axis(axis.origin, axis.dir.get(), u * angle, p)
             }
         }
     }

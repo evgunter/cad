@@ -195,6 +195,7 @@ pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
+use geom_core::UnitVec3;
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
     NOT_YET_ENDING, Point3, Real, Sign, Tol,
@@ -8260,7 +8261,7 @@ fn verify_tangency<T: Decide>(
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         crate::rim_wedge::Locus::Line(geom::Line {
                             origin,
-                            dir: dir.normalize(),
+                            dir: UnitVec3::squared(dir.get()),
                         })
                     }
                     _ => {
@@ -8293,7 +8294,7 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+                let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
                 (
                     circle,
                     T::zero(),
@@ -8413,7 +8414,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8493,7 +8494,7 @@ fn witness_span<T: Decide>(
             .ok_or(invalid("declared face's boundary is unwalkable"))?;
         let cover = crate::cover::face_cover(body, f, band)
             .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
-        let (lo, hi) = cover.range_along(line.dir / line.dir.norm_squared());
+        let (lo, hi) = cover.range_along(line.dir.get() / line.dir.get().norm_squared());
         Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);

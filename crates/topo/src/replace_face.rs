@@ -1288,7 +1288,7 @@ fn transport_curve<T: Decide>(
             half_angle,
             ..
         } => {
-            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis_unit());
             // ONE derivation, read from `geom_brep`: the apex slide,
             // the parameter shift and the pointwise displacement are
             // three faces of the mint's own action, and this door reads
@@ -1315,11 +1315,11 @@ fn transport_curve<T: Decide>(
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
                 Curve3::Circle(geom::Circle { frame, .. }) => {
-                    let v = (frame.origin() - apex).dot(axis) / cos_a;
+                    let v = (frame.origin() - apex).dot(axis.get()) / cos_a;
                     let v_new = v + action.shift();
                     Some((
                         Curve3::Circle(geom::Circle::new(
-                            frame.with_origin(action.apex() + axis * (v_new * cos_a)),
+                            frame.with_origin(action.apex() + axis.get() * (v_new * cos_a)),
                             (v_new * sin_a).abs(),
                         )),
                         None,
@@ -2106,7 +2106,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             frame, half_angle, ..
         } = old_surface
         {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let (v_min, v_max) = group_cone_v_window(
                 body,
                 faces,
@@ -2223,7 +2223,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         else {
             continue;
         };
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         let face = chart.faces[0];
         let own = group_boundary(body, chart.faces);
         let mut window: Option<(T, T)> = None;
@@ -2442,7 +2442,7 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             geom_brep::ConeOffset::new(
                 geom::Line {
                     origin: apex,
@@ -2515,7 +2515,7 @@ fn cone_v_range<T: Decide>(
         origin: apex,
         dir: axis,
     } = axis;
-    let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    let v_of = |p: Point3<T>| (p - apex).dot(axis.get()) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
         Curve3::Line(_) => {
@@ -2539,7 +2539,7 @@ fn cone_v_range<T: Decide>(
             );
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis) * radius).powi(2) + (v_ref.dot(axis) * radius).powi(2))
+            let amp = ((u_ref.dot(axis.get()) * radius).powi(2) + (v_ref.dot(axis.get()) * radius).powi(2))
                 .sqrt()
                 / cos_a;
             let c = v_of(center);
@@ -2558,7 +2558,7 @@ fn cone_v_range<T: Decide>(
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis) * semi_u).powi(2) + (v_ref.dot(axis) * semi_v).powi(2))
+            let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2) + (v_ref.dot(axis.get()) * semi_v).powi(2))
                 .sqrt()
                 / cos_a;
             let c = v_of(center);
