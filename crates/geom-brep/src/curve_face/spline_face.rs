@@ -91,7 +91,7 @@ use geom_core::k_stats::decide;
 use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
-    Vec3, place,
+    Vec3,
 };
 
 use crate::krawczyk::{
@@ -568,8 +568,8 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// middle is taken. `None` where the foot is not found.
     fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
         let c = self.path.at(exact(end));
-        let [x, y, z] = midpoint(&c).map(place::<T>);
-        let foot = chart.project(Point3::new(x, y, z)).ok()?;
+        let [x, y, z] = midpoint(&c);
+        let foot = chart.project_at(Point3::new(x, y, z)).ok()?;
         let at = [end, foot.u, foot.v];
         Some(End {
             at: Cell(at.map(|c| (c, c))),
@@ -1121,18 +1121,17 @@ fn held(found: &[Found], ends: &[Cell], x: Cell) -> bool {
 /// # Errors
 ///
 /// [`SplineFaceRefusal`], as its variants say.
-pub fn settle<T: Decide>(
+pub fn settle<T: Decide<Value = T>>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
     isolated: &Isolated,
     band: Band,
 ) -> Result<Vec<ChartMeeting<T>>, SplineFaceRefusal> {
     let (a, b) = isolated.span;
-    let gap_as = |row, p: Point3<T::Value>, q: Point3<T::Value>| {
+    let gap_as = |row, p: Point3<T>, q: Point3<T>| {
         decide(row, Margin::of((p - q).norm()), band).map_err(SplineFaceRefusal::Escalated)
     };
-    let (on_carrier, on_chart) = (carrier.values(), chart.values());
-    let ends = [a, b].map(|t| on_carrier.eval(place(t)));
+    let ends = [a, b].map(|t| carrier.eval_at(t));
     let mut out: Vec<ChartMeeting<T>> = Vec::with_capacity(isolated.roots.len());
     for &root in &isolated.roots {
         let root = Cell(root);
@@ -1141,11 +1140,10 @@ pub fn settle<T: Decide>(
         }
         let [tm, um, vm] = root.mid();
         let point = carrier.eval(T::from_computed(tm));
-        let read = point.map(Real::value);
-        let foot = on_chart.eval(place(um), place(vm));
+        let foot = chart.eval_at(um, vm);
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
-        if gap_as("spline_face_root_on", read, foot)? != Sign::Zero {
+        if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {
             return Err(Unsettled::Meter {
                 row: "spline_face_root_on",
             }
@@ -1153,7 +1151,7 @@ pub fn settle<T: Decide>(
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= gap_as("spline_face_root_at_end", read, end)? == Sign::Zero;
+            at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
         }
         if at_end {
             continue;
@@ -1167,11 +1165,7 @@ pub fn settle<T: Decide>(
             .into());
         }
         if let Some(before) = out.last()
-            && gap_as(
-                "spline_face_roots_apart",
-                read,
-                before.point.map(Real::value),
-            )? == Sign::Zero
+            && gap_as("spline_face_roots_apart", point, before.point)? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }

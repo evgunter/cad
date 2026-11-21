@@ -517,7 +517,7 @@ impl Real for Interval {
     /// The enclosure itself: it carries no tangent.
     type Value = Self;
 
-    fn value(self) -> Self {
+    fn without_tangent(self) -> Self {
         self
     }
 

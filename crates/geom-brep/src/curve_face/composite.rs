@@ -55,9 +55,7 @@ use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3, place,
-};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
@@ -173,7 +171,7 @@ impl Reading {
 /// [`CompositeRefusal`], as its variants say.
 // `!(a < b)` is deliberate: a NaN end refuses.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn crossings<T: Decide>(
+pub fn crossings<T: Decide<Value = T>>(
     net: &NurbsCurve3<T>,
     params: (T, T),
     surface: &Surface<T>,
@@ -199,12 +197,11 @@ pub fn crossings<T: Decide>(
         Ok(Sign::Zero) => Reading::Near(None),
         Err(diag) => Reading::Near(Some(diag)),
     };
-    let (on_net, on_surface) = (net.values(), surface.values());
     let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
-        let p = on_net.eval(place(t));
+        let p = net.eval_at(t);
         decide(
             "spline_composite_root_on",
-            Margin::of(crate::implicit_residual(&on_surface, p)),
+            Margin::of(crate::implicit_residual(surface, p)),
             band,
         )
         .map_err(CompositeRefusal::Escalated)
@@ -271,7 +268,7 @@ pub fn crossings<T: Decide>(
         return Err(read(end_value(&piece, false)).refused());
     }
     let creases = creases(net, (a, b), &cross)?;
-    settle(&on_net, params, band, &creases, meetings, &residual)
+    settle(net, params, band, &creases, meetings, &residual)
 }
 
 /// [`framed_form`]'s answer: the points' coordinates in the chart frame,
@@ -713,29 +710,26 @@ fn knot_crossing(
 /// The meetings found, each placed in metres: against the creases, then
 /// on the surface, then against the span's ends and the crossing before
 /// it.
-fn settle<T: Decide>(
-    on_net: &NurbsCurve3<T::Value>,
+fn settle<T: Decide<Value = T>>(
+    net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
     band: Band,
     creases: &[f64],
     meetings: Vec<Meeting>,
     residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
 ) -> Result<Vec<T>, CompositeRefusal> {
-    let apart_as = |row, p: Point3<T::Value>, q: Point3<T::Value>| match decide(
-        row,
-        Margin::of((p - q).norm()),
-        band,
-    ) {
-        Ok(Sign::Zero) => Ok(false),
-        Ok(_) => Ok(true),
-        Err(diag) => Err(CompositeRefusal::Escalated(diag)),
-    };
-    let ends = [t0, t1].map(|t| on_net.eval(t.value()));
-    let creases: Vec<Point3<T::Value>> = creases.iter().map(|&k| on_net.eval(place(k))).collect();
-    let mut roots: Vec<(T, Point3<T::Value>)> = Vec::with_capacity(meetings.len());
+    let apart_as =
+        |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
+            Ok(Sign::Zero) => Ok(false),
+            Ok(_) => Ok(true),
+            Err(diag) => Err(CompositeRefusal::Escalated(diag)),
+        };
+    let ends = [net.eval(t0), net.eval(t1)];
+    let creases: Vec<Point3<T>> = creases.iter().map(|&k| net.eval_at(k)).collect();
+    let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
-        let p = on_net.eval(place(t));
+        let p = net.eval_at(t);
         for &crease in &creases {
             if !apart_as("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());

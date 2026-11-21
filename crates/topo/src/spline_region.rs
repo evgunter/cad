@@ -154,7 +154,7 @@ pub(super) fn spline_chart_placement<T: Decide>(
     if linked.is_placeholder_chart() {
         return Ok(None);
     }
-    let Some(cells) = bezier_cells(&chart.values()) else {
+    let Some(cells) = bezier_cells(&chart.value_view()) else {
         return Ok(None);
     };
     let Some(trim) = Trim::of(body, face, chart, &cells, PIECE_VISITS, band) else {
@@ -218,16 +218,21 @@ fn read_capped<T: Decide>(
     if view.surface().is_placeholder_chart() {
         return Reading::Unsettled(None);
     }
-    let on_chart = chart.values();
+    let on_chart = chart.value_view();
     let Some(cells) = bezier_cells(&on_chart) else {
         return Reading::Unsettled(None);
     };
     let Some(trim) = Trim::of(body, face, chart, &cells, caps.pieces, band) else {
         return Reading::Unsettled(None);
     };
-    carrier_walk(&on_chart, &cells, q.map(Real::value), band, caps, |rect| {
-        trim.place(&cells, rect, band)
-    })
+    carrier_walk(
+        &on_chart,
+        &cells,
+        q.map(Real::without_tangent),
+        band,
+        caps,
+        |rect| trim.place(&cells, rect, band),
+    )
 }
 
 /// **The carrier walk of [`read_capped`]** over the chart's `cells`,
@@ -282,7 +287,7 @@ fn carrier_walk<T: Decide<Value = T>>(
             continue;
         }
         let (cu, cv) = cell.rect.centre();
-        let at = chart.eval(geom_core::place(cu), geom_core::place(cv));
+        let at = chart.eval_at(cu, cv);
         match decide(SPLINE_REGION_CARRIER, Margin::of((at - q).norm()), band) {
             Ok(Sign::Zero) => {
                 foot = true;

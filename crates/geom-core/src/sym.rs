@@ -5311,9 +5311,9 @@ impl<T: Real> Real for Sym<T> {
     /// scalar itself.
     type Value = Sym<T::Value>;
 
-    fn value(self) -> Sym<T::Value> {
+    fn without_tangent(self) -> Sym<T::Value> {
         Sym {
-            value: self.value.value(),
+            value: self.value.without_tangent(),
             node: self.node,
         }
     }

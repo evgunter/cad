@@ -102,4 +102,4 @@ pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,
 };
-pub use value_view::{OverScalar, ValueView, place};
+pub use value_view::{OverScalar, ValueView};

@@ -1,14 +1,13 @@
-//! **A place, and what is evaluated there** (DL5.2's place row, the
-//! crate README, "Reading a bracket where nothing certifies").
+//! **A geometry without its tangent** (DL5.2's place row, the crate
+//! README, "Reading a bracket where nothing certifies").
 //!
-//! A place is an `f64` the code chose to evaluate at: a sample, a
-//! station, a cell corner, the point a cell is subdivided at, a foot
-//! that is only read. It is handed to the evaluator as an `f64`, and the
-//! evaluator answers on the value channel ([`Real::Value`]), so a place
-//! never becomes a scalar with a tangent and what it reads is decided
-//! on, never held by a body. The geometry is put on its value channel
-//! once ([`Real::view`], a type's `values()`), and evaluated there at
-//! [`place`]s.
+//! A place is an `f64` the code chose to evaluate at. It is handed to an
+//! evaluator as an `f64`, and the evaluator answers at a scalar that
+//! carries no tangent ([`Real::Value`]): `geom`'s place-taking
+//! evaluators exist only there. A geometry held at a dual is first read
+//! without its tangent, through the family it belongs to
+//! ([`OverScalar`]), into a [`ValueView`]: the geometry itself where its
+//! scalar carries no tangent, a copy at a dual.
 
 use core::ops::Deref;
 
@@ -17,19 +16,21 @@ use crate::real::Real;
 /// **A geometry type over a scalar**, as a family: `At<S>` is the type
 /// at scalar `S`, and [`OverScalar::map`] carries one to another through
 /// a map of every scalar it holds. It is how [`Real::view`] names the
-/// type it reads on its value channel without `geom_core` knowing it.
+/// type it reads without its tangent while `geom_core` does not know it.
 pub trait OverScalar {
     /// The type at scalar `S`.
     type At<S: Real>;
 
     /// `x` with `f` applied to every scalar it holds, its structure
-    /// carried over.
+    /// carried over. A view is bit-identical to what a dual's value part
+    /// computes only if `f` reaches every scalar and nothing else
+    /// changes.
     fn map<S: Real, U: Real>(x: &Self::At<S>, f: impl Fn(S) -> U) -> Self::At<U>;
 }
 
-/// **A value on its value channel** ([`Real::view`]): the value itself
-/// where its scalar is its own value channel, a copy at a dual. Either
-/// way it reads as the value channel's type.
+/// **A value without its tangent** ([`Real::view`]): the value itself
+/// where its scalar carries none, a copy otherwise. Either way it reads
+/// as the type at [`Real::Value`].
 #[derive(Debug)]
 pub enum ValueView<'a, X> {
     /// The value itself: its scalar carries no tangent.
@@ -49,65 +50,11 @@ impl<X> Deref for ValueView<'_, X> {
     }
 }
 
-/// **A place, at a scalar that is its own value channel**: the `f64` the
-/// code chose to evaluate at. The bound admits no dual, so a place has
-/// no tangent by type. What it means at each scalar the bound admits:
-///
-/// - `f64` and [`crate::Probe`]: the number itself.
-/// - [`crate::Interval`]: the point `[x, x]`. The place is exactly `x`,
-///   so its point encloses nothing wider; what the evaluator answers
-///   encloses the geometry's exact value there.
-/// - [`crate::Sym`]: its own unknown ([`crate::Sym::opaque`]). The code
-///   chose the place from the nominal values, so it is no function of
-///   the document's unknowns that anything tracked: a re-valuation of
-///   what is read there at other values has no place to read at, and
-///   refuses, where an exact constant would re-value at a place nobody
-///   would have chosen there.
-#[must_use]
-pub fn place<V: Real<Value = V>>(x: f64) -> V {
-    V::from_computed(x)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{OverScalar, ValueView, place};
+    use super::{OverScalar, ValueView};
     use crate::real::{Bounds, Real};
     use crate::{Dual64, DualInterval, Interval};
-
-    /// The edge floats a place can be: signed zeros, the subnormal and
-    /// the largest, a non-dyadic fraction, the infinities and NaN.
-    const EDGES: [f64; 9] = [
-        0.0,
-        -0.0,
-        f64::MIN_POSITIVE / 4.0,
-        f64::MAX,
-        0.1,
-        -2.5,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::NAN,
-    ];
-
-    /// A place is the number `from_computed` embeds at every scalar the
-    /// bound admits, and at the three without symbols that is the number
-    /// itself: a moved site reads what it read.
-    #[test]
-    fn a_place_is_the_number_itself_at_f64_interval_and_the_probe() {
-        for x in EDGES {
-            assert_eq!(place::<f64>(x).to_bits(), x.to_bits(), "f64 at {x}");
-            let (p, c) = (place::<Interval>(x), Interval::from_f64(x));
-            assert_eq!(
-                (p.lo().to_bits(), p.hi().to_bits(), p.is_poison()),
-                (c.lo().to_bits(), c.hi().to_bits(), c.is_poison()),
-                "Interval at {x}"
-            );
-            #[cfg(feature = "probe")]
-            {
-                let (p, c) = (place::<crate::Probe>(x), crate::Probe(x));
-                assert_eq!(p.0.to_bits(), c.0.to_bits(), "Probe at {x}");
-            }
-        }
-    }
 
     /// One `Vec` of scalars, mapped elementwise.
     struct Row;
@@ -120,8 +67,22 @@ mod tests {
         }
     }
 
+    /// Edge floats: signed zeros, a subnormal, the largest, a
+    /// non-dyadic fraction, the infinities and NaN.
+    const EDGES: [f64; 9] = [
+        0.0,
+        -0.0,
+        f64::MIN_POSITIVE / 4.0,
+        f64::MAX,
+        0.1,
+        -2.5,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NAN,
+    ];
+
     #[test]
-    fn a_view_borrows_where_the_scalar_is_its_value_channel_and_strips_a_tangent() {
+    fn a_view_borrows_where_the_scalar_carries_no_tangent_and_strips_one() {
         let plain: Vec<f64> = EDGES.to_vec();
         assert!(
             matches!(f64::view::<Row>(&plain), ValueView::Same(v) if core::ptr::eq(v, &plain)),
@@ -132,6 +93,14 @@ mod tests {
             matches!(Interval::view::<Row>(&enclosed), ValueView::Same(v) if core::ptr::eq(v, &enclosed)),
             "Interval borrows"
         );
+        #[cfg(feature = "probe")]
+        {
+            let probes: Vec<crate::Probe> = EDGES.iter().map(|&x| crate::Probe(x)).collect();
+            assert!(
+                matches!(crate::Probe::view::<Row>(&probes), ValueView::Same(v) if core::ptr::eq(v, &probes)),
+                "the probe borrows"
+            );
+        }
         let dual: Vec<Dual64> = EDGES.iter().map(|&x| Dual64::new(x, 3.0)).collect();
         let view = Dual64::view::<Row>(&dual);
         assert!(
@@ -145,9 +114,9 @@ mod tests {
                 "the value part, bit for bit"
             );
             assert_eq!(
-                d.value().to_bits(),
+                d.without_tangent().to_bits(),
                 v.to_bits(),
-                "`Real::value` is the same read"
+                "the scalar read is the same"
             );
         }
         let wide = DualInterval::new(Interval::from_bounds(1.0, 2.0), Interval::from_f64(1.0));
@@ -158,5 +127,50 @@ mod tests {
             (1.0, 2.0),
             "Dual<Interval>'s value channel is its enclosure"
         );
+    }
+
+    #[test]
+    fn a_sym_strips_node_for_node_and_borrows_where_its_numeric_channel_does() {
+        use crate::sym::with_session;
+        use crate::{Sym, SymBudget};
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let ((), _) = with_session(budget, || {
+            let a = Sym::<Dual64>::opaque(Dual64::new(1.5, 3.0));
+            let c = a * Sym::<Dual64>::from_f64(2.0) + a;
+            let v = c.without_tangent();
+            assert!(v.node() == c.node(), "the node is kept");
+            assert_eq!(
+                v.value.to_bits(),
+                c.value.value.to_bits(),
+                "the numeric value, bit for bit"
+            );
+            assert!(
+                Sym::<f64>::from_f64(2.0).node() == Sym::<Dual64>::from_f64(2.0).node(),
+                "a node does not depend on the numeric scalar under it"
+            );
+            let row = vec![a, c];
+            let view = <Sym<Dual64> as Real>::view::<Row>(&row);
+            assert!(
+                matches!(view, ValueView::Stripped(_)),
+                "over a dual a Sym's view is a copy"
+            );
+            assert!(
+                row.iter()
+                    .zip(view.iter())
+                    .all(|(s, v)| s.node() == v.node()),
+                "node for node"
+            );
+            let plain = vec![Sym::<f64>::from_f64(1.0)];
+            assert!(
+                matches!(
+                    <Sym<f64> as Real>::view::<Row>(&plain),
+                    ValueView::Same(v) if core::ptr::eq(v, &plain)
+                ),
+                "over f64 a Sym's view borrows"
+            );
+        });
     }
 }

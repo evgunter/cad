@@ -59,13 +59,23 @@
 //! `geom_brep`'s spline incidence test cuts its cells the same way
 //! (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`); its
 //! floor adds a slab.
+//!
+//! # The scalar
+//!
+//! The cells and every reading of them run at a scalar that carries no
+//! tangent: the bound `Decide<Value = T>`, which no dual meets. Every
+//! exit is a decision (`Side`, a `Shift`, `f64` pieces), so a door
+//! holding a body at a dual cuts its cells from the chart's
+//! `value_view()` ([`Trim::of`] takes the body at its scalar and the
+//! cells at the value's), and the places they are evaluated at (a cell
+//! centre, the point a cell is split at) need no tangent.
 
 use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::Knots;
 use geom_core::{
     Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
-    place, rounding_charge,
+    rounding_charge,
 };
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -279,7 +289,9 @@ impl<T: Decide<Value = T>> Patch<T> {
         };
         let mut left = self.clone();
         let mut right = self.clone();
-        let st = place::<T>(s);
+        // The split point is a place: the step to the scalar is this
+        // evaluator's own.
+        let st = T::from_computed(s);
         // The exact half is a halving's: its product rounds nothing.
         #[allow(clippy::float_cmp)]
         let ratio = s != 0.5;
@@ -358,7 +370,11 @@ impl<T: Decide<Value = T>> Patch<T> {
     fn surface(&self) -> Option<Surface<T>> {
         let knots = |(a, b): (f64, f64), p: usize| {
             let ends = NonZeroUsize::new(p + 1)?;
-            Knots::new(vec![(place::<T>(a), ends), (place::<T>(b), ends)], p).ok()
+            Knots::new(
+                vec![(T::from_computed(a), ends), (T::from_computed(b), ends)],
+                p,
+            )
+            .ok()
         };
         let surface = NurbsSurface::new(
             knots(self.rect.u, self.pu)?,
@@ -468,7 +484,7 @@ fn refined<T: Decide<Value = T>, const N: usize>(
     let held = |v: f64| {
         runs.iter()
             .find(|(value, _)| value.value_channel() == v)
-            .map_or_else(|| place::<T>(v), |(value, _)| *value)
+            .map_or_else(|| T::from_computed(v), |(value, _)| *value)
     };
     let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
     let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, add).ok()?;
@@ -519,9 +535,9 @@ pub(crate) fn bezier_cells<T: Decide<Value = T>>(chart: &NurbsSurface<T>) -> Opt
         }
     }
     let centre = Vec3::new(
-        place::<T>(geom::bracket_mid((lo[0], hi[0]))),
-        place::<T>(geom::bracket_mid((lo[1], hi[1]))),
-        place::<T>(geom::bracket_mid((lo[2], hi[2]))),
+        T::from_computed(geom::bracket_mid((lo[0], hi[0]))),
+        T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
+        T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
     );
     // Moved and out to homogeneous form: the difference and the product
     // round each coordinate by `u` of it.
@@ -916,7 +932,7 @@ pub(crate) fn ring_decks<T: Decide>(
         return Err(unread(None)(SplineTrimGap::Placeholder));
     }
     let cells =
-        bezier_cells(&chart.values()).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
+        bezier_cells(&chart.value_view()).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
     let sheet = TrimChart::of(surface, chart, band).map_err(unread(None))?;
     let trim = Trim::from_pieces(
         sheet.chain(body, outer).map_err(unread(None))?,
@@ -1294,7 +1310,8 @@ pub(crate) fn image_pieces<T: Decide>(
             Some(vec![Piece::segment(end(a), end(b))])
         }
         Pcurve::Fitted(image) | Pcurve::General(image) => {
-            let mut run = bezier_pieces(&image.values(), t0.value_channel(), t1.value_channel())?;
+            let mut run =
+                bezier_pieces(&image.value_view(), t0.value_channel(), t1.value_channel())?;
             if !tracks::<T>() {
                 // The span's ends are brackets, cut at their value: each
                 // end of the run is also off by the image's reach over its

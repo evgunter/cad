@@ -60,7 +60,7 @@
 //! control points, where the cosine test meets a trivially-zero
 //! residual) each read a distance no smaller than the true one.
 
-use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real, place};
+use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real};
 
 use crate::projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
@@ -274,9 +274,11 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             let vn = (v + step_v).clamp(vlo, vhi);
             iterations += 1;
             // Acceptance: parameter stagnation, measured in meters
-            // through the chart (domain-edge feet land here).
-            let moved = j.du * place::<T>(un - u) + j.dv * place::<T>(vn - v);
-            if mid(moved.norm()) <= PROJECT_EPS_POINT {
+            // through the chart (domain-edge feet land here). The step is
+            // a length decided against a tolerance, so it is read at
+            // `f64` on the speeds' brackets, as the curve's is.
+            let moved = (j.du.map(mid) * (un - u) + j.dv.map(mid) * (vn - v)).norm();
+            if moved <= PROJECT_EPS_POINT {
                 let Some(win) = self.window_at(un, vn) else {
                     break;
                 };

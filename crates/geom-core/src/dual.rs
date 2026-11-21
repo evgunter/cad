@@ -472,7 +472,7 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// computation of the same recipe.
     type Value = T;
 
-    fn value(self) -> T {
+    fn without_tangent(self) -> T {
         self.value
     }
 

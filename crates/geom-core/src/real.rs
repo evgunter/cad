@@ -343,26 +343,36 @@ pub trait Real:
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
 
-    /// **This scalar with its tangent removed**: the value channel a
-    /// place is evaluated on and a decision reads (DL5.2, the crate
-    /// README). At a dual it is the base scalar (`f64` at `Dual<f64>`,
-    /// [`crate::Interval`] at `Dual<Interval>`); at `f64`, `Interval` and
-    /// [`crate::Probe`] it is the scalar itself, which carries no
-    /// tangent; at [`crate::Sym`] it is the `Sym` over its numeric
-    /// channel's value, node for node (the symbols are an identity over
-    /// the document's unknowns, which a decision reads, not a tangent),
-    /// so the scalar itself over `f64` or `Interval`. It is its own
-    /// value channel, so a second read is the identity.
+    /// **This scalar with its tangent removed**: the scalar a place is
+    /// evaluated at and a decision reads, which DL5.2 (the crate README)
+    /// calls the value channel. It is not [`crate::SpanLocate`]'s
+    /// `value_channel`, an `f64` a structure decision reads (NaN where a
+    /// value is wider than a point). What it is at each scalar:
+    ///
+    /// - `f64`, [`crate::Interval`], [`crate::Probe`]: the scalar itself,
+    ///   which carries no tangent.
+    /// - `Dual<f64>`, `Dual<Interval>`: the base scalar, the value part.
+    /// - [`crate::Sym`]`<T>`: `Sym<T::Value>`, node for node: the symbols
+    ///   are an identity over the document's unknowns, which a decision
+    ///   reads, not a tangent. Over `f64` or `Interval` that is the
+    ///   scalar itself.
+    ///
+    /// It carries no tangent of its own, so a second read is the
+    /// identity. `T: Real<Value = T>` (or `Decide<Value = T>`) is the
+    /// bound "a scalar that carries no tangent", which no dual meets.
     type Value: crate::Decide<Value = Self::Value>;
 
     /// The read down to [`Real::Value`]: a dual's value part, bit for
-    /// bit; the scalar itself elsewhere.
-    fn value(self) -> Self::Value;
+    /// bit; the `Sym` over its numeric channel's read, its node kept;
+    /// the scalar itself elsewhere.
+    fn without_tangent(self) -> Self::Value;
 
-    /// **`x` on its value channel**: [`Real::value`] of every scalar it
-    /// holds, through `F`'s map, borrowed where the scalar is its own
-    /// value channel, so it allocates only at a dual. A geometry type
-    /// offers it as its `values()`.
+    /// **`x` without its tangent**: [`Real::without_tangent`] of every
+    /// scalar it holds, through `F`'s map. Borrowed where the scalar
+    /// carries no tangent; a copy at a dual, and at a `Sym` over one.
+    /// Plumbing for a geometry type's `value_view()`, which is what a
+    /// caller names.
+    #[doc(hidden)]
     fn view<F: crate::value_view::OverScalar>(
         x: &F::At<Self>,
     ) -> crate::value_view::ValueView<'_, F::At<Self::Value>>;
@@ -2140,7 +2150,7 @@ impl Real for f64 {
 
     type Value = f64;
 
-    fn value(self) -> f64 {
+    fn without_tangent(self) -> f64 {
         self
     }
 

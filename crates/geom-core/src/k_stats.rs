@@ -2054,7 +2054,7 @@ impl Real for Probe {
     /// The probe itself: it records the decisions its value meets.
     type Value = Self;
 
-    fn value(self) -> Self {
+    fn without_tangent(self) -> Self {
         self
     }
 
