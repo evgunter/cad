@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [the-period-jump-has-no-ruling]
 blocked_on: [a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way]
+branch: tesslie/lift-turns
 ---
 
 

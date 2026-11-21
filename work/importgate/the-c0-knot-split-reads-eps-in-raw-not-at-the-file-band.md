@@ -32,7 +32,7 @@ None is read through the kernel's funnel at the file's band
 (`interpret::file_band`: `(e, K·e)`, `e` the larger of ε_in and the run's
 ε), so a file declaring ε_in below the run's ε is read finer here than
 everywhere else in the import, and no reading has an in-band arm. The iso
-line's recognition (`recognize_curve::try_line`) already takes the file
+line's reading (`recognize_curve::straight_map`) already takes the file
 band whole.
 
 ## Why not fixed with the rest

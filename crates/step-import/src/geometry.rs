@@ -16,6 +16,51 @@ use geom_core::Point3;
 
 use crate::error::StepImportError;
 
+/// **An edge's trim inside what its carrier covers**: `(t0, t1)`, the
+/// interval [`endpoint_params`] derived from the vertices, read against
+/// `covers`, the range of the analytic `carrier` a promoted spline
+/// covers (`recognize_curve`'s `covers`). The trim must lie inside it,
+/// in order, each overshoot metred along the carrier and read Zero at
+/// the file's band; a periodic carrier's trim is read on the branch
+/// nearer the covered range. Answers the trim unchanged.
+///
+/// # Errors
+///
+/// [`StepImportError::Topology`] where the trim runs past the covered
+/// range: the vertices name a piece of the analytic curve the file's
+/// spline does not run along.
+pub(crate) fn trim_within(
+    id: u64,
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    (a, b): (f64, f64),
+    file: crate::interpret::FileBand,
+) -> Result<(f64, f64), StepImportError> {
+    let rate = match carrier {
+        Curve3::Circle(c) => c.radius(),
+        _ => 1.0,
+    };
+    let past = |shift: f64| ((a - (t0 + shift)).max(0.0)).max(t1 + shift - b) * rate;
+    let shifts = match carrier.period() {
+        Some(turn) => vec![0.0, -turn.length()],
+        None => vec![0.0],
+    };
+    let past =
+        shifts.into_iter().map(past).fold(
+            f64::INFINITY,
+            |m, p| if p < m || p.is_nan() { p } else { m },
+        );
+    if file.read(crate::interpret::STEP_TRIM_COVERED, past) != crate::interpret::Read::Zero {
+        return Err(StepImportError::Topology {
+            id,
+            what: "an edge whose vertices trim its carrier outside the piece the file's \
+                   spline covers (the spline promoted to an analytic curve; its edge \
+                   must run along the spline, in its direction)",
+        });
+    }
+    Ok((t0, t1))
+}
+
 /// The carrier parameters of `p_start` / `p_end` (module docs).
 ///
 /// # Errors
