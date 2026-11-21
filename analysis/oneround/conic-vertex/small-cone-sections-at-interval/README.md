@@ -37,7 +37,7 @@ verdict between the two storages.
 
 `a_ring_on_a_cone_face`, volume enclosure width in m³ (bar 1e-10):
 
-| row, op | centre-stored base | (ii) stored at `vertex − u·a`, measured before the phase | (i) step A |
+| row, op | centre-stored, base at `3df3b1d41` | (ii) stored at `vertex − u·a`, measured before the phase, on `3df3b1d41` | (i) step A, on `ec8749552` |
 |---|---|---|---|
 | certified scalar, cone ∪ box | 4.86e-11 | 4.80e-11 | 3.22e-11 |
 | certified scalar, box ∪ cone | 7.78e-11 | 7.75e-11 | 5.39e-11 |
@@ -45,6 +45,12 @@ verdict between the two storages.
 | point maps, cone ∪ box | 2.02e-11 | 2.05e-11 | 1.15e-11 |
 | point maps, box ∪ cone | 3.00e-11 | 3.08e-11 | 1.64e-11 |
 | point maps, cone ∖ box | 2.09e-12 | 2.11e-12 | 9.31e-13 |
+
+**Correction (2026-11-21).** The first two columns were taken on the
+older base `3df3b1d41`; the base the unit is stacked on, `ec8749552`,
+reads 3.79e-11, 5.82e-11, 3.01e-12, 1.33e-11, 1.73e-11, 1.03e-12 down the
+first column (both reviews of PR 7203), so step A is narrower than its
+own base by 5 to 15%, not by the third or half this table suggests.
 
 The (ii) column is from this lane's run of the same switch on the head
 before the phase (the `box ∪ cone` figure is the one on the unit's closed
