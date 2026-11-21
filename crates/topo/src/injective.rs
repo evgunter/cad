@@ -2521,6 +2521,13 @@ fn present_plane<'a>(
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
                     != Some(Sign::Positive)
             {
+                if std::env::var_os("CV_TRACE").is_some() {
+                    let l1 = lean(n1, bv);
+                    let l2 = lean(n2, a);
+                    let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
+                    let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
+                    eprintln!("CVLEAN sin={:.3e} l1={:.3e} l2={:.3e} la={:.3e} lb={:.3e}", (l1 / lb).lo(), l1.lo(), l2.lo(), la.lo(), lb.lo());
+                }
                 return Err(cvl(line!(), Unpresented::Local));
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
@@ -2572,7 +2579,12 @@ fn present_plane<'a>(
                 cache: Cache::default(),
             })))
         }
-        _ => Err(cvl(line!(), Unpresented::Local)),
+        many => {
+            if std::env::var_os("CV_TRACE").is_some() {
+                eprintln!("CVMANY edges={} vertices={}", many.len(), piece.local.vertices.len());
+            }
+            Err(cvl(line!(), Unpresented::Local))
+        }
     }
 }
 
@@ -5865,6 +5877,38 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         _ => false,
     };
     let corner = qx.corner || qy.corner;
+    if std::env::var_os("CV_TRACE").is_some()
+        && near.edges.is_empty()
+        && matches!(qx.zero, Zero::Point(..))
+        && matches!(qy.zero, Zero::Point(..))
+        && matches!(x.surface, Surface::Plane { .. })
+        && matches!(y.surface, Surface::Plane { .. })
+        && let Some(&v) = near.vertices.first()
+        && let Some(&q) = x.boundary.vertices.get(&v)
+    {
+        let dir = |p: &Presented<'_>, s: f64, t: f64| {
+            unit(pmid(p.image((s, s), (t, t))) - pmid(p.image((0.0, 0.0), (0.0, 0.0))))
+        };
+        let (a1, a2, b1, b2) = (dir(qx, 1.0, 0.0), dir(qx, 0.0, 1.0), dir(qy, 1.0, 0.0), dir(qy, 0.0, 1.0));
+        let cands = planes_through(x, near, qx, qy);
+        let old_ok = cands.iter().cloned().any(opposite);
+        let olddots = cands.first().map(|(psi, _)| match psi {
+            Psi::Linear { n, .. } => {
+                let n = vmid(*n);
+                [a1, a2, b1, b2].map(|d| d.map_or(f64::NAN, |d| n.dot(d)))
+            }
+            _ => [f64::NAN; 4],
+        });
+        let alt = (|| unit((a1? + a2?) - (b1? + b2?)))();
+        let alt_ok = alt.is_some_and(|n| {
+            opposite((
+                Psi::Linear { n: lift(n), q },
+                On { edges: Vec::new(), vertices: vec![v], whole: true },
+            ))
+        });
+        let altdots = alt.map(|n| [a1, a2, b1, b2].map(|d| d.map_or(f64::NAN, |d| n.dot(d))));
+        eprintln!("CVV old_ok={old_ok} olddots={olddots:?} alt_ok={alt_ok} altdots={altdots:?} a=({a1:?},{a2:?}) b=({b1:?},{b2:?})");
+    }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
