@@ -73,6 +73,8 @@ mod bool11_probes;
 mod chain_shape_pieces;
 #[path = "chain_shape_random.rs"]
 mod chain_shape_random;
+#[path = "deferred_refusal_step.rs"]
+mod deferred_refusal_step;
 #[path = "fillet_constructions.rs"]
 mod fillet_constructions;
 #[path = "fillet_decided_tangency.rs"]

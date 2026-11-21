@@ -511,9 +511,10 @@ fn chain_form(
 /// — which mints the raw run's vertex and a carrier the raw run's own
 /// satisfies, the tangent-chord derivation being one it meets. Whether the derived arc reproduces the raw one is the
 /// census's comparison, as for every lift. The substitution is kept
-/// only if it makes PROGRESS (the next refusal, if any, is later in
-/// the program), so a wall this spelling does not move is left in the
-/// driver's own words rather than laundered.
+/// only if it makes PROGRESS (the replay reaches further: the next
+/// refusal, if any, is raised later in the program, whichever earlier
+/// step it names — [`progressed`]), so a wall this spelling does not
+/// move is left in the driver's own words rather than laundered.
 fn repair_same_carrier(
     mut program: Vec<Step<f64>>,
     origin: &[usize],
@@ -534,21 +535,24 @@ fn repair_same_carrier(
             // record in the driver's own words.
             return Ok(program);
         }
-        match program.get(error.step) {
+        // The junction's refusal is the arc leg's own, never deferred
+        // (`is_carrier_continuation` reads it bare), so its step is the
+        // leg to re-spell.
+        let at = error.step();
+        match program.get(at) {
             Some(Step::ArcTo(ArcData::Center {
                 target: Target::Point(p),
                 ..
             })) => {
                 let p = *p;
                 let saved = program.clone();
-                program[error.step] = Step::TangentArcTo(Target::Point(p));
-                program.insert(error.step, Step::Tangent);
-                let src = origin.get(error.step).copied().unwrap_or_default();
-                origin.insert(error.step, src);
+                program[at] = Step::TangentArcTo(Target::Point(p));
+                program.insert(at, Step::Tangent);
+                let src = origin.get(at).copied().unwrap_or_default();
+                origin.insert(at, src);
                 match replay(&program, tol) {
                     Ok(_) => return Ok(program),
-                    // Progress means past BOTH steps of the construction.
-                    Err(next) if next.step > error.step + 1 => {}
+                    Err(next) if progressed(&error, &next) => {}
                     Err(_) => return Ok(saved),
                 }
             }
@@ -557,13 +561,21 @@ fn repair_same_carrier(
                 ..
             })) => {
                 return Err(LiftRefusal::SameCarrierClose {
-                    joint: origin.get(error.step).copied().unwrap_or_default(),
+                    joint: origin.get(at).copied().unwrap_or_default(),
                 });
             }
             _ => return Ok(program),
         }
     }
     Ok(program)
+}
+
+/// Whether the replay after a two-step substitution at `before`'s step
+/// reached past BOTH steps of it: progress is how far a replay got
+/// ([`ReplayError::raised_at`]), not the step a refusal names, which a
+/// read-back at the close files against an earlier arc.
+fn progressed(before: &ReplayError<f64>, after: &ReplayError<f64>) -> bool {
+    after.raised_at() > before.raised_at() + 1
 }
 
 /// Is this refusal the "the incoming carrier just continues" fact?
@@ -717,7 +729,40 @@ fn ulps(a: f64, b: f64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Source, compare};
+    use super::{Source, compare, progressed};
+    use crate::path::program::{ReplayError, ReplayErrorKind};
+    use crate::{Deferral, PathError};
+
+    /// **A substitution whose replay then refuses at the close, about an
+    /// earlier arc, made progress.** A read-back at the close (step 9)
+    /// files its refusal against the arc it read (step 2), before the
+    /// substituted junction at step 3; how far the replay got is the
+    /// close.
+    ///
+    /// Red if progress reads the step a refusal names, not the step that
+    /// raised it.
+    #[test]
+    fn a_refusal_raised_later_about_an_earlier_arc_is_progress() {
+        let bug = || PathError::<f64>::UnderdeterminedLeg { site: "fixture" };
+        let before = ReplayError::new(3, ReplayErrorKind::Path(bug()));
+        let at_close = |raised_at| {
+            ReplayError::new(
+                raised_at,
+                ReplayErrorKind::Path(PathError::Deferred {
+                    step: 2,
+                    raised_at,
+                    deferral: Deferral::ArcReadBack,
+                    refusal: Box::new(bug()),
+                }),
+            )
+        };
+        assert_eq!(at_close(9).step(), 2, "the refusal names the arc");
+        assert!(progressed(&before, &at_close(9)), "reached the close");
+        assert!(
+            !progressed(&before, &at_close(4)),
+            "raised within the two substituted steps"
+        );
+    }
     use crate::{ConstructedLoop, ProfileLoop, Segment};
     use geom_core::Point2;
 
