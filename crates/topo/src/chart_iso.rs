@@ -7,16 +7,16 @@
 //! module answers what a BOUNDARY EDGE is in them. Two consumers run
 //! these expressions and there is one copy of each:
 //!
-//! - `mesh`'s boundary walk, which classifies every edge of a curved
-//!   face's loop before emitting its UV polygon;
+//! - `mesh`'s boundary walk and chord rule, which read each edge of a
+//!   curved face's loop at the family the shape door certified
+//!   ([`traversal_kind`]) before emitting its UV polygon;
 //! - [`crate::coherence`], which measures how far the body's own two
-//!   accounts of one of those constant coordinates disagree.
+//!   accounts of one of those constant coordinates disagree, reading
+//!   the family by nearest fit ([`classify_kind`]).
 //!
 //! **What is here is the rule; what is NOT here is each caller's
-//! disposition of it.** `mesh` maps a non-iso carrier onto its own
-//! typed refusal and this module answers `None`; `mesh` reads the
-//! separation band through its own `Eps` newtype and this module takes
-//! the answer as a `bool`. Those two seams are deliberate and are
+//! disposition of it.** `mesh` reads the separation band through its
+//! own `Eps` newtype and this module takes the answer as a `bool`. Those two seams are deliberate and are
 //! named at the items below: a disposition belongs to the crate that
 //! disposes, and a band's spelling belongs to the crate that owns the
 //! band.
@@ -61,6 +61,34 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
     chart.u_of(curve.mid_point())
 }
 
+/// **The traversal an edge is, given its iso family**: a meridian (`U`)
+/// reads its column at the mid-point chart inversion
+/// ([`mid_azimuth`]), a rim (`V`) its row from its circle
+/// ([`Chart::rim_v`]). The family is the caller's — `mesh` reads the one
+/// `geom_brep::props::require_iso_rectangle` certified for the edge,
+/// [`classify_kind`] the one its nearest fit picks — so this decides
+/// nothing; it reads the coordinate.
+///
+/// `None` for a rim whose carrier is no circle, which has no row to
+/// read.
+pub fn traversal_kind(
+    chart: &Chart,
+    curve: &geom_brep::EdgeCurve<f64>,
+    family: geom_brep::IsoFamily,
+) -> Option<TravKind> {
+    match family {
+        geom_brep::IsoFamily::U => Some(TravKind::Meridian {
+            u_raw: mid_azimuth(chart, curve),
+        }),
+        geom_brep::IsoFamily::V => match *curve.carrier() {
+            Curve3::Circle(circle) => Some(TravKind::Rim {
+                v_raw: chart.rim_v(circle.frame.origin, circle.radius()),
+            }),
+            _ => None,
+        },
+    }
+}
+
 /// Rim-vs-meridian classification, on the carrier alone: line
 /// carriers are meridians; circle carriers split on axis alignment
 /// (structurally either parallel — a rim — or perpendicular — a
@@ -73,46 +101,33 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
 /// the chart, whose [`Chart::u_of`] carries the cone's mirror-nappe
 /// correction.
 ///
+/// **A nearest fit, not an iso test**: a circle off every iso curve of
+/// the chart is read as whichever family its axis is nearer. `mesh`
+/// does not read it — its walk and its chord rule read the family the
+/// shape door certified ([`traversal_kind`]) — so its one caller is
+/// [`crate::coherence`].
+///
 /// **`None` is not a refusal, it is the absence of a classification**:
 /// a conic or spline carrier is no chart iso curve, so this function
-/// has no answer about it. What that MEANS is the caller's, and the
-/// two callers mean different things by it — `mesh` reaches such a
-/// carrier only as a dispatch defect and surfaces it typed, while
+/// has no answer about it. What that MEANS is the caller's:
 /// [`crate::coherence`] records the loop as unexamined and carries on.
-/// Neither disposition belongs here.
 pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
     match *curve.carrier() {
-        Curve3::Line(_) => Some(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        }),
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            },
-        ) => {
-            let radius = circle.radius();
-            if axis.dot(chart.frame().axis).abs() > 0.5 {
-                Some(TravKind::Rim {
-                    v_raw: chart.rim_v(center, radius),
-                })
+        Curve3::Line(_) => traversal_kind(chart, curve, geom_brep::IsoFamily::U),
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis, .. },
+            ..
+        }) => {
+            let family = if axis.dot(chart.frame().axis).abs() > 0.5 {
+                geom_brep::IsoFamily::V
             } else {
-                Some(TravKind::Meridian {
-                    u_raw: mid_azimuth(chart, curve),
-                })
-            }
+                geom_brep::IsoFamily::U
+            };
+            traversal_kind(chart, curve, family)
         }
         // A spiric is neither a rim nor a meridian traversal of its
         // torus chart (its azimuth AND its minor angle both move), so it
-        // opens no iso side. The mesh's chord pass never asks this of a
-        // spiric (its chord arm sizes the carrier itself), so the
-        // `None` here is read by the coherence walk alone
-        // (`NonIsoCarrier`).
+        // opens no iso side (`NonIsoCarrier`).
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }

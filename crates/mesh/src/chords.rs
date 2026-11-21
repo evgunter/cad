@@ -366,7 +366,9 @@ fn tighten(
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
                 let surface = crate::tessellate::face_surface(body, s.face)?;
-                e.insert(FaceLattice::of(body, s.face, surface, lane, delta, bounds)?)
+                e.insert(FaceLattice::of(
+                    body, routes, s.face, surface, lane, delta, bounds,
+                )?)
             }
         };
         let Some(lattice) = lattice.as_ref() else {
@@ -438,12 +440,12 @@ struct FaceLattice {
 
 /// Which image of a half-edge a face's lane reads.
 enum Reads {
-    /// The curved lane walks its boundary by the iso classification
-    /// (`topo::chart_iso::classify_kind`) on the face's chart and reads no
-    /// stored row, so the rule reads the classifier's image too
+    /// The curved lane walks its boundary at the iso family the shape
+    /// door certified for each half-edge (`crate::curved::Rectangle`) and
+    /// reads no stored row, so the rule reads that image too
     /// (`work/tesslane/rectangle-faces-move-to-the-chart-lane.md` retires
     /// this reader).
-    Iso(topo::chart::Chart<f64>),
+    Iso(crate::curved::Rectangle),
     /// The trimmed lane's analytic arms read the stored row: a rim's, a
     /// meridian's or a ruling's harmonic image, a tilted circle's projected
     /// one, a section conic's focal-section one, a spiric's. On a chart
@@ -483,6 +485,7 @@ impl FaceLattice {
     ///   run.
     fn of(
         body: &Body<f64>,
+        routes: &crate::tessellate::Routes,
         fk: topo::FaceKey,
         surface: &geom::Surface<f64>,
         lane: crate::tessellate::Lane,
@@ -494,12 +497,12 @@ impl FaceLattice {
         Ok(match lane {
             Lane::Planar => None,
             Lane::Curved => {
-                let Some(chart) = topo::chart::Chart::of(surface) else {
-                    unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
-                };
+                let rectangle = routes.rectangle(fk).ok_or(TessellateError::MissingEntity {
+                    what: "a curved-lane face the doors gave no rectangle (router defect)",
+                })?;
                 Some(Self {
                     steps: AnalyticRow::of(body, fk, surface)?.steps(target),
-                    reads: Reads::Iso(chart),
+                    reads: Reads::Iso(rectangle.clone()),
                 })
             }
             Lane::Trimmed => {
@@ -545,18 +548,19 @@ impl FaceLattice {
         let (cache, joints) = match self.reads {
             // The iso image of a circle, exactly: a rim's carrier
             // parameter is its azimuth, a meridian's its minor angle or
-            // latitude. The classifier is total on circles; its `None`
-            // is for conic and spline carriers, surfaced typed rather than
-            // defaulted so a widened classifier cannot pick a direction.
-            Reads::Iso(ref chart) => {
-                let speeds = match topo::chart_iso::classify_kind(chart, curve) {
-                    Some(topo::chart_iso::TravKind::Rim { .. }) => (1.0, 0.0),
-                    Some(topo::chart_iso::TravKind::Meridian { .. }) => (0.0, 1.0),
+            // latitude. The family is the one the shape door certified
+            // for this half-edge; a half-edge it was not asked about is
+            // surfaced typed rather than defaulted, so no direction is
+            // picked for it.
+            Reads::Iso(ref rectangle) => {
+                let speeds = match rectangle.side(hek) {
+                    Some(geom_brep::IsoFamily::V) => (1.0, 0.0),
+                    Some(geom_brep::IsoFamily::U) => (0.0, 1.0),
                     None => {
                         return Err(refuse(
-                            "an edge a curved-lane face's lattice reads that the iso-curve \
-                             classifier left unclassified — neither rim nor meridian, so no \
-                             grid direction sizes its chords",
+                            "an edge a curved-lane face's lattice reads that the shape door \
+                             did not certify — neither rim nor meridian, so no grid direction \
+                             sizes its chords",
                         ));
                     }
                 };
@@ -991,7 +995,8 @@ mod tests {
                     panic!("a refused face")
                 };
                 let Some(lattice) =
-                    FaceLattice::of(body, s.face, surface, lane, delta, &mut bounds).unwrap()
+                    FaceLattice::of(body, &routes, s.face, surface, lane, delta, &mut bounds)
+                        .unwrap()
                 else {
                     continue;
                 };

@@ -413,12 +413,10 @@ pub enum TessellateError {
     /// in every profile.
     ///
     /// **Decided on the traversal kinds.** No coordinate, area, triangle
-    /// count or ε is read. The kinds themselves are
-    /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
-    /// on `|axis · chart.axis| > 0.5`; that split is structural only
-    /// because the shape door (`curved::iso_rectangle_shape`) has
-    /// certified every carrier as a rim or a meridian carrier before the
-    /// route hands the face to the walk.
+    /// count or ε is read. The kinds themselves are the shape door's
+    /// (`curved::iso_rectangle_shape`): it certifies each carrier a rim
+    /// or a meridian, at the band, before the route hands the face to
+    /// the walk, and the walk reads that answer.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
     /// singularity inside a face is a vertex of it: a loop of rims only

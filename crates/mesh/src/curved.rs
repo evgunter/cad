@@ -213,7 +213,7 @@ pub(crate) fn tessellate_curved(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
-    _rectangle: Rectangle,
+    rectangle: &Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     shared: &[Point3<f64>],
     tol: &SizingTols,
@@ -243,7 +243,7 @@ pub(crate) fn tessellate_curved(
         what: "curved chart",
     })?;
     let polygon = loop_polygon(
-        body, &chart, chords, shared, fk, face.outer, tol.eps, tol.band,
+        body, &chart, rectangle, chords, shared, fk, face.outer, tol.eps, tol.band,
     )?;
     // A COUNT, and only a count. Every loop measured into this line came
     // from a state questions 3 and 4 now refuse on their own terms first
@@ -552,8 +552,27 @@ pub(crate) fn tessellate_curved(
 /// [`iso_rectangle_shape`] alone, where both doors pass, and taken by
 /// [`tessellate_curved`], so a face reaches this lane only on that
 /// answer and no route can hand it one without asking.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Rectangle(());
+///
+/// It carries what the shape door decided on the way: each outer-loop
+/// half-edge's iso family, a meridian (`U`) or a rim (`V`)
+/// (`geom_brep::props::require_iso_rectangle`). The walk and the chord
+/// rule read that one decision ([`Rectangle::side`]) rather than
+/// classifying the carriers a second time.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Rectangle {
+    sides: Vec<(topo::HalfEdgeKey, geom_brep::IsoFamily)>,
+}
+
+impl Rectangle {
+    /// The iso family the shape door certified for the outer-loop
+    /// half-edge `he`; `None` for a half-edge the door was not asked
+    /// about, which on this lane is a routing defect.
+    pub(crate) fn side(&self, he: topo::HalfEdgeKey) -> Option<geom_brep::IsoFamily> {
+        self.sides
+            .iter()
+            .find_map(|&(h, family)| (h == he).then_some(family))
+    }
+}
 
 /// A curved face's shape at the two doors ([`iso_rectangle_shape`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -611,14 +630,17 @@ pub(crate) fn iso_rectangle_shape(
     // third arm minted in `topo` is a compile error here — D2 row 0
     // across the crate boundary, in place of an `unreachable!` over
     // arms the flatten never produced.
-    let (outer, _half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
+    let (outer, half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
         LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
         LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
-    let doors = geom_brep::props::require_iso_rectangle(surface, &outer, band)
-        .and_then(|()| geom_brep::props::require_one_chart_branch(surface, &outer, band));
+    let doors = geom_brep::props::iso_rectangle_sides(surface, &outer, band).and_then(|sides| {
+        geom_brep::props::require_one_chart_branch(surface, &outer, band).map(|()| sides)
+    });
     match doors {
-        Ok(()) => Ok(Shape::Rectangle(Rectangle(()))),
+        Ok(sides) => Ok(Shape::Rectangle(Rectangle {
+            sides: half_edges.into_iter().zip(sides).collect(),
+        })),
         Err(
             verdict @ (P::NotIsoRectangle { .. } | P::Unimplemented | P::NotOneChartBranch { .. }),
         ) => Ok(Shape::NoRectangle(verdict)),
@@ -1242,7 +1264,7 @@ mod tests {
                     continue;
                 }
                 let answer =
-                    tessellate_curved(body, fk, surface, rectangle, &chords.ids, &positions, &tol);
+                    tessellate_curved(body, fk, surface, &rectangle, &chords.ids, &positions, &tol);
                 assert!(
                     matches!(
                         answer,
@@ -1316,7 +1338,8 @@ mod tests {
                     &body,
                     fk,
                     surface,
-                    Rectangle(()),
+                    // No door ran on a ringed face, so it has no sides.
+                    &Rectangle { sides: Vec::new() },
                     &HashMap::new(),
                     &[],
                     &tol
@@ -1447,7 +1470,7 @@ mod tests {
             &body,
             fk,
             surface,
-            rectangle,
+            &rectangle,
             &chords.ids,
             &positions,
             &sizing,
@@ -1569,15 +1592,20 @@ mod tests {
             let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
                 panic!("face {fk:?} has no iso chart to walk")
             };
-            let walk = loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band)
-                .map(|poly| {
-                    // The same lever arms `tessellate_curved` builds.
-                    let levers = poly
-                        .iter()
-                        .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
-                        .collect();
-                    (poly, levers)
-                });
+            let rectangle = routes
+                .rectangle(fk)
+                .expect("a curved-lane face has its doors' answer");
+            let walk = loop_polygon(
+                body, &chart, rectangle, &chords, &positions, fk, face.outer, eps, band,
+            )
+            .map(|poly| {
+                // The same lever arms `tessellate_curved` builds.
+                let levers = poly
+                    .iter()
+                    .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
+                    .collect();
+                (poly, levers)
+            });
             out.push((fk, walk));
         }
         out
@@ -2891,8 +2919,9 @@ mod tests {
     }
 
     /// **The oblique lens has no walk.** It is a sphere face bounded by
-    /// two tilted plane sections meeting off the axis. Both classify
-    /// `Rim` (`|n · axis| > 0.5`), so the loop has no meridian and
+    /// two tilted plane sections meeting off the axis. Handed to the walk
+    /// with both arcs stated as rims (what a classifier by axis would
+    /// read them as, `|n · axis| > 0.5`), the loop has no meridian and
     /// `walk::loop_polygon` refuses it on that structure alone. A walk
     /// of it would merge both arcs onto ONE `v` — a polygon that is its
     /// own zero-height bounding box, which the spatial check
@@ -2907,12 +2936,18 @@ mod tests {
     fn the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door() {
         let (body, face) = crate::witness_bodies::oblique_lens();
         // The route sends both lens faces to the trimmed lane (below);
-        // handed to this lane all the same, the walk refuses the lens on
-        // its own terms.
+        // handed to this lane all the same, with both oblique arcs stated
+        // as rims (what a classifier by axis would read them as), the walk
+        // refuses the lens on its own terms: no side is a meridian.
         let routes = body
             .faces()
-            .fold(crate::tessellate::Routes::witness(&body), |r, (fk, _)| {
-                r.with(fk, crate::tessellate::Lane::Curved)
+            .fold(crate::tessellate::Routes::witness(&body), |r, (fk, f)| {
+                let (_, half_edges) = topo::props::loop_edges(&body, f.outer).unwrap();
+                let sides = half_edges
+                    .into_iter()
+                    .map(|he| (he, geom_brep::IsoFamily::V))
+                    .collect();
+                r.with_curved(fk, Rectangle { sides })
             });
         let walked = walk_results(&body, routes);
         let (_, lens) = walked
@@ -2925,7 +2960,7 @@ mod tests {
                 face,
                 surface: geom::SurfaceKind::Sphere,
             }),
-            "two Rim-classified oblique arcs and nothing else"
+            "two arcs stated as rims and nothing else"
         );
         let surface = body.face_surface(face).unwrap();
         let outer = body.get_face(face).unwrap().outer;

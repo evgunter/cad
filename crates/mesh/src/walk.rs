@@ -219,6 +219,7 @@ pub(crate) fn loop_half_edges(
 pub(crate) fn traversals(
     body: &Body<f64>,
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     face: FaceKey,
     lk: LoopKey,
@@ -246,7 +247,7 @@ pub(crate) fn traversals(
         if !forward {
             ids.reverse();
         }
-        let kind = classify(chart, curve, ek)?;
+        let kind = side_of(chart, rectangle, half_edge, curve)?;
         out.push(Trav {
             edge: ek,
             half_edge,
@@ -258,32 +259,34 @@ pub(crate) fn traversals(
     Ok(out)
 }
 
-/// Rim-vs-meridian classification (module docs): line carriers are
-/// meridians; circle carriers split on axis alignment (structurally
-/// either parallel — a rim — or perpendicular — a meridian; 0.5 splits
-/// the two classes with maximal margin). The description is not read:
-/// a wrap edge classifies by its carrier like any other edge.
+/// **A traversal's kind, as the shape door decided it**: the family
+/// `geom_brep::props::require_iso_rectangle` certified for this
+/// half-edge (`rectangle`), read at its own coordinate
+/// ([`topo::chart_iso::traversal_kind`]). The walk decides no family;
+/// the door did, once, at the band, on the same carriers.
 ///
 /// A meridian's column u always comes from the mid-point chart
 /// inversion — **never** from the edge's description: a wrap edge sits
 /// wherever the construction cut the wall, so its column is wherever
 /// its carrier puts it (`u_of` carrying a cone's mirror-nappe
 /// correction).
-fn classify(
+///
+/// Both refusals are routing defects: the door answered every
+/// outer-loop half-edge, and certified a rim only on a circle.
+fn side_of(
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
+    half_edge: topo::HalfEdgeKey,
     curve: &geom_brep::EdgeCurve<f64>,
-    _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
-    // The classification is `topo::chart_iso::classify_kind`'s; what
-    // is here is THIS crate's disposition of its `None`.
-    //
-    // A carrier of no iso kind routes the whole face to the trimmed
-    // lane BEFORE this walk runs (the shape door decides it is no
-    // rectangle, `crate::curved::iso_rectangle_shape`), so an
-    // unclassifiable carrier here is the router's backstop, not a
-    // frontier — reaching one is a dispatch defect, surfaced typed.
-    topo::chart_iso::classify_kind(chart, curve).ok_or(TessellateError::MissingEntity {
-        what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
+    let family = rectangle
+        .side(half_edge)
+        .ok_or(TessellateError::MissingEntity {
+            what: "a half-edge the shape door did not certify reached the iso-rectangle walk \
+                   (router defect)",
+        })?;
+    topo::chart_iso::traversal_kind(chart, curve, family).ok_or(TessellateError::MissingEntity {
+        what: "a rim the shape door certified on a carrier with no row (router defect)",
     })
 }
 
@@ -509,10 +512,11 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// ## The premise that argument needs, and where it is established
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
-/// chart. [`classify`] does not establish that: a `Line` carrier is a
-/// meridian unconditionally, and a `Circle` is a rim iff
-/// `|n · axis| > 0.5` — a cone of directions, not coaxiality. So the
-/// real premise is **every boundary edge is an iso-curve of this
+/// chart. The walk does not decide that: it reads each edge's family
+/// from the shape door's answer ([`side_of`]). A reading by carrier kind
+/// alone would not establish it — a `Line` a meridian unconditionally, a
+/// `Circle` a rim iff `|n · axis| > 0.5`, a cone of directions, not
+/// coaxiality — which is what the door is for. So the real premise is **every boundary edge is an iso-curve of this
 /// chart, traversed on ONE branch of it**, and it is verified at
 /// props: the two halves of it by
 /// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
@@ -576,8 +580,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// right about one face. What follows for a reader here: this walk's
 /// premise is NOT "whatever props admits", it is the branch door by
 /// name, and a change to the flux lane's admission set does not move
-/// it. The cheap hardening once recorded here (a coaxiality test in
-/// `classify`) is still not taken: the doors decide both halves at
+/// it. There is no second test here: the walk reads the doors'
+/// per-edge answer ([`side_of`]), so each family is decided once, at
 /// props' band, on props' margins.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
@@ -799,12 +803,10 @@ impl LoopKinds {
 ///
 /// The question asked is whether a meridian traversal EXISTS, on the
 /// traversal KINDS; no coordinate and no ε is read here. The kinds are
-/// `topo::chart_iso::classify_kind`'s, which splits circle carriers on
-/// `|axis · chart.axis| > 0.5` — a float — and that split is structural
-/// only because [`crate::curved`]'s shape door has certified every
-/// carrier as a rim or a meridian carrier before this walk is called.
-/// Called on a loop the door would have refused, the guard fires on a
-/// float-classified carrier
+/// the ones [`crate::curved`]'s shape door certified, each carrier a rim
+/// or a meridian at the band, before this walk is called. Handed a loop
+/// the door would have refused, with its sides stated as rims, the guard
+/// fires on the loop as stated
 /// (`curved::tests::the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door`).
 ///
 /// It runs ahead of the two D2-row-5 re-derivations in
@@ -1148,11 +1150,13 @@ fn strip_columns(travs: &[Trav], strip: WrapStrip) -> Vec<f64> {
 ///    the other axis by continuity.
 /// 8. the closure assertion — a revert detector, not a runtime guard.
 // One parameter per input the walk reads: the body, its chart, the
-// shared mesh ids and points, the loop, and the two tolerances.
+// doors' rectangle, the shared mesh ids and points, the loop, and the
+// two tolerances.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     positions: &[Point3<f64>],
     face: FaceKey,
@@ -1160,7 +1164,7 @@ pub(crate) fn loop_polygon(
     eps: Eps,
     band: Band,
 ) -> Result<Vec<UvPoint>, TessellateError> {
-    let mut travs = traversals(body, chart, chords, face, lk)?;
+    let mut travs = traversals(body, chart, rectangle, chords, face, lk)?;
     let kinds = LoopKinds::of(&travs);
     let face_record = body
         .get_face(face)
@@ -2310,24 +2314,23 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords = crate::chords::compute_chords(
-            &body,
-            0.05,
-            &crate::tessellate::Routes::witness(&body),
-            &vids,
-            &mut positions,
-            &mut bounds,
-        )
-        .unwrap();
+        let routes = crate::tessellate::Routes::witness(&body);
+        let chords =
+            crate::chords::compute_chords(&body, 0.05, &routes, &vids, &mut positions, &mut bounds)
+                .unwrap();
         let (fk, _) = body
             .faces()
             .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
+        let rectangle = routes
+            .rectangle(fk)
+            .expect("the doors certify the sphere band a rectangle");
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,
                 &chart,
+                rectangle,
                 &chords.ids,
                 &positions,
                 fk,
