@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod check1_turned_probe;
 mod common;
 mod mate2_common;
 mod revolve_common;
