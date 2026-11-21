@@ -1344,6 +1344,10 @@ struct Clip {
     edges: Vec<usize>,
     /// The vertex a collapsed side is.
     collapsed: Option<VertexKey>,
+    /// The edge ends that end on a collapsed side ([`ends_on_collapse`]),
+    /// each an index into the boundary's edges and which end; empty for
+    /// any other side.
+    ends_here: Vec<(usize, usize)>,
 }
 
 /// **Present `piece`'s face in its cell**, the shared cell being the
@@ -1824,7 +1828,9 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
 ///
 /// **A side's edges run on past a corner** ([`run_on`]): an edge that
 /// ends at a vertex it shares with a clip on the other axis covers the
-/// side out to that clip's line's far bound. The run-on is sound only
+/// side out to that clip's line's far bound, and one that ends at the
+/// vertex a collapsed side is covers it out to that side
+/// ([`ends_on_collapse`]). The run-on is sound only
 /// with the other two checks, which is why all three are read here and
 /// nowhere else: that the other line bounds the face there is that
 /// line's own coverage, and that the corner is the face's is
@@ -1880,38 +1886,95 @@ fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
 fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
     let held = c.side.axis();
     let mut out = edge_ranges(b, &c.edges, held)?;
-    for d in merged
-        .iter()
-        .filter(|d| d.side.axis() != held && d.collapsed.is_none())
-    {
+    // The end `k` of the edge `ei`, run on to `d`'s line's far bound.
+    let mut run = |ei: usize, k: usize, d: &Clip| -> Option<()> {
+        let e = b.edges.get(ei)?;
+        for u in &e.uses {
+            let iso = u.iso?;
+            if iso.held != held || iso.full {
+                continue;
+            }
+            let end = iso.moving(u.image?[k]);
+            let end = if periodic {
+                wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
+            } else {
+                end
+            };
+            out.push(match d.side {
+                Side::XHi | Side::YHi => Interval::from_bounds(end.lo(), end.hi().max(d.at.hi())),
+                Side::XLo | Side::YLo => Interval::from_bounds(end.lo().min(d.at.lo()), end.hi()),
+            });
+        }
+        Some(())
+    };
+    for d in merged.iter().filter(|d| d.side.axis() != held) {
+        if d.collapsed.is_some() {
+            // An edge that ends on the collapsed side, by its end vertex's
+            // key ([`ends_on_collapse`]).
+            for &(ei, k) in d.ends_here.iter().filter(|(ei, _)| c.edges.contains(ei)) {
+                run(ei, k, d)?;
+            }
+            continue;
+        }
         let at = corners(b, c, d);
         for &ei in &c.edges {
             let e = b.edges.get(ei)?;
             for (k, _) in e.ends.iter().enumerate().filter(|(_, v)| at.contains(v)) {
-                for u in &e.uses {
-                    let iso = u.iso?;
-                    if iso.held != held || iso.full {
-                        continue;
-                    }
-                    let end = iso.moving(u.image?[k]);
-                    let end = if periodic {
-                        wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
-                    } else {
-                        end
-                    };
-                    out.push(match d.side {
-                        Side::XHi | Side::YHi => {
-                            Interval::from_bounds(end.lo(), end.hi().max(d.at.hi()))
-                        }
-                        Side::XLo | Side::YLo => {
-                            Interval::from_bounds(end.lo().min(d.at.lo()), end.hi())
-                        }
-                    });
-                }
+                run(ei, k, d)?;
             }
         }
     }
     Some(out)
+}
+
+/// **The edge ends that end on a collapsed side**, the side being the
+/// vertex `v`, read at the singular point `point` ([`singular_ends`]):
+/// each end of a boundary edge whose end vertex is `v`, by key, and
+/// whose chart image there is at `point` by the band ([`parallel_at`]).
+/// [`run_on`] runs such an end's line on to the collapsed side.
+///
+/// **Why that is the face's side, with no slack read**: the edge's curve
+/// ends at `v`; `v` is at the singular point, by the one incidence; and
+/// the image's end, a rounding of the edge's own parameters or the
+/// vertex's own latitude, is at the singular point by the same decision,
+/// so every surface point of the strip between it and the collapsed side
+/// is too. The boundary in that strip is nowhere else at the band, and
+/// the face has no point there to wrap round the edge's end into.
+///
+/// An end whose vertex is another, however near the side, is not one,
+/// nor an end whose image is off the point by the band: that edge and
+/// its vertex name two places, and it covers only its own range.
+fn ends_on_collapse(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    v: VertexKey,
+    point: Point3<Interval>,
+    band: Band,
+) -> Vec<(usize, usize)> {
+    let at_point = |e: &Rim, k: usize| {
+        e.uses.iter().all(|u| {
+            let (Some(iso), Some(image)) = (u.iso, u.image) else {
+                return false;
+            };
+            let (held, end) = (iso.at, iso.moving(image[k]));
+            let chart = |h: f64, m: f64| match iso.held {
+                Axis::U => (h, m),
+                Axis::V => (m, h),
+            };
+            held.is_certified()
+                && end.is_certified()
+                && [end.lo(), end.hi()]
+                    .into_iter()
+                    .all(|m| parallel_at(surface, chart(held.lo(), m), point, band))
+        })
+    };
+    b.edges
+        .iter()
+        .enumerate()
+        .flat_map(|(ei, e)| (0..2).map(move |k| (ei, e, k)))
+        .filter(|&(_, e, k)| e.ends[k] == v && at_point(e, k))
+        .map(|(ei, _, k)| (ei, k))
+        .collect()
 }
 
 /// **A cone face's nappe**: `true` where its vertices off the apex stand
@@ -2040,6 +2103,7 @@ fn present_chart<'a>(
                             at: iso.at,
                             edges: vec![ei],
                             collapsed: None,
+                            ends_here: Vec::new(),
                         });
                     }
                 }
@@ -2080,6 +2144,7 @@ fn present_chart<'a>(
                 at: line,
                 edges: vec![ei],
                 collapsed: None,
+                ends_here: Vec::new(),
             });
         }
     }
@@ -2115,6 +2180,7 @@ fn present_chart<'a>(
             at: hull,
             edges: on.iter().flat_map(|c| c.edges.iter().copied()).collect(),
             collapsed: None,
+            ends_here: Vec::new(),
         });
     }
     // The rectangle: the cell, its sides moved to the lines, outward.
@@ -2143,7 +2209,7 @@ fn present_chart<'a>(
             return Err(Unpresented::Structural);
         };
         for (low, end) in [false, true].into_iter().zip(ends) {
-            let Some((line, _)) = end else {
+            let Some((line, point)) = end else {
                 continue;
             };
             // The cell on a cone's other nappe holds only the apex of the
@@ -2181,6 +2247,7 @@ fn present_chart<'a>(
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
                     m.collapsed = Some(v);
+                    m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
                 }
                 Some(_) => return Err(Unpresented::Local),
                 None => merged.push(Clip {
@@ -2188,6 +2255,7 @@ fn present_chart<'a>(
                     at: line,
                     edges: Vec::new(),
                     collapsed: Some(v),
+                    ends_here: ends_on_collapse(piece.surface, b, v, point, band),
                 }),
             }
         }
@@ -7684,6 +7752,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3)));
         assert!(!convex(&b, &clip(Side::XLo, 0), &clip(Side::YLo, 3)));
@@ -7701,6 +7770,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let right = clip(Side::XHi, 0);
         let bottom = clip(Side::YLo, 3);
@@ -9179,6 +9249,96 @@ mod presentation_rows {
         );
     }
 
+    /// **A meridian that ends at the pole's vertex runs on to the pole's
+    /// side**: the octant with its meridians' images ending half the
+    /// band's zero under the pole, as a vertex in the band and off the
+    /// pole puts them. The cell at the pole is presented with the pole's
+    /// side its zero. With the same images and the meridians ending at
+    /// other vertices, beside the pole's, the cell is `Local`: the gap is
+    /// past the cover's `few_ulps`, and no key closes it. Red where the
+    /// run-on is granted without the vertex's key, or not at all.
+    #[test]
+    fn a_meridian_ending_at_the_poles_vertex_runs_on_to_the_poles_side() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, b) = octant_ending_at(line.lo() - 0.5 * band().zero());
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (0.0, q),
+                v: (1.5, q.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_chart(&piece, &[], &[vertex(3)], band()) {
+                Ok(Presentation::Of(p)) => Ok((p.zero, p.y)),
+                Ok(Presentation::Vacuous) => panic!("vacuous"),
+                Err(e) => Err(e),
+            }
+        };
+        let got = at_pole(&b);
+        assert!(
+            matches!(&got, Ok((Zero::Side(Side::YHi, a), (_, hi)))
+                if *hi == line.hi() && a.vertex == Some(vertex(3))),
+            "the meridians end at the pole's vertex: {got:?}"
+        );
+        let mut beside = b.clone();
+        beside.edges[1].ends[1] = vertex(7);
+        beside.edges[2].ends[0] = vertex(8);
+        assert!(
+            matches!(at_pole(&beside), Err(Unpresented::Local)),
+            "the meridians end beside the pole, at other vertices"
+        );
+    }
+
+    /// **A rectangle wholly past a singular latitude is not presented**:
+    /// a polar cap whose loop wraps the sphere, so its extent says
+    /// nothing, read in a cell past `π/2` with the pole's vertex in
+    /// reach. The pole's side leaves the rectangle no width, which is
+    /// `Local`. Red where the collapse is skipped for such a rectangle
+    /// and it keeps its width.
+    #[test]
+    fn a_rectangle_wholly_past_the_pole_is_not_presented() {
+        let (s, _) = octant();
+        let b = Boundary {
+            sense: true,
+            edges: vec![rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0))],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let local = Local {
+            edges: Vec::new(),
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.2, 1.8),
+            v: (1.58, 1.6),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert!(matches!(
+            present_chart(&piece, &[], &[vertex(3)], band()),
+            Err(Unpresented::Local)
+        ));
+    }
+
     /// **A face that holds no vertex at a pole is given no pole**, and
     /// its extent is the stored one: a vertex a millimetre of arc off
     /// the pole, on a unit sphere, at either end; a face of another
@@ -9493,9 +9653,19 @@ mod presentation_rows {
             ]),
             extent: Some([(1.0, 2.0), (lo, 1.0)]),
         };
-        // The low end the revolved cone at `y = 1.7` stores, and its mirror.
+        // The low end the revolved cone at `y = 1.7` stores, and its mirror;
+        // then ends past the cover's own `few_ulps`, as a meridian of a
+        // cone 50 long stores (an ulp of 53.85), up to half the band's
+        // zero: the meridian ends at the apex's vertex, so it runs on to
+        // the collapsed side ([`ends_on_collapse`]).
         let ulp = 2.220_446_049_250_313e-16;
-        for lo in [0.0, ulp, -ulp] {
+        let past = [
+            1.5e-15,
+            2.0e-15,
+            7.105_427_357_601_002e-15,
+            0.5 * band().zero(),
+        ];
+        for lo in [0.0, ulp, -ulp].into_iter().chain(past) {
             let b = sector(lo);
             assert_eq!(
                 v_of(&s, &b),
@@ -9530,6 +9700,33 @@ mod presentation_rows {
             v_of(&s, &sector(2.0 * band().escalate())),
             Err(Unpresented::Structural),
             "a stored end off the apex by the band"
+        );
+        // The same gap under an edge whose end vertex is another: the
+        // meridians end at vertices 7 and 8, beside the apex's vertex 9,
+        // and nothing runs them on.
+        let mut beside = sector(past[2]);
+        beside.edges[0].ends[0] = vertex(7);
+        beside.edges[2].ends[1] = vertex(8);
+        let local = Local {
+            edges: vec![0, 2],
+            vertices: vec![vertex(9)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &beside,
+            u: (1.2, 1.8),
+            v: (-0.1, 0.3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert!(
+            matches!(
+                present_chart(&piece, &[], &[vertex(9)], band()),
+                Err(Unpresented::Local)
+            ),
+            "an edge that ends beside the apex, at another vertex"
         );
         let mut below = lone(origin(), (-1.0, -ulp));
         below
@@ -10678,6 +10875,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges,
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let s = cylinder();
         let side = |clips: &[Clip], near: &[usize], vertices: &[VertexKey]| {
