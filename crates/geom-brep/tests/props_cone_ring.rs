@@ -24,10 +24,8 @@ const APEX_Z: f64 = -1.0;
 
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: p3(0.0, 0.0, APEX_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, APEX_Z), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 

@@ -102,15 +102,14 @@ fn tube_minor_radius_is_stored_bit_exact() {
     let mut tori = 0usize;
     for (fk, _) in tube.faces() {
         let Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = tube.face_surface(fk).expect("surface resolves")
         else {
             continue;
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         tori += 1;
         assert!(minor_radius.to_bits() == MINOR.to_bits(), "minor bit-exact");
         assert!(major_radius.to_bits() == R.to_bits(), "major bit-exact");

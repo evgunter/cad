@@ -508,23 +508,23 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
 /// chart. The walk does not decide that: it reads each edge's family
-/// from the shape door's answer ([`side_of`]). A reading by carrier kind
-/// alone would not establish it — a `Line` a meridian unconditionally, a
-/// `Circle` a rim iff `|n · axis| > 0.5`, a cone of directions, not
-/// coaxiality — which is what the door is for. So the real premise is **every boundary edge is an iso-curve of this
-/// chart, traversed on ONE branch of it**, and it is verified at
-/// props: the two halves of it by
-/// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
-/// on every kind) and `require_one_chart_branch` (the traversed ARC),
-/// both asked by the route ([`crate::curved::iso_rectangle_shape`])
-/// before this walk runs. What
-/// each kind would leak without them, which is what the door has to
-/// cover and the reason the second half needed its own predicate:
+/// from the shape door's answer ([`side_of`]), which certifies the
+/// carrier coaxial per edge rather than reading its kind. So the real
+/// premise is **every boundary edge is an iso-curve of this chart,
+/// traversed on ONE branch of it**, and it is verified at props: the
+/// two halves of it by `geom_brep::props::require_iso_rectangle` (the
+/// CARRIER, per edge, on every kind) and `require_one_chart_branch`
+/// (the traversed ARC), both asked by the route
+/// ([`crate::curved::iso_rectangle_shape`]) before this walk runs. What
+/// a reading by carrier kind and axis tilt alone would leak on each
+/// kind, which is what the door has to cover and the reason the second
+/// half needed its own predicate:
 ///
 /// - **cylinder, cone** — safe by geometry. A circle on either surface
 ///   whose axis is within 60° of the chart's IS coaxial.
-/// - **torus** — leaks harmlessly. A Villarceau circle classifies as a
-///   Rim whenever `minor/major < 0.866` and is not coaxial, but its
+/// - **torus** — would leak harmlessly. A Villarceau circle's axis is
+///   within 60° of the chart's whenever `minor/major < 0.866`, and it is
+///   not coaxial, but its
 ///   centre lies in the equatorial plane, so [`Chart::rim_v`] reads
 ///   `0.0` for every one of them and merging a pair lands on the value
 ///   they already shared.
@@ -1380,7 +1380,7 @@ pub(crate) fn loop_polygon(
         let outward = |normal: Vec3<f64>| OutwardNormal::from_chart(normal, sense).vec();
         let mid_az = geom::Azimuth::of(
             area.dot(outward(frame.v_ref())),
-            area.dot(outward(frame.u_ref)),
+            area.dot(outward(frame.u_ref())),
         )
         .near(0.0);
         Some(
@@ -1670,36 +1670,26 @@ mod tests {
         );
         let surface = match kind {
             ChartKind::Cylinder { r } => Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                u_ref,
             },
             ChartKind::Cone { half_angle } => Surface::Cone {
-                apex: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 half_angle,
-                u_ref,
             },
             ChartKind::Sphere { r } => Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             },
             ChartKind::Torus { major, minor } => Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
             ChartKind::Spindle { major, minor } => Surface::Spindle {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
         };
         Chart::of(&surface).unwrap()
@@ -2074,7 +2064,7 @@ mod tests {
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
         area.dot(chart.frame().v_ref())
-            .atan2(area.dot(chart.frame().u_ref))
+            .atan2(area.dot(chart.frame().u_ref()))
     }
 
     /// A 1.3 mm band's own geometry, placed at seven distances from

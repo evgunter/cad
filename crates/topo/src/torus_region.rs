@@ -76,7 +76,9 @@
 //!   face side at the closest crossing, at the tube's radius.
 //! - `bool_torus_region_component`: which of a plane's two curves a root
 //!   lies on, and an edge's offset from a leg's plane it is parallel to.
-//! - `plane_crossing_*`: the roots, the plane door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: the roots, the
+//!   plane door's class and their places (the curve × face pose's and
+//!   crossing's rows).
 //! - `bool_torus_region_arc_*` and `bool_torus_region_spiric_*`: the
 //!   boundary readings' rows.
 //!
@@ -199,15 +201,18 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// Where `charted` is not a torus: the caller reads the record first.
     fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Edge<T>>) -> Self {
         let &geom::Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = charted.surface()
         else {
             unreachable!("a torus region is built on a torus record")
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         Self {
             charted,
             center,
@@ -298,11 +303,9 @@ impl<T: Decide> TorusFaceRegion<T> {
     fn chart_normal(&self, y: Point3<T>) -> Vec3<T> {
         let n = geom_brep::implicit_gradient(
             &geom::Surface::Torus {
-                center: self.center,
-                axis: self.axis,
+                frame: geom::Frame::new(self.center, self.axis, self.u_ref),
                 major_radius: self.major,
                 minor_radius: self.minor,
-                u_ref: self.u_ref,
             },
             y,
         );
@@ -336,17 +339,13 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                 band,
             ),
             geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius: major,
                 minor_radius: minor,
                 offset,
             } => {
                 let oval = Oval {
-                    center,
-                    axis,
-                    u_ref,
+                    frame,
                     major,
                     minor,
                     offset,
@@ -473,13 +472,12 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
         let row = |m: T| decide(Self::COMPONENT, Margin::of(m), band).map_err(in_band);
         match edge.carrier {
             geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius: major,
                 minor_radius: minor,
                 ..
             } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let w = y - center;
                 match row(w.dot(axis.cross(u_ref)))? {
                     Sign::Positive => {}
@@ -495,15 +493,15 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             }
             geom::Curve3::Circle(
                 conic_k @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
+                    frame: carrier_frame_46,
                     ..
                 },
             ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_46.origin(),
+                    carrier_frame_46.axis(),
+                    carrier_frame_46.u_ref(),
+                );
                 let radius = conic_k.radius();
                 let w = y - center;
                 // A parallel leg across a meridian's or a Villarceau
@@ -572,11 +570,13 @@ mod tests {
     /// origin, its seam at `x`, bounded by `edges`.
     fn region(major: f64, minor: f64, edges: Vec<Edge<f64>>) -> TorusFaceRegion<f64> {
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         TorusFaceRegion::on(
             Charted::record(Default::default(), &torus),
@@ -910,11 +910,7 @@ mod tests {
             r#loop: LoopKey::default(),
             cycle: 0,
             carrier: geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                geom::Frame::new(center, axis, u_ref),
                 radius,
             )),
             t0,
@@ -1016,9 +1012,11 @@ mod tests {
             r#loop: LoopKey::default(),
             cycle: 0,
             carrier: geom::Curve3::Spiric {
-                center: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: R,
                 minor_radius: MINOR,
                 offset: 1.0,
@@ -1193,8 +1191,9 @@ mod tests {
     /// on its six frames, read at the band's escalation, `±1e-8` off each
     /// edge at 60 stations (480 queries). A query counts where any frame
     /// answers otherwise than the first. With the legs started at
-    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
-    /// started at the foot, 31. What is left is the frame a curve
+    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 did;
+    /// started at the foot, 33 on frames squared where they are stated.
+    /// What is left is the frame a curve
     /// carries in its section and plane
     /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
     #[test]
@@ -1220,17 +1219,19 @@ mod tests {
 
     /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
     /// count.
-    const KEPT_TORUS: usize = 31;
+    const KEPT_TORUS: usize = 33;
 
     /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
     /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
     fn patch_on_frames() -> Vec<TorusFaceRegion<f64>> {
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: R,
             minor_radius: MINOR,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (us, vs) = PATCH;
         geom::test_support::CHART_FRAMES

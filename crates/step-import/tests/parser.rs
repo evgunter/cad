@@ -32,11 +32,8 @@ fn nurbs_wireframe_disposition() {
     let geom::Curve3::Circle(circle) = curves[0].carrier else {
         panic!("the quarter circle promotes: {:?}", curves[0]);
     };
-    let geom::Frame {
-        origin,
-        axis,
-        u_ref,
-    } = circle.frame;
+    let frame = circle.frame;
+    let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let radius = circle.radius();
     assert!(
         origin.to_array().iter().all(|c| c.abs() < 1e-15),

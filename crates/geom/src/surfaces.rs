@@ -98,20 +98,17 @@ pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
     ///
-    /// - `u`, `v` in meters (unit frame ⇒ arc-length parameters);
-    ///   domain ℝ², not periodic. `normal ⊥ u_ref`, both unit
-    ///   (conventional, unchecked).
+    /// - `u`, `v` in meters (arc-length parameters on the unit frame);
+    ///   domain ℝ², not periodic. `normal ⊥ u_ref`, both unit: the
+    ///   frame's.
     /// - The chart normal `∂u × ∂v` is exactly the stored `normal` (in
     ///   exact arithmetic): `u_ref × v_ref = normal` for the
     ///   right-handed frame.
     Plane {
-        /// The point at `(u, v) = (0, 0)` — conventional data.
-        origin: Point3<T>,
-        /// The unit plane normal (conventional, unchecked).
-        normal: Vec3<T>,
-        /// The unit direction of the `u` axis, ⊥ `normal` — carries the
-        /// in-plane frame convention.
-        u_ref: Vec3<T>,
+        /// The placement: the point at `(0, 0)`, the normal as its axis
+        /// and the `u` direction as its `u_ref`, held as the rigid frame
+        /// it is.
+        frame: Frame<T>,
     },
 
     /// The infinite cylinder
@@ -125,15 +122,11 @@ pub enum Surface<T: Real> {
     ///   radial·r`.
     /// - No chart singularities (`radius > 0` by convention).
     Cylinder {
-        /// The `v = 0` point on the cylinder's axis.
-        origin: Point3<T>,
-        /// The unit axis direction; increasing `v` runs along it.
-        axis: Vec3<T>,
+        /// The placement: the `v = 0` point on the axis, the axis and the
+        /// seam, held as the rigid frame it is.
+        frame: Frame<T>,
         /// The radius in meters (positive by convention).
         radius: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam.
-        u_ref: Vec3<T>,
     },
 
     /// The (double) cone with apex `apex`, axis `axis`, and
@@ -168,16 +161,12 @@ pub enum Surface<T: Real> {
     ///   `topo::validate`'s tier-3 check 1, which reads
     ///   [`Surface::representability_margins`].
     Cone {
-        /// The apex point (`v = 0`).
-        apex: Point3<T>,
-        /// The unit axis direction; the `v > 0` nappe opens along it.
-        axis: Vec3<T>,
+        /// The placement: the apex, the axis the `v > 0` nappe opens
+        /// along, and the seam, held as the rigid frame it is.
+        frame: Frame<T>,
         /// The half-angle α ∈ (0, π/2), radians, between `axis` and the
         /// generator lines.
         half_angle: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam.
-        u_ref: Vec3<T>,
     },
 
     /// The sphere
@@ -203,15 +192,11 @@ pub enum Surface<T: Real> {
     ///   outward — since `∂u × ∂v = (that unit vector)·(r²·cos v)` and
     ///   `cos v ≥ 0` on the canonical domain.
     Sphere {
-        /// The sphere's center.
-        center: Point3<T>,
+        /// The placement: the centre, the polar axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
         /// The radius in meters (positive by convention).
         radius: T,
-        /// The unit pole axis: the poles lie at `center ± axis·radius`
-        /// (`v = ±π/2`).
-        axis: Vec3<T>,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives.
-        u_ref: Vec3<T>,
     },
 
     /// The torus
@@ -237,18 +222,15 @@ pub enum Surface<T: Real> {
     ///   `R + r·cos v > 0` for a ring torus. No chart singularities on
     ///   a ring torus.
     Torus {
-        /// The torus center (on the axis, in the tube's midplane).
-        center: Point3<T>,
-        /// The unit axis of revolution.
-        axis: Vec3<T>,
+        /// The placement: the centre, the axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
         /// The major radius R in meters: center-to-tube-center
         /// distance (`R > r` by convention).
         major_radius: T,
         /// The minor radius r in meters: the tube radius (positive by
         /// convention).
         minor_radius: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives.
-        u_ref: Vec3<T>,
     },
 
     /// One **sheet** of a spindle or horn torus: the revolved circle
@@ -277,11 +259,9 @@ pub enum Surface<T: Real> {
     ///   tube — since `∂u × ∂v = (that)·(r·ρ)` and `ρ ≥ 0` on the
     ///   sheet.
     Spindle {
-        /// The centre of the meridian circles' revolution (on the axis,
-        /// in the tube's midplane).
-        center: Point3<T>,
-        /// The unit axis of revolution.
-        axis: Vec3<T>,
+        /// The placement: the centre, the axis and the seam,
+        /// held as the rigid frame it is.
+        frame: Frame<T>,
         /// The signed major radius R in meters: the signed distance of
         /// the meridian circle's centre from the axis, in the sketch
         /// half-plane at `u`; negative on the lemon.
@@ -289,8 +269,6 @@ pub enum Surface<T: Real> {
         /// The minor radius r in meters: the meridian circle's radius
         /// (positive by convention, `r ≥ |R|`).
         minor_radius: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives.
-        u_ref: Vec3<T>,
     },
 
     /// The NURBS fallback (D3: representable from day one; evaluators
@@ -358,6 +336,84 @@ pub enum SurfaceKind {
 }
 
 impl<T: Real> Surface<T> {
+    /// **Whether `other` is this surface by content, each value read by
+    /// `same`**: one kind, and every value that states an analytic
+    /// surface one by `same`. A spline or approximating surface is the
+    /// same allocation (`Arc::ptr_eq`): no reader compares their content
+    /// today. The one home of the walk, beside
+    /// [`crate::Curve3::same_content_by`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
+        };
+        match (self, other) {
+            (Self::Plane { frame: f }, Self::Plane { frame: g }) => frame(f, g),
+            (
+                Self::Cylinder { frame: f, radius },
+                Self::Cylinder {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Cone {
+                    frame: f,
+                    half_angle,
+                },
+                Self::Cone {
+                    frame: g,
+                    half_angle: h,
+                },
+            ) => frame(f, g) && same(*half_angle, *h),
+            (
+                Self::Sphere { frame: f, radius },
+                Self::Sphere {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Torus {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Torus {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            )
+            | (
+                Self::Spindle {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Spindle {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            ) => frame(f, g) && same(*major_radius, *big) && same(*minor_radius, *small),
+            (Self::Nurbs(x), Self::Nurbs(y)) => Arc::ptr_eq(x, y),
+            (Self::Approx(x), Self::Approx(y)) => Arc::ptr_eq(x, y),
+            (
+                Self::Plane { .. }
+                | Self::Cylinder { .. }
+                | Self::Cone { .. }
+                | Self::Sphere { .. }
+                | Self::Torus { .. }
+                | Self::Spindle { .. }
+                | Self::Nurbs(_)
+                | Self::Approx(_),
+                _,
+            ) => false,
+        }
+    }
     /// Which variant this surface is.
     ///
     /// **No wildcard arm**: a new [`Surface`] variant is a compile error
@@ -385,15 +441,14 @@ impl<T: Real> Surface<T> {
     /// a net. The one door to a surface of revolution's axis.
     #[must_use]
     pub fn axis_line(&self) -> Option<Line<T>> {
-        let (origin, axis) = match *self {
-            Self::Cylinder { origin, axis, .. } => (origin, axis),
-            Self::Cone { apex, axis, .. } => (apex, axis),
-            Self::Sphere { center, axis, .. }
-            | Self::Torus { center, axis, .. }
-            | Self::Spindle { center, axis, .. } => (center, axis),
-            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => return None,
-        };
-        Some(Line { origin, dir: axis })
+        match self {
+            Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(frame.axis_line()),
+            Self::Plane { .. } | Self::Nurbs(_) | Self::Approx(_) => None,
+        }
     }
 
     /// **The placement of an analytic surface**: a plane's origin,
@@ -402,44 +457,27 @@ impl<T: Real> Surface<T> {
     /// (each variant's docs say what they place). `None` for a net.
     #[must_use]
     pub fn frame(&self) -> Option<Frame<T>> {
-        match *self {
-            Self::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Some(Frame::new(origin, normal, u_ref)),
-            Self::Cylinder {
-                origin,
-                axis,
-                u_ref,
-                radius: _,
-            } => Some(Frame::new(origin, axis, u_ref)),
-            Self::Cone {
-                apex,
-                axis,
-                u_ref,
-                half_angle: _,
-            } => Some(Frame::new(apex, axis, u_ref)),
-            Self::Sphere {
-                center,
-                axis,
-                u_ref,
-                radius: _,
-            } => Some(Frame::new(center, axis, u_ref)),
-            Self::Torus {
-                center,
-                axis,
-                u_ref,
-                major_radius: _,
-                minor_radius: _,
-            }
-            | Self::Spindle {
-                center,
-                axis,
-                u_ref,
-                major_radius: _,
-                minor_radius: _,
-            } => Some(Frame::new(center, axis, u_ref)),
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(*frame),
+            Self::Nurbs(_) | Self::Approx(_) => None,
+        }
+    }
+
+    /// [`Self::frame`], to place it again: the analytic surface's frame,
+    /// or `None` for a net.
+    pub fn frame_mut(&mut self) -> Option<&mut Frame<T>> {
+        match self {
+            Self::Plane { frame }
+            | Self::Cylinder { frame, .. }
+            | Self::Cone { frame, .. }
+            | Self::Sphere { frame, .. }
+            | Self::Torus { frame, .. }
+            | Self::Spindle { frame, .. } => Some(frame),
             Self::Nurbs(_) | Self::Approx(_) => None,
         }
     }
@@ -1032,24 +1070,21 @@ impl<T: Real> Surface<T> {
         };
         match self {
             Surface::Cylinder {
-                origin: _,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
             }
             | Surface::Sphere {
-                center: _,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
-            } => core::iter::once(lower(SurfaceDatum::Radius, *radius))
-                .chain(frame(*axis, *u_ref, *radius))
-                .collect(),
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::Radius, *radius))
+                    .chain(frame(axis, u_ref, *radius))
+                    .collect()
+            }
             Surface::Cone {
-                apex: _,
-                axis: _,
+                frame: _,
                 half_angle,
-                u_ref: _,
             } => vec![
                 lower(SurfaceDatum::HalfAngle, *half_angle),
                 RepresentabilityMargin {
@@ -1060,30 +1095,26 @@ impl<T: Real> Surface<T> {
                 },
             ],
             Surface::Torus {
-                center: _,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
-                .collect(),
-            Surface::Spindle {
-                center: _,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                .chain(frame(*axis, *u_ref, major_radius.abs() + *minor_radius))
-                .collect(),
-            Surface::Plane {
-                origin: _,
-                normal: _,
-                u_ref: _,
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
+                    .collect()
             }
-            | Surface::Nurbs(_)
-            | Surface::Approx(_) => Vec::new(),
+            Surface::Spindle {
+                frame: carrier_frame,
+                major_radius,
+                minor_radius,
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, major_radius.abs() + *minor_radius))
+                    .collect()
+            }
+            Surface::Plane { frame: _ } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
         }
     }
 }
@@ -1201,74 +1232,69 @@ impl<T: Real> Surface<T> {
         use DatumValue::{Direction, Point, Scalar};
         use SurfaceDatum as D;
         SurfaceData::Analytic(match *self {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Origin, Point(origin)),
-                (D::Normal, Direction(normal)),
-                (D::URef, Direction(u_ref)),
-            ]),
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Origin, Point(origin)),
-                (D::Axis, Direction(axis)),
-                (D::Radius, Scalar(radius)),
-                (D::URef, Direction(u_ref)),
-            ]),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Apex, Point(apex)),
-                (D::Axis, Direction(axis)),
-                (D::HalfAngle, Scalar(half_angle)),
-                (D::URef, Direction(u_ref)),
-            ]),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Radius, Scalar(radius)),
-                (D::Axis, Direction(axis)),
-                (D::URef, Direction(u_ref)),
-            ]),
+            Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Origin, Point(origin)),
+                    (D::Normal, Direction(normal)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Origin, Point(origin)),
+                    (D::Axis, Direction(axis)),
+                    (D::Radius, Scalar(radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Apex, Point(apex)),
+                    (D::Axis, Direction(axis)),
+                    (D::HalfAngle, Scalar(half_angle)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Radius, Scalar(radius)),
+                    (D::Axis, Direction(axis)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::MajorRadius, Scalar(major_radius)),
-                (D::MinorRadius, Scalar(minor_radius)),
-                (D::URef, Direction(u_ref)),
-            ]),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::MajorRadius, Scalar(major_radius)),
-                (D::MinorRadius, Scalar(minor_radius)),
-                (D::URef, Direction(u_ref)),
-            ]),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::URef, Direction(u_ref)),
+                ])
+            }
             Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
             Surface::Approx(ref a) => return SurfaceData::Approx(a),
         })
@@ -1317,59 +1343,50 @@ impl<T: SpanLocate> Surface<T> {
     /// fork.
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         match self {
-            &Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
+            &Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let v_ref = normal.cross(u_ref);
                 origin + u_ref * u + v_ref * v
             }
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
             } => {
-                let radial = azimuth::frame(&Frame::new(origin, axis, u_ref), u).radial.0;
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
                 origin + radial * radius + axis * v
             }
             &Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
             } => {
+                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_a, c_a) = half_angle.sin_cos();
-                let radial = azimuth::frame(&Frame::new(apex, axis, u_ref), u).radial.0;
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
             &Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
             } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             }
             | &Surface::Spindle {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_v, c_v) = v.sin_cos();
-                let radial = azimuth::frame(&Frame::new(center, axis, u_ref), u).radial.0;
+                let radial = azimuth::frame(&carrier_frame, u).radial.0;
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
@@ -1471,11 +1488,8 @@ impl<T: SpanLocate> Surface<T> {
     /// and `Surface::jet` are the only two that any does.
     pub fn jet(&self, u: T, v: T) -> SurfaceJet<T> {
         match self {
-            &Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
+            &Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let v_ref = normal.cross(u_ref);
                 SurfaceJet {
                     point: origin + u_ref * u + v_ref * v,
@@ -1487,12 +1501,11 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
             } => {
-                let f = azimuth::frame(&Frame::new(origin, axis, u_ref), u);
+                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                let f = azimuth::frame(&carrier_frame, u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1505,13 +1518,12 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
             } => {
+                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_a, c_a) = half_angle.sin_cos();
-                let f = azimuth::frame(&Frame::new(apex, axis, u_ref), u);
+                let f = azimuth::frame(&carrier_frame, u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1524,13 +1536,12 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
             } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
+                let f = azimuth::frame(&carrier_frame, u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1543,21 +1554,18 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             }
             | &Surface::Spindle {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => {
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let (s_v, c_v) = v.sin_cos();
-                let f = azimuth::frame(&Frame::new(center, axis, u_ref), u);
+                let f = azimuth::frame(&carrier_frame, u);
                 let radial = f.radial.0;
                 let tangential = f.tangential.0;
                 SurfaceJet {
@@ -1691,10 +1699,8 @@ mod tests {
     #[test]
     fn cone_margins_vanish_exactly_at_each_end_of_the_convention() {
         let cone = |half_angle: f64| Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
-            u_ref: Vec3::unit_x(),
         };
         let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
             cone(a)
@@ -1734,46 +1740,36 @@ mod tests {
             (
                 "plane",
                 Surface::Plane {
-                    origin: t_center(),
-                    normal: t_axis(),
-                    u_ref: t_uref(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                 },
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: t_center(),
-                    axis: t_axis(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     radius: 2.5,
-                    u_ref: t_uref(),
                 },
             ),
             (
                 "cone",
                 Surface::Cone {
-                    apex: t_center(),
-                    axis: t_axis(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     half_angle: FRAC_PI_6,
-                    u_ref: t_uref(),
                 },
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: t_center(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     radius: 2.5,
-                    axis: t_axis(),
-                    u_ref: t_uref(),
                 },
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: t_center(),
-                    axis: t_axis(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     major_radius: 3.0,
                     minor_radius: 1.25,
-                    u_ref: t_uref(),
                 },
             ),
             // A lemon (`v* = acos(0.15) ≈ 1.42`) and an apple narrow
@@ -1785,21 +1781,17 @@ mod tests {
             (
                 "lemon",
                 Surface::Spindle {
-                    center: t_center(),
-                    axis: t_axis(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     major_radius: -0.3,
                     minor_radius: 2.0,
-                    u_ref: t_uref(),
                 },
             ),
             (
                 "apple",
                 Surface::Spindle {
-                    center: t_center(),
-                    axis: t_axis(),
+                    frame: crate::Frame::new(t_center(), t_axis(), t_uref()),
                     major_radius: 0.8,
                     minor_radius: 2.0,
-                    u_ref: t_uref(),
                 },
             ),
         ]
@@ -1830,9 +1822,7 @@ mod tests {
     #[test]
     fn plane_evaluates_exactly() {
         let p = Surface::Plane {
-            origin: Point3::new(1.0, 2.0, 3.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: crate::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         // v_ref = z × x = y: S(2, -3) = (3, -1, 3), exactly.
         let q = p.eval(2.0, -3.0);
@@ -1853,10 +1843,8 @@ mod tests {
     #[test]
     fn cylinder_cardinal_points_and_normal() {
         let c = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: 2.0,
-            u_ref: Vec3::unit_x(),
         };
         // u = 0, v = 5: (2, 0, 5) exactly.
         let q = c.eval(0.0, 5.0);
@@ -1872,10 +1860,8 @@ mod tests {
     #[test]
     fn sphere_cardinal_points() {
         let s = Surface::Sphere {
-            center: Point3::new(1.0, 1.0, 1.0),
+            frame: crate::Frame::new(Point3::new(1.0, 1.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: 2.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         // Equator seam: center + x·r.
         let q = s.eval(0.0, 0.0);
@@ -1893,11 +1879,9 @@ mod tests {
     #[test]
     fn torus_cardinal_points() {
         let t = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         // Outer equator at the seam: (R + r, 0, 0) exactly.
         let q = t.eval(0.0, 0.0);
@@ -1917,10 +1901,8 @@ mod tests {
     fn cone_slant_parameterization() {
         // Half-angle π/6: cos = √3/2, sin = 1/2.
         let c = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         // v is slant length: |S(u, v) − apex| = |v| (unit generator).
         for v in [0.5, 2.0, -1.5] {
@@ -2099,10 +2081,8 @@ mod tests {
     #[test]
     fn sphere_pole_chart_defect() {
         let s = Surface::Sphere {
-            center: Point3::origin(),
+            frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 2.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         // In exact arithmetic ∂u vanishes at v = π/2; fl(π/2) is not
         // π/2, so at f64 the pole is *approached*, not hit: ∂u is tiny
@@ -2438,7 +2418,10 @@ mod tests {
 
             let sphere = all_surfaces()[3].1.map_scalar(Interval::from_f64);
             let (center, r) = match sphere {
-                Surface::Sphere { center, radius, .. } => (center, radius),
+                Surface::Sphere { frame, radius, .. } => {
+                    let center = frame.origin();
+                    (center, radius)
+                }
                 _ => panic!("fixture order"),
             };
             for (uu, vv) in [(0.0, 0.0), (0.7, 0.4), (-3.0, 1.2), (100.0, -0.9)] {
@@ -2450,12 +2433,10 @@ mod tests {
 
             let cyl = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let (origin, axis, r) = match cyl {
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    ..
-                } => (origin, axis, radius),
+                Surface::Cylinder { frame, radius, .. } => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
+                    (origin, axis, radius)
+                }
                 _ => panic!("fixture order"),
             };
             for (uu, vv) in [(0.0, 0.0), (2.9, -4.0), (-11.0, 7.5)] {

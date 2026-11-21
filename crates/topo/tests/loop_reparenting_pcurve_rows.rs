@@ -88,10 +88,8 @@ fn u_ref() -> Vec3<f64> {
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: axis(),
+        frame: geom::Frame::new(Point3::origin(), axis(), u_ref()),
         radius: 1.0,
-        u_ref: u_ref(),
     }
 }
 
@@ -99,10 +97,8 @@ fn cylinder() -> Surface<f64> {
 /// sheet is stated in.
 fn other_cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: axis(),
+        frame: geom::Frame::new(Point3::origin(), axis(), u_ref()),
         radius: 2.0,
-        u_ref: u_ref(),
     }
 }
 
@@ -223,9 +219,7 @@ fn sheet() -> Sheet {
     // The back side: every vertex of the sheet lies on the plane
     // through the two meridian lines (module docs).
     let plane = Surface::Plane {
-        origin: a,
-        normal: (b - a).cross(axis()).normalize(),
-        u_ref: (b - a).normalize(),
+        frame: geom::Frame::new(a, (b - a).cross(axis()).normalize(), (b - a).normalize()),
     };
     // Lifts RechartUnvouched: the rim arcs bow off the plane, which is the fixture's chart that mints nothing.
     let closing = body
@@ -701,10 +695,8 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     let other = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: axis(),
+        frame: geom::Frame::new(Point3::origin(), axis(), u_ref()),
         radius: 2.0,
-        u_ref: u_ref(),
     };
     // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once promoted, and a promotion onto a curved chart the ring is not on is the row's premise.
     let made = s
@@ -1189,9 +1181,7 @@ fn an_empty_boundary_ring_moves_with_the_map_untouched() {
 /// A plane nothing on the sheet is stated in.
 fn flat() -> Surface<f64> {
     Surface::Plane {
-        origin: at(U0, V0),
-        normal: axis(),
-        u_ref: u_ref(),
+        frame: geom::Frame::new(at(U0, V0), axis(), u_ref()),
     }
 }
 
@@ -1608,10 +1598,12 @@ fn kef_into_a_second_key_holding_one_surface_drops_the_remnants_rows_until_the_p
 /// that is both minted and on another chart needs.
 fn rotated_cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: axis(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            axis(),
+            Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0),
     }
 }
 
@@ -2670,20 +2662,21 @@ fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
     for cap in caps {
         let key = body.get_face(cap).unwrap().surface;
         let Some(Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         }) = body.get_surface(key).cloned()
         else {
             panic!("a planar cap");
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         on_a_key_of_its_own(
             &mut body,
             cap,
             Surface::Plane {
-                origin,
-                normal: -normal,
-                u_ref,
+                frame: geom::Frame::new(origin, -normal, u_ref),
             },
             false,
         )
@@ -2810,7 +2803,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
         .map(|(f, _, _)| f)
         .filter(|&f| {
             let key = body.get_face(f).unwrap().surface;
-            matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z > 0.5)
+            matches!(body.get_surface(key), Some(Surface::Plane { frame, .. }) if frame.axis().z > 0.5)
         })
         .collect();
     let top = caps[0];

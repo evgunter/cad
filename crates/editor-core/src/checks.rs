@@ -1297,7 +1297,10 @@ impl<T: topo::AtRestPolicy + Decide> Subject<'_, T> {
 /// and disagreed is a FINDING, not an error. [`ChecksError::Canceled`]
 /// once `stop`'s token cancels the coincidence door, which `stop` holds
 /// to its member budget.
-pub fn run_checks<P: crate::ProfilePayload, T: at_rest::LocalizeLane + CertifiedBounds>(
+pub fn run_checks<
+    P: crate::ProfilePayload,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1348,7 +1351,10 @@ pub fn run_checks<P: crate::ProfilePayload, T: at_rest::LocalizeLane + Certified
 /// have answered, so their refusals still come first; and
 /// [`ChecksError::Canceled`] once `stop`'s token cancels the
 /// coincidence door.
-pub fn run_checks_on<P: crate::ProfilePayload, T: at_rest::LocalizeLane + CertifiedBounds>(
+pub fn run_checks_on<
+    P: crate::ProfilePayload,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: Subject<'_, T>,
@@ -1378,7 +1384,7 @@ pub fn run_checks_on<P: crate::ProfilePayload, T: at_rest::LocalizeLane + Certif
 /// As [`run_checks_on`].
 pub fn run_checks_at_rest_on<
     P: crate::ProfilePayload,
-    T: at_rest::LocalizeLane + CertifiedBounds,
+    T: at_rest::LocalizeLane + CertifiedBounds + topo::CertifiedPolicy,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1738,7 +1744,7 @@ fn door_findings<P: crate::ProfilePayload>(
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestPolicy>(
+fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + topo::CertifiedPolicy>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
