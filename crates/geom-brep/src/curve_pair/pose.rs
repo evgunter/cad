@@ -261,8 +261,8 @@
 //!   extreme. Each is a candidate: the roots always, and the extreme
 //!   where it is proved within the zero, otherwise the roots on each
 //!   side of it (above, "The candidates"). The pose reads a pair as in
-//!   the plane where `H`'s swing `√(h_c² + h_s²)` is proved below the zero
-//!   (`curve_pair_pose_level_flat`). What a swing below the zero leaves
+//!   the plane where `H`'s lean, its swing `√(h_c² + h_s²)`, is proved below the zero
+//!   (`curve_pair_pose_level_flat`). What a lean below the zero leaves
 //!   of `H`'s turn over the arc is
 //!   `work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`'s.
 //! - **Slanted, where `e/z` is at least `2.33`**: on a stretch to one
@@ -1544,7 +1544,8 @@ fn line_conic<T: Decide>(
 struct Slant<T> {
     r: (T, T, T),
     h: (T, T, T),
-    /// `R`'s greatest's angle, `θ_hi`, and its swing `A`.
+    /// `R`'s greatest's angle, `θ_hi`, and its swing `A` (`H`'s is its
+    /// lean, [`Self::lean`]).
     at: T,
     swing: T,
     e: T,
@@ -1557,14 +1558,19 @@ struct Slant<T> {
 const SLANT_RATIO: f64 = 2.33;
 
 impl<T: Decide> Slant<T> {
-    /// Whether `H`'s swing, `√(h_c² + h_s²)`, is proved below the band's
-    /// zero (`curve_pair_pose_level_flat`): `H` within the zero of a
-    /// constant, the pair read as in one plane.
+    /// Whether `H`'s lean ([`Self::lean`]) is proved below the band's zero
+    /// (`curve_pair_pose_level_flat`): `H` within the zero of a constant,
+    /// the pair read as in one plane.
     fn flat(&self) -> bool {
-        let (_, hc, hs) = self.h;
-        let swing = (hc.powi(2) + hs.powi(2)).sqrt();
-        geom_core::k_stats::prove(row::LEVEL_FLAT, Margin::of(self.zero - swing))
+        geom_core::k_stats::prove(row::LEVEL_FLAT, Margin::of(self.zero - self.lean()))
             == Ok(Sign::Positive)
+    }
+
+    /// `H`'s lean, its swing `√(h_c² + h_s²)` about `h₀` (`R`'s is
+    /// [`Self::swing`]).
+    fn lean(&self) -> T {
+        let (_, hc, hs) = self.h;
+        (hc.powi(2) + hs.powi(2)).sqrt()
     }
 
     /// Whether the distance at `theta` is proved within the band's zero
@@ -1629,11 +1635,11 @@ impl<T: Decide> Slant<T> {
         // The least `|H|` over the arc: at an end, at the one turn of `H`
         // within it (the arc is short of half a turn), or zero where `H`
         // changes sign.
-        let (h0, hc, hs) = self.h;
-        let amplitude = (hc.powi(2) + hs.powi(2)).sqrt();
+        let (h0, _, _) = self.h;
+        let lean = self.lean();
         let (h_from, h_to) = (Self::at(self.h, from), Self::at(self.h, to));
         let (d_from, d_to) = (Self::slope(self.h, from), Self::slope(self.h, to));
-        let turn = d_from.select_le_zero(h0 - amplitude, h0 + amplitude);
+        let turn = d_from.select_le_zero(h0 - lean, h0 + lean);
         let pair = |x: T, y: T| (x * y).select_le_zero(T::zero(), x.abs().min(y.abs()));
         let floor = (d_from * d_to)
             .select_le_zero(pair(h_from, turn).min(pair(turn, h_to)), pair(h_from, h_to));

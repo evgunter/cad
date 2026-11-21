@@ -128,9 +128,10 @@ root is read at itself. A touch is read at its extreme where that is
 proved within the zero, and otherwise at both roots, where the zero set
 may part. Its Off prunes only where the floor clears, and otherwise
 escalates. Row:
-`meet_rows::a_segment_slanted_over_a_thin_ellipses_vertex_is_never_one_meeting`
-(draw 7969, whose two roots are two meetings `2.3·10⁻⁹` m apart; never
-one meeting nor none, in either order).
+`meet_rows::a_segment_slanted_over_a_thin_ellipses_vertex_refuses_at_a_tight_band`
+(draw 7969, whose two roots are two meetings `2.3·10⁻⁹` m apart). At its
+tight band the slant refuses (`curve_pair_pose_slant_tight`, in either
+order), so it is never one meeting nor none.
 
 PR 7208's full review found the touch read at one root alone (the
 `phi = 0` select always took `θ_hi − φ₀`), which missed the other

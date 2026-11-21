@@ -3124,35 +3124,41 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
 /// `~10⁻⁸` m off the line, past the band, so the pair is read at its roots,
 /// on both carriers. At the band `(10⁻⁹, 10⁻⁸)` it meets once, in either
 /// order, within the band's zero of the segment (the point is the
-/// ellipse's own, at a root). At `(10⁻⁹, 1.05·10⁻⁹)` it meets so, or,
-/// where the segment's slant over the plane is not proved below the zero
-/// (case 1410), refuses (`curve_pair_pose_slant_tight`, module docs, "One
+/// ellipse's own, at a root). At `(10⁻⁹, 1.05·10⁻⁹)` case 1021, whose
+/// slant's swing is proved below the zero, meets so, and case 1410, whose
+/// swing is not, refuses (`curve_pair_pose_slant_tight`, module docs, "One
 /// meeting to a part"). It never reads no meeting: red where the two roots
 /// are one touch at the extreme and that touch is read at its own point,
 /// main's reading, its point off the segment.
 #[test]
 fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
     let (tight, wide) = (Band::new(1e-9, 1.05e-9).unwrap(), band());
-    for (a, b, span_b, tp, h, psi, len, span_a) in [
+    for (slanted, (a, b, span_b, tp, h, psi, len, span_a)) in [
         (
-            1.237_105_813_627_213_6e-4_f64,
-            1.271_740_623_280_322_8e-8,
-            (-0.364_737_545_254_126_1, 0.113_832_612_465_155_19),
-            0.025_188_254_926_288_012_f64,
-            6.568_256_938_995_103e-11,
-            4.330_477_594_017_474_f64,
-            1.718_855_939_666_199_8e-6,
-            (-1.006_498_565_508_213_4e-6, 6.843_763_647_487_737e-7),
+            true,
+            (
+                1.237_105_813_627_213_6e-4_f64,
+                1.271_740_623_280_322_8e-8,
+                (-0.364_737_545_254_126_1, 0.113_832_612_465_155_19),
+                0.025_188_254_926_288_012_f64,
+                6.568_256_938_995_103e-11,
+                4.330_477_594_017_474_f64,
+                1.718_855_939_666_199_8e-6,
+                (-1.006_498_565_508_213_4e-6, 6.843_763_647_487_737e-7),
+            ),
         ),
         (
-            3.253_973_551_187_656e-4,
-            3.445_361_057_969_92e-8,
-            (-0.735_646_227_281_412_5, 0.528_524_751_652_512_8),
-            0.009_417_137_441_319_778,
-            2.945_053_589_198_488_5e-10,
-            2.232_695_454_957_603,
-            2.768_962_141_790_441_3e-4,
-            (-0.000_115_225_579_162_314_02, 0.000_421_974_107_942_566_43),
+            false,
+            (
+                3.253_973_551_187_656e-4,
+                3.445_361_057_969_92e-8,
+                (-0.735_646_227_281_412_5, 0.528_524_751_652_512_8),
+                0.009_417_137_441_319_778,
+                2.945_053_589_198_488_5e-10,
+                2.232_695_454_957_603,
+                2.768_962_141_790_441_3e-4,
+                (-0.000_115_225_579_162_314_02, 0.000_421_974_107_942_566_43),
+            ),
         ),
     ] {
         let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
@@ -3167,14 +3173,18 @@ fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
             let slant = MeetFault::Unsettled(Unsettled::Meter {
                 row: "curve_pair_pose_slant_tight",
             });
-            assert!(
-                match &got {
-                    Ok(m) =>
-                        m.points.len() == 1 && distance(&seg, m.points[0].point) <= tight.zero(),
-                    Err(r) => r.fault == slant,
-                },
-                "a = {a:e}, {order}: one meeting, or the slant refused: {got:?}"
-            );
+            if slanted {
+                assert!(
+                    matches!(&got, Err(r) if r.fault == slant),
+                    "a = {a:e}, {order}: the slant refused: {got:?}"
+                );
+            } else {
+                assert!(
+                    matches!(&got, Ok(m) if m.points.len() == 1
+                        && distance(&seg, m.points[0].point) <= tight.zero()),
+                    "a = {a:e}, {order}: one meeting within the zero: {got:?}"
+                );
+            }
         }
         for (order, got) in [
             ("segment first", meet(&sa, &sb, wide)),
@@ -3194,23 +3204,23 @@ fn a_segment_across_a_thin_ellipses_vertex_meets_it_at_a_root() {
     }
 }
 
-/// **A segment slanted over a thin ellipse's vertex is never read as one
-/// meeting.** The probe's draw 7969 (seed 1): an ellipse of semi-axes
-/// `7.7·10⁻⁵` and `7·10⁻⁹` m, and a segment `5.4·10⁻¹⁰` m over a point of
-/// it near its vertex, nearly in its plane (the tilt reads level), at the
-/// band `(10⁻⁹, 1.038·10⁻⁹)`. In the plane the residual's extreme is
+/// **A segment slanted over a thin ellipse's vertex at a tight band
+/// refuses on its slant.** The probe's draw 7969 (seed 1): an ellipse of
+/// semi-axes `7.7·10⁻⁵` and `7·10⁻⁹` m, and a segment `5.4·10⁻¹⁰` m over a
+/// point of it near its vertex, nearly in its plane (the tilt reads level),
+/// at the band `(10⁻⁹, 1.038·10⁻⁹)`. In the plane the residual's extreme is
 /// `9.9·10⁻¹⁰`, in the zero band: a touch. The line lies over the plane by
 /// a slant, so at the extreme the distance is `√(R² + H²) ≈ 1.13·10⁻⁹`,
 /// past the escalation, and at each of the residual's two roots, `2.3·10⁻⁹`
-/// m apart, it is the slant alone, `5.4·10⁻¹⁰`: two meetings. The touch's
-/// extreme is not within the zero, so both roots are read (module docs,
-/// "A slanted pair in one plane"). The second reads its gap in an
-/// enclosure the thin ellipse's carrier cannot narrow past the band
-/// (`curve_carrier_straddle`), and the pair escalates. It is never one
-/// meeting, nor none: red where a touch reads one root, or at the
-/// extreme with no floor.
+/// m apart, it is the slant alone, `5.4·10⁻¹⁰`: two meetings. The slant's
+/// swing is not proved below the zero and the band's `e/z` is below
+/// `2.33`, so the pair refuses before any candidate is read
+/// (`curve_pair_pose_slant_tight`, module docs, "One meeting to a part"),
+/// in either order. Red with that gate off: both roots are read, and the
+/// second's gap, in an enclosure the thin ellipse's carrier cannot narrow
+/// past the band, escalates (`curve_carrier_straddle`).
 #[test]
-fn a_segment_slanted_over_a_thin_ellipses_vertex_is_never_one_meeting() {
+fn a_segment_slanted_over_a_thin_ellipses_vertex_refuses_at_a_tight_band() {
     let band = Band::new(1e-9, 1.037_893_055_681_901_7e-9).unwrap();
     let (a, b, tp, h, psi, len) = (
         7.746_858_770_958_64e-5_f64,
@@ -3237,8 +3247,10 @@ fn a_segment_slanted_over_a_thin_ellipses_vertex_is_never_one_meeting() {
         ("ellipse first", meet(&sb, &sa, band)),
     ] {
         assert!(
-            !matches!(&got, Ok(m) if m.points.len() < 2),
-            "{order}: fewer than two meetings: {got:?}"
+            matches!(&got, Err(r) if r.fault == MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_pose_slant_tight",
+            })),
+            "{order}: the slant refused: {got:?}"
         );
     }
 }
