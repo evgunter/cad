@@ -589,3 +589,102 @@ mod tests {
         assert!((beside - 0.4).abs() <= 1e-15, "{beside}");
     }
 }
+
+/// Reviewer probes (exch-d-rev2).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod rev2_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn spec(carrier: Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeSpec {
+        EdgeSpec { start: 1, end: 2, carrier, t0, t1, reversed: false, curve: None }
+    }
+    fn dense(spec: &EdgeSpec, truth: impl Fn(Point3<f64>) -> f64) -> f64 {
+        (0..=20000)
+            .map(|k| f64::from(k) / 20000.0)
+            .map(|f| truth(spec.carrier.eval(spec.t0 + (spec.t1 - spec.t0) * f)))
+            .fold(0.0, f64::max)
+    }
+    fn off_circle(p: Point3<f64>, c: Point3<f64>, n: Vec3<f64>, r: f64) -> f64 {
+        let d = p - c;
+        let h = d.dot(n);
+        let rho = (d - n * h).norm();
+        h.hypot(rho - r)
+    }
+
+    #[test]
+    fn rev2_arc_trim_crossing_an_extreme_and_wrapping() {
+        let tilt = 1e-3_f64;
+        let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+        let printed = Curve3::circle(Point3::new(1e-4, 0.0, 0.0), n, 1.0 + 3e-5, Vec3::new(1.0, 0.0, 0.0));
+        let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, z, 1.0, Vec3::new(1.0, 0.0, 0.0));
+        let tp = core::f64::consts::TAU;
+        for trim in [(1.2, 2.0), (6.0, 8.0), (tp - 0.3, tp + 0.3), (3.0, 3.3), (4.5, 4.9), (1.5707963, 1.5707964), (0.1, tp + 0.05)] {
+            let s = spec(printed.clone(), trim);
+            let b = printed_on(&s, &built).unwrap();
+            let t = dense(&s, |p| off_circle(p, c, z, 1.0));
+            eprintln!("REV2 arc {trim:?}: bound {b:e} true {t:e} ratio {}", b / t);
+            assert!(b >= t, "{trim:?}: unsound {b:e} < {t:e}");
+        }
+    }
+
+    fn two_quarters(push: f64) -> Curve3<f64> {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let control = vec![
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-2.0 - push, 2.0 + push, 0.0),
+            Point3::new(-2.0, 0.0, 0.0),
+        ];
+        Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0]).unwrap()))
+    }
+
+    #[test]
+    fn rev2_spline_on_circle_trim_off_the_knots() {
+        let (c, n) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, n, 2.0, Vec3::new(1.0, 0.0, 0.0));
+        let printed = two_quarters(1e-4);
+        for trim in [(0.5, 1.5), (1.2, 1.8), (0.0, 1.5), (0.5, 2.0), (0.2, 0.8)] {
+            let s = spec(printed.clone(), trim);
+            let b = printed_on(&s, &built);
+            let t = dense(&s, |p| off_circle(p, c, n, 2.0));
+            eprintln!("REV2 spline-circle {trim:?}: bound {b:?} true {t:e}");
+            let b = b.expect("an arm serves an off-knot trim");
+            assert!(b >= t, "{trim:?}: unsound {b:e} < {t:e}");
+        }
+    }
+
+    #[test]
+    fn rev2_spline_on_line_trim_off_the_knots() {
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
+        let y = |v: f64| Point3::new(0.0, v, 0.0);
+        let off = 1e-3;
+        let control = vec![y(0.0), y(1.0 / 3.0), y(2.0 / 3.0), y(1.0), Point3::new(off, 4.0 / 3.0, 0.0), Point3::new(-off, 5.0 / 3.0, 0.0), y(2.0)];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0; 7]).unwrap()));
+        for trim in [(0.5, 1.5), (1.1, 1.3), (0.0, 1.0), (0.9, 1.05)] {
+            let s = spec(printed.clone(), trim);
+            let b = printed_on(&s, &line).unwrap();
+            let t = dense(&s, |p| p.x.hypot(p.z));
+            eprintln!("REV2 spline-line {trim:?}: bound {b:e} true {t:e}");
+            assert!(b >= t, "{trim:?}: unsound {b:e} < {t:e}");
+        }
+    }
+
+    /// An overshoot along the line: on the infinite line, past the segment.
+    #[test]
+    fn rev2_overshoot_along_a_line() {
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![Point3::new(0.0, 0.0, 0.0), Point3::new(6.0, 0.0, 0.0), Point3::new(-5.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap()));
+        let s = spec(printed, (0.0, 1.0));
+        let b = printed_on(&s, &line).unwrap();
+        let seg = printed_on_segment(&s, (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0))).unwrap();
+        eprintln!("REV2 overshoot: line bound {b:e}, segment bound {seg:e}");
+    }
+}
