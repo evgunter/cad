@@ -5179,9 +5179,19 @@ fn circle_split_kernel<T: Decide>(
     } else {
         four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan()
     };
+    // Vertex 0 sits at `phase` itself; an angle that is exactly zero
+    // for every value it stands for is `+x`, held without the width an
+    // enclosure's `sin_cos` would give it.
     let radials: Vec<Vec2<T>> = (0..n)
         .map(|k| {
-            let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
+            let theta = if k == 0 {
+                phase
+            } else {
+                phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t
+            };
+            if geom_core::is_exact_zero(theta) {
+                return Vec2::new(T::one(), T::zero());
+            }
             let (s, c) = theta.sin_cos();
             Vec2::new(c, s)
         })

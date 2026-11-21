@@ -716,13 +716,13 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// verdict, its constructed joints, and each vertex and stored arc field
 /// as the bits they are stored as. What moved at a re-derivation is said
 /// in the PR that moved it, never here.
-const GOLDEN_DEFAULT: u64 = 0x0625_d4f8_4296_7c38;
+const GOLDEN_DEFAULT: u64 = 0x19c5_4a9f_ba0d_c47b;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0x92a4_04ca_02b0_684a;
+const GOLDEN_1E6: u64 = 0x2b20_5677_fe9f_abd1;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x951f_e405_885b_25b2;
+const GOLDEN_1E12: u64 = 0x3623_4ac4_f480_4d49;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the
