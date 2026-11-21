@@ -460,11 +460,18 @@ pub(crate) fn face_cover_unproven<T: Decide>(
 /// - **Torus**: along each axis `e` with a part `ê` off the torus axis
 ///   (read as `a × (e × a)`, which keeps its direction however small),
 ///   its two extremes `c ± (R·ê + r·e)` (the other two critical points
-///   are saddles, never a patch's interior extreme); along the torus
-///   axis, whose extremes are the top and bottom circles, eight points
-///   of each.
+///   are saddles, never a patch's interior extreme). Along the torus
+///   axis the extremes are the top and bottom circles, and none is a
+///   candidate: a face holding an arc of one inside it has a boundary
+///   that crosses the circle, at the circle's height, unless it holds the
+///   whole circle, and every finished torus face that does has a
+///   meridian seam (the revolve, the tube and the import's band
+///   normalization seam every full turn), which reaches it.
 /// - **Cone**: its apex. A coordinate is linear along each ruling, so a
-///   ruled face's extremes are on its boundary or at the apex.
+///   ruled face's extremes are on its boundary or at the apex. A finished
+///   face holding its apex carries it as a vertex (tier 3's chart
+///   singularities); a face mid-construction, a cap stated by its rim,
+///   need not.
 /// - **Plane and cylinder**: none, for the same reason.
 /// - **Spindle**: none. Its extremes are a torus's, but the placement
 ///   reads no spindle face's trim, so none is shown on the face.
@@ -488,7 +495,7 @@ pub(crate) fn face_extreme_points<T: Decide>(
             axis,
             major_radius,
             minor_radius,
-            u_ref,
+            ..
         } => {
             let (big, small) = (major_radius.abs(), minor_radius.abs());
             let mut at = Vec::new();
@@ -496,29 +503,13 @@ pub(crate) fn face_extreme_points<T: Decide>(
                 // `e`'s part off the axis, `a × (e × a)`: each component a
                 // product, or a sum of squares where `e − a(a·e)` would
                 // cancel to `1 − (a·e)²`, so its direction is conditioned
-                // however near `e` the axis lies.
+                // however near `e` the axis lies. Along the axis itself
+                // there is none, and the extremes are the top and bottom
+                // circles, which a finished face's edges read.
                 let off = axis.cross(e.cross(axis));
                 if crate::validate::is_direction(&off) {
                     let reach = off * (big / off.norm()) + e * small;
                     at.extend([center + reach, center - reach]);
-                } else {
-                    let across = axis.cross(u_ref);
-                    let (one, zero) = (T::one(), T::zero());
-                    let half = (one / (one + one)).sqrt();
-                    let compass = [
-                        (one, zero),
-                        (half, half),
-                        (zero, one),
-                        (zero - half, half),
-                        (zero - one, zero),
-                        (zero - half, zero - half),
-                        (zero, zero - one),
-                        (half, zero - half),
-                    ];
-                    for (cos, sin) in compass {
-                        let ring = center + (u_ref * cos + across * sin) * big;
-                        at.extend([ring + e * small, ring - e * small]);
-                    }
                 }
             }
             at
