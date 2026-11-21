@@ -232,6 +232,7 @@
 //! # run().unwrap();
 //! ```
 
+#[cfg(test)]
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
@@ -711,7 +712,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn mekr(
         &mut self,
         site: MekrSite,
-        curve: EdgeCurveSpec<T>,
+        curve: impl Into<NewCurve<T>>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError>
     where
@@ -719,7 +720,7 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
+        let created = self.mekr_with(site, curve.into(), tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
         Ok(created)
@@ -1503,6 +1504,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1603,6 +1605,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1693,6 +1696,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
@@ -1792,6 +1796,7 @@ impl<T: Decide> Body<T> {
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
             None,
+            curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
             p_u,
             p_w,
