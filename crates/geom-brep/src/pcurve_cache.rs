@@ -4996,7 +4996,7 @@ pub struct PcurveCache<T: Real> {
     /// What the row's checks read besides the row itself, where they
     /// ran ([`RowSupport`]): a door that asks the same checks of the same
     /// support reads [`Self::certificate`] rather than derive it again.
-    support: Option<RowSupport<T>>,
+    support: Option<Arc<RowSupport<T>>>,
 }
 
 /// **What a row's checks read besides the row**: the edge's carrier,
@@ -5038,13 +5038,15 @@ impl<T: Decide> RowSupport<T> {
         band: Band,
         fitted: bool,
         recorded: Option<Replayable>,
-    ) -> Option<Self> {
-        (!matches!(pcurve, Pcurve::Harmonic { .. })).then(|| Self {
-            carrier: carrier.clone(),
-            surface: surface.clone(),
-            band,
-            fitted: Self::fitted_read(pcurve, fitted),
-            recorded: recorded.unwrap_or_default(),
+    ) -> Option<Arc<Self>> {
+        (!matches!(pcurve, Pcurve::Harmonic { .. })).then(|| {
+            Arc::new(Self {
+                carrier: carrier.clone(),
+                surface: surface.clone(),
+                band,
+                fitted: Self::fitted_read(pcurve, fitted),
+                recorded: recorded.unwrap_or_default(),
+            })
         })
     }
 
