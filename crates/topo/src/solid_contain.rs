@@ -2391,8 +2391,11 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
 ///
 /// [`PointInSolidError::CorruptFace`] for a face with no cover (a
 /// poisoned net, data that is not a finite number), which no reach
-/// bounds; [`PointInSolidError::ZeroVolumeBody`] for an empty
-/// selection, which holds no face to reach.
+/// bounds.
+///
+/// # Panics
+///
+/// For an empty selection: every caller asks it of one holding a face.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -2405,7 +2408,12 @@ pub(crate) fn selection_reach<T: Decide>(
             .map_err(|_| PointInSolidError::CorruptFace { face })?;
         reach = Some(reach.map_or(far, |r| r.max(far)));
     }
-    reach.ok_or(PointInSolidError::ZeroVolumeBody)
+    Ok(reach.unwrap_or_else(|| {
+        unreachable!(
+            "a selection's reach is asked only of one holding a face: the probe refuses an empty \
+             selection first, and an aimed ray is aimed at one of its faces"
+        )
+    }))
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
