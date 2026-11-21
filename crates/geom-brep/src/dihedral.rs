@@ -4023,21 +4023,62 @@ mod seam_rows {
         );
     }
 
+    /// A lever `length` long, read off a segment of that length from
+    /// the origin.
+    fn reach_of(length: f64) -> geom_core::Lever<f64> {
+        let run = geom::cover::Cover::segment(ORIGIN, Point3::new(length, 0.0, 0.0)).unwrap();
+        crate::ExtentBall::of_cover_from(Some(&run), ORIGIN).lever()
+    }
+
     /// **A spline face's lower arm is the lane's bound on its own chart,
-    /// and poison with no lane.** The wall that bends 0.05 m out reads
-    /// the lane's arm, at most that far; with no lane it reads poison,
-    /// and a seam steep over the reach then escalates at the arm, never
-    /// transverse. Red against a lane-less arm read as the reach.
+    /// at the point and over the reach it is asked at.** On the wall that
+    /// bends 0.05 m out: over a reach of 0.02, short of the bend, the arm
+    /// is the reach (red against the reach doubled); and at a point 0.04
+    /// out, a centimetre from the bend, the arm is under half what it is
+    /// at the seam (red against the chart read at the world origin in
+    /// place of the point).
     #[test]
-    fn a_charts_arm_is_its_lanes_bound_and_poison_with_no_lane() {
+    fn a_charts_arm_is_read_at_its_point_over_its_reach() {
         let wall = bent(0.05, 1.0, 0.0);
-        let unit = geom::cover::Cover::segment(ORIGIN, Point3::new(1.0, 0.0, 0.0)).unwrap();
-        let reach = crate::ExtentBall::of_cover_from(Some(&unit), ORIGIN).lever();
-        let lane = Some(NurbsLane::certified());
-        let arm = crate::chart_curvature_arm(lane, &wall, ORIGIN, reach).length();
-        assert!(arm > 0.0 && arm <= 0.05, "the arm stops at the bend: {arm}");
+        let arm = |p: Point3<f64>, reach: f64| {
+            crate::chart_curvature_arm(Some(NurbsLane::certified()), &wall, p, reach_of(reach))
+                .length()
+        };
+        assert_eq!(arm(ORIGIN, 0.02), 0.02, "short of the bend, the reach");
+        let (at_seam, near_bend) = (arm(ORIGIN, 1.0), arm(Point3::new(0.0, 0.04, 0.0), 1.0));
         assert!(
-            crate::chart_curvature_arm(None, &wall, ORIGIN, reach)
+            at_seam > 0.02 && at_seam <= 0.05,
+            "the arm stops at the bend: {at_seam}"
+        );
+        assert!(
+            near_bend > 0.0 && near_bend < 0.5 * at_seam,
+            "a centimetre from the bend: {near_bend} against {at_seam} at the seam"
+        );
+    }
+
+    /// **A spline face's lower arm is poison where no bound is read.** A
+    /// crease within the reach is the lane's refusal (red against a
+    /// refusal read as a long arm). With no lane there is no bound, and a
+    /// seam steep over the reach escalates at the arm, never transverse
+    /// (red against a lane-less arm read as the reach).
+    #[test]
+    fn a_charts_arm_is_poison_where_no_bound_is_read() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let creased = ruled(
+            kv,
+            &[(0.0, 0.0), (0.0, 0.5), (0.0, 1.0), (0.5, 1.5), (1.0, 2.0)],
+            &[1.0, 0.8, 1.0, 0.8, 1.0],
+        );
+        let lane = Some(NurbsLane::certified());
+        assert!(
+            crate::chart_curvature_arm(lane, &creased, ORIGIN, reach_of(1.0))
+                .length()
+                .is_nan(),
+            "a crease in reach, no bound"
+        );
+        let wall = bent(0.05, 1.0, 0.0);
+        assert!(
+            crate::chart_curvature_arm(None, &wall, ORIGIN, reach_of(1.0))
                 .length()
                 .is_nan(),
             "no lane, no bound"
@@ -4046,7 +4087,7 @@ mod seam_rows {
         let unread = classify_seam(
             [at(&steep, 0.0), at(&ground, 0.0)],
             ORIGIN,
-            reach,
+            reach_of(1.0),
             None,
             band(),
         );
