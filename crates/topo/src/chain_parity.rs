@@ -6,7 +6,7 @@
 //! ([`ChainPiece`]).
 
 use geom_core::predicate::Band;
-use geom_core::{Decide, InfSpeed, Margin, Real, Sign};
+use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Real, Sign};
 
 use crate::pcurves::{PIECE_DEPTH, Side};
 use crate::validate::decide;
@@ -22,11 +22,39 @@ pub(crate) struct RayQuery {
     pub(crate) rect: [(f64, f64); 2],
 }
 
+/// The way from a query to a piece's box in one channel, in chart
+/// units: zero where they meet.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Gap<T> {
+    /// Read in `T`, from a query held in it.
+    Read(T),
+    /// A bound read off two `f64` boxes, which stays `f64`: the margin
+    /// it is metered into carries it (`crates/geom-core/README.md`,
+    /// DL5.2).
+    Bound(f64),
+}
+
+impl<T: Decide> Gap<T> {
+    /// The gap crossed to metres at the channel's `arm`, decided under
+    /// `name`: a gap read in `T` through [`Margin::metered`], a bound
+    /// through [`Margin::metered_bound`].
+    fn decide(
+        self,
+        name: &'static str,
+        arm: InfSpeed<T>,
+        band: Band,
+    ) -> Result<Sign, Indeterminate> {
+        match self {
+            Self::Read(gap) => decide(name, Margin::metered(gap, arm), band),
+            Self::Bound(gap) => decide(name, Margin::metered_bound(gap, arm), band),
+        }
+    }
+}
+
 /// A piece's box against a query ([`ChainPiece::boxed`]).
 pub(crate) struct PieceBox<T> {
-    /// The way from the query to the box in each channel, `[u, v]`, in
-    /// chart units: zero where they meet.
-    pub(crate) gap: [T; 2],
+    /// The way from the query to the box in each channel, `[u, v]`.
+    pub(crate) gap: [Gap<T>; 2],
     /// The box on the value channel, `[u, v]`.
     pub(crate) extent: [(f64, f64); 2],
 }
@@ -104,7 +132,7 @@ pub(crate) fn ray_parity_as<T: Decide, P: ChainPiece<T>>(
         let mut diag = None;
         let mut clear = false;
         for (g, arm) in [(b.gap[0], au), (b.gap[1], av)] {
-            match decide(name, Margin::metered(g, arm), band) {
+            match g.decide(name, arm, band) {
                 Ok(Sign::Positive) => clear = true,
                 Ok(_) => {}
                 Err(d) => diag = diag.or(Some(d)),

@@ -1518,11 +1518,6 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
-            // The wrap strip's period, a whole turn signed by the face's
-            // side, folded under `interior_is_left` rather than through
-            // `PolygonOrientation::to_interior`
-            // (`work/onecopy/polygon-orientation-callers-fold-the-interior-side-by-hand.md`).
-            ("crates/mesh/src/walk.rs", "turn"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`

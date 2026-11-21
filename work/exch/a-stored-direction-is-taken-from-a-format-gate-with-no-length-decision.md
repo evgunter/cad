@@ -25,7 +25,7 @@ the length is a distance), or `RigidMotion::from_axis_and_reference` /
 
 Sites (`crates/step-import/src/`):
 
-- `build.rs`, `line_iso_match`: the `len2.is_finite() && len2 > 0.0`
+- `build.rs`, `line_on_column` (was `line_iso_match`): the `len2.is_finite() && len2 > 0.0`
   gate, which admits the chords whose `direction_and_length` feeds
   `Curve3::line` in `iso_of_wall` and `cap_row`.
 - `build.rs`, `deferred_carrier` and `rebuilt_in_surface`:
@@ -35,7 +35,8 @@ Sites (`crates/step-import/src/`):
 - `normalize/singularity.rs`, the seam-azimuth fallback (`radial`
   closure): `r.normalize()` after a `not_apart` read at the file band —
   decided, but not minted, so the stored azimuth carries no witness.
-- `recognize_curve.rs`, `try_line` (the chord) and `try_circle` (the
+- `recognize_curve.rs`, `try_line` and `straight_map` (the chord) and
+  `try_circle` (the
   chord, the three-sample normal, the radial `u_ref`): estimator
   directions, the circle's also filed as
   `circle-recognition-normalizes-its-plane-normal-with-no-mint`. Another

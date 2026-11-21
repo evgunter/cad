@@ -660,9 +660,12 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
-// The `Wireframe` arm's payload needs nothing new: its carriers are
-// `Curve3`, on this list at group 2's `topo` re-export, and its
-// ledger is the same `StructureNormalization`.
+// The `Wireframe` arm's payload is `step_import::WireframeCurve`, a
+// `Curve3` (on this list at group 2's `topo` re-export) and the span of
+// it the file states; no Python door reads the arm (it is the import
+// door's typed refusal there), so it is reached at `pncad::step_import`
+// rather than named here. Its ledger is the same
+// `StructureNormalization`.
 //
 // The Python half follows the carrier rule again, and lands on the
 // opposite side from `ImportOptions`. `StepImport::Solid` crosses as

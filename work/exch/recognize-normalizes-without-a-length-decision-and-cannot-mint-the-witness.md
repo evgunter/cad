@@ -140,7 +140,7 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
   outside this crate pair (`topo`, `geom-brep`, `geom`), so it does not
   retire here; `geom_brep::newell` is no longer one of them.
 - **Stored directions behind a format gate only** — `build.rs`'s
-  `line_iso_match`, `deferred_carrier`, `rebuilt_in_surface` and
+  `line_on_column` (was `line_iso_match`), `deferred_carrier`, `rebuilt_in_surface` and
   `generators_through`, `normalize::singularity`'s seam-azimuth
   fallback, and `recognize_curve.rs`'s line and circle estimators:
   `work/exch/a-stored-direction-is-taken-from-a-format-gate-with-no-length-decision.md`.

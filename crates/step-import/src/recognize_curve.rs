@@ -21,19 +21,43 @@
 //!
 //! # Kind scope
 //!
-//! [`PromotedCurveKind::Circle`], restricted to the **closed
-//! full-period** class, and [`PromotedCurveKind::Line`], the **chord
-//! segment** class. The two scopes are DISJOINT by one gate read two
-//! ways: a carrier whose ends meet within ε_in is closed (circle
-//! territory; the line limb refuses it — a chord inside the budget
-//! determines no direction), and one whose ends are farther apart is
-//! open (line territory; the circle limb refuses it before
-//! estimating). So no kind-preference order is ever exercised.
-//! Ellipse, helix, and partial (open) circular arcs are NAMED
-//! EXCLUSIONS with filed follow-ups — no dead per-kind code here.
+//! [`PromotedCurveKind::Circle`] — a closed carrier's **full circle** and
+//! an open carrier's **circular arc**, at any degree and knot structure —
+//! and [`PromotedCurveKind::Line`], the **chord segment**. A carrier
+//! whose ends meet within ε_in is closed: the circle limb's full-period
+//! class, and one the line limb refuses (a chord inside the budget
+//! determines no direction). An open carrier may reach both limbs;
+//! [`recognize`] states the order. Ellipse and helix are NAMED
+//! EXCLUSIONS with a filed follow-up — no dead per-kind code here.
 //!
-//! # The certificate (D9-clean by construction: no sampling, no
-//! schedule)
+//! A promoted carrier has no knots, so the C⁰-knot split at the import
+//! door (`docs/DESIGN.md` `[topology]`) has nothing to cut on it:
+//! recognition runs on the WHOLE carrier, at its one construction
+//! site, before any normalization reads it.
+//!
+//! # What a promotion owes: the locus, not the timing
+//!
+//! A printed carrier is evidence for its edge's description, never a
+//! cache (`docs/DESIGN.md` `[import]`, step 2: the body is rebuilt from
+//! the description), and nothing reads its parameter once it is
+//! promoted. So a promotion owes three things, each certified below:
+//! the carrier lies within ε_in of the analytic curve (the LOCUS);
+//! its locus is exactly the arc, segment or full turn between its ends
+//! (the COVERAGE) — it may run back and forth inside that piece, which
+//! no reader sees; and it runs from its start to its end in the analytic
+//! curve's sense (the ORIENTATION). The promotion answers the curve and the parameter
+//! range of it the carrier covers ([`CurveRecognition::Promoted`]'s
+//! `covers`), and an edge on the carrier trims inside that range
+//! (`geometry::trim_within`).
+//!
+//! The MAP is owed where the kernel reads a spline it HOLDS as an
+//! analytic map paired with a chart image — a wall's column read as
+//! the straight line its affine chart image parameterizes:
+//! [`straight_map`] (INV-C5 below), which the iso rung, the section
+//! rung and the knot split read.
+//!
+//! # The locus certificate (D9-clean by construction: no sampling,
+//! no schedule)
 //!
 //! The curve case reads the one-parameter form of the surface
 //! recognizer's curved-kind certificate, an EXACT whole-domain one:
@@ -64,35 +88,29 @@
 //!   and `â` the unit axis; at `r = 0` (an exact certification value —
 //!   `compose` forms `r²` as `Interval::point(0).sqr()`, the zero
 //!   interval, and refuses no radius) it is exactly `dist(P, line)²`,
-//!   meters². Conversion: `δ_line = √S` — no divisor, no hypothesis.
-//! * **INV-C4 (coverage — the locus is the WHOLE segment).** The
+//!   meters². Conversion: `δ_line = √S`, rooted outward — no divisor,
+//!   no hypothesis.
+//! * **INV-C4 (coverage — the locus is EXACTLY the segment).** The
 //!   projection `t(P) = (P − p₀)·d̂` is continuous from
 //!   `t(start) = 0` to `t(end) = ℓ`, so by the intermediate value
-//!   theorem its image contains `[0, ℓ]` and the carrier's locus is
-//!   the whole segment (thickened by at most the residual), never a
-//!   proper sub-segment — unlike the circle's, whose locus can be a
-//!   proper sub-arc. The segment obligation carries NO separate
-//!   excursion fold: INV-C5's hull (below) meters an overshooting
-//!   net, and it dominates — on clamped knots every Greville
-//!   abscissa lies in the domain, so `ℓ(ξᵢ)` is on the chord and a
-//!   control `o` past either end is at least `o` from it.
-//! * **INV-C5 (the MAP obligation).** Promotion replaces the carrier
-//!   as a parameterized MAP, not only as a locus: every downstream
-//!   door — the chart-image certify schedules above all — compares
-//!   `C(t)` against its description pointwise, so a promotion that
-//!   kept the locus but re-timed the interior would strand the edge
-//!   at adoption (measured: a nonuniform loft's straight seam, whose
-//!   affine `Line` no iso image can reproduce). With one constant weight the
+//!   theorem its image contains `[0, ℓ]`. With positive weights every
+//!   carrier point is a convex combination of its span's controls, so
+//!   its projection lies in theirs; the controls' overshoot `o` past
+//!   either end bounds how far the carrier runs past the segment. The
+//!   residual is `hypot(δ_line, o)`, a distance from the SEGMENT.
+//! * **INV-C5 (the straight MAP reading, [`straight_map`]).** Where the
+//!   kernel reads a spline it holds as the affine map `ℓ` taking the
+//!   knot domain onto the chord (an iso column paired with an affine
+//!   chart image), the map itself is owed. With one constant weight the
 //!   polynomial basis reproduces affine functions of the parameter on
-//!   the Greville abscissae `ξᵢ` (linear precision), so with `ℓ` the
-//!   affine map taking the knot domain onto the chord,
-//!   `|C(t) − ℓ(t)| = |Σ Nᵢ(t)(cᵢ − ℓ(ξᵢ))| ≤ maxᵢ |cᵢ − ℓ(ξᵢ)|` —
-//!   the seam-class chart limb's own hull, transposed to recognition.
-//!   A rational carrier has no linear-precision fact and refuses the
-//!   certificate (stays NURBS silently). The hull also carries the
-//!   segment obligation (INV-C4 above), so the reported residual is
-//!   `max(δ_line, hull)` and the budget decides at whichever of the
-//!   locus and map obligations binds.
+//!   the Greville abscissae `ξᵢ` (linear precision), so
+//!   `|C(t) − ℓ(t)| = |Σ Nᵢ(t)(cᵢ − ℓ(ξᵢ))| ≤ maxᵢ |cᵢ − ℓ(ξᵢ)|` — the
+//!   seam-class chart limb's own hull. It carries the locus and the
+//!   segment with it, so it is the reading's whole residual. A rational
+//!   carrier has no linear-precision fact and refuses the reading.
+//!   Measured why it is owed there: a nonuniform
+//!   loft's straight seam, whose affine image no iso column can
+//!   reproduce, strands at adoption.
 //! * **INV-C2 (plane ∧ sphere → distance to the CIRCLE).** Write
 //!   `P − c = h·n̂ + q` with `q ⊥ n̂`. The plane certificate gives
 //!   `|h| ≤ δ_p`; INV-C1 gives `| |P−c| − r | ≤ δ_s`, and
@@ -103,14 +121,24 @@
 //!   `hypot(|q| − r, h)`, and `hypot` is monotone in both arguments,
 //!   so `residual ≤ hypot(m, δ_p)`. Every step is an inequality
 //!   between certified quantities; no small-angle or first-order step
-//!   appears.
+//!   appears, and each conversion is computed at `Interval` and read
+//!   outward from the composites' sups. What is NOT metered, and is
+//!   treated as exact (`docs/DESIGN.md` `[simple.conditioned]`): the
+//!   estimated frame the composites read (centre, axis, radius — the
+//!   promoted circle IS that frame), the `Circle`'s own evaluation (its
+//!   `cos`/`sin`), and the coverage's `f64` azimuth reads (`turning`'s
+//!   `total`, `low`, `high`) the arc's overrun is formed from; a fuzz of
+//!   the certificate measured the promoted carrier a few ulps past its
+//!   residual on that account. The line's projections and chord length
+//!   are the same: `f64` closed forms, compared outward.
 //!
 //!   **Hypothesis, stated rather than assumed**: the lower bound needs
-//!   `r − δ_s ≥ 0`. Where it fails the expression under the root is
-//!   negative, the code takes `lower = 0`, and `m ≥ r > ε_in` makes
-//!   the promotion refuse — so the corner is safe, but it is safe
-//!   BECAUSE of that arm and not by the derivation, and the code says
-//!   so at the site.
+//!   `r − δ_s ≥ 0`. Where that fails the radicand `(r−δ_s)² − δ_p²`
+//!   bounds nothing — and past `δ_s > 2r` it can be positive again — so
+//!   the code takes the root only while `r − δ_s` is certified positive,
+//!   and `lower = 0` otherwise, which makes `m ≥ r > ε_in` and the
+//!   promotion refuse: the corner is safe BECAUSE of that arm, not by the
+//!   derivation, and the code says so at the site.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
@@ -126,14 +154,15 @@
 //!   means what the carrier's direction meant; the exact circumcenter
 //!   solve for `center` and `radius` (the surface recognizer's, in the
 //!   samples' own plane); `u_ref` toward `s₀`, so the promoted seam
-//!   sits at the carrier's start point and the derived parameter
-//!   interval starts at `θ = 0`.
+//!   sits at the carrier's start point and the covered range starts at
+//!   `θ = 0`.
 //!
 //! # Conditioning (D7's typed ambiguity)
 //!
 //! The circle estimator carries the surface cylinder estimator's
 //! margin trilean: three samples collinear within ε_in determine no
-//! finite radius, which is [`CurveRecognition::IllConditioned`]. No
+//! finite radius, which is [`CurveRecognition::IllConditioned`] where
+//! the line limb does not take the carrier either. No
 //! call site ESCALATES it today — unlike the surface case there is no
 //! gate that needs a curve promotion to import at all — so an
 //! ill-conditioned carrier stays NURBS exactly like a refuted one.
@@ -143,41 +172,47 @@
 //! # Coverage — the OTHER half of the promotion, certified
 //!
 //! A locus certificate says the carrier lies ON the circle; it does
-//! not say the carrier COVERS it. For the closed class the adopted
-//! edge is the full period ([`crate::geometry::endpoint_params`]'s
-//! self-loop arm), so a carrier that doubled back over a sub-arc would
-//! adopt as a strictly LARGER locus — a silent false promotion, the
-//! exact class #256's posture exists to prevent.
+//! not say the carrier's locus IS the arc its ends bound. A closed
+//! carrier that doubled back over a sub-arc would adopt as a strictly
+//! LARGER locus (the self-loop is the full period,
+//! [`crate::geometry::endpoint_params`]); an open one that doubled back
+//! past its start would adopt as a strictly smaller one.
 //!
-//! [`covers_one_full_turn`] is that gate, and it is a CERTIFICATE, not
-//! a witness. The distinction matters and was learned the hard way: an
-//! earlier draft sampled five fixed domain fractions and required the
-//! wrapped azimuth increments positive. Wrapping a difference into a
-//! positive interval MANUFACTURES the positivity, so that check
-//! refused only exactly-equal consecutive azimuths — near-vacuous, and
-//! two independently constructed on-locus carriers (a 120° and a 300°
-//! out-and-back, both exactly on the circle) promoted through it. Both
-//! are pinned red here now.
-//!
-//! No amount of sampling could have fixed it: any three points of a
-//! circle lie in a common arc shorter than 2π, so a finite sample set
-//! can never prove coverage. What works is a STRUCTURAL bound that
+//! [`turning`] is that gate, and it is a CERTIFICATE, not a witness. A
+//! sampled azimuth increment is only known modulo 2π, and no finite
+//! sample set can prove coverage (any three points of a circle lie in a
+//! common arc shorter than 2π). What works is a STRUCTURAL bound that
 //! makes each wrapped increment equal the true one — the per-knot-span
-//! half-plane containment of [`covers_one_full_turn`], whose derivation
-//! is on that function. The schedule is the carrier's own span
-//! structure (knots, not data), so it is D9-clean.
+//! cone containment of [`turning`], whose derivation is on that
+//! function — and the same containment bounds where the carrier's
+//! azimuth can go inside each span. The schedule is the carrier's own
+//! span structure (knots, not data), so it is D9-clean.
+//!
+//! - **Closed**: the true total turning is one positive turn, so the
+//!   carrier's locus is the whole circle.
+//! - **Open**: the total is in `(0, 2π)`, and every span's controls
+//!   (hence the carrier) hold its azimuth in `[low, high]`; the part of
+//!   that past `[0, total]` is charged to the residual as a distance
+//!   from the ARC ([`arc_residual`]), so the carrier's locus is the arc
+//!   from its start to its end in the axis's sense, within the
+//!   residual: what the edge's trim reads.
+//!
+//! None of this says the carrier traverses its piece ONCE: an azimuth
+//! that runs back inside the arc (0° → 120° → 80° → 200°) promotes, and
+//! is right to, since nothing reads a promoted carrier's timing.
 //!
 //! The gate refuses whenever it cannot tell, so it can make promotion
 //! incomplete but never incorrect. What remains banked in the
 //! surjectivity follow-up is the *tightness*: a carrier whose spans
-//! individually turn by π or more is refused rather than analysed.
-
+//! individually turn by π − δ or more is refused rather than analysed.
 use geom::{Curve3, NurbsCurve3};
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
-use geom_core::{Point3, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point3, Vec2, Vec3};
 
 use crate::interpret::{
-    FileBand, Read, STEP_RECOGNIZED_CLOSURE, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL,
+    FileBand, Read, STEP_RECOGNIZED_CLOSURE, STEP_RECOGNIZED_CONDITIONING,
+    STEP_RECOGNIZED_RESIDUAL, STEP_STRAIGHT_MAP,
 };
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -195,10 +230,16 @@ pub(crate) enum CurveRecognition {
         /// the derived parameter interval keeps its orientation
         /// through the promotion.
         curve: Curve3<f64>,
-        /// The certified residual sup (METRES — module docs INV-C1/C2).
+        /// The certified residual sup (METRES — module docs INV-C1/C2
+        /// for a circle, INV-C3/C4 for a line).
         residual: f64,
         /// Which kind certified.
         kind: PromotedCurveKind,
+        /// The parameter range of `curve` the carrier COVERS, where it is
+        /// not the whole curve: an open arc's `[0, turn]` from its seam,
+        /// a chord's `[0, ℓ]` from its start. An edge on the carrier must
+        /// trim inside it; `None` for a closed carrier's full period.
+        covers: Option<(f64, f64)>,
     },
     /// No implemented kind certifies — the carrier stays NURBS
     /// (the pre-#327 state, silent).
@@ -227,41 +268,36 @@ pub(crate) enum CurveRecognition {
 /// promotes)
 /// (module docs: kind, estimator, certificate).
 ///
-/// The two kinds' scopes are DISJOINT (module docs, "Kind scope"):
-/// the closure gate that scopes the circle limb to closed carriers is
-/// the same gate, negated, that scopes the line limb to open ones —
-/// so the order below is fixed but never selects between two
-/// certifying kinds, and the circle path's behavior is exactly what
-/// it was as the only kind. When a kind whose scope OVERLAPS lands,
-/// the surface recognizer's rule applies verbatim: a fixed order, and
-/// the note that a carrier certifying as two kinds is
-/// canonicalization rather than ambiguity (both analytic curves agree
-/// with the carrier, hence with each other, within 2·ε_in everywhere
-/// on it).
+/// The circle is tried first and the line second, a fixed order. The
+/// closed class is the circle's alone (the line limb refuses a chord
+/// inside the budget); an open carrier may reach both, and a carrier
+/// certifying as both is canonicalization rather than ambiguity — both
+/// analytic curves agree with the carrier, hence with each other,
+/// within 2·ε_in everywhere on it (the surface recognizer's rule).
 pub(crate) fn recognize(curve: &NurbsCurve3<f64>, file: FileBand) -> CurveRecognition {
+    let line = || {
+        try_line(curve, file).map(|(line, residual, length)| CurveRecognition::Promoted {
+            curve: line,
+            residual,
+            kind: PromotedCurveKind::Line,
+            covers: Some((0.0, length)),
+        })
+    };
     match try_circle(curve, file) {
-        Ok(Some((circle, residual))) => CurveRecognition::Promoted {
+        Ok(Some((circle, residual, turn))) => CurveRecognition::Promoted {
             curve: circle,
             residual,
             kind: PromotedCurveKind::Circle,
+            covers: turn.map(|turn| (0.0, turn)),
         },
-        Ok(None) => match try_line(curve, file) {
-            Some((line, residual)) => CurveRecognition::Promoted {
-                curve: line,
-                residual,
-                kind: PromotedCurveKind::Line,
-            },
-            None => CurveRecognition::StaysNurbs,
-        },
-        // The circle estimator's conditioning refusal is only
-        // reachable for a carrier CLOSED at ε_in (the closure gate
-        // runs before the samples), which is a carrier the line limb
-        // refuses at the same gate — so answering it directly loses
-        // no line promotion.
-        Err(margin) => CurveRecognition::IllConditioned {
+        Ok(None) => line().unwrap_or(CurveRecognition::StaysNurbs),
+        // Collinear estimator samples on an open carrier are the line's
+        // territory, so the line limb answers first; only a carrier it
+        // refuses too is the circle estimator's typed ambiguity.
+        Err(margin) => line().unwrap_or(CurveRecognition::IllConditioned {
             kind: PromotedCurveKind::Circle,
             margin,
-        },
+        }),
     }
 }
 
@@ -279,35 +315,65 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     }
 }
 
+/// A spline's chord from its first control to its last ([`chord_of`]).
+struct Chord {
+    first: Point3<f64>,
+    chord: Vec3<f64>,
+    dir: Vec3<f64>,
+    length: f64,
+}
+
+/// **The chord both line readings start from** ([`try_line`],
+/// [`straight_map`]): first control to last, its direction where its
+/// length reads apart from zero at the file's band. The complement of
+/// the circle limb's closure gate (module docs, "Kind scope"): ends that
+/// read Zero determine no direction, and that carrier is the closed
+/// class anyway, so it is never a line.
+fn chord_of(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<Chord> {
+    let control = curve.control();
+    let (first, last) = (*control.first()?, *control.last()?);
+    let chord = last - first;
+    let (dir, length) = chord
+        .checked_direction()
+        .ok()
+        .filter(|&(_, n)| file.read(STEP_RECOGNIZED_CONDITIONING, n) != Read::Zero)?;
+    Some(Chord {
+        first,
+        chord,
+        dir,
+        length,
+    })
+}
+
+/// A promoted line, its residual, and the length of the chord it
+/// covers ([`try_line`]).
+pub(crate) type LineCandidate = (Curve3<f64>, f64, f64);
+
 // `!(a < b)` forms below are deliberate, NaN-catching negations: a
 // NaN quantity must REFUSE, and the positive form would silently
 // accept it (the file's standing convention).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-/// The line candidate (module docs; the locus certificate INV-C3,
-/// coverage INV-C4, and the map obligation INV-C5, whose hull also
-/// carries the segment fold — all read off ring coefficient hulls
-/// and control values, no sampling anywhere). `None` is a refuted
-/// certificate or an out-of-scope (closed-at-ε, or rational —
-/// INV-C5) carrier; there is no conditioning trilean here because
-/// there is no estimate to condition — the chord IS the candidate,
-/// and a chord inside the budget is the closed class, which is the
-/// circle limb's.
-pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curve3<f64>, f64)> {
+/// The line candidate (module docs; the locus certificate INV-C3 and
+/// the coverage INV-C4, read off ring coefficient hulls and control
+/// values, no sampling anywhere): the line from the carrier's start
+/// along its chord, the residual from the SEGMENT, and the chord's
+/// length. `None` is a refuted certificate or an out-of-scope
+/// (closed-at-ε) carrier; there is no conditioning trilean here
+/// because there is no estimate to condition — the chord IS the
+/// candidate, and a chord inside the budget is the closed class, which
+/// is the circle limb's.
+pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineCandidate> {
     let control = curve.control();
-    let (first, last) = (control.first()?, control.last()?);
-    let chord = *last - *first;
-    // The complement of the circle limb's closure gate (module docs,
-    // "Kind scope"): ends that read Zero at the file's band determine
-    // no direction, and that carrier is the closed class
-    // anyway, so it can never promote to a line.
-    let (dir, _) = chord
-        .checked_direction()
-        .ok()
-        .filter(|&(_, n)| file.read(STEP_RECOGNIZED_CONDITIONING, n) != Read::Zero)?;
+    let Chord {
+        first,
+        chord,
+        dir,
+        length,
+    } = chord_of(curve, file)?;
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
-    // schedule. NaN (a refused hull, or a structural refusal) fails the
-    // budget comparison below (D4 ¶2).
+    // schedule — rooted outward. NaN (a refused hull, or a structural
+    // refusal) refuses here, before a fold could read it as a zero.
     let sup = composite_sup(
         curve,
         &ImplicitSurface::Cylinder {
@@ -316,21 +382,56 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curv
             radius: 0.0,
         },
     );
-    let delta_line = sup.abs().sqrt();
-    // Coverage of the whole segment is INV-C4's intermediate-value
-    // argument (module docs); the segment obligation itself rides
-    // INV-C5's hull below, which dominates any control excursion on
-    // clamped knots.
-    // INV-C5: promotion replaces the carrier as a MAP, not only as a
-    // locus — downstream doors compare `C(t)` against chart images
-    // pointwise, so the affine chord map must be within budget of the
-    // carrier's own parameterization or the promoted edge is
-    // unadoptable. With one constant weight, which cancels, the
-    // polynomial basis reproduces affine maps on the Greville abscissae
-    // (linear precision), so the control-vs-affine deviations bound the
-    // map deviation over the whole domain (module docs); a rational
-    // carrier has no linear-precision fact and refuses the certificate
-    // silently. Non-finite refuses.
+    let delta_line = Interval::point(sup.abs()).sqrt().mag();
+    if delta_line.is_nan() {
+        return None;
+    }
+    // INV-C4: the controls' projections onto the chord bound the
+    // carrier's, so their overshoot past either end bounds how far it
+    // runs past the segment; each projection read at `Interval`.
+    let mut overshoot = 0.0f64;
+    for p in control {
+        let along = (0..3).fold(Interval::zero(), |acc, k| {
+            acc + (Interval::point(p.to_array()[k]) - Interval::point(first.to_array()[k]))
+                * Interval::point(dir.to_array()[k])
+        });
+        let past = (Interval::zero() - along)
+            .hi()
+            .max((along - Interval::point(length)).hi());
+        if !past.is_finite() {
+            return None;
+        }
+        overshoot = overshoot.max(past);
+    }
+    let residual = (Interval::point(delta_line).sqr() + Interval::point(overshoot).sqr())
+        .sqrt()
+        .mag();
+    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
+        return None;
+    }
+    let line = Curve3::line(plus_zero_point(first), plus_zero(dir));
+    Some((line, residual, length))
+}
+
+// `!(a < b)` forms below are deliberate, NaN-catching negations.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// **The straight MAP reading** (module docs, INV-C5): a spline the
+/// kernel holds, read as the line its chord spans AND as the affine map
+/// `ℓ` taking its knot domain onto that chord — the reading an affine
+/// chart image of it (an iso column, a section's straight run) pairs
+/// with. Its certificate is the Greville hull `maxᵢ |cᵢ − ℓ(ξᵢ)|`,
+/// which holds only at one constant weight (linear precision; a rational
+/// spline refuses) and bounds `|C(t) − ℓ(t)|` everywhere, so it carries
+/// the locus and the segment with it: no composite is read, and its
+/// residual has no square-root floor. Each distance is read outward; the
+/// Greville abscissae `ξᵢ` and the affine positions `ℓ(ξᵢ)` they are
+/// compared with are `f64` closed forms treated as exact
+/// (`docs/DESIGN.md` `[simple.conditioned]`).
+pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curve3<f64>, f64)> {
+    let control = curve.control();
+    let Chord {
+        first, chord, dir, ..
+    } = chord_of(curve, file)?;
     let degree = curve.knots_f64_interim().degree();
     if degree == 0 || curve.constant_weight().is_none() {
         return None;
@@ -345,30 +446,37 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(Curv
     for (i, p) in control.iter().enumerate() {
         #[allow(clippy::cast_precision_loss)]
         let xi = flat[i + 1..=i + degree].iter().sum::<f64>() / degree as f64;
-        let dev = (*p - (*first + chord * ((xi - d0) / span))).norm();
+        let dev = distance_sup(*p, first + chord * ((xi - d0) / span));
         if !dev.is_finite() {
             return None;
         }
         hull = hull.max(dev);
     }
-    // `f64::max` drops a NaN, so a refused composite refuses here,
-    // before the fold could read it as a zero.
-    if delta_line.is_nan() {
+    if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    let residual = delta_line.max(hull);
-    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
-        return None;
-    }
-    let line = Curve3::line(plus_zero_point(*first), plus_zero(dir));
-    Some((line, residual))
+    Some((Curve3::line(plus_zero_point(first), plus_zero(dir)), hull))
 }
 
+/// An upper bound on `|p − q|`, rounded outward.
+fn distance_sup(p: Point3<f64>, q: Point3<f64>) -> f64 {
+    let d = |a: f64, b: f64| (Interval::point(a) - Interval::point(b)).sqr();
+    (d(p.x, q.x) + d(p.y, q.y) + d(p.z, q.z)).sqrt().mag()
+}
+
+/// A certified circle, its residual, and an open arc's covered turn
+/// ([`try_circle`]).
+pub(crate) type CircleCandidate = (Curve3<f64>, f64, Option<f64>);
+
 /// The circle candidate (module docs; the locus certificate INV-C1 +
-/// INV-C2, then the coverage certificate). `Err(margin)` is the
-/// estimator's conditioning refusal; `Ok(None)` a refuted certificate
-/// or an out-of-scope (open-arc) carrier.
-fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3<f64>, f64)>, f64> {
+/// INV-C2, then the coverage certificate): the circle, its residual,
+/// and, for an open arc, the turn it covers from its seam.
+/// `Err(margin)` is the estimator's conditioning refusal; `Ok(None)` a
+/// refuted certificate.
+pub(crate) fn try_circle(
+    curve: &NurbsCurve3<f64>,
+    file: FileBand,
+) -> Result<Option<CircleCandidate>, f64> {
     let control = curve.control();
     let (Some(first), Some(last)) = (control.first(), control.last()) else {
         return Ok(None);
@@ -376,12 +484,9 @@ fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3
     if control.len() < 3 {
         return Ok(None);
     }
-    // **Stage-1 scope: the CLOSED full-period class.** An open arc
-    // needs an arc-COVERAGE certificate the promotion does not have
-    // (module docs) — refused here, filed as a follow-up, silent.
-    if file.read(STEP_RECOGNIZED_CLOSURE, (*last - *first).norm()) != Read::Zero {
-        return Ok(None);
-    }
+    // The closure gate: a carrier whose ends read Zero is the full
+    // period, any other an arc between its end points.
+    let closed = file.read(STEP_RECOGNIZED_CLOSURE, (*last - *first).norm()) == Read::Zero;
     let (a, b) = curve.domain();
     if !(a.is_finite() && b.is_finite() && b > a) {
         return Ok(None);
@@ -430,7 +535,43 @@ fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3
     else {
         return Ok(None);
     };
-    // The certificate. INV-C1 + INV-C2, both in metres at the end.
+    let Some((residual, total)) = arc_residual(curve, (center, axis, u_ref, radius), closed) else {
+        return Ok(None);
+    };
+    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
+        return Ok(None);
+    }
+    let circle = Curve3::circle(
+        plus_zero_point(center),
+        plus_zero(axis),
+        radius,
+        plus_zero(u_ref),
+    );
+    Ok(Some((circle, residual, (!closed).then_some(total))))
+}
+
+/// **The locus and coverage certificates of `curve` against one circle**
+/// (`center`, `axis`, `u_ref`, `radius` — read as exact): the certified
+/// sup of the carrier's distance from the circle (INV-C1, INV-C2) for a
+/// `closed` carrier, from the ARC it covers for an open one, and its
+/// total turning about the axis from its start. `None` where the
+/// coverage certificate cannot prove the class: a closed carrier's one
+/// turn, an open one's turn in `(0, 2π)`.
+///
+/// An open carrier's azimuth is held inside `[low, high]` (`turning`,
+/// step 5); the part of it past `[0, total]` is at most
+/// `overrun = max(−low, high − total)` in angle, and a point at distance
+/// `d` from the circle and `φ ≤ overrun` past an end is within
+/// `d + 2R·sin(φ/2) ≤ d + R·φ` of that end. So the residual is
+/// `locus + R·overrun`, the distance from the ARC an edge trimmed to it
+/// holds, as the line's is from the segment. The azimuths and `total`
+/// are `f64` reads of `atan2` (the frame is treated as exact,
+/// `docs/DESIGN.md` `[simple.conditioned]`); the sum is formed outward.
+pub(crate) fn arc_residual(
+    curve: &NurbsCurve3<f64>,
+    (center, axis, u_ref, radius): (Point3<f64>, Vec3<f64>, Vec3<f64>, f64),
+    closed: bool,
+) -> Option<(f64, f64)> {
     let plane_sup = composite_sup(
         curve,
         &ImplicitSurface::Plane {
@@ -445,45 +586,68 @@ fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3
             radius,
         },
     );
-    let delta_p = plane_sup.abs();
-    // INV-C1: meters² → meters, divided by the radius (the smallest
-    // the divisor `|P−c| + r` can be).
-    let delta_s = sphere_sup.abs() / radius;
-    // INV-C2: the two into one distance-to-the-circle bound. The
+    // INV-C1 and INV-C2 at `Interval`, read outward: meters² → meters
+    // divided by the radius (the smallest the divisor `|P−c| + r` can
+    // be), then the two into one distance-to-the-circle bound. The
     // lower-bound branch is valid only for `r − δ_s ≥ 0` (invariant
-    // docs); outside it `inner` is not a bound and `lower = 0` makes
-    // `m ≥ r`, which reads apart for every radius this estimator
-    // admits — refusal, not a silent wrong number.
-    let inner = (radius - delta_s).powi(2) - delta_p.powi(2);
-    let lower = if inner > 0.0 { inner.sqrt() } else { 0.0 };
-    let m = delta_s.max(radius - lower);
-    let residual = m.hypot(delta_p);
-    if !residual.is_finite() {
-        return Ok(None);
-    }
-    if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
-        return Ok(None);
-    }
-    // **The COVERAGE certificate** (module docs). The locus half is
-    // now established; this is the other half, and it is a
-    // certificate rather than a witness. A carrier that lies on the
-    // circle but does not COVER it must not become the circle.
-    if !covers_one_full_turn(curve, center, axis, u_ref) {
-        return Ok(None);
-    }
-    let circle = Curve3::circle(
-        plus_zero_point(center),
-        plus_zero(axis),
-        radius,
-        plus_zero(u_ref),
-    );
-    Ok(Some((circle, residual)))
+    // docs); where `δ_s` passes `r` the root's radicand no longer bounds
+    // anything — it may even be positive again, past `2r` — so the lower
+    // bound is taken only while `r − δ_s` is certified positive, and
+    // otherwise is `0`, which makes `m ≥ r`: refusal at every band this
+    // estimator admits, not a silent wrong number. A NaN sup is NaI here,
+    // and its residual NaN fails every band.
+    let r = Interval::point(radius);
+    let delta_p = Interval::point(plane_sup.abs());
+    let delta_s = Interval::point(sphere_sup.abs()) / r;
+    let gap = r - delta_s;
+    let inner = gap.sqr() - delta_p.sqr();
+    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
+        inner.sqrt().lo()
+    } else {
+        0.0
+    };
+    let m = delta_s.mag().max((r - Interval::point(lower)).mag());
+    let locus = (Interval::point(m).sqr() + delta_p.sqr()).sqrt();
+    let Turning { total, low, high } = turning(curve, center, axis, u_ref)?;
+    let residual = if closed {
+        if !one_turn(total) {
+            return None;
+        }
+        locus.mag()
+    } else {
+        if !(total > 0.0 && total < geom::conic_period::<f64>().length()) {
+            return None;
+        }
+        let overrun = (-low).max(high - total).max(0.0);
+        (locus + r * Interval::point(overrun)).mag()
+    };
+    residual.is_finite().then_some((residual, total))
 }
 
-/// **The coverage certificate**: does `curve` wind exactly once around
-/// the estimated circle? (module docs, "Coverage"). `true` only when
-/// that is PROVEN; every path that cannot tell answers `false`, so the
-/// gate can make promotion incomplete but never incorrect.
+/// The closed class's turning: exactly ONE positive turn, the total in
+/// `(π, 3π)` ([`turning`], "What the total is allowed to be").
+fn one_turn(total: f64) -> bool {
+    let pi = core::f64::consts::PI;
+    total > pi && total < 3.0 * pi
+}
+
+/// What [`turning`] proves of a carrier about its circle, in radians
+/// lifted from the carrier's start azimuth.
+struct Turning {
+    /// The TRUE total turning, `θ(b) − θ(a)`.
+    total: f64,
+    /// A lower bound on the carrier's lifted azimuth over its domain.
+    low: f64,
+    /// An upper bound on it.
+    high: f64,
+}
+
+/// **The coverage certificate**: the carrier's TRUE total turning about
+/// the estimated circle, and the azimuth range its spans' controls hold
+/// it in (module docs, "Coverage"), both lifted from the carrier's
+/// start azimuth about `u_ref`. `Some` only when PROVEN; every path that cannot
+/// tell answers `None`, so the gate can make promotion incomplete but
+/// never incorrect.
 ///
 /// # Why the schedule is the carrier's own spans
 ///
@@ -550,25 +714,33 @@ fn try_circle(curve: &NurbsCurve3<f64>, file: FileBand) -> Result<Option<(Curve3
 ///    The sweep is pinned (`r2_delta::d7_…`) and goes to zero.
 /// 4. Summing the recovered increments over the spans in ascending
 ///    order gives the carrier's TRUE total turning, `θ(b) − θ(a)`.
+/// 5. Each control of a span lies in that span's cone, as does the
+///    span's start point, so its azimuth read nearest the span's lifted
+///    start is its lifted azimuth; and the span's curve, a convex
+///    combination of them inside the cone, has its azimuth between their
+///    least and greatest. The controls' extremes over every span bound
+///    the carrier's lifted azimuth over the whole domain.
 ///
 /// # What the total is allowed to be
 ///
-/// The carrier is closed at ε_in (checked before the estimator runs),
-/// so the total is `2π·w` up to that closure gap, `w` the winding
-/// number. Exactly ONE positive turn is required — the total in
-/// `(π, 3π)`. Then `θ` is continuous with total change ≥ 2π minus the
-/// closure gap, so by the intermediate value theorem its image is an
-/// interval of that length: the carrier covers the circle except
-/// possibly a gap of at most `ε_in / r` in angle, which is precisely
-/// the ε_in-closure the file's own self-loop vertex already asserts.
+/// Read by [`try_circle`]. A CLOSED carrier (closed at ε_in, checked
+/// before the estimator runs) totals `2π·w` up to that closure gap, `w`
+/// the winding number, and exactly ONE positive turn is required — the
+/// total in `(π, 3π)`. Then `θ` is continuous with total change ≥ 2π
+/// minus the closure gap, so by the intermediate value theorem the
+/// carrier covers the circle except possibly a gap of at most `ε_in / r`
+/// in angle, which is the ε_in-closure the file's own self-loop vertex
+/// already asserts. `w = 0` (any doubling-back) and `|w| ≥ 2` (a
+/// multiply-wound carrier, whose locus is equal but whose traversal the
+/// adopted single period does not describe) both refuse; so does
+/// `w = −1`, a carrier the estimator's axis reads wrongly.
 ///
-/// `w = 0` (any doubling-back) and `|w| ≥ 2` (a multiply-wound
-/// carrier, whose locus is equal but whose traversal the adopted
-/// single period does not describe) both refuse. `w = −1` refuses too:
-/// the estimator's axis fixes the positive sense, and a carrier that
-/// disagrees with it is one the estimator read wrongly.
+/// An OPEN carrier's total must lie in `(0, 2π)`, and its lifted azimuth
+/// within the band of `[0, total]` (step 5): then its locus is exactly
+/// the arc from its start to its end in the axis's sense, by the
+/// intermediate value theorem one way and the bound the other.
 /// **The recovery margin `δ`** (radians) that makes
-/// [`covers_one_full_turn`]'s step 3 true in `f64` and not only in ℝ.
+/// [`turning`]'s step 3 true in `f64` and not only in ℝ.
 ///
 /// A span is admitted only once its TRUE turning is bounded by
 /// `π − δ`, so the sampled azimuth difference sits a whole `δ` away
@@ -591,12 +763,12 @@ const TURN_MARGIN: f64 = core::f64::consts::FRAC_PI_6;
 // silently accept it. Same convention, same reason, as
 // `geom_core::spline::compose`'s weight checks.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn covers_one_full_turn(
+fn turning(
     curve: &NurbsCurve3<f64>,
     center: Point3<f64>,
     axis: Vec3<f64>,
     u_ref: Vec3<f64>,
-) -> bool {
+) -> Option<Turning> {
     let v_ref = axis.cross(u_ref);
     let control = curve.control();
     let kv = curve.knots_f64_interim();
@@ -606,7 +778,7 @@ fn covers_one_full_turn(
     // The clamped-B-spline structure this reasoning assumes, checked
     // rather than trusted (a degree-0 carrier has no hull argument).
     if degree == 0 || flat.len() != count + degree + 1 {
-        return false;
+        return None;
     }
     // A point's coordinates in the estimated circle's own plane.
     let plane = |p: Point3<f64>| -> (f64, f64) {
@@ -615,6 +787,10 @@ fn covers_one_full_turn(
     };
     let pi = core::f64::consts::PI;
     let mut total = 0.0f64;
+    // The first span's start, the origin every lifted azimuth below is
+    // read from.
+    let mut origin: Option<f64> = None;
+    let (mut low, mut high) = (0.0f64, 0.0f64);
     let mut previous: Option<f64> = None;
     for j in degree..count {
         // Empty spans carry no turning and no obligation.
@@ -637,9 +813,7 @@ fn covers_one_full_turn(
             sx += x;
             sy += y;
         }
-        let Some((d, _)) = Vec2::new(sx, sy).checked_direction().ok() else {
-            return false;
-        };
+        let (d, _) = Vec2::new(sx, sy).checked_direction().ok()?;
         let (dx, dy) = (d.x, d.y);
         for p in &control[j - degree..=j] {
             let (x, y) = plane(*p);
@@ -648,12 +822,12 @@ fn covers_one_full_turn(
             // put the centre in the hull; `!(… > 0.0)` also refuses a
             // NaN, here and below.
             if !(radial > 0.0) {
-                return false;
+                return None;
             }
             // `cos((π − δ)/2) = sin(δ/2)`: the cone, in the form that
             // needs no inverse trigonometry.
             if !(x * dx + y * dy >= radial * clearance) {
-                return false;
+                return None;
             }
         }
         // Steps 2-4: the span's TRUE increment, by exact recovery.
@@ -663,13 +837,17 @@ fn covers_one_full_turn(
         };
         let start = match previous {
             Some(a) => a,
-            None => at(flat[j]).near(0.0),
+            None => {
+                let first = at(flat[j]).near(0.0);
+                origin = Some(first);
+                first
+            }
         };
         // Within half a turn of `start`, so the step is in `(−π, π]`.
         let end = at(flat[j + 1]).near(start);
         let step = end - start;
         if !step.is_finite() {
-            return false;
+            return None;
         }
         // Step 1 PROVES `|step| ≤ π − δ`; this asserts it. The bound is
         // relaxed by `δ/2` so legitimate rounding cannot trip it, which
@@ -678,12 +856,35 @@ fn covers_one_full_turn(
         // the thing a review found stated in ℝ and executed in f64, so
         // it is checked rather than trusted.
         if !(step.abs() <= pi - TURN_MARGIN / 2.0) {
-            return false;
+            return None;
+        }
+        // Step 5: the span's controls, lifted beside its start, bound
+        // the span's azimuth.
+        for p in &control[j - degree..=j] {
+            let (x, y) = plane(*p);
+            let lifted = geom::Azimuth::of(y, x).near(start);
+            if !lifted.is_finite() {
+                return None;
+            }
+            let from = lifted - origin.unwrap_or(0.0);
+            low = low.min(from);
+            high = high.max(from);
         }
         total += step;
         previous = Some(end);
     }
-    total > pi && total < 3.0 * pi
+    Some(Turning { total, low, high })
+}
+
+/// [`turning`]'s closed-class verdict: one positive turn, proven.
+#[cfg(test)]
+fn covers_one_full_turn(
+    curve: &NurbsCurve3<f64>,
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+) -> bool {
+    turning(curve, center, axis, u_ref).is_some_and(|t| one_turn(t.total))
 }
 
 #[cfg(test)]
@@ -751,12 +952,14 @@ mod tests {
                 ),
             residual,
             kind,
+            covers,
         } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
         else {
             panic!("dm1's carrier class must certify");
         };
         let radius = circle.radius();
         assert_eq!(kind, PromotedCurveKind::Circle);
+        assert!(covers.is_none(), "a closed circle covers its whole period");
         assert!(residual < 1e-15, "an exact circle's residual: {residual:e}");
         assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
         assert!(center.distance(Point3::new(0.0, 0.0, 0.25)) < 1e-15);
@@ -814,12 +1017,12 @@ mod tests {
         );
     }
 
-    /// C4: the NAMED EXCLUSION, executable — an OPEN arc stays NURBS.
-    /// Stage-1 scope is the closed full-period class, because an open
-    /// arc's adopted interval needs an arc-COVERAGE certificate the
-    /// promotion does not have (module docs).
+    /// C4: an OPEN arc promotes to its circle, and the adopted edge is
+    /// the arc: the circle's seam sits at the carrier's start, so
+    /// [`crate::geometry::endpoint_params`] trims it to the 240° the
+    /// carrier covers, in the carrier's direction.
     #[test]
-    fn c4_an_open_arc_stays_nurbs() {
+    fn c4_an_open_arc_promotes_and_trims_to_its_arc() {
         let full = rational_circle(0.005, false);
         // The first two spans only: a 240° arc, ends distinct.
         let control = full.control()[..5].to_vec();
@@ -827,11 +1030,132 @@ mod tests {
         let s = 3.0f64.sqrt();
         let knots =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, s, s, 2.0 * s, 2.0 * s, 2.0 * s], 2).unwrap();
-        let arc = NurbsCurve3::new(knots, control, weights).unwrap();
+        let arc = NurbsCurve3::new(knots, control.clone(), weights).unwrap();
+        let file = crate::interpret::FileBand::test(EPS_IN);
+        let CurveRecognition::Promoted {
+            curve: circle @ Curve3::Circle(promoted),
+            residual,
+            kind: PromotedCurveKind::Circle,
+            covers: Some(covers),
+        } = recognize(&arc, file)
+        else {
+            panic!("an exact rational-quadratic arc must promote, covering part of its circle");
+        };
+        let radius = promoted.radius();
+        assert!(residual < 1e-15, "an exact arc's residual: {residual:e}");
+        assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
+        let third = core::f64::consts::TAU / 3.0;
+        assert!(
+            covers.0 == 0.0 && (covers.1 - 2.0 * third).abs() < 1e-12,
+            "the arc covers 240° from its seam: {covers:?}"
+        );
+        let trim = |p: Point3<f64>, q: Point3<f64>| {
+            let interval = crate::geometry::endpoint_params(1, &circle, p, q, false).unwrap();
+            crate::geometry::trim_within(1, &circle, interval, covers, file).map(|_| interval)
+        };
+        // At the carrier's own ends: the whole 240°.
+        let (t0, t1) = trim(control[0], control[4]).unwrap();
+        assert!(t0.abs() < 1e-12, "the arc starts at the seam: {t0:e}");
+        assert!((t1 - t0 - 2.0 * third).abs() < 1e-12, "the arc spans 240°");
+        // A sub-arc inside the covered range, in order: kept.
+        assert!(
+            trim(control[2], control[4]).is_ok(),
+            "120° → 240° lies on the arc"
+        );
+        // The same ends swapped name the COMPLEMENT, 240° → 360°, which
+        // the spline does not run along: refused.
+        assert!(
+            trim(control[4], control[0]).is_err(),
+            "the complement is refused"
+        );
+        assert!(
+            trim(control[4], control[2]).is_err(),
+            "a reversed sub-arc is refused"
+        );
+    }
+
+    /// C4b: an open arc that DOUBLES BACK PAST ITS END stays NURBS — out
+    /// to 90° and back to 45°, every span on the circle. Its ends bound a
+    /// 45° arc, but its locus is the 90° one; the 45° past its end is
+    /// charged to the residual as a distance from the arc
+    /// ([`arc_residual`]'s overrun, here `R·π/4`), which reads apart.
+    #[test]
+    fn c4b_an_open_arc_that_doubles_back_stays_nurbs() {
+        let d = f64::to_radians;
+        let back = arc_chain(0.005, &[d(0.0), d(90.0), d(45.0)]);
         assert!(matches!(
-            recognize(&arc, crate::interpret::FileBand::test(EPS_IN)),
+            recognize(&back, crate::interpret::FileBand::test(EPS_IN)),
             CurveRecognition::StaysNurbs
         ));
+    }
+
+    /// C4c: an OPEN carrier wound past a turn refuses — every span a
+    /// forward 108° arc, five of them: 540°. Its locus is the circle and
+    /// its ends are apart, but no single arc of the circle is its locus
+    /// with its turning; the open arm's `total < 2π` is what refuses (the
+    /// same spans to 324° promote).
+    #[test]
+    fn c4c_an_open_carrier_wound_past_a_turn_refuses() {
+        let d = f64::to_radians;
+        let past: Vec<f64> = (0..=5).map(|k| d(108.0 * f64::from(k))).collect();
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        assert!(matches!(
+            recognize(&arc_chain(0.005, &past), band),
+            CurveRecognition::StaysNurbs
+        ));
+        assert!(matches!(
+            recognize(&arc_chain(0.005, &past[..4]), band),
+            CurveRecognition::Promoted { .. }
+        ));
+    }
+
+    /// C4d: an OPEN carrier that runs PAST its end and comes back
+    /// refuses — out to 270° and back to 200°, every span on the circle.
+    /// Its ends bound a 200° arc, but its locus is 270°, so trimming the
+    /// circle between its ends would drop 70° of it; the azimuth bound's
+    /// overrun, charged to the residual as a distance from the arc, is
+    /// what refuses (the same carrier stopped at 270° promotes).
+    #[test]
+    fn c4d_an_open_carrier_running_past_its_end_refuses() {
+        let d = f64::to_radians;
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        let past = arc_chain(0.005, &[d(0.0), d(90.0), d(180.0), d(270.0), d(200.0)]);
+        assert!(matches!(
+            recognize(&past, band),
+            CurveRecognition::StaysNurbs
+        ));
+        let stopped = arc_chain(0.005, &[d(0.0), d(90.0), d(180.0), d(270.0)]);
+        assert!(matches!(
+            recognize(&stopped, band),
+            CurveRecognition::Promoted { .. }
+        ));
+    }
+
+    /// C4e: **an open arc's residual is a distance from the ARC**: a
+    /// carrier out to 90° and back by `φ` has its ends `90° − φ` apart
+    /// and its locus `φ` past its end, so its residual is at least the
+    /// `R·φ` the last point of the overrun stands from the arc (here
+    /// 0.9e-9 m at R = 5 mm), not the locus's rounding-level distance from
+    /// the circle — so "within ε_in" holds of the trimmed piece.
+    #[test]
+    fn c4e_an_arcs_residual_carries_its_overrun() {
+        let radius = 0.005;
+        let phi = 0.9e-9 / radius;
+        let half = core::f64::consts::FRAC_PI_2;
+        let back = arc_chain(radius, &[0.0, half, half - phi]);
+        let CurveRecognition::Promoted {
+            residual,
+            covers: Some(_),
+            ..
+        } = recognize(&back, crate::interpret::FileBand::test(1e-6))
+        else {
+            panic!("the arc promotes at a generous band");
+        };
+        assert!(
+            residual >= radius * phi * (1.0 - 1e-6),
+            "the residual carries the overrun {:e}: {residual:e}",
+            radius * phi
+        );
     }
 
     /// C5: the CONDITIONING trilean is reachable — a closed carrier
@@ -1066,6 +1390,7 @@ mod tests {
             curve: Curve3::Line(geom::Line { origin, dir }),
             residual,
             kind,
+            covers,
         } = recognize(&chord, crate::interpret::FileBand::test(EPS_LINE))
         else {
             panic!("a chord must certify as a line");
@@ -1076,6 +1401,11 @@ mod tests {
             "an exact chord's residual is the ring-slack floor: {residual:e}"
         );
         assert!(origin.distance(a) < 1e-15);
+        assert_eq!(
+            covers,
+            Some((0.0, a.distance(b))),
+            "a chord covers its segment"
+        );
         assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
@@ -1088,19 +1418,16 @@ mod tests {
         assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
-    /// L2: **the segment obligation rides the MAP hull (INV-C4 via
-    /// INV-C5), pinned at its value.** A carrier lying EXACTLY on the
-    /// line whose control net overshoots the chord (the locus
-    /// certificate has nothing to refuse) is metered by the hull
-    /// alone: its middle control sits 0.03 from the affine chord's
-    /// Greville position (its overshoot past the 0.04 chord is 0.01
-    /// — dominated, as INV-C4 argues), and the budget decides AT the
-    /// hull — certifying just above 0.03 and refusing just below,
-    /// including at 0.025, a budget an excursion-only reading would
-    /// have cleared. Dropping the hull channel (residual → ~δ_line ≈
-    /// 0) reds every row here.
+    /// L2: **the segment obligation and the map, each pinned at its
+    /// value.** A carrier lying EXACTLY on the line whose middle control
+    /// overshoots the 0.04 chord by 0.01 and sits 0.03 from the affine
+    /// chord's Greville position. Promotion owes the segment (INV-C4),
+    /// so it decides at the overshoot: certifying at 0.0105, refusing at
+    /// 0.0095. The straight MAP reading owes the affine timing too
+    /// (INV-C5), so it decides at the hull: 0.035 reads it, 0.025 does
+    /// not. Dropping either channel reds its rows.
     #[test]
-    fn l2_an_overshooting_net_decides_at_the_greville_hull() {
+    fn l2_an_overshooting_net_decides_at_its_overshoot_and_its_map_at_the_hull() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let curve = NurbsCurve3::new(
             knots,
@@ -1112,40 +1439,45 @@ mod tests {
             vec![1.0; 3],
         )
         .unwrap();
-        assert!(
-            matches!(
-                recognize(&curve, crate::interpret::FileBand::test(EPS_IN)),
-                CurveRecognition::StaysNurbs
-            ),
-            "an overshooting net must not certify at the module budget"
-        );
-        let CurveRecognition::Promoted { residual, kind, .. } =
-            recognize(&curve, crate::interpret::FileBand::test(0.035))
+        let band = crate::interpret::FileBand::test;
+        let CurveRecognition::Promoted { residual, kind, .. } = recognize(&curve, band(0.0105))
         else {
-            panic!("the map fold is 0.03, inside a 0.035 budget");
+            panic!("the overshoot is 0.01, inside a 0.0105 budget");
         };
         assert_eq!(kind, PromotedCurveKind::Line);
         assert!(
-            (residual - 0.03).abs() < 1e-12,
-            "the residual IS the Greville map fold: {residual:e}"
+            (residual - 0.01).abs() < 1e-9,
+            "the residual IS the overshoot: {residual:e}"
         );
         assert!(
-            matches!(
-                recognize(&curve, crate::interpret::FileBand::test(0.025)),
-                CurveRecognition::StaysNurbs
+            !matches!(
+                recognize(&curve, band(0.0095)),
+                CurveRecognition::Promoted { .. }
             ),
-            "a budget below the hull refuses, even one an excursion-only reading clears"
+            "a budget below the overshoot refuses"
+        );
+        let Some((_, map)) = straight_map(&curve, band(0.035)) else {
+            panic!("the map fold is 0.03, inside a 0.035 budget");
+        };
+        assert!(
+            (map - 0.03).abs() < 1e-12,
+            "the map's residual IS the Greville fold: {map:e}"
+        );
+        assert!(
+            straight_map(&curve, band(0.025)).is_none(),
+            "a budget below the hull refuses the map, though it promotes the locus"
         );
     }
 
-    /// The rational gate is load-bearing (INV-C5's hypothesis), and it
-    /// asks constancy: straight degree-2 carriers whose weights VARY
-    /// must stay NURBS at every tested budget, however generous — a
-    /// re-timed interior ([1, 2, 1]) and a re-timing the other way
-    /// ([1, ½, 1]). The gate is the hypothesis of the Greville hull,
-    /// not a residual: without it the hull reads 0 for both (their
-    /// CONTROLS sit at the affine positions where the rational CURVE
-    /// does not) and they would promote unsoundly.
+    /// The rational gate is load-bearing for the MAP reading (INV-C5's
+    /// hypothesis), and it asks constancy: straight degree-2 carriers
+    /// whose weights VARY — a re-timed interior ([1, 2, 1]) and a
+    /// re-timing the other way ([1, ½, 1]) — never read as the straight
+    /// map at any tested budget, however generous. The gate is the
+    /// hypothesis of the Greville hull, not a residual: without it the
+    /// hull reads 0 for both (their CONTROLS sit at the affine positions
+    /// where the rational CURVE does not). They DO promote: their locus
+    /// is the segment, and the timing is not a promotion's to owe.
     ///
     /// A CONSTANT weight is the exact affine chord
     /// (`NurbsCurve3::constant_weight`), so it promotes to the unit
@@ -1174,12 +1506,20 @@ mod tests {
         };
         for eps in [1e-6, 1e-3, 1.0] {
             for (w1, w) in [(2.0, 1.0), (0.5, 1.0)] {
+                let band = crate::interpret::FileBand::test(eps);
+                assert!(
+                    straight_map(&carrier(w1, w), band).is_none(),
+                    "weights [{w}, {w1}, {w}] must refuse the map reading at ε = {eps:e}"
+                );
                 assert!(
                     matches!(
-                        recognize(&carrier(w1, w), crate::interpret::FileBand::test(eps)),
-                        CurveRecognition::StaysNurbs
+                        recognize(&carrier(w1, w), band),
+                        CurveRecognition::Promoted {
+                            kind: PromotedCurveKind::Line,
+                            ..
+                        }
                     ),
-                    "weights [{w}, {w1}, {w}] must refuse the map certificate at ε = {eps:e}"
+                    "weights [{w}, {w1}, {w}] promote on their locus at ε = {eps:e}"
                 );
             }
             let line =
@@ -1215,24 +1555,24 @@ mod tests {
                         &carrier(1e-300, 1e-300),
                         crate::interpret::FileBand::test(eps)
                     ),
-                    CurveRecognition::StaysNurbs
+                    CurveRecognition::StaysNurbs | CurveRecognition::IllConditioned { .. }
                 ),
                 "weights [1e-300; 3] at ε = {eps:e}: a refused composite is no zero"
             );
         }
     }
 
-    /// L3: **the MAP obligation's own row (INV-C5).** A doubling-back
+    /// L3: **the MAP reading's own row (INV-C5).** A doubling-back
     /// carrier that stays WITHIN the chord keeps the segment locus
-    /// (INV-C4's coverage argument still holds — the projection is
-    /// continuous from 0 to ℓ), but it is NOT the affine chord as a
-    /// map: promotion would hand every downstream door a `Line` whose
-    /// interior timing the file's carrier contradicts, and the edge
-    /// would strand at adoption (no iso chart image reproduces a
-    /// doubling-back map). It stays NURBS at the module band, and the
-    /// budget decides at the measured re-timing: controls at x =
-    /// {0, 0.03, 0.01, 0.04} against Greville-affine positions
-    /// {0, 0.04/3, 0.08/3, 0.04} give hull 0.05/3 ≈ 0.0167.
+    /// (INV-C4: the projection is continuous from 0 to ℓ and its
+    /// controls stay inside it), so it PROMOTES — nothing reads a
+    /// printed carrier's timing. It is NOT the affine chord as a map, so
+    /// a wall holding it as a column is not read as the straight map
+    /// (an affine chart image of it would strand at adoption): the map
+    /// reading refuses at the module band and decides at the measured
+    /// re-timing, controls at x = {0, 0.03, 0.01, 0.04} against
+    /// Greville-affine positions {0, 0.04/3, 0.08/3, 0.04}: hull
+    /// 0.05/3 ≈ 0.0167.
     #[test]
     fn l3_a_within_chord_doubling_back_is_not_the_affine_map() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
@@ -1247,18 +1587,23 @@ mod tests {
             vec![1.0; 4],
         )
         .unwrap();
+        let band = crate::interpret::FileBand::test;
         assert!(
             matches!(
-                recognize(&curve, crate::interpret::FileBand::test(EPS_LINE)),
-                CurveRecognition::StaysNurbs
+                recognize(&curve, band(EPS_LINE)),
+                CurveRecognition::Promoted {
+                    kind: PromotedCurveKind::Line,
+                    ..
+                }
             ),
-            "a re-timed interior must not certify at the module band"
+            "its locus is the segment"
         );
-        let CurveRecognition::Promoted {
-            curve: Curve3::Line(geom::Line { dir, .. }),
-            residual,
-            ..
-        } = recognize(&curve, crate::interpret::FileBand::test(0.02))
+        assert!(
+            straight_map(&curve, band(EPS_LINE)).is_none(),
+            "a re-timed interior is not the straight map at the module band"
+        );
+        let Some((Curve3::Line(geom::Line { dir, .. }), residual)) =
+            straight_map(&curve, band(0.02))
         else {
             panic!("the re-timing is 0.05/3, inside a 0.02 budget");
         };
@@ -1376,6 +1721,130 @@ mod tests {
         assert!(matches!(
             recognize(&closed, crate::interpret::FileBand::test(EPS_IN)),
             CurveRecognition::IllConditioned { .. }
+        ));
+    }
+
+    /// L8: **an edge on a promoted chord trims inside the segment**: the
+    /// spline covers `[0, ℓ]` of its line, so vertices inside it keep
+    /// their trim and a vertex a millimetre past the end refuses — the
+    /// line arm of `endpoint_params` projects any vertex, and the
+    /// covered range is what ties the trim to the spline.
+    #[test]
+    fn l8_a_trim_past_the_chord_refuses() {
+        let file = crate::interpret::FileBand::test(EPS_LINE);
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.04, 0.0, 0.0));
+        let chord = NurbsCurve3::new(knots, vec![a, b], vec![1.0, 1.0]).unwrap();
+        let CurveRecognition::Promoted {
+            curve: line,
+            covers: Some(covers),
+            ..
+        } = recognize(&chord, file)
+        else {
+            panic!("a chord promotes, covering its segment");
+        };
+        let trim = |p: Point3<f64>, q: Point3<f64>| {
+            let interval = crate::geometry::endpoint_params(1, &line, p, q, false).unwrap();
+            crate::geometry::trim_within(1, &line, interval, covers, file)
+        };
+        assert!(trim(a, b).is_ok(), "the whole segment");
+        assert!(
+            trim(Point3::new(0.01, 0.0, 0.0), b).is_ok(),
+            "a sub-segment"
+        );
+        assert!(
+            trim(a, Point3::new(0.041, 0.0, 0.0)).is_err(),
+            "a vertex past the segment's end"
+        );
+        assert!(
+            trim(Point3::new(-0.001, 0.0, 0.0), b).is_err(),
+            "a vertex before its start"
+        );
+    }
+
+    /// L7: **a refused locus composite refuses the line**: a degree-30
+    /// Bézier on 31 collinear control points puts the cylinder
+    /// composite past `compose`'s exact binomial row, so INV-C3 is NaN;
+    /// the Greville hull alone (zero on this net) must not promote it.
+    #[test]
+    fn l7_a_refused_locus_composite_refuses_the_line() {
+        let degree = 30usize;
+        let mut kn = vec![0.0; degree + 1];
+        kn.extend(vec![1.0; degree + 1]);
+        let control: Vec<_> = (0..=degree)
+            .map(|k| Point3::new(0.001 * k as f64, 0.0, 0.0))
+            .collect();
+        let curve = NurbsCurve3::new(
+            KnotVector::clamped(kn, degree).unwrap(),
+            control,
+            vec![1.0; degree + 1],
+        )
+        .unwrap();
+        assert!(!matches!(
+            recognize(&curve, crate::interpret::FileBand::test(EPS_LINE)),
+            CurveRecognition::Promoted { .. }
+        ));
+    }
+
+    /// C12: **a circle stated at another degree promotes, and one off its
+    /// circle does not**: the 4×90° rational quadratic degree-elevated to
+    /// cubics is the same circle (asserted at a span's middle), so it
+    /// promotes to it; the same cubic net with one interior control a
+    /// micrometre off stays NURBS.
+    #[test]
+    fn c12_a_degree_elevated_circle_promotes_and_one_off_its_circle_does_not() {
+        let d = f64::to_radians;
+        let quadratic = arc_chain(0.005, &[d(0.0), d(90.0), d(180.0), d(270.0), d(360.0)]);
+        // Each span's homogeneous net, elevated: (P0, (P0 + 2P1)/3,
+        // (2P1 + P2)/3, P2).
+        let (q, w) = (quadratic.control(), quadratic.weights());
+        let mut control = vec![q[0]];
+        let mut weights = vec![w[0]];
+        for j in 0..4 {
+            let h = |i: usize| ((q[i] - Point3::origin()) * w[i], w[i]);
+            let ((p0, w0), (p1, w1), (p2, w2)) = (h(2 * j), h(2 * j + 1), h(2 * j + 2));
+            for (p, wt) in [
+                ((p0 + p1 * 2.0) / 3.0, (w0 + 2.0 * w1) / 3.0),
+                ((p1 * 2.0 + p2) / 3.0, (2.0 * w1 + w2) / 3.0),
+                (p2, w2),
+            ] {
+                control.push(Point3::origin() + p / wt);
+                weights.push(wt);
+            }
+        }
+        let mut kn = vec![0.0; 4];
+        for k in 1..4 {
+            kn.extend([f64::from(k); 3]);
+        }
+        kn.extend([4.0; 4]);
+        let knots = KnotVector::clamped(kn, 3).unwrap();
+        let cubic = NurbsCurve3::new(knots.clone(), control.clone(), weights.clone()).unwrap();
+        let m = cubic.eval(0.5);
+        assert!(
+            (m.x.hypot(m.y) - 0.005).abs() < 1e-15,
+            "the elevated form is the same circle"
+        );
+        let band = crate::interpret::FileBand::test(EPS_IN);
+        let CurveRecognition::Promoted {
+            curve: Curve3::Circle(promoted),
+            residual,
+            covers: None,
+            ..
+        } = recognize(&cubic, band)
+        else {
+            panic!("the cubic circle promotes to its full circle");
+        };
+        let radius = promoted.radius();
+        assert!(
+            (radius - 0.005).abs() < 1e-15 && residual < 1e-15,
+            "{radius:e} {residual:e}"
+        );
+        let mut off = control;
+        off[4] = off[4] + Vec3::new(0.0, 0.0, 1e-6);
+        let dented = NurbsCurve3::new(knots, off, weights).unwrap();
+        assert!(matches!(
+            recognize(&dented, band),
+            CurveRecognition::StaysNurbs
         ));
     }
 
@@ -2026,7 +2495,10 @@ mod r2_delta {
     /// **D7 — the decisive sweep.** The forged construction, rotated
     /// and re-scaled over thousands of cases, run through the WHOLE
     /// pipeline. Any `Promoted` here is a half-covering carrier that
-    /// became a full circle.
+    /// became a full circle. The guard that holds it is `turning`'s
+    /// recovered-step check `|step| ≤ π − δ/2` (the forged span's
+    /// recovered step is a whole turn off), not the cone alone and not
+    /// the azimuth containment.
     #[test]
     fn d7_forged_half_turn_sweep_through_recognize() {
         let pi = core::f64::consts::PI;

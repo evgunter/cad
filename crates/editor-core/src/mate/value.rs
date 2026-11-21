@@ -357,7 +357,8 @@ impl<T: SolveScalar> Chart<T> {
         };
         // Unsourced lever: the mate bundle's `Arm`, the copy's reach and its written
         // slides plus the poses' distances from their origins, an `f64` sum no extent
-        // read spells.
+        // read spells. The least turn levers its pole and its conditioning at an arm
+        // in `T`.
         let lever = geom_core::Lever::unsourced(T::from_computed(arm.get()));
         Self::charted(d, copy_d, seat, to_flipped, orient, arm, lever, band, tol)
             .map(Some)
@@ -573,13 +574,7 @@ impl<T: SolveScalar> Chart<T> {
         matches!(
             geom_core::k_stats::decide(
                 "mate_chart_slides_span",
-                // Unsourced lever: the mate bundle's `Arm`, the copy's reach and its written
-                // slides plus the poses' distances from their origins, an `f64` sum no
-                // extent read spells.
-                Margin::levered(
-                    comp,
-                    geom_core::Lever::unsourced(T::from_computed(self.arm.get()))
-                ),
+                Margin::levered_at(comp, self.arm.lever()),
                 self.band,
             ),
             Ok(Sign::Positive | Sign::Negative)
@@ -668,13 +663,7 @@ impl<T: SolveScalar> Chart<T> {
                 if let Some(across) = across {
                     let within = geom_core::k_stats::decide(
                         super::MATE_READ_SLIDE_WITHIN,
-                        // Unsourced lever: the mate bundle's `Arm`, the copy's reach and its
-                        // written slides plus the poses' distances from their origins, an
-                        // `f64` sum no extent read spells.
-                        Margin::levered(
-                            across,
-                            geom_core::Lever::unsourced(T::from_computed(self.arm.get())),
-                        ),
+                        Margin::levered_at(across, self.arm.lever()),
                         self.band,
                     );
                     if within != Ok(Sign::Zero) {
@@ -729,13 +718,7 @@ fn independent<T: SolveScalar>(heads: &[Heading<T>], d: Vec3<T>, arm: Arm, band:
     matches!(
         geom_core::k_stats::decide(
             super::MATE_SLIDES_INDEPENDENT,
-            // Unsourced lever: the bundle's `Arm`, the copy's reach and its written
-            // slides plus the read lines' or the poses' distances from their origins,
-            // an `f64` sum no extent read spells.
-            Margin::levered(
-                det,
-                geom_core::Lever::unsourced(T::from_computed(arm.get()))
-            ),
+            Margin::levered_at(det, arm.lever()),
             band,
         ),
         Ok(Sign::Positive | Sign::Negative)

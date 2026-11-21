@@ -447,9 +447,9 @@ pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
 /// whose margin is kept (a contact's, recorded as a coincidence) goes
 /// to the same funnel's `decide_reported` or `decide_magnitude_reported`,
 /// which classify and record exactly as this does.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -465,9 +465,9 @@ pub(crate) fn definitely_positive<T: Decide>(name: &'static str, margin: T, band
 /// [`decide`] gated on a definitely positive margin
 /// ([`geom_core::k_stats::decide_positive`]): the rejection is the
 /// funnel's escalation, on the frame's log.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
