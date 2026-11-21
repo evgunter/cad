@@ -3,44 +3,43 @@
 //! unit table in the tree (step-import's `units.rs` prefix/factor
 //! tables).
 //!
-//! Factors are canonical-units-per-one-of-this-unit:
+//! Factors are canonical-units-per-one-of-this-unit, held EXACTLY:
 //!
-//! * `MM`/`CM` are PREFIXED METRES — the factor is the SI prefix
-//!   ([`MILLI`], [`CENTI`]), each the correctly-rounded f64 of its
-//!   exact power of ten. Lengths take prefixes; angles do not (no
-//!   `mdeg` row can exist here) — the census's lengths-take-prefixes
-//!   rule, mirrored from step-import's `si_unit_kind`, where a
-//!   prefixed `RADIAN` refuses.
-//! * `IN` is EXACTLY 25.4 mm (the international inch): the factor is
-//!   the correctly-rounded f64 of the exact decimal `0.0254`.
-//! * `DEG` is π/180 — INEXACT BY NATURE: π has no finite decimal, so
-//!   the stored factor is the f64 rounding of `f64::consts::PI / 180`.
-//!   Every degree quantity is therefore canonical-radians data whose
-//!   last-ulp identity is defined by this constant (bit-stable: the
-//!   constant is a compile-time literal expression, not a runtime
-//!   computation).
-//! * `PI` is the half-turn, factor `f64::consts::PI` — the unit that
-//!   is not a unit. It measures an angle exactly as `DEG` does and is
-//!   carried here for the same reason every other row is: a literal
-//!   REMEMBERS the unit it was authored in, so `0.5 pi rad` is how a
-//!   user says "write this angle as a multiple of π" and get it back
-//!   that way. Nothing downstream distinguishes it from `DEG` — an
-//!   angle is canonical radians whichever row produced it. Its symbol
-//!   is TWO WORDS, `pi rad`, and that is the whole surface spelling:
-//!   the multiplier and the unit it multiplies, so a picker offering
-//!   it beside `deg` and `rad` reads as "multiples of π radians"
-//!   rather than as the number π. It is the only multi-word symbol in
-//!   the table, and the text door's unit suffix is a longest match
-//!   over adjacent identifiers because of it.
-//! * `M`/`RAD` are the canonical units themselves, factor exactly 1.0
-//!   — multiplication by them is the f64 identity, which is what makes
-//!   them the formatter's always-exact fallback rendering.
+//! * `MM`/`CM` are PREFIXED METRES, 1/1000 and 1/100. Lengths take
+//!   prefixes; angles do not (no `mdeg` row can exist here) — the
+//!   census's lengths-take-prefixes rule, mirrored from step-import's
+//!   `si_unit_kind`, where a prefixed `RADIAN` refuses.
+//! * `IN` is EXACTLY 25.4 mm (the international inch), 254/10000.
+//! * `DEG` is π/180, with true π: no float or decimal is it, so a number
+//!   in degrees is decided against enclosures of π (`exact`'s docs).
+//! * `PI` is the half-turn, π — the unit that is not a unit. It
+//!   measures an angle exactly as `DEG` does and is carried here for
+//!   the same reason every other row is: a literal REMEMBERS the unit
+//!   it was authored in, so `0.5 pi rad` is how a user says "write this
+//!   angle as a multiple of π" and get it back that way. Nothing
+//!   downstream distinguishes it from `DEG` — an angle is canonical
+//!   radians whichever row produced it. Its symbol is TWO WORDS,
+//!   `pi rad`, and that is the whole surface spelling: the multiplier
+//!   and the unit it multiplies, so a picker offering it beside `deg`
+//!   and `rad` reads as "multiples of π radians" rather than as the
+//!   number π. It is the only multi-word symbol in the table, and the
+//!   text door's unit suffix is a longest match over adjacent
+//!   identifiers because of it.
+//! * `M`/`RAD` are the canonical units themselves, factor exactly 1.
+//!
+//! A number in a unit is a decimal, and what it is in canonical units
+//! is [`UnitDef::canonical`]: the decimal times the exact factor,
+//! rounded once. [`UnitDef::factor`] is the float nearest the factor,
+//! what one of the unit is, and nothing multiplies by it.
 
-/// The SI prefix factor 10⁻³ (exact decimal, correctly rounded f64) —
-/// `MM`'s factor. Prefixes apply to the metre only (module docs).
+use crate::decimal::Decimal;
+use crate::exact::{Magnitude, Nat, Real};
+
+/// The SI prefix 10⁻³ as the float nearest it — what `1 mm` is in
+/// metres. Prefixes apply to the metre only (module docs).
 pub const MILLI: f64 = 1e-3;
 
-/// The SI prefix factor 10⁻² — `CM`'s factor.
+/// The SI prefix 10⁻² as the float nearest it — what `1 cm` is.
 pub const CENTI: f64 = 1e-2;
 
 /// What a unit measures — the continuous half of the dimension set
@@ -152,6 +151,145 @@ pub struct UnitDef {
     symbol: &'static str,
     quantity: UnitQuantity,
     factor: f64,
+    exact: Factor,
+}
+
+/// A unit's exact factor into canonical units: `num / den`, times π
+/// where `pi`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Factor {
+    num: u16,
+    den: u16,
+    pi: bool,
+}
+
+impl Factor {
+    const fn rational(num: u16, den: u16) -> Self {
+        Self {
+            num,
+            den,
+            pi: false,
+        }
+    }
+
+    const fn times_pi(num: u16, den: u16) -> Self {
+        Self { num, den, pi: true }
+    }
+
+    /// `|number| × factor`, exactly.
+    fn times(self, number: &Decimal) -> Real {
+        let digits = Nat::from_digits(number.digits()).mul(&Nat::from_u64(u64::from(self.num)));
+        let den = Nat::from_u64(u64::from(self.den));
+        let shift = Nat::pow10(number.exponent().unsigned_abs());
+        let (n, d) = if number.exponent() >= 0 {
+            (digits.mul(&shift), den)
+        } else {
+            (digits, den.mul(&shift))
+        };
+        Real {
+            n,
+            d,
+            pi: i8::from(self.pi),
+        }
+    }
+
+    /// `|canonical| / factor`, exactly, for a finite nonzero `canonical`.
+    fn over(self, canonical: f64) -> Real {
+        let bits = canonical.abs().to_bits();
+        let (field, fraction) = ((bits >> 52) as i64, bits & ((1 << 52) - 1));
+        let (mantissa, exponent) = if field == 0 {
+            (fraction, -1074)
+        } else {
+            (fraction | (1 << 52), field - 1075)
+        };
+        let power = Nat::from_u64(1).shl(exponent.unsigned_abs());
+        let (up, down) = if exponent >= 0 {
+            (power, Nat::from_u64(1))
+        } else {
+            (Nat::from_u64(1), power)
+        };
+        Real {
+            n: Nat::from_u64(mantissa)
+                .mul(&up)
+                .mul(&Nat::from_u64(u64::from(self.den))),
+            d: down.mul(&Nat::from_u64(u64::from(self.num))),
+            pi: -i8::from(self.pi),
+        }
+    }
+}
+
+/// How a number is rounded to a decimal of some number of figures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rounding {
+    /// To the nearer, ties to the even last digit.
+    Nearest,
+    /// Toward +∞.
+    Up,
+    /// Toward −∞.
+    Down,
+}
+
+/// The most significant figures [`UnitDef::shortest`] needs: every
+/// finite float has a decimal of at most this many that, written in
+/// any unit of the table, is that float (the door's docs argue it).
+pub const ROUND_TRIP_FIGURES: usize = 17;
+
+/// `|canonical|` told in a unit: the exact quotient by the factor and
+/// the decade of its leading digit.
+struct Quotient {
+    real: Real,
+    decade: i64,
+    /// The quotient is `10^decade` exactly.
+    is_power: bool,
+    negative: bool,
+}
+
+impl Quotient {
+    /// For a finite nonzero `canonical`.
+    fn of(canonical: f64, unit: UnitDef) -> Self {
+        let real = unit.exact.over(canonical);
+        let estimate = (canonical.abs().log10() - unit.factor.log10()).floor() as i64;
+        let (decade, is_power) = real.decade(estimate);
+        Self {
+            real,
+            decade,
+            is_power,
+            negative: canonical.is_sign_negative(),
+        }
+    }
+
+    /// The decimal of `figures` significant digits, rounded as
+    /// `rounding` says.
+    fn at(&self, figures: usize, rounding: Rounding) -> Decimal {
+        let magnitude = match (rounding, self.negative) {
+            (Rounding::Nearest, _) => Magnitude::Nearest,
+            (Rounding::Up, false) | (Rounding::Down, true) => Magnitude::Ceil,
+            (Rounding::Up, true) | (Rounding::Down, false) => Magnitude::Floor,
+        };
+        self.rounded(figures, magnitude)
+    }
+
+    /// The decimal of `figures` significant digits, its magnitude
+    /// rounded as `magnitude` says.
+    fn rounded(&self, figures: usize, magnitude: Magnitude) -> Decimal {
+        assert!(
+            (1..=19).contains(&figures),
+            "a decimal of {figures} figures is not one a u64 holds"
+        );
+        let k = self.decade - (figures as i64 - 1);
+        let (floor, rest) = self.real.scaled(k);
+        Decimal::from_parts(self.negative, magnitude.round(floor, rest), k)
+    }
+
+    /// The decimals of `figures` significant digits about the quotient:
+    /// nearest (ties away from zero), and the floor and ceiling of its
+    /// magnitude, from one division.
+    fn about(&self, figures: usize) -> [Decimal; 3] {
+        let k = self.decade - (figures as i64 - 1);
+        let (floor, rest) = self.real.scaled(k);
+        [Magnitude::NearestAway, Magnitude::Floor, Magnitude::Ceil]
+            .map(|magnitude| Decimal::from_parts(self.negative, magnitude.round(floor, rest), k))
+    }
 }
 
 impl UnitDef {
@@ -165,30 +303,165 @@ impl UnitDef {
         self.quantity
     }
 
-    /// Canonical units (meters/radians) per one of this unit.
+    /// Canonical units (meters/radians) per one of this unit, as the
+    /// float nearest the exact factor: what `1` of this unit is. A
+    /// number of the unit is not this times the number; it is
+    /// [`UnitDef::canonical`].
     pub const fn factor(&self) -> f64 {
         self.factor
     }
 
-    /// The number of this unit that `canonical` is, rounded to a float
-    /// (one divide by the factor); `None` where the factor carries a
-    /// finite value out of the format or a nonzero one to zero, so the
-    /// unit has no number for it. A value that is not finite divides
-    /// to itself.
+    /// **What `number` written in this unit is**: the decimal times the
+    /// unit's exact factor (1/1000 for `mm`, 254/10000 for `in`, π/180
+    /// for `deg` with true π), rounded once to the nearest float, ties
+    /// to even; ±∞ past the format and a zero of the decimal's sign
+    /// below it.
+    ///
+    /// This is the one door for a number in a unit: the text door, the
+    /// Rust and Python `number * unit` ([`UnitDef::canonical_of_float`])
+    /// and a told number's reading back all go through it.
     #[must_use]
-    pub fn number_of(self, canonical: f64) -> Option<f64> {
-        let q = canonical / self.factor;
-        let lost = canonical.is_finite() && (!q.is_finite() || (q == 0.0 && canonical != 0.0));
-        (!lost).then_some(q)
+    pub fn canonical(self, number: &Decimal) -> f64 {
+        let sign = if number.is_negative() { -1.0 } else { 1.0 };
+        let Some(decade) = number.decade() else {
+            return sign * 0.0;
+        };
+        // Past these the value is past the format whatever the factor
+        // (every factor is within [1/1000, π]).
+        if decade > 400 {
+            return sign * f64::INFINITY;
+        }
+        if decade < -400 {
+            return sign * 0.0;
+        }
+        sign * self.exact.times(number).to_f64()
     }
 
-    /// The number that, typed in this unit, is `canonical` to the bit
-    /// (the text door's `number * factor`), choosing the one with the
-    /// shortest spelling. `None` where no number is (a multiply by the
-    /// factor can step over a float), or `canonical` is not finite.
+    /// [`UnitDef::canonical`] of a float written in this unit, which is
+    /// read as its shortest decimal ([`Decimal::of_float`]): `300.04 *
+    /// MM` is the float nearest 0.30004. NaN and ±∞ are themselves.
     #[must_use]
-    pub fn authored(self, canonical: f64) -> Option<f64> {
-        crate::fmt::authored(canonical, self.factor)
+    pub fn canonical_of_float(self, number: f64) -> f64 {
+        Decimal::of_float(number).map_or(number, |decimal| self.canonical(&decimal))
+    }
+
+    /// The decimal of `figures` significant digits nearest, above or
+    /// below the exact number of this unit that `canonical` is, as
+    /// `rounding` says; a zero of either sign is itself.
+    ///
+    /// # Panics
+    ///
+    /// Where `canonical` is not finite, or `figures` is not in
+    /// `1..=19`: a caller's bug.
+    #[must_use]
+    pub fn decimal(self, canonical: f64, figures: usize, rounding: Rounding) -> Decimal {
+        assert!(canonical.is_finite(), "{canonical} has no decimal");
+        if canonical == 0.0 {
+            return Decimal::from_parts(canonical.is_sign_negative(), 0, 0);
+        }
+        Quotient::of(canonical, self).at(figures, rounding)
+    }
+
+    /// **The shortest decimal that, written in this unit, is `canonical`
+    /// to the bit** ([`UnitDef::canonical`]), and of two as short the
+    /// nearer the exact quotient, the one away from zero where they are
+    /// as near (std's choice for a float's digits). It has at most
+    /// [`ROUND_TRIP_FIGURES`] figures.
+    ///
+    /// The decimals that are `canonical` are an interval of the exact
+    /// quotient's neighbourhood: those whose product with the factor
+    /// rounds to it. Its width is the float's rounding interval over
+    /// the factor, so relative to the quotient it is more than `2^−53`
+    /// (more than `3 · 2^−54` at a power of two), wider than the step
+    /// of a seventeen-figure decimal at any leading digit, at most
+    /// `10^−16` of it, whatever the factor. So it holds a decimal of
+    /// seventeen figures, and the floor or the ceiling of the quotient
+    /// at the shortest length that has one is in it.
+    ///
+    /// # Panics
+    ///
+    /// Where `canonical` is not finite: a caller's bug.
+    #[must_use]
+    pub fn shortest(self, canonical: f64) -> Decimal {
+        assert!(canonical.is_finite(), "{canonical} has no decimal");
+        if canonical == 0.0 {
+            return Decimal::from_parts(canonical.is_sign_negative(), 0, 0);
+        }
+        let quotient = Quotient::of(canonical, self);
+        let reads = |d: &Decimal| self.canonical(d).to_bits() == canonical.to_bits();
+        let at = |figures: usize| {
+            let [nearest, floor, ceil] = quotient.about(figures);
+            if reads(&nearest) {
+                return Some(nearest);
+            }
+            [floor, ceil]
+                .into_iter()
+                .find(|d| *d != nearest && reads(d))
+        };
+        // Having a decimal of some length is monotone in the length (a
+        // decimal of n figures is one of n + 1), so the shortest is
+        // found by bisection.
+        let Some(mut best) = at(ROUND_TRIP_FIGURES) else {
+            unreachable!(
+                "{canonical:e} in {} has a decimal of {ROUND_TRIP_FIGURES} figures (the docs)",
+                self.symbol
+            )
+        };
+        let (mut lo, mut hi) = (1, ROUND_TRIP_FIGURES);
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            match at(mid) {
+                Some(found) => {
+                    best = found;
+                    hi = mid;
+                }
+                None => lo = mid + 1,
+            }
+        }
+        best
+    }
+
+    /// The decimal exponent of the leading digit of the exact number of
+    /// this unit that `canonical` is, and whether that number is the
+    /// power of ten exactly.
+    ///
+    /// # Panics
+    ///
+    /// Where `canonical` is zero or not finite: a caller's bug.
+    #[must_use]
+    pub fn decade(self, canonical: f64) -> (i64, bool) {
+        assert!(
+            canonical.is_finite() && canonical != 0.0,
+            "{canonical} has no decade"
+        );
+        let quotient = Quotient::of(canonical, self);
+        (quotient.decade, quotient.is_power)
+    }
+
+    /// The float nearest the exact number of this unit that `canonical`
+    /// is (one rounding): ±∞ past the format and a signed zero below
+    /// it. A value that is not finite is itself.
+    #[must_use]
+    pub fn quotient(self, canonical: f64) -> f64 {
+        if !canonical.is_finite() || canonical == 0.0 {
+            return canonical;
+        }
+        let magnitude = self.exact.over(canonical).to_f64();
+        if canonical < 0.0 {
+            -magnitude
+        } else {
+            magnitude
+        }
+    }
+
+    /// [`UnitDef::quotient`], and `None` where it carries a finite value
+    /// past the format or a nonzero one to zero, so the unit has no
+    /// float for it.
+    #[must_use]
+    pub fn number_of(self, canonical: f64) -> Option<f64> {
+        let q = self.quotient(canonical);
+        let lost = canonical.is_finite() && (!q.is_finite() || (q == 0.0 && canonical != 0.0));
+        (!lost).then_some(q)
     }
 
     /// This row as a [`LengthUnit`], or `None` when the row measures an
@@ -234,18 +507,21 @@ pub const UNITS: [UnitDef; 8] = [
         symbol: "mm",
         quantity: UnitQuantity::Length,
         factor: MILLI,
+        exact: Factor::rational(1, 1000),
     },
     // Centimeter: a `CENTI`-prefixed metre.
     UnitDef {
         symbol: "cm",
         quantity: UnitQuantity::Length,
         factor: CENTI,
+        exact: Factor::rational(1, 100),
     },
     // Meter — the canonical length unit, factor exactly 1.0.
     UnitDef {
         symbol: "m",
         quantity: UnitQuantity::Length,
         factor: 1.0,
+        exact: Factor::rational(1, 1),
     },
     // International inch: EXACTLY 25.4 mm (module docs) — the factor
     // is the correctly-rounded f64 of the exact decimal 0.0254.
@@ -253,18 +529,21 @@ pub const UNITS: [UnitDef; 8] = [
         symbol: "in",
         quantity: UnitQuantity::Length,
         factor: 0.0254,
+        exact: Factor::rational(127, 5000),
     },
     // Degree: π/180 radians — inexact by nature (module docs).
     UnitDef {
         symbol: "deg",
         quantity: UnitQuantity::Angle,
         factor: core::f64::consts::PI / 180.0,
+        exact: Factor::times_pi(1, 180),
     },
     // Radian — the canonical angle unit, factor exactly 1.0.
     UnitDef {
         symbol: "rad",
         quantity: UnitQuantity::Angle,
         factor: 1.0,
+        exact: Factor::rational(1, 1),
     },
     // Half-turn: π radians — the "unit" that is a notation (module
     // docs). Inexact for the same reason `deg` is, and by the same
@@ -274,12 +553,14 @@ pub const UNITS: [UnitDef; 8] = [
         symbol: "pi rad",
         quantity: UnitQuantity::Angle,
         factor: core::f64::consts::PI,
+        exact: Factor::times_pi(1, 1),
     },
     // The dimensionless row: no suffix, factor exactly 1.0.
     UnitDef {
         symbol: "",
         quantity: UnitQuantity::Scalar,
         factor: 1.0,
+        exact: Factor::rational(1, 1),
     },
 ];
 

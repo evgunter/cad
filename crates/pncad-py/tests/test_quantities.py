@@ -221,13 +221,12 @@ class TestDisplayFormatter(unittest.TestCase):
         — so the family is closed against a measured difference rather
         than against a preference.
         """
-        # A value with no preimage in millimetres: multiplication by
-        # the mm factor steps over it, so no decimal number of
-        # millimetres reads back to these bits. Found the way
-        # `crates/quantity/src/tests.rs` finds one — walk quotients up
-        # from 1024 until `d * factor` jumps two ulps — and pinned as
-        # a constant so the test states a fact instead of searching
-        # for one.
+        # A value a float multiply by the mm factor steps over, so the
+        # float quotient written back in millimetres is another float.
+        # Found the way `crates/quantity/src/tests.rs` finds one — walk
+        # quotients up from 1024 until `d * factor` jumps two ulps — and
+        # pinned as a constant so the test states a fact instead of
+        # searching for one.
         skipped = 1.0240000000000047
         value = skipped * m
         self.assertEqual(value.meters.hex(), skipped.hex())
@@ -241,29 +240,28 @@ class TestDisplayFormatter(unittest.TestCase):
             "bits; if it stopped doing so, pick another",
         )
 
-        # `format` keeps the bits — by falling back to metres, which is
-        # the trade the module docs rule on: never a wrong bit,
-        # sometimes a canonical suffix.
+        # `format` keeps the bits in millimetres: a number in a unit is
+        # its decimal times the unit's exact factor, rounded once, and
+        # the shortest such decimal is what it writes.
         text = value.format(mm)
-        self.assertEqual(text, "1.0240000000000047 m")
+        self.assertEqual(text, "1024.0000000000047 mm")
         self.assertEqual(reads_back_as(text).hex(), value.meters.hex())
 
-    def test_the_canonical_fallback_is_visible_in_the_text(self):
-        # A caller who needs to know WHICH unit they got reads the
-        # suffix; nothing about the call promises the asked-for one.
-        # A value authored in the unit always keeps it.
+    def test_every_value_is_said_in_the_unit_asked_for(self):
+        # A value authored in the unit keeps it, and so does one that
+        # no float multiply by the factor reaches.
         self.assertTrue((25 * mm).format(mm).endswith(" mm"))
-        self.assertTrue((1.0240000000000047 * m).format(mm).endswith(" m"))
+        self.assertTrue((1.0240000000000047 * m).format(mm).endswith(" mm"))
 
     def test_the_same_angle_reads_back_in_the_notation_it_is_asked_for(self):
         # The half-turn row's whole reason. A quarter turn said two
-        # ways is the same canonical radians to within an ulp and
-        # neither spelling is exact, so nothing but the unit asked for
-        # distinguishes them — which is why the unit is a per-call
-        # argument rather than derived from the number.
+        # ways is the same canonical radians, the float nearest a true
+        # quarter turn, so nothing but the unit asked for distinguishes
+        # them — which is why the unit is a per-call argument rather
+        # than derived from the number.
         in_pi = 0.5 * pi_rad
         in_deg = 90 * deg
-        self.assertLess(abs(in_pi.radians - in_deg.radians), 1e-15)
+        self.assertEqual(in_pi.radians, in_deg.radians)
         self.assertEqual(in_pi.format(pi_rad), "0.5 pi rad")
         self.assertEqual(in_deg.format(deg), "90 deg")
 

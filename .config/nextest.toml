@@ -85,6 +85,28 @@ failure-output = "immediate-final"
 # branch (0.47 s and 0.49 s locally, each in its own target; 1.00 s on
 # the hosted runner):
 #    1.00 s  geom-core::all m5_pr7b_tensor_compose::a_bicubic_bicubic_composition_completes_within_the_budget
+# The told number's sweeps over the whole format in every notation, each
+# spelling decided in exact arithmetic, and the unit door's sweep of every
+# fifth binade in every unit (a local run, the box shared with other lanes):
+#  111.86 s  geom-core told::tests::one_told_number_is_never_wider_than_the_stated_bound
+#   36.61 s  geom-core told::tests::display_is_the_rendering_in_metres_and_radians
+#   27.59 s  geom-core told::tests::a_quantity_that_names_the_tolerance_is_told_in_metres
+#   23.65 s  geom-core told::tests::a_given_number_types_back_exactly_in_every_notation
+#   16.74 s  geom-core told::tests::an_offered_bound_typed_back_lies_on_its_side_in_every_notation
+#   12.87 s  quantity tests::every_float_has_a_shortest_decimal_in_every_unit
+#   11.96 s  geom-core told::tests::compared_numbers_read_in_their_true_order_in_every_role
+#    8.55 s  geom-core told::tests::the_grid_is_the_same_length_in_every_unit
+#    7.98 s  geom-core told::tests::an_enclosure_typed_back_contains_its_ends_in_every_notation
+#    7.94 s  geom-core told::tests::compared_numbers_read_in_their_true_order
+#    4.70 s  geom-core told::tests::a_given_number_reads_back_as_itself_at_every_magnitude
+#    3.21 s  geom-core told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal
+#    2.82 s  geom-core told::tests::the_tolerance_caps_a_lengths_grid_and_no_other
+#    2.22 s  geom-core told::tests::a_computed_number_is_on_the_grid_and_never_reads_zero
+#    1.50 s  geom-core told::tests::compared_numbers_read_in_their_true_order_in_every_notation
+# A strut's two out runs at a corner in every op, which crossed the 1 s
+# bar on the hosted runner (PR 7291's run, 1.025 s) once its told numbers
+# were decided exactly:
+#    1.03 s  sweep::all join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.
 # The tessellation reach pins: bodies built by a shell, a split, booleans
@@ -218,6 +240,9 @@ failure-output = "immediate-final"
 #    1.89 s  mesh::all faces_that_bound_no_region::a_spline_rim_only_cap_refuses_at_the_domain_door
 default-filter = """
 not (
+  (binary_id(geom-core) & (test(=told::tests::one_told_number_is_never_wider_than_the_stated_bound) | test(=told::tests::display_is_the_rendering_in_metres_and_radians) | test(=told::tests::a_quantity_that_names_the_tolerance_is_told_in_metres) | test(=told::tests::a_given_number_types_back_exactly_in_every_notation) | test(=told::tests::an_offered_bound_typed_back_lies_on_its_side_in_every_notation) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_role) | test(=told::tests::the_grid_is_the_same_length_in_every_unit) | test(=told::tests::an_enclosure_typed_back_contains_its_ends_in_every_notation) | test(=told::tests::compared_numbers_read_in_their_true_order) | test(=told::tests::a_given_number_reads_back_as_itself_at_every_magnitude) | test(=told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal) | test(=told::tests::the_tolerance_caps_a_lengths_grid_and_no_other) | test(=told::tests::a_computed_number_is_on_the_grid_and_never_reads_zero) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_notation))) |
+  (binary_id(quantity) & test(=tests::every_float_has_a_shortest_decimal_in_every_unit)) |
+  (binary_id(sweep::all) & test(=join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op)) |
   (binary_id(sweep::all) & (test(=band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole) | test(=band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole) | test(=band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge) | test(=band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer) | test(=band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval) | test(=band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval) | test(=band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume) | test(=band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it) | test(=band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns))) |
   (binary_id(editor-core::all) & test(=band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names)) |
   (binary_id(sweep::all) & test(=snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds)) |

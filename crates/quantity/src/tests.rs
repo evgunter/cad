@@ -6,9 +6,15 @@
 use proptest::prelude::*;
 
 use crate::{
-    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, ONE, PI, RAD, UNITS,
-    UnitDef, UnitQuantity, WrittenAngle, WrittenLength, fmt_angle, fmt_length, unit_by_symbol,
+    Angle, CENTI, CM, DEG, Decimal, FmtQuantityError, IN, Length, M, MILLI, MM, ONE, PI, RAD,
+    ROUND_TRIP_FIGURES, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength, fmt_angle,
+    fmt_length, unit_by_symbol,
 };
+
+/// The decimal `text` spells.
+fn decimal(text: &str) -> Decimal {
+    Decimal::parse(text).unwrap_or_else(|| panic!("{text:?} is a decimal"))
+}
 
 #[test]
 fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
@@ -24,13 +30,11 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     assert_eq!(M.factor(), 1.0);
     assert_eq!(IN.factor(), 0.0254);
     assert_eq!(RAD.factor(), 1.0);
-    // fl(π/180), pinned by bits: DEG is inexact by nature and this
-    // constant is its identity.
+    // The float nearest π/180, pinned by bits.
     assert_eq!(DEG.factor(), 0.017_453_292_519_943_295_f64);
-    // The half-turn row is π itself, pinned the same way and for the
-    // same reason: `0.5 pi rad` is canonical-radians data whose
-    // last-ulp identity is this constant. Its symbol is two words —
-    // the only such row — and the table carries exactly that spelling.
+    // The half-turn row's float is π's, pinned the same way. Its symbol
+    // is two words — the only such row — and the table carries exactly
+    // that spelling.
     assert_eq!(PI.factor(), core::f64::consts::PI);
     assert_eq!(
         unit_by_symbol("pi rad").expect("pi rad row").quantity(),
@@ -49,6 +53,15 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
         UnitQuantity::Angle
     );
     assert_eq!(unit_by_symbol("furlong"), None);
+    // Each row's float is what one of the unit is.
+    for row in UNITS {
+        assert_eq!(
+            row.canonical(&decimal("1")).to_bits(),
+            row.factor().to_bits(),
+            "1 {}",
+            row.symbol()
+        );
+    }
     assert_eq!(
         unit_by_symbol("MM"),
         None,
@@ -62,7 +75,7 @@ fn unit_constant_construction_lands_on_canonical_units() {
     assert_eq!((25.0 * MM).meters(), (MM * 25.0).meters());
     assert_eq!((1.0 * M).meters(), 1.0);
     assert_eq!((1.0 * IN).meters(), 0.0254);
-    assert_eq!((90.0 * DEG).radians(), 90.0 * DEG.factor());
+    assert_eq!((90.0 * DEG).radians(), core::f64::consts::FRAC_PI_2);
     assert_eq!((1.5 * RAD).radians(), 1.5);
     // The heatsink migration's three literals: prefixed-metre decimal
     // values whose f64 multiply lands on the exact dyadic the tour
@@ -105,21 +118,15 @@ fn formatter_pins_the_spec_surface_shape() {
     ));
 }
 
-/// The crate-local mirror of the parser's literal semantics: decimal
-/// digits via `from_str`, then ONE f64 multiply by the factor (a
-/// leading `-` is the parser's unary minus: negate after). Kept in
+/// The crate-local mirror of the parser's literal semantics: the
+/// decimal before the symbol, through the unit's one door. Kept in
 /// lockstep with `editor-core`'s parser by the round-trip suite there.
-fn parse_back(text: &str, expect_symbol_or_canonical: [&str; 2]) -> f64 {
+fn parse_back(text: &str, symbol: &str) -> f64 {
     let (num, sym) = text.split_once(' ').expect("value then symbol");
-    assert!(expect_symbol_or_canonical.contains(&sym), "suffix {sym:?}");
-    let factor = unit_by_symbol(sym).expect("table row").factor();
-    let (mag, neg) = match num.strip_prefix('-') {
-        Some(m) => (m, true),
-        None => (num, false),
-    };
-    let v: f64 = mag.parse().expect("digits");
-    let v = v * factor;
-    if neg { -v } else { v }
+    assert_eq!(sym, symbol, "the suffix of {text:?}");
+    unit_by_symbol(sym)
+        .expect("table row")
+        .canonical(&decimal(num))
 }
 
 proptest! {
@@ -134,51 +141,272 @@ proptest! {
         unit_idx in 0usize..7,
     ) {
         let u = UNITS[unit_idx];
-        let (text, canonical) = match u.quantity() {
-            UnitQuantity::Length => (
+        let text = match u.quantity() {
+            UnitQuantity::Length => {
                 fmt_length(value, u.as_length().expect("a Length row has a length view"))
-                    .unwrap(),
-                "m",
-            ),
-            UnitQuantity::Angle => (
+                    .unwrap()
+            }
+            UnitQuantity::Angle => {
                 fmt_angle(value, u.as_angle().expect("an Angle row has an angle view"))
-                    .unwrap(),
-                "rad",
-            ),
+                    .unwrap()
+            }
             UnitQuantity::Scalar => unreachable!(
                 "the dimensionless row is index {} and this generator stops before it",
                 UNITS.len() - 1
             ),
         };
-        let back = parse_back(&text, [u.symbol(), canonical]);
+        let back = parse_back(&text, u.symbol());
         prop_assert_eq!(back.to_bits(), value.to_bits(), "text {:?}", text);
     }
 }
 
+/// A value the float multiply by `MM`'s factor stepped over, which had
+/// no millimetre spelling under it, is said in millimetres: the
+/// multiply is no door.
 #[test]
-fn values_with_no_preimage_in_the_asked_unit_fall_back_to_canonical() {
-    // Walk quotients d upward from 1024 (the census'd skip region for
-    // MM: ulp(d)·10⁻³ > ulp(d·10⁻³) there) until fl(d·f) jumps 2 ulps
-    // — the skipped value has NO mm preimage, so the formatter must
-    // fall back to meters, bit-exactly.
+fn a_value_a_float_multiply_steps_over_is_said_in_its_unit() {
     let f = MM.factor();
     let mut d = 1024.0f64;
     for _ in 0..200_000 {
-        let x1 = d * f;
-        let x2 = d.next_up() * f;
+        let (x1, x2) = (d * f, d.next_up() * f);
         if x2 > x1.next_up() {
             let skipped = x1.next_up();
             let text = fmt_length(skipped, MM).unwrap();
-            assert!(
-                text.ends_with(" m"),
-                "expected canonical fallback, got {text:?}"
+            assert_eq!(
+                parse_back(&text, "mm").to_bits(),
+                skipped.to_bits(),
+                "{text}"
             );
-            assert_eq!(parse_back(&text, ["m", "m"]).to_bits(), skipped.to_bits());
             return;
         }
         d = d.next_up();
     }
-    panic!("no 2-ulp step found in 200k quotients — fallback untested");
+    panic!("no 2-ulp step found in 200k quotients");
+}
+
+/// What a decimal written in a unit is, against exact arithmetic done
+/// elsewhere (Python's `Fraction`, whose float is correctly rounded,
+/// and π by Machin at 4000 bits): ties to even, both ends of the
+/// format, signed zeros, decimals of more figures than a float holds,
+/// and decimals from a seeded draw over the whole format.
+#[test]
+fn a_number_in_a_unit_is_its_decimal_times_the_exact_factor_rounded_once() {
+    const DOOR: [(&str, &str, u64); 127] = [
+        ("300.04", "mm", 0x3fd333daf8df7a4e),
+        ("0.30004", "m", 0x3fd333daf8df7a4e),
+        ("0.13", "mm", 0x3f210a137f38c543),
+        ("25", "mm", 0x3f9999999999999a),
+        ("250", "mm", 0x3fd0000000000000),
+        ("812.5", "mm", 0x3fea000000000000),
+        ("312.5", "mm", 0x3fd4000000000000),
+        ("1", "in", 0x3f9a027525460aa6),
+        ("2.5", "in", 0x3fb04189374bc6a8),
+        ("2.5", "mm", 0x3f647ae147ae147b),
+        ("2.5", "cm", 0x3f9999999999999a),
+        ("2.5", "deg", 0x3fa657184ae74487),
+        ("2.5", "pi rad", 0x401f6a7a2955385e),
+        ("3", "mm", 0x3f689374bc6a7efa),
+        ("3", "cm", 0x3f9eb851eb851eb8),
+        ("3", "in", 0x3fb381d7dbf487fd),
+        ("3", "deg", 0x3faacee9f37bebd6),
+        ("3", "pi rad", 0x4022d97c7f3321d2),
+        ("1", "deg", 0x3f91df46a2529d39),
+        ("30", "deg", 0x3fe0c152382d7366),
+        ("90", "deg", 0x3ff921fb54442d18),
+        ("180", "deg", 0x400921fb54442d18),
+        ("360", "deg", 0x401921fb54442d18),
+        ("45", "deg", 0x3fe921fb54442d18),
+        ("1", "pi rad", 0x400921fb54442d18),
+        ("0.5", "pi rad", 0x3ff921fb54442d18),
+        ("2", "pi rad", 0x401921fb54442d18),
+        ("-0.25", "pi rad", 0xbfe921fb54442d18),
+        ("1e309", "mm", 0x7f76c8e5ca239029),
+        ("1e400", "mm", 0x7ff0000000000000),
+        ("-1e400", "deg", 0xfff0000000000000),
+        ("1e-330", "pi rad", 0x0000000000000000),
+        ("4.94e-321", "mm", 0x0000000000000001),
+        ("5e-324", "m", 0x0000000000000001),
+        ("2.4703282292062328e-324", "m", 0x0000000000000001),
+        ("2.4703282292062327e-324", "m", 0x0000000000000000),
+        ("1.7976931348623157e311", "mm", 0x7fefffffffffffff),
+        ("1.7976931348623158e311", "mm", 0x7fefffffffffffff),
+        (
+            "1.79769313486231580793728971405301e311",
+            "mm",
+            0x7fefffffffffffff,
+        ),
+        (
+            "1000.00000000000011102230246251565404236316680908203125",
+            "mm",
+            0x3ff0000000000000,
+        ),
+        (
+            "1000.000000000000111022302462515654042363166809082031251",
+            "mm",
+            0x3ff0000000000001,
+        ),
+        (
+            "1000.00000000000011102230246251565404236316680908203124",
+            "mm",
+            0x3ff0000000000000,
+        ),
+        (
+            "1000.00000000000033306690738754696212708950042724609375",
+            "mm",
+            0x3ff0000000000002,
+        ),
+        (
+            "179769313486231580793728971405303415079934132710037826936173778980444968292764750946649017977587207096330286416692887910946555547851940402630657488671505820681908902000708383676273854845817711531764475730270069855571366959622842914819860834936475292719074168444365510704342711559699508093042880177904174497792000",
+            "mm",
+            0x7ff0000000000000,
+        ),
+        (
+            "179769313486231580793728971405303415079934132710037826936173778980444968292764750946649017977587207096330286416692887910946555547851940402630657488671505820681908902000708383676273854845817711531764475730270069855571366959622842914819860834936475292719074168444365510704342711559699508093042880177904174497791999",
+            "mm",
+            0x7fefffffffffffff,
+        ),
+        ("-0", "mm", 0x8000000000000000),
+        ("0", "deg", 0x0000000000000000),
+        ("31250919908e69", "mm", 0x4fd145d934d7ee91),
+        ("521610615998048273e261", "deg", 0x79706f25baf75f41),
+        ("-1629072e-247", "in", 0x8d9c40ddd2ae25b5),
+        ("-346e-243", "mm", 0x8d62e668982f7369),
+        ("9738681121152269347e-107", "deg", 0x2d4bb2fa7af1d400),
+        ("1457380681191578132e-109", "deg", 0x2cb5391dbb06c908),
+        ("47959e94", "deg", 0x540f599fd34bc1f2),
+        ("6054e238", "mm", 0x71829818d5358970),
+        ("-6892936625691456361e-143", "mm", 0xa587e3c9a517ebe9),
+        ("172390762004538402e242", "deg", 0x756409daa56501e8),
+        ("-9328453e209", "pi rad", 0xece100a35ef529a7),
+        ("-89309156112e129", "m", 0xdcfdff96a34be75f),
+        ("34127884e-86", "deg", 0x2f4699b1ddc2f655),
+        ("-7550669089e16", "m", 0xc54f3a94f51eee9d),
+        ("-11350317716114554168e189", "cm", 0xeab6a04c68552b96),
+        ("67934655362e-295", "pi rad", 0x0509639b6ebdd629),
+        ("-492134380942901708e23", "deg", 0xc804318944acc5b7),
+        ("633788284861825e-269", "rad", 0x0b27ca772e956682),
+        ("-8825107365e-44", "rad", 0xb8dd539230bdc947),
+        ("488530022802e-163", "in", 0x2030a325dc3f0ea7),
+        ("37e-41", "rad", 0x37c01da34ae7fdd7),
+        ("-63404922e65", "mm", 0xce6d65d257df3ae7),
+        ("-571007e76", "cm", 0xd07ed219ae605929),
+        ("-87437676164617e-50", "m", 0xb872988f55e75f85),
+        ("1777547250534441977855e-155", "cm", 0x23c08997e99fab0a),
+        ("5575015054520851622378e268", "m", 0x7c16e202bff4d8fe),
+        ("-1017581913e94", "deg", 0xd4f44cb4bf712c78),
+        ("9790776747417176309e-207", "in", 0x1891ba749b0ffde0),
+        ("-4699665557397008640419e72", "in", 0xd30d4ce00ddf93e2),
+        ("-8889e314", "mm", 0xfff0000000000000),
+        ("-2129905e-122", "cm", 0xa7812ff5216cb476),
+        ("6571e280", "mm", 0x7a3cf5b528b4d47d),
+        ("3e214", "m", 0x6c76474652aa8962),
+        ("-76667805751908262684e-183", "m", 0x9e11a8f5ac22b9d2),
+        ("-18746550756401336488e-217", "in", 0x968d2886557335f5),
+        ("3808914984605323e-248", "mm", 0x0f0f00d801dce54f),
+        ("47539522661e155", "deg", 0x61f70daa05a278fb),
+        ("-4e205", "cm", 0xea3469ae42c8560c),
+        ("-131177867312592195e205", "rad", 0xee0d082315a846fb),
+        ("-812e-68", "cm", 0xb201835fda708f84),
+        ("-348128583958e210", "rad", 0xedeed18f860dc41c),
+        ("92306098e-136", "pi rad", 0x257419dd66181a85),
+        ("-4514257086821e195", "m", 0xeb0c1f1deb41ed55),
+        ("-1e-49", "m", 0xb5c2b50c6ec4f313),
+        ("-6776075e122", "m", 0xdaaf481c09303147),
+        ("325e-231", "in", 0x1029a1cf950ed8ad),
+        ("-6666294e-126", "deg", 0xa6d33a6f7e0d61b0),
+        ("65375434412351473771e17", "pi rad", 0x47aee710968f5dea),
+        ("-4669237752600789647625e-131", "cm", 0xa8d1f76ef16f701e),
+        ("99489032923039e5", "pi rad", 0x43fb1c17e0f98919),
+        ("8062915493999e-249", "cm", 0x0e80cd17488d51a3),
+        ("-13610e-181", "pi rad", 0x9b515387606dcecf),
+        ("671485775095843714043e23", "deg", 0x48aae82f15f88110),
+        ("124668690687993982e-321", "deg", 0x00787280311a4841),
+        ("66860e-136", "mm", 0x2413704670dda6a1),
+        ("328470563e-36", "pi rad", 0x3a547075a981ba66),
+        ("-3392217998392035586e222", "pi rad", 0xf1f99251328281d3),
+        ("-17982e27", "rad", 0xc66c5edf38cc36f2),
+        ("-9340665568497953815e194", "pi rad", 0xec416eefc55ce450),
+        ("86644052735996797e-180", "pi rad", 0x1e2f59938e58216f),
+        ("306161765276562e288", "pi rad", 0x7ed670ef6a9eed49),
+        ("-32589e-191", "deg", 0x98d9579f9af337e1),
+        ("-2011e-2", "pi rad", 0xc04f96b5f826f80a),
+        ("1930e-81", "m", 0x2fcc9af37b22ac77),
+        ("-22e184", "deg", 0xe60ceabe0dd46ef3),
+        ("-2e118", "deg", 0xd821b7da6a80da6c),
+        ("-83810248240715456e-131", "in", 0xa7ead74da8a9a94f),
+        ("-83174755739473539e-82", "deg", 0xb20f4f43d3b26199),
+        ("-8508277e-195", "mm", 0x984368c4e38b7fdc),
+        ("6559586563763e-261", "in", 0x0c131625a5425306),
+        ("317e-25", "pi rad", 0x3b5e194935e34a6d),
+        ("94339e39", "m", 0x4910ebd59d996b42),
+        ("71307e-111", "in", 0x299103c36bc1051c),
+        ("9915966258639269e-106", "rad", 0x2d4028cac4d39fda),
+        ("-82567741975268e78", "in", 0xd2b0790467c83bd0),
+        ("6983003e-9", "rad", 0x3f7c9a359834b70e),
+        ("-469450866005e232", "in", 0xf231e1e914ce0ac9),
+        ("-7e4", "deg", 0xc09316ec02011dcf),
+        ("215e-101", "mm", 0x2ad34305a363c208),
+        ("391972375e-295", "m", 0x0477dfd48851cbf4),
+    ];
+    for (text, symbol, want) in DOOR {
+        let unit = unit_by_symbol(symbol).expect("a table row");
+        let got = unit.canonical(&decimal(text));
+        assert_eq!(
+            got.to_bits(),
+            want,
+            "{text} {symbol}: {got:e} against {:e}",
+            f64::from_bits(want)
+        );
+    }
+    // A half-turn is π's float said three ways.
+    let pi = core::f64::consts::PI.to_bits();
+    assert_eq!((180.0 * DEG).radians().to_bits(), pi, "180 deg");
+    assert_eq!((1.0 * PI).radians().to_bits(), pi, "1 pi rad");
+    // And a float is read as its shortest decimal: `300.04 * MM` is
+    // what `300.04 mm` is, where the float multiply lands one over.
+    assert_eq!((300.04 * MM).meters(), 0.300_04);
+}
+
+/// Every finite float has a decimal of at most seventeen figures that,
+/// written in any unit, is that float, and in the canonical units it is
+/// the float's own shortest digits: every fifth binade from the
+/// subnormals to `f64::MAX` and the eight at each end, at its first
+/// float, its neighbours and a float inside it, of both signs.
+#[test]
+fn every_float_has_a_shortest_decimal_in_every_unit() {
+    let binades: Vec<f64> = core::iter::successors(Some(f64::from_bits(1)), |x| Some(x * 2.0))
+        .take_while(|x| x.is_finite())
+        .collect();
+    let ends = (0..8).chain(binades.len() - 8..binades.len());
+    let mut values = vec![f64::MAX, f64::MIN_POSITIVE, 0.300_04, 0.1];
+    for k in (0..binades.len()).step_by(5).chain(ends) {
+        let x = binades[k];
+        values.extend([x, x.next_up(), x.next_down(), x * 1.374_218_75]);
+    }
+    for unit in UNITS {
+        for &v in &values {
+            for v in [v, -v] {
+                if !v.is_finite() || v == 0.0 {
+                    continue;
+                }
+                let shortest = unit.shortest(v);
+                assert!(
+                    shortest.figures() <= ROUND_TRIP_FIGURES,
+                    "{v:e} in {}",
+                    unit.symbol()
+                );
+                assert_eq!(
+                    unit.canonical(&shortest).to_bits(),
+                    v.to_bits(),
+                    "{v:e} in {}: {shortest}",
+                    unit.symbol()
+                );
+                if unit.factor() == 1.0 {
+                    assert_eq!(Some(shortest), Decimal::of_float(v), "{v:e}");
+                }
+            }
+        }
+    }
 }
 
 /// **The half-turn row does the job it was added for**: an angle
@@ -291,24 +519,21 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
                 // from "returned it".
                 assert_eq!(
                     (2.5 * view).meters().to_bits(),
-                    (2.5 * row.factor()).to_bits(),
-                    "{} multiplied by the wrong factor",
+                    row.canonical(&decimal("2.5")).to_bits(),
+                    "{} read in the wrong unit",
                     row.symbol()
                 );
-                // `in_unit` DIVIDES by the table's factor. Asserted
-                // against the row rather than as `x * f / f == x`,
-                // which holds for any factor at all and is an exact
-                // float comparison across a divide besides.
+                // `in_unit` is the row's quotient.
                 assert_eq!(
-                    Length::from_meters(2.5).in_unit(view).to_bits(),
-                    (2.5_f64 / row.factor()).to_bits(),
+                    Some(Length::from_meters(2.5).in_unit(view).to_bits()),
+                    row.number_of(2.5).map(f64::to_bits),
                     "{} divided by the wrong factor",
                     row.symbol()
                 );
-                // The suffix names the factor that was applied — the
+                // The suffix names the unit that was applied — the
                 // `parse(fmt(x, unit))` pin's other half.
                 assert_eq!(
-                    fmt_length(2.5 * row.factor(), view).unwrap(),
+                    fmt_length((2.5 * view).meters(), view).unwrap(),
                     format!("2.5 {}", row.symbol())
                 );
                 assert_eq!(
@@ -326,18 +551,18 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
                 assert_eq!(view.factor(), row.factor());
                 assert_eq!(
                     (2.5 * view).radians().to_bits(),
-                    (2.5 * row.factor()).to_bits(),
-                    "{} multiplied by the wrong factor",
+                    row.canonical(&decimal("2.5")).to_bits(),
+                    "{} read in the wrong unit",
                     row.symbol()
                 );
                 assert_eq!(
-                    Angle::from_radians(2.5).in_unit(view).to_bits(),
-                    (2.5_f64 / row.factor()).to_bits(),
+                    Some(Angle::from_radians(2.5).in_unit(view).to_bits()),
+                    row.number_of(2.5).map(f64::to_bits),
                     "{} divided by the wrong factor",
                     row.symbol()
                 );
                 assert_eq!(
-                    fmt_angle(2.5 * row.factor(), view).unwrap(),
+                    fmt_angle((2.5 * view).radians(), view).unwrap(),
                     format!("2.5 {}", row.symbol())
                 );
                 assert_eq!(
@@ -431,11 +656,10 @@ fn fmt_quantity_error_display_names_its_content_not_its_struct() {
     );
 }
 
-/// The authored carriers do what the plain newtypes cannot: survive
-/// the multiply with the unit still attached. The value half is
-/// BIT-IDENTICAL to what `25.0 * MM` produces — the carrier applies
-/// the table's factor by the same multiply, so nothing about the
-/// number depends on which door built it.
+/// The authored carriers do what the plain newtypes cannot: keep the
+/// unit attached. The value half is BIT-IDENTICAL to what `25.0 * MM`
+/// produces — the carrier reads the number through the same door, so
+/// nothing about it depends on which door built it.
 #[test]
 fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
     let written = WrittenLength::in_unit(25.0, MM);
@@ -463,8 +687,7 @@ fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
 /// The plain spelling NAMES the canonical unit rather than declining to
 /// name one — there is no unmarked state here, which is what lets a
 /// document say how it is written instead of leaning on its reader's
-/// fallback. `metres` skips the multiply by one; that is an
-/// optimisation, not a difference, and these compare equal.
+/// fallback. These compare equal.
 #[test]
 fn the_plain_spelling_is_the_canonical_unit_said_out_loud() {
     assert_eq!(
@@ -489,7 +712,7 @@ fn the_plain_spelling_is_the_canonical_unit_said_out_loud() {
 
 /// The form's door: the draft is ALREADY canonical (a picker re-writes
 /// what is on screen and changes no value), so this one attaches the
-/// notation without multiplying by it. `canonical_in(x, u)` and
+/// notation without reading the number in it. `canonical_in(x, u)` and
 /// `in_unit(x, u)` are therefore different values, and deliberately so.
 #[test]
 fn the_already_canonical_door_attaches_notation_without_applying_it() {
@@ -525,14 +748,14 @@ fn each_carrier_admits_exactly_its_own_half_of_the_table() {
                 let unit = row.as_length().expect("a Length row has the length view");
                 let written = WrittenLength::in_unit(3.0, unit);
                 assert_eq!(written.unit().symbol(), row.symbol());
-                assert_eq!(written.meters(), 3.0 * row.factor());
+                assert_eq!(written.meters(), row.canonical(&decimal("3")));
                 assert_eq!(row.as_angle(), None);
             }
             UnitQuantity::Angle => {
                 let unit = row.as_angle().expect("an Angle row has the angle view");
                 let written = WrittenAngle::in_unit(3.0, unit);
                 assert_eq!(written.unit().symbol(), row.symbol());
-                assert_eq!(written.radians(), 3.0 * row.factor());
+                assert_eq!(written.radians(), row.canonical(&decimal("3")));
                 assert_eq!(row.as_length(), None);
             }
         }

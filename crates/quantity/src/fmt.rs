@@ -5,38 +5,16 @@
 //! parser to read back).
 //!
 //! THE PIN: `parse(fmt(x, unit))` recovers `x` BIT-EXACTLY, where
-//! `parse` is the expression text parser's literal semantics — parse
-//! the decimal number, then multiply by the unit's factor in f64
-//! (`n * factor`, one rounding). The formatter therefore does not
-//! render `x / factor` blindly: it searches the (at most five) f64
-//! quotient candidates within 2 ulps of `x / factor` for one whose
-//! `candidate * factor` reproduces `x`'s exact bits, and renders the
-//! shortest such candidate ({:?}'s shortest-round-trip digits, the
-//! same guarantee `fmt_real` builds on).
-//!
-//! FALLBACK: some values have no such candidate — multiplication by
-//! the factor occasionally steps 2 ulps of `x` at a time, skipping
-//! values, and a skipped `x` has no preimage in that unit at all.
-//! Those values render in the CANONICAL unit (`m`/`rad`), whose
-//! factor-1.0 multiply is the f64 identity — the pin holds for every
-//! finite input at the price of a canonical-unit suffix. HOW OFTEN
-//! (measured, 2M uniform random finite f64 per unit — the PR #267
-//! review's figures, replacing an earlier estimate that was low by
-//! ~3 orders): mm ~2.8%, cm ~16%, in ~15%, deg ~9.5%; m/rad never.
-//! Uniform-random f64 is the worst case: a value AUTHORED in the unit
-//! (parsed from `250 mm`, computed as `25.0 * MM`) lies in the parse
-//! map's image and always keeps its suffix, so the honest statement
-//! is per-computed-value and unit-dependent, not "rare" in general.
-//! That trade (never a wrong bit, sometimes a canonical suffix) is
-//! this module's ruled fork; the alternative — decimal-exact parse
-//! semantics — cannot exist for `DEG` at all (π/180 has no decimal),
-//! so multiply semantics is the uniform door and this fallback is its
-//! price.
+//! `parse` is the expression text parser's literal semantics — the
+//! decimal times the unit's exact factor, rounded once
+//! ([`crate::UnitDef::canonical`]). The formatter renders the shortest
+//! decimal that reads back so ([`crate::UnitDef::shortest`]), in the
+//! unit asked for: every unit says every finite value.
 //!
 //! NaN/±∞ refuse typed ([`FmtQuantityError::NonFinite`]) exactly as
 //! `fmt_real` refuses: poison never lands in display text.
 
-use crate::units::{AngleUnit, LengthUnit, M, RAD};
+use crate::units::{AngleUnit, LengthUnit, UnitDef};
 
 /// Typed refusal from the display formatter.
 #[derive(Debug, Clone, PartialEq)]
@@ -86,7 +64,7 @@ impl core::error::Error for FmtQuantityError {}
 ///
 /// [`FmtQuantityError::NonFinite`] when `meters` is NaN or ±∞.
 pub fn fmt_length(meters: f64, unit: LengthUnit) -> Result<String, FmtQuantityError> {
-    fmt_in(meters, unit.symbol(), unit.factor(), M.symbol())
+    fmt_in(meters, unit.def())
 }
 
 /// Formats a canonical-RADIANS value in `unit` (module docs; the pin:
@@ -98,75 +76,13 @@ pub fn fmt_length(meters: f64, unit: LengthUnit) -> Result<String, FmtQuantityEr
 ///
 /// [`FmtQuantityError::NonFinite`] when `radians` is NaN or ±∞.
 pub fn fmt_angle(radians: f64, unit: AngleUnit) -> Result<String, FmtQuantityError> {
-    fmt_in(radians, unit.symbol(), unit.factor(), RAD.symbol())
+    fmt_in(radians, unit.def())
 }
 
-/// The shared engine: preimage search in `symbol`, canonical fallback
-/// (module docs).
-fn fmt_in(
-    value: f64,
-    symbol: &str,
-    factor: f64,
-    canonical_symbol: &str,
-) -> Result<String, FmtQuantityError> {
+/// The shared engine: the shortest decimal in `unit` (module docs).
+fn fmt_in(value: f64, unit: UnitDef) -> Result<String, FmtQuantityError> {
     if !value.is_finite() {
         return Err(FmtQuantityError::NonFinite { value });
     }
-    let best = authored(value, factor).map(render_shortest);
-    Ok(match best {
-        Some(digits) => format!("{digits} {symbol}"),
-        // No preimage in the requested unit: canonical fallback —
-        // factor exactly 1.0, multiplication is the identity, the
-        // rendered digits ARE the value's shortest round-trip form.
-        None => format!("{} {canonical_symbol}", render_shortest(value)),
-    })
-}
-
-/// The number that, typed in a unit of `factor`, is `value` to the bit
-/// (`number * factor`, the text door's one multiply), choosing the one
-/// with the shortest spelling; `None` where no number is, or `value`
-/// is not finite.
-pub(crate) fn authored(value: f64, factor: f64) -> Option<f64> {
-    if !value.is_finite() {
-        return None;
-    }
-    let q = value / factor;
-    // The five candidates within 2 ulps of the rounded quotient. This
-    // set is COMPLETE (the PR #267 review's derivation, confirmed by a
-    // 2.63M-probe attack finding zero misses): a preimage d satisfies
-    // |d·factor − value| ≤ ulp(value)/2, so |d − value/factor| ≤
-    // ulp(value)/(2·factor) < spacing(q) (ulp(value) ≤ 2⁻⁵²·|value|);
-    // adding |q − value/factor| ≤ spacing/2 gives |d − q| < 1.5
-    // spacings — at most 2 next-steps from q even where a binade
-    // boundary halves the spacing. For subnormal value the quotient
-    // interval is wide and q itself is a preimage. If none of the five
-    // reproduces the bits, no decimal in this unit does.
-    [
-        q,
-        q.next_up(),
-        q.next_down(),
-        q.next_up().next_up(),
-        q.next_down().next_down(),
-    ]
-    .into_iter()
-    .filter(|d| (d * factor).to_bits() == value.to_bits())
-    .min_by_key(|&d| render_shortest(d).len())
-}
-
-/// `{:?}`'s shortest-round-trip digits, with a bare integral form
-/// (`250.0` → `250`) — the stripped form parses to the identical f64
-/// (`from_str("250")` and `from_str("250.0")` agree), and it matches
-/// the spec's `25 mm` surface shape.
-///
-/// This is the same rendering as `geom_core::Readable`, character for
-/// character, and a second copy: this crate is a leaf, so it cannot
-/// call that one, and that one writes to a `Formatter` without
-/// building a `String`. Each is `{:?}` less its integral tail, which
-/// `geom-core` pins of its copy.
-fn render_shortest(d: f64) -> String {
-    let repr = format!("{d:?}");
-    match repr.strip_suffix(".0") {
-        Some(integral) => integral.to_string(),
-        None => repr,
-    }
+    Ok(format!("{} {}", unit.shortest(value), unit.symbol()))
 }

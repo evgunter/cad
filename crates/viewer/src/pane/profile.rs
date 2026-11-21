@@ -1052,9 +1052,7 @@ mod tests {
         painted_while_hovering_opened,
     };
     use crate::props::Notation;
-    use crate::sketch::{
-        self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview,
-    };
+    use crate::sketch::{self, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview};
     use crate::test_support::{self, inserted, line_to, try_inserted, two_legs};
     use crate::theme::Theme;
 
@@ -1497,14 +1495,11 @@ mod tests {
                 prefix.loops[0].points, open.loops[0].points,
                 "{state:?}: the legs, and only those"
             );
-            assert_eq!(
-                prefix.loops[0].end,
-                LoopEnd::Unfinished(Some(Cut {
-                    refusal: unclosable.clone(),
-                    closes: false,
-                })),
-                "{state:?}"
-            );
+            let LoopEnd::Unfinished(Some(cut)) = &prefix.loops[0].end else {
+                panic!("{state:?}: cut at its tip: {:?}", prefix.loops[0].end)
+            };
+            assert!(!cut.closes, "{state:?}");
+            assert_eq!(cut.refusal.to_string(), unclosable.to_string(), "{state:?}");
             let (painted, voices) = drawn(&preview);
             assert_eq!(
                 find(&painted, &unclosable.to_string()).ink,

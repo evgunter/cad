@@ -25,9 +25,9 @@
 //! NUMBER SEMANTICS (VARIABLES-DESIGN VR5, VR6; quantity's `fmt` module
 //! docs carry the other half): a unit-suffixed number (`25 mm`, unit
 //! symbols from quantity's closed [`quantity::UNITS`] table) is a
-//! WRITTEN QUANTITY, the decimal's correctly-rounded f64 times the unit
-//! factor — ONE f64 multiply — landing in canonical kernel units
-//! (meters/radians); the edit door mints a variable for it.
+//! WRITTEN QUANTITY, the decimal times the unit's exact factor rounded
+//! once ([`quantity::UnitDef::canonical`]), landing in canonical kernel
+//! units (meters/radians); the edit door mints a variable for it.
 //! A UNIT is one or TWO identifier tokens, longest match against the
 //! closed table (`pi rad` is a two-word symbol), and nothing but a
 //! unit can follow a number here.
@@ -1027,7 +1027,7 @@ impl Parser<'_> {
         unit_by_symbol(&first).map(|unit| (unit, 1))
     }
     /// `NUMBER [UNIT]` (module docs' literal semantics): suffixed →
-    /// continuous literal in canonical units (one f64 multiply); bare
+    /// continuous literal in canonical units (the unit's one door); bare
     /// integral → exact Count; bare real → Scalar. `negative` is the
     /// sign written before the number; a refusal names the number's own
     /// offset and text.
@@ -1038,7 +1038,6 @@ impl Parser<'_> {
         integral: bool,
         negative: bool,
     ) -> Result<Formula, ParseError> {
-        let signed = |value: f64| if negative { -value } else { value };
         // An identifier DIRECTLY after a number can only be a unit
         // suffix — juxtaposition means nothing else in this grammar.
         if let Some((upos, first)) = self.peeked_ident() {
@@ -1053,11 +1052,12 @@ impl Parser<'_> {
                 });
             };
             self.i += consumed;
-            let value: f64 = text.parse().map_err(|_| ParseError::MalformedNumber {
-                pos,
-                text: text.to_string(),
-            })?;
-            let value = signed(value);
+            let number =
+                quantity::Decimal::parse(text).ok_or_else(|| ParseError::MalformedNumber {
+                    pos,
+                    text: text.to_string(),
+                })?;
+            let number = if negative { number.negated() } else { number };
             // What the suffix MEASURES is one fact, asked once
             // (`UnitSym::measures`) rather than re-laddered here: the
             // literal door re-derives it from the same unit to check
@@ -1072,9 +1072,9 @@ impl Parser<'_> {
             // reaches it without a lookup.
             let dim = UnitSym::from_def(&unit).measures();
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
-            // U8b): canonical value from the one multiply, display
+            // U8b): canonical value from the unit's one door, display
             // unit stored as presentation metadata for the formatter.
-            return Formula::literal_with_unit(value * unit.factor(), dim, unit)
+            return Formula::literal_with_unit(unit.canonical(&number), dim, unit)
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {
