@@ -191,9 +191,10 @@ failure-output = "immediate-final"
 # coarse delta: 1.033 s and 1.021 s against the 1.0 s bar on PR 7208's
 # hosted run. Five local debug runs on that branch read 1.09-1.26 s and
 # 0.29-0.37 s; earlier heads' full-suite logs, 3c's (since merged) among
-# them, read 1.0-1.4 s and 0.35-0.70 s, so both sit at the bar:
+# them, read 1.0-1.4 s and 0.35-0.70 s, so both sit at the bar (the
+# second since renamed by main's 401f96a4d1, `folds` to `meshes`):
 #    1.03 s  sweep::all snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds
-#    1.02 s  sweep::all tilted_sphere_pair::a_circle_near_the_pole_folds_at_a_coarse_delta
+#    1.02 s  sweep::all tilted_sphere_pair::a_circle_near_the_pole_meshes_at_a_coarse_delta
 # The chamfer over rounded outlines, its strips and frustums meeting at
 # junctions: closed rims turned, moved and drawn in arc pieces, pockets,
 # open runs and the plate at the certified scalar, the adversarial rows,
@@ -483,7 +484,7 @@ not (
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
   (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
-  (binary_id(sweep::all) & (test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds) | test(=tilted_sphere_pair::a_circle_near_the_pole_folds_at_a_coarse_delta)))
+  (binary_id(sweep::all) & (test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds) | test(=tilted_sphere_pair::a_circle_near_the_pole_meshes_at_a_coarse_delta)))
 )
 """
 
