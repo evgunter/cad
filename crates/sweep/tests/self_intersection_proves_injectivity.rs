@@ -1793,6 +1793,27 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
+/// **A two-arc sphere's cavity holds across its poles**: a sphere in
+/// four faces, two lunes over each side of a latitude seam
+/// (`common::latitude_seam::two_arc_sphere`), and the axial door's
+/// cavity of it. Each pair of lunes shares both halves of a great
+/// circle and a pole vertex, and each meridian's pcurve ends an ulp
+/// short of the north pole's latitude. A lune holds its pole vertex, so
+/// its extent reaches the latitude, and a cell at the pole is read
+/// through the pole's collapsed side. Red, out of pairs on the two
+/// northern lunes, where the cell is clipped to the stored extent. Built
+/// at `f64` alone, as the drum's cavity above is: the fixture and the
+/// door's cavity are `f64` bodies.
+#[test]
+fn a_two_arc_spheres_cavity_holds_across_its_poles() {
+    use crate::common::latitude_seam::{door_cavity, two_arc_sphere};
+    let cavity = door_cavity(&two_arc_sphere(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the two-arc sphere's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    assert!(report.receipt.splits < 1_000, "{:?}", report.receipt);
+}
+
 /// **The drum the cavity above is cut from refuses, out of depth**: its
 /// half-annulus cells a rounding off the disc's half-circle are read by no
 /// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
@@ -3132,4 +3153,501 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
+}
+
+/// **A unit cone whose apex is off the origin holds**: the triangle
+/// `(0, 2.7) (0, 1.7) (1, 2.7)` revolved a full turn about `y`, its apex
+/// at `y = 1.7`. Each half-cone's stored extent starts at `v =
+/// 2.2e-16`, a rounding above the apex. A half-cone holds the apex
+/// vertex, so its extent reaches `v = 0` and the shared apex cell is
+/// read through the apex's collapsed side. Red, out of pairs on the two
+/// half-cones, where the cell is clipped to the stored extent; the same
+/// triangle at `y = 0.3` stores `0`.
+#[test]
+fn a_unit_cone_with_its_apex_off_the_origin_holds() {
+    for report in holds_at_both(
+        "the cone with its apex at y = 1.7",
+        cone_tip(1.7, 1.0, 1.0, false),
+        cone_tip(1.7, 1.0, 1.0, false),
+    ) {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+        assert!(report.receipt.splits < 400, "{:?}", report.receipt);
+    }
+}
+
+/// A cone tip revolved a full turn about `y`: the triangle with its
+/// apex on the axis at `y0 + h` (`up`) or at `y0`, radius `r`.
+fn cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Body<T> {
+    try_cone_tip(y0, r, h, up).unwrap()
+}
+
+/// [`cone_tip`], or the builder's refusal.
+fn try_cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Result<Body<T>, String> {
+    let pts = if up {
+        [(0.0, y0), (r, y0), (0.0, y0 + h)]
+    } else {
+        [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+    };
+    let profile = validated::<T>(&[ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))]);
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .map(|b| b.body.into_body())
+        .map_err(|e| format!("{e:?}"))
+}
+
+/// A rigid turn about a generic axis and a translation, as a sketch
+/// plane: three frames, and the plain one at `0`.
+fn turned_plane(k: usize) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    if k == 0 {
+        return SketchPlane::xy();
+    }
+    let (ax, th, off) = [
+        ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
+        ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
+        ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
+    ][k - 1];
+    let a = Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+        tol(),
+    ))
+}
+
+/// A profile of straight and bulged segments on `plane`, revolved a
+/// full turn about its `y`, at `f64`.
+fn revolved_on(plane: SketchPlane<f64>, verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+    let profile = Profile::new(plane, vec![profile::test_support::bulge_loop(verts)])
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// **Cones a hundred units off the origin and fifty long hold**, where
+/// a meridian's image ends an ulp of its own far end off the apex:
+/// - the triangle `r = 20`, `h = 50` with its apex down at `y = 101.3`,
+///   at both scalars where its `Interval` twin builds (at ε = 1e-12 the
+///   revolve refuses it, and the row says so). Its half-cones store `v`
+///   from `7.1e-15`, an ulp of 53.85;
+/// - the same shape with its apex up at `y = 50`, its axial door's
+///   cavity at `t = 1` (`f64`: the door's fixture is);
+/// - the triangle `r = 0.37`, `h = 2.3` with its apex up at `y = 103.6`,
+///   its cavity at `t = 0.0185`, whose half-cones store `v` to
+///   `-1.4e-14`.
+///
+/// Each stored end is at the apex by the band, so the extent reaches
+/// `v = 0`, and each meridian ends at the apex's vertex, so it runs on
+/// to the apex's side. Red, `Uncertified` on the departure arm, where
+/// the extent moves only across `chart_slack`, or the meridian must
+/// cover its side to within the cover's own `few_ulps`.
+#[test]
+fn cones_far_from_the_origin_hold_across_their_apexes() {
+    use crate::common::latitude_seam::door_cavity;
+    let long = "the long cone with its apex at y = 101.3";
+    let reports = match try_cone_tip::<Interval>(101.3, 20.0, 50.0, false) {
+        Ok(twin) => holds_at_both(long, cone_tip(101.3, 20.0, 50.0, false), twin).to_vec(),
+        // At ε = 1e-12 the `Interval` revolve refuses its own pcurve
+        // (`work/pcert/an-interval-revolve-of-a-long-cone-a-hundred-units-out-escalates-its-pcurve-envelope-at-1e-12.md`).
+        Err(refusal) => {
+            println!("SKIPPED: {long} is asked at f64 alone, its Interval twin unbuilt: {refusal}");
+            let body = cone_tip::<f64>(101.3, 20.0, 50.0, false);
+            let report = injective(&body, None, BUDGET);
+            assert_holds(long, &report, &body);
+            vec![report]
+        }
+    };
+    for report in reports {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+        assert!(report.receipt.splits < 500, "{:?}", report.receipt);
+    }
+    for (what, y0, r, h, t, ceiling) in [
+        ("the long cone's cavity", 0.0, 20.0, 50.0, 1.0, 500),
+        (
+            "the cone's cavity at y = 101.3",
+            101.3,
+            0.37,
+            2.3,
+            0.0185,
+            700,
+        ),
+    ] {
+        let cavity = door_cavity(&cone_tip(y0, r, h, true), t);
+        let report = injective(&cavity, None, BUDGET);
+        assert_holds(what, &report, &cavity);
+        assert_eq!(report.receipt.refused, 0, "{what}: {:?}", report.receipt);
+        assert!(
+            report.receipt.splits < ceiling,
+            "{what}: {:?}",
+            report.receipt
+        );
+    }
+}
+
+/// **A ball a hundred units off the origin holds at both scalars, and
+/// cones in turned frames hold**: the unit ball about `y = 101.3`, and
+/// the unit cone tip on the second and third of three sketch planes
+/// turned about a generic axis and moved ([`turned_plane`]), at `f64`. A
+/// sphere's poles and a cone's apex are read off the face's own vertices
+/// wherever the body is. The unit cone on the first turned plane is not
+/// here: it holds at the default ε and at 1e-12 after 10,507 splits and
+/// refuses at 1e-6, on
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`.
+#[test]
+fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
+    fn ball<T: Scalar>(y0: f64) -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![p(y0 - 1.0, 1.0), p(y0 + 1.0, 0.0)],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    for report in holds_at_both("the ball about y = 101.3", ball(101.3), ball(101.3)) {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    }
+    for k in 2..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let cone = revolved_on(
+            turned_plane(k),
+            vec![
+                (at(0.0, 0.0), 0.0),
+                (at(1.0, 0.0), 0.0),
+                (at(0.0, 1.0), 0.0),
+            ],
+        );
+        let report = injective(&cone, None, BUDGET);
+        assert_holds(&format!("the cone in frame {k}"), &report, &cone);
+        assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
+    }
+}
+
+/// **A ball in a turned frame refuses on the departure arm at its
+/// pole**: the unit ball on each of the three turned sketch planes. Its
+/// poles are placed, each half-band read through the corner of its
+/// meridian and the pole's side, and `planes_through` then lists each of
+/// the two seam meridians in a plane of its own: their stored frames
+/// are not one value in a turned frame
+/// (`work/embed/a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval.md`).
+/// Red when a turned ball holds, and that row's reading has landed.
+#[test]
+fn a_ball_in_a_turned_frame_refuses_departure_at_its_pole() {
+    for k in 1..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
+        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
+        let report = injective(&ball, None, BUDGET);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "frame {k}: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+    }
+}
+
+/// **A slender cone in a turned frame refuses on the departure arm at
+/// its apex**: the triangle `r = 0.37`, `h = 2.3` with its apex up at
+/// `y = 103.6`, on the second turned sketch plane. Its apex is placed
+/// and its meridians run on to it; the two half-cones, which share both
+/// rulings, are then not parted at the apex
+/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_slender_cone_in_a_turned_frame_refuses_departure_at_its_apex() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let cone = revolved_on(
+        turned_plane(2),
+        vec![
+            (at(0.0, 101.3), 0.0),
+            (at(0.37, 101.3), 0.0),
+            (at(0.0, 103.6), 0.0),
+        ],
+    );
+    let report = injective(&cone, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        ),
+        "{:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
+/// **Review sweep (PR 7115): cone tips revolved off the origin, and their
+/// door cavities**, f64. The triangle with its apex on the axis at the
+/// top (`up`: `(0, y0) (r, y0) (0, y0 + h)`) or the bottom (`(0, y0 + h)
+/// (0, y0) (r, y0 + h)`), revolved a full turn about `y`; each body, and
+/// its `door_cavity` at `t = 0.05·min(r, h)`, asked `injective`. It prints
+/// one line per body and asserts nothing.
+///
+/// At `1bf4de792` (PR 7115's head), 120 asked, every door took its cut.
+/// Twelve refuse `Budget(Pairs)` (discharged / refused / splits); the
+/// other 108 hold with `refused == 0`:
+/// - `y0 = 0`, `(20, 50)`, apex up, cavity: 41,452 / 24,084 / 65,530
+/// - `y0 = 0`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 0.3`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 1.7`, `(1, 1)`, apex down, body: 41,321 / 24,215 / 65,530
+/// - `y0 = 1.7`, `(0.37, 2.3)`, apex down, cavity: 41,472 / 24,064 / 65,530
+/// - `y0 = 1.7`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = -2.9`, `(1, 1)`, apex down, cavity: 41,436 / 24,100 / 65,530
+/// - `y0 = -2.9`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 13.1`, `(0.013, 0.9)`, apex down, body: 42,167 / 23,369 / 65,530
+/// - `y0 = 101.3`, `(0.37, 2.3)`, apex up, cavity: 41,623 / 23,913 / 65,530
+/// - `y0 = 101.3`, `(20, 50)`, apex down, body: 41,612 / 23,924 / 65,530
+/// - `y0 = 101.3`, `(0.013, 0.9)`, apex down, body: 42,033 / 23,503 / 65,530
+///
+/// On PR 7115's final head all 120 hold at `refused == 0`: the apex is
+/// read in `face_extent` by the band, and a meridian that ends at the
+/// apex's vertex runs on to the apex's side. Three of the twelve are
+/// pinned by `cones_far_from_the_origin_hold_across_their_apexes`.
+///
+/// Run with `--run-ignored only --no-capture`, about 3 min at the dev
+/// profile.
+#[test]
+#[ignore = "review sweep: prints, asserts nothing"]
+fn review_sweep_cone_tips_off_the_origin() {
+    use crate::common::latitude_seam::door_cavity;
+    let mut n = 0;
+    for &y0 in &[0.0, 0.3, 1.7, -2.9, 13.1, 101.3] {
+        for &(r, h) in &[
+            (1.0, 1.0),
+            (0.37, 2.3),
+            (3.1, 0.21),
+            (20.0, 50.0),
+            (0.013, 0.9),
+        ] {
+            for up in [true, false] {
+                let pts = if up {
+                    [(0.0, y0), (r, y0), (0.0, y0 + h)]
+                } else {
+                    [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+                };
+                let profile =
+                    validated::<f64>(&[ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))]);
+                let Ok(built) = revolve(&profile, axis_y(), Revolution::Full, tol()) else {
+                    println!("SWEEP y0={y0} r={r} h={h} up={up}: revolve refused");
+                    continue;
+                };
+                let body = built.body.into_body();
+                let rep = injective(&body, None, BUDGET);
+                println!(
+                    "SWEEP y0={y0} r={r} h={h} up={up} body: {:?} {:?}",
+                    rep.verdict, rep.receipt
+                );
+                n += 1;
+                let t = 0.05 * r.min(h);
+                match std::panic::catch_unwind(|| door_cavity(&body, t)) {
+                    Ok(cavity) => {
+                        let rep = injective(&cavity, None, BUDGET);
+                        println!(
+                            "SWEEP y0={y0} r={r} h={h} up={up} cavity: {:?} {:?}",
+                            rep.verdict, rep.receipt
+                        );
+                        n += 1;
+                    }
+                    Err(_) => println!("SWEEP y0={y0} r={r} h={h} up={up} cavity: door panicked"),
+                }
+            }
+        }
+    }
+    println!("SWEEP asked {n}");
+}
+
+/// **Review sweep, delta of PR 7115**: shapes the first sweep did not
+/// vary. It prints one line per case and asserts nothing. On the PR's
+/// final head eight turned-frame cones refuse, traced on
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`;
+/// every other case that builds holds.
+#[test]
+#[ignore = "review sweep: prints, asserts nothing"]
+fn review_sweep_delta_shapes() {
+    use crate::common::latitude_seam::door_cavity;
+    let ask = |what: &str, body: Body<f64>, t: f64| {
+        let rep = injective(&body, None, BUDGET);
+        println!("DELTA {what} body: {:?} {:?}", rep.verdict, rep.receipt);
+        match std::panic::catch_unwind(|| door_cavity(&body, t)) {
+            Ok(c) => {
+                let rep = injective(&c, None, BUDGET);
+                println!("DELTA {what} cavity: {:?} {:?}", rep.verdict, rep.receipt);
+            }
+            Err(_) => println!("DELTA {what} cavity: door panicked"),
+        }
+    };
+    let build = |plane: SketchPlane<f64>, verts: Vec<(Point2<f64>, f64)>| {
+        let lp = profile::test_support::bulge_loop(verts);
+        let profile = Profile::new(plane, vec![lp])
+            .validate(tol())
+            .map_err(|e| format!("{e:?}"))?;
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .map(|b| b.body.into_body())
+            .map_err(|e| format!("{e:?}"))
+    };
+    let poly = |pts: &[(f64, f64)]| {
+        pts.iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect::<Vec<_>>()
+    };
+    let turned = turned_plane;
+    for k in 0..4 {
+        for &(y0, r, h, up) in &[
+            (0.0, 1.0, 1.0, true),
+            (1.7, 1.0, 1.0, false),
+            (0.3, 0.013, 0.9, false),
+            (0.0, 20.0, 50.0, true),
+            (101.3, 0.37, 2.3, true),
+        ] {
+            let pts = if up {
+                vec![(0.0, y0), (r, y0), (0.0, y0 + h)]
+            } else {
+                vec![(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+            };
+            match build(turned(k), poly(&pts)) {
+                Ok(b) => ask(
+                    &format!("turned{k} cone y0={y0} r={r} h={h} up={up}"),
+                    b,
+                    0.05 * r.min(h),
+                ),
+                Err(e) => {
+                    println!("DELTA turned{k} cone y0={y0} r={r} h={h} up={up}: build refused {e}")
+                }
+            }
+        }
+    }
+    // Truncated tips: the small end `d` off the axis.
+    for &y0 in &[0.0, 1.7] {
+        for &d in &[1e-3, 1e-6, 1e-8, 1e-9, 3e-10, 1e-10, 1e-11] {
+            let pts = [(0.0, y0), (1.0, y0), (d, y0 + 1.0 - d), (0.0, y0 + 1.0 - d)];
+            match build(SketchPlane::xy(), poly(&pts)) {
+                Ok(b) => ask(&format!("frustum y0={y0} d={d:e}"), b, 0.05),
+                Err(e) => println!(
+                    "DELTA frustum y0={y0} d={d:e}: build refused {}",
+                    &e[..e.len().min(160)]
+                ),
+            }
+        }
+    }
+    // A double cone, both nappes through one apex.
+    match build(
+        SketchPlane::xy(),
+        poly(&[(0.0, -1.0), (1.0, -1.0), (0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+    ) {
+        Ok(b) => ask("double cone", b, 0.05),
+        Err(e) => println!(
+            "DELTA double cone: build refused {}",
+            &e[..e.len().min(160)]
+        ),
+    }
+    // An ice-cream cone: apex at the bottom, a quarter circle cap whose
+    // pole is a vertex, in plain and turned frames, at off-origin heights.
+    for k in 0..3 {
+        for &(y0, r, h) in &[
+            (0.0, 1.0, 1.0),
+            (1.7, 1.0, 1.0),
+            (-2.9, 0.37, 2.3),
+            (13.1, 3.1, 0.21),
+        ] {
+            let (a, b, c) = (
+                Point2::new(r, y0 + h),
+                Point2::new(0.0, y0 + h + r),
+                Point2::new(0.0, y0 + h),
+            );
+            let verts = vec![(Point2::new(0.0, y0), 0.0), (a, bulge(a, b, c)), (b, 0.0)];
+            match build(turned(k), verts) {
+                Ok(body) => ask(
+                    &format!("icecream turned{k} y0={y0} r={r} h={h}"),
+                    body,
+                    0.05 * r.min(h),
+                ),
+                Err(e) => println!(
+                    "DELTA icecream turned{k} y0={y0}: build refused {}",
+                    &e[..e.len().min(160)]
+                ),
+            }
+        }
+    }
+    // A hemisphere whose arc ends `d` off the axis, closed by a tiny cap.
+    for &d in &[1e-6, 1e-8, 1e-9, 5e-10, 1e-10, 1e-11, 1e-12] {
+        let top = (1.0f64 - d * d).sqrt();
+        let (a, b, c) = (
+            Point2::new(1.0, 0.0),
+            Point2::new(d, top),
+            Point2::new(0.0, 0.0),
+        );
+        let verts = vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (a, bulge(a, b, c)),
+            (b, 0.0),
+            (Point2::new(0.0, top), 0.0),
+        ];
+        match build(SketchPlane::xy(), verts) {
+            Ok(body) => ask(&format!("near-pole dome d={d:e}"), body, 0.05),
+            Err(e) => println!(
+                "DELTA near-pole dome d={d:e}: build refused {}",
+                &e[..e.len().min(200)]
+            ),
+        }
+    }
+}
+
+/// Review probe: the refusers of the delta sweeps, one line each.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_delta_refusers() {
+    use crate::common::latitude_seam::door_cavity;
+    let turned = turned_plane;
+    for &(k, y0, r, h, up, cav) in &[
+        (0, 0.0, 20.0, 50.0, true, true),
+        (0, 101.3, 0.37, 2.3, true, true),
+        (0, 101.3, 20.0, 50.0, false, false),
+        (1, 0.3, 0.013, 0.9, false, true),
+        (1, 0.0, 20.0, 50.0, true, false),
+        (2, 0.3, 0.013, 0.9, false, true),
+        (2, 101.3, 0.37, 2.3, true, false),
+        (2, 101.3, 0.37, 2.3, true, true),
+        (3, 0.0, 20.0, 50.0, true, true),
+    ] {
+        if std::env::var("ONLY").is_ok_and(|o| o != format!("{k}/{y0}/{r}/{cav}")) {
+            continue;
+        }
+        let pts = if up {
+            [(0.0, y0), (r, y0), (0.0, y0 + h)]
+        } else {
+            [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+        };
+        let lp = ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)));
+        let profile = Profile::new(turned(k), vec![lp]).validate(tol()).unwrap();
+        let mut body = revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body();
+        if cav {
+            body = door_cavity(&body, 0.05 * r.min(h));
+        }
+        let rep = injective(&body, None, BUDGET);
+        let rc = rep.receipt;
+        println!(
+            "REF k={k} y0={y0} r={r} h={h} up={up} cav={cav}: {:?} {}/{}/{}",
+            rep.verdict, rc.discharged, rc.refused, rc.splits
+        );
+    }
 }

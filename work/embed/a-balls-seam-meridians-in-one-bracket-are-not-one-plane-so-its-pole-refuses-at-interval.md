@@ -50,3 +50,40 @@ One of these:
   (Ev, PR 6014) builds a ball as one band with one meridian. Then the
   second meridian, and with it this row, may go. Re-measure the snowman
   at `Interval` when that lands.
+
+## At `f64` too, in a turned frame, since the carrier frames landed (EMBED, lane pole, PR 7115, 2026-11-21)
+
+Measured by lane pole while merging main into PR 7115.
+
+The unit ball revolved on a sketch plane turned about a generic axis
+and moved (three such planes, `turned_plane` in
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`), f64:
+- on main `dc7059c445` with PR 7115's reading of the poles, all three
+  held, at 254, 295 and 291 splits;
+- on main `94b6b284e`, after the carrier-frames merge (`ec8749552`
+  among its commits), all three refuse
+  `Uncertified { 1v1, 2v1, Edge(1v1), Departure }`, at
+  642 / 12 / 651, 589 / 8 / 594 and 611 / 10 / 618
+  (discharged / refused / splits), the same at ε 1e-6 and 1e-12. The
+  plain-frame ball holds on both, at 227 splits.
+
+**The exit** (traced on the first plane): the poles are placed and
+both half-bands are presented by the corner of a meridian and the
+pole's side. `departure` reaches its last `split` with
+`planes_through` returning two planes, each listing one meridian
+(`on_edges = 1`), where the plain frame gets one plane listing both;
+each plane signs one half-band and reads no sign on the other. That is
+this row's `one_plane` reading failing on two stored frames that are no
+longer one value. Which accessor or constructor of the new frames
+breaks the value identity is not traced.
+
+**Not PR 7115's:** `shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively`,
+asked through the f64 cavity switch, refuses
+`Uncertified { 1v1, 5v1, Edge(1v1), Departure }` at
+5,896 / 12 / 5,859 on main `94b6b284e` with main's own `injective.rs`,
+and shelled on `dc7059c445`. Its exit is not traced; it is a sphere
+pair at the same arm.
+
+Pinned as a refusal by
+`a_ball_in_a_turned_frame_refuses_departure_at_its_pole`.
+
