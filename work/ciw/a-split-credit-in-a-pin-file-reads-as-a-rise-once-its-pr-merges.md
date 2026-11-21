@@ -4,7 +4,7 @@ kind: issue
 title: A pin file's '# from OLD_PATH' split credit passes on the PR that adds it and reds every later PR once it merges
 status: open
 opened: 2026-11-21
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -34,4 +34,4 @@ swept at leisure; or the gate drops the suffix mechanically. Whichever,
 the gate's selftest wants a case for "split, then judged against a base
 that already has the split".
 
-P3 by `work/README.md` Priority (tooling that prevents a red main); E.
+P4 by `work/README.md` Priority (tooling whose payoff is CI going red less often); E.
