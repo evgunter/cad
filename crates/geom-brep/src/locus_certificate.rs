@@ -6,7 +6,7 @@
 //! The edge certificate reads two kinds of data. Its locus part (the
 //! carrier over its interval lies within the band of both surfaces, and
 //! is the only branch of their section there) reads the carrier, the
-//! interval, the unordered surface pair and the band, and nothing else.
+//! interval, the surface pair and the band, and nothing else.
 //! Its placement part (the ends on their vertices, the witness at
 //! mid-parameter, the wedge's reach, the description) reads the
 //! topology around the edge. A door that restates, copies, rebases or
@@ -37,11 +37,18 @@
 //! the comparison alone there. The pin's derivation runs detached from
 //! the decision record (`k_stats::detached`, `sym::aside`), so a run
 //! with it and one without record the same decisions.
+//!
+//! **A read records what deriving would.** A certificate keeps the
+//! decisions its derivation recorded, and a read replays them
+//! ([`k_stats::replay`]), so every lane's verdict and escalation logs
+//! are the same whether a door read or derived: the subdivision driver
+//! certifies a leaf on that equality.
 
 use std::sync::Arc;
 
 use geom::{Curve3, Surface};
 use geom_core::Real;
+use geom_core::k_stats::{self, Replayable};
 use geom_core::predicate::Band;
 
 /// C2's limbs 2–3 over one support (module docs). Cheap to clone: the
@@ -58,26 +65,39 @@ struct Support<T: Real> {
     params: (T, T),
     pair: [Surface<T>; 2],
     band: Band,
+    /// The decisions the limbs recorded, which a read replays.
+    recorded: Replayable,
 }
 
 impl<T: Real> LocusCertificate<T> {
-    /// The certificate of the limbs that just returned on this support.
+    /// The certificate of the limbs that just returned on this support,
+    /// with the decisions they `recorded`.
     pub(crate) fn derived(
         carrier: &Curve3<T>,
         params: (T, T),
         pair: [&Surface<T>; 2],
         band: Band,
+        recorded: Replayable,
     ) -> Self {
         Self(Arc::new(Support {
             carrier: carrier.clone(),
             params,
             pair: pair.map(Surface::clone),
             band,
+            recorded,
         }))
     }
 
+    /// The decisions its derivation recorded.
+    pub(crate) fn recorded(&self) -> &Replayable {
+        &self.0.recorded
+    }
+
     /// Whether this certificate's support is `carrier` over `params`
-    /// between `pair`, in either order, at `band`.
+    /// between `pair`, in its order, at `band`. The order is part of the
+    /// support: the limbs decide operand by operand in the order asked,
+    /// so a certificate derived over the other order records its
+    /// decisions in another order, and is no read of this one.
     #[must_use]
     pub fn reads(
         &self,
@@ -91,13 +111,15 @@ impl<T: Real> LocusCertificate<T> {
             params: (p0, p1),
             pair: [h1, h2],
             band: held_band,
+            recorded: _,
         } = &*self.0;
         let surface = |a: &Surface<T>, b: &Surface<T>| a.same_content_by(b, T::same_value);
         *held_band == band
             && p0.same_value(params.0)
             && p1.same_value(params.1)
             && held.same_content_by(carrier, T::same_value)
-            && ((surface(h1, s1) && surface(h2, s2)) || (surface(h1, s2) && surface(h2, s1)))
+            && surface(h1, s1)
+            && surface(h2, s2)
     }
 }
 
@@ -143,10 +165,40 @@ pub mod counts {
     }
 }
 
-/// **A certificate read by its support, or derived** (module docs): the
-/// held one where a reader's comparison found one, `derive`'s otherwise.
-/// In a test build a held one is derived again, detached from the
-/// decision record, and must `agree`.
+/// What [`read_or_derive`] gave: a held certificate it read, or one it
+/// derived with the record its derivation left in the decision frame.
+pub(crate) enum Got<R> {
+    /// The held certificate, its record replayed.
+    Read(R),
+    /// A derivation's certificate and its record, for the caller to keep
+    /// beside it.
+    Derived(R, Replayable),
+}
+
+impl<R> Got<R> {
+    /// The certificate, read or derived.
+    pub(crate) fn certificate(self) -> R {
+        match self {
+            Self::Read(r) | Self::Derived(r, _) => r,
+        }
+    }
+}
+
+/// **A certificate read by its support, or derived** (module docs).
+///
+/// Where nothing is `held`, `derive` runs under its own decision frame
+/// ([`k_stats::detached`]), whose record is spliced where the caller's
+/// decisions go and handed back with the certificate. Where a reader's
+/// comparison found one, the held certificate is returned and its
+/// derivation's record replayed in the derivation's place
+/// ([`k_stats::replay`]) as this scope would record it
+/// ([`Replayable::here`]), so the frame holds exactly what deriving it
+/// would have left (Ev's ruling on PR 7182: a read returns what deriving
+/// would, and the decisions a derivation records are part of that).
+///
+/// In a test build a held certificate is derived again, detached from
+/// the decision record, and must `agree` with it and record the same
+/// decisions.
 ///
 /// # Errors
 ///
@@ -154,36 +206,54 @@ pub mod counts {
 ///
 /// # Panics
 ///
-/// In a test build, where the certificate derived again refuses or does
-/// not agree with the held one: a door read a certificate its support
-/// does not give.
+/// In a test build, where the certificate derived again refuses, does
+/// not agree with the held one, or records other decisions: a door read
+/// a certificate its support does not give.
 #[cfg_attr(
     not(any(test, feature = "read-pins-testing")),
     allow(unused_variables, clippy::needless_pass_by_value)
 )]
 pub(crate) fn read_or_derive<R, E>(
     kind: Certified,
-    held: Option<R>,
+    held: Option<(R, &Replayable)>,
     derive: impl FnOnce() -> Result<R, E>,
     agree: impl FnOnce(&R, &R) -> bool,
-) -> Result<R, E> {
+) -> Result<Got<R>, E> {
+    // A record that does not state here what its derivation would (one
+    // taken in a check scope, read in a choice scope) is no read.
+    let held = held.and_then(|(held, record)| record.here().map(|here| (held, here)));
     #[cfg(any(test, feature = "read-pins-testing"))]
     counts::tally(kind, held.is_some());
-    let Some(held) = held else {
-        return derive();
+    let Some((held, recorded)) = held else {
+        let (out, record) = k_stats::recorded(derive);
+        return out.map(|derived| Got::Derived(derived, record));
     };
     #[cfg(any(test, feature = "read-pins-testing"))]
     {
-        let ((again, recording), decisions) =
-            geom_core::sym::aside(|| geom_core::k_stats::detached(derive));
-        drop(recording);
+        let ((again, recording), decisions) = geom_core::sym::aside(|| k_stats::detached(derive));
         decisions.discard();
+        let again_record = recording.recorded();
+        assert!(
+            *again_record == recorded,
+            "a certificate read by its support records other decisions than one derived again: \
+             {} verdicts and {} escalations held, {} and {} derived; first verdicts apart: {:?}",
+            recorded.verdicts.len(),
+            recorded.escalations.len(),
+            again_record.verdicts.len(),
+            again_record.escalations.len(),
+            recorded
+                .verdicts
+                .iter()
+                .zip(&again_record.verdicts)
+                .find(|(a, b)| a != b)
+        );
         assert!(
             again.is_ok_and(|again| agree(&held, &again)),
             "a certificate read by its support differs from the one derived again"
         );
     }
-    Ok(held)
+    k_stats::replay(&recorded);
+    Ok(Got::Read(held))
 }
 
 #[cfg(test)]
@@ -227,25 +297,26 @@ mod tests {
     }
 
     /// **A certificate reads exactly its own support**: the same
-    /// support reads, the pair in either order reads, and a spline
+    /// support reads, and a spline
     /// carrier read through another allocation of the same data reads;
     /// each input changed alone misses — the carrier's data, a closed
     /// form's radius, an end of the interval a ulp off, a surface's
-    /// scalar, the band. Red under a comparison that leaves out an input
-    /// the limbs read, or one that takes a twin allocation for another
-    /// curve.
+    /// scalar, the band, and the pair in the other order (whose limbs
+    /// decide in the other order). Red under a comparison that leaves out
+    /// an input the limbs read, or one that takes a twin allocation for
+    /// another curve.
     #[test]
     fn a_certificate_reads_its_own_support_and_misses_each_changed_input() {
         let (p, c) = (plane(0.0), cylinder(1.0));
         let params = (0.0, 1.0);
         let spline = net();
-        let held = LocusCertificate::derived(&spline, params, [&p, &c], band());
+        let held = LocusCertificate::derived(&spline, params, [&p, &c], band(), Default::default());
         assert!(
             held.reads(&spline, params, [&p, &c], band()),
             "its own support"
         );
         assert!(
-            held.reads(&spline, params, [&c, &p], band()),
+            !held.reads(&spline, params, [&c, &p], band()),
             "the pair in the other order"
         );
         let twin = net();
@@ -275,7 +346,8 @@ mod tests {
             "the band"
         );
         let circle = |r| Curve3::circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x());
-        let round = LocusCertificate::derived(&circle(1.0), params, [&p, &c], band());
+        let round =
+            LocusCertificate::derived(&circle(1.0), params, [&p, &c], band(), Default::default());
         assert!(
             round.reads(&circle(1.0), params, [&p, &c], band()),
             "a closed form's own"
@@ -306,12 +378,14 @@ mod tests {
         let (read, _) = geom_core::sym::with_session(budget, || {
             let (carrier, p, c) = (lift(&net()), lift_s(&plane(0.0)), lift_s(&cylinder(1.0)));
             let params = (Sym::from_f64(0.0), Sym::from_f64(1.0));
-            let held = LocusCertificate::derived(&carrier, params, [&p, &c], band());
+            let held =
+                LocusCertificate::derived(&carrier, params, [&p, &c], band(), Default::default());
             held.reads(&carrier, params, [&p, &c], band())
         });
         assert!(!read, "Sym reads its own support");
         let (p, c, carrier) = (plane(0.0), cylinder(1.0), net());
-        let held = LocusCertificate::derived(&carrier, (0.0, 1.0), [&p, &c], band());
+        let held =
+            LocusCertificate::derived(&carrier, (0.0, 1.0), [&p, &c], band(), Default::default());
         assert!(
             held.reads(&carrier, (0.0, 1.0), [&p, &c], band()),
             "f64 reads its own"

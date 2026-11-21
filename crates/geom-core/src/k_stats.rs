@@ -277,10 +277,11 @@ thread_local! {
 /// one predicate is a choice where a reader builds from its sign and a
 /// check where a validator reads it off a body already built
 /// (`geom_brep::DIHEDRAL_SIGN` is both).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Role {
     /// Another sign can change what the node builds or names. The
     /// default: a decision is a choice unless its caller says otherwise.
+    #[default]
     Choice,
     /// Another sign can only make the node refuse: a reading taken off a
     /// body already built (the at-rest doors), or an instrument whose
@@ -1674,6 +1675,83 @@ pub fn relog(recorded: &Recorded) {
 
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
 /// only in whether the escalation channel travels.
+/// **A derivation's record, held with the role it was taken in**, for a
+/// certificate that stands for that derivation and replays it in its
+/// place ([`replay`]). A verdict's and a mark's role is the scope's it
+/// was taken in ([`checking`]), not the derivation's own, so a record is
+/// a derivation's in another scope only where the roles agree.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Replayable {
+    recorded: Recorded,
+    taken_as: Role,
+}
+
+/// `work`, run under its own frame, its record spliced where this
+/// thread's decisions go, and handed back with the role it was taken in
+/// for a certificate to keep and [`replay`] in place of deriving again.
+pub fn recorded<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+    let taken_as = current_role();
+    let (out, recording) = detached(work);
+    let record = Replayable {
+        recorded: recording.recorded().clone(),
+        taken_as,
+    };
+    splice(recording);
+    (out, record)
+}
+
+impl Replayable {
+    /// **This record as the derivation it stands for would record it
+    /// here, where that is exact**: verbatim in the role it was taken
+    /// in, and every verdict and mark a [`Role::Check`] inside a check
+    /// scope, which records every decision taken in it as a check.
+    /// `None` in a choice scope for a record taken in a check scope,
+    /// whose own checks a choice scope would not record as checks: a
+    /// reader there derives again.
+    #[must_use]
+    pub fn here(&self) -> Option<Recorded> {
+        match (current_role(), self.taken_as) {
+            (now, then) if now == then => Some(self.recorded.clone()),
+            (Role::Check, Role::Choice) => {
+                let mut checks = self.recorded.clone();
+                for v in &mut checks.verdicts {
+                    v.role = Role::Check;
+                }
+                for m in &mut checks.marks {
+                    m.role = Role::Check;
+                }
+                Some(checks)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// **Replays a certificate's record into this thread's open frame** —
+/// the verdicts, escalations and marks the one derivation the
+/// certificate stands for recorded, as [`Replayable::here`] states them
+/// in this scope.
+///
+/// Not the double splice [`Detached`] guards against. A splice moves a
+/// recording made on another frame into this one, once, so taking it
+/// twice would record one derivation twice. A replay records, in place
+/// of a derivation that does not run, the decisions that derivation
+/// would record: a certificate read by its support replays its record
+/// once per read, exactly where deriving it would have recorded, so the
+/// frame holds what a derivation would have left there in every lane.
+/// The sample sink is not replayed: the recording scalar (`Probe`) reads
+/// no certificate, so a replay never stands for a derivation that would
+/// have sampled.
+///
+/// No open frame, and the record is dropped, as a derivation's would be.
+pub fn replay(recorded: &Recorded) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.extend(recorded);
+        }
+    });
+}
+
 fn splice_channels(recording: Detached, escalations: bool) {
     let Detached {
         mut recorded,

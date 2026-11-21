@@ -5646,29 +5646,46 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             surfs: [(_, surf1), (_, surf2)],
             ..
         } => {
+            // The limbs read the pair in one order whatever order a door
+            // names it in, so that every door asks one question and a
+            // certificate's support (its order included: the limbs
+            // decide operand by operand) is the same at each: by kind,
+            // and as named between two of one kind.
+            let (surf1, surf2) = if surf2.kind() < surf1.kind() {
+                (surf2, surf1)
+            } else {
+                (surf1, surf2)
+            };
             let pair = [surf1, surf2];
             let held = kept
                 .iter()
                 .find(|c| c.reads(stored, (t0, t1), pair, band))
-                .map(|&c| c.clone());
+                .map(|&c| (c.clone(), c.recorded()));
             let derive = || {
                 lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
-                    .map(|()| LocusCertificate::derived(stored, (t0, t1), pair, band))
+                    .map(|()| {
+                        LocusCertificate::derived(stored, (t0, t1), pair, band, Default::default())
+                    })
             };
-            // The limbs return no number, so a certificate derived again
-            // agrees by holding on its support.
+            // The limbs return no number: a certificate derived again
+            // agrees by holding on the same support (and, the pin's other
+            // half, by recording the same decisions).
             let agree = |_: &LocusCertificate<T>, again: &LocusCertificate<T>| {
                 again.reads(stored, (t0, t1), pair, band)
             };
-            Some(
-                crate::locus_certificate::read_or_derive(
-                    crate::locus_certificate::Certified::Locus,
-                    held,
-                    derive,
-                    agree,
-                )
-                .map_err(CertifyError::AnalyticRung3)?,
+            let got = crate::locus_certificate::read_or_derive(
+                crate::locus_certificate::Certified::Locus,
+                held,
+                derive,
+                agree,
             )
+            .map_err(CertifyError::AnalyticRung3)?;
+            Some(match got {
+                crate::locus_certificate::Got::Read(held) => held,
+                crate::locus_certificate::Got::Derived(_, recorded) => {
+                    LocusCertificate::derived(stored, (t0, t1), pair, band, recorded)
+                }
+            })
         }
         _ => None,
     };

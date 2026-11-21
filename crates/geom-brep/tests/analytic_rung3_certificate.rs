@@ -833,3 +833,40 @@ fn rest_reads_a_locus_only_at_its_own_band_and_surfaces() {
     };
     assert_eq!(at(wider, band()), (0, 1), "a surface an ulp off derives");
 }
+
+/// **A read records what a derivation records**: under a decision frame,
+/// certifying the flat quarter with its own locus kept (a read, its
+/// record replayed) leaves exactly the verdicts and escalations that
+/// certifying it with nothing kept (a derivation) leaves, and the frame
+/// is not empty, so the comparison has decisions to compare. Red under a
+/// read that records nothing, which breaks the subdivision driver's
+/// lane parity (`onehome_switch_parity_interval`), or one that records
+/// its derivation twice.
+#[test]
+fn a_read_records_what_a_derivation_records() {
+    use geom_brep::Certified;
+    use geom_brep::locus_certificate::counts;
+    use geom_core::k_stats::Bracket;
+    let carrier = bulged(8, 0.0);
+    let flat = certify(&carrier, cylinder_z(), plane()).expect("the flat quarter");
+    let locus = flat.locus_certificate().expect("an intersection's locus");
+    let frame = |kept: &[&geom_brep::LocusCertificate<f64>]| {
+        let bracket = Bracket::open();
+        let before = counts::of(Certified::Locus);
+        certify_kept(&carrier, kept).expect("the flat quarter certifies");
+        let after = counts::of(Certified::Locus);
+        (bracket.finish(), after.0 - before.0)
+    };
+    let (derived, derived_reads) = frame(&[]);
+    let (read, reads) = frame(&[locus]);
+    assert_eq!(
+        (derived_reads, reads),
+        (0, 1),
+        "one derives, the other reads"
+    );
+    assert!(
+        !derived.verdicts.is_empty(),
+        "the derivation records decisions"
+    );
+    assert_eq!(read, derived, "a read's frame is a derivation's");
+}
