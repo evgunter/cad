@@ -241,10 +241,6 @@ impl<T: Decide> IsoPiece<T> {
         } else {
             self.span.0
         };
-        let (d1, d2) = (carrier.deriv(stop), carrier.deriv2(stop));
-        let speed = d1.norm();
-        self.travel()
-            .0
-            .within_curvature(d1.cross(d2).norm() / speed.powi(3))
+        geom_brep::within_carrier_bend(self.travel().0, &carrier, stop)
     }
 }

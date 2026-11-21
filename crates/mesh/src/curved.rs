@@ -229,7 +229,7 @@ pub(crate) fn tessellate_curved(
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
-    if crate::walk::pinches(body, face.outer, fk)? {
+    if crate::walk::pinches(body, face.outer)? {
         return Err(TessellateError::MissingEntity {
             what: PINCHED_FACE_ROUTED_HERE,
         });
@@ -292,7 +292,7 @@ pub(crate) fn tessellate_curved(
     // then has): from the loop's STORED TRAVERSAL order, which
     // interior-left ties to the outward normal, and on the wrap strip,
     // whose loop walks one edge both ways and so has no order to read,
-    // from the sense itself (`walk::wrap_strip`). `revert` reverses the
+    // from the loop's stored lift (`walk::wrap_strip`). `revert` reverses the
     // loops AND flips `sense` together, so folding the bit in here as
     // well would double-count the reversal and emit inward-wound
     // triangles.
@@ -1435,7 +1435,7 @@ mod tests {
             .expect("the bore");
         let outer = body.get_face(fk).unwrap().outer;
         assert!(
-            crate::walk::pinches(&body, outer, fk).unwrap(),
+            crate::walk::pinches(&body, outer).unwrap(),
             "the bore's loop passes the slit's ends twice"
         );
         let Ok(Shape::Rectangle(rectangle)) =
@@ -2569,9 +2569,9 @@ mod tests {
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         // The split ruling's face is the trimmed lane's
         // (`walk::splits_a_straight_side`), which lays rows this face
-        // does not need: 40 where the rectangle lane's chart CDT made 28.
+        // does not need: 38 where the rectangle lane's chart CDT made 28.
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 40, "the split+placed wedge's triangle count at δ = 0.1");
+        assert_eq!(n, 38, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own

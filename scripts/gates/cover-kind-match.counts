@@ -19,7 +19,8 @@ arm 1 crates/geom-brep/src/curve_pair/span.rs
 arm 1 crates/geom-brep/src/edge_nurbs.rs
 arm 14 crates/geom-brep/src/extent.rs
 ball 2 crates/geom-brep/src/extent.rs
-arm 7 crates/geom-brep/src/implicit.rs
+arm 1 crates/geom-brep/src/curvature_arm.rs
+arm 2 crates/geom-brep/src/implicit.rs
 ball 7 crates/geom-brep/src/implicit.rs
 arm 5 crates/geom-brep/src/intersect.rs
 whole 1 crates/geom-brep/src/intersect.rs

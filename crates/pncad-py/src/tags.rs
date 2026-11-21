@@ -2228,15 +2228,18 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
 /// certify is a flatness question at ε_in, a cylinder that will not is
 /// an ill-conditioned axis and wants more of the patch.
 ///
-/// The match is exhaustive, so a third promotable kind recognised
+/// The match is exhaustive, so a new promotable kind recognised
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these two words. The face and surface entity ids and the
+/// one of these words. The face and surface entity ids and the
 /// conditioning margin stay in the kernel's own `Display`, which is
 /// where they already were.
 pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+        PromotedKind::Cone => "cone",
+        PromotedKind::Sphere => "sphere",
+        PromotedKind::Torus => "torus",
     }
 }
 
@@ -2313,10 +2316,10 @@ pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
 /// to — `CurvePromotion::kind`.
 ///
 /// The exhaustive match is why it is a map rather than a literal:
-/// the recognizer's kinds (the line's #388 follow-up landed; the
-/// named exclusions — ellipse, helix, open arcs — are still to come)
-/// each land here when their follow-up does, and each stops this
-/// crate compiling until it has a word of its own.
+/// the recognizer's kinds (the line's #388 follow-up landed, and open
+/// arcs promote as `circle`; the named exclusions — ellipse, helix —
+/// are still to come) each land here when their follow-up does, and
+/// each stops this crate compiling until it has a word of its own.
 pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
     match kind {
         PromotedCurveKind::Circle => "circle",
@@ -2524,8 +2527,10 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::TrimLoopOrientation { .. } => "trim_loop_orientation",
         TessellateError::FoldedTriangle { .. } => "folded_triangle",
         TessellateError::UnresolvedWinding { .. } => "unresolved_winding",
-        TessellateError::BoundaryEar { .. } => "boundary_ear",
+        TessellateError::UnclearedSharedSide { .. } => "uncleared_shared_side",
+        TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
+        TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
 }
 

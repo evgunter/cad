@@ -126,17 +126,17 @@
 //!   other way round, so `A` flips, and against the frame unturned its
 //!   azimuth would be π off, selecting the complementary branch and
 //!   meshing the wrong half of the sphere. This is the direct analogue
-//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. The walk's
-//!   other read of the sense is the wrap strip's orientation
-//!   ([`wrap_strip`]), through `geom_brep::PolygonOrientation`.
+//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. It is the
+//!   walk's one read of the sense: the wrap strip's side is the loop's
+//!   stored lift ([`wrap_strip`]).
 
 use std::collections::HashMap;
 
 use geom::SurfaceKind;
-use geom_brep::{OutwardNormal, PolygonOrientation};
+use geom_brep::OutwardNormal;
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PointKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -317,6 +317,16 @@ pub(crate) const fn edge_key(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
 }
 
+/// A triangle's three sides, each as its [`edge_key`]: the one spelling
+/// of "the sides of a triangle" every census of side uses reads.
+pub(crate) const fn sides(t: [u32; 3]) -> [(u32, u32); 3] {
+    [
+        edge_key(t[0], t[1]),
+        edge_key(t[1], t[2]),
+        edge_key(t[2], t[0]),
+    ]
+}
+
 /// The edge incident to an IDENTIFIED vertex that this patch uses more
 /// than twice, if any — the emitted form of #678's class, re-derived
 /// over the emission rather than argued from the grid, for whichever
@@ -343,15 +353,14 @@ pub(crate) fn overused_identified_edge_in(
         return None;
     }
     let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-    for t in triangles {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
+    for &t in triangles {
+        for (a, b) in sides(t) {
             if identified.contains(&a) || identified.contains(&b) {
-                *uses.entry(edge_key(a, b)).or_insert(0) += 1;
+                *uses.entry((a, b)).or_insert(0) += 1;
             }
         }
     }
-    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+    uses.into_iter().filter(|&(_, n)| n > 2).min()
 }
 
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
@@ -669,12 +678,10 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
-/// **Whether loop `lk` of face `fk` passes one point record at two
-/// distinct vertices** — a pinch of the loop: on an at-rest body a slit's
-/// parted end, the two vertices the material parts there sharing the
-/// point the slit's two edges end on (`crates/topo/README.md`, tier 3, "a
-/// slit of that loop"), and a slit run the full height of a full turn
-/// pinches at both ends.
+/// **Whether loop `lk` pinches**: passes one point key at two distinct
+/// vertices ([`topo::loop_points`]) — on an at-rest body a slit's parted
+/// end, and a slit run the full height of a full turn pinches at both
+/// ends.
 ///
 /// The walk below places a junction by inverting its position, so it
 /// cannot place two vertices at one position on two sides of a slit; the
@@ -682,26 +689,18 @@ fn iso_side_starts(
 /// by its own stored image (`tessellate::route_of`'s pinch fact), and the
 /// curved lane refuses one that reaches it otherwise
 /// (`curved::PINCHED_FACE_ROUTED_HERE`).
-///
-/// The point record is what the body states, so this reads no distance.
-/// One vertex visited twice (a seam walked both ways) is one vertex, not
-/// a pinch.
-pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey, fk: FaceKey) -> Result<bool, TessellateError> {
-    let mut seen: HashMap<PointKey, VertexKey> = HashMap::new();
-    for (half_edge, _, _) in loop_half_edges(body, lk, fk)? {
-        let start = body
-            .get_half_edge(half_edge)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
-            .start;
-        let point = body
-            .get_vertex(start)
-            .ok_or(TessellateError::MissingEntity { what: "vertex" })?
-            .point;
-        if *seen.entry(point).or_insert(start) != start {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
+    topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
+        what: match unresolved.entity() {
+            topo::EntityId::Solid(_) => "solid",
+            topo::EntityId::Shell(_) => "shell",
+            topo::EntityId::Face(_) => "face",
+            topo::EntityId::Loop(_) => "loop",
+            topo::EntityId::HalfEdge(_) => "half-edge",
+            topo::EntityId::Edge(_) => "edge",
+            topo::EntityId::Vertex(_) => "vertex",
+        },
+    })
 }
 
 /// **Whether a straight side of face `fk`'s outer loop holds a point
@@ -1001,24 +1000,30 @@ struct WrapStrip {
 /// 3. the near tip, `travs[0]`'s start, where the walk opens; the other
 ///    tip is the far one.
 ///
-/// The far side stands one period from the near side, across the
-/// polygon's region from it, and `orientation` is the one the face's
-/// polygon has (`PolygonOrientation::of_face`), which is how `curved`
-/// reads the face's side off it. The region is on the left of a counter-clockwise
-/// polygon's sides, so a near side rising to the far point (the far `v`
-/// above the near) has the far side at the smaller `u` there, and at the
-/// larger in a clockwise one. No turn at a tip and no area is read.
+/// The far side stands one period from the near side, and the loop's lift
+/// (`topo::Body::loop_lift`) says which: the strip's two traversals are
+/// one edge's two halves, so they share a chart image, and the lift moves
+/// the far half's by the turn the face takes round the far tip, the joint's
+/// stored element there (`topo::pcurves`' singular turn: the walk leaves
+/// along the edge it arrived on, a whole turn on the face's side). The
+/// period is that move less the near half's. No height, side or area is
+/// read here. The loop's shape is the strip's, so a lift that does not
+/// move the far half one whole turn of the azimuth, and by nothing else,
+/// contradicts it.
 ///
 /// # Errors
 ///
 /// [`TessellateError::MissingEntity`] where a key on the loop's walk does
-/// not resolve.
+/// not resolve; the face's domain read's refusal
+/// ([`crate::trimmed::face_domain`]: [`TessellateError::DomainUnread`]
+/// where the loop stores no lift); and [`TessellateError::WrapStripTurn`]
+/// where the strip's lift is not one whole turn.
 fn wrap_strip(
     body: &Body<f64>,
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
-    orientation: PolygonOrientation,
+    face: FaceKey,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -1042,21 +1047,35 @@ fn wrap_strip(
     // the band of each other, D2 addendum row 5's state, which the
     // declared-vertex guard in `loop_polygon` re-derives; no strip is
     // read off it.
-    let (near, far, far_tip) = match travs[0].start {
+    let far_tip = match travs[0].start {
         _ if on_a == on_b => return Ok(None),
-        t if t == a => (on_a, on_b, b),
-        t if t == b => (on_b, on_a, a),
+        t if t == a => b,
+        t if t == b => a,
         _ => return Ok(None),
     };
-    let rising = poles[far].1 > poles[near].1;
-    // The azimuth's whole turn, an angle by construction.
-    let turn = Period::<f64>::angle().length();
+    // The face's domain as the trimmed lane reads it, so a loop with no
+    // lift refuses here as it does there.
+    let domain = crate::trimmed::face_domain(body, face, band)?;
+    let row = |half_edge: HalfEdgeKey| {
+        crate::trimmed::every_loop(&domain)
+            .flat_map(|lift| lift.rows())
+            .find(|row| row.half_edge == half_edge)
+            .map(|row| row.lift)
+    };
+    let far_half = travs
+        .iter()
+        .find(|t| t.start == far_tip)
+        .map(|t| t.half_edge);
+    let refused = |turn| TessellateError::WrapStripTurn { face, turn };
+    let (Some(near), Some(far)) = (row(travs[0].half_edge), far_half.and_then(row)) else {
+        return Err(refused(None));
+    };
+    let turn = far.compose(near.inverse());
+    if turn.twin || turn.v != 0 || turn.u.abs() != 1 {
+        return Err(refused(Some(turn)));
+    }
     Ok(Some(WrapStrip {
-        period: if rising == orientation.interior_is_left() {
-            -turn
-        } else {
-            turn
-        },
+        period: f64::from(turn.u) * Period::<f64>::angle().length(),
         far: far_tip,
     }))
 }
@@ -1175,19 +1194,12 @@ pub(crate) fn loop_polygon(
         *first = true;
     }
     let no_rim = !kinds.rim;
-    // The face's orientation sense (module docs, the pole-to-pole
-    // band): the side of the band's area vector, and through
-    // `PolygonOrientation::of_face` the orientation of the wrap strip.
+    // The face's orientation sense: the side of the pole-to-pole band's
+    // area vector (module docs).
     let sense = face_record.sense;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(
-            body,
-            &travs,
-            &poles,
-            band,
-            PolygonOrientation::of_face(sense),
-        )?
+        wrap_strip(body, &travs, &poles, band, face)?
     } else {
         None
     };

@@ -138,7 +138,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),
     ("linalg/unit_vec.rs: levered: v", NOT_FIRST),
     ("linalg/unit_vec.rs: new: v", NOT_FIRST),
-    ("linalg/unit_vec.rs: new_scaled: v * scale", NOT_FIRST),
+    ("linalg/unit_vec.rs: new_scaled: v", NOT_FIRST),
     (
         "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: good",
         NOT_FIRST,

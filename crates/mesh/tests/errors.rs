@@ -118,8 +118,10 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         UnresolvedWinding,
-        BoundaryEar,
+        UnclearedSharedSide,
+        OverusedSide,
         SphereTrimShape,
+        WrapStripTurn,
     ];
 }
 
@@ -156,6 +158,9 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "unresolved:",
     "corners:",
     "height:",
+    "faces:",
+    "uses:",
+    "turn:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -346,8 +351,15 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            TessellateError::BoundaryEar { face },
-            vec!["consecutive boundary chord points", "four"],
+            TessellateError::UnclearedSharedSide { face },
+            vec!["boundary chord points", "four"],
+        ),
+        (
+            TessellateError::OverusedSide {
+                faces: vec![face, face],
+                uses: 4,
+            },
+            vec!["4 triangles", "2 faces", "not a closed manifold"],
         ),
         (
             TessellateError::SphereTrimShape {
@@ -356,6 +368,17 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 cause: mesh::types::SphereTrimCause::PastPole,
             },
             vec!["trimmed lane", "past a chart pole or apex mid-edge"],
+        ),
+        (
+            TessellateError::WrapStripTurn {
+                face,
+                turn: Some(topo::Deck {
+                    u: 2,
+                    v: 0,
+                    twin: false,
+                }),
+            },
+            vec!["one whole turn", "far half 2 whole turns", "re-mint"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
