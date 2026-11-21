@@ -2683,26 +2683,26 @@ impl<T: Real> Tell for PathError<T> {
                 raised_at,
                 deferral,
                 refusal,
-            } => {
-                let refusal = refusal.told_in(notation);
-                match deferral {
-                    Deferral::FilletResolution => write!(
-                        f,
-                        "step {step}'s fillet, not resolved at step {raised_at}: {refusal}"
-                    ),
-                    Deferral::FilletResolvedAtClose => write!(
-                        f,
-                        "step {step}'s fillet, not resolved at the close: {refusal}"
-                    ),
-                    Deferral::FilletStoredForm => write!(
-                        f,
-                        "step {step}'s fillet, not stored at the close: {refusal}"
-                    ),
-                    // The read-back's own sentence opens on the piece it
-                    // read, `step N's arc`.
-                    Deferral::ArcReadBack => write!(f, "{refusal}"),
-                }
-            }
+            } => match deferral {
+                Deferral::FilletResolution => write!(
+                    f,
+                    "step {step}'s fillet, not resolved at step {raised_at}: {}",
+                    refusal.told_in(notation)
+                ),
+                Deferral::FilletResolvedAtClose => write!(
+                    f,
+                    "step {step}'s fillet, not resolved at the close: {}",
+                    refusal.told_in(notation)
+                ),
+                Deferral::FilletStoredForm => write!(
+                    f,
+                    "step {step}'s fillet, not stored at the close: {}",
+                    refusal.told_in(notation)
+                ),
+                // The read-back's own sentence opens on the piece it
+                // read, `step N's arc`.
+                Deferral::ArcReadBack => write!(f, "{}", refusal.told_in(notation)),
+            },
         }
     }
 }

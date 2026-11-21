@@ -289,13 +289,12 @@ fn a_seam_fillet_refused_by_the_close_says_the_close() {
         Step::Angle(0.0),
         Step::Line(4.0),
         Step::LineTo(Target::Point(p(4.0, 4.0))),
-        Step::LineTo(Target::Point(p(1.0, 4.0))),
+        Step::LineTo(Target::Point(p(2.0, 3.0))),
         Step::Fillet { radius: 50.0 },
-        Step::Angle(-QUARTER),
         Step::CloseTo,
     ];
-    let err = replay(&steps, Tol::witness()).expect_err("radius 50 outruns legs of 1 and 4");
-    assert_eq!((err.step(), err.raised_at()), (5, 7), "{err}");
+    let err = replay(&steps, Tol::witness()).expect_err("radius 50 outruns the seam's legs");
+    assert_eq!((err.step(), err.raised_at()), (5, 6), "{err}");
     let (_, _, deferral, refusal) = deferred(path_refusal(&err));
     assert_eq!(deferral, Deferral::FilletResolvedAtClose, "{err}");
     assert_eq!(
@@ -304,8 +303,8 @@ fn a_seam_fillet_refused_by_the_close_says_the_close() {
     );
 }
 
-/// A cusp a director writes just after a fillet resolved is that
-/// director's junction, read at the leg after it: never the fillet's.
+/// A cusp written just after a fillet resolved, on the leg the fillet's
+/// run out rides, is the cusp's refusal, never the fillet's.
 #[test]
 fn a_cusp_just_after_a_resolution_is_not_the_fillets() {
     let steps = [
@@ -315,11 +314,12 @@ fn a_cusp_just_after_a_resolution_is_not_the_fillets() {
         Step::Fillet { radius: 0.5 },
         Step::Angle(QUARTER),
         Step::At(p(5.0, 2.0)),
-        Step::Angle(-QUARTER),
+        Step::Line(1.0),
+        Step::Cusp,
         Step::Line(1.0),
         Step::LineTo(Target::Start),
     ];
-    let err = replay(&steps, Tol::witness()).expect_err("the director doubles back");
+    let err = replay(&steps, Tol::witness()).expect_err("the leg doubles back over the run out");
     let source = path_refusal(&err);
     assert_eq!(source.step(), None, "nothing deferred: {err}");
     assert!(err.step() > ARRIVAL, "a step after the resolution: {err}");

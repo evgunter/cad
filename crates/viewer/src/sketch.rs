@@ -1397,11 +1397,18 @@ impl Tell for PreviewError {
             } => {
                 // A refusal about an earlier step than the one raising
                 // it opens on the step it names, so it is not named twice.
-                let said = rendered.told_in(notation).to_string();
-                if said.starts_with(&format!("step {step}'s ")) {
-                    write!(f, "loop {loop_}: {said}")
+                let names_its_step = rendered
+                    .told_in(notation)
+                    .to_string()
+                    .starts_with(&format!("step {step}'s "));
+                if names_its_step {
+                    write!(f, "loop {loop_}: {}", rendered.told_in(notation))
                 } else {
-                    write!(f, "loop {loop_} step {step}: {said}")
+                    write!(
+                        f,
+                        "loop {loop_} step {step}: {}",
+                        rendered.told_in(notation)
+                    )
                 }
             }
         }
