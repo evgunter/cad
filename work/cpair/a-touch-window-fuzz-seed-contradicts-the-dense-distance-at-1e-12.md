@@ -139,3 +139,10 @@ radius ≈548.6 whose `Recedes` reading on
 locally with `crates/geom/src/curves/conic.rs` (the one shared file
 the PR changes on that path) put back to main's, and the PR does not
 touch `curve_pair/pose/window/`: the same defect, a new seed.
+
+A second draw on the next run: `CAD_FUZZ_SEED=0xb5c0e6c80ba9b4dc`, draw
+48, an ellipse of semi-axes ≈634 and ≈1640 whose `Recedes` reading on
+`(1.6457e-10, 1.6461e-10)` contradicts the dense distance; it too
+reproduces with main's `conic.rs`. Over twelve fixed seeds the row reds
+on none, with either `conic.rs`: the rate is low and the PR does not
+move it.
