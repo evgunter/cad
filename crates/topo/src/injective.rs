@@ -1371,7 +1371,21 @@ fn present<'a>(
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
     match piece.surface {
-        Surface::Plane { .. } => present_plane(piece, near_edges, near_vertices, band),
+        Surface::Plane { .. } => {
+            let got = present_plane(piece, near_edges, near_vertices, band);
+            if std::env::var_os("STRIP_TRACE").is_some() {
+                if let Err(e) = &got {
+                    eprintln!(
+                        "STRIPP {e:?} edges={} vertices={} u={:?} v={:?}",
+                        piece.local.edges.len(),
+                        piece.local.vertices.len(),
+                        piece.u,
+                        piece.v
+                    );
+                }
+            }
+            got
+        }
         Surface::Nurbs(_) => present_chart(piece, near_edges, near_vertices, band),
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
@@ -5860,11 +5874,27 @@ fn sign_on(
         Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
     };
     let departs = |s: Side| {
-        interval_sign_as(
+        let got = interval_sign_as(
             across(s.axis()) * at(s.into()),
             SELF_INTERSECTION_DEPARTURE,
             band,
-        )
+        );
+        if std::env::var_os("STRIP_TRACE").is_some() && got != Some(Sign::Positive) && got != Some(Sign::Negative) {
+            let rate = match s.axis() {
+                Axis::U => grad.dot(fx),
+                Axis::V => grad.dot(fy),
+            };
+            eprintln!(
+                "STRIPD {got:?} plane={} margin={:?} rate={:?} extent={:e} x={:?} y={:?}",
+                matches!(p.surface, Surface::Plane { .. }),
+                across(s.axis()) * at(s.into()),
+                rate,
+                p.span(s.axis()),
+                p.x,
+                p.y
+            );
+        }
+        got
     };
     match &p.zero {
         Zero::None => interval_sign_as(
