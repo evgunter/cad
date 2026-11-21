@@ -880,7 +880,7 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let named: Vec<_> = flips
         .iter()
         .flat_map(|e| e.verdicts.nodes.values())
-        .flat_map(|d| &d.flips)
+        .flat_map(|d| d.flip)
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
@@ -979,8 +979,8 @@ fn certification_reads_the_vector_and_nothing_else() {
         assert_ne!(leaf.verdict_vector_key, mutated.key());
     }
     // The strict comparison is what gates, and it is strictly stronger
-    // than the population engine that NAMES flips: a reordering the
-    // populations cannot see moves this key.
+    // than the first-turn reading that NAMES flips: a reordering that
+    // turns no sign moves this key.
     assert_eq!(v.witness_vector().key(), witness.key());
 }
 

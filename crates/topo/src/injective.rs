@@ -2822,25 +2822,34 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, radius, radius, u_ref),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => (center, axis, semi_u, semi_v, u_ref),
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = circle.radius();
+            (center, axis, radius, radius, u_ref)
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            (center, axis, semi_u, semi_v, u_ref)
+        }
         _ => return None,
     };
     Some(Trig {
@@ -3853,13 +3862,13 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     };
     match (ce, co) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            plane(&a.frame, &b.frame) && one_value(a.radius, b.radius, false)
+            plane(&a.frame, &b.frame) && one_value(a.radius(), b.radius(), false)
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame, &b.frame)
                 && one_line(a.frame.u_ref, b.frame.u_ref)
-                && one_value(a.semi_u, b.semi_u, false)
-                && one_value(a.semi_v, b.semi_v, false)
+                && one_value(a.semi_u(), b.semi_u(), false)
+                && one_value(a.semi_v(), b.semi_v(), false)
         }
         _ => false,
     }
@@ -4048,8 +4057,16 @@ fn leaves_graph(
     band: Band,
 ) -> Option<Result<(), Unpresented>> {
     let surface = piece.surface;
+    let tr = std::env::var_os("CV_TRACE").is_some();
     let o = piece.boundary.edges.get(th.corner.other)?;
-    let (d, [near, far]) = straight(surface, o, th.corner.vertex)?;
+    let Some((d, [near, far])) = straight(surface, o, th.corner.vertex) else { if tr { eprintln!("CVC leaves: not straight"); } return None; };
+    if tr {
+        let e = piece.boundary.edges.get(th.corner.read);
+        let tv = (e.and_then(|e| e.uses.first()).and_then(|u| chart_curve(surface, e.unwrap(), u))).map(|c| (c.rate(Axis::U, at(th.t)), c.rate(Axis::V, at(th.t))));
+        let stored = e.and_then(|e| e.arc.as_ref().map(|(c, _)| c.deriv(at(th.t))));
+        let os = o.arc.as_ref().map(|(c, (t0, t1))| (c.deriv(*t0), *t0, *t1));
+        eprintln!("CVC leaves: read={:?} other={:?} v={:?} d={d:?} near={near:?} far={far:?} tangent_at_v={tv:?} stored3d={stored:?} other3d={os:?}", e.map(|e| e.key), o.key, th.corner.vertex);
+    }
     let k = turns_to(periodic_axes(surface), [near.x, near.y], vertex);
     let reach = reach_of([[near.x, near.y], [far.x, far.y]].into_iter());
     // Another copy meets `R` only where the edge, a segment from the
@@ -4066,11 +4083,13 @@ fn leaves_graph(
             hull(shift(near.y, 1), shift(far.y, 1)),
         ];
         if meets_rect(segment, r) {
+            if tr { eprintln!("CVC leaves: copy meets R"); }
             return None;
         }
     }
     let speed = speeds(surface, r.0, r.1);
     if !on_vertex(shifted([near.x, near.y], k), vertex, speed, band) {
+        if tr { eprintln!("CVC leaves: on_vertex fails near={near:?} vertex={vertex:?}"); }
         return None;
     }
     let (a, b) = (column, column.other());
@@ -4083,6 +4102,7 @@ fn leaves_graph(
     }
     let side = if rising == above { 1.0 } else { -1.0 };
     let rate = (db * tau_a - da * tau_b) * at(side * scale);
+    if tr { eprintln!("CVC leaves: rate={rate:?} tau=({tau_a:?},{tau_b:?}) ts={ts:?} scale={scale} verdict={:?}", decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band)); }
     match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band) {
         Ok(Sign::Positive) => Some(Ok(())),
         Ok(Sign::Negative) => Some(Err(Unpresented::Structural)),
@@ -4943,8 +4963,10 @@ fn graph_read(
         let (ts, te) = (p.params(run.first()?).lo(), p.params(run.last()?).hi());
         let held = nearest(p.chart.on(other, at(th.t)));
         if !(ts <= th.t && th.t <= te && within(ends.along(th.t), (a0, a1)) && within(held, rb)) {
+            if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC premise ts={ts} te={te} t={} along={:?} a=({a0},{a1}) held={held:?} rb={rb:?}", th.t, ends.along(th.t)); }
             return None;
         }
+        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC premise-ok col={column:?} conic={} t={} ta={ta} tb={tb} rising={rising} above={above}", th.conic, th.t); }
         let ts = Interval::from_bounds(ta, tb);
         let vertex = match column {
             Axis::U => [ends.along(th.t), held],
@@ -9581,7 +9603,7 @@ mod presentation_rows {
             l.origin = thin(l.origin);
         }
         if let Some((Curve3::Circle(c), _)) = &mut b.edges[1].arc {
-            c.radius = iv0(r);
+            *c = geom::Circle::new(c.frame, iv0(r));
         }
         let local = Local {
             edges: vec![0, 1],

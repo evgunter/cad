@@ -288,7 +288,7 @@ pub enum StepArg {
     /// `Bulge` in a fused step's arrival position — `profile`'s
     /// `family::ArrivalSpec` is implemented for `Center`, `Via` and
     /// `Radius` alone — and the replay lattice refuses the shape, so
-    /// both document doors (`InsertNode`'s VQ9 check and the
+    /// both document doors (`InsertNode`'s lattice check and the
     /// persistence snapshot walk) reject a program carrying one.
     /// [`crate::ProgramStep`]'s fields are public data by design (the
     /// node-slot pattern), so such a program is nonetheless

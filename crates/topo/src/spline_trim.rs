@@ -64,14 +64,14 @@ use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::Knots;
 use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
+    Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
     rounding_charge,
 };
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::body::Body;
-use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, gap, ray_parity_as};
+use crate::chain_parity::{ChainPiece, Gap, PieceBox, RayQuery, gap, ray_parity_as};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::Deck;
 use crate::joint::Winding;
@@ -127,6 +127,38 @@ impl Rect {
     }
 }
 
+/// **A cell's floor** ([`Patch::floor`]): charged the cut's rounding,
+/// an `f64` bound, where the scalar tracks rounding; the box gap alone
+/// where it does not.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Floor<T> {
+    /// The box gap less the read's rounding, less the cut's at `f64`.
+    Charged(Margin<T, Allowance>),
+    /// The box gap, or the poison.
+    Uncharged(Margin<T>),
+}
+
+impl<T: Decide> Floor<T> {
+    /// The floor decided under `name`.
+    pub(crate) fn decide(self, name: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+        match self {
+            Self::Charged(m) => decide(name, m, band),
+            Self::Uncharged(m) => decide(name, m, band),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Floor<f64> {
+    /// The floor's value at `f64`.
+    pub(crate) fn at_f64(self) -> f64 {
+        match self {
+            Self::Charged(m) => m.at_f64(),
+            Self::Uncharged(m) => m.value(),
+        }
+    }
+}
+
 /// **One Bézier cell of a chart**: its parameter rectangle and its
 /// control net in homogeneous form about `centre`, row-major in `u`,
 /// each point with its rounding bound (*Rounding*, module docs).
@@ -155,10 +187,11 @@ impl<T: Decide> Patch<T> {
 
     /// **A lower bound on the distance from `q` to the cell**: its
     /// distance to the control net's box, which holds the cell (the
-    /// convex-hull property, every weight positive), less at `f64` the
-    /// cut's rounding and the read's (*Rounding*, module docs).
-    pub(crate) fn floor(&self, q: Point3<T>) -> T {
-        let poison = T::from_f64(f64::NAN);
+    /// convex-hull property, every weight positive), less the read's
+    /// rounding and, as the margin's `f64` bound, the cut's, never below
+    /// zero (*Rounding*, module docs).
+    pub(crate) fn floor(&self, q: Point3<T>) -> Floor<T> {
+        let poison = Floor::Uncharged(Margin::of(T::from_f64(f64::NAN)));
         // A weight not shown positive leaves the hull unproven.
         if !self.net.iter().all(|(h, _)| h[3].structure_positive()) {
             return poison;
@@ -183,7 +216,7 @@ impl<T: Decide> Patch<T> {
         );
         let gap = (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt();
         if !tracks::<T>() || mutant("spline-trim-charge-dropped") {
-            return gap;
+            return Floor::Uncharged(Margin::of(gap));
         }
         // The worst per channel, folded so a NaN bound stays NaN.
         let mut worst = [0.0f64; 3];
@@ -218,7 +251,7 @@ impl<T: Decide> Patch<T> {
                 T::from_f64(2.0) * (reach + (moved - Point3::origin()).norm() + self.centre.norm()),
             )
         };
-        (gap - T::from_computed(cut) - read).max(T::zero())
+        Floor::Charged(Margin::of(gap - read).less_floored(cut))
     }
 
     /// The diagonal of the control net's box, read on its value channel:
@@ -1104,7 +1137,7 @@ impl Trim {
             }
             match decide(
                 SPLINE_TRIM_CLEAR,
-                Margin::metered(T::from_computed(room.max(0.0)), arm),
+                Margin::metered_bound(room.max(0.0), arm),
                 band,
             ) {
                 Ok(Sign::Positive) => {}
@@ -1184,10 +1217,7 @@ impl<T: Decide> ChainPiece<T> for Piece {
     fn boxed(&self, q: Rect) -> Option<PieceBox<T>> {
         let b = self.bbox()?;
         Some(PieceBox {
-            gap: [
-                T::from_computed(gap(q.u, b.u)),
-                T::from_computed(gap(q.v, b.v)),
-            ],
+            gap: [Gap::Bound(gap(q.u, b.u)), Gap::Bound(gap(q.v, b.v))],
             extent: [b.u, b.v],
         })
     }

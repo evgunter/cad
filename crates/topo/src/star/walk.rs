@@ -457,7 +457,7 @@ pub(crate) fn departure<T: Decide>(
         | geom::Curve3::Periodic(_) => {
             let he_plus = he == edge.he_plus;
             let geom_brep::ConicDeparture { dir, extent, bend } =
-                geom_brep::ConicDeparture::of(curve, he_plus, (p_far, p_base));
+                geom_brep::ConicDeparture::of(curve, he_plus);
             let arc = ConicArc::of(curve, he_plus);
             (dir, BoundSupport::Conic { extent, bend, arc })
         }

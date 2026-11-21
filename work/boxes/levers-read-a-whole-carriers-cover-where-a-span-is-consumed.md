@@ -37,3 +37,10 @@ Each site that narrows moves its verdict (a shorter lever decides more
 readily) and needs its own differential; each that stays says why the
 whole carrier is consumed. `boolean::arcs::arcs_along` narrowed to its
 edge's cover in `cover-kind-match-gate`. (boxes-cover7 lane)
+
+2026-11-20 (SECT, `sect/rimside-retires`): the lone ring's
+`bool_lone_ring_region_side` site above is gone with `RimSide`'s sphere
+arm. A closed loop in a face is now sided by
+`chord_join::loop_holds_outer`, through the island paths, and
+`scripts/gates/cover-kind-match.counts` falls by one `whole` site in
+`chord_join.rs`.

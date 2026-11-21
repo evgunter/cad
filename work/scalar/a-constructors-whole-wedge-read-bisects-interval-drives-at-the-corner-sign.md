@@ -4,6 +4,9 @@ kind: issue
 title: The constructors' whole-wedge read escalates a corner's sign and wedge over wide interval boxes, so a drive bisects where the one-witness class read did not, and the witness reads the tier proved are numeric at the stations
 status: open
 opened: 2026-11-12
+priority: P2
+cost: M
+design: true
 ---
 
 

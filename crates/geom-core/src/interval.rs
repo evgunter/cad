@@ -254,7 +254,8 @@ impl Interval {
     /// back one operand in place of an expression of both — the de
     /// Casteljau step's equal neighbours (`spline::blossom`) — where
     /// either answer is a sound enclosure and the operand is the
-    /// narrower. Never a coincidence decision (the no-`PartialEq`
+    /// narrower; and this scalar's [`Real::same_value`], where a
+    /// certificate's support is compared. Never a coincidence decision (the no-`PartialEq`
     /// rationale on the type stands): it picks between two sound
     /// enclosures and decides nothing. The decoration is in the
     /// comparison so the fast path cannot hand back a stronger claim
@@ -496,6 +497,10 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
+    fn same_value(self, other: Self) -> bool {
+        self.same_enclosure(other)
+    }
+
     /// **EXACT**: the value channel is a CERTIFIED enclosure of the
     /// real, so a comparison here is a proof — two enclosures that do
     /// not meet prove the reals differ
@@ -520,6 +525,11 @@ impl Real for Interval {
 
     fn from_computed(x: f64) -> Self {
         Self::from_f64(x)
+    }
+
+    /// The enclosure's ends; an empty or ill-formed one does not read.
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::enclosure(self.0.lo(), self.0.hi())
     }
 
     /// The exact point `[0, 0]`.
@@ -772,6 +782,19 @@ impl Real for Interval {
     /// projections holds trivially).
     fn sin_cos(self) -> (Self, Self) {
         (Self(self.0.sin()), Self(self.0.cos()))
+    }
+
+    /// An enclosure at every `self`. An enclosure wholly within the
+    /// series' reach is the series with its dropped tail enclosed (each
+    /// dropped term is smaller than the one before and of the other
+    /// sign, so the tail's factor lies in `[0, 1]`); any other is the
+    /// difference as written, which encloses everywhere.
+    fn less_sin(self) -> Self {
+        if self.0.abs().hi() <= crate::real::LESS_SIN_SERIES_BELOW {
+            crate::real::less_sin_series(self, Self::from_bounds(0.0, 1.0))
+        } else {
+            self - self.sin()
+        }
     }
 
     /// Tight enclosure of the tangent; an enclosure containing a pole has

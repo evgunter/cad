@@ -88,8 +88,8 @@ fn rim_at(body: &Body<f64>, z: f64, rad: f64) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|&k| {
-            matches!(carrier(body, k), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, radius })
-                if (center.z - z).abs() < 1e-9 && (radius - rad).abs() < 1e-9)
+            matches!(carrier(body, k), geom::Curve3::Circle(circle @ geom::Circle { frame: geom::Frame { origin: center, .. }, .. })
+                if (center.z - z).abs() < 1e-9 && (circle.radius() - rad).abs() < 1e-9)
         })
         .collect()
 }
@@ -366,7 +366,7 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
 /// **An elliptical ring beside a hole's rim refuses unmetered.** The
 /// support-boundary walk meters an outer-boundary ellipse by its
 /// certified box, but `ring_pieces` refuses a ring edge that is not a
-/// line or circle (`work/bandmeter/a-ring-of-ellipse-edges-refuses-the-ring-meter.md`).
+/// line or circle (`work/band/a-ring-of-ellipse-edges-refuses-the-ring-meter.md`).
 #[test]
 fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     let holed = sub(&cube(1.0, tol()), &bore(0.3, 0.5, 0.15, -0.2, 1.4));

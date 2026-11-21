@@ -55,7 +55,7 @@ fn pot_and_vessel<T: Scalar>() -> (Body<T>, Body<T>) {
 }
 
 /// The pot shelled sealed to the vessel's wall, and its cavity's faces.
-fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
+fn sealed_cavity<T: Scalar + topo::CertifiedPolicy>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
     let tol = Tol::witness();
     let finished = |what, b| sweep::test_support::finished(what, b, tol);
     let hollow = topo::shell(&finished("the pot", pot), T::from_f64(vessel::WALL), tol)
@@ -104,7 +104,7 @@ fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>) -> BoundReport<()> 
 
 /// Both questions at `T`: the sealed cavity's faces, the opened
 /// vessel's every face.
-fn both<T: Scalar>() -> [BoundReport<()>; 2] {
+fn both<T: Scalar + topo::CertifiedPolicy>() -> [BoundReport<()>; 2] {
     let (pot, vessel) = pot_and_vessel::<T>();
     let (hollow, cavity) = sealed_cavity(pot);
     let all = vessel.faces().map(|(k, _)| k).collect();

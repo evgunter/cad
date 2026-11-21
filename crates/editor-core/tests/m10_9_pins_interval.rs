@@ -275,7 +275,12 @@ pub(crate) struct Study {
 /// the bracket (1356, 1619) -> (1290, 1613) and the pad (1531, 1714) ->
 /// (1483, 1710). Then the decided least-turn mint (fork 270) took each
 /// identity chart with no pole verdict, door shut: the bracket (1290,
-/// 1613) -> (1290, 1611) and the pad (1483, 1710) -> (1483, 1709).
+/// 1613) -> (1290, 1611) and the pad (1483, 1710) -> (1483, 1709). Then
+/// the session box moved from the readers to the placing doors (PR 7088):
+/// each placement asks it of where its copy stands
+/// (`topo::session_box_at`) and no measure asks it of an image, door
+/// shut: the bracket, two placements where one measure asked,
+/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -365,9 +370,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // is a norm the tier does not reduce with the door shut, so two
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
-            // +1 numeric: the placement asks the session box of its image.
+            // +2 numeric: each of its two placements asks the session box
+            // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1611), None)),
+            without_the_registry: Some(((1290, 1612), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -397,7 +403,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
-            // +1 numeric: the placement asks the session box of its image.
+            // +1 numeric: its placement asks the session box of where its
+            // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
             without_the_registry: Some(((1483, 1709), None)),
             // Three are the fillet run outs read against their arrival
@@ -957,7 +964,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // sweeps keep their sketch frames, fitting no plane: (1531, 1714,
     // 4000) -> (1483, 1710, 2773), the Newell sums' forms no longer
     // frozen. Then the decided least-turn mint (fork 270) took the pad's
-    // identity chart with no pole verdict: 1710 -> 1709 numeric.
+    // identity chart with no pole verdict: 1710 -> 1709 numeric. The
+    // pad's one session-box ask is its placement's, not its measure's
+    // (PR 7088), so the count does not move.
     assert_eq!(got[0], (1483, 1709, 2773), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],

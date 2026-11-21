@@ -49,7 +49,7 @@ On main it found 72 citations and flagged two, both in a pinned test's
 doc: `sweep/tests/reach_split_gate_azimuth.rs` cited
 `work/quad/quadrature-convergence-test-escalates-instead-of-refining`
 (closed by PR 4839; the stand-down it describes is now
-`work/quadtail/the-escalation-tolerating-rows-can-assert-their-answers-now`),
+`work/quad/the-escalation-tolerating-rows-can-assert-their-answers-now`),
 and `sweep/tests/encl_curved_loft_shell.rs` cited
 `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image`, moved
 to `work/quadtail/`. Both re-pointed.

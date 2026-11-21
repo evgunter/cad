@@ -108,9 +108,9 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom_core::{Band, BandError, Point3, Sign, Tol};
-use topo::Body;
 use topo::clearance::{Ask, BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
+use topo::{Body, ClearanceLaneOf};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
@@ -1303,7 +1303,7 @@ struct Replayed<'q> {
 impl crate::eval::AtLeaf for Replayed<'_> {
     type Out = ClearanceReport;
 
-    fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+    fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
         self,
         ev: &Evaluation<T>,
         engine: topo::ClearanceLane<T>,
@@ -1324,19 +1324,20 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // The two selections are in one space: the question is asked in
         // the frame `[placement.frame]` conditions on
         // (`Framed::computing_among`: the selection in its space's
-        // coordinates, else the first), each body read into it through
-        // `relative`.
+        // coordinates, else the first), each body read off as it stands
+        // and its carriers through their relative motion
+        // ([`topo::Seat`]).
         let (framed_a, framed_b) = match (framed_of(ev, a), framed_of(ev, b)) {
             (Ok(fa), Ok(fb)) => (fa, fb),
             (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
         };
         let computing = crate::eval::Framed::computing_among([framed_a, framed_b])
             .unwrap_or_else(|| unreachable!("two operands"));
-        let read = |framed: &crate::eval::Framed<T>, node: RecipeNodeId| {
-            computing.read_in(framed, query.tol).map_err(|kind| {
+        let read = |framed, node: RecipeNodeId| {
+            computing.seat(framed).map_err(|motion| {
                 ClearanceRefusal::Selection(SelectionRefusal::Frame {
                     node,
-                    refusal: crate::NodeRefusal::from(kind),
+                    refusal: crate::NodeRefusal::from(crate::eval::NodeErrorKind::Motion(motion)),
                 })
             })
         };
@@ -1350,17 +1351,18 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         };
         // Each selection's names resolve, then its faces are read into
         // windows, the first selection whole before the second.
-        let faces_a = match faces_of(ev, a, &body_a) {
+        let faces_a = match faces_of(ev, a, body_a.body()) {
             Ok(faces) => faces,
             Err(r) => return ClearanceReport::refused(r),
         };
-        let windows_a = match engine.windows(
+        let windows_a = match engine.windows_at(
             &Side {
-                body: &body_a,
+                body: body_a.body(),
                 faces: faces_a.clone(),
                 excluded: topo::clearance::FacePairs::none(),
             },
             Which::First,
+            body_a.motion(),
         ) {
             Ok(w) => w,
             Err(r) => return ClearanceReport::refused(refused(r)),
@@ -1368,7 +1370,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let faces_b = if a == b {
             faces_a.clone()
         } else {
-            match faces_of(ev, b, &body_b) {
+            match faces_of(ev, b, body_b.body()) {
                 Ok(faces) => faces,
                 Err(r) => return ClearanceReport::refused(r),
             }
@@ -1379,20 +1381,21 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let same_body = a.at == b.at && a.body == b.body;
         if same_body
             && matches!(query.bound, ClearanceBound::StrictlyPositive)
-            && let Some((x, y)) = recorded_contact(ev, a, &body_a, &faces_a, &faces_b)
+            && let Some((x, y)) = recorded_contact(ev, a, body_a.body(), &faces_a, &faces_b)
         {
             return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
         }
         let windows_b = if a == b {
             windows_a.clone()
         } else {
-            match engine.windows(
+            match engine.windows_at(
                 &Side {
-                    body: &body_b,
+                    body: body_b.body(),
                     faces: faces_b,
                     excluded: topo::clearance::FacePairs::none(),
                 },
                 Which::Second,
+                body_b.motion(),
             ) {
                 Ok(w) => w,
                 Err(r) => return ClearanceReport::refused(refused(r)),
@@ -1996,17 +1999,17 @@ fn verify_witness(
     // choice over the same two operands (`Framed::computing_among`).
     let computing = crate::eval::Framed::computing_among([fx, fy])
         .unwrap_or_else(|| unreachable!("two operands"));
-    let (bx, by) = match (computing.read_in(fx, tol), computing.read_in(fy, tol)) {
+    let (bx, by) = match (computing.seat(fx), computing.seat(fy)) {
         (Ok(bx), Ok(by)) => (bx, by),
-        (Err(kind), _) | (_, Err(kind)) => {
+        (Err(motion), _) | (_, Err(motion)) => {
             return Err(format!(
                 "the f64 rebuild could not read a face of the violating pair into the frame the \
                  pair is decided in: {}",
-                crate::NodeRefusal::from(kind)
+                crate::NodeRefusal::from(crate::eval::NodeErrorKind::Motion(motion))
             ));
         }
     };
-    closest_pair((&bx, &by), (face_a, face_b), stations(), (ask, band), over)
+    closest_pair((bx, by), (face_a, face_b), stations(), (ask, band), over)
 }
 
 /// **The verifier's core**: the closest pair of the two faces' admitted
@@ -2025,14 +2028,15 @@ fn verify_witness(
 ///
 /// The prose of what the rebuild could not confirm.
 pub(crate) fn closest_pair(
-    (bx, by): (&Body<f64>, &Body<f64>),
+    (bx, by): (topo::Seat<'_, f64>, topo::Seat<'_, f64>),
     (face_a, face_b): (FaceKey, FaceKey),
     (lattice_a, lattice_b): (Stations, Stations),
     (ask, band): (Ask, Band),
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
-    let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
-        body.face_surface(face).cloned()
+    // Each face's carrier in the frame the pair is decided in.
+    let surface_at = |seat: topo::Seat<'_, f64>, face: FaceKey| -> Option<Surface<f64>> {
+        seat.surface(seat.body().face_surface(face)?)
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

@@ -126,7 +126,7 @@ indeterminate: margin is invalid (NaN or a poisoned enclosure) …"*
 about a margin that DECIDED exactly Zero. The same sentence appears on
 the undeclared flush case at x = 0.5 and 0.99. The refusal is correct;
 its diagnostic states a poison that did not occur.
-`work/stack/certified-lane-non-real-contract-audit.md` records the same
+`work/encl/certified-lane-non-real-contract-audit.md` records the same
 payload from the M10-DI review as a member of its class; this is its
 minting site.
 
@@ -674,3 +674,15 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). SEAL holds the Indeterminate seal and the declared-contact rows in its way; id and body unchanged. (CLEAVE orchestrator)
+
+## CHART's sites retired (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+The CHARTTAIL change on `charttail/decided-gates` retires the CHART
+bullet of the re-scope and step 1's two new step-4 `chart_region` sites:
+- `definite_diag` ×3 (`cyl_band_area`, `cross_order`, `area`): deleted.
+  Each caller goes through `k_stats::decide_positive`, so the
+  rejection carries the lane's own reading (no more `Value(lo)`), tagged
+  with the decided sign.
+- `cyl_axis_sense` decided Zero: goes through `k_stats::decide_nonzero`.
+
+`merge_faces`' LoopWinding, from the same list, is not touched.
