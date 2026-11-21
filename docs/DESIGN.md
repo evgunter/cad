@@ -911,7 +911,11 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision, and a cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
