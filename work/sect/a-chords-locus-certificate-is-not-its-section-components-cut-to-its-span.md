@@ -4,7 +4,7 @@ kind: issue
 title: A chord's locus certificate is derived again at its join door: the carried component's SsiCertificate is taken on another net than the one the chord reads
 status: open
 opened: 2026-11-20
-priority: P2
+priority: P1
 cost: M
 design: true
 refs: [a-certificate-is-read-by-its-support]
@@ -65,3 +65,11 @@ on, neither chosen:
 What either would remove: ball ∪ rod's 12 rung-3 derivations per
 operation (counted; their share of the operation's 1.7 s at the default
 ε was not measured), each over an arc the section already certified.
+
+## 2026-11-21: re-banded P1
+
+A blocker of `a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`
+(P1), which is parked on it: the 12 rung-3 derivations this row would
+remove are about 29 % of ball ∪ rod (−0.55 to −0.6 s at opt-level 2;
+that row's 2026-11-21 section). Its design question is still open; weigh
+it per `docs/prompts/designer.md` before a lane builds it. (SECT orchestrator)
