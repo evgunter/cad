@@ -44,6 +44,29 @@ fn mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64) -> 
     .expect("tessellate")
 }
 
+/// **A prism on `plane` past the session box is refused by it**, at its
+/// first edge's certification and never by a residual.
+fn refused_by_the_session_box(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, label: &str) {
+    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
+    let vp = Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("a valid profile");
+    let got = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    );
+    let said = format!("{got:?}");
+    assert!(
+        said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+            && !said.contains("ResidualExceeded"),
+        "{label}: past the session box, refused by it at its first edge: {said}"
+    );
+}
+
 /// Like `mesh_of`, but reports an upstream TYPED refusal instead of
 /// panicking — the e2e consumer's actual experience.
 fn try_mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64) -> Option<Mesh> {
@@ -135,7 +158,12 @@ fn p2_dyadic_box_hides_the_prefix_defect() {
             continue;
         };
         let (b0_old, b0_new) = (origin_fold(&m0), signed_volume(&m0));
+        // Every offset here puts the prism past the session box, which
+        // refuses it at its first edge.
         for off in [1.0e3, 1.0e6, 1.0e8] {
+            refused_by_the_session_box(plane_at(off), poly, h, &format!("{label} off={off:e}"));
+        }
+        for off in [9.0e2] {
             let Some(m) = try_mesh_of(plane_at(off), poly, h, 1e-2) else {
                 continue;
             };
@@ -208,7 +236,12 @@ fn p4_e2e_l_shaped_body_near_and_far() {
         ("rect-control", &rect[..], 3.0 * 0.7),
     ] {
         let mut near = f64::NAN;
-        for off in [0.0, 1.0e3, 1.0e5, 1.0e7, 1.0e8] {
+        // Past the session box (1e3 m and out), the box refuses the body
+        // at its first edge.
+        for off in [1.0e3, 1.0e5, 1.0e7, 1.0e8] {
+            refused_by_the_session_box(plane_at(off), poly, 0.7, &format!("{label} off={off:e}"));
+        }
+        for off in [0.0, 9.0e2] {
             println!("  {label} off={off:e}:");
             let Some(m) = try_mesh_of(plane_at(off), poly, 0.7, 1e-2) else {
                 continue;

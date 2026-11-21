@@ -200,34 +200,40 @@ fn r1_e2e_l_prism_near_far() {
         Some(signed_volume(&m))
     };
     let near = read(SketchPlane::xy(), "near");
-    let far = read(plane_at(1.0e5), "far(1e5)");
+    let far = read(plane_at(9.0e2), "far(900)");
     if let Some(near) = near {
         assert!((near - 1.2).abs() < 1e-12, "near volume {near}");
         if let Some(far) = far {
             let rel = ((far - near) / near).abs();
-            println!("L prism: near = {near}, far(1e5) = {far}, rel drift = {rel:e}");
+            println!("L prism: near = {near}, far(900) = {far}, rel drift = {rel:e}");
             assert!(rel < 1e-9, "far drift {rel:e}");
         }
     }
-    // At 2e7 the DOOR refuses typed (cap-plane newell residual at
-    // ulp(2e7) scale) — a consumer there sees a refusal, not a number. Not
-    // [`prism_on`] for the same reason as above: the refusal is the
-    // measurement, and a panicking fixture cannot hand one back.
-    let e = extrude(
-        &Profile::new(
-            plane_at(2.0e7),
-            vec![ProfileLoop::polygon(
-                poly.iter().map(|&(x, y)| Point2::new(x, y)),
-            )],
-        )
-        .validate(Tol::witness())
-        .expect("profile validation"),
-        Extrusion::Distance {
-            depth: 0.4,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .err();
-    println!("L prism at 2e7: extrude refusal = {e:?}");
+    // At 1e5 and 2e7 the prism is past the session box, and the extrude
+    // refuses it at its first edge's certification, by the box, never by
+    // a residual. Not [`prism_on`]: the refusal is the measurement, and a
+    // panicking fixture cannot hand one back.
+    for offset in [1.0e5, 2.0e7] {
+        let e = extrude(
+            &Profile::new(
+                plane_at(offset),
+                vec![ProfileLoop::polygon(
+                    poly.iter().map(|&(x, y)| Point2::new(x, y)),
+                )],
+            )
+            .validate(Tol::witness())
+            .expect("profile validation"),
+            Extrusion::Distance {
+                depth: 0.4,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        );
+        let said = format!("{e:?}");
+        assert!(
+            said.starts_with("Err(Op { source: Certification { error: OutsideSessionBox {")
+                && !said.contains("ResidualExceeded"),
+            "L prism at {offset:e}: refused by the session box at its first edge: {said}"
+        );
+    }
 }
