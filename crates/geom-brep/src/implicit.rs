@@ -3480,7 +3480,7 @@ mod conic_tests {
                 ax[2].mul(&ur[0]).sub(&ax[0].mul(&ur[2])),
                 ax[0].mul(&ur[1]).sub(&ax[1].mul(&ur[0])),
             ];
-            let zero = conic.anchor();
+            let zero = conic.anchor().expect("born anchored");
             let zero_q = q3(zero - Point3::origin());
             for t in [
                 0.0, 1e-9, -3e-7, 1e-4, -2.5e-3, 0.04, -0.7, 1.3, 2.0, -3.1, 3.1,

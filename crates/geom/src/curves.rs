@@ -1144,26 +1144,34 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            // A conic stores its anchor, and nothing of its centre.
+            // The one point a conic stores, named for what it is.
             Curve3::Circle(c) => {
-                let (at, axis, u_ref) = c.stored();
+                let (datum, at, axis, u_ref) = c.stored();
                 AnalyticData::new([
-                    (D::Anchor, Point(at)),
+                    (datum, Point(at)),
                     (D::Axis, Direction(axis)),
                     (D::Radius, Scalar(c.radius())),
                     (D::URef, Direction(u_ref)),
                 ])
             }
             Curve3::Ellipse(e) => {
-                let (at, axis, u_ref) = e.stored();
-                AnalyticData::new([
-                    (D::Anchor, Point(at)),
+                let (datum, at, axis, u_ref) = e.stored();
+                let walk = [
+                    (datum, Point(at)),
                     (D::Axis, Direction(axis)),
                     (D::SemiU, Scalar(e.semi_u())),
                     (D::SemiV, Scalar(e.semi_v())),
                     (D::URef, Direction(u_ref)),
-                    (D::Phase, Direction(e.stored_phase())),
-                ])
+                ];
+                // An anchored ellipse stores where on itself its anchor
+                // sits; one born with a centre stores no such thing.
+                match e.stored_phase() {
+                    Some(phase) => {
+                        let [a, b, c, d, f] = walk;
+                        AnalyticData::new([a, b, c, d, f, (D::Phase, Direction(phase))])
+                    }
+                    None => AnalyticData::new(walk),
+                }
             }
             Curve3::Spiric {
                 frame,

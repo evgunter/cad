@@ -1091,8 +1091,13 @@ impl KeyWriter {
                 self.nurbs3(p.whole_loop());
                 self.datum(geom::DatumValue::Scalar(p.base_span().0));
             }
+            // A conic stores one point, its centre or its anchor, and
+            // the two read as one value: the datum's name parts them.
             CurveData::Analytic(data) => {
-                for (_, value) in data {
+                for (datum, value) in data {
+                    if datum == geom::CurveDatum::Anchor {
+                        self.tag(b"anchor");
+                    }
                     self.datum(value);
                 }
             }
@@ -1762,6 +1767,37 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **The key parts a conic's two stored forms.** A circle born with
+    /// its centre at a point and one born anchored there, with one axis,
+    /// reference direction and radius, store the same scalars and are
+    /// different circles (the second's centre is a radius back from the
+    /// point); the same for an ellipse. Red where the key reads the
+    /// values and not which datum holds them.
+    #[test]
+    fn the_curve_key_parts_a_centre_from_an_anchor() {
+        use geom_core::{Point3, Vec3};
+        let key = |c: &Curve3<f64>| {
+            let mut w = KeyWriter::default();
+            w.curve3(c);
+            w.0
+        };
+        let (at, axis, u) = (Point3::new(0.3, -1.2, 2.5), Vec3::unit_z(), Vec3::unit_x());
+        let centred = Curve3::circle(at, axis, 0.75, u);
+        let anchored = Curve3::Circle(geom::Circle::anchored(at, axis, u, 0.75));
+        assert!(
+            centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5,
+            "two circles"
+        );
+        assert_ne!(key(&centred), key(&anchored), "a circle");
+        let centred = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(at, axis, u), 2.0, 0.75));
+        let anchored = Curve3::Ellipse(geom::Ellipse::anchored(at, axis, u, 2.0, 0.75));
+        assert!(
+            centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5,
+            "two ellipses"
+        );
+        assert_ne!(key(&centred), key(&anchored), "an ellipse");
     }
 
     /// **The key reads every scalar the curve walk yields** — the
