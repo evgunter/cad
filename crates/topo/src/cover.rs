@@ -1198,7 +1198,8 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
 /// sides**: the piece of `carrier` over `span` from a point inside the
-/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge to one of its vertices (`overlap`'s half-turns, `fate`'s
+/// straight corners), its region the
 /// edge cover's construction over the piece ([`edge_cover_over`]), read
 /// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(

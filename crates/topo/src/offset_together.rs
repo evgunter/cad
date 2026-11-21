@@ -687,14 +687,11 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// ([`crate::cover::edge_reach_bounds`]): a corner is resolved only on a
 /// definite sign.
 ///
-/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
-/// difference is load-bearing rather than a duplication to collapse.**
-/// A line edge's reach from its end is its arc length, and this door's
-/// bodies are all-planar, so every edge is a straight segment: no closed
-/// edge exists for the reach to read zero on. The axial door's do — a
-/// chart with ONE seam closes on itself — and a zero arm makes every
-/// meter read `Zero` and call a perfectly transversal corner
-/// degenerate, which is what it measured on the revolved tube.
+/// **The axial door keeps its own copy** (`offset_axial::corner_arms`):
+/// its edges include closed ones, a chart with ONE seam closing on
+/// itself, and its line and circle arms read lengths of their own. Here
+/// every edge is a straight segment, whose reach from its end is its
+/// length, so no edge reads zero.
 ///
 /// # Errors
 ///
@@ -720,7 +717,7 @@ fn corner_arms<T: Decide>(
                 .map(geom_brep::LeverBounds::below)
                 .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                     edge: key,
-                    what: "it has no curve to move",
+                    what: "it has no curve to lever its corner by",
                 })
         })
         .collect()
@@ -1252,6 +1249,39 @@ mod scope_walks {
         let mut work = body.clone();
         offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
             .expect("the door reads its scope, and its scope charts");
+    }
+
+    /// **A corner levered by an edge with no curve refuses, naming the
+    /// lever.** The first box with one of its edges null scaffolding: the
+    /// corner solve reads each edge's reach from its corner, and the
+    /// scaffold has none, so the door refuses before it moves anything.
+    #[test]
+    fn a_corner_on_an_edge_with_no_curve_refuses_its_lever() {
+        let tol = Tol::witness();
+        let (mut body, first, _) = two_boxes();
+        let face = body.faces_of_solid(first).expect("a live solid")[0];
+        let he = body.face(face).unwrap().cycles().next().unwrap().1[0];
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let (below_end, above_end) = body.edge_vertices(edge).unwrap();
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves[curve] = crate::null::CurveGeom::NullScaffold(crate::null::NullEdge {
+            below_end,
+            above_end,
+        });
+        let moves = moves_of(&body, first, 0.1);
+        let got =
+            offset_planes_together(&mut body.clone(), &moves, Band::linear(tol).unwrap(), tol);
+        assert!(
+            matches!(
+                got,
+                Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    what: "it has no curve to lever its corner by",
+                    ..
+                })
+            ),
+            "the corner's lever refuses on the scaffold edge, got {:?}",
+            got.map(|_| ())
+        );
     }
 
     /// The scope walk's two hops answer DIFFERENTLY, and that is why it

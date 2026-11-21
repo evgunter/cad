@@ -1270,16 +1270,22 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// A length for every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by. A corner resolves only on a definite
+/// sign, so each is owed the edge's extent from below.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// The planar door reads each edge's reach from the corner off its
+/// cover (`offset_together::corner_arms`), which on a straight edge is
+/// its length. Here the edges are not all straight: a full revolve's rim
+/// arc runs half a turn and a chart with ONE seam closes on itself,
+/// whose chord is exactly zero — and a zero arm makes every meter read
+/// `Zero` and calls a perfectly transversal corner degenerate, as the
+/// revolved TUBE once did. A line reads its span and a circle its arc
+/// length, each a length named for its arm alone (an arc's is longer
+/// than the arc's extent); any other carrier, a spiric rim a previous
+/// offset minted among them, reads its extent from below
+/// ([`geom_brep::edge_extent_inf`]), which a closed oval's chord would
+/// read as zero.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -4287,14 +4293,15 @@ mod frame_extent_rows {
     }
 
     /// **A pole station is divided by only where it is decided from
-    /// below.** A profile line whose axial component is `0.5·ε`: levered
+    /// below.** A profile line whose axial component is half the band's
+    /// zero: levered
     /// at the vertices' 1 m it reads Zero and refuses, where the cover's
     /// 100 m would read it Positive and divide by it.
     #[test]
     fn a_pole_station_is_decided_at_the_scopes_reach_from_below() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let got = pole_station(0.5 * tol.eps(), &short_vertices_long_cover(), band).unwrap();
+        let got = pole_station(0.5 * band.zero(), &short_vertices_long_cover(), band).unwrap();
         assert_eq!(
             got,
             Sign::Zero,
@@ -4310,7 +4317,7 @@ mod frame_extent_rows {
     fn an_alignment_is_decided_at_the_scopes_reach_from_above() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let theta = 0.5 * tol.eps();
+        let theta = 0.5 * band.zero();
         let wall = Surface::Cylinder {
             origin: Point3::origin(),
             axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
@@ -4340,7 +4347,7 @@ mod frame_extent_rows {
     fn a_charts_alignment_is_levered_about_its_datum() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let theta = 0.5 * tol.eps();
+        let theta = 0.5 * band.zero();
         let frame = Frame {
             axis: geom::Line {
                 origin: Point3::origin(),

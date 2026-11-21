@@ -957,6 +957,8 @@ fn a_cone_surface_pairs_reach_is_read_from_inside_its_faces() {
     let reach =
         super::join::surface_pair_reach((&body, &body), &[(face, face)], &far_cone(), band())
             .unwrap();
+    // A face reach's lever is its measure from its own `at`, whatever
+    // pivot it is asked from.
     let across = reach.lever_from(Point3::new(1.0, 0.0, 0.0)).length();
     assert!(
         (0.5..=1.01).contains(&across),
