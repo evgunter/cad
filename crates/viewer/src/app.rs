@@ -8049,6 +8049,12 @@ mod properties_pane_tests {
         });
         let filleted = driven.the_one(|node| matches!(node, pncad::document::Node::Fillet { .. }));
         driven.repoint_onto(filleted, true);
+        let failed = driven
+            .app
+            .session
+            .evaluation()
+            .and_then(|eval| eval.node_error(filleted).map(|e| format!("{e:?}")));
+        assert!(failed.is_none(), "the fillet evaluates: {failed:?}");
         let [held, ..] = driven.held();
         assert_ne!(
             held,
