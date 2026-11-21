@@ -10,6 +10,7 @@ for tree in ihead base; do
   export CARGO_TARGET_DIR=/home/user/tgt-$tree
   cargo nextest run --no-run --profile ci --workspace > "$OUT/build-$tree.log" 2>&1 || { echo "BUILD FAILED $tree" >> "$OUT/status"; exit 1; }
   echo "built $tree $(date -u +%T)" >> "$OUT/status"
+  rm -rf "/home/user/tgt-$tree/debug/incremental"  # the disk allowance holds two workspace targets only without it
 done
 for eps in 1e-9 1e-12; do
   for tree in ihead base; do
@@ -22,4 +23,4 @@ for eps in 1e-9 1e-12; do
     echo "ran $tree $eps rc=$? $(date -u +%T)" >> "$OUT/status"
   done
 done
-echo DONE >> "$OUT/status"
+rm -rf /home/user/tgt-base/debug/incremental; echo DONE >> "$OUT/status"

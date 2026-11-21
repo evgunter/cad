@@ -1,0 +1,67 @@
+a1-either-old-number: RED (3) Summary [  33.522s] 1459 tests run: 1456 passed, 3 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex
+     geom-brep carrier_eq::tests::two_cylinders_tilt_is_levered_from_the_offsets_farther_end
+     geom-brep extent::geometry_door_rows::a_ball_levered_from_two_pivots_reaches_from_the_farther
+a2-either-first-only: RED (3) Summary [  40.119s] 1459 tests run: 1456 passed, 3 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex
+     geom-brep carrier_eq::tests::two_cylinders_tilt_is_levered_from_the_offsets_farther_end
+     geom-brep extent::geometry_door_rows::a_ball_levered_from_two_pivots_reaches_from_the_farther
+a3-either-lesser: RED (3) Summary [  33.449s] 1459 tests run: 1456 passed, 3 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex
+     geom-brep carrier_eq::tests::two_cylinders_tilt_is_levered_from_the_offsets_farther_end
+     geom-brep extent::geometry_door_rows::a_ball_levered_from_two_pivots_reaches_from_the_farther
+b1-ruled-pivot-stored-origin: RED (2) Summary [  34.167s] 1459 tests run: 1457 passed, 2 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::the_ruled_rows_lever_is_read_at_the_reachs_pivot_on_the_axis
+     geom-brep locus::tests::a_far_stored_origin_does_not_move_the_gap
+r6-ruled-hinge-at-foot: SURVIVES (0) Summary [  33.498s] 1459 tests run: 1459 passed, 216 skipped
+b2-ruled-shift-dropped: RED (1) Summary [  34.440s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::the_ruled_rows_lever_is_read_at_the_reachs_pivot_on_the_axis
+r5-ruled-shift-sign: SURVIVES (0) Summary [  33.500s] 1459 tests run: 1459 passed, 216 skipped
+r4-ruled-turn-dropped: SURVIVES (0) Summary [  34.160s] 1459 tests run: 1459 passed, 216 skipped
+c1-cone-window-from-world-origin: RED (1) Summary [  34.025s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_cones_generator_lever_is_read_from_its_apex
+c2-cone-near-end: RED (1) Summary [  30.563s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_cones_generator_lever_is_read_from_its_apex
+c3-cone-cosine-dropped: RED (1) Summary [  31.871s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_cones_generator_lever_is_read_from_its_apex
+r3-cone-sine-for-cosine: RED (1) Summary [  29.982s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_cones_generator_lever_is_read_from_its_apex
+r7-perp-gap-sign: RED (1) Summary [  32.733s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach
+d1-perp-foot-at-pivot: RED (1) Summary [  33.667s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach
+r8-crossing-across-one-radius: RED (1) Summary [  33.928s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach
+d2-crossing-larger-radius: RED (1) Summary [  35.643s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach
+r9-crossing-half-gap-dropped: RED (1) Summary [  35.556s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::two_crossing_cylinders_ball_does_not_move_with_the_reach
+e1-cover-diameter-ball-radius: RED (1) Summary [  35.355s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_covers_diameter_is_its_boxs_diagonal
+r10-cover-diameter-longest-side: RED (1) Summary [  32.961s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep extent::geometry_door_rows::a_covers_diameter_is_its_boxs_diagonal
+r13-chart-arm-refusal-is-reach: SURVIVES (0) Summary [  32.786s] 1459 tests run: 1459 passed, 216 skipped
+r11-chart-arm-ignores-p: SURVIVES (0) Summary [  34.199s] 1459 tests run: 1459 passed, 216 skipped
+r12-chart-arm-doubles-reach: SURVIVES (0) Summary [  33.247s] 1459 tests run: 1459 passed, 216 skipped
+f1-chart-arm-laneless-is-reach: RED (1) Summary [  33.676s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep dihedral::seam_rows::a_charts_arm_is_its_lanes_bound_and_poison_with_no_lane
+g1-point-given-radius: RED (1) Summary [  35.103s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep pair_section::cylinders::tests::a_point_is_placed_against_the_region_by_its_distance_alone
+g2-definite-arms-exchanged: RED (1) Summary [  33.236s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep pair_section::cylinders::tests::a_point_is_placed_against_the_region_by_its_distance_alone
+r16-region-span-never-outside: SURVIVES (0) Summary [  33.447s] 1459 tests run: 1459 passed, 216 skipped
+r15-holds-always-straddles: SURVIVES (0) Summary [  32.775s] 1459 tests run: 1459 passed, 216 skipped
+h1-cyl-pivot-alone: RED (1) Summary [  32.681s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cylinders_tilt_is_levered_from_the_offsets_farther_end
+r1-cone-arm-first-apex-only: RED (1) Summary [  29.343s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex
+r2-cone-reading-second-apex-only: RED (1) Summary [  16.650s] 1459 tests run: 1458 passed, 1 failed, 216 skipped
+     geom-brep carrier_eq::tests::two_cones_are_levered_from_the_farther_apex
+r17-cone-boundary-arm-session-box: SURVIVES (0) Summary [  17.126s] 1459 tests run: 1459 passed, 216 skipped
+i1-step-edge-extent-alone: RED (2) Summary [   0.926s] 140 tests run: 138 passed, 2 failed, 6 skipped
+     step-import build::tests::a_crease_is_read_over_its_faces_run
+     step-import build::tests::review_c4_the_built_crease_is_the_closed_form_line
+i2-step-one-face-for-both: RED (1) Summary [   0.773s] 140 tests run: 139 passed, 1 failed, 6 skipped
+     step-import build::tests::a_crease_is_read_over_its_faces_run
+r14-step-reach-lever-is-ball-radius: RED (1) Summary [   0.848s] 140 tests run: 139 passed, 1 failed, 6 skipped
+     step-import build::tests::a_crease_is_read_over_its_faces_run
