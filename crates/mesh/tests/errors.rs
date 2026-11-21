@@ -122,6 +122,7 @@ test_utils::f6_variants! {
         OverusedSide,
         SphereTrimShape,
         WrapStripTurn,
+        LiftedColumnOff,
     ];
 }
 
@@ -379,6 +380,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec!["one whole turn", "far half 2 whole turns", "re-mint"],
+        ),
+        (
+            TessellateError::LiftedColumnOff { face, edge },
+            vec!["quarter turn", "stored chart image", "re-mint"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

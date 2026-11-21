@@ -37,3 +37,5 @@ for `pick.rs`.
 One walk on `Body` (a `face_loops`/`face_cycles` pair, or an iterator
 on `Face`) that every site reads, each site keeping its own answer to an
 unwalkable loop — the `loop-boundary-discards` register moves with it.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` spelling is gone.
