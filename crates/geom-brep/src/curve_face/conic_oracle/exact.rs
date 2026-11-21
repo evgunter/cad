@@ -333,13 +333,13 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
     let u = dd3(u_ref);
     let big_a = scaled(u, Dd::of(a));
     let big_b = scaled(cross(dd3(axis), u), Dd::of(b));
-    // A carrier born anchored is its anchor less `A·cos θ₀ + B·sin θ₀`,
-    // exactly: the centre its frame holds is that difference rounded.
-    let w = match carrier.conic().and_then(geom::Conic::anchor) {
+    // A conic is its anchor less `A·cos θ₀ + B·sin θ₀`, exactly: the
+    // centre its frame reads is that difference rounded.
+    let w = match carrier.conic() {
         None => offset(center, anchor),
-        Some(stored) => {
-            let from = offset(stored, anchor);
-            let (c0, s0) = carrier.conic().map_or((1.0, 0.0), geom::Conic::phase);
+        Some(k) => {
+            let from = offset(k.anchor(), anchor);
+            let (c0, s0) = k.phase();
             let (back_a, back_b) = (scaled(big_a, Dd::of(c0)), scaled(big_b, Dd::of(s0)));
             core::array::from_fn(|i| from[i].sub(back_a[i]).sub(back_b[i]))
         }

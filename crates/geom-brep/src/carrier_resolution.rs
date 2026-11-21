@@ -444,7 +444,7 @@ mod tests {
             for k in -8..=8 {
                 let t = t0 + f64::from(k) * 10.0 / a;
                 let p = c.eval(t);
-                let scale = if conic.anchor().is_some() {
+                let scale = if kind == "cone" {
                     1.0 + (p - Point3::origin()).norm()
                 } else {
                     a
@@ -471,7 +471,6 @@ mod tests {
                 let cut = plane(origin + side * (1.7 * (next() - 0.5)), n);
                 let got = plane_cylinder_section(&cut, &cyl, &reach(Point3::origin()), band());
                 if let Ok(PlaneCylinderSection::TiltedEllipse(c)) = got {
-                    assert!(c.conic().unwrap().anchor().is_none(), "{c:?}");
                     check("cylinder", &c, [&cut, &cyl]);
                 }
             }
@@ -495,7 +494,6 @@ mod tests {
                 if let Ok(PlaneConeSection::TiltedEllipse(c)) =
                     plane_cone_section(&cut, &cone, &reach(at), band())
                 {
-                    assert!(c.conic().unwrap().anchor().is_some(), "{c:?}");
                     check("cone", &c, [&cut, &cone]);
                 }
             }
