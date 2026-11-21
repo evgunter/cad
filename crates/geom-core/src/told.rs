@@ -1950,6 +1950,7 @@ mod tests {
         }
         let tolerance = Told::at_most(&2e-10, Dimension::Length).of_the_tolerance();
         assert_eq!(tolerance.told_in(NOTATIONS[1]).to_string(), "2e-10 m");
+        assert_ne!(tolerance, Told::at_most(&2e-10, Dimension::Length));
     }
 
     /// A kept sentence is told in the notation of whoever reads it,
@@ -1967,7 +1968,6 @@ mod tests {
                 .to_string(),
             "no number"
         );
-        assert_ne!(tolerance, Told::at_most(&2e-10, Dimension::Length));
     }
 
     /// A given number typed back in the unit it is told in is the
