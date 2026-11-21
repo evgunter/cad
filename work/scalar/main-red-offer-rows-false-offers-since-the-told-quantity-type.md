@@ -2,11 +2,12 @@
 id: main-red-offer-rows-false-offers-since-the-told-quantity-type
 kind: issue
 title: Main red (slow set): offer_rows::every_offered_tolerance_passes_just_below_it makes false offers on three rows since PR 7159 (the told-quantity type)
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: M
 refs: [7159]
+branch: scalar/main-red-since-the-told-quantity-type
 ---
 
 
@@ -50,3 +51,7 @@ Found by ONEROUND's lane on main `5341f713`, `cargo nextest run -p topo --all-fe
 Each compares the offer the text quotes (`test_utils::offer::offered_below`) with the margin's offer to one part in 10⁶, and the text now carries four figures cut downward, one part in 10⁴ off. The second message holds both spellings: the sentence says "below 3e-11 m" and the number read back from it is 2.999e-11.
 
 **`every_offered_tolerance_passes_just_below_it` names 16 false offers on main `5341f713` (and on `0ad2e0b5`)**, not the three above, all of the one shape (5.499e-10 against 5.5e-10, 5.756e-11 against 5.756955e-11, …): `lever_arm_sector_side_in_the_zero_band`, `conic_bend_short_of_the_band`, `tangent_side_in_band`, `thinner_wedge_tilted_past_the_band`, `tool_on_a_block_corner_tilted_at_its_arm`, `corner_tilted_in_band_at_its_arm`, the three `wedge_turned_on_a_block_*`, `tangent_side_curving_away`, `arc_root_just_inside_its_span`, `vertex_near_a_vertex_of_a_curved_face`, `neighbours_bent_at_the_band`, `roots_a_hair_apart`, `roots_a_hair_apart_across_the_window`, `seam_barely_bending_apart`.
+
+## 2026-11-21: dispatched (SCALAR)
+
+One unit for this row and `work/green/main-red-three-source-censuses-red-since-the-told-quantity-type.md`. Difficulty letter **M**; review tier **single, FULL**: the census repairs are mechanical, but what the offer rows should pin under the told rule is a judgement a second reader should check.
