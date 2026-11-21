@@ -1,0 +1,36 @@
+same-ignores-form :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_walk_names_an_arc_held_ellipses_anchor_and_phase;]
+same-ignores-phase :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_walk_names_an_arc_held_ellipses_anchor_and_phase;]
+map-scalar-drops-phase :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;]
+data-omits-phase :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_walk_names_an_arc_held_ellipses_anchor_and_phase;]
+azimuth-ignores-sine :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;]
+azimuth-ignores-cosine :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;]
+mapped-drops-phase :: [geom: 65 passed, 2 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;geom curves::conic::tests::running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal;]
+reversal-keeps-sine :: [geom: 65 passed, 2 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;geom curves::conic::tests::running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal;]
+quarter-wrong-way :: [geom: 64 passed, 3 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;geom curves::conic::tests::a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis;geom curves::conic::tests::running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal;]
+half-keeps-pair :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;]
+square-uncharged :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_arc_held_offsets_bound_holds_each_charge_it_names;]
+sine-uncharged :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_arc_held_offsets_bound_holds_each_charge_it_names;]
+half-sine-uncharged :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::the_arc_held_offsets_bound_holds_each_charge_it_names;]
+centre-sine-sign :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seam_moves_parameter_zero_and_never_the_anchor;]
+eval-reads-centre :: [geom: 66 passed, 1 failed, 575 skipped FAILS: geom curves::conic::tests::a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis;]
+memo-mark-removed :: [mesh: 19 passed, 1 failed, 515 skipped FAILS: mesh memo::tests::the_curve_key_parts_a_centre_from_an_anchor;]
+sig-drops-phase :: [step-import: 18 passed (1 slow), 1 failed, 417 skipped FAILS: step-import build::tests::a_carriers_signature_parts_a_centre_from_an_anchor;]
+DONE
+== r2_ci_head_1e-9.log
+     Summary [1355.228s] 17471 tests run: 17470 passed, 1 failed, 2728 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+== r2_ci_head_1e-12.log
+     Summary [ 551.619s] 17471 tests run: 17468 passed, 3 failed, 2728 skipped
+geom-brep::all pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus
+geom::all every_suite_file_is_aggregated
+mesh::all reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound
+== gates headwt GATE_BASE=abbff2537
+ROSE names-splitting census.rs: 52 -> 53 (run engine-leaves.sh --lines census.rs to list its counted sites)
+ERROR: scripts/gates/engine-leaves.sh failed
+ERROR: scripts/gates/pin-cites-an-open-row.sh failed
+exit 1
+== gates base GATE_BASE=abbff2537
+ROSE names-splitting census.rs: 52 -> 53 (run engine-leaves.sh --lines census.rs to list its counted sites)
+ERROR: scripts/gates/engine-leaves.sh failed
+ERROR: scripts/gates/pin-cites-an-open-row.sh failed
+exit 1
