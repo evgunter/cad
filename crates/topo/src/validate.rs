@@ -19494,8 +19494,8 @@ pub(crate) mod unconfirmed {
                 .find(|(f, _)| {
                     matches!(
                         kiss.body.face_surface(*f),
-                        Some(crate::Surface::Plane { origin, normal, .. })
-                            if normal.x.abs() == 1.0 && origin.x == x
+                        Some(crate::Surface::Plane { frame })
+                            if frame.axis().x.abs() == 1.0 && frame.origin().x == x
                     )
                 })
                 .map(|(f, _)| f)
