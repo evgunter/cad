@@ -1165,6 +1165,21 @@ pub mod test_support {
             })
     }
 
+    /// Whether `offered`, read off a refusal's sentence, is what `band`
+    /// offers ([`geom_core::Band::offer_deciding`]) for some margin
+    /// within `slack` of `margin`: the precision a pose's margin is
+    /// known to, across which the told spelling moves by a grid step.
+    pub fn offers_a_margin_within(
+        band: geom_core::Band,
+        offered: f64,
+        margin: f64,
+        slack: f64,
+    ) -> bool {
+        let (lo, hi) = (margin.abs() - slack, margin.abs() + slack);
+        band.offer_deciding(lo).is_none_or(|lo| lo <= offered)
+            && band.offer_deciding(hi).is_some_and(|hi| offered <= hi)
+    }
+
     /// **The refusals an executed offer meets further along whose own
     /// story is not yet true**, each with the row that owns it: the
     /// earlier offer is true of its decision (its decision no longer
