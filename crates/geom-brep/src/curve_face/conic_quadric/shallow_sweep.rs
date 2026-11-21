@@ -4,14 +4,14 @@
 //! `1e-11` to `1e-3` m, either side) at a random point, tangent there in
 //! a random direction — the poses the ladder arm answers — decided at
 //! `ε = 1e-6, 1e-9, 1e-12` on both lanes against the exact oracle
-//! ([`geom_brep::curve_face::conic_oracle::exact`]). On every pose at least `Kε`
+//! ([`crate::curve_face::conic_oracle::exact`]). On every pose at least `Kε`
 //! deep, a certified answer has the true count and each certified root
 //! lies within `Kε` of arc of a true one and each true one within `Kε` of
 //! a certified one; a `Miss` has no true root; nothing else is
 //! certified. A refusal is always allowed.
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/conic_quadric/mod.rs",
+    "crates/geom-brep/src/curve_face/conic_quadric.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/quartic.rs",
@@ -29,7 +29,7 @@ test_utils::gated_to![
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{exact, unit};
+use crate::curve_face::conic_oracle::{exact, unit};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::{self, Rng};
 
@@ -134,29 +134,38 @@ fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
 fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let at = Interval::from_f64;
     let carrier = match pose.carrier {
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref)),
-        geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
-            at(semi_u),
-            at(semi_v),
-        )),
+        geom::Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref))
+        }
+        geom::Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                ..
+            },
+        ) => {
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+                at(semi_u),
+                at(semi_v),
+            ))
+        }
         _ => panic!("the sweep draws circles and ellipses"),
     };
     let surface = match pose.surface {
@@ -190,7 +199,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
 /// The door's certified roots as `(lo, hi)` pairs (`pair` reads one), or
 /// what it answered instead.
 fn answer<T: Decide>(
-    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
+    got: Result<Result<CircleRoots<T>, Unsettled>, ConicQuadricRefusal>,
     pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {

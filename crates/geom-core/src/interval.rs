@@ -522,6 +522,11 @@ impl Real for Interval {
         Self::from_f64(x)
     }
 
+    /// The enclosure's ends; an empty or ill-formed one does not read.
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::enclosure(self.0.lo(), self.0.hi())
+    }
+
     /// The exact point `[0, 0]`.
     fn zero() -> Self {
         Self::from_f64(0.0)
@@ -772,6 +777,19 @@ impl Real for Interval {
     /// projections holds trivially).
     fn sin_cos(self) -> (Self, Self) {
         (Self(self.0.sin()), Self(self.0.cos()))
+    }
+
+    /// An enclosure at every `self`. An enclosure wholly within the
+    /// series' reach is the series with its dropped tail enclosed (each
+    /// dropped term is smaller than the one before and of the other
+    /// sign, so the tail's factor lies in `[0, 1]`); any other is the
+    /// difference as written, which encloses everywhere.
+    fn less_sin(self) -> Self {
+        if self.0.abs().hi() <= crate::real::LESS_SIN_SERIES_BELOW {
+            crate::real::less_sin_series(self, Self::from_bounds(0.0, 1.0))
+        } else {
+            self - self.sin()
+        }
     }
 
     /// Tight enclosure of the tangent; an enclosure containing a pole has

@@ -71,7 +71,7 @@ That is the liveness side the floor buys, not a wrong answer within ε.
 the trilean permits. `docs/DESIGN.md` `[verdicts]`: "margins within K·ε
 escalate", and "soundness rests on escalate-never-guess". A `Miss` read
 there is a guess.) The
-row is `conic_quadric::in_band_sweep::a_circle_grazing_a_torus_is_answered_truly_or_not_at_all`
+row is `circle_torus::in_band_sweep::a_circle_grazing_a_torus_is_answered_truly_or_not_at_all`
 (slow set; red if any pose under ε is answered or any answer is
 false). It does not settle the sound-and-local bound this item asks
 for.

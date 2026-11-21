@@ -183,6 +183,7 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
+pub mod loop_points;
 pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
 pub(crate) mod meeting;
@@ -239,6 +240,8 @@ mod seat;
 pub use seat::Seat;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
+#[cfg(test)]
+mod segment_term_revalue_pins;
 pub(crate) mod separating;
 pub mod separation;
 #[cfg(test)]

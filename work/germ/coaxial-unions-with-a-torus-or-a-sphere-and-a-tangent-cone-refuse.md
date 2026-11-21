@@ -35,8 +35,8 @@ and standing beside the corpus registry for it
   chord `y = −1`, `ρ ≤ 3/4`, whose wall is tangent to the sphere along
   its base rim, both revolved about one `y`. The union refuses
   `CurvedPierceUnsupported { operand: A, face, edge, band }` after
-  in-band escalations on `bool_conic_quadric_sub_side` and
-  `bool_conic_quadric_sub_clear`.
+  in-band escalations on `conic_quadric_sub_side` and
+  `conic_quadric_sub_clear`.
 
 INTENT stage 6 PR C (`work/intent/a-sketch-continues-tangent-to-a-surfaces-trace.md`)
 reaches the third refusal by construction too.

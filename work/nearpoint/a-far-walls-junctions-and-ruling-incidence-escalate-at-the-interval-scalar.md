@@ -39,3 +39,22 @@ different carriers' ends, so it is a real comparison, but its slack is
 
 Unmeasured: whether these reads would decide if the points were read
 relative to the face's own frame rather than the origin.
+
+## More evidence: `f64`, ε = 1e-9, a 10 km wall (2026-11-19)
+
+From `oneround/section-area`'s end-to-end probe, merge base `7b752a7a`.
+The plate of
+`work/boxfinish/a-corner-cut-tens-of-eps-deep-finishes-with-a-definite-volume-of-the-wrong-sign.md`
+at `R = 1e4`, split by the plane of normal `(1, 1, 0.05)` (normalised)
+through `(10,1,1) − d·n`, at `d` = 1e-5 and 1e-3:
+
+`Finish(ResultNotAtRest { side: Above, findings: [VolumeUncomputable { source: Face { face: FaceKey(5v1), source: Escalated { cause: Indeterminate { margin: 3.2841857285915325e-9, band: (1e-9, 1e-8), predicate: "props_chart_junction_closed" }, check: Inventory } } }] })`
+
+(`3.3435036126743817e-9` at `d` = 1e-3). The section's edge on the arc
+wall is an ellipse of semi-axes `(283019.4, 10000)` whose centre is
+2.0e5 from the box. The same cuts on the plate at `R = 20` return `Ok`,
+and on `R = 1e4` with normals `(1,1,1)`, `(0.05,1,1)` and
+`(1,0.3,0.02)` they return `Ok` too. So this junction gap is not only
+an `Interval`, ε = 1e-12 reading: a corner cut 10 µm to 1 mm deep on a
+legal far wall refuses at rest at the default ε.
+

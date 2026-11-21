@@ -84,6 +84,7 @@ use geom::{Conic, Surface};
 use geom_core::rounding_charge;
 use geom_core::{Mat3, Point3, Real, Rounded, Vec3};
 
+use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
@@ -324,47 +325,6 @@ pub fn implicit_outward_normal<T: Real>(
     p: Point3<T>,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense)
-}
-
-/// The local curvature lever arm of `s` at `p` (module docs): the
-/// chart's own length scale, `f64::MAX` for a plane (the practical
-/// `min` identity — see the module docs for why not `+∞`), poison for
-/// [`Surface::Nurbs`].
-///
-/// Per kind: sphere/cylinder — the radius; cone — the radial distance
-/// ρ of `p` from the axis; torus — the tube radius `r`. It is the scale
-/// the implicit forms are normalized by (`|∇F| − 1` is the elevation
-/// over it for all four), which is how its readers use it: to meter a
-/// dimensionless residual or a relative curvature as a length at the
-/// chart's own scale (`face_normal`'s on-chart certificate, the
-/// dihedral fold, the contact and SSI jet checks). Each value is a
-/// principal radius of curvature at `p` (the torus's along its
-/// meridian), so it is minted as a curvature arm
-/// ([`geom_core::Lever::curvature_radius`]).
-///
-/// **It is NOT a bound on the curvature on a fat torus.** On a ring
-/// with `R < 2r` the inner equator bends at `1/(R − r)`, harder than
-/// the tube's `1/r`. A reader that charges a SAGITTA against the
-/// tightest bend wants [`min_radius_of_curvature`] instead, and the two
-/// must not be swapped: a smaller value here LOOSENS the readers above
-/// (their margins shrink toward Zero), while a smaller radius of
-/// curvature tightens a sagitta charge.
-pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> geom_core::Lever<T> {
-    geom_core::Lever::curvature_radius(match *s {
-        Surface::Plane { .. } => T::from_f64(f64::MAX),
-        Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
-        Surface::Cone { apex, axis, .. } => {
-            let (_, w) = axial_radial(p, apex, axis);
-            w.norm()
-        }
-        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
-        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
-        // carrier has no implicit form — foot-point machinery (C2.1,
-        // M5 PR 4) owns that story, not this module.
-        // As `Nurbs`: the stand-in is a spline, so no implicit form —
-        // and the offset description has no closed lever arm to lend.
-        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
-    })
 }
 
 /// **The smallest radius of curvature of `s`**, for a reader that
@@ -1094,13 +1054,12 @@ pub struct ConicHarmonics<T> {
     /// scale their rounding is charged against.
     ///
     /// **Every charge here reads the semi-axes through
-    /// [`Conic::speed_hi`]**, the larger stored one, and that is
-    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
-    /// the edge certificate refuses a stored semi-axis that is not a
-    /// finite number or is definitely negative
-    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
-    /// before any charge reads it, and its span check reads a zero one
-    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// [`Conic::speed_hi`]**, which is `max(|a|, |b|)`: a stored
+    /// semi-axis is a finite length never definitely negative
+    /// (`geom::Ellipse::new`), and the reader holds the bound over an
+    /// enclosure that reaches below zero. The edge certificate's span
+    /// check reads a zero one as a collapsed length
+    /// (`CertifyError::StatedInterval`). This is
     /// the invariant's one statement for this module's charges: these
     /// terms, the cone's reach in [`conic_cone_harmonics`] and
     /// [`conic_axis_distance_floor`]'s terms each read it.
@@ -1998,15 +1957,16 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let geom::Circle {
+    let conic_k @ geom::Circle {
         frame:
             geom::Frame {
                 origin: center,
                 axis,
                 u_ref,
             },
-        radius,
+        ..
     } = *circle;
+    let radius = conic_k.radius();
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
@@ -3591,13 +3551,10 @@ mod conic_tests {
             .into_iter()
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.3, 0.1),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.3, 0.1),
+            ..first.frame
+        })));
         for (c, n, r) in [
             ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
             ([1.0, -2.0, 0.5], [2.0, 2.0, 1.0], 1.3),
@@ -3722,13 +3679,10 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..first.frame
+        })));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
@@ -3820,13 +3774,10 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..first.frame
+        })));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);

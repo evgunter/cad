@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use super::*;
-use geom_brep::curve_face::conic_oracle::{crossings, ellipse, extremes, unit};
+use crate::curve_face::conic_oracle::{crossings, ellipse, extremes, unit};
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -362,17 +362,11 @@ fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
         // the apex (along the axis it would pass `9ε²` from it: through).
         let near = circle([0.5 + 3.0 * eps, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
         let got = conic_quadric_roots(&near, 0.0, TAU, &s, band);
-        // A side beside the apex the subdivision reads in the band's
-        // gap is a touch, escalated on the door's decision.
+        // The apex `3ε` off the carrier reads in the band's gap, so the
+        // carrier is neither read whole through it nor handed to the arms.
         assert!(
-            match &got {
-                Ok(Err(_)) => true,
-                Err(BooleanError::Escalated { diag, .. }) => {
-                    diag.predicate == Some("bool_conic_quadric_sub_side")
-                }
-                Ok(Ok(_)) | Err(_) => false,
-            },
-            "ε {eps}, beside the apex: refused, got {got:?}"
+            matches!(got, Ok(Err(Unsettled::AtApex))),
+            "ε {eps}, beside the apex: refused at the apex, got {got:?}"
         );
     }
 }
@@ -428,7 +422,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
 }
 
 /// **A root the slack meter cannot place refuses** (the meter's row,
-/// `bool_conic_cone_root_slack`). A circle of radius 1 crosses a right
+/// `conic_quadric_cone_root_slack`). A circle of radius 1 crosses a right
 /// cone transversally `d` from its apex, at ε 1e-12. The root is
 /// bisected on the residual itself, so its true error is that
 /// residual's rounding over its slope (about `1e-16` m here), which no
@@ -441,7 +435,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
 /// `⊥q = d sin α·x̂`, `|Q′| = 2 cos²α · d sin α · ρ`. The reach is at
 /// least the residual's charged rounding, which holds the `cos θ` ulp
 /// carried along `û = −ẑ` into the height, `2u·ρ·sin α`
-/// ([`geom_brep::conic_cone_residual`]). Where that bound is past the
+/// ([`crate::conic_cone_residual`]). Where that bound is past the
 /// escalation threshold the door must refuse; far from the apex the same
 /// circle's roots are certified and placed.
 #[test]
@@ -499,9 +493,9 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
 }
 
 /// **Every answer holds against the quadric form** (a counterexample
-/// search): random circles and ellipses (semi-axes 1 mm to 1 m, any
-/// stored sign) through a random point of a random cone (half-angle 0.05
-/// to 1.5), at each of the three ε rows:
+/// search): random circles and ellipses (semi-axes 1 mm to 1 m, either
+/// sense of traversal) through a random point of a random cone
+/// (half-angle 0.05 to 1.5), at each of the three ε rows:
 ///
 /// - every certified root lies on the double cone, its distance from it
 ///   inside the zero band, and none within the band of the apex;
@@ -545,10 +539,11 @@ fn certified_answers_hold_against_the_quadric_form() {
             let e = if i % 3 == 0 {
                 geom::Curve3::circle(on - uref * big, n, big, uref)
             } else {
-                let major = if i % 4 == 1 { -big } else { big };
+                // The other sense is the frame's: `−n` and `−uref`.
+                let (n, uref) = if i % 4 == 1 { (-n, -uref) } else { (n, uref) };
                 geom::Curve3::Ellipse(geom::Ellipse::new(
-                    geom::Frame::new(on - uref * major, n, uref),
-                    major,
+                    geom::Frame::new(on - uref * big, n, uref),
+                    big,
                     small,
                 ))
             };
@@ -684,7 +679,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
 }
 
 /// **A crossing beside the apex is never read as the apex's double
-/// root** (the spread rung, `bool_conic_cone_apex_spread`). Three
+/// root** (the spread rung, `conic_quadric_cone_apex_spread`). Three
 /// carriers a few zero bands from a cone's apex, found by a reviewer's
 /// counterexample search (PR 6424), at the ε each was found at: each
 /// genuinely crosses the cone within some tens of zero bands of the
@@ -713,8 +708,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
     let cases = [
         (
             1e-6,
-            geom::Curve3::Circle(geom::Circle {
-                frame: frame(
+            geom::Curve3::Circle(geom::Circle::new(
+                frame(
                     [0.38180397980370573, 0.9260832315064935, 2.5664775268927267],
                     [
                         0.9482094717695619,
@@ -723,8 +718,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
                     ],
                     [-0.19606156387255988, 0.9805915883648227, 0.0],
                 ),
-                radius: 1.6277963338351105,
-            }),
+                1.6277963338351105,
+            )),
             cone_at(
                 [0.3636073164749831, -0.3467551218854421, 1.5519461902326226],
                 [
@@ -770,8 +765,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
         ),
         (
             1e-9,
-            geom::Curve3::Circle(geom::Circle {
-                frame: frame(
+            geom::Curve3::Circle(geom::Circle::new(
+                frame(
                     [-2.4691715662523097, 1.3671848009225616, -1.6066775348685667],
                     [
                         -0.026199321635919894,
@@ -780,8 +775,8 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
                     ],
                     [0.9995241661618604, 0.0, 0.030845441453121267],
                 ),
-                radius: 1.8490826456950697,
-            }),
+                1.8490826456950697,
+            )),
             cone_at(
                 [-0.7237669286148725, 1.8600212669128329, -1.2464255426747348],
                 [
@@ -823,13 +818,13 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
 /// hundred zero bands of the apex, where the brackets (sixty-four
 /// escalation bands of arc each side) cannot all be read.
 ///
-/// - **Clear of the apex** (`bool_conic_cone_deflated_clear`): on a
+/// - **Clear of the apex** (`conic_quadric_cone_deflated_clear`): on a
 ///   needle (half-angle 0.2), a 1 mm circle's bracket reaches the apex's
 ///   spread, and refuses [`Unsettled::AtApex`].
-/// - **A definite side change** (`bool_conic_cone_deflated_side`): on a
+/// - **A definite side change** (`conic_quadric_cone_deflated_side`): on a
 ///   wide cone (1.2), a 0.3 mm circle's bracket ends read no definite
 ///   side, and refuse [`Unsettled::Tangency`].
-/// - **The slack meter** (`bool_conic_cone_root_slack`): on a 0.6 cone, a
+/// - **The slack meter** (`conic_quadric_cone_root_slack`): on a 0.6 cone, a
 ///   1 mm circle's bracket holds the sign change, but the slope bound
 ///   over it cannot place the root to the band: [`Unsettled::Meter`].
 #[test]
@@ -843,7 +838,7 @@ fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
             0.6,
             1e-3,
             Unsettled::Meter {
-                row: "bool_conic_cone_root_slack",
+                row: "conic_quadric_cone_root_slack",
             },
         ),
     ] {
@@ -885,33 +880,48 @@ fn the_apex_spread_bound_refuses_where_a_factor_is_not_positive() {
     );
 }
 
-/// **The 2026-11-15 nightly's counterexample, replayed from its printed
-/// inputs** (`CAD_FUZZ_SEED=0x5a2a16bda0f5438c`, case 281 of
+/// **The 2026-11-15 nightly's ellipse, stored in contract, is refused**
+/// (`CAD_FUZZ_SEED=0x5a2a16bda0f5438c`, case 281 of
 /// [`certified_answers_hold_against_the_quadric_form`], at the row's own
-/// 1e-6 band). A measurement, printed: the door's certified roots, the
-/// oracle's crossings, and at each certified root the cone's residual
-/// with its running bound and the residual's slope along the arc, whose
-/// quotient is how far the true crossing lies from the root.
-///
-/// PINNED, not wanted: the second certified root lies more than the zero
-/// band along the arc from the crossing it stands for. It waits on
-/// `work/germ/the-conic-quadric-door-certifies-first-harmonic-roots-past-the-zero-band.md`,
-/// and reds when that root comes inside the band or stops being certified.
+/// 1e-6 band). The fuzz row drew it with a negative `semi_u`, which
+/// `speed_hi` read as the minor semi-axis, so the first-harmonic arm's
+/// slack fell inside the band and two roots certified up to 1.39 bands
+/// along the arc from the crossings. Here it is stored as the row now
+/// draws it: positive semi-axes and the frame turned over (`−axis`,
+/// `−u_ref`), the same point at every θ as the printed record (checked
+/// against that record's formula written out), and the door refuses it
+/// on the first-harmonic arm's root slack (4.7e-6 at the true speed).
+/// Red the day the door certifies it, or refuses it on another ground
+/// or another meter.
 #[test]
-fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
+fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
+    let (center, axis, u_ref) = (
+        Point3::from_array([
+            0.5951044729266803,
+            -0.4948492339322913,
+            -0.48992849588759274,
+        ]),
+        Vec3::from_array([0.4075878663827065, 0.6480769646040943, 0.6433260286411057]),
+        Vec3::from_array([0.881430409939996, -0.4633281245914571, -0.09169231917436711]),
+    );
+    let (printed_u, semi_v) = (-0.0026403939123773564, 0.00046833656424564605);
     let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(
-            Point3::from_array([
-                0.5951044729266803,
-                -0.4948492339322913,
-                -0.48992849588759274,
-            ]),
-            Vec3::from_array([0.4075878663827065, 0.6480769646040943, 0.6433260286411057]),
-            Vec3::from_array([0.881430409939996, -0.4633281245914571, -0.09169231917436711]),
-        ),
-        -0.0026403939123773564,
-        0.00046833656424564605,
+        geom::Frame::new(center, -axis, -u_ref),
+        -printed_u,
+        semi_v,
     ));
+    let printed = |t: f64| {
+        let (s, c) = t.sin_cos();
+        center + u_ref * (printed_u * c) + axis.cross(u_ref) * (semi_v * s)
+    };
+    for k in 0..64 {
+        let t = TAU * f64::from(k) / 64.0;
+        let miss = (e.eval(t) - printed(t)).norm();
+        assert!(
+            miss <= 1e-15,
+            "θ = {t}: the twin is {miss:e} from the printed record"
+        );
+    }
     let s = geom::Surface::Cone {
         apex: Point3::from_array([-0.5248723522085268, -0.2602737120283434, 0.5026482288829277]),
         axis: Vec3::from_array([
@@ -923,56 +933,12 @@ fn the_nightly_1115_ellipse_root_is_certified_past_the_band() {
         u_ref: Vec3::from_array([0.9854212451578827, 0.17013221209250257, 0.0]),
     };
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
-    let mid = (t0 + t1) / 2.0;
-    let eps = 1e-6;
-    let band = Band::new(eps, 10.0 * eps).unwrap();
+    let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
-    println!("ambient ε {:e}; the door: {found:?}", Tol::witness().eps());
-    let Ok(Ok(CircleRoots::Certified(found))) = found else {
-        panic!("the replayed case is certified on main");
-    };
-    let mut got = found.roots()[..found.count()].to_vec();
-    got.sort_by(f64::total_cmp);
-    let truth = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI);
-    println!("certified {got:?}\noracle    {truth:?}");
-    assert_eq!(got.len(), truth.len(), "one certified root per crossing");
-    let (apex, axis, half_angle) = parts(&s);
-    let conic = e.conic().expect("an ellipse is a conic");
-    let residual = |t: f64| {
-        geom_brep::conic_cone_residual(
-            conic,
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            },
-            half_angle,
-            t,
-        )
-    };
-    let mut along = Vec::new();
-    for (g, t) in got.iter().zip(&truth) {
-        let d = 1e-6;
-        let arc = (e.eval(g + d) - e.eval(g - d)).norm();
-        let slope = (residual(g + d).value - residual(g - d).value) / arc;
-        let at = residual(*g);
-        let placed = (e.eval(*g) - e.eval(*t)).norm();
-        println!(
-            "root {g}: {placed:e} along the arc from the oracle's {t} ({:e} unresolved); \
-             residual {:e} ± {:e}, its slope along the arc {slope:e}, so the crossing lies \
-             {:e} from the root by the residual; distance from the cone {:e}; \
-             the form at the root {:e}, at the oracle's {:e}",
-            resolution(&e, &s, *t),
-            at.value,
-            at.error,
-            at.value.abs() / slope.abs(),
-            distance(&s, e.eval(*g)),
-            form(&s, e.eval(*g)),
-            form(&s, e.eval(*t)),
-        );
-        along.push(placed);
-    }
+    let slack = crate::rows::CONIC_QUADRIC_FIRST.root_slack();
     assert!(
-        along.iter().any(|a| *a > eps),
-        "PINNED: a certified root lies past the zero band along the arc: {along:?}"
+        matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
+        "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \
+         {found:?}"
     );
 }

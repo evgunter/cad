@@ -505,13 +505,8 @@ fn choose(
     // as a wedge between them is (`topo::wedge_reach`): the farthest two
     // of their vertices stand apart, and the edge's own extent where that
     // is longer (a closed edge's whole turn).
-    let extent = geom_brep::edge_extent_inf(
-        &spec.carrier,
-        spec.t0,
-        spec.t1,
-        (spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)),
-    )
-    .max(faces_reach(solid, [plus, minus]));
+    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1)
+        .max(faces_reach(solid, [plus, minus]));
     // A cone's pose readings are levered from its apex (the station of a
     // coaxial cylinder's circles is a distance from it): the edge's own
     // diameter is no reach from there.
@@ -2044,12 +2039,7 @@ fn rooted(
             surface_sig(&solid.faces[minus].surface),
         ];
         let spec = &solid.edges[&e];
-        let extent = geom_brep::edge_extent_inf(
-            &spec.carrier,
-            spec.t0,
-            spec.t1,
-            (spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)),
-        );
+        let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1);
         for &f in faces {
             let surface = &solid.faces[f].surface;
             if held.contains(&surface_sig(surface)) {

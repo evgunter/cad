@@ -189,6 +189,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let sphere = Quadric::Sphere {
         centre: o,
         radius: r,
+        arm: geom_core::test_support::fixture_lever(r),
     };
     let leg = |a, b| sphere.paths((a, b), band).unwrap().remove(0);
     let (out, back) = (leg(start, far), leg(far, end));
@@ -378,19 +379,21 @@ fn split_ellipse(
     (dir, jitter): (Vec3<f64>, f64),
     size: f64,
 ) -> [LoopArc<f64>; 2] {
-    let geom::Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = *c
+    let geom::Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = *c
     else {
         panic!("a tilted section is an ellipse")
     };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
@@ -429,9 +432,10 @@ fn segment_section(
         cell.unresolvable += 1;
         return;
     };
-    let geom::Curve3::Ellipse(geom::Ellipse { semi_u, .. }) = c else {
+    let geom::Curve3::Ellipse(ellipse) = c else {
         unreachable!()
     };
+    let (semi_u, _) = (ellipse.semi_u(), ellipse.semi_v());
     if !resolvable(
         band.zero(),
         off + (c.eval(0.0) - apex).norm() + 2.0 * semi_u,

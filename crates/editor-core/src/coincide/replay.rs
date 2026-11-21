@@ -688,7 +688,10 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
                 .and_then(topo::CurveGeom::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
-                Some(geom::Curve3::Circle(geom::Circle { radius, .. })) => Some(*radius),
+                Some(geom::Curve3::Circle(circle)) => {
+                    let radius = circle.radius();
+                    Some(radius)
+                }
                 _ => None,
             }
         })

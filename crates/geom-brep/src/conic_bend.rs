@@ -11,7 +11,7 @@
 
 use crate::enters::{EntersMaterial, ReferenceNormal};
 use geom_core::NonzeroSign;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
 
 /// **How a conic edge bends off its departure tangent** at the vertex
 /// it leaves: what [`conic_bend_side`] reads one order down where the
@@ -70,17 +70,16 @@ pub struct ConicDeparture<T: Real> {
 
 impl<T: Decide> ConicDeparture<T> {
     /// The departure of `curve`'s walk out of its vertex (`he_plus`
-    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `ends`
-    /// the edge's end vertices.
+    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]).
     ///
     /// # Panics
     ///
     /// On a line carrier ([`ConicBend::of`]).
     #[must_use]
-    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, ends: (Point3<T>, Point3<T>)) -> Self {
+    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool) -> Self {
         let (t0, t1) = curve.params();
         let (tangent, _) = curve.walk_tangents(he_plus);
-        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, ends);
+        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1);
         let bend = ConicBend::of(
             curve.carrier(),
             tangent,
@@ -122,15 +121,18 @@ impl<T: Decide> ConicBend<T> {
             // its tangent at angle `θ`, which grows to `θ = π`; most at
             // `θ = min(span, π)` (the sine form, since `1 − cos θ`
             // cancels to nothing at a small `θ`).
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => BendBounds::Planar {
-                least: T::one() / radius,
-                reach: (radius * span).min(radius * T::from_f64(2.0)),
-                rise: radius
-                    * T::from_f64(2.0)
-                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
-                arc: radius * span,
-                lifts_to: radius * T::pi(),
-            },
+            geom::Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                BendBounds::Planar {
+                    least: T::one() / radius,
+                    reach: (radius * span).min(radius * T::from_f64(2.0)),
+                    rise: radius
+                        * T::from_f64(2.0)
+                        * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
+                    arc: radius * span,
+                    lifts_to: radius * T::pi(),
+                }
+            }
             // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
             // ends of the minor axis to `a/b²` at the ends of the major,
             // and no point lies further than the major diameter. Off its

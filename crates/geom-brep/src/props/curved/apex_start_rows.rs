@@ -35,14 +35,14 @@ fn circle(
     ids: (u32, u32),
 ) -> LoopEdge<f64> {
     LoopEdge::hand_built(
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame {
                 origin: Point3::new(0.0, 0.0, -depth),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             radius,
-        }),
+        )),
         span.0,
         span.1,
         forward,
@@ -77,13 +77,19 @@ fn a_loop_through_the_apex_reads_alike_from_every_start() {
     ];
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let mut sweeps = Vec::new();
+    let cone = geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle: 30f64.to_radians(),
+        u_ref: Vec3::unit_x(),
+    };
     for start in 0..edges.len() {
         let turned: Vec<_> = edges[start..]
             .iter()
             .chain(&edges[..start])
             .cloned()
             .collect();
-        let w = cone_loop_winding(apex, axis, &turned, AtApex::AlongGenerator, band())
+        let w = cone_loop_winding(&cone, apex, axis, &turned, AtApex::AlongGenerator, band())
             .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
         assert_eq!(
             require_cone_loop_vertices_distinct(apex, axis, &w, band()),

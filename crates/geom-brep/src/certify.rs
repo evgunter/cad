@@ -585,35 +585,6 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
-    /// **A conic carrier stores a negative semi-axis**: a circle's
-    /// radius, or either of an ellipse's semi-axes, below zero. Every door
-    /// builds positive semi-axes, a STEP ellipse's are positive lengths,
-    /// and a signed one reverses the traversal, so the record breaks the
-    /// representation's invariant rather than spelling the same edge. The
-    /// kernel mints none, so at a build it is the caller's input and ends
-    /// in its lever (store the magnitude, flip the frame's normal to
-    /// reverse the traversal); at rest it is the stored culprit's defect,
-    /// and at the import door a damaged file. Decided once, at the head of
-    /// the span check, before any reader of the carrier's speed. Only a
-    /// definite sign is this refusal: an enclosure across zero is read
-    /// by the span check in band, and ends in its lever. A zero
-    /// semi-axis is a collapsed length, read by the span check itself
-    /// ([`CertifyError::StatedInterval`]).
-    SemiAxisNegative {
-        /// The carrier's kind.
-        carrier: geom::CurveKind,
-    },
-    /// **A conic carrier stores a semi-axis that is not a finite number**
-    /// (NaN, or infinite, or an enclosure reaching either): no length at
-    /// all, so no speed reader can meter it. Decided exactly
-    /// ([`Real::is_bounded`]), at the head of the span check beside
-    /// [`CertifyError::SemiAxisNegative`], and ended as it is: the
-    /// caller's input at a build, the stored culprit at rest, a damaged
-    /// file at the import door.
-    SemiAxisNotFinite {
-        /// The carrier's kind.
-        carrier: geom::CurveKind,
-    },
     /// A periodic carrier's stored interval (a circle's, an ellipse's, a
     /// spiric's) spans definitely more than one full period beyond
     /// tolerance. This closes the 9-sample winding alias (M2 PR 3
@@ -1004,18 +975,6 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
-            Self::SemiAxisNotFinite { carrier } => write!(
-                f,
-                "the {} carrier stores a semi-axis that is not a finite number, and a conic's \
-                 semi-axes are positive lengths",
-                carrier.name()
-            ),
-            Self::SemiAxisNegative { carrier } => write!(
-                f,
-                "the {} carrier stores a negative semi-axis, and a conic's semi-axes are \
-                 positive lengths",
-                carrier.name()
-            ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "{SPAN_METER} is {} zero (margin {} m), so the stored interval has no proven \
@@ -1227,8 +1186,6 @@ impl CertifyError {
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
             | Self::PeriodicView(_)
-            | Self::SemiAxisNegative { .. }
-            | Self::SemiAxisNotFinite { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1258,20 +1215,6 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            // The kernel mints no negative or non-finite semi-axis, so at
-            // a build the record is its caller's input, which the lever
-            // moves; past a build it is the stored culprit's
-            // (`RefusedSide::Unminted`).
-            Self::SemiAxisNegative { .. } | Self::SemiAxisNotFinite { .. } => Some(
-                SizedDecision {
-                    lever: SEMI_AXIS_LEVER,
-                    size: length_noun!(),
-                    passes: SizedPass::Positive,
-                    side: RefusedSide::Unminted,
-                    no_size: None,
-                }
-                .recourse(RefusedArm::SignCertain(None), at),
-            ),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -1338,12 +1281,6 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 /// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
-/// The lever of a [`CertifyError::SemiAxisNegative`] and a
-/// [`CertifyError::SemiAxisNotFinite`] at a build, where the record is
-/// the caller's input.
-pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its finite, positive length, and \
-     reverse the traversal by flipping the frame's normal";
-
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
@@ -1919,7 +1856,7 @@ impl DoorCheck for CertCheck {
 fn tube_separation<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
     let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
@@ -4355,47 +4292,12 @@ fn decide_turn<T: Decide>(
             cause: undecided.diag,
         }),
     };
-    // A conic's semi-axes are finite, positive lengths, the invariant
-    // every reader of its speed (`geom::Conic::speed_lo`) states, so a
-    // stored one that is not is refused here, before the first of them:
-    // one not a finite number (`CertifyError::SemiAxisNotFinite`), and
-    // one definitely negative (`CertifyError::SemiAxisNegative`). Both
-    // are exact reads of stored data, not banded decisions. `−x` decides
-    // above zero (`Real::select_le_zero` picks its second candidate)
-    // exactly where `x` is negative at every point; an enclosure across
-    // zero hulls both candidates, so the second read, with the poison
-    // first, tells a decided negative from a straddle, which falls
-    // through to the span meter's reading in band. A zero semi-axis is a
-    // collapsed length, which the span meter reads as the interval it
-    // leaves no length to.
-    if let Some(conic) = spec.carrier.conic() {
-        let (a, b) = conic.semi_axes();
-        let poison = T::from_f64(f64::NAN);
-        let negative = |x: T| {
-            let minus = T::zero() - x;
-            minus.select_le_zero(T::zero(), poison).is_poison()
-                && !minus.select_le_zero(poison, T::zero()).is_poison()
-        };
-        let carrier = spec.carrier.kind();
-        #[cfg(not(test))]
-        let unchecked = false;
-        #[cfg(test)]
-        let unchecked = crate::pcurve_cache::mutants::semi_axis_unchecked();
-        if !unchecked {
-            if !(a.is_bounded() && b.is_bounded()) {
-                return Err(CertifyError::SemiAxisNotFinite { carrier });
-            }
-            if negative(a) || negative(b) {
-                return Err(CertifyError::SemiAxisNegative { carrier });
-            }
-        }
-    }
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
     // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
-    // bound on the child's arc length, in either stored order; both are
-    // positive, decided above); a spiric's MINOR
+    // bound on the child's arc length, in either stored order; neither
+    // is stored negative, `geom::Ellipse::new`); a spiric's MINOR
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
@@ -5154,7 +5056,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let mut tangent_gap_max = T::zero();
     let mut tangent_prev: Option<(T, T, T)> = None;
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
-    let mut tangent_arm_min = T::from_f64(f64::MAX);
+    let mut tangent_arm_min: Option<geom_core::Lever<T>> = None;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         // Each arm takes the point through the door it needs: the
@@ -5351,7 +5253,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                         }
                     }
                     tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
-                    tangent_arm_min = tangent_arm_min.min(arm.length());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                     check_residual(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,
@@ -5506,13 +5408,25 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             band,
             &mut max_residual,
         )?;
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
+        // Every interior sample of a tangent edge folded its arm in the
+        // loop above or returned its refusal, and there is one. Each
+        // arm is `folded_lever_arm`'s, never past a carrier's own
+        // curvature arm, which no kind states above `f64::MAX`.
+        const _: () = assert!(CERT_SAMPLES >= 3);
+        let Some(arm) = tangent_arm_min else {
+            unreachable!(
+                "a tangent edge folded no arm over its {} interior samples, each of which \
+                 folds one or returns its refusal",
+                CERT_SAMPLES - 2
+            );
+        };
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1);
     // ---- Intersection, a residual × NURBS pair (a plane, sphere,
     // cylinder or torus beside a spline chart), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
@@ -8349,12 +8263,22 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(kappa_min, drift, 1.0, band),
+                tube_separation(
+                    kappa_min,
+                    drift,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band
+                ),
                 at_f64,
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(point(kappa_min), point(drift), point(1.0), band),
+                tube_separation(
+                    point(kappa_min),
+                    point(drift),
+                    geom_core::test_support::fixture_lever(point(1.0)),
+                    band
+                ),
                 at_interval,
                 "Interval: {why}"
             );
@@ -10377,7 +10301,7 @@ mod tests {
             (
                 forward(proved),
                 "the stored parameter interval is not shown to run forward (length \
-                 3.725290298461914e-9 m)",
+                 3.725e-9 m)",
             ),
             (
                 forward(zero(none)),

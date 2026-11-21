@@ -91,6 +91,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("apart_in_order_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
+    NameCarrier::Call("closed_form_shown"),
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
@@ -113,6 +114,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("gradient_alignment"),
     NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
     NameCarrier::Call("spline_point_incidence_as"),
@@ -123,6 +125,13 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("BASIN_HELD"),
     NameCarrier::Const("CENTRES"),
     NameCarrier::Const("CLEAR"),
+    NameCarrier::Const("CONE_APEX"),
+    NameCarrier::Const("CONE_APEX_SPREAD"),
+    NameCarrier::Const("CONE_DEFLATED_CLEAR"),
+    NameCarrier::Const("CONE_DEFLATED_DEPTH"),
+    NameCarrier::Const("CONE_DEFLATED_SIDE"),
+    NameCarrier::Const("CONE_ON_SURFACE"),
+    NameCarrier::Const("CONE_ROOT_SLACK"),
     NameCarrier::Const("CONE_RULING"),
     NameCarrier::Const("DIHEDRAL_SIGN"),
     NameCarrier::Const("EXTREME"),
@@ -143,6 +152,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ROOT_GAP"),
     NameCarrier::Const("ROOT_SLACK"),
     NameCarrier::Const("ROW"),
+    NameCarrier::Const("SECOND_HARMONIC"),
     NameCarrier::Const("SECTOR_ARM"),
     NameCarrier::Const("SECTOR_REFLEX"),
     NameCarrier::Const("SECTOR_STRAIGHT"),
@@ -232,7 +242,8 @@ const STRUCT_UPDATE: &str = "a row struct built from another's literal (`..CHART
                              are read there";
 const SAME_NAMED: &str = "a call sharing a declared carrier's token that takes no name first: a \
                           closed row's `straddle()` accessor, quad's own \
-                          `require_holes_wound_against`";
+                          `require_holes_wound_against`, `pcurve_cache`'s \
+                          `Placement::shown`";
 const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates, whose rosters \
                            declare it a carrier and read their literals";
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
@@ -307,6 +318,10 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("curve_face/composite.rs: settle: row", CLOSURE_FORWARDS),
+    (
+        "curve_face/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
+        ROW_FIELD,
+    ),
     ("description.rs: harmonic_row: name", CLOSURE_FORWARDS),
     (
         "row_contact.rs: row_clear_of_singularities: name",
@@ -385,6 +400,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: rows.width()", CARRIER_CALL),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
+    ("intersect.rs: closed_form_shown: name", FORWARDS),
     ("intersect.rs: coaxial_cone_sphere: name", LOOP_ROWS),
     ("intersect.rs: coaxial_cone_torus: name", LOOP_ROWS),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
@@ -392,6 +408,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("intersect.rs: plane_cone_section: name", FORWARDS),
     ("intersect.rs: route_pose: a", NOT_A_NAME),
     ("intersect.rs: route_pose: b", CARRIER_CALL),
+    ("intersect.rs: shown: name", FORWARDS),
     (
         "locus.rs: parallel_cylinder_gaps: [internal, \"tangent_locus_internal_gap_floor\"]",
         PAIRED,
@@ -525,10 +542,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache.rs: incidence_at: name", FORWARDS),
     ("pcurve_cache.rs: incidence_over_span_as: name", FORWARDS),
     ("pcurve_cache.rs: incident_as: name", FORWARDS),
+    ("pcurve_cache.rs: incident_as: return Ok(read);", SAME_NAMED),
     (
         "pcurve_cache.rs: read_edge_incidence: carrier",
         CARRIER_CALL,
     ),
+    ("pcurve_cache.rs: periodic_envelope_shown: read", SAME_NAMED),
     ("pcurve_cache.rs: read_identity#1(gates)", IDENTITY),
     ("pcurve_cache.rs: read_identity#2(data)", IDENTITY),
     ("pcurve_cache.rs: read_identity#3(gates)", IDENTITY),

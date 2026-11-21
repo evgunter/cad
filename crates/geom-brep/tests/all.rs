@@ -113,8 +113,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "edge_extent_bounds.rs"]
 mod edge_extent_bounds;
-#[path = "ellipse_signed_semi_axis_gate.rs"]
-mod ellipse_signed_semi_axis_gate;
+#[path = "ellipse_semi_axis_order_gate.rs"]
+mod ellipse_semi_axis_order_gate;
 #[path = "end_samples_read_the_carrier.rs"]
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
@@ -165,6 +165,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pair_section.rs"]
 mod pair_section;
+#[path = "patch_distance_sup_fuzz.rs"]
+mod patch_distance_sup_fuzz;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]

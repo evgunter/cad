@@ -18,9 +18,11 @@
 //! (`inf`, `-inf`, `NaN`). The whole is `{:?}` with a trailing `.0`
 //! dropped.
 //!
-//! The viewer's field text (`viewer::props::render_number`), a
-//! reporting margin's `MarginDiag::readable`, and the numbers a sized
-//! ending quotes are this rendering. `quantity::fmt`'s
+//! This is the exact rendering, for text that must read back as the
+//! float it came from: the viewer's field text
+//! (`viewer::props::render_number`), a serialized form, a dump. A
+//! number a sentence quotes is a [`crate::Told`], which spells the
+//! float it chooses in this notation. `quantity::fmt`'s
 //! `render_shortest` is the same rendering, kept as a copy because
 //! neither crate depends on the other.
 
