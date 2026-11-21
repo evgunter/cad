@@ -149,10 +149,8 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
 #[test]
 fn probe_cone_and_torus_arms_are_inf_side_and_refuse_at_the_degeneracy() {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.4,
-        u_ref: Vec3::unit_x(),
     };
     // Clear of the apex: the inf arm is `v_inf·sin α`, strictly under
     // the sup arm `v_sup·sin α` that the escape lane would quote.
@@ -166,11 +164,9 @@ fn probe_cone_and_torus_arms_are_inf_side_and_refuse_at_the_degeneracy() {
         other => panic!("an apex-straddling window must refuse, got {other:?}"),
     }
     let torus = |major: f64| Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     // A ring torus certifies `R − r` in azimuth and `r` in the
     // meridian; a degenerate one (R = r, the horn torus) refuses.
@@ -447,10 +443,8 @@ fn probe_replay_determinism() {
 #[test]
 fn probe_seam_straddle_and_exact_full_wrap() {
     let cyl = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 2.0,
-        u_ref: Vec3::unit_x(),
     };
     let tau = std::f64::consts::TAU;
     // Same branch: fine.

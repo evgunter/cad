@@ -51,17 +51,21 @@ fn unarmed_tops() -> Vec<Surface<f64>> {
         .expect("the bowed patch's offset mints");
     vec![
         Surface::Sphere {
-            center: Point3::new(0.5, 0.5, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.5, 1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.1,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
         },
         Surface::Torus {
-            center: Point3::new(0.5, 0.5, 1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.5, 1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 0.2,
             minor_radius: 0.05,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
         Surface::Nurbs(Arc::new(bowed_patch())),
         Surface::Approx(approx),
@@ -145,10 +149,12 @@ fn the_box_is_read_with_its_pad() {
     let band = Band::linear(Tol::witness()).unwrap();
     let (escalate, zero) = (band.escalate(), band.zero());
     let ball = Surface::Sphere {
-        center: Point3::new(0.5, 0.5, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.5, 0.5, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.1,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
     };
     let (body, _) = cube_topped(ball);
     assert!(

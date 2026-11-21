@@ -1579,11 +1579,11 @@ fn line_conic<T: Decide>(
     let u = d.normalize();
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
-    let n = k.frame().axis;
+    let n = k.frame().axis();
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = (k.frame().origin - o).dot(u);
+    let c = (k.frame().origin() - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -1600,7 +1600,7 @@ fn line_conic<T: Decide>(
         (c - k.speed_hi(), c + k.speed_hi()),
         geom_core::rounding_charge(ends(ends_a)),
     );
-    let height = (o + u * at.mid() - k.frame().origin).dot(n);
+    let height = (o + u * at.mid() - k.frame().origin()).dot(n);
     match route(
         den,
         den.abs(),
@@ -1618,8 +1618,8 @@ fn line_conic<T: Decide>(
             // `h` the seed's own height above the plane: the seed, `o +
             // d̂·t` with `t = (c − o)·n̂ / d̂·n̂` in `f64`, is read where it
             // landed, a distance, rather than charged for its rounding.
-            let point = o + u * ((k.frame().origin - o).dot(n) / den);
-            let height = (point - k.frame().origin).dot(n).abs();
+            let point = o + u * ((k.frame().origin() - o).dot(n) / den);
+            let height = (point - k.frame().origin()).dot(n).abs();
             let polish = Polish {
                 span_a: a,
                 span_b: b,
@@ -1637,7 +1637,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let c0 = (k.frame().origin - o).dot(m);
+    let c0 = (k.frame().origin() - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
@@ -1658,7 +1658,7 @@ fn line_conic<T: Decide>(
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
-        h: ((k.frame().origin - o).dot(v), hc, hs),
+        h: ((k.frame().origin() - o).dot(v), hc, hs),
         at: range.at_hi,
         swing,
         e,
@@ -1878,7 +1878,7 @@ enum Coplanar {
 /// ([`crate::curve_face::plane_crossing`]).
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    (geom::plane_offset(on, n, k.frame().origin), cp, sp)
+    (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1892,8 +1892,8 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin, kb.frame().axis);
-    let hb = height(&kb, ka.frame().origin, ka.frame().axis);
+    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
+    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let sides = [(swing_a, ha), (swing_b, hb)];
@@ -1947,7 +1947,7 @@ fn conic_conic<T: Decide>(
         }
         return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
-    let oriented = |k: &dyn Conic<T>| k.frame().axis * (k.semi_axes().0 * k.semi_axes().1);
+    let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
@@ -2018,7 +2018,8 @@ pub(super) fn one_curve<T: Decide>(
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    let gap = (e.frame().origin - f.frame().origin).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    let gap =
+        (e.frame().origin() - f.frame().origin()).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -2163,8 +2164,8 @@ fn coplanar_circles<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
-    let w = ka.frame().origin - kb.frame().origin;
-    let w = w - ka.frame().axis * w.dot(ka.frame().axis);
+    let w = ka.frame().origin() - kb.frame().origin();
+    let w = w - ka.frame().axis() * w.dot(ka.frame().axis());
     let d = w.norm();
     if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
@@ -2184,7 +2185,7 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref))
+    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref()))
         .principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
@@ -2269,7 +2270,7 @@ fn coplanar_ellipses<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
     let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let large = big_a.abs().max(big_b.abs());
@@ -2295,7 +2296,7 @@ fn coplanar_ellipses<T: Decide>(
         degree: 2,
     };
     let residual = |theta: T| {
-        let d = ka.point_at(theta) - kb.frame().origin;
+        let d = ka.point_at(theta) - kb.frame().origin();
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
     subdivided(Terms::Local(local), &residual, &frame, place, band)
@@ -2326,7 +2327,7 @@ impl<T: Decide> Level<'_, T> {
     /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
         let (p, dp) = self.a.jet_at(theta);
-        let ddp = self.a.frame().origin - p;
+        let ddp = self.a.frame().origin() - p;
         let (ub, vb) = self.axes;
         let q = p - self.centre;
         let side = |axis: Vec3<T>, square: T| {
@@ -2383,12 +2384,12 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 /// [`Level`] of `kb` along `ka`.
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
     let (ua, va) = (
-        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().u_ref() * ka.semi_axes().0,
         ka.frame().v_ref() * ka.semi_axes().1,
     );
-    let w = ka.frame().origin - kb.frame().origin;
+    let w = ka.frame().origin() - kb.frame().origin();
     let squares = (big_a.powi(2), big_b.powi(2));
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
     let side = |axis: Vec3<T>, square: T| {
@@ -2397,7 +2398,7 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -
     };
     Level {
         a: ka,
-        centre: kb.frame().origin,
+        centre: kb.frame().origin(),
         axes: (ub, vb),
         squares,
         fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),

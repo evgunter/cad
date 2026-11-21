@@ -1960,18 +1960,10 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) = carrier
-        else {
+        let Curve3::Circle(geom::Circle { frame, .. }) = carrier else {
             return None;
         };
+        let center = frame.origin();
         let start = carrier.eval(t0);
         Some(Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
@@ -1980,7 +1972,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(start - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: axis,
+                        dir: frame.axis(),
                     },
                     angle: t1 - t0,
                 },
@@ -6845,13 +6837,8 @@ mod tests {
         for i in 0..CERT_SAMPLES {
             let p = spec.carrier.eval(sample_param(t0, t1, i));
             m = m.max(implicit_residual(surface, p).abs());
-            if let Surface::Cylinder {
-                origin,
-                axis,
-                u_ref,
-                ..
-            } = *surface
-            {
+            if let Surface::Cylinder { frame, .. } = *surface {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let d = p - origin;
                 let w = d - axis * d.dot(axis);
                 m = m.max(w.dot(axis.cross(u_ref)).abs());
@@ -6895,10 +6882,8 @@ mod tests {
     fn the_collapse_leaves_one_conventional_form() {
         let r = 2.0;
         let (keys, lookup) = table(vec![Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         }]);
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let seam = EdgeCurve::certify(
@@ -6921,9 +6906,7 @@ mod tests {
         assert!(chart.wrap, "a seam carries D1's obligation");
 
         let plane = Surface::Plane {
-            origin: Point3::new(0.25, -0.5, 1.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.25, -0.5, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         };
         let (pk, plookup) = table(vec![plane]);
         let (u, v0, v1) = (0.3_f64, 0.7_f64, 2.9_f64);
@@ -7002,10 +6985,8 @@ mod tests {
 
         let r = 2.0;
         let (keys, lookup) = table(vec![Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         }]);
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let derived = EdgeCurve::certify(
@@ -7039,10 +7020,8 @@ mod tests {
         // predicates (D1 keeps them).
         let r = 2.0;
         let cyl = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         };
         let (keys, lookup) = table(vec![cyl]);
         // Perturbed INSIDE the band: an exact ruling makes every meter
@@ -7659,14 +7638,10 @@ mod tests {
         let planes = || {
             vec![
                 Surface::Plane {
-                    origin: Point3::origin(),
-                    normal: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 },
                 Surface::Plane {
-                    origin: Point3::origin(),
-                    normal: Vec3::unit_y(),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
                 },
             ]
         };
@@ -7678,9 +7653,7 @@ mod tests {
         // handles have to actually differ for this row to mean
         // anything.
         let mut dst_surfaces = vec![Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         }];
         dst_surfaces.extend(planes());
         let (dst_all, dst_lookup) = table(dst_surfaces);
@@ -7784,14 +7757,10 @@ mod tests {
         // of the bottom plane (z = 0) and front plane (y = 0).
         let (keys, lookup) = table(vec![
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_y(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             },
         ]);
         let p0 = Point3::origin();
@@ -7923,14 +7892,14 @@ mod tests {
         let theta = 3.0 * eps();
         let (keys, lookup) = table(vec![
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, theta.sin(), theta.cos()),
+                    Vec3::unit_x(),
+                ),
             },
         ]);
         let p0 = Point3::origin();
@@ -7967,14 +7936,10 @@ mod tests {
         // Exactly coincident planes: definitely smooth ⇒ NotTransverse.
         let (keys, lookup) = table(vec![
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_y()),
             },
         ]);
         let spec = EdgeCurveSpec {
@@ -8016,10 +7981,8 @@ mod tests {
         // the surface does not.
         let r = 2.0;
         let (keys, lookup) = table(vec![Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         }]);
         let p0 = Point3::new(r, 0.0, 0.0);
         let p1 = Point3::new(r, 0.0, 3.0);
@@ -8086,9 +8049,7 @@ mod tests {
 
         // A seam on a plane is malformed.
         let (pkeys, plookup) = table(vec![Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }]);
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::wrap(pkeys[0]);
@@ -8119,15 +8080,11 @@ mod tests {
     fn on_pair_meters_incidence_on_both_surfaces() {
         let (keys, lookup) = table(vec![
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             },
             Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
         ]);
         let pair = SurfacePair::new(keys[0], keys[1]);
@@ -10398,15 +10355,11 @@ mod tests {
         let half = std::f64::consts::FRAC_PI_6;
         let (keys, lookup) = table(vec![
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: half,
-                u_ref: Vec3::unit_x(),
             },
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_x(),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
             },
         ]);
         let dir = Vec3::new(0.0, half.sin(), half.cos());
@@ -10696,15 +10649,11 @@ mod tests {
         let on = Point3::new(radius, 0.0, 0.0);
         let (keys, lookup) = table(vec![
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius,
-                u_ref: Vec3::unit_x(),
             },
             Surface::Plane {
-                origin: on,
-                normal,
-                u_ref: Vec3::unit_z(),
+                frame: geom::Frame::new(on, normal, Vec3::unit_z()),
             },
         ]);
         let spec = EdgeCurveSpec {

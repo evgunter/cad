@@ -72,7 +72,7 @@ fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
     let (axis, u_ref) = body
         .surfaces()
         .find_map(|(_, s)| match s {
-            geom::Surface::Cylinder { axis, u_ref, .. } => Some((*axis, *u_ref)),
+            geom::Surface::Cylinder { frame, .. } => Some((frame.axis(), frame.u_ref())),
             _ => None,
         })
         .expect("the cylinder");

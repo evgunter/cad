@@ -47,7 +47,9 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::certify::{CertCheck, CertifyError};
-use geom_brep::props::{PropsError, curved_face, require_iso_rectangle, require_one_chart_branch};
+use geom_brep::props::{
+    PropsError, curved_face, iso_rectangle_sides, require_iso_rectangle, require_one_chart_branch,
+};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::construction::Construct;
@@ -83,10 +85,12 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: RS,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -337,6 +341,11 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                 );
             } else {
                 assert_eq!(door, Ok(()));
+                assert_eq!(
+                    iso_rectangle_sides(surface, &outer, band),
+                    Ok(vec![geom_brep::IsoFamily::V; 2]),
+                    "a rim-only cap: both arcs certified rims"
+                );
                 caps.push(flux.unwrap_or_else(|e| panic!("a rim-only cap measures: {e:?}")));
             }
         }

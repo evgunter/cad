@@ -347,7 +347,7 @@ fn normal(surface: &Surface<f64>) -> Vec3<f64> {
 /// A plane record's origin and unit normal.
 fn plane_of(surface: &Surface<f64>) -> (Point3<f64>, Vec3<f64>) {
     match *surface {
-        Surface::Plane { origin, normal, .. } => (origin, normal),
+        Surface::Plane { frame } => (frame.origin(), frame.axis()),
         _ => unreachable!("only plane records are read"),
     }
 }
@@ -411,10 +411,8 @@ mod tests {
             curve: None,
         };
         let surface = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: y,
+            frame: geom::Frame::new(Point3::origin(), y, x),
             radius: 1.0,
-            u_ref: x,
         };
         let face = |id: u64, sense: bool, edges: [u64; 2]| crate::entities::FaceSpec {
             id,
