@@ -365,10 +365,10 @@ fn ball_planes(tube: &AtRestBody<f64>) -> [usize; 2] {
 
 /// **One aux plane per edge, and only where no arm reads the pair.**
 ///
-/// - The witness turned 0.4: its rim is two arc edges, split into
+/// - The witness turned 0.4: its rim is one closed edge, split into
 ///   pieces at the ball's seam meridians. The edge-plane lane mints one
 ///   plane into the ball per edge, keyed by the edge's split root, so
-///   two, not one per piece.
+///   one, not one per piece.
 /// - A pipe whose inner rim lies on the ball: the rim is an edge of its
 ///   top annulus, a plane, so the plane × sphere arm reads the pair and
 ///   mints one partner copy per pipe face it cuts the ball by (the
@@ -377,7 +377,7 @@ fn ball_planes(tube: &AtRestBody<f64>) -> [usize; 2] {
 #[test]
 fn the_edge_plane_lane_mints_one_plane_per_edge_and_only_where_no_arm_reads() {
     let (witness, _, _) = Pose::new(1.0, 2.0, 0.0, 0.4).tube();
-    assert_eq!(ball_planes(&witness), [2, 2], "the witness turned 0.4");
+    assert_eq!(ball_planes(&witness), [1, 1], "the witness turned 0.4");
     let tol = Tol::witness();
     let v = |x: f64, b: f64| (Point2::new(x, 0.0), b);
     let pipe = extruded(

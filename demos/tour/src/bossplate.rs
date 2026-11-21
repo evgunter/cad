@@ -60,9 +60,9 @@ fn boss<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     // this boss is deliberately split into THREE 120-degree arcs of one
     // carrier, because the stop's whole point is a transverse curved
     // boolean crossing a three-face rim seam and the assertion below
-    // pins the count. `circle` authors no seam at all (its private
-    // lowering is the conventional two-semicircle split), so the split
-    // count has to be said out loud; `circle_split` is the door that
+    // pins the count. `circle` authors no seam at all (it lowers to one
+    // full turn from its `+x` point), so the split count has to be said
+    // out loud; `circle_split` is the door that
     let rim = circle_split(p2(2.0, 2.0), S::from_f64(0.5), 3, S::from_f64(0.0), tol)
         .expect("the three-arc rim authors");
     let plane = SketchPlane::xy_at(p3(0.0, 0.0, 0.4));

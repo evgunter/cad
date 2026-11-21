@@ -544,8 +544,8 @@ fn the_fat_corner_bars_corners_pair_on_one_oval() {
 /// circles** (the spec's Q6, measured): its one frame serves both
 /// circles, and nothing in the frame tells them apart. A ball of radius
 /// `0.52` on a `0.5` rod puts the circles `0.29` apart, nearer than the
-/// half-turn along either, and each holds two sites, where the rod's
-/// seams cross it.
+/// whole turn along either, and each holds one site, where the rod's
+/// seam crosses it.
 #[test]
 fn the_coaxial_cylinder_sphere_pair_keeps_each_circle_to_itself() {
     let tol = Tol::witness();
@@ -555,7 +555,7 @@ fn the_coaxial_cylinder_sphere_pair_keeps_each_circle_to_itself() {
         let what = format!("{op:?}{}", if swap { " swapped" } else { "" });
         let (x, y) = if swap { (&b, &rod) } else { (&rod, &b) };
         let segments = segments(op, x, y, &what);
-        assert_eq!(segments.len(), 4, "{what}: two arcs on each circle");
+        assert_eq!(segments.len(), 2, "{what}: one closed arc on each circle");
         for [s, e] in segments {
             assert!(
                 s.z.abs() > 0.1 && s.z.signum() == e.z.signum(),

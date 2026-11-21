@@ -2253,10 +2253,10 @@ class TestHollowring(unittest.TestCase):
         self.assertGreater(v_solid - v_want, 0.4 * v_want)
 
     def test_the_census_is_the_scenes_absolute_pin(self):
-        """Two shells, each a two-arc profile fully revolved: 2
-        half-tube walls, 2 seam meridians, 2 full-period rims, 2
-        vertices — so the solid carries twice that. The scene pins
-        (4, 8, 4) absolutely; a face appearing or vanishing moves it.
+        """Two shells, each a one-segment circle fully revolved: 1
+        tube wall, its seam meridian and its full-period rim, 1 vertex
+        — so the solid carries twice that. The scene pins (2, 4, 2)
+        absolutely; a face appearing or vanishing moves it.
 
         What the Python row CANNOT see, stated rather than skipped:
         the shell decomposition itself. `all_bodies` answers one body
@@ -2267,9 +2267,9 @@ class TestHollowring(unittest.TestCase):
         doc = Doc()
         ring = self.ring(doc)
         ev = evaluate(doc)
-        self.assertEqual(len(ev.all_vertices(ring)), 4)
-        self.assertEqual(len(ev.all_edges(ring)), 8)
-        self.assertEqual(len(ev.all_faces(ring)), 4)
+        self.assertEqual(len(ev.all_vertices(ring)), 2)
+        self.assertEqual(len(ev.all_edges(ring)), 4)
+        self.assertEqual(len(ev.all_faces(ring)), 2)
         self.assertEqual(len(ev.all_bodies(ring)), 1)
 
 

@@ -50,9 +50,8 @@ const PHI: f64 = 0.3;
 /// How deep each glyph is engraved (m).
 const DEPTH: f64 = 0.05;
 
-/// The disc profile: two half-circle arcs (bulge 1) of radius [`R`] —
-/// extrudes to a cylinder whose two wall faces share ONE cylinder
-/// surface.
+/// The disc profile: one full-turn circle of radius [`R`] — extrudes to
+/// a cylinder whose one wall face its seam strut closes.
 fn disc<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
     let lp = pncad::profile::circle(p2::<S>(0.0, 0.0), S::from_f64(R), tol)
         .expect("disc radius is positive")
