@@ -7005,7 +7005,10 @@ pub trait AtRestPolicy: Decide {
     /// [`geom_brep::EdgeCurve::uncertified`]), so no code path at a dual
     /// reaches a certifying function (DUAL-DESIGN DL1, DL3). `stated` is
     /// a chart image the body already holds for the edge
-    /// ([`geom_brep::EdgeCurve::certify_stated`]); `start`, `end` and
+    /// ([`geom_brep::EdgeCurve::certify_stated`]); `locus` is the locus
+    /// certificate of the edge a door keeps the carrier, interval and
+    /// surfaces of, which check 6 reads where its support is the spec's
+    /// ([`geom_brep::EdgeCurve::certify_carrying`]); `start`, `end` and
     /// `reach` are the certificate's inputs.
     ///
     /// # Errors
@@ -7020,14 +7023,16 @@ pub trait AtRestPolicy: Decide {
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
+        locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError>;
 
     /// **This scalar's edge door at rest**: what
     /// [`AtRestPolicy::attach_edge`] gives an edge to carry, derived
-    /// again from the edge as it stands — the certificate re-derived in
-    /// full at a certifying scalar
-    /// ([`geom_brep::EdgeCurve::recertify_stated`]; the stored one is
-    /// never read), the mint re-run at a tangent-transport scalar.
+    /// again from the edge as it stands — every check at a certifying
+    /// scalar ([`geom_brep::EdgeCurve::recertify_stated`]), the edge's
+    /// locus certificate read where its support is the edge's as it
+    /// stands and derived again where it is not; the mint re-run at a
+    /// tangent-transport scalar.
     ///
     /// # Errors
     ///
@@ -7356,8 +7361,11 @@ impl AtRestPolicy for f64 {
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
+        locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
-        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+        crate::policy_lane::certifying_attach(
+            spec, start, end, surfaces, reach, band, stated, locus,
+        )
     }
 
     fn reattach_edge(
@@ -7533,8 +7541,11 @@ impl AtRestPolicy for geom_core::Probe {
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
+        locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
-        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+        crate::policy_lane::certifying_attach(
+            spec, start, end, surfaces, reach, band, stated, locus,
+        )
     }
 
     fn reattach_edge(
@@ -7708,8 +7719,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
+        locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
-        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+        crate::policy_lane::certifying_attach(
+            spec, start, end, surfaces, reach, band, stated, locus,
+        )
     }
 
     fn reattach_edge(
@@ -7879,8 +7893,11 @@ where
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
+        locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
-        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+        crate::policy_lane::certifying_attach(
+            spec, start, end, surfaces, reach, band, stated, locus,
+        )
     }
 
     fn reattach_edge(
@@ -8064,6 +8081,7 @@ where
         _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
+        _locus: &[&geom_brep::LocusCertificate<Self>],
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
         crate::policy_lane::minting_attach(spec, surfaces, band)
     }

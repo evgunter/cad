@@ -432,7 +432,7 @@ pub(crate) struct Component<T: Real> {
     /// a box of its uniqueness tube holds both the witness and a piece of
     /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
-    /// (`certify`): a face's placement margins are lengths read at a
+    /// (`certify_section_pair`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
     /// component nearest `w`, which lies on the surface (its own foot),
     /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
@@ -507,7 +507,7 @@ pub(crate) struct Touch<T: Real> {
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
-    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
     pub apex: bool,
 }
 
@@ -2017,7 +2017,7 @@ pub(super) fn of_carried<T: Decide>(
 /// # Errors
 ///
 /// The pair's [`Refusal`].
-pub(crate) fn certify<T: Decide>(
+pub(crate) fn certify_section_pair<T: Decide>(
     section: &Section<T>,
     evented: bool,
     band: Band,

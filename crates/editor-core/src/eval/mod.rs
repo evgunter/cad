@@ -1731,12 +1731,13 @@ pub enum NodeErrorKind {
     /// tier 2 alone at the box scalars); the operation that takes it
     /// runs tier 3 on it ([`super::Held::finished`]).
     ///
-    /// Where the operation read the operand into another operand's frame
-    /// before taking it (a union's or an intersect's fold computes in one
-    /// member's frame and reads every other into it), `into` names the
-    /// operand whose frame that is: the image that does not finish is
-    /// `input`'s, carried through `into`'s placement. The subject is
-    /// still `input`; the frame is the context its findings were read in.
+    /// Where the operation placed the operand in another operand's frame
+    /// (a union's or an intersect's fold, or a subtract, computes in one
+    /// operand's frame and places the others in it), `into` names the
+    /// operand whose frame that is, and the findings are those of
+    /// `input`'s image there: the placed door's move refusing it at the
+    /// session box (`topo::Placed::taken`). The subject is still `input`;
+    /// the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,

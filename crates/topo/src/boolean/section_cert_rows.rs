@@ -438,7 +438,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         "no march: {unmarched:?}"
     );
     assert_eq!(
-        certify(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
+        certify_section_pair(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
         Err(Refusal::NoLane("f64"))
     );
     // About `(1, 0, 0)` the second core passes `(3, 0, 0)` and
@@ -500,7 +500,7 @@ fn a_marched_witness_is_placed_padded() {
             single: true,
         };
         let mut seen = Vec::new();
-        let got = certify(
+        let got = certify_section_pair(
             &s,
             false,
             band(),
@@ -1254,7 +1254,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, band(), |_| Sheet::Not, |_, _| place)
+        certify_section_pair(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1280,7 +1280,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
             apex: true,
         });
         let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+            certify_section_pair(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
         };
         for evented in [false, true] {
             assert_eq!(
@@ -1322,7 +1322,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, band(), |_| Sheet::Not, r);
+    let ok = |r| certify_section_pair(&s, false, band(), |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1346,7 +1346,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component::closed_form(false, [false, false], Some(p(0.0, 0.0, 0.0)));
@@ -1355,7 +1355,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1363,7 +1363,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
@@ -1379,15 +1379,15 @@ fn w2_clears_only_where_the_face_describes() {
     );
     let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
+        certify_section_pair(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
+        certify_section_pair(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
     );
     assert_eq!(
-        certify(
+        certify_section_pair(
             &s,
             false,
             band(),
@@ -1405,7 +1405,7 @@ fn w2_clears_only_where_the_face_describes() {
         single: false,
     };
     assert_eq!(
-        certify(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
+        certify_section_pair(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
         Ok(vec![Cleared::Out(Side::G)]),
         "an unread face leaves W3 to clear the component"
     );
