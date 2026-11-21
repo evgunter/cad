@@ -11,8 +11,9 @@ Nothing I could run shows the unit computing a wrong value on a production path.
 The anchored evaluator, its running bound and its `Interval` enclosure hold
 against a 60-digit oracle; the suite and the gates read as the author says; the
 stale-binding class is absent from production code. What is owed is on the test
-and the account side: several rows do not pin what they say they pin (eleven
-surviving mutants, listed), one table in the PR body is taken on an older base
+and the account side: several rows do not pin what they say they pin (eight
+mutants survive everything I ran and four more are seen only by `sweep`'s
+integration rows), one table in the PR body is taken on an older base
 than the one the unit is stacked on, one claim of the author's (three rebuilding
 doors) is short by about ten sites, and the module's own docs say two different
 things about what the anchor is.
@@ -22,8 +23,8 @@ No MAJOR. 8 MINOR, 11 NOTE.
 ## What I executed, and what I only read
 
 EXECUTED
-- `ci` nextest profile, whole workspace, on the head: ε 1e-9 and 1e-6
-  (1e-12: see C11).
+- `ci` nextest profile, whole workspace, on the head, at ε 1e-9, 1e-6 and
+  1e-12.
 - A probe target of my own, one file compiled on BOTH trees
   (`crates/geom-brep/tests/review_r2_common.rs`): 107 far-centred cone sections
   (three cones, planes 1e-2 … 1e-8 short of the parabola, semi-axes 1 … 5e7),
@@ -149,7 +150,7 @@ the 1.45 … 3.6 `u·a`; my quarter- and half-turn rows (1.1 … 2.6 `u·a` on a
 un-re-seamed section) are the same order. The module docs do not say what the
 PR body says: Style S1.
 
-### C9 — the author's eight: seven red, one survives as I planted it; of mine, eleven survive
+### C9 — the author's eight: seven red, one survives as I planted it; of mine, seven survive and four are red only in `sweep`
 
 | mutant | result |
 |---|---|
@@ -163,12 +164,12 @@ PR body says: Style S1.
 | A8 vertex read as centre less semi-axis | RED |
 | R1 anchored evaluator reads the derived centre | RED (4) |
 | R2 the pair swapped in the evaluator | RED (3) |
-| R3 / R4 `same_content` ignores the form (ellipse / circle) | **SURVIVE** |
-| R5 `same_content` ignores the phase | **SURVIVES** |
-| R6 `Ellipse::map_scalar` drops the phase | **SURVIVES** STAGE2-R6 |
-| R7 `Ellipse::placed` drops the phase | **SURVIVES** STAGE2-R7 |
-| R8 `Curve3::data()` omits the phase | **SURVIVES** (`geom`, `mesh`, `step-import` whole) STAGE2-R8 |
-| R9 / R10 anchored `azimuth` ignores the phase's sine / cosine | **SURVIVE** STAGE2-R9 |
+| R3 / R4 `same_content` ignores the form (ellipse / circle) | **SURVIVE** (R3 also the `topo` and `sweep` rows below) |
+| R5 `same_content` ignores the phase | **SURVIVES** (also the `topo` and `sweep` rows below) |
+| R6 `Ellipse::map_scalar` drops the phase | survives `geom`, `geom-brep` and 528 `topo` rows; RED in 5 `sweep` rows |
+| R7 `Ellipse::placed` drops the phase | survives `geom`, `geom-brep` and 528 `topo` rows; RED in 5 `sweep` rows |
+| R8 `Curve3::data()` omits the phase | **SURVIVES** (`geom`, `mesh`, `step-import` whole; the `topo` and `sweep` rows below) |
+| R9 / R10 anchored `azimuth` ignores the phase's sine / cosine | survive `geom`, `geom-brep` and 528 `topo` rows; RED in 2 / 7 `sweep` rows |
 | R11 derived centre ignores the phase's sine | RED |
 | R12 `centred_at` sets an anchored origin | RED (7, `geom-brep`) |
 | R13 anchored circle's azimuth read from the origin | RED |
@@ -181,7 +182,10 @@ PR body says: Style S1.
 
 Scope of a "survives": `geom` whole and `geom-brep`'s rows matching
 `anchored | running | far_centred | resolution | conic | cone_section`, unless
-a wider scope is named.
+a wider scope is named. The wider scope, run for R3, R5, R6, R7, R8, R9, R10:
+`topo` rows matching `cone | seam | chord | section | ellipse` (528), and
+`sweep`'s `a_ring_on_a_cone_face` and `cone_join_lane` (10 rows, slow ones
+included). I did not run a mutant against the whole workspace.
 
 ### C10 — no wrong binding in production (likely)
 
@@ -199,7 +203,7 @@ under `tests/` and `examples/`.
 |---|---|---|
 | `ci`, ε 1e-9 | 17,465 of 17,467; less my probe's own red, 17,466 | 17,466 |
 | `ci`, ε 1e-6 | 17,464; less my two, 17,466 | 17,466 |
-| `ci`, ε 1e-12 | EPS12 | 17,465 |
+| `ci`, ε 1e-12 | 17,463; less my two, 17,465 | 17,465 |
 | gates | two red, `engine-leaves` and `pin-cites-an-open-row`, the same two lines on the base | the same |
 
 - `pcurve_villarceau::an_in_band_move_is_never_read_off_the_torus`: red on the
@@ -208,7 +212,9 @@ under `tests/` and `examples/`.
   (1.094e-12), head `SurfaceResidual`, sample 7, ±1.058e-12, in the join. The
   row and the PR body say so. It is not "the same payload", which is the
   brief's wording and not the author's: n6.
-- `mesh reach_probes::…` at 1e-12 on the base: BASEMESH.
+- `mesh reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound` at
+  1e-12: red on the base with the head's message ("builds at ε 1e-12, where it
+  refused CurvedPierceUnsupported").
 
 ### C12 — the rows say what the code does, with one stale column (m1)
 
@@ -252,7 +258,11 @@ scalar or maps a placement on a RE-SEAMED anchored ellipse.** DEMONSTRATED
 (R6, R7, R9, R10 survive there), sure for that scope. `conic.rs:824`, `:800`,
 `:1101`. These are the arms `chord_join`'s re-seam reaches in production: the
 re-seamed section's `azimuth`, its lift to `Interval`, its image under a
-motion. STAGE2-SUMMARY
+motion. They do go red further out, in `sweep`'s cone rows
+(`cone_join_lane::each_poses_body_is_its_closed_form_in_every_op`,
+`::the_tilted_planes_chords_are_its_ellipse_in_both_member_orders`, and the
+ring's rows), as a body that fails to build, three crates from the arm. 528
+`topo` rows on cones, seams and chords do not see them.
 
 **m4. `the_anchored_offsets_bound_charges_the_squares_rounding` does not go
 red when the square's rounding is uncharged.** DEMONSTRATED (A5), sure.
@@ -397,8 +407,9 @@ Ratings
   re-seam is an exact permutation; the parallel `born` / `phase` fields cost
   it a point.
 - **Test quality: 3.** The evaluator, the bound and the anchor's bits are
-  pinned hard (A1–A4, A7, A8, R1, R2 red); eleven mutants on the form's
-  identity and on the re-seamed arms survive.
+  pinned hard (A1–A4, A7, A8, R1, R2 red); eight mutants on the form's
+  identity and the bound's charges survive, and the re-seamed arms are held
+  only from `sweep`.
 - **Doc / comment honesty: 3.** The PR body and the rows are candid about what
   is not done; the module doc contradicts itself on the anchor and one table
   carries a stale base.
