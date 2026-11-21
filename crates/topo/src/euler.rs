@@ -3735,7 +3735,9 @@ impl<T: Decide> Body<T> {
             faces,
             &spec.carrier,
             (spec.param_start, spec.param_end),
-        );
+            band,
+        )
+        .below();
         let stated = match spec.description {
             geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } => {
                 edge.and_then(|edge| self.stated_pair_image(edge, pair))
@@ -3988,7 +3990,9 @@ impl<T: Decide> Body<T> {
                 crate::edge_faces(self, edge_key),
                 curve.carrier(),
                 curve.params(),
-            );
+                band,
+            )
+            .below();
             let recertify = |start, end| {
                 let origin = Origin::Kernels(KernelSite::ReBasedRun);
                 crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)

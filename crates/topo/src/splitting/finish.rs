@@ -2000,7 +2000,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
-        let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
+        let reach = crate::wedge_reach(body, [face, other_face], carrier, interval, band).below();
         let witness = draft.witness;
         let undescribed = |failure| SplitFinishError::Undescribed { edge, failure };
         let seam_face = |h, surface| {
@@ -2592,7 +2592,10 @@ mod smooth_arm_rows {
         let band = Band::linear(tol()).unwrap();
         let reach = {
             let fx = section_edge();
-            crate::edge_wedge_reach(&fx.body, fx.edge).unwrap().length()
+            crate::edge_wedge_reach(&fx.body, fx.edge, band)
+                .map(geom_brep::LeverBounds::below)
+                .unwrap()
+                .length()
         };
         let mean = (band.zero() * band.escalate()).sqrt();
         let (mut fx, _) = opposed_wall(reach * reach / (2.0 * mean));

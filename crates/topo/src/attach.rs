@@ -362,7 +362,7 @@ impl<T: Decide> Body<T> {
         };
         // One reader for every listed edge, so a face's boundary is
         // collected once however many of its edges are listed.
-        let wedges = crate::wedge_reach::WedgeReach::new(self);
+        let wedges = crate::wedge_reach::WedgeReach::new(self, band);
 
         // ---- The listed edges. ----
         let mut written: Written<T> = Written::with_capacity(redescriptions.len());
@@ -385,11 +385,13 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
-            let reach = wedges.reach(
-                crate::edge_faces(self, edge),
-                &spec.carrier,
-                (spec.param_start, spec.param_end),
-            );
+            let reach = wedges
+                .reach(
+                    crate::edge_faces(self, edge),
+                    &spec.carrier,
+                    (spec.param_start, spec.param_end),
+                )
+                .below();
             let curve = crate::policy_lane::certify_stated(
                 origin,
                 spec.clone(),
@@ -954,7 +956,9 @@ impl<T: Decide> Body<T> {
                 crate::edge_faces(self, edge),
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
-            );
+                band()?,
+            )
+            .below();
             let origin =
                 crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::ReDescription);
             let kept = self
@@ -1432,7 +1436,7 @@ impl<T: Decide> Body<T> {
             [surface(ka), surface(kb)],
             carrier,
             interval,
-            crate::wedge_reach(self, faces, carrier, interval),
+            crate::wedge_reach(self, faces, carrier, interval, band).below(),
             declared,
             band,
         )
@@ -1472,7 +1476,7 @@ impl<T: Decide> Body<T> {
             (k, s)
         };
         let (fa, fb) = sides.faces();
-        let reach = crate::wedge_reach(self, [fa, fb], carrier, interval);
+        let reach = crate::wedge_reach(self, [fa, fb], carrier, interval, band).below();
         geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, reach, band)
     }
 

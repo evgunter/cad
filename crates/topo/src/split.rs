@@ -242,7 +242,9 @@ impl<T: Decide> Body<T> {
                     crate::edge_faces(self, edge),
                     &spec.carrier,
                     (spec.param_start, spec.param_end),
-                ),
+                    band,
+                )
+                .below(),
                 witness,
             },
             band,

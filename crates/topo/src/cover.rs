@@ -273,7 +273,30 @@ pub(crate) fn hull_of_covers<T: Real>(
 /// operation's working copies, whose links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub fn face_cover<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> FaceCovered<T> {
-    face_cover_in(body, face, band, None)
+    face_cover_in(body, face, band, None, true)
+}
+
+/// [`face_cover`] read without the face's lift: the cone's apex hulled
+/// in whether or not the face holds it, and the sphere's and the
+/// torus's chart windows not read, so each such face reads a looser
+/// cover that still holds it. For a reader that the lift itself
+/// reaches: the turn a lift decides at a joint on a chart's singular
+/// set is levered at its faces' extent, and reading that extent
+/// through the lift would ask the lift again.
+///
+/// # Errors
+///
+/// As [`face_cover`].
+///
+/// # Panics
+///
+/// As [`face_cover`].
+pub(crate) fn face_cover_unlifted<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> FaceCovered<T> {
+    face_cover_in(body, face, band, None, false)
 }
 
 /// [`face_cover`] read along `aim`, which a sphere face's arm reads one
@@ -301,7 +324,7 @@ pub fn face_cover_toward<T: Decide>(
     band: Band,
     aim: UnitVec3<T>,
 ) -> FaceCovered<T> {
-    face_cover_in(body, face, band, Some(aim))
+    face_cover_in(body, face, band, Some(aim), true)
 }
 
 fn face_cover_in<T: Decide>(
@@ -309,6 +332,7 @@ fn face_cover_in<T: Decide>(
     face: FaceKey,
     band: Band,
     aim: Option<UnitVec3<T>>,
+    lifts: bool,
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
     let surface = f.surface();
@@ -348,7 +372,7 @@ fn face_cover_in<T: Decide>(
                 return carrier;
             };
             let boundary = boundary_cover(body, f);
-            let hull = if cone_may_hold_apex(body, face, surface, band) {
+            let hull = if !lifts || cone_may_hold_apex(body, face, surface, band) {
                 boundary.map(|b| b.hull(at_apex))
             } else {
                 boundary
@@ -361,7 +385,9 @@ fn face_cover_in<T: Decide>(
             and_proven(and_trim(carrier, hull), frustum)
         }
         Surface::Sphere { center, radius, .. } => {
-            let zone = sphere_window(body, f, surface, band);
+            let zone = lifts
+                .then(|| sphere_window(body, f, surface, band))
+                .flatten();
             let cut = aim.and_then(|aim| pole_side(body, f, (*center, *radius), aim, band));
             and_proven(and_proven(carrier, zone), cut)
         }
@@ -373,7 +399,7 @@ fn face_cover_in<T: Decide>(
             u_ref,
         } => {
             let ring = constraint(|| {
-                geom::is_ring_torus(*major_radius, *minor_radius, band)
+                (lifts && geom::is_ring_torus(*major_radius, *minor_radius, band))
                     .then_some(())
                     .ok_or(())
             });
@@ -527,6 +553,29 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
                 }) != Some(false)
             })
     })
+}
+
+/// **How far apart two points of `face` stand at least**: the largest
+/// of its boundary edges' own extents from below
+/// ([`geom_brep::edge_extent_inf`], each edge a part of the face), the
+/// lever of a reading consumed over the face that claims a definite
+/// sign. `None` for a face with no certified boundary edge, whose
+/// points this reads none of.
+pub(crate) fn face_extent_below<T: SpanLocate>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<geom_core::Lever<T>> {
+    body.face(face)?
+        .boundary()
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { ek, edge, .. } => body.edge_curve_linked(ek, edge).certified(),
+            BoundaryMember::Isolated { .. } => None,
+        })
+        .map(|curve| {
+            let (t0, t1) = curve.params();
+            geom_brep::edge_extent_inf(curve.carrier(), t0, t1)
+        })
+        .reduce(geom_core::Lever::max)
 }
 
 /// **The boundary's cover**: each boundary edge's cover
@@ -1149,7 +1198,8 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
 /// sides**: the piece of `carrier` over `span` from a point inside the
-/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge to one of its vertices (`overlap`'s half-turns, `fate`'s
+/// straight corners), its region the
 /// edge cover's construction over the piece ([`edge_cover_over`]), read
 /// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(

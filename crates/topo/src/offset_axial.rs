@@ -293,8 +293,8 @@
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::{ExtentBall, LeverBounds};
 use geom_core::k_stats::decide;
 use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 use geom_core::{
@@ -312,15 +312,52 @@ use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
 use slotmap::SecondaryMap;
 
-/// The revolution axis every accepted surface shares, with the scope's
-/// own radial extent — the length that levers every direction test
-/// here, so a verdict about alignment is a statement about the geometry
-/// being judged.
-#[derive(Clone, Copy)]
+/// The revolution axis every accepted surface shares, and the region
+/// the scope occupies ([`ScopeRegion`]): each verdict about a direction
+/// levers at that region's reach from the point its datum is read at,
+/// so a verdict about alignment is a statement about the geometry being
+/// judged.
+#[derive(Clone)]
 struct Frame<T: Real> {
     /// The axis, its `dir` unit.
     axis: geom::Line<T>,
-    extent: Lever<T>,
+    /// The scope's region, read from either side at any pivot.
+    region: ScopeRegion<T>,
+}
+
+/// **The region the scope occupies**, held as its two reads: the hull
+/// of its faces' covers ([`crate::cover::face_cover`]), which holds what
+/// bulges past the boundary, and its vertices, each a point of it. Its
+/// reach from a pivot ([`Self::reach_from`]) is bounded from above by
+/// the hull and from below by the vertices; a verdict takes the bound
+/// its action needs (`geom-core`'s README, "Float rounding": a definite
+/// sign from below, a Zero acted on from above, every sign both).
+#[derive(Clone)]
+struct ScopeRegion<T: Real> {
+    /// The hull of the scope's faces' covers; `None` where a face has
+    /// none, whose reach from above reads poison and escalates every
+    /// margin levered at it.
+    cover: Option<geom::cover::Cover<T>>,
+    /// The scope's vertices.
+    vertices: Vec<Point3<T>>,
+}
+
+impl<T: Real> ScopeRegion<T> {
+    /// How far the region reaches from `pivot`, bounded from both sides.
+    /// A scope with no vertex has no bound from below, and reads poison
+    /// there.
+    fn reach_from(&self, pivot: Point3<T>) -> LeverBounds<T> {
+        let poison = || ExtentBall::of_cover_from(None, pivot).lever_from(pivot);
+        LeverBounds::Between {
+            below: self
+                .vertices
+                .iter()
+                .map(|&v| ExtentBall::point(v).lever_from(pivot))
+                .reduce(Lever::max)
+                .unwrap_or_else(poison),
+            above: ExtentBall::of_cover_from(self.cover.as_ref(), pivot).lever_from(pivot),
+        }
+    }
 }
 
 impl<T: Real> Frame<T> {
@@ -509,7 +546,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // vessel has no axis of its own, and reading the seed or the
     // extent off it would answer a question about the vessel with the
     // box's geometry.
-    let frame = axial_frame(body, &scope)?;
+    let frame = axial_frame(body, &scope, band)?;
     let mut charts: Vec<(FaceKey, MovedChart<T>)> = Vec::new();
     for m in moves {
         // **The cone's mirror nappe is a CONSUMER obligation, and this
@@ -845,7 +882,9 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                                 crate::edge_faces(body, edge),
                                 &carrier,
                                 (t0, t1),
-                            ),
+                                band,
+                            )
+                            .below(),
                             declared,
                             band,
                         )
@@ -861,7 +900,9 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                                 crate::edge_faces(body, edge),
                                 &carrier,
                                 (t0, t1),
-                            ),
+                                band,
+                            )
+                            .below(),
                             band,
                         )
                     },
@@ -988,7 +1029,7 @@ pub(crate) fn is_axial_in<T: Decide>(
     scope: &crate::offset_together::Scope,
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
-    let frame = match axial_frame(body, scope) {
+    let frame = match axial_frame(body, scope, band) {
         Ok(frame) => frame,
         // No curved chart, or no face at all: nothing revolves.
         Err(ReplaceFaceError::TogetherAxialUnsupported { .. } | ReplaceFaceError::EmptyGroup) => {
@@ -1014,14 +1055,16 @@ pub(crate) fn is_axial_in<T: Decide>(
     Ok(true)
 }
 
-/// The revolution axis of the solids `scope` names, and their radial
-/// extent, read off the first curved chart in scope. An all-planar
+/// The revolution axis of the solids `scope` names, read off the first
+/// curved chart in scope, and the scope's faces' farthest distance from
+/// it. An all-planar
 /// scope has no axis and is not this door's; a scope holding no face
 /// (an empty move set, a faceless body) names nothing to revolve and
 /// answers [`ReplaceFaceError::EmptyGroup`].
-fn axial_frame<T: Real>(
+fn axial_frame<T: Decide>(
     body: &Body<T>,
     scope: &crate::offset_together::Scope,
+    band: Band,
 ) -> Result<Frame<T>, ReplaceFaceError<T>> {
     let first = body
         .faces()
@@ -1069,36 +1112,35 @@ fn axial_frame<T: Real>(
     // subtracting and re-adding `2.0`. Measured on the byte-dump
     // harness, which now reports the curved fixtures unchanged.
     let (origin, dir) = (seed.foot(Point3::origin()), seed.dir);
-    // The extent is the SCOPE's own furthest vertex from the axis
-    // point: the length a direction error would move a corner by, which
-    // is the geometry every alignment verdict here is about. A box
-    // standing beside a vessel would lever the vessel's margins by its
-    // own distance away, which is a fact about the assembly and not
+    // The region is the SCOPE's own: its faces' covers and its vertices.
+    // A box standing beside a vessel would lever the vessel's margins by
+    // its own distance away, which is a fact about the assembly and not
     // about the vessel's charts.
     //
-    // **The scoping of THIS walk is unpinnable, and that is stated
-    // rather than left to be discovered.** `extent` feeds only
-    // `Margin::levered(x, extent)`, and every margin that reads it is
-    // EXACTLY zero on any body of revolution this workspace builds —
-    // the caps' normals, the wall's axis and the frame's direction are
-    // minted from one `AxisFrame`, so the sines and dot products are
-    // exact zeros rather than small numbers. A zero margin decides the
-    // same at every lever, so deleting the guard below leaves the whole
-    // suite green. What would pin it is an operand whose own alignment
-    // margin is NON-zero and small enough that the lever decides the
-    // verdict — a tilted revolve, which `revolve` refuses to build (its
-    // 2-D axis must be `±x`/`±y`) — or a hand-built body of that shape.
-    // The same posture the axis gate's third outcome is documented
-    // under: written for correctness rather than pinned by a fixture.
-    let extent = body
+    // **The scoping of this walk is pinned by a row, not by any verdict
+    // the suite reaches.** Every margin the region levers is EXACTLY zero
+    // or far from the band on every body of revolution this workspace
+    // builds: the caps' normals, the wall's axis and the frame's
+    // direction are minted from one `AxisFrame`, so the sines and dot
+    // products are exact zeros or unit cosines rather than small numbers,
+    // and a whole-body walk leaves every suite verdict as it is. What
+    // pins it is `frame_extent_rows`, which reads the region itself on a
+    // body holding a solid outside the scope.
+    let covers = scope
+        .faces_in_scope()
+        .into_iter()
+        .map(|face| crate::cover::face_cover(body, face, band));
+    let cover = crate::cover::hull_of_covers(covers)
+        .unwrap_or_else(|| unreachable!("the scope holds {first:?}"))
+        .ok();
+    let vertices = body
         .vertices()
         .filter(|&(k, _)| scope.holds_vertex(k))
-        .fold(ExtentBall::point(origin).lever(), |far, (key, vertex)| {
-            far.max(ExtentBall::point(origin).lever_from(body.point_of(key, vertex)))
-        });
+        .map(|(key, vertex)| body.point_of(key, vertex))
+        .collect();
     Ok(Frame {
         axis: geom::Line { origin, dir },
-        extent,
+        region: ScopeRegion { cover, vertices },
     })
 }
 
@@ -1120,14 +1162,32 @@ fn classify<T: Decide>(
     band: Band,
 ) -> Result<Constraint<T>, ReplaceFaceError<T>> {
     let not_axial = |what: &'static str| ReplaceFaceError::TogetherNotAxial { face, what };
-    // A direction's misalignment is a SINE, levered by the body's own
-    // extent — the length that misalignment would move a corner by.
-    let sine = |x: T, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
-        match decide(what, Margin::levered(x, frame.extent), band) {
+    // A direction's misalignment is a SINE, levered by how far the scope
+    // reaches from the point the chart's datum is read at: the length a
+    // tilt pinned there moves a point of the scope by. A Zero names the
+    // chart aligned and any other sign refuses, so the reach is read
+    // from above.
+    let sine = |x: T, at: Point3<T>, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
+        let lever = frame.region.reach_from(at).above();
+        match decide(what, Margin::levered(x, lever), band) {
             Ok(Sign::Zero) => Ok(true),
             Ok(_) => Ok(false),
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
         }
+    };
+    // A plane's normal acts on every sign: a Zero names it a station, any
+    // other sign sends it on to the axis-parallel read. So it is read at
+    // both bounds of the reach and acted on where they agree, a straddle
+    // (`offset_axial_alignment_straddle`) refused as an in-band reading.
+    let sine_both = |x: T, at: Point3<T>| -> Result<bool, ReplaceFaceError<T>> {
+        crate::validate::decide_levered(
+            ("offset_axial_alignment", "offset_axial_alignment_straddle"),
+            x,
+            frame.region.reach_from(at),
+            band,
+        )
+        .map(|sign| sign == Sign::Zero)
+        .map_err(|source| ReplaceFaceError::Escalated { source })
     };
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
@@ -1136,7 +1196,7 @@ fn classify<T: Decide>(
     Ok(match surface {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
-            if sine(parallel(n), "offset_axial_alignment")? {
+            if sine_both(parallel(n), *origin)? {
                 Constraint::Station(frame.station(*origin))
             } else {
                 // A plane whose normal is PERPENDICULAR to the axis is
@@ -1144,7 +1204,11 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.axis.dir).abs(), "offset_axial_axis_parallel")? {
+                if !sine(
+                    n.dot(frame.axis.dir).abs(),
+                    *origin,
+                    "offset_axial_axis_parallel",
+                )? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -1161,7 +1225,7 @@ fn classify<T: Decide>(
             radius,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*origin)? {
+            if !sine(parallel(*axis), *origin, "offset_axial_alignment")? || !on_axis(*origin)? {
                 return Err(not_axial("a cylinder that is not coaxial with the body"));
             }
             Constraint::Wall(*radius)
@@ -1172,7 +1236,7 @@ fn classify<T: Decide>(
             half_angle,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*apex)? {
+            if !sine(parallel(*axis), *apex, "offset_axial_alignment")? || !on_axis(*apex)? {
                 return Err(not_axial("a cone that is not coaxial with the body"));
             }
             let (sin_a, cos_a) = half_angle.sin_cos();
@@ -1188,7 +1252,7 @@ fn classify<T: Decide>(
             radius,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*center)? {
+            if !sine(parallel(*axis), *center, "offset_axial_alignment")? || !on_axis(*center)? {
                 return Err(not_axial("a sphere whose centre is off the body's axis"));
             }
             Constraint::Ball {
@@ -1203,7 +1267,7 @@ fn classify<T: Decide>(
             minor_radius,
             ..
         } => {
-            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*center)? {
+            if !sine(parallel(*axis), *center, "offset_axial_alignment")? || !on_axis(*center)? {
                 return Err(not_axial("a torus whose centre is off the body's axis"));
             }
             Constraint::Torus {
@@ -1221,16 +1285,22 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// A length for every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by. A corner resolves only on a definite
+/// sign, so each is owed the edge's extent from below.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// The planar door reads each edge's reach from the corner off its
+/// cover (`offset_together::corner_arms`), which on a straight edge is
+/// its length. Here the edges are not all straight: a full revolve's rim
+/// arc runs half a turn and a chart with ONE seam closes on itself,
+/// whose chord is exactly zero — and a zero arm makes every meter read
+/// `Zero` and calls a perfectly transversal corner degenerate, as the
+/// revolved TUBE once did. A line reads its span and a circle its arc
+/// length, each a length named for its arm alone (an arc's is longer
+/// than the arc's extent); any other carrier, a spiric rim a previous
+/// offset minted among them, reads its extent from below
+/// ([`geom_brep::edge_extent_inf`]), which a closed oval's chord would
+/// read as zero.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1255,8 +1325,9 @@ fn corner_arms<T: Decide>(
         out.push(match curve.carrier() {
             // A line's parameter IS arc length, so its span is its chord;
             // a circle's is an angle levered by its own radius. Anything
-            // else falls back to the endpoints' chord, which is what the
-            // carrier can say.
+            // else reads the edge's extent from below
+            // (`geom_brep::edge_extent_inf`), which is what the carrier
+            // can say.
             Curve3::Line(_) => {
                 // Unsourced lever: a length read off the parameter span, not the edge's end
                 // points; the end points' distance rounds differently.
@@ -1268,7 +1339,7 @@ fn corner_arms<T: Decide>(
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
                 Lever::unsourced((t1 - t0).abs() * radius)
             }
-            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
+            other => geom_brep::edge_extent_inf(other, t0, t1),
         });
     }
     Ok(out)
@@ -1492,11 +1563,7 @@ fn solve_corner<T: Decide>(
         } else {
             let h = match only {
                 Profile::Line { n, c } => {
-                    match decide(
-                        "offset_axial_pole_station",
-                        Margin::levered(n.1.abs(), frame.extent),
-                        band,
-                    ) {
+                    match pole_station(n.1, frame, band) {
                         Ok(Sign::Positive) => {}
                         Ok(_) => {
                             return Err(refuse(
@@ -2349,9 +2416,15 @@ fn mint_carrier<T: Decide>(
         let Some(geom::Line { origin, dir }) = chosen.as_line() else {
             unreachable!("{edge:?}: a generator pair is two lines")
         };
+        // The sense is a definite sign, levered from below at the old
+        // edge's middle, where the two directions are compared.
+        let lever = frame
+            .region
+            .reach_from(old.mid_point(old_span.0, old_span.1))
+            .below();
         return match decide(
             "offset_axial_generator_sense",
-            Margin::levered(old_dir.normalize().dot(dir.normalize()), frame.extent),
+            Margin::levered(old_dir.normalize().dot(dir.normalize()), lever),
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
@@ -2407,8 +2480,17 @@ fn mint_carrier<T: Decide>(
                     }
                 }
             }
-            _ => match geom_brep::plane_torus_section(&cap.new, &wall.new, frame.extent, band)
-                .map_err(section_refused)?
+            // The section reads several decisions off one lever, so it
+            // takes the bound it took before the scope held both: the
+            // region from above, about the torus's centre. Which bound a
+            // composite consumer reads is the turn-lever unit's question.
+            _ => match geom_brep::plane_torus_section(
+                &cap.new,
+                &wall.new,
+                frame.region.reach_from(torus_centre(&wall.new)).above(),
+                band,
+            )
+            .map_err(section_refused)?
             {
                 geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 } => (c2, Some(c1)),
                 geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } => (s1, Some(s2)),
@@ -2472,9 +2554,15 @@ fn mint_carrier<T: Decide>(
         };
         let new_normal = normal_of(&chosen)
             .unwrap_or_else(|| unreachable!("{edge:?}: a section curve is a circle or a spiric"));
+        // The sense is a definite sign, levered from below at the old
+        // rim's middle.
+        let lever = frame
+            .region
+            .reach_from(old.mid_point(old_span.0, old_span.1))
+            .below();
         return match decide(
             "offset_axial_rim_sense",
-            Margin::levered(old_normal.dot(new_normal), frame.extent),
+            Margin::levered(old_normal.dot(new_normal), lever),
             band,
         ) {
             Ok(Sign::Positive) => Ok(chosen),
@@ -2642,6 +2730,29 @@ fn tube_centre_offset<T: Real>(
     .norm()
 }
 
+/// A ring torus's centre, the point its section's datum is read at:
+/// its axis line's origin.
+fn torus_centre<T: Real>(torus: &Surface<T>) -> Point3<T> {
+    torus
+        .axis_line()
+        .unwrap_or_else(|| unreachable!("the rim's wall was read a ring torus"))
+        .origin
+}
+
+/// **Whether a profile line `n·(ρ, h) = c` crosses the axis at a
+/// height**: its axial component `n.1` decided nonzero, levered at the
+/// scope's reach from the frame's axis point, where the profile's
+/// coordinates are read. A Positive is divided by (`h = c / n.1`), so
+/// the reach is read from below.
+fn pole_station<T: Decide>(n1: T, frame: &Frame<T>, band: Band) -> Result<Sign, Indeterminate> {
+    let lever = frame.region.reach_from(frame.axis.origin).below();
+    decide(
+        "offset_axial_pole_station",
+        Margin::levered(n1.abs(), lever),
+        band,
+    )
+}
+
 /// **Does `p` stand on the axis?** The one door for that question —
 /// a surface's centre, origin or apex at classification, a circle's
 /// centre at the carrier mint — so it has one predicate name and one
@@ -2684,10 +2795,12 @@ fn latitude_posture<T: Decide>(
             "a circular edge between two charts whose centre is off the axis",
         ));
     }
+    // A Zero names the posture held, so the scope's reach from the
+    // circle's centre is read from above.
     let tilt = axis.normalize().cross(frame.axis.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
-        Margin::levered(tilt, frame.extent),
+        Margin::levered(tilt, frame.region.reach_from(center).above()),
         band,
     ) {
         Ok(Sign::Zero) => Ok(None),
@@ -4046,6 +4159,260 @@ mod keep_turn_rows {
                 Err(ReplaceFaceError::Escalated { .. })
             ),
             "a read in the band of the half-turn mark escalates"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod frame_extent_rows {
+    use super::*;
+    use crate::entity::SolidKey;
+
+    /// The outer quarter of the ring torus `R = 2`, `r = 0.5` about `z`,
+    /// bounded by the parallels at `±π/4` (`boxes::tests::torus_wall`),
+    /// its complement on the same torus: its corners stand
+    /// `√((R + r·cos π/4)² + (r·sin π/4)²) ≈ 2.380` from the centre, its
+    /// outer equator `R + r = 2.5`. Beside it in the same body, a second
+    /// solid: one face on `sphere`, its lone vertex at the sphere's top.
+    /// The torus's solid, then the sphere's.
+    fn torus_and_sphere(sphere: Surface<f64>) -> (Body<f64>, [SolidKey; 2]) {
+        let a = core::f64::consts::FRAC_PI_4;
+        let (mut body, patch) = crate::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            (-a, a),
+        );
+        let key = body.get_face(patch).unwrap().surface;
+        let rest: Vec<_> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| k != patch)
+            .collect();
+        for face in rest {
+            body.set_face_surface(
+                face,
+                crate::construction::FaceSurface::Shared { key, sense: true },
+            )
+            .unwrap();
+        }
+        let torus = body.solids().map(|(k, _)| k).next().unwrap();
+        let top = match sphere {
+            Surface::Sphere { center, radius, .. } => center + Vec3::unit_z() * radius,
+            _ => unreachable!("the second solid is a sphere"),
+        };
+        let seed = body.mvfs(top, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::construction::FaceSurface::New {
+                surface: sphere,
+                sense: true,
+            },
+        )
+        .unwrap();
+        let ball = body.solids().map(|(k, _)| k).find(|&k| k != torus).unwrap();
+        (body, [torus, ball])
+    }
+
+    fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
+        Surface::Sphere {
+            center,
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// The frame of `solids` of `body`, and its region's reach from the
+    /// axis point, below and above.
+    fn reach(body: &Body<f64>, solids: &[SolidKey]) -> (f64, f64) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let scope = crate::offset_together::Scope::of_solids(body, solids);
+        let frame = axial_frame(body, &scope, band).unwrap();
+        let bounds = frame.region.reach_from(frame.axis.origin);
+        (bounds.below().length(), bounds.above().length())
+    }
+
+    /// **The frame's region holds what bulges past the scope's vertices,
+    /// and nothing outside the scope.** With the torus's solid alone in
+    /// scope, the region reaches the outer equator, 2.5, from above and
+    /// the corners, 2.380, from below; the sphere's solid standing 10 m
+    /// up the axis is not read.
+    #[test]
+    fn the_axial_frame_reaches_past_its_scopes_vertices_and_no_further() {
+        let (body, [torus, _]) = torus_and_sphere(sphere(Point3::new(0.0, 0.0, 10.0), 1.0));
+        let (below, above) = reach(&body, &[torus]);
+        let corner = ((2.0 + 0.5 * core::f64::consts::FRAC_1_SQRT_2).powi(2) + 0.125).sqrt();
+        assert!(
+            (2.5..=2.5 + 1e-9).contains(&above),
+            "from above, the torus band's outer equator, 2.5 from the centre, got {above}"
+        );
+        assert!(
+            (below - corner).abs() < 1e-12,
+            "from below, the torus band's corners, {corner} from the centre, got {below}"
+        );
+    }
+
+    /// **The frame's region reads every face in scope.** With both
+    /// solids in scope, the region reaches the sphere's top, 11 m up the
+    /// axis, from either side: the torus's faces come first, so a read
+    /// of them alone stops at 2.5.
+    #[test]
+    fn the_axial_frame_reads_every_scoped_face() {
+        let (body, solids) = torus_and_sphere(sphere(Point3::new(0.0, 0.0, 10.0), 1.0));
+        let (below, above) = reach(&body, &solids);
+        assert!(
+            (11.0..=11.0 + 1e-9).contains(&above),
+            "from above, the sphere's top, 11 from the centre, got {above}"
+        );
+        assert!(
+            (below - 11.0).abs() < 1e-12,
+            "from below, the sphere's lone vertex at its top, got {below}"
+        );
+    }
+
+    /// **A face with no cover poisons the region's bound from above.** The
+    /// sphere's radius is no finite number, so its face has no cover and
+    /// the region reads poison from above, which every Zero-acting margin
+    /// levered at it escalates; skipping the face would read the torus's
+    /// 2.5.
+    #[test]
+    fn a_scoped_face_with_no_cover_poisons_the_frame() {
+        let (body, solids) = torus_and_sphere(sphere(Point3::new(0.0, 0.0, 10.0), f64::NAN));
+        let band = Band::linear(Tol::witness()).unwrap();
+        let scope = crate::offset_together::Scope::of_solids(&body, &solids);
+        let frame = axial_frame(&body, &scope, band).unwrap();
+        let above = frame.region.reach_from(frame.axis.origin).above().length();
+        assert!(
+            above.is_nan(),
+            "the region reads poison from above, got {above}"
+        );
+    }
+
+    /// A frame about `z` through the origin whose region's vertices stand
+    /// 1 m from the origin and whose cover reaches 100 m along `x`.
+    fn short_vertices_long_cover() -> Frame<f64> {
+        Frame {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
+            region: ScopeRegion {
+                cover: geom::cover::Cover::segment(
+                    Point3::new(-1.0, 0.0, 0.0),
+                    Point3::new(100.0, 0.0, 0.0),
+                ),
+                vertices: vec![Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            },
+        }
+    }
+
+    /// **A pole station is divided by only where it is decided from
+    /// below.** A profile line whose axial component is half the band's
+    /// zero: levered
+    /// at the vertices' 1 m it reads Zero and refuses, where the cover's
+    /// 100 m would read it Positive and divide by it.
+    #[test]
+    fn a_pole_station_is_decided_at_the_scopes_reach_from_below() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let got = pole_station(0.5 * band.zero(), &short_vertices_long_cover(), band).unwrap();
+        assert_eq!(
+            got,
+            Sign::Zero,
+            "the station's axial component reads Zero from below"
+        );
+    }
+
+    /// **An alignment is decided at the scope's reach from above.** A
+    /// cylinder on the frame's axis at the origin, tilted by
+    /// `sin θ = 0.5·ε`: levered at the vertices' 1 m it would read
+    /// aligned, and the cover's 100 m reads it off the axis.
+    #[test]
+    fn an_alignment_is_decided_at_the_scopes_reach_from_above() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 0.5 * band.zero();
+        let wall = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            radius: 1.0,
+            u_ref: Vec3::unit_y(),
+        };
+        let got = classify(
+            FaceKey::default(),
+            &wall,
+            &short_vertices_long_cover(),
+            band,
+        );
+        assert!(
+            matches!(got, Err(ReplaceFaceError::TogetherNotAxial { .. })),
+            "the tilted wall is not coaxial over the scope's reach from above"
+        );
+    }
+
+    /// **A plane's alignment acts on every sign, so it is read at both
+    /// bounds.** A cap plane through the origin whose normal is tilted by
+    /// `sin θ = 0.5·ε` from the axis: levered at the vertices' 1 m it reads
+    /// aligned, a station, and at the cover's 100 m it reads tilted and
+    /// goes on to the axis-parallel read, which refuses. The two disagree,
+    /// so the reading straddles and escalates.
+    #[test]
+    fn a_planes_alignment_straddling_its_reach_escalates() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 0.5 * band.zero();
+        let cap = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            u_ref: Vec3::unit_y(),
+        };
+        let got = classify(FaceKey::default(), &cap, &short_vertices_long_cover(), band);
+        assert!(
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "the tilted cap straddles its reach and escalates"
+        );
+    }
+
+    /// **A chart's alignment is levered about the point its datum is read
+    /// at.** A scope 1 m about the frame's axis point, and a cylinder whose
+    /// stored origin lies on the frame's axis 100 m up it, its axis tilted
+    /// by `sin θ = 0.5·ε`: where the scope is, the wall's axis stands
+    /// `100·θ = 50·ε` off the frame's. Levered about the stored origin the
+    /// tilt reads that far and the wall is not coaxial; levered about the
+    /// frame's axis point it would read `0.5·ε`, coaxial.
+    #[test]
+    fn a_charts_alignment_is_levered_about_its_datum() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 0.5 * band.zero();
+        let frame = Frame {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
+            region: ScopeRegion {
+                cover: geom::cover::Cover::segment(
+                    Point3::new(-1.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                ),
+                vertices: vec![Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            },
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 100.0),
+            axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            radius: 1.0,
+            u_ref: Vec3::unit_y(),
+        };
+        let got = classify(FaceKey::default(), &wall, &frame, band);
+        assert!(
+            matches!(got, Err(ReplaceFaceError::TogetherNotAxial { .. })),
+            "the wall whose axis stands 50·ε off the frame's at the scope is not coaxial"
         );
     }
 }

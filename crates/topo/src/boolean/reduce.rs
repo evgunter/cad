@@ -655,7 +655,7 @@ pub(super) fn certified<T: geom_core::Real>(
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`crate::separating::planar_axis`]), and a
+/// over the face's extent ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -669,14 +669,8 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = crate::separating::planar_axis(
-            y,
-            face,
-            || crate::census::face_reach(y, face, band),
-            band,
-        )
-        .ok_or(VertexRefusal::Plane(
-            "the face's outward normal does not read as a unit direction over its reach",
+        let normal = crate::separating::planar_axis(y, face, band).ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its extent",
         ))?;
         Ok(SectionPlane {
             origin: plane.origin,
@@ -3929,9 +3923,9 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
         along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
     );
     let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
-    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params()).max(
-        crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params()),
-    );
+    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params(), band)
+        .below()
+        .max(crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params(), band).below());
     let sign = decide(
         "bool_touch_sheets_part",
         Margin::levered(into_x.dot(into_y), arm),

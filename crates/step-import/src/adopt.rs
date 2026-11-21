@@ -353,7 +353,9 @@ fn adopt_edges(
                     [sides.plus.face, sides.minus.face],
                     &edge.carrier,
                     interval,
-                );
+                    band,
+                )
+                .below();
                 match must_carry_rung(
                     [(fs_plus, surface(fs_plus)), (fs_minus, surface(fs_minus))],
                     &edge.carrier,

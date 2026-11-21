@@ -48,6 +48,7 @@ fn sliver(a: f64, b: f64, depth: f64, bulge_sign: f64) -> ProfileLoop<f64> {
 #[test]
 fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
     let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
     // Never under 2e-3 of turn: the arc's centre, read back from its
     // bulge, drifts off the axis as `1/Δ`, into the band at 1e-12.
     let delta = (8000.0 * tol.eps() / R_SPHERE).sqrt().max(2.0e-3);
@@ -87,7 +88,10 @@ fn a_tiny_lune_on_a_wide_sphere_levers_every_edge_at_the_bodys_own_extent() {
         "the body is small beside its sphere: {diameter}"
     );
     for (edge, _) in body.edges() {
-        let reach = topo::edge_wedge_reach(&body, edge).unwrap().length();
+        let reach = topo::edge_wedge_reach(&body, edge, band)
+            .unwrap()
+            .below()
+            .length();
         assert!(
             reach <= 2.0 * diameter,
             "{edge:?}: the wedge's reach {reach} is the faces' (diameter {diameter}), \

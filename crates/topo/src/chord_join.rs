@@ -2559,7 +2559,7 @@ fn chord_spec<T: Decide>(
                     interval: (s1, s2),
                     // The section face is not minted yet, so the wedge
                     // reads the face the ruling divides.
-                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2)),
+                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2), band).below(),
                     witness,
                 },
                 band,

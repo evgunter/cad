@@ -7896,8 +7896,8 @@ pub(crate) fn tier3_local_checks_marked<
     // One wedge reader for checks 2 and 4: each face's boundary is
     // collected once, and each edge's reach is read once and shared by
     // its re-certification and its dihedral check (`crate::WedgeReach`).
-    let wedges = crate::WedgeReach::new(body);
-    let mut reaches: slotmap::SecondaryMap<EdgeKey, geom_core::Lever<T>> =
+    let wedges = crate::WedgeReach::new(body, band);
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, geom_brep::LeverBounds<T>> =
         slotmap::SecondaryMap::new();
 
     // ------------------------------------------------------------------
@@ -7945,7 +7945,7 @@ pub(crate) fn tier3_local_checks_marked<
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
-            reach,
+            reach.below(),
             band,
             stated.as_ref(),
         ) {
@@ -8080,7 +8080,7 @@ pub(crate) fn tier3_local_checks_marked<
         // The wedge is levered at the farther face's extent, never the
         // edge's own (`crate::wedge_reach`), read once by check 2 under
         // the same three guards as this loop's.
-        let reach = reaches.get(edge_key).copied().unwrap_or_else(|| {
+        let reach = reaches.get(edge_key).map(|r| r.below()).unwrap_or_else(|| {
             unreachable!("check 2 read {edge_key:?}'s reach under this loop's guards")
         });
         // Check 4: the whole-edge wedge fold over the stations

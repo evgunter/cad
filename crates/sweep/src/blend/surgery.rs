@@ -6326,7 +6326,9 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                     [sides.plus.face, sides.minus.face],
                     &curve,
                     (t0, t1),
-                ),
+                    band,
+                )
+                .below(),
                 witness,
             },
             band,
