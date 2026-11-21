@@ -5990,6 +5990,18 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         _ => false,
     };
     let corner = qx.corner || qy.corner;
+    if std::env::var_os("CV_WEDGE").is_some()
+        && near.edges.is_empty()
+        && matches!(qx.zero, Zero::Point(..))
+        && matches!(qy.zero, Zero::Point(..))
+    {
+        let kind = |s: &Surface<Interval>| match s { Surface::Plane{..}=>"Plane", Surface::Cylinder{..}=>"Cyl", Surface::Cone{..}=>"Cone", Surface::Sphere{..}=>"Sph", Surface::Torus{..}=>"Tor", _=>"Other" };
+        let w = wedges_apart(qx, qy);
+        let all = planes_through(x, near, qx, qy);
+        let oks: Vec<bool> = all.iter().cloned().map(opposite).collect();
+        let axes = |p: &Presented<'_>| { let Zero::Point(s, t, _) = p.zero else { return None }; let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) }; let (xx, yy) = (p.bound(su), p.bound(sv)); let (fx, fy, _) = p.jet_on((xx, xx), (yy, yy)); Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?]) };
+        eprintln!("CVW {}/{} {:?}/{:?} v={:?} wedge={:?} oks={:?} ax={:?} bx={:?} sx={:?}x{:?} sy={:?}x{:?}", kind(x.surface), kind(y.surface), x.face, y.face, near.vertices, w, oks, axes(qx), axes(qy), qx.x, qx.y, qy.x, qy.y);
+    }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
@@ -6228,6 +6240,7 @@ fn planes_through(
                 };
                 Some(
                     wedges_apart(px, py)
+                        .filter(|_| std::env::var_os("CV_NO_WEDGE").is_none())
                         .into_iter()
                         .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
                         .map(at_vertex)
