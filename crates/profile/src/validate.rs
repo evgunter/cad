@@ -228,14 +228,24 @@ pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "move the profile near
      where the scene resolves this size, an arc the path built should not miss by it, so report \
      it as a possible kernel defect";
 
-/// The lever at a junction whose turn is undecided, and at one that is
-/// definitely tangent ([`crate::PathError::JunctionTangent`]):
-/// declare the tangency, or spell the continuation, or move the
-/// geometry.
-pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
-     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
-     move the geometry";
+/// The lever at a junction whose turn, levered by the shorter leg's arm,
+/// is undecided, and at one where it is zero at tolerance
+/// ([`crate::PathError::JunctionTurnWithinTolerance`]). Either reading
+/// is a smooth joint or a real angle over a short leg, so it names both:
+/// lengthen the leg, declare the tangency, spell the continuation, or
+/// move the geometry.
+pub(crate) const JUNCTION_TURN_LEVER: &str = "if the angle is real, give the shorter leg a longer \
+     extent; for tangency onto a new carrier use .tangent() (.tangent().tangent_arc_to(p) for an \
+     arc; the tangent-arc or seam-fillet close at the seam); for a straight continuation spell \
+     it line(len) off the directed point; otherwise move the geometry";
+
+/// The recourse at a seam whose turn is zero at tolerance and that
+/// nothing declared ([`crate::PathError::SeamTurnWithinTolerance`]): a
+/// real angle over a short leg, or a smooth seam to declare.
+pub(crate) const SEAM_TURN_RECOURSE: &str = "if the angle is real, give the shorter leg a longer \
+     extent; if the seam is a smooth joint, DECLARE it on the target with \
+     Start.arrives_tangent(), which every closing verb takes; otherwise cut the loop at a CORNER \
+     (author the seam where the outline actually turns)";
 
 use crate::seg::{
     self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,

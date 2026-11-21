@@ -16,7 +16,7 @@ use crate::fillet_recourse::{
     FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
 };
 use crate::validate::{
-    ARC_READ_BACK_UNDECIDED_RECOURSE, ARC_SCENE_RESOLUTION_RECOURSE, JUNCTION_TANGENT_LEVER,
+    ARC_READ_BACK_UNDECIDED_RECOURSE, ARC_SCENE_RESOLUTION_RECOURSE, JUNCTION_TURN_LEVER,
 };
 
 /// What the fillet construction's gates say they were deciding: the
@@ -211,7 +211,7 @@ gates! {
     /// The cosine of a junction's turn, levered by the arriving arm; one question at both doors (`seg::junction_reverses`), asked of a junction already tangent, so neither outcome is something `.tangent()` would change, and a raw-authored loop has no path verbs.
     PathJunctionSide => "path_junction_side", Lever(COINCIDENCE_RECOURSE), "whether the path carries straight on at this junction or doubles back into a cusp";
     /// The sine of a junction's turn at the shorter leg's arm: the path door's, and validation's joint pass's (`seg::joint_tangency`).
-    PathJunctionTurn => "path_junction_turn", Lever(JUNCTION_TANGENT_LEVER), "whether the path turns at this junction";
+    PathJunctionTurn => "path_junction_turn", Lever(JUNCTION_TURN_LEVER), "whether the path turns at this junction";
     /// An authored leg's extent metered against zero.
     PathLegLength => "path_leg_length", Sized(LEG_LENGTH_LEVER), "whether an authored leg has any length";
     /// A rectangle's width or height metered against zero.

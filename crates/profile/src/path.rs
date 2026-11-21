@@ -58,7 +58,7 @@
 //! the arriving direction and `Start`'s own direction and nothing else
 //! — never whether the two carriers are the same, which is the ruling
 //! of 2026-09-02: every zero-turn joint is a tangent joint (D1).
-//! Not constructed, a tangent seam refuses [`PathError::SeamTangent`]
+//! Not constructed, a tangent seam refuses [`PathError::SeamTurnWithinTolerance`]
 //! from every closing verb.
 //!
 //! # Lowering
@@ -385,8 +385,8 @@ use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, exact_fit_reach, line_line_fillet_trims,
 };
 use crate::validate::{
-    ARC_SCENE_RESOLUTION_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TANGENT_LEVER,
-    NoCornerReason, OverrunLegs,
+    ARC_SCENE_RESOLUTION_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TURN_LEVER,
+    NoCornerReason, OverrunLegs, SEAM_TURN_RECOURSE,
 };
 use crate::{BuiltArc, ProfileLoop, Segment};
 
@@ -543,7 +543,7 @@ impl Start {
     /// asks NOTHING about the carriers: whether the two sides ride one
     /// carrier or two, a declared zero-turn joint is a tangent joint. A
     /// seam past the band refuses [`PathError::SeamArrivalOffDirection`];
-    /// undeclared, it keeps refusing [`PathError::SeamTangent`]. Where
+    /// undeclared, it keeps refusing [`PathError::SeamTurnWithinTolerance`]. Where
     /// they leave it free (`arc_onto`, the `Via` arrival), the token
     /// SUPPLIES `Start`'s direction and the close completes at the verb.
     #[must_use]
@@ -586,22 +586,11 @@ pub enum PathNoCornerReason<T: Real> {
     /// tangency knife edge: there they touch, and there is still no
     /// corner to cut.
     CarriersDoNotMeet,
-    /// The corner's turn, levered to metres, is zero at tolerance:
-    /// `sin_turn · lever` does not clear the band, so the side both
-    /// carriers offset toward is undecided. The margin is a product, and
-    /// either factor can be what collapsed — a degenerate angle (a
-    /// smooth run or a doubling back) or a real angle stated over too
-    /// short a lever. The kernel does not judge which; both factors ride
-    /// here so the caller can.
+    /// The corner's turn, levered to metres, is zero at tolerance, so
+    /// the side both carriers offset toward is undecided.
     TurnWithinTolerance {
-        /// `dir_in × dir_out` at the corner: the sine of the turn.
-        sin_turn: Told,
-        /// `dir_in · dir_out`: negative means the legs double back.
-        align: Told,
-        /// The length the turn was levered by.
-        lever: Told,
-        /// Which length that is.
-        lever_of: TurnLever,
+        /// The turn and the length it was levered by.
+        turn: LeveredTurn,
         /// The corner whose turn this is, where one was derived: the
         /// arc-carrier door derives each corner before its turn gate,
         /// so on a pair with two corners this names which. The straight
@@ -611,11 +600,46 @@ pub enum PathNoCornerReason<T: Real> {
     },
 }
 
-/// The length a fillet corner's turn is levered by
-/// ([`PathNoCornerReason::TurnWithinTolerance`]).
+/// A joint's turn read on a levered margin, `sin_turn · lever`, that is
+/// zero at tolerance: a fillet's corner
+/// ([`PathNoCornerReason::TurnWithinTolerance`]), a path junction
+/// ([`PathError::JunctionTurnWithinTolerance`]) or the seam
+/// ([`PathError::SeamTurnWithinTolerance`]). The margin is a product,
+/// and either factor can be what collapsed — a degenerate angle (a
+/// smooth run or a doubling back) or a real angle stated over too short
+/// a lever. The kernel does not judge which; both factors ride here so
+/// the caller can.
+#[derive(Clone, Debug)]
+pub struct LeveredTurn {
+    /// `dir_in × dir_out` at the joint: the sine of the turn.
+    pub sin_turn: Told,
+    /// `dir_in · dir_out`: negative means the legs double back.
+    pub align: Told,
+    /// The length the turn was levered by.
+    pub lever: Told,
+    /// Which length that is.
+    pub lever_of: TurnLever,
+}
+
+impl core::fmt::Display for LeveredTurn {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let lever_name = match self.lever_of {
+            TurnLever::ShorterLeg => "the shorter leg",
+            TurnLever::AnchorSeparation => "the anchors' separation",
+        };
+        write!(
+            f,
+            "sin φ = {} (cos φ = {}) over {lever_name} of {}",
+            self.sin_turn, self.align, self.lever
+        )
+    }
+}
+
+/// The length a joint's turn is levered by ([`LeveredTurn`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TurnLever {
-    /// The shorter leg's arm at the corner (the arc-carrier door).
+    /// The shorter of the two legs' arms at the joint: a fillet's
+    /// arc-carrier corner, a path junction, the seam.
     ShorterLeg,
     /// The separation of the incoming ray's start from the arrival
     /// anchor (the straight pair).
@@ -1172,25 +1196,23 @@ fn write_pair_recourse(
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
 pub enum PathError<T: Real> {
-    /// §4 item 1: the AUTHORED departure is within ε_input of the
-    /// incoming TANGENT direction — one refusal, one recourse, for any
-    /// sub-ε_input margin: if the tangency is intended onto a new
-    /// carrier, author it structurally (`.tangent()` —
-    /// `.tangent().tangent_arc_to(p)` for an arc — or the tangent-arc /
-    /// seam-fillet close at the seam), which makes it
-    /// exact by construction; if a straight continuation of the same
-    /// line is intended, spell it `line(len)` off the directed point,
-    /// where no junction exists to classify; otherwise move the
-    /// geometry — the turn's own lever, as its undecided sibling ends.
-    /// The margin rides along as data; the message never forks on
-    /// exactly-on vs in-band.
-    JunctionTangent {
-        /// The classified turn margin sin φ · arm, meters (scalar-typed
-        /// payload — data, not a decision).
-        margin: Told,
-        /// The lever arm (the incoming leg's extent, capped by its
-        /// carrier radius), meters.
-        arm: Told,
+    /// §4 item 1: the junction's turn, levered by the shorter leg's
+    /// arm, is zero at tolerance and does not definitely reverse — one
+    /// refusal, one recourse, for any sub-ε_input margin. The margin is
+    /// a product, so this is a smooth run onto the incoming direction
+    /// or a real angle over a leg too short to state it, and the kernel
+    /// does not judge which: if the angle is real, lengthen the shorter
+    /// leg; if the tangency is intended onto a new carrier, author it
+    /// structurally (`.tangent()` — `.tangent().tangent_arc_to(p)` for
+    /// an arc — or the tangent-arc / seam-fillet close at the seam),
+    /// which makes it exact by construction; if a straight continuation
+    /// of the same line is intended, spell it `line(len)` off the
+    /// directed point, where no junction exists to classify; otherwise
+    /// move the geometry — the turn's own lever, as its undecided
+    /// sibling ends. The message never forks on exactly-on vs in-band.
+    JunctionTurnWithinTolerance {
+        /// The turn and the shorter leg's arm it was levered by.
+        turn: LeveredTurn,
     },
     /// §4 item 1, reverse class: the departure is within ε_input of
     /// the REVERSE of the incoming tangent — a cusp. One refusal, one
@@ -1217,9 +1239,11 @@ pub enum PathError<T: Real> {
         /// The cusp: the straight leg's end.
         at: Point2<T>,
     },
-    /// **The SEAM's own junction is tangent and nothing declared it**:
-    /// the arriving direction is within ε_input of the entry's outgoing
-    /// direction. Start-only, because only a closing verb classifies
+    /// **The SEAM's own turn is zero at tolerance and nothing declared
+    /// a joint**: the arriving direction against the entry's outgoing
+    /// one, levered by the shorter of the closing leg's and the first
+    /// leg's arms, does not clear the band — a smooth seam, or a real
+    /// angle over a leg too short to state it. Start-only, because only a closing verb classifies
     /// the seam at all, and raised by EVERY closing verb — the two arc
     /// closers included, since a seam arrival has a recourse no
     /// departure has.
@@ -1247,12 +1271,12 @@ pub enum PathError<T: Real> {
     /// tangent DEPARTURE on a closing leg is geometrically identical to
     /// one mid-chain, and since the declared closer landed the recourse
     /// is identical too (spell it structurally), so it now refuses
-    /// [`JunctionTangent`](Self::JunctionTangent) exactly as any other
-    /// departure does. What is left is the case that genuinely IS
-    /// special, and the name says which.
-    SeamTangent {
-        /// The offending collinearity/turn margin, meters.
-        margin: Told,
+    /// [`JunctionTurnWithinTolerance`](Self::JunctionTurnWithinTolerance)
+    /// exactly as any other departure does. What is left is the case
+    /// that genuinely IS special, and the name says which.
+    SeamTurnWithinTolerance {
+        /// The seam's turn and the shorter leg's arm it was levered by.
+        turn: LeveredTurn,
     },
     /// **The declared seam arrival's consistency refusal**: the closing
     /// leg targeted [`Start::arrives_tangent`] — declaring that the
@@ -1864,14 +1888,14 @@ pub enum PathError<T: Real> {
 /// public enum is a promise about a sequence that means nothing here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PathErrorKind {
-    /// [`PathError::JunctionTangent`].
-    JunctionTangent,
+    /// [`PathError::JunctionTurnWithinTolerance`].
+    JunctionTurnWithinTolerance,
     /// [`PathError::JunctionCusp`].
     JunctionCusp,
     /// [`PathError::CuspDoublesBackOverLeg`].
     CuspDoublesBackOverLeg,
-    /// [`PathError::SeamTangent`].
-    SeamTangent,
+    /// [`PathError::SeamTurnWithinTolerance`].
+    SeamTurnWithinTolerance,
     /// [`PathError::SeamArrivalOffDirection`].
     SeamArrivalOffDirection,
     /// [`PathError::SeamArrivalLeverTooShort`].
@@ -1983,10 +2007,10 @@ impl<T: Real> PathError<T> {
     /// error here and in every consumer that maps this enum.
     pub fn kind(&self) -> PathErrorKind {
         match self {
-            Self::JunctionTangent { .. } => PathErrorKind::JunctionTangent,
+            Self::JunctionTurnWithinTolerance { .. } => PathErrorKind::JunctionTurnWithinTolerance,
             Self::JunctionCusp { .. } => PathErrorKind::JunctionCusp,
             Self::CuspDoublesBackOverLeg { .. } => PathErrorKind::CuspDoublesBackOverLeg,
-            Self::SeamTangent { .. } => PathErrorKind::SeamTangent,
+            Self::SeamTurnWithinTolerance { .. } => PathErrorKind::SeamTurnWithinTolerance,
             Self::SeamArrivalOffDirection { .. } => PathErrorKind::SeamArrivalOffDirection,
             Self::SeamArrivalLeverTooShort { .. } => PathErrorKind::SeamArrivalLeverTooShort,
             Self::ContinuationTargetOffRay { .. } => PathErrorKind::ContinuationTargetOffRay,
@@ -2067,11 +2091,10 @@ pub(crate) fn authored_ratio<T: Real>(x: T) -> Told {
 impl<T: Real> core::fmt::Display for PathError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::JunctionTangent { margin, arm } => write!(
+            Self::JunctionTurnWithinTolerance { turn } => write!(
                 f,
-                "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} on a {arm} arm). Recourse: \
-                 {JUNCTION_TANGENT_LEVER}",
+                "the turn at this junction, {turn}, is zero at tolerance. Recourse: \
+                 {JUNCTION_TURN_LEVER}",
             ),
             Self::CuspDoublesBackOverLeg { at } => write!(
                 f,
@@ -2088,12 +2111,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  otherwise move the geometry. At the seam the closing leg arrives REVERSED: \
                  rotate the loop\'s authoring origin, or cut the seam at a corner",
             ),
-            Self::SeamTangent { margin } => write!(
+            Self::SeamTurnWithinTolerance { turn } => write!(
                 f,
-                "the SEAM arrives tangent to the entry\'s first side (margin {margin}) and \
-                 nothing declared it. Recourse: DECLARE the joint on the target with \
-                 Start.arrives_tangent(), which every closing verb takes, or cut the loop at \
-                 a CORNER instead (author the seam where the outline actually turns)",
+                "the turn at the SEAM, {turn}, is zero at tolerance and nothing declared \
+                 the joint. Recourse: {SEAM_TURN_RECOURSE}",
             ),
             Self::SeamArrivalOffDirection { margin, arm } => write!(
                 f,
@@ -2132,30 +2153,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         "the two carriers do not meet: a ray missing its circle, or circles \
                          disjoint, concentric, or one inside the other",
                     ),
-                    PathNoCornerReason::TurnWithinTolerance {
-                        sin_turn,
-                        align,
-                        lever,
-                        lever_of,
-                        corner,
-                    } => {
-                        let (lever_name, recourse) = match lever_of {
-                            TurnLever::ShorterLeg => (
-                                "the shorter leg",
-                                crate::fillet_recourse::FILLET_TURN_INBAND_RECOURSE,
-                            ),
-                            TurnLever::AnchorSeparation => (
-                                "the anchors' separation",
-                                crate::fillet_recourse::FILLET_ANCHOR_TURN_RECOURSE,
-                            ),
+                    PathNoCornerReason::TurnWithinTolerance { turn, corner } => {
+                        let recourse = match turn.lever_of {
+                            TurnLever::ShorterLeg => {
+                                crate::fillet_recourse::FILLET_TURN_INBAND_RECOURSE
+                            }
+                            TurnLever::AnchorSeparation => {
+                                crate::fillet_recourse::FILLET_ANCHOR_TURN_RECOURSE
+                            }
                         };
                         let at = corner.map_or_else(String::new, |at| {
                             format!(" at corner {}", told_point(&at))
                         });
-                        format!(
-                            "its turn{at}, sin φ = {sin_turn} (cos φ = {align}) over \
-                             {lever_name} of {lever}, is zero at tolerance. Recourse: {recourse}",
-                        )
+                        format!("its turn{at}, {turn}, is zero at tolerance. Recourse: {recourse}")
                     }
                 };
                 write!(f, "no corner for a radius-{radius} fillet: {what}",)
@@ -3877,7 +3887,7 @@ fn sweep_of<T: Real>(leg: Option<BuiltArc<T>>) -> T {
 /// one" — nothing more. It is a plain flag rather than a site enum
 /// because there is only one special site left: a tangent DEPARTURE on
 /// a closing leg is geometrically identical to one mid-chain and now
-/// refuses identically ([`PathError::JunctionTangent`]), so the only
+/// refuses identically ([`PathError::JunctionTurnWithinTolerance`]), so the only
 /// thing a caller still has to say is whether the junction in hand is
 /// the seam.
 ///
@@ -3887,7 +3897,7 @@ fn sweep_of<T: Real>(leg: Option<BuiltArc<T>>) -> T {
 /// is the later-authored one, so the entry cannot carry `.tangent()`
 /// (§2's entry rule) and the declaration rides the TARGET instead
 /// ([`Start::arrives_tangent`]). Naming
-/// that fact `JunctionTangent` would send the reader to a spelling the
+/// that fact `JunctionTurnWithinTolerance` would send the reader to a spelling the
 /// seam does not have.
 fn junction_check<T: Decide>(
     inc: &Incoming<T>,
@@ -3919,16 +3929,17 @@ fn junction_check<T: Decide>(
                     arm: length(arm),
                 }),
                 Ok(false) => {
-                    if seam {
-                        Err(PathError::SeamTangent {
-                            margin: length(margin),
-                        })
+                    let read = LeveredTurn {
+                        sin_turn: ratio(u_in.perp_dot(u_dep)),
+                        align: ratio(u_in.dot(u_dep)),
+                        lever: length(arm),
+                        lever_of: TurnLever::ShorterLeg,
+                    };
+                    Err(if seam {
+                        PathError::SeamTurnWithinTolerance { turn: read }
                     } else {
-                        Err(PathError::JunctionTangent {
-                            margin: length(margin),
-                            arm: length(arm),
-                        })
-                    }
+                        PathError::JunctionTurnWithinTolerance { turn: read }
+                    })
                 }
                 Err(source) => Err(PathError::escalated(source)),
             }
@@ -3942,7 +3953,7 @@ fn junction_check<T: Decide>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SeamArrival {
     /// [`Start`]: the seam is classified as every junction is, and a
-    /// zero turn refuses [`PathError::SeamTangent`].
+    /// zero turn refuses [`PathError::SeamTurnWithinTolerance`].
     Undeclared,
     /// [`Start::arrives_tangent`] on a leg whose data fix its end
     /// direction: the arriving direction is CHECKED
@@ -3992,7 +4003,7 @@ fn seam_joint<T: Decide>(
 ///
 /// The verdict inverts with the declaration, which is the whole content
 /// of the fifth-round ruling: undeclared, a zero-turn seam refuses
-/// ([`PathError::SeamTangent`]); declared, a zero-turn seam is what the
+/// ([`PathError::SeamTurnWithinTolerance`]); declared, a zero-turn seam is what the
 /// author said and CLOSES, while a definite turn is authored data
 /// disagreeing with itself and refuses
 /// ([`PathError::SeamArrivalOffDirection`]).
@@ -4691,10 +4702,12 @@ impl<T: Decide> Core<T> {
         else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: ratio(cross),
-                    align: ratio(u1.dot(u2)),
-                    lever: length(wn),
-                    lever_of: TurnLever::AnchorSeparation,
+                    turn: LeveredTurn {
+                        sin_turn: ratio(cross),
+                        align: ratio(u1.dot(u2)),
+                        lever: length(wn),
+                        lever_of: TurnLever::AnchorSeparation,
+                    },
                     corner: None,
                 },
                 radius: authored_length(pending.radius),
@@ -5636,7 +5649,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// wants it to be a corner. That is what makes a seam at a corner
     /// SUFFICIENT for an outline whose every side is subdivided — and
     /// what leaves a seam at a subdivision vertex refused as
-    /// [`PathError::SeamTangent`] — a refusal only a seam can produce,
+    /// [`PathError::SeamTurnWithinTolerance`] — a refusal only a seam can produce,
     /// so the two mechanisms are separable by TYPE rather than by
     /// reading a payload tag.
     fn continue_to_start_kernel(
@@ -6756,17 +6769,24 @@ mod tests {
         );
     }
 
-    /// **The grid has no floor, at the door.** A picometre turn margin
-    /// reaches the sentence as a picometre, never as the zero a floor
-    /// would round it to.
+    /// **The grid has no floor, at the door.** A picometre lever and a
+    /// picometre turn margin reach the sentence as picometres, never as
+    /// the zero a floor would round them to.
     #[test]
     fn a_picometre_turn_margin_reaches_the_sentence_as_a_picometre() {
-        let s = PathError::<f64>::JunctionTangent {
-            margin: length(3.7e-12),
-            arm: length(2.5e-6),
+        let s = PathError::<f64>::JunctionTurnWithinTolerance {
+            turn: LeveredTurn {
+                sin_turn: ratio(0.5),
+                align: ratio(0.75),
+                lever: length(3.7e-12),
+                lever_of: TurnLever::ShorterLeg,
+            },
         }
         .to_string();
-        assert!(s.contains("turn margin 3.7e-12 m on a 2.5e-6 m arm"), "{s}");
+        assert!(
+            s.contains("sin φ = 0.5 (cos φ = 0.75) over the shorter leg of 3.7e-12 m"),
+            "{s}"
+        );
         let cusp = PathError::<f64>::JunctionCusp {
             margin: length(-4e-11),
             arm: length(1.0),

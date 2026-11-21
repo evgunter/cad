@@ -274,10 +274,13 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
     let PathError::NoCornerForFillet {
         reason:
             PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever,
-                lever_of,
+                turn:
+                    profile::LeveredTurn {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    },
                 corner,
             },
         ..
