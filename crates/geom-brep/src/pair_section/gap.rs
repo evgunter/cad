@@ -347,7 +347,9 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
     }
 }
 
-/// `D − L` for the level `L` nearer `D` as read.
+/// `D − L` for the level `L` nearer `D` as read. A level is read exact:
+/// `ρ₁ + ρ₂` and `|ρ₁ − ρ₂|` are two-term sums of stored radii, a short
+/// division-free chain the run's admission rule covers.
 fn nearest<T: Real>(d: Rounded<T>, levels: [T; 2]) -> Rounded<T> {
     let [a, b] = levels.map(|level| d - Rounded::exact(level));
     Rounded::select_le_zero(a.value.abs() - b.value.abs(), a, b)
