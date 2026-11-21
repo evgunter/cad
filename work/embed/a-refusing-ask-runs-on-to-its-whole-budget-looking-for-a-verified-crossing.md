@@ -113,3 +113,21 @@ answer; a face pair settled by its first finding; a change to
 `ERROR-DESIGN` E7; a second, smaller budget; a probe-only search after
 a refusal (near a shared edge it has no natural end).
 
+## Ruled (Ev, PR 7309, 2026-11-21)
+
+"sounds great! i think there is no need for DESIGN.md to say anything
+about this, though, unless it explicitly says that it checks everything
+now". Both steps above stand as ruled, and no design text changes:
+`[topology.tiers]` says a refusal is the list of what was found, and
+nowhere says the embedding question reads on after a finding.
+
+- **The unit, now:** the embedding ask ends at its first finding
+  (`Break` at each lower-bound refusal site of the injectivity
+  question; the metric questions unchanged; every refusal names the two
+  faces of its cell pair).
+- **Later**, with `a-failed-local-certificate-answers-split-with-no-ground`
+  built and measured: if a refusing ask then costs about what a body of
+  its size costs when it holds, the ask ends only at a verified
+  crossing and otherwise reports every refusal it met. Not asked again;
+  logged when it lands.
+
