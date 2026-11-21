@@ -3153,3 +3153,21 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+#[test]
+/// Review probe (PR 7120): the collinear-cap drum at radii 0.3 to 2, ring at r/2, h = 2; prints each verdict.
+fn review_drum_family() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    for r in [0.3, 0.7, 0.9, 1.0, 1.1, 1.3, 2.0] {
+        let h = 2.0;
+        let mut drum = revolved_about_y(
+            corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+            Revolution::Full,
+            Tol::witness(),
+        );
+        ring_on_cap(&mut drum, h, r, r / 2.0);
+        let report = injective(&drum, None, BUDGET);
+        println!("REVIEW r={r}: {:?} refused={} splits={} discharged={}", report.verdict, report.receipt.refused, report.receipt.splits, report.receipt.discharged);
+    }
+}
