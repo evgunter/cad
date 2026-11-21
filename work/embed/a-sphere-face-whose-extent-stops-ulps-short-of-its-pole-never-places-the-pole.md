@@ -148,9 +148,9 @@ so the reading became one for both kinds, and its premise is checked:
   at (`reaching_its_singular_points`).
 - **It moves only across a rounding.** A stored end farther than
   `chart_slack` from the latitude contradicts the vertex and refuses
-  `Structural`. That leaves a vertex in band of its pole with honest
-  rows refused:
-  `a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
+  `Structural`. That left a vertex in band of its pole with honest
+  rows refused, and a built cone cavity a hundred units off the origin
+  with it; the second fix pass below replaces this bound.
 - **The extent's end moves for a vertex the band reads at the point**,
   which is one within the band's zero of it, `1e-9` m at the default
   ε. That is the incidence's decision reused, not a concession of this
@@ -168,3 +168,37 @@ so the reading became one for both kinds, and its premise is checked:
   body and its axial-door cavity): 1,464 of 1,464 hold. On the first
   head 113 of the first 949 refused `Budget(Pairs)`;
 - the endpoint census: `injective.rs` reads 177 / 75.
+
+## The second fix pass (EMBED, lane pole, 2026-11-21)
+
+The pass was interrupted from 12:37Z on 18 November until 21 November.
+
+**One scale, the band's** (the orchestrator's ruling, replacing the
+slack bound above):
+- **The extent moves where its stored end is itself at the singular
+  point by the band**: the surface's parallel at the stored end
+  latitude, decided by `vertex_at_singular_point` (`parallel_at`). No
+  `chart_slack` and no constant of this reader's own. A stored end that
+  is not at the point contradicts the vertex, `Structural`.
+- **A cone's end past its apex** is on the face's nappe by the same
+  decision (`face_extent`'s nappe check).
+- **An edge that ends at the collapsed side's vertex runs on to that
+  side** (`ends_on_collapse`, read by `run_on`): by the vertex's key,
+  and only where the edge's image there is at the singular point by the
+  band. This closes the strip between a row's stored end and the
+  latitude by topology; `covered`'s slack is not touched.
+
+Two rows this lane filed in the first fix pass are withdrawn from the
+branch, their subjects closed here before they reached main:
+- the in-band vertex whose rows end at its own latitude (it moves now;
+  pinned by `the_extent_moves_for_a_vertex_the_band_reads_at_the_pole`
+  and `an_extent_moves_where_its_stored_end_is_at_the_singular_point_by_the_band`);
+- a meridian ending an ulp of its far end off the apex, which did not
+  cover the apex cell's side (it runs on now; pinned by
+  `a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex`,
+  `a_meridian_ending_at_the_poles_vertex_runs_on_to_the_poles_side` and
+  `cones_far_from_the_origin_hold_across_their_apexes`).
+
+**What still refuses**, on its own row: cones in turned frames,
+`two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`
+(P0).

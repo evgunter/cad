@@ -105,7 +105,8 @@ In `topo::injective`:
 - `present_chart` reads a sphere's pole as a collapsed side of its
   chart, as it reads a cone's apex: where the cell reaches the latitude
   `±π/2` and a local vertex is decided at that pole
-  (`SELF_INTERSECTION_APEX`, the apex's site), the side `v = ±π/2`
+  (`SELF_INTERSECTION_APEX`, the apex's site then; since PR 7115 both
+  are read by `vertex_at_singular_point`), the side `v = ±π/2`
   is a clip with `collapsed` set to that vertex. `zero_of` then holds
   the pole on a zero side: `Side` on its own, `Corner` beside a
   meridian.

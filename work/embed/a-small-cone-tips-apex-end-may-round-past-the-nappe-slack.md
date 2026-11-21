@@ -73,19 +73,31 @@ held before holds at the same receipt. Pinned by
 `a_unit_cone_with_its_apex_off_the_origin_holds` and
 `a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex`.
 
-**A built body now reaches this row** (the review's sweep): the
-triangle `r = 0.37`, `h = 2.3`, apex up at `y0 = 101.3`, its axial-door
-cavity at `t = 0.0185`. Both half-cones store `v` ending at
-`-1.4030466978243383e-14`, against a `chart_slack` of
-`1.1161179193627622e-14`, so `face_extent` refuses `Structural` in
-every cell and the body reads `Uncertified`, arm `Departure`
-(167 / 17 / 178). The apex sits near `y = 103.6`; that the end rounds
-at that scale is not traced. With a wider slack the same body would next meet
-`a-meridian-ending-an-ulp-of-its-far-end-off-the-apex-does-not-cover-the-apex-cells-side`.
+**The slack question is answered in PR 7115's second fix pass** (the
+orchestrator's ruling, 2026-11-18): there is one scale, the band that
+decided the vertex. So:
+- the extent moves to the apex where the cone's circle at the stored
+  end is at the apex by `vertex_at_singular_point`, with no
+  `chart_slack` in the bound;
+- **this row's own finding is read by the same decision.** The nappe
+  check in `face_extent` takes an end past the apex, on the other
+  nappe, as on the face's nappe where its circle is at the apex by the
+  band. An end of `-1e-12` on a unit face, this row's probe, no longer
+  refuses; one past the band does, as a contradiction should.
+- Pinned at the band's edge, at the origin and a hundred units off it,
+  both nappes, by
+  `an_extent_moves_where_its_stored_end_is_at_the_singular_point_by_the_band`.
 
-**What is still this row's.** The extent moves to the apex only across
-`chart_slack`, the same scale the nappe check above uses. An apex end
-rounded farther than that, on either side of zero, still refuses
-`Structural`: below zero by the nappe check (this row's finding), above
-it by the new one. The scale question is one decision with
-`a-vertex-in-band-of-a-pole-whose-rows-end-at-its-own-latitude-refuses-structural`.
+**The built body the review found** (the triangle `r = 0.37`,
+`h = 2.3`, apex up at `y = 103.6`, its axial-door cavity, whose
+half-cones store `v` to `-1.4e-14`) refused `Structural` on the slack
+and holds now, at 367 / 0 / 361; it is a case of
+`cones_far_from_the_origin_hold_across_their_apexes`.
+
+**What is left of this row:** nothing measured. Its "what is needed"
+asked for the apex's `v` to be read at the scale its rows round at, and
+the band is wider than any such rounding met: the review's 120 cone
+tips and cavities (apex heights to 101.3, sizes 0.013 to 50) all hold.
+The nappe check's far end (`hi > slack`, that the face has extent on
+its nappe at all) still reads `chart_slack`; it is not the apex end and
+no case measured meets it. Closing the row is the orchestrator's.

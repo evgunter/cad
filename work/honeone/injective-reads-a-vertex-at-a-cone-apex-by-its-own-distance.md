@@ -27,7 +27,9 @@ Signed: (RESTCURVE implementer)
 
 Moved from `work/issues/` to `work/honeone/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
-## Done on `embed/pole` (EMBED, lane pole, PR 7115, 2026-11-18)
+## A note to this row's owner (EMBED, lane pole, PR 7115, 2026-11-18)
+
+PR 7115 does what this row asks; closing the row is yours.
 
 `present_chart`'s apex block and its `self_intersection_apex` site are
 gone. A cone's apex and a sphere's poles are read in one place,
