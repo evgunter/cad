@@ -6338,7 +6338,7 @@ mod seated_windows {
         let brick_side = Side {
             body: &brick,
             faces: brick.faces().map(|(k, _)| k).collect(),
-            excluded: FacePairs::default(),
+            excluded: crate::clearance::FacePairs::default(),
         };
         let wb = brick_side.windows(Which::Second).unwrap();
         let sweep = Sweep {
@@ -6356,7 +6356,7 @@ mod seated_windows {
             Side {
                 body,
                 faces: vec![face],
-                excluded: FacePairs::default(),
+                excluded: crate::clearance::FacePairs::default(),
             }
             .windows_at(Which::First, at)
             .unwrap()
@@ -6402,7 +6402,7 @@ mod seated_windows {
         let wn = Side {
             body: &near,
             faces: near.faces().map(|(k, _)| k).collect(),
-            excluded: FacePairs::default(),
+            excluded: crate::clearance::FacePairs::default(),
         }
         .windows(Which::Second)
         .unwrap();
