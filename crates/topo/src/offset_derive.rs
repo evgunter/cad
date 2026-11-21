@@ -311,54 +311,14 @@ impl SectionLane<f64> {
     }
 }
 
-impl<T: geom_core::Certifies> SectionLane<T> {
-    /// The section of `plane` with the spline `wall` nearest `old` on
-    /// `[t0, t1]`, running with it: the wall's exact row where the
-    /// section is one, the march's branch otherwise.
-    pub(crate) fn section<'w, 's>(
-        self,
-        plane: &'s Surface<T>,
-        wall: Wall<'w, 's, T>,
-        old: &Curve3<T>,
-        span: (T, T),
-        extent: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
-        (self.section)(plane, wall, old, span, extent, band)
-    }
-
-    /// The section of two spline charts through `old`'s middle, running
-    /// with it.
-    pub(crate) fn pair<'w, 's>(
-        self,
-        a: Wall<'w, 's, T>,
-        b: Wall<'w, 's, T>,
-        old: &Curve3<T>,
-        span: (T, T),
-        extent: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
-        (self.pair)(a, b, old, span, extent, band)
-    }
-
-    /// The root of `plane` along the spline `carrier` nearest `seed`.
-    pub(crate) fn root(
-        self,
-        plane: &Surface<T>,
-        carrier: &NurbsCurve3<T>,
-        seed: T,
-        extent: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<SplineRoot, CornerVerdict<T>> {
-        (self.root)(plane, carrier, seed, extent, band)
-    }
-}
 
 /// **A [`SectionLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
 /// values) at one that does not (`geom-core` README, DL5.3).
-pub trait SectionLaneOf<T: Real>: Copy + Send + Sync + core::fmt::Debug {
-    /// [`SectionLane::section`].
+pub trait SectionLaneOf<T: Real>:
+    crate::lane_seal::Sealed + Copy + Send + Sync + core::fmt::Debug
+{
+    /// The plane × spline-wall section (`plane_wall_section`).
     #[allow(private_interfaces)]
     fn section<'w, 's>(
         self,
@@ -370,7 +330,7 @@ pub trait SectionLaneOf<T: Real>: Copy + Send + Sync + core::fmt::Debug {
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
 
-    /// [`SectionLane::pair`].
+    /// The two-wall section (`pair_section`).
     #[allow(private_interfaces)]
     fn pair<'w, 's>(
         self,
@@ -382,7 +342,7 @@ pub trait SectionLaneOf<T: Real>: Copy + Send + Sync + core::fmt::Debug {
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
 
-    /// [`SectionLane::root`].
+    /// A corner's root along a spline carrier (`plane_spline_root`).
     fn root(
         self,
         plane: &Surface<T>,
@@ -404,7 +364,7 @@ impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
         extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
-        SectionLane::section(self, plane, wall, old, span, extent, band)
+        (self.section)(plane, wall, old, span, extent, band)
     }
 
     #[allow(private_interfaces)]
@@ -417,7 +377,7 @@ impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
         extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
-        SectionLane::pair(self, a, b, old, span, extent, band)
+        (self.pair)(a, b, old, span, extent, band)
     }
 
     fn root(
@@ -428,7 +388,7 @@ impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
         extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<SplineRoot, CornerVerdict<T>> {
-        SectionLane::root(self, plane, carrier, seed, extent, band)
+        (self.root)(plane, carrier, seed, extent, band)
     }
 }
 

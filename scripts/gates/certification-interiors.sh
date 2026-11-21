@@ -29,27 +29,47 @@
 # not resolved; a listed file that is itself mounted under `cfg(test)`
 # would be read as production, which cries wolf and cannot go blind.
 #
-# WHAT FIRES. A record that declares a generic ITEM — `fn`, `impl`,
-# `struct`, `enum`, `union`, `trait` or `type` followed (after the name,
-# where there is one) by a `<…>` list holding at least one TYPE
-# parameter — and names none of `CERT_BOUND_NAMES` anywhere in the
-# record. A lifetime and a `const` parameter are not type parameters, so
-# `fn f<'a>` and `impl<const N: usize>` are not generic items here.
+# WHAT FIRES. A record that declares a generic ITEM and names none of
+# `CERT_BOUND_NAMES` anywhere in the record. A generic item is either
+#
+#   a `fn`, `impl`, `struct`, `enum`, `union`, `trait` or `type`
+#   followed (after the name, where there is one) by a `<…>` list
+#   holding at least one TYPE parameter (a lifetime and a `const`
+#   parameter are not type parameters, so `fn f<'a>` and
+#   `impl<const N: usize>` are not generic items here); or
+#
+#   a `fn` whose signature writes `impl Trait` as a type, in argument
+#   position or inside an argument's type (`_t: impl Decide`,
+#   `&NurbsCurve3<impl Real>`): an anonymous type parameter. A callback
+#   or a sequence (`impl Fn(..)`, `impl FnMut(..)`, `impl FnOnce(..)`,
+#   `impl Iterator<..>` and its kin; the reader's `NOT_A_SCALAR`) is
+#   not counted: it is no scalar, and it is how a method inside a
+#   bounded `impl` takes one without a list of its own. Any other
+#   trait counts, so a new one cries wolf until it is added there.
 #
 # THE BOUND IS READ BY NAME, ANYWHERE IN THE RECORD, and that is the
 # whole matcher: the generic list or the `where` clause, on the scalar
-# or on a wrapper of it. `CERT_BOUND_NAMES` holds `Certifies` and each
-# NAME that has it as a supertrait, since `T: CertifiedPolicy` is the
-# bound spelled through a name this reader cannot resolve. A name is
-# added there in the change that declares the trait, with the
-# declaration's path beside it.
+# or on a wrapper of it. `CERT_BOUND_NAMES` holds every name that keeps
+# a dual out: `Certifies`; each NAME that has it as a supertrait
+# (`CertifiedPolicy`), since that is the bound spelled through a name
+# this reader cannot resolve; and the two certifying bracket doors,
+# `CertifiedBounds` and `CertifiedEnclosure`, which no dual implements.
+# So a sole `T: CertifiedBounds` passes here as it is: it is not made
+# to name `Certifies`, which would turn it into the compound
+# `bounds-allowlist.sh` reads for. A name is added there in the change
+# that declares the trait, with the declaration's path beside it.
+#
+# TWO LISTS. `CERT_FILES` holds a file whose every generic item is held.
+# `CERT_ITEMS` holds one function of a file that cannot be listed whole
+# (it also declares data a dual body holds, or passes a dual runs): the
+# `fn` of that name in that file is held, and an entry whose function is
+# no longer declared there is a red.
 #
 # KNOWN GAP 1: THE NAME IS NOT TIED TO A PARAMETER. `fn f<T: Decide, U:
 # Certifies>` passes with `T` unbounded, and so does a record that names
-# `Certifies` only inside an argument's type. Tying the name to each
-# type parameter needs to know which parameters are scalars, which is a
-# resolver and not a grep: a closure parameter `W: FnMut(..)` is generic
-# and is no scalar.
+# a certifying bound only inside an argument's or the return's type.
+# Tying the name to each type parameter needs to know which parameters
+# are scalars, which is a resolver and not a grep.
 #
 # KNOWN GAP 2, AND IT IS THE CRY-WOLF HALF OF GAP 1. A method that
 # declares a type parameter of its own inside an `impl<T: Certifies>`
@@ -59,19 +79,22 @@
 #         fn sweep<W: FnMut(T)>(self, verify: W) { … }     // fires
 #     }
 #
-# Write the parameter in argument position (`verify: impl FnMut(T)`),
-# which declares no generic list, or name the bound again in the
-# method's own `where` clause. Nothing here reads scope.
+# Write a callback as `verify: impl FnMut(T)`, or name the bound again
+# in the method's own `where` clause. Nothing here reads scope.
 #
-# KNOWN GAP 3: A LISTED FILE'S CALLEES ARE NOT FOLLOWED. A listed
-# routine that calls a `T: Decide` helper in an UNLISTED file hands a
-# dual nothing new (the helper was already open to it), but the helper
-# is certification interior by use and this gate does not say so. The
-# list is kept by hand, like every file list in this directory.
+# KNOWN GAP 3: A LISTED FILE'S CALLEES ARE NOT FOLLOWED, and an item at
+# a concrete non-certifying scalar is not read (`fn d(_t: Dual64)`,
+# `impl Cell<Dual64>`): the reader sees generic items only.
 #
-# KNOWN GAP 4: `macro_rules!` AND `include!`. A generic item written by
-# a macro has no header in the text, and included text is not read
-# (`lib.sh`, the reader's own blind spots).
+# KNOWN GAP 4: `include!`. Included text is not read (`lib.sh`, the
+# reader's own blind spots). A generic item written literally in a
+# `macro_rules!` body is read as written.
+#
+# KNOWN GAP 5: A `where` CLAUSE AFTER A `[T; N]` TYPE IS CUT OFF. The
+# statement view ends a record at `;` whatever brackets it is inside
+# (`lib.sh`), so a bound written only in a `where` clause after an array
+# type in the signature is in the next record, and the item cries wolf.
+# Write the bound in the generic list.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -88,18 +111,48 @@ CERT_FILES=(
   crates/geom-brep/src/curve_face/composite.rs
 )
 
-# The names that say a scalar certifies: the marker, and each trait
-# declared with it as a supertrait.
-#   Certifies        crates/geom-core/src/real.rs
-#   CertifiedPolicy  crates/topo/src/props.rs
-CERT_BOUND_NAMES=(Certifies CertifiedPolicy)
+# One function of a file that is not listed whole: `PATH FN`.
+CERT_ITEMS=(
+  # The fitted lane's four checks and the two doors that run them with
+  # the lane in hand.
+  'crates/geom-brep/src/pcurve_cache.rs run_fitted_checks'
+  'crates/geom-brep/src/pcurve_cache.rs certify_fitted'
+  'crates/geom-brep/src/pcurve_cache/stated.rs certify_stated_bound'
+  # The certifying edge doors' engine.
+  'crates/geom-brep/src/certify.rs run_checks'
+  # The interval re-derivation of a sign walk's volume, and the
+  # per-region carries.
+  'crates/topo/src/props.rs rederive'
+  'crates/topo/src/props.rs rederive_faces'
+  'crates/topo/src/props.rs shell_polygons'
+  'crates/topo/src/props.rs rederive_polygons'
+  'crates/topo/src/props.rs vertex_rings'
+  'crates/topo/src/props.rs corner_of'
+  'crates/topo/src/props.rs region_carries'
+)
+
+# The names that keep a dual out: the marker, each trait declared with
+# it as a supertrait, and the two certifying bracket doors.
+#   Certifies           crates/geom-core/src/real.rs
+#   CertifiedPolicy     crates/topo/src/props.rs
+#   CertifiedBounds     crates/geom-core/src/real.rs
+#   CertifiedEnclosure  crates/geom-core/src/real.rs
+CERT_BOUND_NAMES=(Certifies CertifiedPolicy CertifiedBounds CertifiedEnclosure)
 
 # The reader. One record in, the record out if it declares a generic
 # item and names no certifying bound.
 gate_interior_reader() {
   local names
   names=$(gate_ere_alternation "${CERT_BOUND_NAMES[@]}")
-  CERT_NAMES_RE="(^|[^A-Za-z0-9_])(${names})([^A-Za-z0-9_]|$)" gate_record_awk '
+  CERT_NAMES_RE="(^|[^A-Za-z0-9_])(${names})([^A-Za-z0-9_]|$)" gate_record_awk -v ITEMS="${1:-}" '
+    BEGIN {
+      NI = split(ITEMS, rows, "\n")
+      for (k = 1; k <= NI; k++) { split(rows[k], f2, " "); IP[k] = f2[1]; IN_[k] = f2[2] }
+      if (ITEMS == "") NI = 0
+      # Traits no scalar is taken through: a callback, a sequence.
+      split("Fn FnMut FnOnce Iterator IntoIterator DoubleEndedIterator ExactSizeIterator", ns, " ")
+      for (k in ns) NOT_A_SCALAR[ns[k]] = 1
+    }
     # The balanced `<…>` list starting at position p of s (which must be
     # `<`), or "" if it does not close in the record. `->` is an arrow
     # and not a closer.
@@ -156,9 +209,39 @@ gate_interior_reader() {
         list = generics(after, 1)
         if (list != "" && has_type_param(list)) { generic = 1; break }
       }
+      # `impl Trait` written as a type in a fn signature: an anonymous
+      # type parameter. A closure trait is not one.
+      if (!generic && t ~ /(^|[^A-Za-z0-9_])fn[ \t]+[A-Za-z_]/) {
+        sig = t
+        while (match(sig, /(^|[^A-Za-z0-9_])impl[ \t]+[A-Za-z_:]+/)) {
+          what = substr(sig, RSTART, RLENGTH)
+          sig = substr(sig, RSTART + RLENGTH)
+          sub(/^.*impl[ \t]+/, "", what)
+          n = split(what, seg, "::")
+          if (!(seg[n] in NOT_A_SCALAR)) { generic = 1; break }
+        }
+      }
+      if (ITEMS != "") {
+        # Item mode: only the listed functions of each file, generic or not.
+        hit = 0
+        for (k = 1; k <= NI; k++) {
+          if (IP[k] != GR_FILE) continue
+          # A method taking `self` of the same name is the lane trait
+          # entry that calls the function, not the function.
+          if (t ~ ("(^|[^A-Za-z0-9_])fn[ \t]+" IN_[k] "[ \t]*\\([ \t]*&?[ \t]*(mut[ \t]+)?self([^A-Za-z0-9_]|$)")) continue
+          if (t ~ ("(^|[^A-Za-z0-9_])fn[ \t]+" IN_[k] "[ \t]*[<(]")) { SEEN[k] = 1; hit = 1 }
+        }
+        if (!hit) next
+        if (t ~ ENVIRON["CERT_NAMES_RE"]) next
+        print $0
+        next
+      }
       if (!generic) next
       if (t ~ ENVIRON["CERT_NAMES_RE"]) next
       print $0
+    }
+    END {
+      for (k = 1; k <= NI; k++) if (!SEEN[k]) print "MISSING " IP[k] " " IN_[k]
     }
   '
 }
@@ -179,12 +262,28 @@ gate() {
   hits=$(printf '%s\n' "$view" | gate_interior_reader)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "$(gate_name): a generic item without Certifies in a file listed as certification code (listed above) — a dual can instantiate it. Write the bound that says which scalars the item means something at: T: Certifies (geom-core/src/real.rs; it grants no bracket read and needs no entry anywhere), in the generic list or the where clause. If the item is not certification code, it does not belong in a listed file. See crates/geom-core/README.md, DL5.3"
+    gate_error "$(gate_name): a generic item in a file listed as certification code (listed above) names no bound that keeps a dual out. Write the bound that says which scalars the item means something at: T: Certifies (geom-core/src/real.rs; it grants no bracket read and needs no entry anywhere), in the generic list or the where clause; a sole T: CertifiedBounds or T: CertifiedEnclosure already passes. If the item is not certification code, it does not belong in a listed file. See crates/geom-core/README.md, DL5.3"
     exit 1
   fi
-  GATE_SCAN_FILES=${#CERT_FILES[@]}
-  GATE_SCAN_NOUN='listed certification file'
-  gate_ok "every generic item in a listed certification file's production code names Certifies"
+  local -a item_files=()
+  local entry
+  for entry in "${CERT_ITEMS[@]}"; do item_files+=("${entry%% *}"); done
+  mapfile -t item_files < <(printf '%s\n' "${item_files[@]}" | sort -u)
+  gate_require_homes "$CERT_FILES_SUBJECT" "${item_files[@]}"
+  local iview ihits
+  if ! iview=$(gate_rust_code --skip-cfg-test --statements "${item_files[@]}"); then
+    gate_error "$(gate_name): the shared Rust reader could not build the statement view of the listed items' files, so what it did not match is unknown — that is not a pass"
+    exit 1
+  fi
+  ihits=$(printf '%s\n' "$iview" | gate_interior_reader "$(printf '%s\n' "${CERT_ITEMS[@]}")")
+  if [ -n "$ihits" ]; then
+    printf '%s\n' "$ihits"
+    gate_error "$(gate_name): a function listed as a certification interior (listed above) names no bound that keeps a dual out, or is no longer declared in its file (MISSING). It runs certification with a lane in hand, so it is declared over T: Certifies (geom-core/src/real.rs) and takes the lane type itself; if it moved or was renamed, move its CERT_ITEMS entry with it. See crates/geom-core/README.md, DL5.3"
+    exit 1
+  fi
+  GATE_SCAN_FILES=$((${#CERT_FILES[@]} + ${#item_files[@]}))
+  GATE_SCAN_NOUN='certification file'
+  gate_ok "every generic item in the ${#CERT_FILES[@]} files listed whole, and each of the ${#CERT_ITEMS[@]} functions listed by name, names a bound that keeps a dual out"
 }
 
 # The clean fixture carries every listed file, each with a generic item
@@ -197,6 +296,35 @@ gate_plant_clean() {
     mkdir -p "$1/${home%/*}"
     printf 'pub fn certified<T: geom_core::Certifies>(_t: T) {}\n' > "$1/$home"
   done
+  # Each listed function, bounded, beside an unbounded neighbour the
+  # item list does not hold.
+  local entry
+  for entry in "${CERT_ITEMS[@]}"; do
+    home=${entry%% *}
+    mkdir -p "$1/${home%/*}"
+    [ -f "$1/$home" ] || printf 'pub fn neighbour<T: Decide>(_t: T) {}\n' > "$1/$home"
+    printf 'fn %s<T: geom_core::Certifies>(_t: T) {}\n' "${entry##* }" >> "$1/$home"
+  done
+}
+
+# The first listed item, re-declared in its file with `$2` as its bound.
+plant_item() {
+  local entry=${CERT_ITEMS[0]} home
+  home=${entry%% *}
+  printf 'pub fn neighbour<T: Decide>(_t: T) {}\n' > "$1/$home"
+  [ -z "$2" ] || printf 'fn %s<T: %s>(_t: T) {}\n' "${entry##* }" "$2" >> "$1/$home"
+  for entry in "${CERT_ITEMS[@]:1}"; do
+    [ "${entry%% *}" != "$home" ] || printf 'fn %s<T: geom_core::Certifies>(_t: T) {}\n' "${entry##* }" >> "$1/$home"
+  done
+}
+plant_item_weaker() { plant_item "$1" Decide; }
+plant_item_gone() { plant_item "$1" ''; }
+plant_ok_item_bracket_door() { plant_item "$1" 'Certifies + CertifiedBounds'; }
+plant_impl_trait_argument() { plant_into "$1" 'pub fn helper(_t: impl geom_core::Decide) {}'; }
+plant_impl_trait_nested() { plant_into "$1" 'fn helper(_t: &geom::NurbsCurve3<impl Real>) {}'; }
+plant_ok_sole_certified_bounds() {
+  plant_into "$1" 'fn helper<T: geom_core::CertifiedBounds>(_t: T) {}'
+  plant_into "$1" 'impl<T: CertifiedEnclosure> Offset<T> { fn at(&self) {} }'
 }
 
 # Each planter appends to the FIRST listed file.
@@ -248,6 +376,7 @@ plant_ok_lifetime_and_const() {
 }
 plant_ok_method_in_bounded_impl() {
   plant_into "$1" 'impl<T: Certifies> Lane<T> { fn run(self, _w: impl FnMut(T)) {} }'
+  plant_into "$1" 'fn one_signed(values: impl Iterator<Item = Interval>) -> Option<Sign> { None }'
 }
 plant_ok_test_code() {
   {
@@ -263,7 +392,7 @@ plant_ok_unlisted_file() {
 }
 
 gate_selftest() {
-  local want="a generic item without Certifies in a file listed as certification code"
+  local want="in a file listed as certification code (listed above) names no bound that keeps a dual out"
   gate_selftest_clean
   gate_selftest_without_tool awk "could not build the statement view"
   gate_selftest_case "$want" plant_fn_decide
@@ -277,6 +406,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_bound_only_in_prose
   gate_selftest_case "$want" plant_longer_name
   gate_selftest_case "$want" plant_method_generic_in_bounded_impl
+  gate_selftest_case "$want" plant_impl_trait_argument
+  gate_selftest_case "$want" plant_impl_trait_nested
+  gate_selftest_case "a function listed as a certification interior" plant_item_weaker
+  gate_selftest_case --also "MISSING" "a function listed as a certification interior" plant_item_gone
+  gate_selftest_passes "a listed function bounded beside a bracket door" plant_ok_item_bracket_door
+  gate_selftest_passes "a sole certifying bracket door, on a fn and on an impl" plant_ok_sole_certified_bounds
   gate_selftest_passes "the bound in a rustfmt-wrapped where clause, beside a bracket door" plant_ok_where_clause
   gate_selftest_passes "the bound through a registered name" plant_ok_alias
   gate_selftest_passes "a lifetime-only list, a const-only list, a concrete impl and a non-generic fn" plant_ok_lifetime_and_const
@@ -284,7 +419,7 @@ gate_selftest() {
   gate_selftest_passes "a generic item under cfg(test)" plant_ok_test_code
   gate_selftest_passes "an unbounded generic item in a file that is not listed" plant_ok_unlisted_file
   gate_selftest_homes --subject "$CERT_FILES_SUBJECT" "${CERT_FILES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every listed file; fires on a fn, an impl, a struct, an enum, a trait and a type alias whose generic list holds a type parameter and whose record names no certifying bound, whether the bound is absent, weaker (Decide, Real), spread over a rustfmt where block, present only in prose, or a longer name; fires on a method that declares its own type parameter inside a bounded impl (KNOWN GAP 2); passes the bound in a where clause, through a registered name, lifetime-only and const-only lists, test code and unlisted files\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every listed file; fires on a fn, an impl, a struct, an enum, a trait and a type alias whose generic list holds a type parameter and whose record names no certifying bound, whether the bound is absent, weaker (Decide, Real), spread over a rustfmt where block, present only in prose, or a longer name; fires on a method that declares its own type parameter inside a bounded impl (KNOWN GAP 2) and on `impl Trait` written as a type in a signature, bare or nested; passes the bound in a where clause, through a registered name, a sole certifying bracket door, a closure parameter, lifetime-only and const-only lists, test code and unlisted files; and for the functions listed by name, fires on a weaker bound and on a function no longer declared, and passes one bounded beside a bracket door\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

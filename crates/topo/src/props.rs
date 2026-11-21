@@ -1138,7 +1138,7 @@ impl<T: AtRestPolicy> Round<'_, '_, T> {
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
         let lane = self.certify?;
         Some(
-            rederive(self.body, self.band, self.tol, lane, self.runs, true)
+            lane.rederive(self.body, self.band, self.tol, self.runs, true)
                 .map(|r| (r.volume, r.area)),
         )
     }
@@ -1150,8 +1150,10 @@ impl<T: AtRestPolicy> Round<'_, '_, T> {
         certify_role(
             self.reading(),
             |tight| {
-                self.certify
-                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight))
+                self.certify.map(|lane| {
+                    lane.rederive(self.body, self.band, self.tol, self.runs, tight)
+                        .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
+                })
             },
             || rounding_bound(self.body, self.runs),
             names,
@@ -1532,18 +1534,6 @@ pub(crate) type IntervalRead = Result<(SignReading<Interval>, Option<SignLimit>)
 /// [`rounding_bound`]'s allowance for the rounded operations of one term.
 const ROUNDING_TERMS: f64 = 16.0;
 
-/// [`rederive`] as a role read takes it: one interval, read once.
-fn rederived<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    lane: impl QuadLaneOf<T>,
-    runs: &[FaceRun<T>],
-    tight: bool,
-) -> Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError> {
-    rederive(body, band, tol, lane, runs, tight)
-        .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
-}
 
 /// The interval signature of a closed form read about a centre
 /// ([`QuadLane`]'s `closed_form`).
@@ -1640,11 +1630,11 @@ fn closed_form_or_carried<T: Decide>(
 /// hold at the interval scalar — the face's geometry read with no
 /// rounding to hide behind, which can leave a classification open that
 /// the walk's scalar decided.
-fn rederive<T: Decide>(
+fn rederive<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
-    lane: impl QuadLaneOf<T>,
+    lane: QuadLane<T>,
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
@@ -1665,11 +1655,11 @@ fn rederive<T: Decide>(
 /// [`rederive`] face by face, each about the point `c` the walk read it
 /// about ([`corner_of`]), which every run's enclosure is about already,
 /// and each carried region's first face with its carry ([`References`]).
-fn rederive_faces<T: Decide>(
+fn rederive_faces<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
-    lane: impl QuadLaneOf<T>,
+    lane: QuadLane<T>,
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
@@ -1731,7 +1721,7 @@ fn rederive_faces<T: Decide>(
             None => {
                 let (c, moved) = closed_form_or_carried(
                     |surface, loops, points, same_sense, band, about, cap| {
-                        lane.closed_form(surface, loops, points, same_sense, band, about, cap)
+                        (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
                     },
                     surface,
                     &loops,
@@ -1780,9 +1770,9 @@ type PlanePolygon = (Rings, geom_core::Vec3<Interval>);
 /// (review R2 of PR 5119's second delta, measured in exact rationals);
 /// a face's own term is widened by that tilt where it is read at all
 /// ([`quad_lane::polygon_face_about`]).
-fn shell_polygons<T: Decide>(
+fn shell_polygons<T: geom_core::Certifies>(
     body: &Body<T>,
-    lane: impl QuadLaneOf<T>,
+    lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<Option<Vec<PlanePolygon>>, MassPropsError> {
     let lift = |v: geom_core::Vec3<T>| {
@@ -1811,8 +1801,8 @@ fn shell_polygons<T: Decide>(
 /// its polygon's signed area widened by the polygon's tilt off the plane
 /// ([`quad_lane::polygon_face_about`]). The area is the faces' own,
 /// either way.
-fn rederive_polygons<T: Decide>(
-    lane: impl QuadLaneOf<T>,
+fn rederive_polygons<T: geom_core::Certifies>(
+    lane: QuadLane<T>,
     polygons: &[PlanePolygon],
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
@@ -1840,11 +1830,11 @@ fn rederive_polygons<T: Decide>(
 
 /// A planar face bounded by lines, as its loops' vertex points in
 /// traversal order, lifted through `lane`; `None` for any other face.
-fn vertex_rings<T: Decide>(
+fn vertex_rings<T: geom_core::Certifies>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[FlatLoop<T>],
-    lane: impl QuadLaneOf<T>,
+    lane: QuadLane<T>,
 ) -> Result<Option<Rings>, MassPropsError> {
     let lines = loops
         .iter()
@@ -1937,7 +1927,7 @@ impl Rederived {
 /// ([`shell_polygons`]) that is the whole difference; on the fan route
 /// the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
-fn corner_of<T: Decide>(lane: impl QuadLaneOf<T>, run: &FaceRun<T>) -> Point3<Interval> {
+fn corner_of<T: geom_core::Certifies>(lane: QuadLane<T>, run: &FaceRun<T>) -> Point3<Interval> {
     let c = run.about.point();
     Point3::new(lane.lift(c.x), lane.lift(c.y), lane.lift(c.z))
 }
@@ -2067,7 +2057,7 @@ impl<'b, T: AtRestPolicy> SignCertificate<'b, T> {
     /// certificate holds no lane or the re-derivation refuses.
     pub(crate) fn interval_volume(&self) -> Option<(f64, f64)> {
         let lane = self.quad?;
-        rederive(self.body, self.band, self.tol, lane, &self.runs, true)
+        lane.rederive(self.body, self.band, self.tol, &self.runs, true)
             .ok()
             .map(|r| (r.volume.lo(), r.volume.hi()))
     }
@@ -3674,7 +3664,7 @@ pub fn region_carries_of<T: AtRestPolicy>(
             let quadrature = quadrature_regions(body, shell);
             let c = reference_of(body, shell, &quadrature);
             let carried = T::quad_lane().map_or_else(Vec::new, |lane| {
-                region_carries(body, c, quadrature.clone(), &held, lane)
+                lane.region_carries(body, c, quadrature.clone(), &held)
             });
             let regions = quadrature
                 .into_iter()
@@ -4425,7 +4415,7 @@ impl<T: AtRestPolicy> References<T> {
             let c = reference_of(body, shell, &quadrature);
             shells.insert(shell, c);
             let Some(lane) = lane else { continue };
-            for region in region_carries(body, c, quadrature, &held, lane) {
+            for region in lane.region_carries(body, c, quadrature, &held) {
                 carries.insert(region.faces[0], region.carry);
                 for face in region.faces {
                     regions.insert(face, region.point);
@@ -4501,12 +4491,12 @@ impl<T: Real> ReadAbout<T> {
 /// `held` and that lies far from the shell's point `c` ([`far_from`]),
 /// with its point ([`region_point`]) and its carry to `c`, read through
 /// `lane`.
-fn region_carries<T: Decide>(
+fn region_carries<T: geom_core::Certifies>(
     body: &Body<T>,
     c: Point3<T>,
     quadrature: Vec<Vec<FaceKey>>,
     held: &std::collections::BTreeSet<FaceKey>,
-    lane: impl QuadLaneOf<T>,
+    lane: QuadLane<T>,
 ) -> Vec<RegionCarry<T>> {
     let lift = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
     let lift_edge = |e: &LoopEdge<T>| LoopEdge {
@@ -6421,12 +6411,27 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> QuadLane<T> {
     }
 }
 
+impl<T: geom_core::Certifies> QuadLane<T> {
+    /// A value of the walk's scalar as the interval holding it.
+    pub(crate) fn lift(self, x: T) -> Interval {
+        (self.lift)(x)
+    }
+}
+
 /// **A [`QuadLane`] as a pass that runs at every scalar holds it**: the
 /// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
-/// at one that does not (`geom-core` README, DL5.3).
-#[allow(clippy::too_many_arguments)]
-pub trait QuadLaneOf<T: Decide>: Copy + Send + Sync {
-    /// The lane's certified enclosures of one curved-cut face.
+/// at one that does not (`geom-core` README, DL5.3). Sealed: those two
+/// are its only implementors ([`ShellDoorOf`] and [`crate::RegionLaneOf`]
+/// carry the seal's pin; this trait's entries name types no other crate
+/// can spell, so no doctest can write its methods out).
+///
+/// Each method is the entry to a routine declared over
+/// [`geom_core::Certifies`], which takes the lane itself: what runs
+/// with a lane in hand is not a function at a dual.
+#[allow(clippy::too_many_arguments, private_interfaces)]
+pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The lane's certified enclosures of one curved-cut face
+    /// (`quad_lane::cut_face_rounds`).
     fn cut_face_rounds(
         self,
         body: &Body<T>,
@@ -6440,22 +6445,31 @@ pub trait QuadLaneOf<T: Decide>: Copy + Send + Sync {
         height: Option<f64>,
     ) -> Result<LaneRun, PropsError>;
 
-    /// The lane's interval re-derivation of one closed-form face.
-    fn closed_form(
+    /// [`rederive`].
+    fn rederive(
         self,
-        surface: &Surface<T>,
-        loops: &[Vec<LoopEdge<T>>],
-        points: &[Point3<T>],
-        same_sense: bool,
+        body: &Body<T>,
         band: Band,
-        about: Point3<Interval>,
-        cap: Option<((Interval, Interval), Point3<Interval>)>,
-    ) -> Result<(FaceContribution<Interval>, bool), PropsError>;
+        tol: Tol,
+        runs: &[FaceRun<T>],
+        tight: bool,
+    ) -> Result<Rederived, MassPropsError>;
 
-    /// A value of the walk's scalar as the interval holding it.
+    /// [`region_carries`].
+    fn region_carries(
+        self,
+        body: &Body<T>,
+        c: Point3<T>,
+        quadrature: Vec<Vec<FaceKey>>,
+        held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>>;
+
+    /// A value of the walk's scalar as the interval holding it
+    /// (`Interval::from_certified`).
     fn lift(self, x: T) -> Interval;
 }
 
+#[allow(clippy::too_many_arguments, private_interfaces)]
 impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
     fn cut_face_rounds(
         self,
@@ -6469,22 +6483,28 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         about: Option<Point3<Interval>>,
         height: Option<f64>,
     ) -> Result<LaneRun, PropsError> {
-        (self.cut_face_rounds)(
-            body, surface, same_sense, loops, band, tol, window, about, height,
-        )
+        (self.cut_face_rounds)(body, surface, same_sense, loops, band, tol, window, about, height)
     }
 
-    fn closed_form(
+    fn rederive(
         self,
-        surface: &Surface<T>,
-        loops: &[Vec<LoopEdge<T>>],
-        points: &[Point3<T>],
-        same_sense: bool,
+        body: &Body<T>,
         band: Band,
-        about: Point3<Interval>,
-        cap: Option<((Interval, Interval), Point3<Interval>)>,
-    ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
-        (self.closed_form)(surface, loops, points, same_sense, band, about, cap)
+        tol: Tol,
+        runs: &[FaceRun<T>],
+        tight: bool,
+    ) -> Result<Rederived, MassPropsError> {
+        rederive(body, band, tol, self, runs, tight)
+    }
+
+    fn region_carries(
+        self,
+        body: &Body<T>,
+        c: Point3<T>,
+        quadrature: Vec<Vec<FaceKey>>,
+        held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>> {
+        region_carries(body, c, quadrature, held, self)
     }
 
     fn lift(self, x: T) -> Interval {
@@ -6492,6 +6512,7 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
     }
 }
 
+#[allow(clippy::too_many_arguments, private_interfaces)]
 impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
     fn cut_face_rounds(
         self,
@@ -6508,16 +6529,24 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
         match self {}
     }
 
-    fn closed_form(
+    fn rederive(
         self,
-        _surface: &Surface<T>,
-        _loops: &[Vec<LoopEdge<T>>],
-        _points: &[Point3<T>],
-        _same_sense: bool,
+        _body: &Body<T>,
         _band: Band,
-        _about: Point3<Interval>,
-        _cap: Option<((Interval, Interval), Point3<Interval>)>,
-    ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
+        _tol: Tol,
+        _runs: &[FaceRun<T>],
+        _tight: bool,
+    ) -> Result<Rederived, MassPropsError> {
+        match self {}
+    }
+
+    fn region_carries(
+        self,
+        _body: &Body<T>,
+        _c: Point3<T>,
+        _quadrature: Vec<Vec<FaceKey>>,
+        _held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>> {
         match self {}
     }
 
@@ -6550,7 +6579,6 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
 /// use topo::ShellDoor;
 /// let _ = ShellDoor::<Dual64>::certified();
 /// ```
-#[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: geom_core::Certifies + AtRestPolicy> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
@@ -6571,32 +6599,40 @@ impl<T: CertifiedPolicy + geom_core::CertifiedBounds> ShellDoor<T> {
     }
 }
 
-impl<T: geom_core::Certifies + AtRestPolicy> ShellDoor<T> {
-    /// The door's one operation: hollow `body` to `thickness`, opening
-    /// the designated faces into rims.
-    ///
-    /// Every check, every refusal and every minted entity is
-    /// [`crate::shell_open`]'s; this hands the arguments on and adds no
-    /// decision of its own.
-    ///
-    /// # Errors
-    ///
-    /// [`ShellError`] — the door's own, verbatim.
-    pub fn open(
-        self,
-        body: &T::Finished,
-        thickness: T,
-        open_faces: &[FaceKey],
-        tol: Tol,
-    ) -> Result<Shelled<T>, ShellError<T>> {
-        (self.open)(body, thickness, open_faces, tol)
+
+impl<T: geom_core::Certifies + AtRestPolicy> Clone for ShellDoor<T> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
+impl<T: geom_core::Certifies + AtRestPolicy> Copy for ShellDoor<T> {}
+
 /// **A [`ShellDoor`] as a pass that runs at every scalar holds it**: the
 /// door at a scalar that certifies, [`geom_core::NoLane`] (no values)
-/// at one that does not (`geom-core` README, DL5.3).
-pub trait ShellDoorOf<T: AtRestPolicy>: Sized {
+/// at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, FaceKey, ShellError, Shelled};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::ShellDoorOf<f64> for Mine {
+///     fn open(
+///         self,
+///         _body: &AtRestBody<f64>,
+///         _thickness: f64,
+///         _open: &[FaceKey],
+///         _tol: Tol,
+///     ) -> Result<Shelled<f64>, ShellError<f64>> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait ShellDoorOf<T: AtRestPolicy>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// [`ShellDoor::open`].
     ///
     /// # Errors
@@ -6619,7 +6655,7 @@ impl<T: geom_core::Certifies + AtRestPolicy> ShellDoorOf<T> for ShellDoor<T> {
         open_faces: &[FaceKey],
         tol: Tol,
     ) -> Result<Shelled<T>, ShellError<T>> {
-        ShellDoor::open(self, body, thickness, open_faces, tol)
+        (self.open)(body, thickness, open_faces, tol)
     }
 }
 

@@ -730,48 +730,45 @@ impl<T: geom_core::Certifies + CertifiedBounds> RegionLane<T> {
     }
 }
 
-impl<T: geom_core::Certifies> RegionLane<T> {
-    /// The structural door, reached by the census's conformal face-pair
-    /// arm.
-    ///
-    /// # Errors
-    ///
-    /// As [`chart_region_overlap`].
-    pub(crate) fn chart_overlap(
-        self,
-        body_a: &Body<T>,
-        face_a: FaceKey,
-        body_b: &Body<T>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Result<ChartOverlap, ChartRegionError> {
-        (self.chart_overlap)(body_a, face_a, body_b, face_b, band)
-    }
-
-    /// The declared-pair door, reached by the census's confirm pass and
-    /// the crossing rung's backing consult.
-    ///
-    /// # Errors
-    ///
-    /// As [`glued_pair_overlap`].
-    pub(crate) fn declared_overlap(
-        self,
-        body_a: &Body<T>,
-        face_a: FaceKey,
-        body_b: &Body<T>,
-        face_b: FaceKey,
-        premise: CarrierPremise,
-        band: Band,
-    ) -> Result<ChartOverlap, ChartRegionError> {
-        (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
-    }
-}
 
 /// **A [`RegionLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
-/// values) at one that does not (`geom-core` README, DL5.3).
-pub trait RegionLaneOf<T: Decide>: Copy + Send + Sync {
-    /// [`RegionLane::chart_overlap`].
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Band;
+/// use topo::{Body, CarrierPremise, ChartOverlap, ChartRegionError, FaceKey};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::RegionLaneOf<f64> for Mine {
+///     fn chart_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+///     fn declared_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _premise: CarrierPremise,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait RegionLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The chart-region overlap of two faces (`chart_region_overlap`).
     fn chart_overlap(
         self,
         body_a: &Body<T>,
@@ -781,7 +778,7 @@ pub trait RegionLaneOf<T: Decide>: Copy + Send + Sync {
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError>;
 
-    /// [`RegionLane::declared_overlap`].
+    /// The overlap of a pair declared on one carrier (`glued_pair_overlap`).
     fn declared_overlap(
         self,
         body_a: &Body<T>,
@@ -802,7 +799,7 @@ impl<T: geom_core::Certifies> RegionLaneOf<T> for RegionLane<T> {
         face_b: FaceKey,
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
-        RegionLane::chart_overlap(self, body_a, face_a, body_b, face_b, band)
+        (self.chart_overlap)(body_a, face_a, body_b, face_b, band)
     }
 
     fn declared_overlap(
@@ -814,7 +811,7 @@ impl<T: geom_core::Certifies> RegionLaneOf<T> for RegionLane<T> {
         premise: CarrierPremise,
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
-        RegionLane::declared_overlap(self, body_a, face_a, body_b, face_b, premise, band)
+        (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
     }
 }
 

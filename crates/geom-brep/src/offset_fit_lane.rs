@@ -208,7 +208,7 @@ impl<T: geom_core::Certifies> OffsetFitLane<T> {
 /// **An [`OffsetFitLane`] as a pass that runs at every scalar holds
 /// it**: the lane at a scalar that certifies, [`geom_core::NoLane`] (no
 /// values) at one that does not (`geom-core` README, DL5.3).
-pub trait OffsetFitLaneOf<T: Real>: Copy + Send + Sync {
+pub trait OffsetFitLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// [`OffsetFitLane::recertify`].
     ///
     /// # Errors
@@ -249,7 +249,7 @@ impl<T: geom_core::Certifies> OffsetFitLaneOf<T> for OffsetFitLane<T> {
         approx: &geom::ApproxSurface<T>,
         tol: Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        OffsetFitLane::recertify(self, approx, tol)
+        (self.certify)(approx.description(), approx.fit(), approx.window(), tol)
     }
 
     fn mint(
@@ -258,7 +258,7 @@ impl<T: geom_core::Certifies> OffsetFitLaneOf<T> for OffsetFitLane<T> {
         d: T,
         tol: Tol,
     ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
-        OffsetFitLane::mint(self, base, d, tol)
+        (self.mint)(base, d, tol)
     }
 
     fn remap(
@@ -268,7 +268,7 @@ impl<T: geom_core::Certifies> OffsetFitLaneOf<T> for OffsetFitLane<T> {
         window: geom::ApproxWindow,
         tol: Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        OffsetFitLane::remap(self, description, fit, window, tol)
+        (self.certify)(description, fit, window, tol)
     }
 }
 

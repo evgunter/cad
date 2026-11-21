@@ -3061,8 +3061,26 @@ impl<T: geom_core::Certifies> SplineFoot<T> {
 
 /// **A [`NurbsLane`] as a pass that runs at every scalar holds it**: the
 /// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
-/// at one that does not (`geom-core` README, DL5.3).
-pub trait NurbsLaneOf<T: Real>: Copy + Send + Sync {
+/// at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Dual64, Point3};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::NurbsLaneOf<Dual64> for Mine {
+///     fn surface_foot(
+///         self,
+///         _s: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// [`NurbsLane::surface_foot`].
     ///
     /// # Errors
@@ -3080,7 +3098,7 @@ impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
         surface: &geom::NurbsSurface<T>,
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
-        NurbsLane::surface_foot(self, surface, point)
+        (self.surface_foot)(surface, point)
     }
 }
 
@@ -3095,8 +3113,24 @@ impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
 }
 
 /// **A [`SplineFoot`] as a pass that runs at every scalar holds it**
-/// ([`NurbsLaneOf`]'s shape).
-pub trait SplineFootOf<T: Real>: Copy + Send + Sync {
+/// ([`NurbsLaneOf`]'s shape and seal).
+///
+/// ```compile_fail,E0277
+/// use geom_core::Point3;
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::SplineFootOf<f64> for Mine {
+///     fn carrier_foot(
+///         self,
+///         _c: &geom::NurbsCurve3<f64>,
+///         _p: Point3<f64>,
+///         _seed: f64,
+///     ) -> Result<geom::Projection3<f64>, geom::ProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait SplineFootOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// [`SplineFoot::carrier_foot`].
     ///
     /// # Errors
@@ -3116,7 +3150,7 @@ impl<T: geom_core::Certifies> SplineFootOf<T> for SplineFoot<T> {
         point: Point3<T>,
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
-        SplineFoot::carrier_foot(self, carrier, point, seed)
+        (self.foot)(carrier, point, seed)
     }
 }
 

@@ -3976,7 +3976,7 @@ fn plan_reanchors<T: Decide>(
                                     scalar: T::NAME,
                                 })?;
                             let (t, at) =
-                                carrier_foot(foot, spline, point, t_old).map_err(|error| {
+                                carrier_foot(foot.carrier_foot(spline, point, t_old), spline).map_err(|error| {
                                     ReplaceFaceError::ReanchorInconclusive { edge, error }
                                 })?;
                             let (lo, hi) = spline.domain();
@@ -4335,12 +4335,10 @@ fn eps_of<T: Decide>(tol: Tol) -> T {
 /// at an end, where it is the carrier's held end knot (the value
 /// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
-    foot: impl geom_brep::SplineFootOf<T>,
+    foot: Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
     carrier: &NurbsCurve3<T>,
-    point: Point3<T>,
-    seed: T,
 ) -> Result<(T, f64), geom::ProjectionInconclusive> {
-    let foot = foot.carrier_foot(carrier, point, seed)?;
+    let foot = foot?;
     let ((lo, hi), (held_lo, held_hi)) = (carrier.domain(), carrier.knot_values().domain());
     let at = if foot.t == lo {
         held_lo
@@ -4370,16 +4368,13 @@ fn carrier_foot<T: Decide>(
 /// verdict refuses the corner.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn spline_corner_root<T: Decide>(
-    lane: impl crate::offset_derive::SectionLaneOf<T>,
-    surface: &Surface<T>,
+    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
     spline: &NurbsCurve3<T>,
-    (seed, extent): (T, geom_core::Lever<T>),
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    let root = lane.root(surface, spline, seed, extent, band);
     corner_of_root(
         root,
         (vertex, edge, derived),
@@ -4620,10 +4615,8 @@ fn solve_corners<T: Decide>(
                                         scalar: T::NAME,
                                     })?;
                                 match spline_corner_root(
-                                    lane,
-                                    surface,
+                                    lane.root(surface, spline, seed, inc.extent, band),
                                     spline,
-                                    (seed, inc.extent),
                                     (vertex, edge, inc.derived),
                                     d,
                                     band,
@@ -4877,7 +4870,7 @@ fn read_ends<T: Decide>(
             })?;
             let (lo, hi) = seeds.unwrap_or_else(|| spline.knot_values().domain());
             let foot = |p, seed| {
-                carrier_foot(lane, spline, p, seed)
+                carrier_foot(lane.carrier_foot(spline, p, seed), spline)
                     .map(|(t, _)| t)
                     .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
             };
@@ -5906,7 +5899,7 @@ mod spline_corner {
 
     use super::{ReplaceFaceError, spline_corner_root};
     use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SectionLane};
+    use crate::offset_derive::{CornerVerdict, SectionLane, SectionLaneOf};
 
     fn segment() -> NurbsCurve3<f64> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -5934,14 +5927,14 @@ mod spline_corner {
         derived: bool,
     ) -> Result<Result<f64, CornerVerdict<f64>>, ReplaceFaceError<f64>> {
         let tol = Tol::witness();
+        let (spline, band) = (segment(), Band::linear(tol).unwrap());
+        let extent = geom_core::test_support::fixture_lever(1.0);
         spline_corner_root(
-            SectionLane::f64(),
-            surface,
-            &segment(),
-            (1.0, geom_core::test_support::fixture_lever(1.0)),
+            SectionLaneOf::root(SectionLane::f64(), surface, &spline, 1.0, extent, band),
+            &spline,
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
-            Band::linear(tol).unwrap(),
+            band,
             tol,
         )
     }
@@ -6257,13 +6250,9 @@ mod from_computed_rows {
             )
             .unwrap();
             let point = Point3::new(x, S::from_f64(0.125), S::zero());
-            let (t, _) = carrier_foot(
-                geom_brep::SplineFoot::certified(),
-                &segment,
-                point,
-                S::from_f64(0.5),
-            )
-            .unwrap();
+            let foot = geom_brep::SplineFoot::certified();
+            let (t, _) = carrier_foot(foot.carrier_foot(&segment, point, S::from_f64(0.5)), &segment)
+                .unwrap();
             vec![t]
         });
         assert_eq!(
@@ -6296,13 +6285,9 @@ mod from_computed_rows {
             )
             .unwrap();
             let point = Point3::new(S::from_f64(5.0), S::from_f64(0.125), S::zero());
-            let (t, _) = carrier_foot(
-                geom_brep::SplineFoot::certified(),
-                &segment,
-                point,
-                S::from_f64(0.5),
-            )
-            .unwrap();
+            let foot = geom_brep::SplineFoot::certified();
+            let (t, _) = carrier_foot(foot.carrier_foot(&segment, point, S::from_f64(0.5)), &segment)
+                .unwrap();
             vec![t]
         });
         assert_eq!(

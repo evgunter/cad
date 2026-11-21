@@ -220,27 +220,6 @@ impl<T: geom_core::Certifies> FittedLane<T> {
         (self.general_image_lane)(carrier, params, wall, band)
     }
 
-    /// **A spline carrier's projected row's hull terms** — check 4 of
-    /// [`crate::PcurveCache::certify_projected`] for a net, reached only
-    /// from inside this crate: the stored image's piece hulls (its
-    /// sector condition and cone lever) and the chart's implicit form
-    /// composed along `twin_net`, the carrier written in the frame of
-    /// `twin`, the chart's orthonormal twin
-    /// (`pcurve_cache::projected`'s docs), each knot span cut into the
-    /// parts `parts` reads it in, with `cuts` added to its parts' breaks
-    /// (the analytic rung-3 limb's halvings; check 4 adds none).
-    /// Certification arithmetic, so it sits on this door.
-    pub(crate) fn projected_hull(
-        self,
-        image: &crate::ProjectedImage<T>,
-        twin_net: &NurbsCurve3<T>,
-        twin: &Surface<T>,
-        parts: crate::pcurve_cache::Parts,
-        cuts: &[f64],
-    ) -> Result<ProjectedHull, PcurveCertifyError> {
-        (self.projected_lane)(image, twin_net, twin, parts, cuts)
-    }
-
     /// **The chart foot of one point** on a NURBS wall —
     /// [`FittedLane::general_image`]'s single-sample sibling, same
     /// producer (`edge_nurbs::chart_foot`).
@@ -266,18 +245,42 @@ impl<T: geom_core::Certifies> FittedLane<T> {
 
 /// **A [`FittedLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
-/// values) at one that does not (`geom-core` README, DL5.3).
-pub trait FittedLaneOf<T: Real>: Copy + Send + Sync {
-    /// [`FittedLane::fitted_certificate`].
-    #[allow(private_interfaces)]
-    fn fitted_certificate(
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed:
+/// those two are its only implementors, so a pass that holds one holds
+/// the lane's own constructor's value or nothing ([`crate::NurbsLaneOf`]
+/// carries the seal's pin; this trait's `projected_hull` names types no
+/// other crate can spell, so no doctest can write its methods out).
+///
+/// Each method is the entry to a routine declared over
+/// [`geom_core::Certifies`]: the pass asks whether it holds a lane, and
+/// what runs with the lane in hand is not a function at a dual.
+pub trait FittedLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The fitted lane's four checks of `image` over `[t0, t1]`
+    /// (`pcurve_cache`'s `run_fitted_checks`).
+    ///
+    /// # Errors
+    /// The checks' own.
+    fn fitted_checks(
         self,
+        image: &std::sync::Arc<NurbsCurve2<T>>,
+        span: (T, T),
         carrier: &Curve3<T>,
-        image: &NurbsCurve2<T>,
-        chart: crate::pcurve_cache::FittedChart<'_, T>,
-        params: (T, T),
+        surface: &Surface<T>,
         band: Band,
-    ) -> Result<T, PcurveCertifyError>;
+    ) -> Result<crate::PcurveCertificate<T>, PcurveCertifyError>;
+
+    /// [`crate::PcurveCache::certify_fitted`].
+    ///
+    /// # Errors
+    /// The door's own.
+    fn certify_fitted(
+        self,
+        image: std::sync::Arc<NurbsCurve2<T>>,
+        span: (T, T),
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<crate::PcurveCache<T>, PcurveCertifyError>;
 
     /// [`FittedLane::general_image`].
     ///
@@ -291,7 +294,8 @@ pub trait FittedLaneOf<T: Real>: Copy + Send + Sync {
         band: Band,
     ) -> Result<NurbsCurve2<T>, PcurveCertifyError>;
 
-    /// [`FittedLane::projected_hull`].
+    /// The projected image's hull against its twin (`projected_hull_lane`). Its operands are this crate's,
+    /// so only this crate's passes can call it.
     #[allow(private_interfaces)]
     fn projected_hull(
         self,
@@ -314,16 +318,26 @@ pub trait FittedLaneOf<T: Real>: Copy + Send + Sync {
 }
 
 impl<T: geom_core::Certifies> FittedLaneOf<T> for FittedLane<T> {
-    #[allow(private_interfaces)]
-    fn fitted_certificate(
+    fn fitted_checks(
         self,
+        image: &std::sync::Arc<NurbsCurve2<T>>,
+        span: (T, T),
         carrier: &Curve3<T>,
-        image: &NurbsCurve2<T>,
-        chart: crate::pcurve_cache::FittedChart<'_, T>,
-        params: (T, T),
+        surface: &Surface<T>,
         band: Band,
-    ) -> Result<T, PcurveCertifyError> {
-        FittedLane::fitted_certificate(self, carrier, image, chart, params, band)
+    ) -> Result<crate::PcurveCertificate<T>, PcurveCertifyError> {
+        crate::pcurve_cache::run_fitted_checks(image, span, carrier, surface, band, self)
+    }
+
+    fn certify_fitted(
+        self,
+        image: std::sync::Arc<NurbsCurve2<T>>,
+        (t0, t1): (T, T),
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<crate::PcurveCache<T>, PcurveCertifyError> {
+        crate::PcurveCache::certify_fitted(image, t0, t1, carrier, surface, band, self)
     }
 
     fn general_image(
@@ -333,7 +347,7 @@ impl<T: geom_core::Certifies> FittedLaneOf<T> for FittedLane<T> {
         wall: &NurbsSurface<T>,
         band: Band,
     ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
-        FittedLane::general_image(self, carrier, params, wall, band)
+        (self.general_image_lane)(carrier, params, wall, band)
     }
 
     #[allow(private_interfaces)]
@@ -345,7 +359,7 @@ impl<T: geom_core::Certifies> FittedLaneOf<T> for FittedLane<T> {
         parts: crate::pcurve_cache::Parts,
         cuts: &[f64],
     ) -> Result<ProjectedHull, PcurveCertifyError> {
-        FittedLane::projected_hull(self, image, twin_net, twin, parts, cuts)
+        (self.projected_lane)(image, twin_net, twin, parts, cuts)
     }
 
     fn chart_foot(
@@ -353,20 +367,30 @@ impl<T: geom_core::Certifies> FittedLaneOf<T> for FittedLane<T> {
         point: Point3<T>,
         wall: &NurbsSurface<T>,
     ) -> Result<Point2<f64>, PcurveCertifyError> {
-        FittedLane::chart_foot(self, point, wall)
+        (self.chart_foot_lane)(point, wall)
     }
 }
 
 impl<T: Real> FittedLaneOf<T> for geom_core::NoLane {
-    #[allow(private_interfaces)]
-    fn fitted_certificate(
+    fn fitted_checks(
         self,
+        _image: &std::sync::Arc<NurbsCurve2<T>>,
+        _span: (T, T),
         _carrier: &Curve3<T>,
-        _image: &NurbsCurve2<T>,
-        _chart: crate::pcurve_cache::FittedChart<'_, T>,
-        _params: (T, T),
+        _surface: &Surface<T>,
         _band: Band,
-    ) -> Result<T, PcurveCertifyError> {
+    ) -> Result<crate::PcurveCertificate<T>, PcurveCertifyError> {
+        match self {}
+    }
+
+    fn certify_fitted(
+        self,
+        _image: std::sync::Arc<NurbsCurve2<T>>,
+        _span: (T, T),
+        _carrier: &Curve3<T>,
+        _surface: &Surface<T>,
+        _band: Band,
+    ) -> Result<crate::PcurveCache<T>, PcurveCertifyError> {
         match self {}
     }
 
@@ -401,18 +425,6 @@ impl<T: Real> FittedLaneOf<T> for geom_core::NoLane {
     }
 }
 
-/// **The door's WIRING, field by field** — the rows that say which
-/// free function each field of [`FittedLane::certified`] holds, rather
-/// than what that function answered.
-///
-/// Why a wiring row compares pointers rather than outputs:
-/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
-///
-/// The helper is instantiated once per certifying scalar.
-/// `topo`'s `certified_enclosure_impl_census` counts those
-/// instantiations against the `CertifiedEnclosure` impls in the tree,
-/// both directions, and counts the tree's door values against its
-/// roster of helpers, this one included.
 #[cfg(test)]
 mod wiring_rows {
     use super::FittedLane;

@@ -6518,7 +6518,9 @@ fn planar_face_pairs<T: crate::props::AtRestPolicy>(
                             b: fb.key,
                             reason,
                         };
-                        match in_band_reading(body, geo, lane, (fa, fb), err, band) {
+                        match in_band_reading(body, geo, |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        }, (fa, fb), err, band) {
                             InBand::Overlap(margin) => found.same_side.push(FoundPair {
                                 a: fa.key,
                                 b: fb.key,
@@ -6557,7 +6559,9 @@ fn planar_face_pairs<T: crate::props::AtRestPolicy>(
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         fa,
                         fb,
                         crate::chart_region::CarrierPremise::Decided,
@@ -6718,7 +6722,11 @@ enum InBand {
 fn in_band_reading<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: impl crate::RegionLaneOf<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
     door_one: geom_brep::CarrierEqError,
     band: Band,
@@ -6737,7 +6745,7 @@ fn in_band_reading<T: Decide>(
         CarrierRelation::SameOpposite => InBand::Unread(Undecidable::ThinInBand),
         CarrierRelation::SameOriented => {
             let premise = crate::chart_region::CarrierPremise::InBand;
-            match same_side_overlap(body, geo, lane, fa, fb, premise, band) {
+            match same_side_overlap(body, geo, read, fa, fb, premise, band) {
                 Ok(true) => InBand::Overlap(diag.margin),
                 Ok(false) => InBand::Unread(Undecidable::ThinInBand),
                 Err(_) => InBand::Unread(aligned_unread(geo, fa, fb, band)),
@@ -6833,17 +6841,18 @@ enum SameSideUnread {
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: impl crate::RegionLaneOf<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
     premise: crate::chart_region::CarrierPremise,
     band: Band,
 ) -> Result<bool, SameSideUnread> {
-    let read = |x: &FaceGeo<T>, y: &FaceGeo<T>| {
-        lane.declared_overlap(body, x.key, body, y.key, premise, band)
-    };
     use crate::chart_region::ChartOverlap;
-    let either = [read(fa, fb), read(fb, fa)];
+    let either = [read(fa, fb, premise), read(fb, fa, premise)];
     if either
         .iter()
         .any(|r| matches!(r, Ok(ChartOverlap::PositiveArea)))
@@ -6916,14 +6925,14 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 fn one_record_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: impl crate::RegionLaneOf<T>,
+    read: Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (FaceKey, FaceKey),
     band: Band,
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
     use crate::chart_region::ChartOverlap;
     let sense = |f| proven(&body.faces, f, EntityId::Face).sense;
     let facing = Facing::of_senses(sense(fa), sense(fb));
-    match lane.chart_overlap(body, fa, body, fb, band) {
+    match read {
         Err(refusal @ (ChartRegionError::Escalated(_) | ChartRegionError::Corrupt)) => Err(refusal),
         Err(refusal) => match face_interiors_meet(body, geo, fa, fb, facing, band) {
             Ok(false) => Ok(ChartOverlap::Empty),
@@ -6994,7 +7003,10 @@ fn sweep_conformal_patches<T: crate::props::AtRestPolicy>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match region.map(|lane| one_record_overlap(body, geo, lane, (fa, fb), band)) {
+                match region.map(|lane| {
+                    let read = lane.chart_overlap(body, fa, body, fb, band);
+                    one_record_overlap(body, geo, read, (fa, fb), band)
+                }) {
                     None => {
                         // The pass holds no CERTIFIED region door (the
                         // `_structural` twin's value at every scalar,
@@ -12123,7 +12135,9 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
                     same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         x,
                         y,
                         crate::chart_region::CarrierPremise::Decided,

@@ -5303,8 +5303,11 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: impl crate::FittedLaneOf<T>,
-    ) -> Result<Self, PcurveCertifyError> {
+        lane: crate::FittedLane<T>,
+    ) -> Result<Self, PcurveCertifyError>
+    where
+        T: geom_core::Certifies,
+    {
         let span = (t0, t1);
         let certificate = incidence_ended(
             carrier,
@@ -5313,7 +5316,7 @@ impl<T: Decide> PcurveCache<T> {
             surface,
             band,
             |e| e,
-            |_| run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane)),
+            |_| run_fitted_checks(&image, span, carrier, surface, band, lane),
         )?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
@@ -5382,7 +5385,10 @@ impl<T: Decide> PcurveCache<T> {
             surface,
             band,
             |e| e,
-            |_| run_fitted_checks(&image, t0, t1, carrier, surface, band, lane),
+            |_| match lane {
+                Some(lane) => lane.fitted_checks(&image, span, carrier, surface, band),
+                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+            },
         )?;
         Ok(Self {
             pcurve: Pcurve::General(image),
@@ -5471,15 +5477,16 @@ impl<T: Decide> PcurveCache<T> {
             band,
             |e| e,
             |shown| match &self.pcurve {
-                Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
-                    image,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    band,
-                    lane,
-                ),
+                Pcurve::Fitted(image) | Pcurve::General(image) => match lane {
+                    Some(lane) => lane.fitted_checks(
+                        image,
+                        (self.param_start, self.param_end),
+                        carrier,
+                        surface,
+                        band,
+                    ),
+                    None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+                },
                 iso @ Pcurve::IsoLine { .. } => run_iso_checks(
                     iso,
                     self.param_start,
@@ -8641,14 +8648,13 @@ fn escape<T: Real>(gap: T) -> T {
 ///    HERE ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
 ///    earlier: checks 1–3 read no door, so their verdicts are the same
 ///    at every scalar.
-fn run_fitted_checks<T: Decide>(
+pub(crate) fn run_fitted_checks<T: geom_core::Certifies>(
     image: &Arc<NurbsCurve2<T>>,
-    t0: T,
-    t1: T,
+    (t0, t1): (T, T),
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<impl crate::FittedLaneOf<T>>,
+    lane: crate::FittedLane<T>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     if surface.is_placeholder_chart() {
@@ -8694,7 +8700,6 @@ fn run_fitted_checks<T: Decide>(
     )?;
 
     // ---- Check 4: the envelope, RE-DERIVED. ----
-    let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
     let hull_sup =
         lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), (t0, t1), band)?;
     // The envelope is banded exactly as the closed-form lane's is, and

@@ -2305,7 +2305,9 @@ impl SsiLane<f64> {
 /// **An [`SsiLane`] as a pass that runs at every scalar holds it**: the
 /// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
 /// at one that does not (`geom-core` README, DL5.3).
-pub trait SsiLaneOf<T: Real>: Copy + Send + Sync + core::fmt::Debug {
+pub trait SsiLaneOf<T: Real>:
+    crate::lane_seal::Sealed + Copy + Send + Sync + core::fmt::Debug
+{
     /// The march over a section's ball.
     ///
     /// # Errors

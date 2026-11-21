@@ -77,6 +77,19 @@ pub mod enters;
 mod exact_q;
 pub mod extent;
 pub mod fitted_lane;
+
+/// The seal of the lane traits (`NurbsLaneOf`, `SplineFootOf`,
+/// `FittedLaneOf`, `OffsetFitLaneOf`, `SsiLaneOf`): each is implemented
+/// by its lane and by [`geom_core::NoLane`], and by nothing else.
+mod lane_seal {
+    pub trait Sealed {}
+    impl Sealed for geom_core::NoLane {}
+    impl<T: geom_core::Certifies> Sealed for crate::NurbsLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::SplineFoot<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::FittedLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::OffsetFitLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::SsiLane<T> {}
+}
 #[cfg(test)]
 mod grid_offsets;
 pub mod half_angle;

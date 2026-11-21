@@ -273,31 +273,30 @@ fn normal_at<T: Decide>(
         )),
         Some(chart) => {
             let lane = lane.ok_or(SideEscalation::NoLane(role))?;
-            spline_normal(chart, face.sense, role, p, reach, lane, band)
+            if chart.is_placeholder() {
+                return Err(SideEscalation::Placeholder(role));
+            }
+            let foot = lane.surface_foot(chart, p);
+            foot_normal(chart, face.sense, role, p, reach, foot, band)
         }
     }
 }
 
 /// A spline face's outward normal at the foot of `p`, and the radius of
 /// its largest principal curvature there folded with `reach`.
-fn spline_normal<T: Decide>(
+fn foot_normal<T: Decide>(
     chart: &NurbsSurface<T>,
     sense: bool,
     role: SideRole,
     p: Point3<T>,
     reach: Lever<T>,
-    lane: impl NurbsLaneOf<T>,
+    foot: Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
     band: Band,
 ) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
-    if chart.is_placeholder() {
-        return Err(SideEscalation::Placeholder(role));
-    }
-    let foot = lane
-        .surface_foot(chart, p)
-        .map_err(|e| SideEscalation::FootInconclusive {
-            role,
-            last_distance: e.last_distance,
-        })?;
+    let foot = foot.map_err(|e| SideEscalation::FootInconclusive {
+        role,
+        last_distance: e.last_distance,
+    })?;
     let uv = (T::from_computed(foot.u), T::from_computed(foot.v));
     chart_point_normal(chart, sense, uv, p, reach, "dihedral_side_foot", band).map_err(|refusal| {
         match refusal {

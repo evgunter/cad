@@ -4618,13 +4618,46 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
     }
 }
 
-impl<T: geom_core::Certifies> ClearanceLane<T> {
-    /// [`Side::windows`], at this lane.
+
+/// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3).
+pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// A side's windows in its own frame.
     ///
     /// # Errors
+    /// The lane's own.
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which)
+    -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// A side's windows moved by `at`.
     ///
-    /// [`Side::windows`]'s own.
-    pub fn windows<'b>(
+    /// # Errors
+    /// The lane's own.
+    fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// The bound sweep of two sides' windows, `verify` asked of each
+    /// candidate; the first `Ok` per question is kept.
+    fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W>;
+
+    /// A candidate's stations on its two faces.
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+}
+
+impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
+    fn windows<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4632,12 +4665,7 @@ impl<T: geom_core::Certifies> ClearanceLane<T> {
         (self.windows)(side, which, None)
     }
 
-    /// [`Side::windows_at`], at this lane.
-    ///
-    /// # Errors
-    ///
-    /// [`Side::windows_at`]'s own.
-    pub fn windows_at<'b>(
+    fn windows_at<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4646,9 +4674,7 @@ impl<T: geom_core::Certifies> ClearanceLane<T> {
         (self.windows)(side, which, at)
     }
 
-    /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
-    /// the sweep's, and the witness is the first one `verify` answered.
-    pub fn sweep<W>(
+    fn sweep<W>(
         self,
         sweep: &Sweep,
         wa: &Windows<'_, T>,
@@ -4691,79 +4717,8 @@ impl<T: geom_core::Certifies> ClearanceLane<T> {
         }
     }
 
-    /// [`Candidate::on_face_stations`], at this lane.
-    pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
-        (self.face_stations)(candidate)
-    }
-}
-
-/// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
-/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
-/// values) at one that does not (`geom-core` README, DL5.3).
-pub trait ClearanceLaneOf<T: Decide>: Copy + Send + Sync {
-    /// [`ClearanceLane::windows`].
-    ///
-    /// # Errors
-    /// The lane's own.
-    fn windows<'b>(self, side: &Side<'b, T>, which: Which)
-    -> Result<Windows<'b, T>, EngineRefusal>;
-
-    /// [`ClearanceLane::windows_at`].
-    ///
-    /// # Errors
-    /// The lane's own.
-    fn windows_at<'b>(
-        self,
-        side: &Side<'b, T>,
-        which: Which,
-        at: Option<&RigidMotion<T>>,
-    ) -> Result<Windows<'b, T>, EngineRefusal>;
-
-    /// [`ClearanceLane::sweep`].
-    fn sweep<W>(
-        self,
-        sweep: &Sweep,
-        wa: &Windows<'_, T>,
-        wb: &Windows<'_, T>,
-        same_body: bool,
-        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
-    ) -> BoundReport<W>;
-
-    /// [`ClearanceLane::on_face_stations`].
-    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
-}
-
-impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
-    fn windows<'b>(
-        self,
-        side: &Side<'b, T>,
-        which: Which,
-    ) -> Result<Windows<'b, T>, EngineRefusal> {
-        ClearanceLane::windows(self, side, which)
-    }
-
-    fn windows_at<'b>(
-        self,
-        side: &Side<'b, T>,
-        which: Which,
-        at: Option<&RigidMotion<T>>,
-    ) -> Result<Windows<'b, T>, EngineRefusal> {
-        ClearanceLane::windows_at(self, side, which, at)
-    }
-
-    fn sweep<W>(
-        self,
-        sweep: &Sweep,
-        wa: &Windows<'_, T>,
-        wb: &Windows<'_, T>,
-        same_body: bool,
-        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
-    ) -> BoundReport<W> {
-        ClearanceLane::sweep(self, sweep, wa, wb, same_body, verify)
-    }
-
     fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
-        ClearanceLane::on_face_stations(self, candidate)
+        (self.face_stations)(candidate)
     }
 }
 

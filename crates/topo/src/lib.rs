@@ -128,6 +128,20 @@
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.
+/// The seal of the lane traits (`QuadLaneOf`, `RegionLaneOf`,
+/// `ClearanceLaneOf`, `SectionLaneOf`, `ShellDoorOf`): each is
+/// implemented by its lane and by [`geom_core::NoLane`], and by nothing
+/// else.
+mod lane_seal {
+    pub trait Sealed {}
+    impl Sealed for geom_core::NoLane {}
+    impl<T: geom_core::Certifies> Sealed for crate::QuadLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::RegionLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::ClearanceLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::SectionLane<T> {}
+    impl<T: geom_core::Certifies + crate::AtRestPolicy> Sealed for crate::ShellDoor<T> {}
+}
+
 pub mod attach;
 pub mod body;
 pub mod boolean;
