@@ -44,8 +44,10 @@
 //! graph over one chart axis ([`present_curved`]; a spiric's wall image
 //! on a torus, over the minor angle, [`present_wall`]), and a derivative
 //! across those sides or that curve. At a corner where a curved edge
-//! meets another, the shared one is read alone, through the vertex
-//! ([`present_corner`]).
+//! meets another, the shared one is read alone, through the vertex,
+//! where the other is decided to leave onto its face side; where it is
+//! not (a tangent joint, a reflex one), the two are read as one run, a
+//! graph over one chart axis through the vertex ([`present_corner`]).
 //!
 //! # The ε concessions
 //!
@@ -79,7 +81,9 @@
 //! - **the vertex** ([`on_vertex`]): at a corner the two edges' points at
 //!   the vertex, decided within the band of each other, are read as one,
 //!   so a face point between the two edges within the band of the corner's
-//!   other edge goes unread.
+//!   other edge goes unread. The graph separator run on along a corner's
+//!   other edge ([`graph_run`]) reads its own edge's carrier that far
+//!   past the vertex's parameter as the vertex too, at the same site.
 //!
 //! A separator concedes once more, in what it lists as vanishing on
 //! ([`On`]): a vertex at a conic's end. A conic's own plane
@@ -2769,9 +2773,11 @@ impl Trig {
 /// arc read through it), `whole` where its carrier is a conic, whose own
 /// plane holds the curve continued past the edge too. `past`, the vertex
 /// it runs on through, where the side runs on past that edge over the
-/// face's next arc of the same conic ([`Reading::Conic`]), so the face
-/// has points on it off the shared cell: read only where [`sign_on`]
-/// admits it, as [`Zero::Past`] is.
+/// face's next arc of the same conic ([`Reading::Conic`]) or along its
+/// next edge (`run`), so the face has points on it off the shared cell:
+/// read only where [`sign_on`] admits it, as [`Zero::Past`] is. With
+/// `run`, `t` stops at the vertex's parameter, and `along` is the run's
+/// part on the shared cell, which may be the other edge's.
 #[derive(Clone, Debug)]
 struct Curved {
     form: Form,
@@ -3605,8 +3611,9 @@ fn present_wall<'a>(
 /// that edge's face side — off the line, or off the curve's graph —
 /// times the extent it is read over and the chart's speed (an upper
 /// bound, `rect_jet`'s), metres. Only a definite `Positive` reads the
-/// corner convex; a definite `Negative` is a reflex corner, which this
-/// presentation never reads.
+/// corner convex, by the read edge alone; a definite `Negative` is a
+/// reflex corner; anything else, or a reflex corner, is read only as one
+/// run of the two edges ([`present_corner`]), or by nothing.
 pub(crate) const SELF_INTERSECTION_CORNER_DEPARTS: &str = "self_intersection_corner_departs";
 
 /// The funnel site of a corner's vertex: the chart distance between the
@@ -3806,6 +3813,35 @@ fn corner_of(
 /// **At a vertex the pair shares alone** (`alone`) neither arc is on the
 /// shared cell, and this is the one reading: the region is argued as
 /// above, and only `V` of the run is on the shared cell.
+///
+/// **One run through the vertex** ([`RunOn`]): where `O` is not decided
+/// to leave onto `E`'s face side ([`Leaves`]) — it continues `E` at
+/// first order, as a fillet's straight foot continues its arc, or leaves
+/// onto the other side — `E` continued bounds nothing, and steps 1 to 3
+/// above do not hold. `E` up to `V` and `O` from it are read together:
+///
+/// 1. `E`'s chart curve is a graph over the column axis up to `V`
+///    ([`graph_read`]'s step 1), and `O` runs on from `V` across the
+///    columns the same way, past their far end ([`line_onward`],
+///    [`curve_onward`]). So every column holds exactly one point of the
+///    run: `E`'s before `V`'s column, `O`'s after it.
+/// 2. `R` holds `O`'s reach over the columns it crosses, and nothing in
+///    reach of `R` bounds the face but `E`, `O` and `E`'s ends
+///    ([`alone`]); no other copy of `O` meets `R`.
+/// 3. So the boundary in `R` is the run, traversed one way through `V`,
+///    and `R` off it is two connected parts, the face the one `E`'s
+///    traversal names: every point of the face in the cell is on that
+///    side of the run, or on it.
+///
+/// No angle between the two edges is read, so none is decided: the
+/// reading is the same for a joint that is tangent, tangent within the
+/// band, or reflex. The run is read by the curve of the two (`read`),
+/// from either edge: where the shared edge is a plane's line and the
+/// curve the other ([`Corner::run`]), the part of the run on the shared
+/// cell is the line's. The zero is the run, `past` `V`: its part along
+/// the edge that is not shared holds face points off the shared cell,
+/// read only where [`past_read`] admits it and only under a graph
+/// separator run on along that edge ([`graph_run`]).
 fn present_corner<'a>(
     piece: &Piece<'a>,
     c: Corner,
@@ -5924,7 +5960,8 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
 /// construction from them ([`planes_through`], [`graph_of`]): edges by
 /// key, vertices, and whether it holds each listed edge's whole line or
 /// circle (a plane does; the graph separator vanishes on its edge over
-/// its piece alone).
+/// its piece alone), and the edge its graph runs on along past its own
+/// edge's end, where it does ([`graph_run`]).
 #[derive(Clone, Debug, Default)]
 struct On {
     edges: Vec<EdgeKey>,
@@ -5996,7 +6033,11 @@ impl On {
 /// the shared cell would be two points of this face with one image
 /// ([`partial_zero`]). A curve read on past the shared edge (a `past`
 /// [`Curved`]) is read under the same guard, [`past_read`], which holds
-/// its argument. Anywhere else either answers nothing.
+/// its argument. Anywhere else either answers nothing. A curve run on
+/// along the face's next edge ([`RunOn`]) is zero only under the graph
+/// separator whose graph runs on along that edge ([`On::run`]): a plane
+/// holding the curve's conic does not hold the next edge, and a graph
+/// that stops at the vertex is the conic continued past it.
 fn sign_on(
     psi: &Psi,
     on: Option<&On>,
@@ -6125,6 +6166,15 @@ fn sign_on(
 ///   little more centred on `V` ([`through_of`]), over which the conic
 ///   meets `V` once. This rests on [`continues`], checked in the
 ///   reading, and not on the face's injectivity;
+/// - **a curve run on along the next edge** ([`RunOn`]): the point is
+///   on the run in `R`, and its image is the shared cell's, so on the
+///   shared edge of the run's two. Were it on the run's other part, some
+///   lift of the shared edge by whole turns would pass through it, in
+///   `R`: the lift read, which holds one point to a column and lies
+///   across `V`'s column from the other part ([`present_corner`]), or
+///   another, which no cell read holds ([`graph_read`]'s step 2, and
+///   [`alone`] where the shared edge is the straight one). So it is on
+///   the run's shared part: the shared cell;
 /// - **a past side**: a point of the side off the shared cell with the
 ///   other face's image would be two points of this face with one
 ///   image, which its injectivity by kind rules out ([`partial_zero`]).
@@ -6279,6 +6329,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// could still part the two corners where they are at different
 /// vertices, which this does not wait for. Such a part is the corner
 /// [`beside_curve`] types `Structural` where the two arcs are not read.
+/// A curve run on along the next edge ([`RunOn`]) is not stuck: a
+/// smaller cell may decide that edge onto the face's side and read the
+/// curve alone, with nothing past the shared cell.
 fn stuck(piece: &Piece<'_>, p: &Result<Presentation<'_>, Unpresented>) -> bool {
     match p {
         Err(Unpresented::Structural) => true,
@@ -6587,6 +6640,13 @@ fn edge_piece(
 /// carrier's point at `t_V`. `V`'s stored point lies off that by up to
 /// the edge's certified tolerance: the separator's ε concession (module
 /// docs), as a conic's own plane lists its ends.
+///
+/// **Where one face's curved side runs on along its next edge**
+/// ([`RunOn`]), `γ` past the vertex is that edge's graph, not the
+/// carrier's continuation, and `slope` holds its slopes too
+/// ([`graph_run`]); `ψ`'s gradient is `m − γ′(s)·t` with `γ′` in `slope`
+/// wherever `γ` is differentiable, which is all [`sign_on`] reads of it.
+/// Two such sides answer nothing.
 fn graph_of<'a>(
     x: &Piece<'a>,
     y: &Piece<'a>,
