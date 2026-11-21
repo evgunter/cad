@@ -237,13 +237,15 @@ pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken, nary_boolean,
+    nary_boolean_apart, nary_placed,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
-    SettleError, Settler, boolean_op_with, intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
+    PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
+    subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -324,7 +326,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_held_carrier_datum" => {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
-        "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
+        "curve_face_pose_plane_offset" | "curve_face_pose_plane_parallel" => {
+            Coincide::EdgeOnPlane.subject()
+        }
         "bool_line_cylinder_clearance"
         | "bool_line_face_carrier_offset"
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
@@ -404,8 +408,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "plane_crossing_root_order"
-        | "plane_crossing_roots_apart"
+        "curve_face_cross_order"
+        | "curve_face_cross_apart"
         | "spline_composite_roots_apart"
         | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"
@@ -1524,7 +1528,7 @@ impl<T: Real> GluedPair<T> {
 /// become silent last-write-wins the day the op grew a second class
 /// arm.)
 #[derive(Debug)]
-pub(crate) struct GluedPairs<T: Real> {
+pub(crate) struct GluedPairs<T: crate::props::AtRestPolicy> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), GlueClass>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
     verified: VerifiedGlue<T>,
@@ -1542,7 +1546,7 @@ pub(crate) struct GluedPairs<T: Real> {
     pub(crate) sections: section_table::SectionTable<T>,
 }
 
-impl<T: Real> Default for GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> Default for GluedPairs<T> {
     fn default() -> Self {
         Self {
             map: std::collections::BTreeMap::new(),
@@ -1896,7 +1900,7 @@ pub(crate) struct GluedTouch {
     pub(crate) row: usize,
 }
 
-impl<T: Decide> GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
     /// The index over `decls`, with the door's certificates, the
     /// one-sided cover they and the operands' structural tangencies
     /// derive ([`Self::one_sided`]), and each declared pair's consumed
@@ -1980,7 +1984,7 @@ impl<T: Decide> GluedPairs<T> {
     }
 }
 
-impl<T: Real> GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
     /// [`Self::build`] over a one-carrier certificate set alone: no
     /// verified `Tangent` and no operand struts.
     #[cfg(test)]
@@ -2393,7 +2397,7 @@ pub(crate) struct RingTie {
     pub margin: geom_core::MarginDiag,
 }
 
-impl<T: Real> BooleanReduction<T> {
+impl<T: crate::props::AtRestPolicy> BooleanReduction<T> {
     /// The ring serving `vertex`'s pierce of the `pierced` operand's
     /// face, as an index into [`Self::pierce_rings`].
     fn ring_of(&self, pierced: Operand, vertex: VertexKey) -> Option<usize> {
@@ -2425,7 +2429,7 @@ pub(crate) fn vertex_at<T: Decide>(
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]
-pub struct BooleanReduction<T: Real> {
+pub struct BooleanReduction<T: crate::props::AtRestPolicy> {
     /// The op the classification was performed for.
     pub op: BooleanOp,
     /// Each operand's slit and ring tips, A's then B's, read at rest
@@ -2512,7 +2516,7 @@ pub(crate) struct SettledPair {
     pub(crate) relation: CarrierRelation,
 }
 
-impl<T: Real> BooleanReduction<T> {
+impl<T: crate::props::AtRestPolicy> BooleanReduction<T> {
     /// Opens a surgery scope on each operand body — the join's
     /// declaration that tier 1 is paid once per operand at its end
     /// rather than once per Euler operator inside it

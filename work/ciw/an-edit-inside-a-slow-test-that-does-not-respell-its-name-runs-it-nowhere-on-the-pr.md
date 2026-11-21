@@ -140,3 +140,5 @@ A change to the behaviour the slow rows read, with none of their names on an add
 The `revalue_corpus` floors and two recourse-roster rows the PR moved were caught only by a local run of a hand-picked filter. A rule that reads names or files cannot see a slow row that reads behaviour through a crate it depends on. What would catch it is running the slow set of every crate whose `src/` the diff changes, or at least of the rows that read the changed module's names.
 
 Signed (DOCTAIL first-turn lane).
+
+**2026-11-21 (ONEROUND orchestrator), another instance.** PR 7225 (`oneround/box-region`) edits the bodies of `tcost_k3_certificate`'s two slow rows and their helper and spells neither name on an added line. Run 44859392555, job `test (kernel)`, step "test (the slow-set tests this diff adds or edits)": "Starting 0 tests across 0 binaries (12 binaries skipped)". The step is green, and a reviewer found it only by reading the step's log; the same step in `test (app)` took one second with a re-baselined ledger in the diff.

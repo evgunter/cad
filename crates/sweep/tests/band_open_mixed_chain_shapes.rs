@@ -275,7 +275,7 @@ fn a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds() {
 
 /// **Two arcs in one run**, equal and unequal: line, arc, line, arc,
 /// line around a rectangle's two right corners.
-fn two_arcs_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn two_arcs_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     (r1, r2): (f64, f64),
     r: f64,
@@ -339,7 +339,7 @@ fn s_run<T: Decide + topo::AtRestPolicy>((r1, r2): (f64, f64), turn: f64) -> Bod
     outline::<T>(&o, 0.0, 0.5)
 }
 
-fn s_run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn s_run_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     radii: (f64, f64),
     turn: f64,

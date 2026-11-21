@@ -702,11 +702,12 @@ there is the bracket, with the resolution it reached.
 ε is a length: the maximum
 deviation from specified geometry at a single point. Four clauses
 make that structural: (i) **Margins are lengths, by signature.** The
-classify/Band seam takes a `#[repr(transparent)]` `Margin<T>`
-newtype — no dimension algebra, no generic dimension parameter —
-whose only constructors are blessed doors that make the dimension
-argument explicit at the call site (a coordinate difference that IS
-a length; a dimensionless quantity levered by an arm; a norm; a
+classify/Band seam takes a `Margin<T>`, or a `Margin<T, Allowance>`
+where an `f64` bound enters it (DL5.2) — no dimension algebra, no
+generic dimension parameter — whose only constructors are blessed
+doors that make the dimension argument explicit at the call site (a
+coordinate difference that IS a length; a dimensionless quantity
+levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw

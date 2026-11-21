@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-18
 priority: P2
 refs: [7079, 7099]
+cost: M
 ---
 
 Filed by the ONEHOME orchestrator from fork 288 (PR 7079). All three
@@ -28,3 +29,7 @@ stage 2 (`a-body-records-its-parts-in-their-frames`), when the body
 holds each piece under its frame. Decide which when stage 2 is
 planned; until then, no reader should take a verdict from the fused
 image that the pieces read through their motions would not give.
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged (Ev, PR 7282: stage 2 split off); it is decided when stage 2 is planned. Priced `M`.
