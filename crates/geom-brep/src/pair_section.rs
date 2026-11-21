@@ -474,6 +474,7 @@ impl<T: Decide> CylinderSpherePose<T> {
             r: self.r,
             d: self.offset,
             big_r: self.big_r,
+            lever: crate::uniform_curvature_arm(&self.cylinder),
         })
     }
 
@@ -1658,7 +1659,7 @@ fn cylinder_sphere<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(pose.r),
+        lever: crate::uniform_curvature_arm(&pose.cylinder),
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),

@@ -11849,7 +11849,7 @@ fn derive_class_zero<T: Decide>(
                                 "pcurve_sphere_chart_meridian_frame",
                                 Margin::levered(
                                     d_hat.dot(along),
-                                    geom_core::Lever::curvature_radius(radius),
+                                    crate::uniform_curvature_arm(surface),
                                 ),
                                 band,
                                 |d| match d.sign {

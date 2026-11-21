@@ -136,7 +136,7 @@ use geom::SurfaceKind;
 use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PointKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -669,12 +669,10 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
-/// **Whether loop `lk` of face `fk` passes one point record at two
-/// distinct vertices** — a pinch of the loop: on an at-rest body a slit's
-/// parted end, the two vertices the material parts there sharing the
-/// point the slit's two edges end on (`crates/topo/README.md`, tier 3, "a
-/// slit of that loop"), and a slit run the full height of a full turn
-/// pinches at both ends.
+/// **Whether loop `lk` pinches**: passes one point key at two distinct
+/// vertices ([`topo::loop_points`]) — on an at-rest body a slit's parted
+/// end, and a slit run the full height of a full turn pinches at both
+/// ends.
 ///
 /// The walk below places a junction by inverting its position, so it
 /// cannot place two vertices at one position on two sides of a slit; the
@@ -682,26 +680,18 @@ fn iso_side_starts(
 /// by its own stored image (`tessellate::route_of`'s pinch fact), and the
 /// curved lane refuses one that reaches it otherwise
 /// (`curved::PINCHED_FACE_ROUTED_HERE`).
-///
-/// The point record is what the body states, so this reads no distance.
-/// One vertex visited twice (a seam walked both ways) is one vertex, not
-/// a pinch.
-pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey, fk: FaceKey) -> Result<bool, TessellateError> {
-    let mut seen: HashMap<PointKey, VertexKey> = HashMap::new();
-    for (half_edge, _, _) in loop_half_edges(body, lk, fk)? {
-        let start = body
-            .get_half_edge(half_edge)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
-            .start;
-        let point = body
-            .get_vertex(start)
-            .ok_or(TessellateError::MissingEntity { what: "vertex" })?
-            .point;
-        if *seen.entry(point).or_insert(start) != start {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
+    topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
+        what: match unresolved.entity() {
+            topo::EntityId::Solid(_) => "solid",
+            topo::EntityId::Shell(_) => "shell",
+            topo::EntityId::Face(_) => "face",
+            topo::EntityId::Loop(_) => "loop",
+            topo::EntityId::HalfEdge(_) => "half-edge",
+            topo::EntityId::Edge(_) => "edge",
+            topo::EntityId::Vertex(_) => "vertex",
+        },
+    })
 }
 
 /// **Whether a straight side of face `fk`'s outer loop holds a point
