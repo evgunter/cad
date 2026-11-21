@@ -2,12 +2,13 @@
 id: unsourced-levers-the-test-sites-and-the-bit-only-movers
 kind: unit
 title: The unsourced lever arms that need no ruling: test sites go to the fixture doors, and arms whose honest read moves only last bits are re-read
-status: dispatched
+status: review
 opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/unsourced-bits
 parent: unsourced-levers-await-a-source
+pr: 7227
 ---
 
 

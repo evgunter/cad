@@ -37,7 +37,7 @@ use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Point2, Real, Sign};
 
 use super::{ChartPeriods, Lift, LiftGap, polar_arm};
 use crate::body::Body;
-use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, ray_parity_as};
+use crate::chain_parity::{ChainPiece, Gap, PieceBox, RayQuery, ray_parity_as};
 use crate::entity::{FaceKey, LoopKey};
 use crate::joint::{Deck, Winding};
 use crate::validate::decide;
@@ -507,8 +507,8 @@ impl<T: Decide> ChainPiece<T> for Piece<'_, T> {
         let b = self.bbox();
         Some(PieceBox {
             gap: [
-                (b.u_min - q.x).max(q.x - b.u_max).max(T::zero()),
-                (b.v_min - q.y).max(q.y - b.v_max).max(T::zero()),
+                Gap::Read((b.u_min - q.x).max(q.x - b.u_max).max(T::zero())),
+                Gap::Read((b.v_min - q.y).max(q.y - b.v_max).max(T::zero())),
             ],
             extent: [
                 (b.u_min.value_channel(), b.u_max.value_channel()),
@@ -642,10 +642,10 @@ impl<'a, T: Decide> Outer<'a, T> {
         let mut pending = None;
         for halving in 0..HALVINGS {
             let scale = WINDOW_SHARE * f64::from(1u32 << halving);
-            let (ru, rv) = (
-                T::from_computed(size[0] / scale),
-                T::from_computed(size[1] / scale),
-            );
+            let room = [size[0] / scale, size[1] / scale];
+            // The window's ends are places the arms are read over, not
+            // bounds decided against.
+            let rv = T::from_computed(room[1]);
             let arms = match self.arms(v - rv, v + rv, band) {
                 Ok(arms) => arms,
                 Err(diag) => {
@@ -653,8 +653,8 @@ impl<'a, T: Decide> Outer<'a, T> {
                     continue;
                 }
             };
-            for (room, arm) in [(ru, arms.0), (rv, arms.1)] {
-                match decide(RING_PLACE_CLEAR, Margin::metered(room, arm), band) {
+            for (room, arm) in [(room[0], arms.0), (room[1], arms.1)] {
+                match decide(RING_PLACE_CLEAR, Margin::metered_bound(room, arm), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => return Side::Near(pending),
                     Err(diag) => return Side::Near(Some(diag)),
