@@ -2,10 +2,11 @@
 id: the-chord-joins-island-winding-crosses-every-span-of-a-chord
 kind: issue
 title: The chord join's island winding takes about 1.2 s of a 4.4 s unequal-radius cylinder boolean in release, most of it the curve-pair walk's whole-carrier foot on 630-pole chords
-status: open
+status: closed
 opened: 2026-11-10
 priority: P1
 cost: M
+closed: 2026-11-21
 refs: [a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses, the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes]
 ---
 
@@ -86,7 +87,7 @@ ends. Confining each polish to its start's piece would make a pruned search
 exact, but that changes which foot the search returns, which is the design
 row's question. That row's answer decides this row's whole remainder.
 
-## Re-measured (2026-11-21): the stop's foot is gone, and most of the winding with it
+## Closed (2026-11-21): the stop's foot is gone, and most of the winding with it
 
 Re-measured by ONEHOME on main `6abbae4ae5`. PR 7048 (`ecab2a0ea9`,
 2026-11-16) changed the walk's stop to read its Gauss–Newton pair as a
