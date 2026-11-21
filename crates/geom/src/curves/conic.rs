@@ -202,15 +202,17 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// cancellation: as the conic turns parallel to `n`'s plane, `n·û` and
     /// `n·v̂` are differences of nearly equal terms, each off by `u`, so
     /// the harmonic's phase would be `u/sin` off and a graze's point
-    /// `r·u/sin` along the conic. `â × n = â × (n ∓ â)`, and `n − â` (or
-    /// `n + â`, the conic facing away) is formed to `u` of its own size,
-    /// so its cross with `â` cancels nothing. Away from parallel both
+    /// `r·u/sin` along the conic. `â × n = â × (n ∓ |n|·â)`, and
+    /// `n − |n|·â` (or `n + |n|·â`, the conic facing away) is formed to `u`
+    /// of its own size, so its cross with `â` cancels nothing. Away from parallel both
     /// forms are as good, so the choice at `â·n = 0` is free.
     fn along(&self, n: Vec3<T>) -> (T, T) {
         let (f, (a, b)) = (self.frame(), self.semi_axes());
         let axis = f.axis;
         let across = |m: Vec3<T>| axis.cross(m).cross(axis);
-        let (facing, away) = (across(n - axis), across(n + axis));
+        // `|n|·â`, so the difference rounds at `n`'s own scale.
+        let scaled = axis * n.norm();
+        let (facing, away) = (across(n - scaled), across(n + scaled));
         let key = axis.dot(n);
         let d = Vec3::new(
             key.select_le_zero(away.x, facing.x),

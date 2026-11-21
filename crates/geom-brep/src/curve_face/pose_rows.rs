@@ -288,20 +288,25 @@ fn a_span_through_a_cones_apex_is_through() {
 
 /// **A higher-order contact escalates on `Kappa`**: a unit circle tilted
 /// so its swing `R` across a plane is `1.5Kε` grazes the plane, a belly
-/// in the zero band and a swing past it, and its relative curvature's
-/// sagitta `R/2` reads in the gap. Twice the swing is a nondegenerate
-/// touch.
+/// in the zero band and a swing past it. Over the whole turn its
+/// relative curvature's sagitta, `κ·L²/2`, is definite: a touch. Over a
+/// span of `0.6` rad about the touch it reads in the gap.
 #[test]
 fn a_higher_order_contact_escalates_on_kappa() {
-    let touch = |swing: f64| {
-        let sin = swing;
-        let axis = Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt());
-        let c = Curve3::circle(Point3::new(0.0, 0.0, swing), axis, 1.0, Vec3::unit_x());
-        class(&c, &plane(0.0))
+    let swing = 1.5 * band().escalate();
+    let axis = Vec3::new(0.0, swing, (1.0 - swing * swing).sqrt());
+    let c = Curve3::circle(Point3::new(0.0, 0.0, swing), axis, 1.0, Vec3::unit_x());
+    let Ok(Pose::Tangent(touch)) = pose(&whole(&c), &plane(0.0), band()) else {
+        panic!("the whole turn touches");
     };
-    let k = band().escalate();
-    assert_eq!(touch(1.5 * k), "InBand(Kappa)", "a swing of 1.5Kε");
-    assert_eq!(touch(4.0 * k), "Tangent", "a swing of 4Kε");
+    let near = Span::new(&c, (touch.at - 0.3, touch.at + 0.3));
+    match pose(&near, &plane(0.0), band()) {
+        Err(PoseRefusal::InBand {
+            rung: PoseRung::Kappa,
+            ..
+        }) => {}
+        other => panic!("0.6 rad about the touch: {other:?}"),
+    }
 }
 
 /// **A touch's arc holds every span point within the band of the

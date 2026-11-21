@@ -294,8 +294,10 @@ fn axis_offset<T: Decide>(at_mid: T, half_drift: T, band: Band) -> Result<Pose<T
 /// **The relative-curvature rung** at a double root at `at`, whose
 /// residual there is `value` (in band) and whose residual's second
 /// derivative in the carrier's parameter is `bend` in magnitude, the
-/// carrier running at `speed` there: `κ = bend/speed²` levered by
-/// `speed`, a sagitta (`Margin::sagitta`). Definitely positive is
+/// carrier running at `speed` there: `κ = bend/speed²` levered by the
+/// span's length at its least speed, a sagitta (`Margin::sagitta`): how
+/// far the carrier departs from the surface's tangent plane over the span
+/// the reading reads, as the axis-parallel rung's drift is. Definitely positive is
 /// [`Pose::Tangent`], its arc `(π/2)·√(2z/bend)` about `at` in the
 /// parameter, `z` the band's zero plus `|value|` plus `noise`: a residual
 /// that falls from its extreme no faster than a first harmonic of that
@@ -312,9 +314,11 @@ fn kappa<T: Decide>(
     speed: T,
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
+    let (t0, t1) = span.params();
+    let length = span.speeds().0.get() * (t1 - t0).abs();
     let decided = geom_core::k_stats::decide_reported(
         "curve_face_pose_kappa",
-        Margin::sagitta(bend / speed.powi(2), speed),
+        Margin::sagitta(bend / speed.powi(2), length),
         band,
     )
     .map_err(PoseRefusal::in_band(PoseRung::Kappa))?;
