@@ -104,7 +104,9 @@ fn rim_at<T: Decide + Bounds>(body: &Body<T>, z: f64) -> Vec<EdgeKey> {
 }
 
 /// A body's volume and the half-width of its certified enclosure.
-fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> (f64, f64) {
+fn volume<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
+    body: &Body<T>,
+) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", Body::clone(body), tol()),
         tol(),
@@ -118,7 +120,7 @@ fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body
 /// Fillet every edge of the plate at `r` and check the carve: tier 3,
 /// naming total, one band face and one section per link of each rim,
 /// and the volume removed at Pappus's closed form.
-fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -202,7 +204,7 @@ fn outline() -> crate::band_closed_mixed_chain_shapes::Outline {
 }
 
 /// A rim's chamfer, closed: one band face and one section per link.
-fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),
@@ -217,7 +219,9 @@ fn chamfer_rim<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 /// its top and bottom outlines in one call (every edge, the walls' smooth
 /// seams among them, which the blend leaves as they are), at both
 /// scalars and at a setback near the arcs' radius.
-fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+fn rounded_plate_chamfers<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
+    scalar: &str,
+) {
     let body = plate::<T>(0.0, 0.0, 0.0, H);
     let top = rim_at(&body, H);
     let both: Vec<EdgeKey> = rim_at(&body, 0.0).into_iter().chain(top.clone()).collect();
