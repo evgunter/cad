@@ -189,9 +189,8 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
 /// outward normal, so no sense to read: a line through the apex (its one
 /// double root there) and a circle through it in a meridian plane (the
 /// apex's double root among its crossings) refuse
-/// [`TraceFault::Apex`]. The root doors answer that double root
-/// (`line_quadric::line_cone_roots`, `conic_quadric`'s "Through the apex");
-/// the trace's own apex row (`trace_crossing_apex`) refuses it.
+/// [`TraceFault::Apex`]: the curve × face pose reads each `Through` the
+/// apex, its datum and no meeting, and the trace refuses it.
 #[test]
 fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let cone = Surface::Cone {
