@@ -1,12 +1,16 @@
 //! **The region a face or an edge can occupy** (DESIGN `[one-way.places]`,
 //! "The region a carrier, an edge or a face can occupy", and
 //! `[one-way.readings]`): topo's one reading of each, [`face_cover`] and
-//! [`edge_cover`]. A face's cover is its carrier's (`geom`'s
-//! `Surface::cover`) met with every trim constraint its one arm per kind
-//! proves; an edge's is its carrier's over its span (`geom`'s
-//! `Curve3::cover_over`) hulled with its ends. Those two readings in
-//! `geom` hold the only kind matches; every bound a door reads (a box in
-//! any frame, a support, a distance range, a ball) is a method on the
+//! [`edge_cover`]. A face's cover starts from its unproven region
+//! ([`face_cover_unproven`]: its carrier's, `geom`'s `Surface::cover`,
+//! or where the carrier is unbounded the region its boundary bounds on
+//! it, `Surface::face_region`) and meets every trim constraint its one
+//! arm per kind proves; an edge's is its carrier's over its span
+//! (`geom`'s `Curve3::cover_over`) hulled with its ends. Those readings
+//! in `geom` hold the kind matches that state a region; this file's arms
+//! match a kind only to prove a constraint, and [`face_extreme_points`]
+//! to name a carrier's critical points. Every bound a door reads (a box
+//! in any frame, a support, a distance range, a ball) is a method on the
 //! cover.
 //!
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`): a reading
@@ -312,31 +316,32 @@ fn face_cover_in<T: Decide>(
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
     let surface = f.surface();
-    let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    let bounded = outer_bounds(f);
+    // Every arm starts from the face's unproven region and meets only
+    // what it proves into it, or replaces it by a hull of fewer of its
+    // points, so the cover holds no more than that region.
+    let base = || face_cover_unproven(surface, bounded, || boundary_cover(body, f));
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
-            carrier
+            base()
         }
-        Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
+        Surface::Plane { .. } => base(),
         Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
         } => {
+            let base = base();
             if !crate::validate::is_direction(axis) {
-                return carrier;
+                return base;
             }
             let frame = geom::Frame::new(*origin, *axis, *u_ref);
-            let hull = boundary_cover(body, f).map(Cover::convex);
-            let wall = hull
+            let wall = base
                 .as_ref()
                 .ok()
                 .and_then(|h| Cover::wall(&frame, *radius, h));
-            and_proven(and_trim(carrier, hull), wall)
+            and_proven(base, wall)
         }
         Surface::Cone {
             apex,
@@ -344,26 +349,32 @@ fn face_cover_in<T: Decide>(
             half_angle,
             u_ref,
         } => {
-            let Some(at_apex) = Cover::points(vec![*apex]) else {
-                return carrier;
-            };
             let boundary = boundary_cover(body, f);
-            let hull = if cone_may_hold_apex(body, face, surface, band) {
-                boundary.map(|b| b.hull(at_apex))
-            } else {
-                boundary
+            let base = face_cover_unproven(surface, bounded, || boundary.clone());
+            if Cover::points(vec![*apex]).is_none() {
+                return base;
             }
-            .map(Cover::convex);
+            // The base holds the apex; a face shown not to hold it lies in
+            // its boundary's hull alone, a hull of fewer of the base's
+            // points.
+            let hull = if cone_may_hold_apex(body, face, surface, band) {
+                base
+            } else {
+                and_trim(
+                    surface.cover().map_err(FaceUncovered::of_carrier),
+                    boundary.map(Cover::convex),
+                )
+            };
             let frustum = hull
                 .as_ref()
                 .ok()
                 .and_then(|h| Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h));
-            and_proven(and_trim(carrier, hull), frustum)
+            and_proven(hull, frustum)
         }
         Surface::Sphere { center, radius, .. } => {
             let zone = sphere_window(body, f, surface, band);
             let cut = aim.and_then(|aim| pole_side(body, f, (*center, *radius), aim, band));
-            and_proven(and_proven(carrier, zone), cut)
+            and_proven(and_proven(base(), zone), cut)
         }
         Surface::Torus {
             center,
@@ -389,12 +400,142 @@ fn face_cover_in<T: Decide>(
                         v,
                     )
                 });
-            and_proven(carrier, rect)
+            and_proven(base(), rect)
         }
         // A spindle's tube, with no chart window: the window's closed
         // form reads a ring torus.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => carrier,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => base(),
     }
+}
+
+/// **Whether `f`'s outer loop is a cycle**: a lone-vertex outer loop
+/// bounds nothing, so a face's boundary holds no hull of it.
+pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
+    matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. })
+}
+
+/// **A face's region bounded by its carrier and its boundary alone**:
+/// the region every arm of [`face_cover`] starts from, before any
+/// constraint is proven, of a face whose carrier is `surface` and whose
+/// boundary cover `boundary` reads, as the face stands. A face lies in
+/// its carrier's region where that is bounded; where it is not (a plane,
+/// a cylinder, a cone), in the region its boundary bounds on that carrier
+/// ([`Surface::face_region`]: the boundary's convex hull, with a cone's
+/// apex). `bounded` is whether its outer loop is a cycle
+/// ([`outer_bounds`]); a lone-vertex loop bounds no hull. It reads no
+/// decision.
+///
+/// # Errors
+///
+/// [`FaceUncovered`]: the carrier's refusal where its boundary bounds no
+/// region, with the boundary's.
+pub(crate) fn face_cover_unproven<T: Decide>(
+    surface: &Surface<T>,
+    bounded: bool,
+    boundary: impl FnOnce() -> BoundaryCovered<T>,
+) -> FaceCovered<T> {
+    let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
+    if !bounded {
+        return carrier;
+    }
+    carrier.or_else(|mut why| match boundary() {
+        Ok(b) => surface.face_region(b).map_err(FaceUncovered::of_carrier),
+        Err(unknowns) => {
+            why.boundary.extend(unknowns);
+            Err(why)
+        }
+    })
+}
+
+/// **Points known to lie on `face` where its extremes along the world
+/// axes need not be on its boundary**: the inside read of the session
+/// box (`crate::session_box`). Each candidate is a point of the carrier
+/// where a world coordinate restricted to it is extreme, and is kept
+/// only where [`crate::contain::curved_face_placement`] places it on the
+/// face (in it, on an edge of it or at a vertex of it). A candidate not
+/// so placed is not a point of the face, whatever it would reach.
+///
+/// - **Sphere**: its six axis poles `c ± r·eᵢ`, the only critical
+///   points of `xᵢ` on it.
+/// - **Torus**: along each axis `e` with a part `ê` off the torus axis
+///   (read as `a × (e × a)`, which keeps its direction however small),
+///   its two extremes `c ± (R·ê + r·e)` (the other two critical points
+///   are saddles, never a patch's interior extreme). Along the torus
+///   axis the extremes are the top and bottom circles, and none is a
+///   candidate: a face holding an arc of one inside it has a boundary
+///   that crosses the circle, at the circle's height, unless it holds the
+///   whole circle, and every finished torus face that does has a
+///   meridian seam (the revolve, the tube and the import's band
+///   normalization seam every full turn), which reaches it.
+/// - **Cone**: its apex. A coordinate is linear along each ruling, so a
+///   ruled face's extremes are on its boundary or at the apex. A finished
+///   face holding its apex carries it as a vertex (tier 3's chart
+///   singularities); a face mid-construction, a cap stated by its rim,
+///   need not.
+/// - **Plane and cylinder**: none, for the same reason.
+/// - **Spindle**: none. Its extremes are a torus's, but the placement
+///   reads no spindle face's trim, so none is shown on the face.
+/// - **Spline**: none. Its critical points have no closed form.
+///
+/// A kind with no point here is bounded from below by its boundary's
+/// points alone.
+pub(crate) fn face_extreme_points<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Vec<Point3<T>> {
+    let axes = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+    let candidates: Vec<Point3<T>> = match *body.proven_face(face).surface() {
+        Surface::Sphere { center, radius, .. } => axes
+            .into_iter()
+            .flat_map(|e| [center + e * radius.abs(), center - e * radius.abs()])
+            .collect(),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (big, small) = (major_radius.abs(), minor_radius.abs());
+            let mut at = Vec::new();
+            for e in axes {
+                // `e`'s part off the axis, `a × (e × a)`: each component a
+                // product, or a sum of squares where `e − a(a·e)` would
+                // cancel to `1 − (a·e)²`, so its direction is conditioned
+                // however near `e` the axis lies. Along the axis itself
+                // there is none, and the extremes are the top and bottom
+                // circles, which a finished face's edges read.
+                let off = axis.cross(e.cross(axis));
+                if crate::validate::is_direction(&off) {
+                    let reach = off * (big / off.norm()) + e * small;
+                    at.extend([center + reach, center - reach]);
+                }
+            }
+            at
+        }
+        Surface::Cone { apex, .. } => vec![apex],
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => Vec::new(),
+    };
+    candidates
+        .into_iter()
+        .filter(|&q| {
+            constraint(|| {
+                use crate::contain::{CurvedPlacement, FaceContainment as F};
+                match crate::contain::curved_face_placement(body, face, q, band) {
+                    Ok(CurvedPlacement::Trim(Some(F::In | F::OnEdge(_) | F::OnVertex(_)))) => {
+                        Ok(())
+                    }
+                    _ => Err(()),
+                }
+            })
+            .is_some()
+        })
+        .collect()
 }
 
 /// **The farthest `face` stands from `at`**: its cover's far distance
@@ -490,18 +631,26 @@ pub(crate) fn cone_face_reach<T: Decide>(
 }
 
 /// **Whether a face on `cone` may hold its apex**: unless every loop's
-/// lift closes in the chart
-/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
-/// every vertex of it is decided off the apex. The lift is decided
-/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
-/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
-/// pole, and a bounded face holding it has a loop that winds round it a
-/// whole turn, or one that passes through it, where a loop that closes
-/// in the chart clear of it leaves it outside. Every loop, not the
-/// outer alone: a file's designated outer bound can be a hole, and the
-/// loop enclosing the apex then a ring. A loop whose lift is not
-/// decided, or a vertex whose incidence on the apex is undecided, may
-/// hold it.
+/// lift is decided ([`crate::pcurves::Lift::decided`], at the band: the
+/// cover is read mid-operation too, of faces whose rows are not all
+/// written), every vertex of it is decided off the apex, and either
+/// every lift closes in the chart ([`crate::pcurves::Lift::closes_in_chart`])
+/// or exactly two wind the axis once each and the face's corners decide
+/// one nappe ([`crate::offset_nappe::face_nappe_reading`]).
+///
+/// The apex is the chart's pole, and on one nappe the chart is an
+/// annulus about it. A bounded face holding the apex has a loop through
+/// it, or exactly one loop that winds round it a whole turn (a cap,
+/// whose rim is that loop). A loop that closes in the chart clear of the
+/// apex leaves it outside; a face whose boundary holds two loops that
+/// each wind once is the band between them (a connected region of an
+/// annulus has at most two boundary curves that wind it), which reaches
+/// the apex only through a loop that does, or across to the other nappe.
+/// Every loop, not the outer alone: a file's designated outer bound can
+/// be a hole, and the loop enclosing the apex then a ring. A loop whose
+/// lift is not decided, one that winds otherwise, a vertex whose
+/// incidence on the apex is undecided, and a band whose nappe is not
+/// decided may hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -514,19 +663,42 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     let Some(view) = body.face(face) else {
         return true;
     };
-    view.cycles().any(|(_, cycle)| {
-        let closes =
+    let mut winding_once = 0;
+    for (_, cycle) in view.cycles() {
+        let Some(lift) =
             constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
-                .is_some_and(|lift| lift.closes_in_chart());
-        !closes
-            || cycle.iter().any(|&he| {
-                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
-                constraint(|| {
-                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
-                }) != Some(false)
-            })
-    })
+        else {
+            return true;
+        };
+        let at_apex = cycle.iter().any(|&he| {
+            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+            constraint(|| {
+                geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+            }) != Some(false)
+        });
+        if at_apex {
+            return true;
+        }
+        match lift.winding().map(|w| w.deck) {
+            Some(crate::joint::Deck {
+                u: 0,
+                v: 0,
+                twin: false,
+            }) => {}
+            Some(crate::joint::Deck {
+                u: -1 | 1,
+                v: 0,
+                twin: false,
+            }) => winding_once += 1,
+            _ => return true,
+        }
+    }
+    match winding_once {
+        0 => false,
+        2 => constraint(|| crate::offset_nappe::face_nappe_reading(body, face, band)).is_none(),
+        _ => true,
+    }
 }
 
 /// **The boundary's cover**: each boundary edge's cover
@@ -544,20 +716,40 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
 ///
 /// As [`face_cover`]: `f` is `face`'s record.
 pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> BoundaryCovered<T> {
+    boundary_cover_by(body, f, |p| p, |ek, edge| edge_cover_linked(body, ek, edge))
+}
+
+/// [`boundary_cover`] where the face stands under a map: each point the
+/// walk reads placed by `place`, and each edge's cover `edge_cover` of
+/// the edge as it stands there (the image's [`edge_cover_linked`]).
+///
+/// # Errors
+///
+/// As [`boundary_cover`].
+///
+/// # Panics
+///
+/// As [`boundary_cover`].
+pub(crate) fn boundary_cover_by<T: Decide>(
+    body: &Body<T>,
+    f: FaceView<'_, T>,
+    place: impl Fn(Point3<T>) -> Point3<T>,
+    edge_cover: impl Fn(EdgeKey, &Edge) -> Result<Cover<T>, EdgeUncovered>,
+) -> BoundaryCovered<T> {
     let mut acc: Option<BoundaryCovered<T>> = None;
     for member in f.boundary() {
         let one = match member {
-            BoundaryMember::Isolated { vertex, point } => {
-                Cover::points(vec![point]).ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)])
-            }
+            BoundaryMember::Isolated { vertex, point } => Cover::points(vec![place(point)])
+                .ok_or_else(|| vec![BoundaryUnknown::Vertex(vertex)]),
             // A placeholder is a zero-length copy of its one point
             // (`crate::null::is_placeholder`), which its neighbours hold.
             BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
-                Cover::points(vec![body.member_point(&member)])
+                Cover::points(vec![place(body.member_point(&member))])
                     .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
             }
-            BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
-                .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
+            BoundaryMember::Edge { ek, edge, .. } => {
+                edge_cover(ek, edge).map_err(|why| vec![BoundaryUnknown::Edge(ek, why)])
+            }
         };
         acc = Some(match (acc, one) {
             (None, one) => one,

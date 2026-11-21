@@ -573,13 +573,19 @@ const PLATE_MAX_TERMS: usize = 38;
 /// `Plain/Assertion` 1045 calls 10872 forms, `Early/Assertion` 1045 calls
 /// 11571 forms, `Door/Decision` 548 calls 11668 forms).
 ///
+/// The box's ask also reads each face's region by its carrier and
+/// boundary (`topo::session_box`), which builds the forms of each placed
+/// face's cover and no call: `Plain/Decision` 39703 → 39705,
+/// `Plain/Assertion` 14592 → 14606, `Early/Assertion` 15162 → 15176,
+/// `Door/Decision` 15356 → 15376.
+///
 /// Besides the session box's asks, every walk makes the calls it made.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39703 frozen 54 digest 7efda4b66066a94e596eb7fa2f430a65\n\
-     Plain/Assertion calls 1047 forms 14592 frozen 0 digest e6c6e5c3cd56ef78f91f2c7626f73670\n\
+     Plain/Decision calls 979 forms 39705 frozen 54 digest 3c078f726bf785600e18f9290d698538\n\
+     Plain/Assertion calls 1047 forms 14606 frozen 0 digest 70dd65d753b0f155146433f8e1990dcb\n\
      Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1047 forms 15162 frozen 0 digest c7fd707ed0a699ee0a5d3f1d55c1fa69\n\
-     Door/Decision calls 550 forms 15356 frozen 0 digest 032cdcf5efa6396ea7a39bf7b7a8f1ab";
+     Early/Assertion calls 1047 forms 15176 frozen 0 digest 4d02c359a0bd4d781c97d39554d93015\n\
+     Door/Decision calls 550 forms 15376 frozen 0 digest 15d29b0a62825259c154bb8ced593c61";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
