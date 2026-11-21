@@ -1,0 +1,5 @@
+fork: a-smooth-continuation-reads-its-tangent (PROFILE, work/profile/tangent-arc-to-needs-an-explicit-tangent-where-line-takes-the-directed-point.md, P1)
+drawn: 2026-11-21T03:47:14Z, python3 os.urandom(1)
+arm byte: 229 (>= 86): two designers
+label byte: 243 (odd): A = Fable designer, B = Opus designer
+protocol: ddd201f411
