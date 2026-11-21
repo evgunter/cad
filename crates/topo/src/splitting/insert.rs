@@ -180,7 +180,7 @@ fn section_chords<T: Decide>(
         let t = germs[a].0.dir;
         let across = normal.cross(t);
         let bends = [section_bend(a, t, across), section_bend(b, t, across)];
-        match geom_brep::tied_germ_turn(normal, t, bends, arm.length(), band) {
+        match geom_brep::tied_germ_turn(normal, t, bends, arm, band) {
             Ok(Sign::Zero) => Err(unordered(SectionGermFault::Coincident)),
             Ok(sign) => Ok(sign),
             Err(geom_brep::TiedGermsError::Singular) => Err(unordered(SectionGermFault::Singular)),

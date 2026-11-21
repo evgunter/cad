@@ -7,6 +7,7 @@ opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/lever-sites-brep
+parent: lever-doors-pinned-sites-await-a-geometry-read
 ---
 
 
