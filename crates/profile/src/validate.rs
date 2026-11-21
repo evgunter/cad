@@ -182,7 +182,7 @@ use core::fmt;
 use crate::gate::{Escalation, Gate, decide, prove};
 use geom_core::{
     Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point2, Real, Sign, Tol, Told, Vec2,
+    Margin, MarginDiag, Point2, Real, Sign, Tell, Tol, Told, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
@@ -476,6 +476,12 @@ pub enum FilletLegCarrier {
 
 impl fmt::Display for FilletLegCarrier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tell(geom_core::Notation::CANONICAL, f)
+    }
+}
+
+impl geom_core::Tell for FilletLegCarrier {
+    fn tell(&self, notation: geom_core::Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
             Self::Arc {
@@ -483,7 +489,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius}, angular margin {angular_margin})"
+                "circular (carrier radius {}, angular margin {})",
+                radius.told_in(notation),
+                angular_margin.told_in(notation)
             ),
         }
     }
