@@ -795,12 +795,16 @@ fn split_face_once(
         .all(|(&l, &h)| near(l, h));
     let up_is_low = sense != along_v;
     let w_domain = iso.knot_values().domain();
-    // The line as the curve-pair reader reads it: an iso the import's
-    // curve recognition certifies straight is read as that line, which
-    // the reader's table reads in closed form, its arc length carried
-    // back to the iso's parameter by the chord map the recognition
-    // certifies within `ε_in`.
-    let straight = crate::recognize_curve::try_line(&iso, file).map(|(line, _)| line);
+    // The line as the curve-pair reader reads it: an iso that reads as
+    // the straight MAP (`recognize_curve::straight_map`, INV-C5) is read
+    // as that line, which the reader's table reads in closed form, its
+    // arc length carried back to the iso's parameter by the chord map the
+    // hull certifies within `ε_in`. The map, not the locus, is what
+    // `to_w` reads: a crossing at the line's ends is exact under any
+    // timing, an interior one is placed through the affine chord map. No
+    // committed fixture crosses a re-timed straight knot line inside it
+    // (`work/exch/knot-split-straight-map-reading-has-no-retimed-interior-crossing-row.md`).
+    let straight = crate::recognize_curve::straight_map(&iso, file).map(|(line, _)| line);
     let chord = (q1 - q0).norm();
     let (reading, read_span) = match straight {
         Some(line) => (line, (0.0, chord)),
@@ -1099,6 +1103,7 @@ fn split_face_once(
                 t0: w_lo,
                 t1: w_hi,
                 reversed: false,
+                curve: None,
             },
         );
         runs.push(CutLine {
@@ -1260,6 +1265,7 @@ mod tests {
                     t0,
                     t1: t0 + core::f64::consts::TAU,
                     reversed: false,
+                    curve: None,
                 },
             )]),
             vertices: BTreeMap::from([(30, p)]),
@@ -1287,6 +1293,7 @@ mod tests {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 };
                 (20 + i, spec)
             })
@@ -1362,6 +1369,7 @@ mod tests {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 };
                 (20 + i, spec)
             })
@@ -1434,6 +1442,7 @@ mod tests {
                                 t0: 0.0,
                                 t1: 1.0,
                                 reversed: false,
+                                curve: None,
                             },
                         );
                         uses.push(EdgeUse {
@@ -1461,6 +1470,7 @@ mod tests {
                             t0,
                             t1: t0 + core::f64::consts::TAU,
                             reversed: false,
+                            curve: None,
                         },
                     );
                     uses.push(EdgeUse {
@@ -2048,6 +2058,7 @@ mod tests {
                         t0,
                         t1,
                         reversed: false,
+                        curve: None,
                     },
                 );
             }
