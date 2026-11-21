@@ -18,10 +18,12 @@
 //!    the pair section for the pairs it serves), the tangent locus
 //!    ([`geom_brep::tangent_locus`], [`geom_brep::coaxial_tangent_circle`]),
 //!    the wall's own iso ([`geom_brep::boundary_iso_u`]), the surface's own
-//!    seam generator. The printed carrier is then certified on the built
-//!    one over its whole trim, by locus ([`crate::on_built`]): its kind
-//!    chooses no arm, and whether recognition promoted it decides
-//!    nothing. A printed carrier the file band reads off the built one
+//!    seam generator. The printed carrier is then read on the built one
+//!    over its trim ([`description_gap`]): certified by locus where an arm
+//!    of [`crate::on_built`] serves the pair (its tightness depends on
+//!    the pair, so a promoted carrier may certify tighter than the spline
+//!    it was promoted from), at its ends and middle where none does. A
+//!    printed carrier the file band reads off the built one
 //!    refuses as the file's (D7: data no description satisfies within
 //!    ε_in); a description the kernel cannot construct refuses
 //!    not-yet-supported, naming the lane.
@@ -1349,8 +1351,10 @@ fn on_description(
 
 /// **How far the printed carrier stands off `built` over its trim**: the
 /// whole-trim certificate ([`crate::on_built::printed_on`]) where an arm
-/// serves the pair, else the farthest of the printed carrier's ends and
-/// middle from it.
+/// serves the pair, a non-finite one included, which reads as a miss in
+/// band; else, where no arm serves it, the farthest of the printed
+/// carrier's ends and middle from it, a sampled read
+/// (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
 fn description_gap(spec: &EdgeSpec, built: &Curve3<f64>) -> f64 {
     if let Some(bound) = crate::on_built::printed_on(spec, built) {
         return bound;
@@ -1469,8 +1473,9 @@ fn iso_of_wall(
 /// section does not build, such as one whose weights do not factor):
 /// beside a plane, the boundary row
 /// or column the plane holds (every control in it at the file's band, so
-/// the rational iso lies in it) and the printed edge lies on (its ends and
-/// middle, at the file's band). The wall's exact iso is the carrier, on its
+/// the rational iso lies in it) and the printed edge lies on, read at the
+/// file's band by the segment gap where the row is straight as a locus
+/// ([`segment_gap`]) and by [`description_gap`] otherwise. The wall's exact iso is the carrier, on its
 /// own parameter, or on the reversed wall's where the edge runs against
 /// it.
 fn cap_row(
@@ -1691,10 +1696,12 @@ enum ColumnMatch {
 ///   line, with the affine chart image that map certifies;
 /// - one straight at the band but re-timed along it is the segment as a
 ///   locus, carried on itself ([`segment_gap`]);
-/// - a curved one is matched against the printed curve where that is a
-///   circle whose arc the column's locus and coverage are certified on
-///   ([`circle_column_match`]): the circle is the only frame there is to
-///   certify a curved column against.
+/// - a curved one is certified against a circle: the printed one, or,
+///   under a printed spline, the column's own as a witness, with the
+///   spline certified on the arc the column covers
+///   ([`circle_column_match`]). Any other printed carrier on a curved
+///   column is withheld
+///   (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
 ///
 /// The edge is carried on the column itself ([`column_carrier`]) but for
 /// the straight map. `None` withholds the column.
@@ -1730,7 +1737,12 @@ fn column_match(
         }
         None => match &spec.carrier {
             Curve3::Circle(circle) => {
-                circle_column_match(iso, circle, ends, file).then_some(ColumnMatch::Column)
+                circle_column_match(iso, circle, ends, None, file).then_some(ColumnMatch::Column)
+            }
+            Curve3::Nurbs(printed) => {
+                let witness = column_circle(iso, ends, file)?;
+                circle_column_match(iso, &witness, ends, Some((printed, spec)), file)
+                    .then_some(ColumnMatch::Column)
             }
             _ => None,
         },
@@ -1746,7 +1758,7 @@ fn column_match(
 /// column point within `δ`. The printed carrier lies within its own bound
 /// of that segment ([`crate::on_built::printed_on_segment`]), so within
 /// the sum of the two of the column. `None` where the column's ends are
-/// not the edge's vertices or no bound certifies.
+/// not the edge's vertices; a bound that certifies nothing is non-finite.
 fn segment_gap(
     spec: &EdgeSpec,
     iso: &geom::NurbsCurve3<f64>,
@@ -1760,9 +1772,8 @@ fn segment_gap(
         .iter()
         .map(|&p| crate::on_built::point_segment_sup(p, (first, last)))
         .fold(0.0_f64, geom_core::interval::max_bound);
-    let printed = crate::on_built::printed_on_segment(spec, (first, last))?;
-    let bound = geom_core::interval::add_up(printed, spread);
-    bound.is_finite().then_some(bound)
+    let printed = crate::on_built::printed_on_segment(spec, (first, last));
+    Some(geom_core::interval::add_up(printed, spread))
 }
 
 /// What a straight column is to the edge whose ends it spans
@@ -1831,28 +1842,37 @@ fn line_on_column(
         .then_some(LineOnColumn::Locus)
 }
 
-/// **A wall's column whose locus and coverage are certified against the
-/// edge's printed circle** (a promoted spline's, or a `CIRCLE` the file
-/// states), its ends the edge's printed vertices ([`ends_order`]): the
-/// column's distance from the ARC of that circle it covers
-/// ([`crate::recognize_curve::arc_residual`], the promotion's own
-/// certificate, read against the printed circle's frame rather than an
-/// estimate of the column's) reads Zero at the file's band
+/// **A wall's column whose locus and coverage are certified against a
+/// circle**: the edge's printed circle (a promoted spline's, or a `CIRCLE`
+/// the file states), or, for a printed spline, the column's own circle as
+/// a witness ([`column_circle`]); its ends the edge's printed vertices
+/// ([`ends_order`]). The column's distance from the ARC of that circle it
+/// covers ([`crate::recognize_curve::arc_residual`], the promotion's own
+/// certificate) reads Zero at the file's band
 /// ([`STEP_ISO_CIRCLE`]), and it turns about the circle's axis in the
 /// edge's sense, or against it where its ends are the vertices the
 /// other way round (then it is about the axis reversed, and
 /// [`column_carrier`] carries the edge on the reversed column); a closed
 /// column on a self-loop is read both ways.
 ///
-/// **What carrying the edge on the column moves.** A promoted spline is
-/// within its residual of the circle (read Zero at promotion) and the
-/// column within this one, so the column lies within two band readings
-/// of the printed spline, by the triangle inequality (one, from a stated
-/// `CIRCLE`), reported as the edge's `CarrierBuilt` move.
+/// A printed spline (`printed`) must also cover the same arc: its own
+/// arc residual against the circle, turning from the edge's start in the
+/// circle's sense over its whole domain, summed with the column's, reads
+/// Zero ([`STEP_EDGE_ON_DESCRIPTION`]). The column covers the arc within
+/// its residual (its azimuth runs continuously over the arc), so every
+/// printed point lies within the sum of the column.
+///
+/// **What carrying the edge on the column moves.** A printed circle lies
+/// on the arc the column covers within the column's residual; a promoted
+/// spline lies within its promotion residual of that circle besides, and
+/// a printed spline read here within the sum above. The edge's
+/// `CarrierBuilt` reports the move measured at five samples
+/// ([`held_gap`]), not either bound.
 fn circle_column_match(
     iso: &geom::NurbsCurve3<f64>,
     circle: &geom::Circle<f64>,
     (p_start, p_end): (Point3<f64>, Point3<f64>),
+    printed: Option<(&geom::NurbsCurve3<f64>, &EdgeSpec)>,
     file: FileBand,
 ) -> bool {
     let (Some(&first), Some(&last)) = (iso.control().first(), iso.control().last()) else {
@@ -1874,18 +1894,67 @@ fn circle_column_match(
     .into_iter()
     .filter(|&(holds, _)| holds)
     .any(|(_, axis)| {
-        crate::recognize_curve::arc_residual(
-            iso,
-            (
-                circle.frame.origin,
-                axis,
-                circle.frame.u_ref,
-                circle.radius(),
-            ),
-            closed,
-        )
-        .is_some_and(|(residual, _)| file.read(STEP_ISO_CIRCLE, residual) == Read::Zero)
+        let arc = |curve: &geom::NurbsCurve3<f64>, axis: Vec3<f64>| {
+            crate::recognize_curve::arc_residual(
+                curve,
+                (
+                    circle.frame.origin,
+                    axis,
+                    circle.frame.u_ref,
+                    circle.radius(),
+                ),
+                closed,
+            )
+            .map(|(residual, _)| residual)
+        };
+        let Some(column) = arc(iso, axis).filter(|&r| file.read(STEP_ISO_CIRCLE, r) == Read::Zero)
+        else {
+            return false;
+        };
+        // A printed spline turns from the edge's start in the circle's
+        // own sense, over its whole domain.
+        printed.is_none_or(|(spline, spec)| {
+            let (lo, hi) = spline.domain();
+            spec.t0 <= lo
+                && spec.t1 >= hi
+                && arc(spline, circle.frame.axis).is_some_and(|own| {
+                    let gap = geom_core::interval::add_up(own, column);
+                    file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero
+                })
+        })
     })
+}
+
+/// **The circle a curved column is certified against where the printed
+/// carrier is no circle**: the curve recognizer's estimate of the column
+/// ([`crate::recognize_curve::try_circle`]), a witness frame only, wound
+/// in the edge's sense (its axis reversed where the column runs from the
+/// edge's end). Both the column and the printed spline are then certified
+/// against it ([`circle_column_match`]). `None` where the column reads as
+/// no circle at the band.
+fn column_circle(
+    iso: &geom::NurbsCurve3<f64>,
+    ends: (Point3<f64>, Point3<f64>),
+    file: FileBand,
+) -> Option<geom::Circle<f64>> {
+    let (&first, &last) = (iso.control().first()?, iso.control().last()?);
+    let order = ends_order((first, last), ends, file)?;
+    let Ok(Some((Curve3::Circle(circle), _, _))) = crate::recognize_curve::try_circle(iso, file)
+    else {
+        return None;
+    };
+    if order.forward {
+        return Some(circle);
+    }
+    match Curve3::circle(
+        circle.frame.origin,
+        -circle.frame.axis,
+        circle.radius(),
+        circle.frame.u_ref,
+    ) {
+        Curve3::Circle(reversed) => Some(reversed),
+        _ => None,
+    }
 }
 
 /// Which way round a wall's column's ends `(first, last)` are the edge's
@@ -2711,13 +2780,13 @@ mod tests {
         let kv_piece = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let (p0, p1) = (piece.eval(0.0), piece.eval(1.0));
         assert!(
-            circle_column_match(&piece, &circle, (p0, p1), file),
+            circle_column_match(&piece, &circle, (p0, p1), None, file),
             "the split piece matches the printed circle"
         );
         // The same ends the other way round, on the circle as printed, name
         // the long way round from `p1` to `p0`: not the piece.
         assert!(
-            !circle_column_match(&piece, &circle, (p1, p0), file),
+            !circle_column_match(&piece, &circle, (p1, p0), None, file),
             "the complement is not the piece"
         );
         // On the circle printed the other way round (its axis reversed),
@@ -2725,12 +2794,12 @@ mod tests {
         let mut reversed = circle;
         reversed.frame.axis = -circle.frame.axis;
         assert!(
-            circle_column_match(&piece, &reversed, (p1, p0), file),
+            circle_column_match(&piece, &reversed, (p1, p0), None, file),
             "a column run against the edge matches the reversed circle"
         );
         let (lifted, _) = lifted_arc.split_at(1.0).unwrap();
         assert!(
-            !circle_column_match(&lifted, &circle, (p0, p1), file),
+            !circle_column_match(&lifted, &circle, (p0, p1), None, file),
             "a column off the circle past the band does not match"
         );
         // Bowed: the piece's ends ON the circle, its middle control pushed
@@ -2743,11 +2812,11 @@ mod tests {
         let bowed =
             geom::NurbsCurve3::new(kv_piece.clone(), bowed_net, piece.weights().to_vec()).unwrap();
         assert!(
-            !circle_column_match(&bowed, &circle, (p0, p1), file),
+            !circle_column_match(&bowed, &circle, (p0, p1), None, file),
             "a column bowed off the circle between its ends does not match"
         );
         assert!(
-            !circle_column_match(&piece, &circle, (on(4.0 * h), on(5.0 * h)), file),
+            !circle_column_match(&piece, &circle, (on(4.0 * h), on(5.0 * h)), None, file),
             "nor one whose ends are not the edge's"
         );
     }
@@ -2924,5 +2993,141 @@ mod tests {
             generators_through(&cylinder, Point3::new(1.0, 2.0, 9.0)).is_empty(),
             "a point on the axis reads no azimuth"
         );
+    }
+
+    /// **A curved column matches by its own law, whatever the printed
+    /// kind.** A quarter circle's column and its printed spline with the
+    /// knots doubled (the same locus and sense, other bits) match, as the
+    /// same locus printed as a circle does; the same spline run the other
+    /// way round its circle (the complement's sense), or trimmed short of
+    /// its domain, is withheld.
+    #[test]
+    fn a_curved_column_matches_its_printed_spline_by_locus_not_by_kind() {
+        use geom_core::spline::KnotVector;
+        let file = FileBand::test(1e-9);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let net = |knots: Vec<f64>, control: Vec<Point3<f64>>| {
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(knots, 2).unwrap(),
+                control,
+                vec![1.0, w, 1.0],
+            )
+            .unwrap()
+        };
+        let column = net(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], control.clone());
+        let reknotted = net(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0], control.clone());
+        let ends = (column.eval(0.0), column.eval(1.0));
+        let edge = |carrier: Curve3<f64>, (t0, t1): (f64, f64)| EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier,
+            t0,
+            t1,
+            reversed: false,
+            curve: None,
+        };
+        let spline = edge(
+            Curve3::Nurbs(std::sync::Arc::new(reknotted.clone())),
+            (0.0, 2.0),
+        );
+        let circle = edge(
+            Curve3::circle(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                1.0,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            (0.0, core::f64::consts::FRAC_PI_2),
+        );
+        assert!(
+            matches!(
+                column_match(&circle, &column, ends, file),
+                Some(ColumnMatch::Column)
+            ),
+            "the printed circle matches"
+        );
+        assert!(
+            matches!(
+                column_match(&spline, &column, ends, file),
+                Some(ColumnMatch::Column)
+            ),
+            "the re-knotted spline of the same locus matches"
+        );
+        let short = edge(Curve3::Nurbs(std::sync::Arc::new(reknotted)), (0.0, 1.5));
+        assert!(
+            column_match(&short, &column, ends, file).is_none(),
+            "a spline trimmed short of its domain is withheld"
+        );
+        // The three-quarter arc the long way round between the same ends,
+        // as three rational quarters.
+        let long = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(-1.0, 0.0, 0.0),
+                Point3::new(-1.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            vec![1.0, w, 1.0, w, 1.0, w, 1.0],
+        )
+        .unwrap();
+        let complement = edge(Curve3::Nurbs(std::sync::Arc::new(long)), (0.0, 3.0));
+        assert!(
+            column_match(&complement, &column, ends, file).is_none(),
+            "the arc the column does not cover is withheld"
+        );
+    }
+
+    /// **A straight column carries its own spread into the gap**: a
+    /// printed line exactly on the segment between a bowed column's ends
+    /// stands off the column by the bow, and the gap holds it.
+    #[test]
+    fn a_line_on_a_bowed_columns_segment_reads_the_bow() {
+        use geom_core::spline::KnotVector;
+        let file = FileBand::test(1e-9);
+        let bow = 1e-3;
+        let column = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(bow, 0.0, 0.3),
+                Point3::new(0.0, 0.0, 1.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap();
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
+        let line = EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier: Curve3::line(a, Vec3::new(0.0, 0.0, 1.0)),
+            t0: 0.0,
+            t1: 1.0,
+            reversed: false,
+            curve: None,
+        };
+        let gap = segment_gap(&line, &column, (a, b), file).unwrap();
+        let samples: Vec<Point3<f64>> = (0..=4000)
+            .map(|k| column.eval(f64::from(k) / 4000.0))
+            .collect();
+        let true_sup = (0..=400)
+            .map(|k| line.carrier.eval(f64::from(k) / 400.0))
+            .map(|p| {
+                samples
+                    .iter()
+                    .map(|q| q.distance(p))
+                    .fold(f64::INFINITY, f64::min)
+            })
+            .fold(0.0, f64::max);
+        assert!(true_sup > 0.3 * bow, "the bow shows: {true_sup:e}");
+        assert!(gap >= true_sup, "sound: {gap:e} < {true_sup:e}");
     }
 }

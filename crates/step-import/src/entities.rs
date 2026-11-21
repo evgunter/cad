@@ -1253,9 +1253,11 @@ impl<'a> Resolver<'a> {
     /// trim is read against the range it covers ([`Self::edge`]). The
     /// build reads the printed carrier as evidence for the edge's
     /// description, not as its carrier: each edge is built from its
-    /// description and the printed carrier certified on it by locus
-    /// (`crate::on_built`), so no build reader chooses by the promoted
-    /// kind. Where the build carries the edge on a wall's own column
+    /// description and the printed carrier read on it (`build::description_gap`:
+    /// certified by locus where `crate::on_built` has an arm for the pair,
+    /// sampled where it has none), so no build reader chooses its arm by
+    /// the promoted kind, though the certificate's tightness depends on
+    /// the kind pair. Where the build carries the edge on a wall's own column
     /// (`build::column_match`), the body holds that spline, and the
     /// curve's promotion record is dropped from the ledger.
     ///

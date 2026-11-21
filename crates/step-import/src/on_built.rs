@@ -41,11 +41,38 @@
 //!   pairings `(±a·u, ±b·v)`, `(±b·v, ±a·u)`. The frames' `f64` closed
 //!   forms are read as exact; the sums are outward.
 //!
-//! Every other pair (a printed spline on a built spline that is not its
-//! twin bit for bit, a spline on an ellipse or a spiric) has no
-//! certificate here, and [`printed_on`]
-//! answers `None`: the build then reads the printed carrier's ends and
-//! middle (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
+//! A built line is the infinite line: the trim is the vertices' to keep,
+//! and the cover arm bounds how far the printed carrier stands off the
+//! line, not where along it. Only the iso rung's straight locus reads a
+//! segment ([`printed_on_segment`]), since there the carrier is the
+//! finite column.
+//!
+//! **What is exact and what is not.** The sums and roots are outward at
+//! `Interval`. Three steps are `f64` closed forms read as exact, each off
+//! by a few units in the last place of the quantity it forms: the built
+//! and printed frames, as everywhere in this crate; the arc arm's
+//! `sin_cos` at the trim's ends; and its critical direction, read off the
+//! coefficients' middles, with a slack derived from their widths (both
+//! values are taken where the amplitude does not read apart from zero).
+//!
+//! **Tightness depends on the pair.** Each arm is sound for its pair, but
+//! the arms are not equally tight: the circle composite reads a spline's
+//! stand-off up to a few times over (28 times on a sub-span trim in a
+//! review fuzz), and the frame bound reads a near-round ellipse against a
+//! circle at the difference of its frames, not its locus. A printed
+//! spline that promotes to a circle may so certify where the same spline
+//! declined does not
+//! (`work/exch/the-printed-on-built-certificate-reads-curved-pairs-loosely.md`).
+//!
+//! Every other pair has no arm, and [`printed_on`] answers `None`: a
+//! printed spline on a built spline that is not its twin bit for bit; a
+//! spline on an ellipse or a spiric; a printed line on a built circle,
+//! ellipse or spline; a printed circle on a built spline. The build then
+//! reads the printed carrier's ends and middle
+//! (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
+//! An arm that runs and certifies nothing (a cover that is not read, a
+//! refused composite) answers a non-finite bound, which the file's band
+//! reads as no agreement: it never falls back to the samples.
 
 // The `!(a > b)` forms are deliberate, NaN-catching negations: a NaN
 // quantity refuses, where the positive form would accept it.
@@ -60,8 +87,9 @@ use crate::entities::EdgeSpec;
 use crate::recognize_curve::circle_locus_within;
 
 /// **The certified sup of the printed carrier's distance from `built`
-/// over the printed trim** (module docs); `None` where no arm serves the
-/// pair, or the arm certifies no finite bound.
+/// over the printed trim** (module docs). `None` only where no arm
+/// serves the pair; an arm that runs and certifies no bound answers a
+/// non-finite one, which reads as no agreement.
 pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let trim = (spec.t0, spec.t1);
     let line = match built {
@@ -69,7 +97,7 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
         _ => None,
     };
     if let Some(line) = line {
-        return printed_off_line(spec, line);
+        return Some(printed_off_line(spec, line));
     }
     let bound = match (&spec.carrier, built) {
         (Curve3::Nurbs(printed), Curve3::Circle(circle)) => circle_locus_within(
@@ -89,10 +117,10 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
             let (Some(printed), Some(built)) = (Conic::of(printed), Conic::of(built)) else {
                 return None;
             };
-            built.bound_from(&printed)?
+            built.bound_from(&printed)
         }
     };
-    bound.is_finite().then_some(bound)
+    Some(bound)
 }
 
 /// Whether two splines are one bit for bit: knots, controls and weights.
@@ -142,64 +170,63 @@ fn exact_line(origin: Point3<f64>, dir: Vec3<f64>) -> geom::Line<Interval> {
 /// **The printed carrier's farthest from a built line over its trim**:
 /// the far end of its trim cover's distance range from the line
 /// ([`geom::cover::Cover::distance_range`]), read outward. Every printed
-/// point lies in the cover, so none stands farther. `None` where no
-/// bound certifies.
-fn printed_off_line(spec: &EdgeSpec, line: geom::Line<f64>) -> Option<f64> {
+/// point lies in the cover, so none stands farther. `NaN` where no cover
+/// is read.
+fn printed_off_line(spec: &EdgeSpec, line: geom::Line<f64>) -> f64 {
     let site = geom::cover::Site::Line(exact_line(line.origin, line.dir));
-    let (_, far) = trim_cover(spec)?.distance_range(&site);
-    let bound = far.hi();
-    bound.is_finite().then_some(bound)
+    trim_cover(spec).map_or(f64::NAN, |cover| cover.distance_range(&site).1.hi())
 }
 
 /// **The printed carrier's farthest from the segment `[a, b]` over its
-/// trim**, certified: its trim cover's farthest from the segment's line
-/// and how far its range along the segment runs past either end, `hypot`
-/// of the two, outward; every printed point lies in the cover. `None`
-/// where the segment is not certified to have a length or no bound
-/// certifies.
-pub(crate) fn printed_on_segment(
-    spec: &EdgeSpec,
+/// trim**, certified: its trim cover read against the segment
+/// ([`segment_reach`]); every printed point lies in the cover. `NaN`
+/// where no cover is read or the segment is not certified to have a
+/// length.
+pub(crate) fn printed_on_segment(spec: &EdgeSpec, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
+    let Some(cover) = trim_cover(spec) else {
+        return f64::NAN;
+    };
+    let site = geom::cover::Site::Line(exact_line(a, b - a));
+    let across = cover.distance_range(&site).1;
+    let [dx, dy, dz] = sub(pt(b), pt(a));
+    segment_reach(across, cover.range_along(Vec3::new(dx, dy, dz)), (a, b))
+}
+
+/// A certified upper bound on the distance of the exact point `p` from
+/// the segment `[a, b]` ([`segment_reach`]); `NaN` where the segment is
+/// not certified to have a length.
+pub(crate) fn point_segment_sup(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
+    let d = sub(pt(b), pt(a));
+    let across = Interval::point(norm_sup(&cross(&sub(pt(p), pt(a)), &d)));
+    let along = geom_core::interval::dot(&pt(p), &d);
+    let length = geom_core::interval::norm_sq(&d).sqrt();
+    segment_reach(across / length, (along, along), (a, b))
+}
+
+/// **The farthest a region stands from the segment `[a, b]`**: `hypot`
+/// of `across`, its farthest from the segment's line (metres), and how
+/// far its range `along` the unnormalized direction `b − a` runs past
+/// either end, outward. `NaN` where the segment is not certified to have
+/// a length.
+fn segment_reach(
+    across: Interval,
+    (lo, hi): (Interval, Interval),
     (a, b): (Point3<f64>, Point3<f64>),
-) -> Option<f64> {
+) -> f64 {
     let d = sub(pt(b), pt(a));
     let length2 = geom_core::interval::norm_sq(&d);
     if !(length2.lo() > 0.0) {
-        return None;
+        return f64::NAN;
     }
-    let cover = trim_cover(spec)?;
-    let site = geom::cover::Site::Line(exact_line(a, b - a));
-    let (_, across) = cover.distance_range(&site);
-    let [dx, dy, dz] = d;
-    let (lo, hi) = cover.range_along(Vec3::new(dx, dy, dz));
     let start = geom_core::interval::dot(&pt(a), &d);
     let length = length2.sqrt();
     let past = ((Interval::zero() - (lo - start)) / length)
         .hi()
         .max(((hi - start - length2) / length).hi())
         .max(0.0);
-    let bound = (across.sqr() + Interval::point(past).sqr()).sqrt().hi();
-    bound.is_finite().then_some(bound)
-}
-
-/// A certified upper bound on the distance of the exact point `p` from
-/// the segment `[a, b]`: its distance from the segment's line and how far
-/// its projection runs past either end, `hypot` of the two, outward; from
-/// `a`, plus the segment's length, where the segment is not certified to
-/// have one. `NaN` where it certifies none.
-pub(crate) fn point_segment_sup(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
-    let off = sub(pt(p), pt(a));
-    let d = sub(pt(b), pt(a));
-    let length = geom_core::interval::norm_sq(&d).sqrt();
-    if !(length.lo() > 0.0) {
-        return geom_core::interval::add_up(norm_sup(&off), norm_sup(&d));
-    }
-    let across = Interval::point(norm_sup(&cross(&off, &d))) / length;
-    let along = geom_core::interval::dot(&off, &d) / length;
-    let past = (Interval::zero() - along)
+    (Interval::point(across.hi()).sqr() + Interval::point(past).sqr())
+        .sqrt()
         .hi()
-        .max((along - length).hi())
-        .max(0.0);
-    (across.sqr() + Interval::point(past).sqr()).sqrt().hi()
 }
 
 /// The componentwise enclosure of `p` (exact).
@@ -258,10 +285,9 @@ fn arc_on_circle(
         (iv(cs), iv(sn))
     };
     let period = geom::conic_period::<f64>().length();
-    let slack = 1e-6;
-    // Whether the printed point along `(cos, sin)` lies within the slack
-    // of the trim, its angle read through the circle's own azimuth.
-    let inside = |(cs, sn): (f64, f64)| {
+    // Whether the printed point along `(cos, sin)` lies within `slack` of
+    // the trim, its angle read through the circle's own azimuth.
+    let inside = |(cs, sn): (f64, f64), slack: f64| {
         let q = c1 + printed.frame.u_ref * cs + v_dir * sn;
         let theta = geom::Conic::azimuth(printed, q).near(0.0);
         t1 - t0 >= period - slack || printed.period().above(theta, t0 - slack) <= t1 + slack
@@ -277,10 +303,27 @@ fn arc_on_circle(
             geom::mid_param(b.lo(), b.hi()),
             geom::mid_param(c.lo(), c.hi()),
         );
-        if inside((bm, cm)) {
+        // The critical direction is read off the coefficients' middles:
+        // it is off the true one by at most their widths over the
+        // amplitude, in radians, so the slack is four times that plus a
+        // margin for the azimuth's own rounding. Where the amplitude is
+        // not certified apart from zero the direction means nothing and
+        // both values are taken.
+        let spread = (b.hi() - b.lo()) + (c.hi() - c.lo());
+        let slack = if amp.lo() > 0.0 {
+            (4.0 * spread / amp.lo()).max(1e-9)
+        } else {
+            f64::INFINITY
+        };
+        if !slack.is_finite() || slack >= 1.0 {
+            values.push(a + amp);
+            values.push(a - amp);
+            return values;
+        }
+        if inside((bm, cm), slack) {
             values.push(a + amp);
         }
-        if inside((-bm, -cm)) {
+        if inside((-bm, -cm), slack) {
             values.push(a - amp);
         }
         values
@@ -350,18 +393,23 @@ impl Conic {
 
     /// The bound of the module docs on how far `printed` stands from this
     /// (built) conic, over the least of this conic's reparameterizations
-    /// read; `None` where none is read (a printed seam normal to a built
+    /// read; `NaN` where none is read (a printed seam normal to a built
     /// circle's plane).
-    fn bound_from(&self, printed: &Self) -> Option<f64> {
+    fn bound_from(&self, printed: &Self) -> f64 {
         let centre = norm_sup(&sub(pt(printed.center), pt(self.center)));
         let gap = |a: Vec3<f64>, b: Vec3<f64>| {
-            norm_sup(&sub(vc(printed.a), vc(a))) + norm_sup(&sub(vc(printed.b), vc(b)))
+            geom_core::interval::add_up(
+                norm_sup(&sub(vc(printed.a), vc(a))),
+                norm_sup(&sub(vc(printed.b), vc(b))),
+            )
         };
         let pairs: Vec<(Vec3<f64>, Vec3<f64>)> = match self.radius {
             Some(radius) => {
                 let n = self.normal;
                 let seam = printed.a - n * printed.a.dot(n);
-                let (u, _) = seam.checked_direction().ok()?;
+                let Ok((u, _)) = seam.checked_direction() else {
+                    return f64::NAN;
+                };
                 let turn = if printed.normal.dot(n) < 0.0 {
                     -1.0
                 } else {
@@ -386,8 +434,7 @@ impl Conic {
             .into_iter()
             .map(|(a, b)| gap(a, b))
             .fold(f64::INFINITY, geom_core::interval::min_bound);
-        let sum = Interval::point(centre) + Interval::point(least);
-        Some(sum.hi())
+        geom_core::interval::add_up(centre, least)
     }
 }
 
@@ -587,5 +634,153 @@ mod tests {
         assert!((past - 0.5).abs() <= 1e-15, "{past}");
         let beside = point_segment_sup(Point3::new(0.5, 0.4, 0.0), (a, b));
         assert!((beside - 0.4).abs() <= 1e-15, "{beside}");
+    }
+
+    /// The two rational quarter circles of radius 2 about `z`, the
+    /// second's middle control pushed out by `push`.
+    fn two_quarters(push: f64) -> Curve3<f64> {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let control = vec![
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-2.0 - push, 2.0 + push, 0.0),
+            Point3::new(-2.0, 0.0, 0.0),
+        ];
+        Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn a_trim_off_the_knots_reads_exactly_the_pieces_it_holds() {
+        let (c, n) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let circle = Curve3::circle(c, n, 2.0, Vec3::new(1.0, 0.0, 0.0));
+        let truth = |p| off_circle(p, c, n, 2.0);
+        let printed = two_quarters(1e-4);
+        // Inside the first span, off both its knots: on the circle.
+        let inner = printed_on(&spec(printed.clone(), (0.2, 0.8)), &circle).unwrap();
+        assert!(inner <= 1e-14, "a trim inside the clean span: {inner:e}");
+        for trim in [(0.5, 1.5), (1.2, 1.8), (0.9, 1.05), (0.0, 1.5)] {
+            let s = spec(printed.clone(), trim);
+            let bound = printed_on(&s, &circle).unwrap();
+            let true_sup = dense(&s, truth);
+            assert!(
+                bound >= true_sup,
+                "{trim:?}: sound: {bound:e} < {true_sup:e}"
+            );
+            assert!(
+                bound.is_finite() && bound <= 1e-3,
+                "{trim:?}: read: {bound:e}"
+            );
+        }
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let straight = bulging_line(1e-3);
+        let inner = printed_on(&spec(straight.clone(), (0.2, 0.8)), &line).unwrap();
+        assert!(inner <= 1e-15, "a trim inside the straight span: {inner:e}");
+        for trim in [(0.5, 1.5), (1.1, 1.3)] {
+            let s = spec(straight.clone(), trim);
+            let bound = printed_on(&s, &line).unwrap();
+            let true_sup = dense(&s, |p| p.x.hypot(p.z));
+            assert!(
+                bound >= true_sup,
+                "{trim:?}: sound: {bound:e} < {true_sup:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_arc_reads_its_extremes_wherever_its_trim_holds_them() {
+        // Off-centre along x: the far-side extreme of the distance from
+        // the built centre is at θ = π, the near one at θ = 0 (and 2π).
+        let tilt = 1e-3_f64;
+        let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+        let printed = Curve3::circle(
+            Point3::new(1e-4, 0.0, 0.0),
+            n,
+            1.0 + 3e-5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, z, 1.0, Vec3::new(1.0, 0.0, 0.0));
+        let tau = core::f64::consts::TAU;
+        use core::f64::consts::FRAC_PI_2;
+        for trim in [
+            (tau - 0.3, tau + 0.3),
+            (-0.3, 0.3),
+            (6.0, 8.0),
+            (3.0, 3.3),
+            (1.2, 2.0),
+            (4.5, 4.9),
+            (FRAC_PI_2 - 5e-8, FRAC_PI_2 + 5e-8),
+            (0.1, tau + 0.05),
+        ] {
+            let s = spec(printed.clone(), trim);
+            let bound = printed_on(&s, &built).unwrap();
+            let true_sup = dense(&s, |p| off_circle(p, c, z, 1.0));
+            assert!(
+                bound >= true_sup,
+                "{trim:?}: sound: {bound:e} < {true_sup:e}"
+            );
+            assert!(
+                bound <= 2.0 * true_sup + 1e-12,
+                "{trim:?}: near the truth: {bound:e} vs {true_sup:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tilted_twin_of_the_built_circle_reads_its_height() {
+        let tilt = 1e-4_f64;
+        let n = Vec3::new(0.0, -tilt.sin(), tilt.cos());
+        let printed = Curve3::circle(Point3::new(0.0, 0.0, 0.0), n, 1.0, Vec3::new(1.0, 0.0, 0.0));
+        let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let built = Curve3::circle(c, z, 1.0, Vec3::new(1.0, 0.0, 0.0));
+        let s = spec(printed, (1.0, 2.0));
+        let bound = printed_on(&s, &built).unwrap();
+        let true_sup = dense(&s, |p| off_circle(p, c, z, 1.0));
+        assert!(true_sup > 0.8e-4, "the height shows: {true_sup:e}");
+        assert!(bound >= true_sup, "sound: {bound:e} < {true_sup:e}");
+    }
+
+    #[test]
+    fn a_conic_stood_off_its_twin_reads_the_centres_gap() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let built = Curve3::ellipse(Point3::new(0.0, 0.0, 0.0), z, 2.0, 1.0, x, band).unwrap();
+        // Moved 1e-5 along the minor axis: the major vertices stand that
+        // far off the built ellipse.
+        let moved = Curve3::ellipse(Point3::new(0.0, 1e-5, 0.0), z, 2.0, 1.0, x, band).unwrap();
+        let bound = printed_on(&spec(moved, (0.0, 6.0)), &built).unwrap();
+        assert!(
+            (0.99e-5..2e-5).contains(&bound),
+            "the centres' gap: {bound:e}"
+        );
+    }
+
+    #[test]
+    fn a_printed_curve_past_a_segments_end_reads_the_overshoot() {
+        // Along x from 0 to 1, its controls running out to 6 and back to
+        // −5: on the line, past both ends of the segment [0, 1].
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(6.0, 0.0, 0.0),
+            Point3::new(-5.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        ];
+        let printed = Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap(),
+        ));
+        let s = spec(printed, (0.0, 1.0));
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let bound = printed_on_segment(&s, (a, b));
+        let true_sup = dense(&s, |p| (p.x - 1.0).max(-p.x).max(0.0).hypot(p.y));
+        assert!(true_sup > 0.5, "the overshoot is there: {true_sup}");
+        assert!(bound >= true_sup, "sound: {bound} < {true_sup}");
+        let on_line = printed_on(&s, &Curve3::line(a, Vec3::new(1.0, 0.0, 0.0))).unwrap();
+        assert!(on_line <= 1e-15, "it is on the infinite line: {on_line:e}");
     }
 }

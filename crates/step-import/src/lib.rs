@@ -55,8 +55,9 @@
 //!    pole or an apex), else, where the description leaves it free along
 //!    one built carrier, at the foot of its printed point on that
 //!    carrier, each interval by the carrier's own inverse; each printed
-//!    carrier is certified on its built one over its trim, by locus
-//!    ([`on_built`]). No curve or point the file printed is a cache. Surfaces attach (bitwise-identical records
+//!    carrier is read on its built one over its trim, certified by locus
+//!    where [`on_built`] has an arm for the pair and at its ends and
+//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (bitwise-identical records
 //!    share one kernel surface key, restoring the writer-side key
 //!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the

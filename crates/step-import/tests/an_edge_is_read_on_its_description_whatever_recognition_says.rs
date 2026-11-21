@@ -10,8 +10,9 @@
 //!   its middle control nudged 3e-11 m outward. The rim lies within
 //!   1.5e-11 m of the plane × cylinder circle, but the three samples curve
 //!   recognition estimates its circle from all fall in that span, and the
-//!   estimate misses the rest of the rim by about 6e-9 m: at a run
-//!   tolerance of 1e-9 and below the rim stays a spline, and the solid
+//!   estimate misses the rest of the rim by about 6e-9 m (at a coarse
+//!   band, the samples are too nearly collinear to estimate from): the
+//!   rim stays a spline at every band, and the solid
 //!   imports on its analytic walls all the same, each piece of the rim
 //!   built on the walls' circle and the nudged one reporting its move.
 //! - `declined/side_column_declined`: the re-timed-rim cube with one
@@ -54,12 +55,11 @@ fn a_rim_recognition_declines_imports_on_its_analytic_walls() {
     let StepImport::Solid { normalizations, .. } = import else {
         panic!("a solid");
     };
-    // Below a run tolerance of 1e-9 m the file's band is fine enough that
-    // the estimate's miss reads past it; above it the rim promotes.
-    if tol.eps() > 1e-9 {
-        return;
-    }
-    assert!(!promoted, "the nudged rim stays a spline at this band");
+    // At a fine band the estimate's miss reads past it; at a coarse one
+    // (a run tolerance of 1e-6) its three samples, all in one short span,
+    // read too nearly collinear to estimate a circle from. Either way the
+    // rim stays a spline at every row.
+    assert!(!promoted, "the nudged rim stays a spline");
     // A spline is cut at its double knots before the build (the C⁰-knot
     // split reads the printed carrier's kind), and each piece is then
     // built on the circle: the nudged span reports its move.
@@ -142,5 +142,39 @@ fn a_printed_curve_off_its_description_between_its_samples_refuses() {
     assert!(
         message.contains("#14") && message.contains("(step_edge_on_description)"),
         "refused at the edge's description: {message}"
+    );
+}
+
+/// **A declined rim the certificate reads too loosely refuses at the
+/// fine band** (`declined/cyl_declined_loose`: the rim of
+/// `cyl_declined` nudged 8e-11 m instead of 3e-11 m). At a run tolerance
+/// of 1e-12 the file is read at its own ε_in of 1e-10 m, and the circle
+/// composite reads the nudged span's stand-off (about 4e-11 m) as
+/// 1.07e-10 m, in band, where three samples read it Zero. This pins
+/// today's over-refusal, filed as
+/// `work/exch/the-printed-on-built-certificate-reads-curved-pairs-loosely.md`;
+/// its fix turns this row.
+#[test]
+fn a_declined_rim_read_loosely_refuses_at_the_fine_band() {
+    let tol = Tol::witness();
+    let result = import_step(
+        &fixture("cyl_declined_loose"),
+        &ImportOptions::default(),
+        tol,
+    );
+    if tol.eps() > 1e-10 {
+        assert!(
+            matches!(result, Ok(StepImport::Solid { .. })),
+            "at a band of 1e-9 or coarser the rim reads Zero and imports"
+        );
+        return;
+    }
+    let Err(err) = result else {
+        panic!("at the fine band the loose bound refuses today");
+    };
+    let message = err.to_string();
+    assert!(
+        message.contains("(step_edge_on_description), in the band it is read at"),
+        "refused in band at the edge's description: {message}"
     );
 }
