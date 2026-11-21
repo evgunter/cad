@@ -9398,8 +9398,10 @@ mod presentation_rows {
             local: &local,
             ball: Ball::holding(origin(), origin()),
         };
+        // No vertex is shared in this cell, so a rectangle that kept its
+        // width would be presented with no zero.
         assert!(matches!(
-            present_chart(&piece, &[], &[vertex(3)], band()),
+            present_chart(&piece, &[], &[], band()),
             Err(Unpresented::Local)
         ));
     }
