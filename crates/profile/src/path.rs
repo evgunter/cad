@@ -7162,6 +7162,7 @@ mod tests {
                 "{what}: τ"
             );
         }
+        use geom_core::Bounds as _;
         let tau = geom_core::Interval::tau();
         for (what, sweep) in check::<geom_core::Interval>(tol) {
             assert!(
