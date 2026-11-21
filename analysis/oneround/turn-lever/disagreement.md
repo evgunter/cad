@@ -113,6 +113,7 @@ infinite ratio (poison above) and is grouped above.
 | 9.31 | 0.172 | 1.60 | `spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds` |
 | 9.24 | 0.306 | 2.83 | `a_tube_ending_on_a_ball::a_tilted_tube_builds_at_its_closed_form` |
 
-Ratios this large leave the action unmoved because, at the wedge, the reach is
-min'd with the faces' curvature arms in `folded_lever_arm` (the arm below the
-reach on curved faces), and a crease's `sin θ` is far past the band.
+Why ratios this large leave the action unmoved was not checked. Two
+candidates: `folded_lever_arm` mins the reach with the faces' curvature arms,
+which on curved faces can sit below both bounds; and a crease's `sin θ` can be
+far past the band at either arm.
