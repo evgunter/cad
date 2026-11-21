@@ -93,7 +93,9 @@ use geom::{NurbsSurface, RunSide, SpanBeside, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Vec3};
 
+#[cfg(test)]
 use crate::certify::NurbsLane;
+use crate::certify::NurbsLaneOf;
 
 use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::{EntersMaterial, LeverEscalation, OutwardNormal, enters_material_reported};
@@ -239,7 +241,7 @@ pub fn dihedral_side<T: Decide>(
     p: Point3<T>,
     walk: EdgeWalk<T>,
     reach: Lever<T>,
-    lane: Option<NurbsLane<T>>,
+    lane: Option<impl NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<(FaceSide, MarginDiag), SideEscalation> {
     let normal = |face, role| normal_at(face, role, p, reach, lane, band);
@@ -261,7 +263,7 @@ fn normal_at<T: Decide>(
     role: SideRole,
     p: Point3<T>,
     reach: Lever<T>,
-    lane: Option<NurbsLane<T>>,
+    lane: Option<impl NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
     match face.surface.spline_chart() {
@@ -271,31 +273,30 @@ fn normal_at<T: Decide>(
         )),
         Some(chart) => {
             let lane = lane.ok_or(SideEscalation::NoLane(role))?;
-            spline_normal(chart, face.sense, role, p, reach, lane, band)
+            if chart.is_placeholder() {
+                return Err(SideEscalation::Placeholder(role));
+            }
+            let foot = lane.surface_foot(chart, p);
+            foot_normal(chart, face.sense, role, p, reach, foot, band)
         }
     }
 }
 
 /// A spline face's outward normal at the foot of `p`, and the radius of
 /// its largest principal curvature there folded with `reach`.
-fn spline_normal<T: Decide>(
+fn foot_normal<T: Decide>(
     chart: &NurbsSurface<T>,
     sense: bool,
     role: SideRole,
     p: Point3<T>,
     reach: Lever<T>,
-    lane: NurbsLane<T>,
+    foot: Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
     band: Band,
 ) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
-    if chart.is_placeholder() {
-        return Err(SideEscalation::Placeholder(role));
-    }
-    let foot = lane
-        .surface_foot(chart, p)
-        .map_err(|e| SideEscalation::FootInconclusive {
-            role,
-            last_distance: e.last_distance,
-        })?;
+    let foot = foot.map_err(|e| SideEscalation::FootInconclusive {
+        role,
+        last_distance: e.last_distance,
+    })?;
     let uv = (T::from_computed(foot.u), T::from_computed(foot.v));
     chart_point_normal(chart, sense, uv, p, reach, "dihedral_side_foot", band).map_err(|refusal| {
         match refusal {
@@ -1110,7 +1111,7 @@ mod tests {
                 ON_EDGE,
                 walk,
                 fixture_lever(1.0),
-                None,
+                None::<geom_core::NoLane>,
                 band()
             ),
             Err(SideEscalation::NoLane(SideRole::Against))
@@ -1123,7 +1124,7 @@ mod tests {
                 ON_EDGE,
                 walk,
                 fixture_lever(1.0),
-                None,
+                None::<geom_core::NoLane>,
                 band()
             )
             .map(|(s, _)| s),

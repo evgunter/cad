@@ -23,7 +23,7 @@ use geom_brep::{
     SurfacePair, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::test_support::fixture_lever;
-use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
 
 /// The corner configuration of the filleted die: the corner ball
@@ -210,7 +210,7 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 /// by `describe` over the (plane, cylinder) keys, certified. The pair
 /// certifies in key order, so `cylinder_first` (the cylinder minted
 /// first, holding the lower key) is what puts the cylinder first.
-fn certify_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
+fn certify_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     r: f64,
     cylinder_first: bool,
     describe: impl Fn(SurfaceKey, SurfaceKey, Point3<T>) -> EdgeDescriptionSpec<T>,
@@ -247,7 +247,7 @@ fn certify_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
 
 /// The cap crossing described as a tangency at `T`, with the surfaces
 /// in the (plane, cylinder) order or reversed.
-fn tangent_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
+fn tangent_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     r: f64,
     reversed: bool,
 ) -> Result<EdgeCurve<T>, CertifyError> {

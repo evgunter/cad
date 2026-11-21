@@ -336,6 +336,84 @@ pub enum SurfaceKind {
 }
 
 impl<T: Real> Surface<T> {
+    /// **Whether `other` is this surface by content, each value read by
+    /// `same`**: one kind, and every value that states an analytic
+    /// surface one by `same`. A spline or approximating surface is the
+    /// same allocation (`Arc::ptr_eq`): no reader compares their content
+    /// today. The one home of the walk, beside
+    /// [`crate::Curve3::same_content_by`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
+        };
+        match (self, other) {
+            (Self::Plane { frame: f }, Self::Plane { frame: g }) => frame(f, g),
+            (
+                Self::Cylinder { frame: f, radius },
+                Self::Cylinder {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Cone {
+                    frame: f,
+                    half_angle,
+                },
+                Self::Cone {
+                    frame: g,
+                    half_angle: h,
+                },
+            ) => frame(f, g) && same(*half_angle, *h),
+            (
+                Self::Sphere { frame: f, radius },
+                Self::Sphere {
+                    frame: g,
+                    radius: r,
+                },
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Torus {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Torus {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            )
+            | (
+                Self::Spindle {
+                    frame: f,
+                    major_radius,
+                    minor_radius,
+                },
+                Self::Spindle {
+                    frame: g,
+                    major_radius: big,
+                    minor_radius: small,
+                },
+            ) => frame(f, g) && same(*major_radius, *big) && same(*minor_radius, *small),
+            (Self::Nurbs(x), Self::Nurbs(y)) => Arc::ptr_eq(x, y),
+            (Self::Approx(x), Self::Approx(y)) => Arc::ptr_eq(x, y),
+            (
+                Self::Plane { .. }
+                | Self::Cylinder { .. }
+                | Self::Cone { .. }
+                | Self::Sphere { .. }
+                | Self::Torus { .. }
+                | Self::Spindle { .. }
+                | Self::Nurbs(_)
+                | Self::Approx(_),
+                _,
+            ) => false,
+        }
+    }
     /// Which variant this surface is.
     ///
     /// **No wildcard arm**: a new [`Surface`] variant is a compile error

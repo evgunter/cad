@@ -404,11 +404,13 @@
 //! carrier is within `e` of the other's plane, so it lies on the arc
 //! about a crossing or a touch where the height is within `e`: `ℓ`, read
 //! off the harmonic (or `e/σ` on a line). The *window* is the pairs of
-//! the two spans within `region = 2(ℓ + e)` of where the polish starts,
-//! on either carrier: the region about the crossing, intersected with the
-//! spans. Every pair of the spans within `e` of each other near the
-//! crossing is in it. Nothing reads whether the polish converged: the
-//! pair is a place, and what it says of the window is a bound.
+//! the two spans within `e` of each other whose first point lies within
+//! `ℓ` of the crossing along the first carrier: so both points lie in the
+//! ball of `ℓ + e` about the crossing, in metres. Every pair of the spans
+//! within `e` of each other near the crossing is in it, and the gap's
+//! lower bound reads it as arcs from the polished pair ((P1) below).
+//! Nothing reads whether the polish converged: the pair is a place, and
+//! what it says of the window is a bound.
 //!
 //! **Held to the spans.** The polish is held to the two spans
 //! ([`super::polish::pair_held`]; an endless span holds nothing), as the
@@ -457,24 +459,41 @@
 //! carriers could still take up. Two premises, stated where they are
 //! read:
 //!
-//! - **(P1) the span.** `span = region + travel`, `travel` the polish's
-//!   parameter run at the carrier's greatest speed (the larger of the
-//!   two). What is proved differs by carrier:
-//!   - on the first carrier, an **arc** bound: every pair of the window
-//!     has its first point within `ℓ` of the crossing along the carrier,
-//!     so within `span` of `p` along it;
-//!   - on the second, only a **chord** bound: the pair's second point
-//!     lies within `ℓ + e` of the crossing in metres. Nothing proved
-//!     here turns that into an arc along the second carrier from `q`,
-//!     which a conic can exceed, and the start's foot need not be the
-//!     crossing's nearest point.
+//! - **(P1) the span.** `span = max(span₁, arc₂)`, an arc bound on each
+//!   carrier from the polished pair:
+//!   - on the first, `span₁ = region + travel`, `travel` the polish's
+//!     parameter run at the carrier's greatest speed: every pair of the
+//!     window within `e` has its first point within `ℓ` of the crossing
+//!     along the carrier, and `p` is within its travel of the start;
+//!   - on the second, the pair's second point lies within `ℓ + e` of the
+//!     crossing in metres, a chord, so within `R = ℓ + e + |q − c|` of
+//!     `q`, `c` the crossing. On a line that is the arc. On a conic the
+//!     arc is read from `q` (`Side::arc_from`): the angles
+//!     `J = [t − ρ, t + ρ]` about `q`'s, `ρ = (π/2)·R/|C′(t)|`, hold every
+//!     such point where the span's parameters outside `J` and its copies
+//!     a turn either side (a span near a turn meets the carrier on both
+//!     sides of a gap within the ball) are clear of the ball of `ℓ + e`
+//!     about the crossing, by the span's own walk
+//!     ([`Span::clear_by`]; each piece's place against `J` proved,
+//!     `curve_pair_pose_window_piece`). The pieces end at `J`'s own
+//!     bounds `t ∓ ρ` (and their copies), the same values, so at `f64` they
+//!     abut `J` exactly. At an interval scalar each walked piece's ball
+//!     reaches its ends' enclosures (its reach is the enclosed width at
+//!     the greatest speed), as `J`'s arc does, so no sliver between them
+//!     goes unwalked. Then `arc₂ = ρ·max |C′|` over
+//!     `J`, the arc from `q` within `J`. Otherwise, or where `ρ` reaches
+//!     half a turn (`curve_pair_pose_window_half`), `arc₂` is half the turn at the conic's greatest
+//!     speed, a point's arc from `q` taken the shorter way round. The
+//!     choice of `ρ` is a heuristic; the walk is the proof, so a foot
+//!     landed on a thin ellipse's other branch, or a carrier coming round
+//!     within the ball from far along it, reads the half turn.
 //!
 //!   The walk's window is its pieces, a parameter run on each carrier,
 //!   and is an arc bound on both.
 //! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
-//!   curvatures over every arc within `span` of the start
-//!   (`Side::curvature_near`). For the pose, the second carrier's arcs it
-//!   covers are those of (P1)'s arc reading, unproved there (below).
+//!   curvatures over the arcs (P1) covers: the first's within `span₁` of
+//!   the start, the second's over `J`, or the whole carrier where `arc₂`
+//!   is its half turn (`Side::curvature_near`).
 //!
 //! By arc length from the pair, a point of each carrier is `A = p + uα +
 //! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
@@ -493,9 +512,7 @@
 //! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
 //! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
 //! puts the window below `m₊`: `s − K·span > 0`, since then
-//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. **For the pose, that step
-//! is unproved on the second carrier**, where (P1) has a chord bound and
-//! `m` is an arc: `work/onehome/the-pose-basin-reads-the-second-carriers-reach-as-an-arc-where-only-a-chord-bound-is-proved.md`. Every pair of the window
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
 //! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
 //! both carriers (written so a pair of lines, `K = 0`, reads
 //! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
@@ -806,6 +823,8 @@ mod row {
     pub(super) const LEVEL_FLAT: &str = "curve_pair_pose_level_flat";
     pub(super) const SLANT_TIGHT: &str = "curve_pair_pose_slant_tight";
     pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
+    pub(super) const WINDOW_PIECE: &str = "curve_pair_pose_window_piece";
+    pub(super) const WINDOW_HALF: &str = "curve_pair_pose_window_half";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -1081,25 +1100,117 @@ impl<T: Decide> Side<'_, T> {
         (t1 - t0).abs() * speed
     }
 
-    /// A bound on the curvature within `reach` metres of `t`: zero on a
-    /// line; on a conic `ab/|C′|³` at its least speed over the angles
-    /// `reach` at the least speed covers, `|C′|² = b² + (a² − b²)·sin²θ`.
-    fn curvature_near(self, t: T, reach: T) -> T {
+    /// **The second carrier's window, as an arc from `q`** (module docs,
+    /// (P1)): every pair of the window within the band's escalation has
+    /// its second point within `ball` metres of `crossing`, so within
+    /// `radius` of `q = C(t)`. On a line that chord is the arc. On a conic
+    /// the parameters `J = [t − ρ, t + ρ]`, `ρ` a quarter turn's worth of
+    /// `radius` at the speed at `t`, hold every such point where the span
+    /// outside `J` and its copies a turn either side is clear of the ball
+    /// by the span's own walk
+    /// ([`Span::clear_by`]), each piece's place against `J` proved
+    /// (`curve_pair_pose_window_piece`). The arc from `q` is then at most
+    /// `J`'s run at the greatest speed on it. Where that is not read, or
+    /// `J` is half a turn or more, the arc is at most half the carrier's
+    /// turn at its greatest speed, taken the shorter way round.
+    ///
+    /// Returns the arc and the angle about `t` it covers, `ρ` or the half
+    /// turn, for [`Self::curvature_near`].
+    fn arc_from(
+        self,
+        span: &Span<'_, T>,
+        t: T,
+        radius: T,
+        (crossing, ball): (Point3<T>, T),
+        band: Band,
+    ) -> (T, T) {
+        let Self::Conic(k) = self else {
+            return (radius, T::zero());
+        };
+        let whole = (T::pi() * k.speed_hi(), T::pi());
+        let half = T::pi() / T::from_f64(2.0);
+        let rho = half * radius / k.jet_at(t).1.norm();
+        if geom_core::k_stats::param_order(row::WINDOW_HALF, T::pi(), rho) != Ok(Sign::Positive) {
+            return whole;
+        }
+        let (from, to) = (t - rho, t + rho);
+        // The span's parameters outside `J` and its copies a turn either
+        // side: the carrier outside `J` is one turn, `(t + ρ, t − ρ + τ)`,
+        // and a span of at most a turn about `t` meets it, and the copy a
+        // turn back, in one piece each. A piece is read where its ends'
+        // order is proved, and one proved empty is none.
+        let tau = T::tau();
+        let mut outside = Vec::with_capacity(2);
+        if span.ended() {
+            let (t0, t1) = span.params();
+            let (lo, hi) = (t0.min(t1), t0.max(t1));
+            for (x, y) in [
+                (lo.max(to - tau), hi.min(from)),
+                (lo.max(to), hi.min(from + tau)),
+            ] {
+                match geom_core::k_stats::param_order(row::WINDOW_PIECE, y, x) {
+                    Ok(Sign::Positive) => outside.push((x, y)),
+                    Ok(Sign::Negative | Sign::Zero) => {}
+                    Err(_) => return whole,
+                }
+            }
+        } else {
+            outside.push((to, from + tau));
+        }
+        let clear = outside
+            .into_iter()
+            .all(|piece| Span::new(span.carrier(), piece).clear_by(crossing, ball, band));
+        if !clear {
+            return whole;
+        }
+        (rho * speeds_within(k, t, rho).1, rho)
+    }
+
+    /// The angle at the least speed that `reach` metres of the carrier
+    /// cover, the most a run of that length turns through: on a line,
+    /// none.
+    fn angle_of(self, reach: T) -> T {
+        match self {
+            Self::Line(_) => T::zero(),
+            Self::Conic(k) => reach / k.speed_lo(),
+        }
+    }
+
+    /// A bound on the curvature over the angles within `rho` of `t`: zero
+    /// on a line; on a conic `ab/|C′|³` at its least speed there
+    /// ([`speeds_within`]).
+    fn curvature_near(self, t: T, rho: T) -> T {
         let Self::Conic(k) = self else {
             return T::zero();
         };
         let (a, b) = k.semi_axes();
-        let run = reach / k.speed_lo();
-        let half = T::pi() / T::from_f64(2.0);
-        // How near the arc comes to where `|C′|` is least: `θ ≡ 0 (mod π)`
-        // where `a ≥ b`, `θ ≡ π/2` otherwise.
-        let slow = (a - b).select_le_zero(t - half, t);
-        let off = (slow.reduce_periodic_centred(T::pi()).abs() - run).max(T::zero());
-        let near = off.min(half).sin().powi(2);
-        let (long, short) = (k.speed_hi(), k.speed_lo());
-        let least = (short.powi(2) + (long.powi(2) - short.powi(2)) * near).sqrt();
-        a * b / least.powi(3)
+        a * b / speeds_within(k, t, rho).0.powi(3)
     }
+}
+
+/// **A conic's least and greatest speed over the angles within `rho` of
+/// `t`**: `|C′|² = b² + (a² − b²)·sin²θ`, least where the angles come
+/// nearest `θ ≡ 0 (mod π)` and greatest nearest `θ ≡ π/2` (for `a ≥ b`;
+/// the other way round otherwise), each its extreme overall where the
+/// angles reach it.
+fn speeds_within<T: Decide>(k: &dyn Conic<T>, t: T, rho: T) -> (T, T) {
+    let (a, b) = k.semi_axes();
+    let half = T::pi() / T::from_f64(2.0);
+    let (slow, fast) = (
+        (a - b).select_le_zero(t - half, t),
+        (a - b).select_le_zero(t, t - half),
+    );
+    let off = |x: T| {
+        (x.reduce_periodic_centred(T::pi()).abs() - rho)
+            .max(T::zero())
+            .min(half)
+    };
+    let (long, short) = (k.speed_hi(), k.speed_lo());
+    let speed = |s2: T| (short.powi(2) + (long.powi(2) - short.powi(2)) * s2).sqrt();
+    (
+        speed(off(slow).sin().powi(2)),
+        speed(off(fast).cos().powi(2)),
+    )
 }
 
 /// A crossing or touch of the other's plane, polished to the carriers'
@@ -1167,12 +1278,23 @@ impl<T: Decide> Polish<'_, T> {
             (hold(self.span_a), hold(self.span_b)),
         );
         let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
-        // Every pair of the window lies within `region` of the start, and
-        // the polished pair within its travel of it: within `span` of the
-        // polished pair, along the first carrier; on the second only in
-        // chord, the arc reading unproved there (module docs, (P1)).
-        let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
-        let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
+        // Every pair of the window within the escalation has its first
+        // point within `region` of the start along the first carrier, and
+        // the polished pair is within its travel of it; its second point
+        // is within the ball about the crossing, so within the ball and
+        // `q`'s own distance from the crossing of `q`, read as an arc
+        // from `q` (module docs, (P1)).
+        let along_a = region + self.a.run(s0, s);
+        let (arc_b, near_b) = self.b.arc_from(
+            self.span_b,
+            t,
+            ball + (q - crossing).norm(),
+            (crossing, ball),
+            band,
+        );
+        let span = along_a.max(arc_b);
+        let curvature =
+            self.a.curvature_near(s0, self.a.angle_of(along_a)) + self.b.curvature_near(t, near_b);
         // A side held at an end of its span reads its window's arcs
         // into the span alone, so the gap is read across the other
         // side's tangent with the held arc a half-line (module docs, "A

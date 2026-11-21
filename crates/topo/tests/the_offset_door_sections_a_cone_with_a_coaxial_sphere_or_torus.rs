@@ -26,7 +26,7 @@ fn derived(cone: &Surface<f64>, other: &Surface<f64>, seed: &Curve3<f64>) -> Cur
     let region = geom_brep::Reach::of_span(seed, span).expect("the seed has a region");
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     match topo::section_near(
-        None,
+        None::<geom_core::NoLane>,
         (cone, other),
         (seed, span),
         &region,
