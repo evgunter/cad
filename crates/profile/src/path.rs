@@ -1587,13 +1587,10 @@ pub enum PathError<T: Real> {
         /// The refused extent, meters (scalar-typed payload).
         length: Told,
     },
-    /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
-    /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
-    /// at θ = 2π), so the smallest declared subdivision of a closed
-    /// carrier is two arcs — which is [`circle`]'s own private
-    /// lowering; and each arc is named by a `u32` piece index
-    /// ([`crate::PieceRole::Piece`]), so a count past that bound would
-    /// spell two arcs alike. A structural check, not a classified one:
+    /// A [`circle_split`] subdivision count outside `1..=u32::MAX`.
+    /// Zero arcs draw no circle, and each arc is named by a `u32` piece
+    /// index ([`crate::PieceRole::Piece`]), so a count past that bound
+    /// would spell two arcs alike. A structural check, not a classified one:
     /// `n` is a count, never a measured value.
     CircleSplitCount {
         /// The refused subdivision count.
@@ -2291,9 +2288,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
-                "circle_split needs between 2 and {max} arcs (got n = {n}): a single vertex \
-                 cannot carry a full turn (bulge diverges), and each arc is named by a u32 \
-                 piece index",
+                "circle_split needs between 1 and {max} arcs (got n = {n}): zero arcs draw \
+                 no circle, and each arc is named by a u32 piece index",
                 max = u32::MAX
             ),
             Self::PolygonTooFewVertices { given } => write!(
@@ -5138,46 +5134,19 @@ fn chord_tangents<T: Real>(d: Vec2<T>, sweep: T) -> (Dir<T>, Dir<T>) {
 }
 
 /// The kernel behind the table's circle row: the lowered loop (the
-/// row supplies the one-step program).
+/// row supplies the one-step program). A circle is the split circle of
+/// [`crate::structure::CIRCLE_PIECES`] arcs at phase 0.
 fn circle_kernel<T: Decide>(
     center: Point2<T>,
     radius: T,
     tol: Tol,
 ) -> Result<ProfileLoop<T>, PathError<T>> {
-    let band = linear_band(tol)?;
-    match decide(Gate::PathCircleRadius, Margin::of(radius), band) {
-        Ok(Sign::Positive) => {}
-        Ok(_) => {
-            return Err(PathError::NonpositiveCircleRadius {
-                radius: authored_length(radius),
-            });
-        }
-        Err(source) => return Err(PathError::escalated(source)),
-    }
-    // One vertex per piece the role list admits a `circle`: the table
-    // is typed at `CIRCLE_PIECES`, so the two cannot disagree. Each
-    // half turns through 4·atan(1).
-    let half = T::from_f64(4.0) * T::one().atan();
-    let (one, zero) = (T::one(), T::zero());
-    let radials: [Vec2<T>; crate::structure::CIRCLE_PIECES as usize] =
-        [Vec2::new(one, zero), Vec2::new(-one, zero)];
-    let vertices: [Point2<T>; crate::structure::CIRCLE_PIECES as usize] = [
-        Point2::new(center.x + radius, center.y),
-        Point2::new(center.x - radius, center.y),
-    ];
-    let on_carrier: Vec<_> = vertices
-        .iter()
-        .copied()
-        .zip(radials.iter().copied())
-        .collect();
-    circle_loop(
-        &on_carrier,
+    circle_split_kernel(
         center,
         radius,
-        half,
+        crate::structure::CIRCLE_PIECES as usize,
+        T::zero(),
         tol,
-        band,
-        program::Verb::Circle,
     )
 }
 
@@ -5203,7 +5172,13 @@ fn circle_split_kernel<T: Decide>(
     order::circle_split_count(n)?;
     let n_t = T::from_f64(n as f64);
     let four = T::from_f64(4.0);
-    let sweep = four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan();
+    // One arc is the full turn 8·atan(1), where the split arithmetic's
+    // quarter-tangent tan(π/2) is the pole.
+    let sweep = if n == 1 {
+        T::from_f64(8.0) * T::one().atan()
+    } else {
+        four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan()
+    };
     let radials: Vec<Vec2<T>> = (0..n)
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
@@ -5288,9 +5263,10 @@ fn rectangle_kernel<T: Decide>(
 ///
 /// **Its endpoint facts are theorems**, registered at `tol`: each
 /// vertex is the centre plus the radius along a unit direction, and
-/// the next is that direction rotated by `sweep` (a half turn for
-/// `circle`; 2π/n, spelled 4·atan(tan(π/2n)), for `circle_split`), over
-/// the reals at every value of the centre, radius and phase; each is
+/// the next is that direction rotated by `sweep` (2π/n, spelled
+/// 4·atan(tan(π/2n)), and at n = 1 the full turn 8·atan(1) back to the
+/// vertex itself), over the reals at every value of the centre, radius
+/// and phase; each is
 /// read back before the loop is stored ([`arc_reads_back`]), as piece
 /// `k` of the one step the `verb` row records. `on_carrier` holds each
 /// vertex with that unit direction, which each arc records at its two
@@ -7118,6 +7094,94 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The full turn `seg::build_loop_seg`'s by-construction arm
+    /// trusts is written exactly.** That arm decides only the turn's
+    /// reach and sense; the circle kernel is the door that constructs a
+    /// full turn, so it owes the rest: its one vertex on its carrier and
+    /// |Δθ| = 2π. The decided arm asks both (`arc_start_on_carrier`,
+    /// `arc_landing`, and `arc_sweep_range`, which accepts only a whole
+    /// turn) of `circle` and of the split circle at n = 1 and an
+    /// arbitrary phase, near the origin, far from it and small, at
+    /// `f64` and `Interval`. The sweep is τ to the bit at `f64` and
+    /// encloses τ at `Interval`.
+    #[test]
+    fn the_circle_kernel_writes_its_full_turn_on_its_carrier_and_exactly_a_turn() {
+        fn check<T: Decide + geom_core::Bounds>(tol: Tol) {
+            let cases: [((f64, f64), f64, Option<f64>); 6] = [
+                ((0.0, 0.0), 1.0, None),
+                ((0.1, -0.3), 0.7, None),
+                ((1.0e3, -2.5e2), 3.0e-3, None),
+                ((0.25, -0.5), 1.5, Some(0.4)),
+                ((-7.0, 2.0), 40.0, Some(-2.9)),
+                ((3.0, 1.0), 0.2, Some(core::f64::consts::PI)),
+            ];
+            let band = linear_band::<T>(tol).expect("a band at the run's ε");
+            let tau = T::tau();
+            for ((cx, cy), r, phase) in cases {
+                let what = format!("({cx}, {cy}) r {r} phase {phase:?}");
+                let centre = Point2::new(T::from_f64(cx), T::from_f64(cy));
+                let radius = T::from_f64(r);
+                let lp = match phase {
+                    None => circle_kernel(centre, radius, tol),
+                    Some(p) => circle_split_kernel(centre, radius, 1, T::from_f64(p), tol),
+                }
+                .unwrap_or_else(|e| panic!("{what}: {e}"));
+                assert_eq!(lp.vertices().len(), 1, "{what}: one vertex");
+                let crate::Segment::Arc(arc) = lp.segments()[0] else {
+                    panic!("{what}: the one segment is an arc");
+                };
+                assert!(
+                    arc.sweep.lo() <= tau.lo() && arc.sweep.hi() >= tau.hi(),
+                    "{what}: the sweep [{}, {}] holds τ",
+                    arc.sweep.lo(),
+                    arc.sweep.hi()
+                );
+                if T::WITNESS == geom_core::Witness::Inexact {
+                    assert_eq!(arc.sweep.lo().to_bits(), tau.lo().to_bits(), "{what}: τ");
+                }
+                let seg = seg::build_loop_seg(
+                    lp.vertices(),
+                    lp.segments(),
+                    0,
+                    seg::Consistency::Decide,
+                    band,
+                )
+                .unwrap_or_else(|e| panic!("{what}: the decided arm refuses at {}", e.predicate()));
+                let seg::SegKind::Arc(g) = seg.kind else {
+                    panic!("{what}: a full turn reads as a line");
+                };
+                assert!(matches!(g.span, seg::ArcSpan::FullTurn), "{what}: a full turn");
+                assert_eq!(g.turn, Sign::Positive, "{what}: counterclockwise");
+            }
+        }
+        let tol = Tol::witness();
+        check::<f64>(tol);
+        check::<geom_core::Interval>(tol);
+    }
+
+    /// `circle` is `circle_split` at one arc and phase 0, to the bit,
+    /// its vertex the `+x` point; a split count of zero is refused.
+    #[test]
+    fn a_circle_is_the_split_circle_of_one_arc_and_zero_arcs_are_refused() {
+        let tol = Tol::witness();
+        let centre = Point2::new(0.1, -0.3);
+        let a = circle_kernel(centre, 0.7, tol).expect("circle");
+        let b = circle_split_kernel(centre, 0.7, 1, 0.0, tol).expect("circle_split(1)");
+        assert_eq!(format!("{a:?}"), format!("{b:?}"), "one lowering");
+        assert_eq!(
+            (a.vertices()[0].x.to_bits(), a.vertices()[0].y.to_bits()),
+            ((0.1f64 + 0.7).to_bits(), (-0.3f64).to_bits()),
+            "the vertex is the +x point"
+        );
+        assert!(
+            matches!(
+                circle_split_kernel(centre, 0.7, 0, 0.0, tol),
+                Err(PathError::CircleSplitCount { n: 0 })
+            ),
+            "n = 0 is refused"
+        );
     }
 }
 

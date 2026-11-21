@@ -1927,13 +1927,11 @@ transition_table! {
             /// **It authors no seam.** That is the whole point, and it is what
             /// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
             /// fillet, never mid-carrier) untouched: a chain still cannot close
-            /// mid-carrier, because the split this primitive uses is not authored
-            /// at all. The conventional split — two semicircles at the ±x poles,
-            /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
-            /// M2 closed-carrier precedent: a detail of how a closed carrier
-            /// reaches a vertex-and-segment document, not a junction anyone said. The two
-            /// joints are same-carrier identities the form constructs, so
-            /// validation verifies them and records neither (it is one circle).
+            /// mid-carrier, because this primitive is not a chain. It lowers as
+            /// [`circle_split`] does at `n = 1`, phase 0: ONE segment, a
+            /// counterclockwise full turn on its carrier from one vertex at `+x`.
+            /// That vertex is where a swept wall's seam sits; it is no junction
+            /// anyone said, and there is no joint to record (it is one circle).
             ///
             /// `radius` must classify definitely positive
             /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
@@ -1968,7 +1966,7 @@ transition_table! {
         centre: Point2<T>,
         #[doc = " The carrier's radius (definitely positive)."]
         radius: T,
-        #[doc = " The subdivision count (STRUCTURAL, ≥ 2)."]
+        #[doc = " The subdivision count (STRUCTURAL, ≥ 1)."]
         n: usize,
         #[doc = " The first vertex's angle from +x (continuous)."]
         phase: T,
@@ -1989,15 +1987,16 @@ transition_table! {
             /// Numerics, stated plainly: vertex `k` sits at
             /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
             /// every arc sweeps `4·atan(tan(π/(2n)))` about the authored centre at
-            /// the authored radius — all through the scalar's libm-pure
+            /// the authored radius (at `n = 1`, the one full turn `8·atan(1)` from
+            /// the one vertex, which is [`circle`] with an authored phase) — all
+            /// through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
-            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
-            /// — a one-vertex full turn's quarter-tangent, `tan(π/2)`, is the
-            /// pole). `n` is
-            /// structural (a count, never a value); `phase` is continuous.
+            /// same funnel row); `n` must lie in `1..=u32::MAX`
+            /// ([`PathError::CircleSplitCount`]). `n` is structural (a count,
+            /// never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
                 centre: Point2<T>,
                 radius: T,

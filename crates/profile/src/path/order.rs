@@ -24,7 +24,7 @@ pub enum OrderFault {
     /// A seam fillet over a chain whose first side is not straight
     /// ([`PathError::SeamRetrimsArcFirstSide`]).
     SeamRetrimsArcFirstSide,
-    /// A `circle_split` count outside `2..=u32::MAX`
+    /// A `circle_split` count outside `1..=u32::MAX`
     /// ([`PathError::CircleSplitCount`]).
     CircleSplitCount {
         /// The written count.
@@ -141,10 +141,10 @@ pub(crate) fn a_closing_arc_leaves_its_entry(drawn: bool) -> Result<(), OrderFau
     Ok(())
 }
 
-/// A `circle_split` draws `n` arcs, two at least, each named by a
+/// A `circle_split` draws `n` arcs, one at least, each named by a
 /// `u32`.
 pub(crate) fn circle_split_count(n: usize) -> Result<(), OrderFault> {
-    if n < 2 || u32::try_from(n).is_err() {
+    if n == 0 || u32::try_from(n).is_err() {
         return Err(OrderFault::CircleSplitCount { n });
     }
     Ok(())

@@ -234,9 +234,8 @@ walls"):
     edit moves every piece along the carrier, and whatever hangs on it,
     and renames none: a shift by a whole number of arcs draws the same
     circle with each piece some places along it;
-  - a `circle` has `Piece(0)` and `Piece(1)`. It is drawn as the
-    `circle_split` with `n = 2` and phase 0: two semicircles, split at the
-    circle's `±x` points.
+  - a `circle` has `Piece(0)`. It is drawn as the `circle_split` with
+    `n = 1` and phase 0: one full turn from the circle's `+x` point.
   - a `rectangle` has `Piece(0)` to `Piece(3)`: its bottom, right, top and
     left sides, in that order from its lower-left corner (PATHS-DESIGN §1a).
 

@@ -227,7 +227,9 @@ canonical form already validated: `lift_onto`, `value_channel`,
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and
-`circle_split` author no seam (their split is a private lowering), and
+`circle_split` author no seam (their vertices are no junction anyone
+said: `circle`'s one vertex at `+x`, `circle_split`'s `n` from its
+phase), and
 `rectangle`'s seam sits at its lower-left corner, a junction, so all
 three are program forms, not a PQ4 relaxation. The differential suite
 (`tests/path_differential.rs`) compares against recorded fixtures and

@@ -98,9 +98,10 @@ pub enum Fidelity {
 /// [`LiftOutcome::ReplayRefused`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum LiftRefusal {
-    /// Fewer than two vertices: the chain vocabulary spells a loop
-    /// from two vertices up, so a one-segment loop (D1's full turn) has
-    /// no spelling here yet.
+    /// No vertices: an empty table spells no loop. A one-vertex table
+    /// is read like any other — D1's full turn lifts to `circle` or
+    /// `circle_split` with `n = 1`, and anything else at one vertex is
+    /// refused by validation ([`LiftRefusal::Unclassified`]).
     TooFewVertices {
         /// How many the loop carried.
         vertices: usize,
@@ -135,7 +136,7 @@ impl std::fmt::Display for LiftRefusal {
             Self::TooFewVertices { vertices } => {
                 write!(
                     f,
-                    "the chain vocabulary spells a loop of at least two vertices; found {vertices}"
+                    "the chain vocabulary spells a loop of at least one vertex; found {vertices}"
                 )
             }
             Self::NonFinite { vertex } => {
@@ -321,7 +322,7 @@ struct Seamed {
 /// The lift proper ([`Seamed`]).
 fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Seamed, LiftRefusal> {
     let n = loop_.vertices.len();
-    if n < 2 {
+    if n == 0 {
         return Err(LiftRefusal::TooFewVertices { vertices: n });
     }
     for (i, (v, segment)) in loop_.vertices.iter().zip(&loop_.segments).enumerate() {
@@ -385,7 +386,7 @@ fn carrier_form(
     let n = loop_.vertices.len();
     // Only a loop that is arcs all the way round can be one carrier;
     // this guard keeps the search off every polygon.
-    if n < 2 || loop_.segments.iter().any(|s| matches!(s, Segment::Line)) {
+    if n == 0 || loop_.segments.iter().any(|s| matches!(s, Segment::Line)) {
         return None;
     }
     let mut best: Option<(Vec<Step<f64>>, usize, u64)> = None;
@@ -398,7 +399,7 @@ fn carrier_form(
         let phase = (a.y - centre.y).atan2(a.x - centre.x);
         let want = rotated(loop_, tangent, r);
         let mut candidates = Vec::with_capacity(2);
-        if n == 2 {
+        if n == crate::structure::CIRCLE_PIECES as usize {
             candidates.push(vec![Step::Circle { centre, radius }]);
         }
         candidates.push(vec![Step::CircleSplit {
