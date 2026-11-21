@@ -504,6 +504,160 @@ impl PatchSpans {
                 .collect(),
         }
     }
+    /// The control points of a RATIONAL vector form on cell `(su, sv)`:
+    /// `(X_k/W_k, Y_k/W_k, Z_k/W_k)` with weight `W_k` for each
+    /// coefficient index `k`, `points` the homogeneous channels and
+    /// `weight` the weight channel. With every `W_k > 0` the form's
+    /// values on the cell are convex combinations of these points (the
+    /// rational Bernstein basis is a nonnegative partition of unity), so
+    /// any bound read off them holds over the cell. `None` where the
+    /// channels do not share one cell structure and bidegree, the cell is
+    /// out of range, or a weight coefficient is not certified positive.
+    pub fn rational_cell_controls(
+        points: [&Self; 3],
+        weight: &Self,
+        su: usize,
+        sv: usize,
+    ) -> Option<Vec<(crate::Vec3<Interval>, Interval)>> {
+        use crate::real::Bounds as _;
+        let [a, b, c] = points;
+        let shared = |o: &Self| a.aligned(o) && a.degree() == o.degree();
+        if !(shared(b) && shared(c) && shared(weight)) {
+            return None;
+        }
+        let (na, nb, nc, nw) = (
+            a.block(su, sv)?,
+            b.block(su, sv)?,
+            c.block(su, sv)?,
+            weight.block(su, sv)?,
+        );
+        let mut out = Vec::with_capacity(nw.len());
+        for k in 0..nw.len() {
+            let w = nw[k];
+            if !(w.is_certified() && w.lo() > 0.0) {
+                return None;
+            }
+            out.push((crate::Vec3::new(na[k] / w, nb[k] / w, nc[k] / w), w));
+        }
+        Some(out)
+    }
+}
+
+/// A composite residual of a tensor-product patch in rational
+/// Bernstein form: `num/den` cell by cell, both on one cell structure.
+/// The patch-side twin of [`super::CompositeForm`].
+#[derive(Clone, Debug)]
+pub struct PatchComposite {
+    /// The numerator channel.
+    pub num: PatchSpans,
+    /// The denominator channel: a power of the weight function, so
+    /// strictly positive for valid data.
+    pub den: PatchSpans,
+}
+
+impl PatchComposite {
+    /// A certified enclosure of the composite's values on cell
+    /// `(su, sv)`: the hull of the coefficient ratios `N_k/D_k` of a
+    /// numerator and denominator of one bidegree (every form
+    /// [`canonical_patch_composite`] builds is homogeneous). With every
+    /// `D_k > 0` the value `N/D = Σ (B_k·D_k/D)·(N_k/D_k)` is a convex
+    /// combination of those ratios, which is tighter than the
+    /// numerator's hull over the denominator's wherever the weights vary.
+    /// Refused for an out-of-range cell, two bidegrees, or a denominator
+    /// coefficient not certified positive.
+    pub fn cell_bound(&self, su: usize, sv: usize) -> Interval {
+        use crate::real::Bounds as _;
+        if self.num.degree() != self.den.degree() {
+            return Interval::refused();
+        }
+        let (Some(n), Some(d)) = (self.num.block(su, sv), self.den.block(su, sv)) else {
+            return Interval::refused();
+        };
+        if n.len() != d.len() || n.is_empty() {
+            return Interval::refused();
+        }
+        let mut acc = Interval::refused();
+        for (k, (nk, dk)) in n.iter().zip(d).enumerate() {
+            if !(dk.is_certified() && dk.lo() > 0.0) {
+                return Interval::refused();
+            }
+            let ratio = *nk / *dk;
+            acc = if k == 0 {
+                ratio
+            } else {
+                Interval::hull(acc, ratio)
+            };
+        }
+        acc
+    }
+}
+
+/// The composite `f ∘ S` for a [`super::CanonicalSurface`] over a
+/// tensor-product patch already written in that surface's chart frame,
+/// in rational Bernstein form cell by cell: `points` are the patch's
+/// homogeneous channels in that frame and `weight` its weight channel
+/// ([`super::tensor::SurfaceCertData::bernstein_channels`]). The forms are
+/// [`super::canonical_composite`]'s polynomials, one parameter up; the
+/// torus's is associated differently, for a narrower enclosure (its arm),
+/// and the curve twin has not followed
+/// (`work/nurbs/the-curve-and-patch-canonical-composites-are-two-hand-kept-copies.md`).
+pub fn canonical_patch_composite(
+    points: &[PatchSpans; 3],
+    weight: &PatchSpans,
+    form: &super::CanonicalSurface,
+) -> PatchComposite {
+    use super::CanonicalSurface;
+    let g = points;
+    let w = weight;
+    let squared = || w.mul(w);
+    let radial = || g[0].mul(&g[0]).add(&g[1].mul(&g[1]));
+    let sum_of_squares = || {
+        let zero = g[0].constant(Interval::zero());
+        zero.add(&g[0].mul(&g[0]))
+            .add(&g[1].mul(&g[1]))
+            .add(&g[2].mul(&g[2]))
+    };
+    match *form {
+        CanonicalSurface::Plane => PatchComposite {
+            num: g[2].clone(),
+            den: w.clone(),
+        },
+        CanonicalSurface::Cylinder { radius } => {
+            let w2 = squared();
+            PatchComposite {
+                num: radial().sub(&w2.scale(radius.sqr())),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Sphere { radius } => {
+            let w2 = squared();
+            PatchComposite {
+                num: sum_of_squares().sub(&w2.scale(radius.sqr())),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Cone { cos2, sin2 } => PatchComposite {
+            num: radial().scale(cos2).sub(&g[2].mul(&g[2]).scale(sin2)),
+            den: squared(),
+        },
+        CanonicalSurface::Torus { major, minor } => {
+            // The quartic as `A² + 4R²·W²·(Z² − r²W²)` with
+            // `A = |G|² − (R² + r²)·W²` — the same polynomial as
+            // `(|G|² + (R² − r²)W²)² − 4R²·(X² + Y²)·W²`, since
+            // `|G|² − (X² + Y²) = Z²`, but near the torus each term is of the
+            // size `(2Rr)²` the form's value is measured against, where the
+            // other association subtracts two terms of size `(2R²)²`: the
+            // enclosure is narrower by about `(R/r)²`.
+            let w2 = squared();
+            let a = sum_of_squares().sub(&w2.scale(major.sqr() + minor.sqr()));
+            let tube = g[2].mul(&g[2]).sub(&w2.scale(minor.sqr()));
+            let four_r2 = Interval::point(4.0) * major.sqr();
+            PatchComposite {
+                num: a.mul(&a).add(&w2.mul(&tube).scale(four_r2)),
+                den: w2.mul(&w2),
+            }
+        }
+    }
 }
 
 /// Degree elevation's per-direction multiplier: the all-ones row of
@@ -1197,6 +1351,202 @@ mod tests {
         assert!(
             worst_under <= 1e-14,
             "{under_box} cells read under the box, the worst by {worst_under:e} of it"
+        );
+    }
+
+    /// A quarter turn about `+z` of a meridian profile `(ρ, z)`, one span
+    /// each way (Piegl–Tiller): control coordinates as point enclosures,
+    /// row-major `iu·3 + iv`, and the weights.
+    fn revolved_about_z(
+        profile: &[(f64, f64)],
+        profile_w: &[f64],
+    ) -> (Vec<Vec<Interval>>, Vec<f64>) {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let turn = [((1.0, 0.0), 1.0), ((1.0, 1.0), w), ((0.0, 1.0), 1.0)];
+        let mut coords = vec![Vec::new(), Vec::new(), Vec::new()];
+        let mut weights = Vec::new();
+        for (&(rho, z), &wp) in profile.iter().zip(profile_w) {
+            for &((c, s), wt) in &turn {
+                for (d, x) in [rho * c, rho * s, z].into_iter().enumerate() {
+                    coords[d].push(Interval::point(x));
+                }
+                weights.push(wp * wt);
+            }
+        }
+        (coords, weights)
+    }
+
+    fn knots(degree: usize) -> KnotVector {
+        let mut k = vec![0.0; degree + 1];
+        k.extend(vec![1.0; degree + 1]);
+        KnotVector::clamped(k, degree).unwrap()
+    }
+
+    const QUARTER_W: [f64; 3] = [1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+
+    /// **The channels are the homogeneous net, cell by cell**: on a
+    /// two-span `u` vector the decomposition has one cell per span, and a
+    /// cell's corner coefficient is the corner control point's `w·x` (a
+    /// clamped spline interpolates its end controls) and its weight.
+    #[test]
+    fn the_channels_are_the_homogeneous_net_cell_by_cell() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = knots(1);
+        let weights = vec![1.0, 2.0, 0.5, 1.5, 3.0, 1.0, 2.5, 0.75];
+        let coords: Vec<Vec<Interval>> = (0..3)
+            .map(|d| {
+                (0..8)
+                    .map(|k| Interval::point(f64::from(u8::try_from(k * 3 + d).unwrap()) - 7.0))
+                    .collect()
+            })
+            .collect();
+        let data = super::super::tensor::SurfaceCertData::new(&ku, &kv, &weights, &coords).unwrap();
+        let (points, weight) = data.bernstein_channels();
+        assert_eq!(points[0].cell_counts(), (2, 1), "one cell per knot span");
+        assert_eq!(weight.cell_counts(), (2, 1));
+        let first = points[1].cell_coeffs(0, 0).unwrap()[0];
+        let want = Interval::point(weights[0]) * coords[1][0];
+        assert!(
+            first.lo() == want.lo() && first.hi() == want.hi(),
+            "the first cell's corner is w·y of the first control: {first:?} vs {want:?}"
+        );
+        let last = *points[2].cell_coeffs(1, 0).unwrap().last().unwrap();
+        let want = Interval::point(weights[7]) * coords[2][7];
+        assert!(
+            last.lo() <= want.lo() && want.hi() <= last.hi(),
+            "the last cell's far corner holds w·z of the last control: {last:?} vs {want:?}"
+        );
+        let w_last = *weight.cell_coeffs(1, 0).unwrap().last().unwrap();
+        assert!(w_last.lo() <= 0.75 && 0.75 <= w_last.hi(), "{w_last:?}");
+    }
+
+    /// **A rational cell's controls are its points' hull**: on a one-span
+    /// net they are the control points themselves, each enclosed; a weight
+    /// channel of another cell structure is refused.
+    #[test]
+    fn a_rational_cells_controls_are_its_control_points() {
+        let (coords, weights) = revolved_about_z(&[(2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], &QUARTER_W);
+        let k = knots(2);
+        let data = super::super::tensor::SurfaceCertData::new(&k, &k, &weights, &coords).unwrap();
+        let (points, weight) = data.bernstein_channels();
+        let controls =
+            PatchSpans::rational_cell_controls([&points[0], &points[1], &points[2]], &weight, 0, 0)
+                .unwrap();
+        assert_eq!(controls.len(), 9);
+        for (k, (c, w)) in controls.iter().enumerate() {
+            for (d, x) in [c.x, c.y, c.z].into_iter().enumerate() {
+                let want = coords[d][k].lo();
+                assert!(
+                    x.lo() <= want && want <= x.hi() && x.hi() - x.lo() <= 1e-15,
+                    "control {k}, coordinate {d}: {x:?} vs {want}"
+                );
+            }
+            assert!(w.lo() <= weights[k] && weights[k] <= w.hi(), "weight {k}");
+        }
+        let other = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let w4: Vec<f64> = vec![1.0; 12];
+        let c4: Vec<Vec<Interval>> = (0..3).map(|_| vec![Interval::point(0.0); 12]).collect();
+        let (_, misaligned) = super::super::tensor::SurfaceCertData::new(&other, &k, &w4, &c4)
+            .unwrap()
+            .bernstein_channels();
+        assert!(
+            PatchSpans::rational_cell_controls(
+                [&points[0], &points[1], &points[2]],
+                &misaligned,
+                0,
+                0
+            )
+            .is_none(),
+            "a weight channel of another cell structure is refused"
+        );
+    }
+
+    /// **Each canonical form vanishes on its own exact patch**, cell bound
+    /// rounding-wide about zero (the torus's quartic in metres⁴ at a 4 m
+    /// reach: below 1e-10), and reads the true value off it: the
+    /// plane, cylinder, cone (half-angle π/4), sphere and torus, each a
+    /// rational surface of revolution about `+z` written in its chart
+    /// frame; the torus with its tube read too fat holds the true negative
+    /// value `f = (d₁² − r²)(d₂² − r²)` and excludes zero.
+    #[test]
+    fn each_canonical_form_vanishes_on_its_exact_patch() {
+        use super::super::CanonicalSurface;
+        let half = Interval::point(0.5);
+        type Case<'a> = (&'a str, Vec<(f64, f64)>, &'a [f64], usize, CanonicalSurface);
+        let cases: [Case<'_>; 5] = [
+            (
+                "plane",
+                vec![(1.0, 0.0), (2.0, 0.0)],
+                &[1.0, 1.0],
+                1,
+                CanonicalSurface::Plane,
+            ),
+            (
+                "cylinder",
+                vec![(1.5, 0.0), (1.5, 1.0)],
+                &[1.0, 1.0],
+                1,
+                CanonicalSurface::Cylinder {
+                    radius: Interval::point(1.5),
+                },
+            ),
+            (
+                "cone",
+                vec![(1.0, 1.0), (2.0, 2.0)],
+                &[1.0, 1.0],
+                1,
+                CanonicalSurface::Cone {
+                    cos2: half,
+                    sin2: half,
+                },
+            ),
+            (
+                "sphere",
+                vec![(2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+                &QUARTER_W,
+                2,
+                CanonicalSurface::Sphere {
+                    radius: Interval::point(2.0),
+                },
+            ),
+            (
+                "torus",
+                vec![(4.0, 0.0), (4.0, 1.0), (3.0, 1.0)],
+                &QUARTER_W,
+                2,
+                CanonicalSurface::Torus {
+                    major: Interval::point(3.0),
+                    minor: Interval::point(1.0),
+                },
+            ),
+        ];
+        let kv = knots(2);
+        for (what, profile, w, degree, form) in cases {
+            let (coords, weights) = revolved_about_z(&profile, w);
+            let ku = knots(degree);
+            let data =
+                super::super::tensor::SurfaceCertData::new(&ku, &kv, &weights, &coords).unwrap();
+            let (points, weight) = data.bernstein_channels();
+            let f = canonical_patch_composite(&points, &weight, &form).cell_bound(0, 0);
+            assert!(
+                f.is_certified() && f.lo() <= 0.0 && 0.0 <= f.hi() && f.hi() - f.lo() < 1e-10,
+                "{what}: the form vanishes on its patch: {f:?}"
+            );
+        }
+        // The tube read too fat: at the outer equator d₁ = 1, d₂ = 7.
+        let (coords, weights) = revolved_about_z(&[(4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], &QUARTER_W);
+        let k = knots(2);
+        let data = super::super::tensor::SurfaceCertData::new(&k, &k, &weights, &coords).unwrap();
+        let (points, weight) = data.bernstein_channels();
+        let fat = CanonicalSurface::Torus {
+            major: Interval::point(3.0),
+            minor: Interval::point(1.25),
+        };
+        let f = canonical_patch_composite(&points, &weight, &fat).cell_bound(0, 0);
+        let at_equator = (1.0 - 1.5625) * (49.0 - 1.5625);
+        assert!(
+            f.is_certified() && f.hi() < 0.0 && f.lo() <= at_equator && at_equator <= f.hi(),
+            "the fat tube's form is negative and holds its value at the equator: {f:?}"
         );
     }
 }
