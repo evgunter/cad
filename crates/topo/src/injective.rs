@@ -93,9 +93,6 @@
 //! within that tolerance, over `ψ`'s lean across the partner, of the
 //! vertex: the stored vertex's own tolerance, not a new one.
 
-macro_rules! cvs { () => {{ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVS x {}", line!()); } Unpresented::Structural }}; }
-macro_rules! gr { ($e:expr, $t:expr) => { match $e { Some(x) => x, None => { if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG {}", $t); } return None; } } }; }
-macro_rules! cvl { () => {{ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL x {}", line!()); } Unpresented::Local }}; }
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::{Curve3, Surface};
@@ -1372,13 +1369,11 @@ fn present<'a>(
 
 /// The failure for an edge no presentation reads: structural when the
 /// edge is a shared one.
-#[track_caller]
 fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     if near_edges.contains(&edge) {
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVS unread {}", std::panic::Location::caller().line()); }
         Unpresented::Structural
     } else {
-        cvl!()
+        Unpresented::Local
     }
 }
 
@@ -1501,7 +1496,7 @@ fn face_extent(
     if lines && on_nappe {
         Ok(Extent::Known(extent))
     } else {
-        Err(cvs!())
+        Err(Unpresented::Structural)
     }
 }
 
@@ -1581,7 +1576,7 @@ fn sheets(
         }
         let (k0, k1) = (((clo - hi) / TURN).floor(), ((chi - lo) / TURN).ceil());
         if !(k0.is_finite() && k1.is_finite()) {
-            return Err(cvs!());
+            return Err(Unpresented::Structural);
         }
         let copies: Vec<(f64, f64)> = core::iter::successors(Some(k0), |k| Some(k + 1.0))
             .take_while(|&k| k <= k1)
@@ -1592,7 +1587,7 @@ fn sheets(
         match copies.as_slice() {
             [] => return Ok(Sheets::Missed),
             [one] => on[axis.index()] = Sheet::Copy(one.0, one.1),
-            _ => return Err(cvl!()),
+            _ => return Err(Unpresented::Local),
         }
     }
     Ok(Sheets::On(on))
@@ -1636,7 +1631,6 @@ fn vacuous(
     cell: ((f64, f64), (f64, f64)),
     outside: &[(Side, Interval, usize)],
 ) -> bool {
-    if std::env::var_os("CV_TRACE").is_some() { for &(side, line, ei) in outside { eprintln!("CVV cell={cell:?} side={side:?} line={line:?} ei={ei} ranges={:?}", edge_ranges(b, &[ei], side.axis())); } }
     outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
         let touches = match side {
@@ -1694,10 +1688,8 @@ fn sides_are_the_faces(
     let covers = |c: &Clip| {
         let axis = c.side.axis().other();
         let periodic = periodic(axis);
-        let r = run_on(b, c, merged, periodic);
-        let ok = r.as_ref().is_some_and(|ranges| covered(axis.of(rect), ranges, periodic));
-        if !ok && std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC side={:?} at={:?} want={:?} ranges={:?}", c.side, c.at, axis.of(rect), r); }
-        ok
+        run_on(b, c, merged, periodic)
+            .is_some_and(|ranges| covered(axis.of(rect), &ranges, periodic))
     };
     let other_axis = |c: &Clip, d: &Clip| {
         c.side.axis() != d.side.axis() && c.collapsed.is_none() && d.collapsed.is_none()
@@ -1707,7 +1699,7 @@ fn sides_are_the_faces(
             merged
                 .iter()
                 .skip(i + 1)
-                .all(|d| !other_axis(c, d) || { let k = convex(b, c, d); if !k && std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC notconvex {:?} {:?}", c.side, d.side); } k })
+                .all(|d| !other_axis(c, d) || convex(b, c, d))
         })
 }
 
@@ -1871,7 +1863,7 @@ fn present_chart<'a>(
     let mut inside = false;
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+            return Err(Unpresented::Local);
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -1909,12 +1901,12 @@ fn present_chart<'a>(
             // A line on a periodic axis whose sheet is unknown has no
             // place, at any depth.
             let Some(line) = placed(piece.surface, iso, sheet, (lo, hi)) else {
-                return Err(cvs!());
+                return Err(Unpresented::Structural);
             };
             // Every read below, and the merge's folds, see only a
             // certified line.
             if !line.is_certified() {
-                return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+                return Err(Unpresented::Local);
             }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
@@ -1945,7 +1937,7 @@ fn present_chart<'a>(
         return if vacuous(b, piece.surface, cell, &outside) {
             Ok(Presentation::Vacuous)
         } else {
-            Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local })
+            Err(Unpresented::Local)
         };
     }
     // Lines on one side merge when they hold one common value; two
@@ -1962,7 +1954,7 @@ fn present_chart<'a>(
             .fold(f64::NEG_INFINITY, f64::max);
         let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
         if common_lo > common_hi {
-            return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+            return Err(Unpresented::Local);
         }
         let hull = Interval::from_bounds(
             on.iter().map(|c| c.at.lo()).fold(first.at.lo(), f64::min),
@@ -2003,7 +1995,7 @@ fn present_chart<'a>(
             // presented in any cell that holds that vertex; a cell away
             // from the apex reads it as any face.
             let Some(lo) = nappe(b, *apex, *axis, band) else {
-                return Err(cvs!());
+                return Err(Unpresented::Structural);
             };
             // The cell on the other nappe holds only the apex of the
             // face. This is read only where the face's extent wraps or is
@@ -2029,7 +2021,7 @@ fn present_chart<'a>(
             // not agree, which a smaller cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
-                Some(_) => return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local }),
+                Some(_) => return Err(Unpresented::Local),
                 None => merged.push(Clip {
                     side,
                     at: at(0.0),
@@ -2063,7 +2055,6 @@ fn present_chart<'a>(
                 continue;
             };
             for (pole, point) in poles {
-                if std::env::var_os("CV_POLE").is_some() { eprintln!("CVPOLE v={v:?} p={p:?} pole={pole:?} point={point:?} at={:?} y={y:?}", vertex_at_singular_point(p, point, band)); }
                 if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
                     continue;
                 }
@@ -2073,7 +2064,7 @@ fn present_chart<'a>(
                     continue;
                 }
                 if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+                    return Err(Unpresented::Local);
                 }
                 if north {
                     y.1 = line.hi();
@@ -2085,7 +2076,7 @@ fn present_chart<'a>(
                     Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
                         m.collapsed = Some(v);
                     }
-                    Some(_) => return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local }),
+                    Some(_) => return Err(Unpresented::Local),
                     None => merged.push(Clip {
                         side,
                         at: line,
@@ -2106,12 +2097,12 @@ fn present_chart<'a>(
     // `a_filleted_drum_certifies_across_its_fillet` pins.
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
     if !piece.whole && (no_width(x) || no_width(y)) {
-        return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+        return Err(Unpresented::Local);
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
-        return Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL chart {}", line!()); } Unpresented::Local });
+        return Err(Unpresented::Local);
     }
     // A rectangle clipped to within the band of a shared line is read as
     // holding no point of the face off that line: its extent across, in
@@ -2290,10 +2281,10 @@ fn zero_of(
             }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
-                _ => Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL zero_of {}", line!()); } Unpresented::Local }),
+                _ => Err(Unpresented::Local),
             }
         }
-        _ => Err({ if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVL zero_of {} zeros={:?} loose={loose:?} clips={:?}", line!(), zeros.iter().map(|c| (c.side, c.at, c.edges.clone(), c.collapsed)).collect::<Vec<_>>(), clips.iter().map(|c| (c.side, c.at, c.edges.clone(), c.collapsed)).collect::<Vec<_>>()); } Unpresented::Local }),
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -2385,7 +2376,7 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            return Err(cvl!());
+            return Err(Unpresented::Local);
         };
         return Ok(Presentation::Of(Box::new(Presented {
             surface: piece.surface,
@@ -2405,7 +2396,7 @@ fn present_plane<'a>(
         u_ref,
     } = *piece.surface
     else {
-        return Err(cvs!());
+        return Err(Unpresented::Structural);
     };
     let v_ref = normal.cross(u_ref);
     let chart = |p: Point3<Interval>| {
@@ -2415,7 +2406,7 @@ fn present_plane<'a>(
     // An edge's chart points in the loop's order, each with its parameter.
     type End = (Point2<Interval>, Interval);
     let segment = |ei: usize| -> Result<(End, End), Unpresented> {
-        let e = b.edges.get(ei).ok_or_else(|| cvl!())?;
+        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
         let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
         };
@@ -2431,7 +2422,7 @@ fn present_plane<'a>(
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let ((p, ta), (q, tb)) = segment(*e)?;
             let a = [q.x - p.x, q.y - p.y];
@@ -2453,7 +2444,7 @@ fn present_plane<'a>(
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
             if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
                 Zero::Side(
@@ -2481,13 +2472,13 @@ fn present_plane<'a>(
         }
         [e1, e2] => {
             let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             };
             let Some(&vtx) = r1.ends.iter().find(|v| r2.ends.contains(v)) else {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             };
             if piece.local.vertices.iter().any(|&w| w != vtx) {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let ((p1, s1), (q1, f1)) = segment(*e1)?;
             let ((p2, s2), (q2, f2)) = segment(*e2)?;
@@ -2529,7 +2520,7 @@ fn present_plane<'a>(
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
                     != Some(Sign::Positive)
             {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
             let d = [cell_u - o.x, cell_v - o.y];
@@ -2545,7 +2536,7 @@ fn present_plane<'a>(
                 || interval_sign_as((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN, band)
                     != Some(Sign::Positive)
             {
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let z1 = near_edges.contains(e1);
             let z2 = near_edges.contains(e2);
@@ -2580,7 +2571,7 @@ fn present_plane<'a>(
                 cache: Cache::default(),
             })))
         }
-        _ => Err(cvl!()),
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -2787,6 +2778,18 @@ struct Curved {
     t: (f64, f64),
     along: Along,
     past: Option<VertexKey>,
+    /// The next edge, where the side past the vertex is that edge and
+    /// not the curve continued ([`RunOn`]).
+    run: Option<RunOn>,
+}
+
+/// **A corner's other edge a curved side runs on along past the
+/// vertex** ([`present_corner`], "one run through the vertex"): its key,
+/// and whether the vertex is the curve's start, not its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RunOn {
+    edge: EdgeKey,
+    start: bool,
 }
 
 /// What a curved side's chart curve is.
@@ -2965,7 +2968,7 @@ fn beside_curve(
             && vertex_corner(piece, &at_v, near_edges, near_vertices).is_none()
     });
     if unread_corner {
-        return cvs!();
+        return Unpresented::Structural;
     }
     match curved.iter().find(|&&i| {
         b.edges.get(i).is_none_or(|e| {
@@ -2974,7 +2977,7 @@ fn beside_curve(
     }) {
         Some(&i) => unread(i, near_edges),
         None if curved.is_empty() => unread(first, near_edges),
-        None => cvl!(),
+        None => Unpresented::Local,
     }
 }
 
@@ -2989,7 +2992,7 @@ fn sharing(
 ) -> Result<bool, Unpresented> {
     let shared = near_edges.contains(&ei);
     if !shared && !near_vertices.is_empty() {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     Ok(shared)
 }
@@ -3020,7 +3023,7 @@ fn through_of(
         return Ok(None);
     };
     if e.ends[0] == e.ends[1] {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let start = e.ends[0] == c.vertex;
     let t = if start { t0 } else { t1 };
@@ -3034,7 +3037,7 @@ fn through_of(
     } else {
         let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
         if ext.is_nan() || ext <= 0.0 {
-            return Err(cvl!());
+            return Err(Unpresented::Local);
         }
         if start {
             (t0 - ext, t1)
@@ -3044,6 +3047,7 @@ fn through_of(
     };
     Ok(Some(Through {
         corner: c,
+        start,
         t,
         span,
         conic,
@@ -3109,7 +3113,7 @@ fn present_curved<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or_else(|| cvl!())?;
+    let e = piece.boundary.edges.get(ei).ok_or(Unpresented::Local)?;
     let [u] = e.uses.as_slice() else {
         return Err(unread(ei, near_edges));
     };
@@ -3120,11 +3124,11 @@ fn present_curved<'a>(
         return Err(unread(ei, near_edges));
     };
     let Some((carrier, span)) = e.arc.as_ref() else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
-        return Err(cvs!());
+        return Err(Unpresented::Structural);
     }
     // The curve continues through the join where the edge is closed, its
     // span a whole period, and the period moves the image by whole
@@ -3141,12 +3145,17 @@ fn present_curved<'a>(
     for column in [Axis::U, Axis::V] {
         let span = through.as_ref().map_or((t0, t1), |th| th.span);
         let pieces = Pieces::of(&chart, column, span, continued);
-        let Graph { x, y, above, t } =
-            match graph(piece, ei, u.plus, &pieces, through.as_ref(), band) {
-                Ok(g) => g,
-                Err(Unpresented::Local) => continue,
-                Err(e) => return Err(e),
-            };
+        let Graph {
+            x,
+            y,
+            above,
+            t,
+            run,
+        } = match graph(piece, ei, u.plus, &pieces, through.as_ref(), band) {
+            Ok(g) => g,
+            Err(Unpresented::Local) => continue,
+            Err(e) => return Err(e),
+        };
         let zero = if zeroed {
             Zero::Curve(
                 Side::of(column.other(), above),
@@ -3162,8 +3171,9 @@ fn present_curved<'a>(
                     },
                     past: through
                         .as_ref()
-                        .filter(|th| th.conic)
+                        .filter(|th| th.conic || run.is_some())
                         .map(|th| th.corner.vertex),
+                    run,
                 }),
             )
         } else {
@@ -3179,7 +3189,7 @@ fn present_curved<'a>(
             cache: Cache::default(),
         })));
     }
-    Err(cvl!())
+    Err(Unpresented::Local)
 }
 
 // ---------------------------------------------------- the spiric wall
@@ -3398,7 +3408,7 @@ fn present_wall<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or_else(|| cvl!())?;
+    let e = piece.boundary.edges.get(ei).ok_or(Unpresented::Local)?;
     let [u] = e.uses.as_slice() else {
         return Err(unread(ei, near_edges));
     };
@@ -3406,11 +3416,11 @@ fn present_wall<'a>(
         return Err(unread(ei, near_edges));
     };
     let Some((_, span)) = e.arc.as_ref() else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
-        return Err(cvs!());
+        return Err(Unpresented::Structural);
     }
     let shared = sharing(ei, near_edges, near_vertices)?;
     let closed = e.ends[0] == e.ends[1] && whole_turn(t0, t1);
@@ -3438,28 +3448,28 @@ fn present_wall<'a>(
         let (s0, s1) = through.as_ref().map_or((t0, t1), |th| th.span);
         let reach = w.on(Axis::V, Interval::from_bounds(s0, s1));
         turn_ladder((reach.lo(), reach.hi()), a)
-            .ok_or_else(|| cvl!())?
+            .ok_or(Unpresented::Local)?
             .into_iter()
             .find(|&k| {
                 let t = held(k);
                 s0 < t.lo() && t.hi() < s1
             })
-            .ok_or_else(|| cvl!())?
+            .ok_or(Unpresented::Local)?
     };
     let t = held(lift);
     if !Real::is_bounded(t) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     // Step 2: `R`, and nothing in it but the curve.
     let g = wrap(w.on(Axis::U, t), geom::mid_param(cu.0, cu.1));
     if !Real::is_bounded(g) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     // `R`'s `u` range holds `g` and is narrower than a turn, so the
     // curve's copies a turn either side miss it.
     let x = (cu.0.min(g.lo()), cu.1.max(g.hi()));
     if whole_turn(x.0, x.1) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let local = if x == piece.u && a == piece.v {
         piece.local.clone()
@@ -3477,7 +3487,7 @@ fn present_wall<'a>(
         through.as_ref().map(|th| th.corner.other),
         &local,
     ) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     // Step 3: the face's side.
     let rising = w.sigma > 0.0;
@@ -3490,7 +3500,7 @@ fn present_wall<'a>(
         // the columns', its point within `R`'s `u` range.
         let held = wrap(w.on(Axis::U, at(th.t)), geom::mid_param(x.0, x.1));
         if !(t.lo() <= th.t && th.t <= t.hi() && within(held, x)) {
-            return Err(cvl!());
+            return Err(Unpresented::Local);
         }
         let along = w.on(Axis::V, at(th.t)) + turns(lift);
         // The other edge is a parallel ([`reading`]), so its direction
@@ -3511,7 +3521,7 @@ fn present_wall<'a>(
         ) {
             Some(Ok(())) => {}
             Some(Err(e)) => return Err(e),
-            None => return Err(cvl!()),
+            None => return Err(Unpresented::Local),
         }
     }
     let zero = if shared {
@@ -3531,6 +3541,7 @@ fn present_wall<'a>(
                     on_edges: false,
                 },
                 past: None,
+                run: None,
             }),
         )
     } else {
@@ -3616,6 +3627,8 @@ struct Corner {
 /// other edge is an arc of the curve's own conic ([`Reading::Conic`]).
 struct Through {
     corner: Corner,
+    /// The vertex is the curve's start, not its end.
+    start: bool,
     t: f64,
     span: (f64, f64),
     conic: bool,
@@ -4032,47 +4045,42 @@ fn reach_of(boxes: impl Iterator<Item = [Interval; 2]>) -> [(f64, f64); 2] {
     })
 }
 
-/// **The corner's other edge leaves the curve read through it toward
-/// the face's side** ([`present_corner`]'s step 1, for a curve): it is
-/// straight in the chart, every copy of it but the one through the
-/// vertex misses `R`, and over the parameters `ts` the columns hold, the
-/// curve's chart tangent `τ = (τ_a, τ_b)`, `a` the column axis, and the
-/// edge's direction `d` make `(d_b·τ_a − d_a·τ_b)·sign τ_a` one strict
-/// sign, the face's side's.
-/// That is the derivative of the edge's height over the graph along it,
-/// which is zero at the vertex, so the edge stands strictly on the
-/// face's side wherever it is in `R`. `None` where this is not decided;
-/// a reflex corner, decided, is `Structural`.
-#[allow(clippy::too_many_arguments)]
-fn leaves_graph(
-    piece: &Piece<'_>,
-    th: &Through,
-    column: Axis,
-    (tau_a, tau_b): (Interval, Interval),
-    ts: Interval,
-    rising: bool,
-    above: bool,
-    vertex: [Interval; 2],
+/// How a corner's other edge leaves the curve read through the vertex
+/// ([`leaving`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Leaves {
+    /// Strictly onto the curve's face side.
+    Face,
+    /// Strictly onto its other side: a reflex corner.
+    Reflex,
+    /// Neither is decided: the two edges may meet at first order.
+    Undecided,
+}
+
+/// **A corner's other edge, straight in the chart, on the copy through
+/// the vertex** ([`leaving`]): its direction away from the vertex, its
+/// chart points there and at its far end, the chart's speeds over `R`,
+/// and how it leaves the curve.
+struct Leaving {
+    d: [Interval; 2],
+    near: [Interval; 2],
+    far: [Interval; 2],
+    speed: [f64; 2],
+    leaves: Leaves,
+}
+
+/// **No copy of the segment `near`–`far` by whole turns but `k` meets
+/// `r`.** Another copy meets `R` only where the edge, a segment from the
+/// vertex, comes round by a turn to a range of `R` that holds the
+/// vertex's: its far end then lies in `R`, a vertex [`alone`] refuses.
+/// Defence for the readings; not load-bearing on them.
+fn no_other_copy(
+    surface: &Surface<Interval>,
+    [near, far]: [Point2<Interval>; 2],
+    k: [f64; 2],
     r: ((f64, f64), (f64, f64)),
-    band: Band,
-) -> Option<Result<(), Unpresented>> {
-    let surface = piece.surface;
-    let tr = std::env::var_os("CV_TRACE").is_some();
-    let o = piece.boundary.edges.get(th.corner.other)?;
-    let Some((d, [near, far])) = straight(surface, o, th.corner.vertex) else { if tr { eprintln!("CVC leaves: not straight"); } return None; };
-    if tr {
-        let e = piece.boundary.edges.get(th.corner.read);
-        let tv = (e.and_then(|e| e.uses.first()).and_then(|u| chart_curve(surface, e.unwrap(), u))).map(|c| (c.rate(Axis::U, at(th.t)), c.rate(Axis::V, at(th.t))));
-        let stored = e.and_then(|e| e.arc.as_ref().map(|(c, _)| c.deriv(at(th.t))));
-        let os = o.arc.as_ref().map(|(c, (t0, t1))| (c.deriv(*t0), *t0, *t1));
-        eprintln!("CVC leaves: read={:?} other={:?} v={:?} d={d:?} near={near:?} far={far:?} tangent_at_v={tv:?} stored3d={stored:?} other3d={os:?}", e.map(|e| e.key), o.key, th.corner.vertex);
-    }
-    let k = turns_to(periodic_axes(surface), [near.x, near.y], vertex);
+) -> Option<()> {
     let reach = reach_of([[near.x, near.y], [far.x, far.y]].into_iter());
-    // Another copy meets `R` only where the edge, a segment from the
-    // vertex, comes round by a turn to a range of `R` that holds the
-    // vertex's: its far end then lies in `R`, a vertex [`alone`] refuses.
-    // Defence for the reading; not load-bearing on it.
     for c in copies(periodic_axes(surface), reach, r)? {
         if c == k {
             continue;
@@ -4083,13 +4091,46 @@ fn leaves_graph(
             hull(shift(near.y, 1), shift(far.y, 1)),
         ];
         if meets_rect(segment, r) {
-            if tr { eprintln!("CVC leaves: copy meets R"); }
             return None;
         }
     }
+    Some(())
+}
+
+/// **How the corner's other edge leaves the curve read through it**
+/// ([`present_corner`]'s step 1, for a curve): it is straight in the
+/// chart, every copy of it but the one through the vertex misses `R`,
+/// its end is the curve's point at the vertex ([`on_vertex`]), and over
+/// the parameters `ts` the columns hold, the curve's chart tangent
+/// `τ = (τ_a, τ_b)`, `a` the column axis, and the edge's direction `d`
+/// make `(d_b·τ_a − d_a·τ_b)·sign τ_a` one strict sign: the face's
+/// side's ([`Leaves::Face`]), or the other ([`Leaves::Reflex`]).
+/// That is the derivative of the edge's height over the graph along it,
+/// which is zero at the vertex, so an edge that leaves onto the face's
+/// side stands strictly there wherever it is in `R`. `None` where the
+/// edge is not read at all.
+#[allow(clippy::too_many_arguments)]
+fn leaving(
+    piece: &Piece<'_>,
+    th: &Through,
+    column: Axis,
+    (tau_a, tau_b): (Interval, Interval),
+    ts: Interval,
+    rising: bool,
+    above: bool,
+    vertex: [Interval; 2],
+    r: ((f64, f64), (f64, f64)),
+    band: Band,
+) -> Option<Leaving> {
+    let surface = piece.surface;
+    let o = piece.boundary.edges.get(th.corner.other)?;
+    let (d, ends) = straight(surface, o, th.corner.vertex)?;
+    let [near, far] = ends;
+    let k = turns_to(periodic_axes(surface), [near.x, near.y], vertex);
+    no_other_copy(surface, ends, k, r)?;
     let speed = speeds(surface, r.0, r.1);
-    if !on_vertex(shifted([near.x, near.y], k), vertex, speed, band) {
-        if tr { eprintln!("CVC leaves: on_vertex fails near={near:?} vertex={vertex:?}"); }
+    let (near, far) = (shifted([near.x, near.y], k), shifted([far.x, far.y], k));
+    if !on_vertex(near, vertex, speed, band) {
         return None;
     }
     let (a, b) = (column, column.other());
@@ -4102,11 +4143,42 @@ fn leaves_graph(
     }
     let side = if rising == above { 1.0 } else { -1.0 };
     let rate = (db * tau_a - da * tau_b) * at(side * scale);
-    if tr { eprintln!("CVC leaves: rate={rate:?} tau=({tau_a:?},{tau_b:?}) ts={ts:?} scale={scale} verdict={:?}", decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band)); }
-    match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band) {
-        Ok(Sign::Positive) => Some(Ok(())),
-        Ok(Sign::Negative) => Some(Err(Unpresented::Structural)),
-        _ => None,
+    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC leaves: rate={rate:?} v={:?}", th.corner.vertex); }
+    let leaves = match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band) {
+        Ok(Sign::Positive) => Leaves::Face,
+        Ok(Sign::Negative) => Leaves::Reflex,
+        _ => Leaves::Undecided,
+    };
+    Some(Leaving {
+        d,
+        near,
+        far,
+        speed,
+        leaves,
+    })
+}
+
+/// **The corner's other edge leaves the curve read through it toward
+/// the face's side** ([`leaving`]), for a reading with no run through
+/// the vertex ([`present_wall`]): `None` where this is not decided; a
+/// reflex corner, decided, is `Structural`.
+#[allow(clippy::too_many_arguments)]
+fn leaves_graph(
+    piece: &Piece<'_>,
+    th: &Through,
+    column: Axis,
+    tau: (Interval, Interval),
+    ts: Interval,
+    rising: bool,
+    above: bool,
+    vertex: [Interval; 2],
+    r: ((f64, f64), (f64, f64)),
+    band: Band,
+) -> Option<Result<(), Unpresented>> {
+    match leaving(piece, th, column, tau, ts, rising, above, vertex, r, band)?.leaves {
+        Leaves::Face => Some(Ok(())),
+        Leaves::Reflex => Some(Err(Unpresented::Structural)),
+        Leaves::Undecided => None,
     }
 }
 
@@ -4126,22 +4198,22 @@ fn present_line_corner<'a>(
     let b = piece.boundary;
     let surface = piece.surface;
     let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let ([ue], [_]) = (e.uses.as_slice(), o.uses.as_slice()) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let (Some(iso), Some((_, span))) = (ue.iso, o.arc.as_ref()) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     if iso.full {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let cell = (piece.u, piece.v);
     let (held, moving) = (iso.held, iso.held.other());
-    let line = placed(surface, iso, sheet, held.of(cell)).ok_or_else(|| cvs!())?;
-    let sigma = face_side(ue, iso, b.orientation()).ok_or_else(|| cvl!())?;
-    let [i0, i1] = ue.image.ok_or_else(|| cvl!())?;
+    let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
+    let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Local)?;
+    let [i0, i1] = ue.image.ok_or(Unpresented::Local)?;
     let (mlo, mhi) = moving.of(cell);
     let vm = iso.moving(if e.ends[0] == c.vertex { i0 } else { i1 });
     let vm = if periodic(surface, moving) {
@@ -4169,7 +4241,7 @@ fn present_line_corner<'a>(
         let (lo, hi) = axis.of((x, y));
         periodic(surface, axis) && whole_turn(lo, hi)
     }) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
     let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
@@ -4177,7 +4249,7 @@ fn present_line_corner<'a>(
     // The line admits only the vertex: its far end in `R` would leave the
     // face free to come round it.
     if !only(piece, &local, &[c.read, c.other], &[c.vertex]) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let from_start = o.ends[0] == c.vertex;
     let speed = speeds(surface, x, y);
@@ -4245,16 +4317,16 @@ fn present_plane_corner<'a>(
         u_ref,
     } = surface
     else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let Some((line, (t0, t1))) = e.arc.as_ref().filter(|(k, _)| !k.is_curved()) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let v_ref = normal.cross(u_ref);
     let chart = |w: Vec3<Interval>| [w.dot(u_ref), w.dot(v_ref)];
@@ -4279,7 +4351,7 @@ fn present_plane_corner<'a>(
     };
     let cell = lin([iv(piece.u) - p[0], iv(piece.v) - p[1]]);
     if !(cell[0].is_certified() && cell[1].is_certified()) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let vx = if vertex_first { 0.0 } else { 1.0 };
     let x = (cell[0].lo().min(vx), cell[0].hi().max(vx));
@@ -4295,7 +4367,7 @@ fn present_plane_corner<'a>(
         cache: Cache::default(),
     };
     if !reach_holds_only(piece, &reach, &[c.read, c.other], &[c.vertex], band) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let zero = at(0.0);
     let curve = in_frame(&h, p, lin);
@@ -4435,13 +4507,13 @@ fn present_vertex_corner<'a>(
     let b = piece.boundary;
     let surface = piece.surface;
     let (Some(e), Some(o)) = (b.edges.get(line), b.edges.get(other)) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     };
     let periodic = periodic_axes(surface);
-    let (a, [near, _]) = straight(surface, e, v).ok_or_else(|| cvl!())?;
+    let (a, [near, _]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
     let raw = [near.x, near.y];
     let cell_mid = [
         at(geom::mid_param(piece.u.0, piece.u.1)),
@@ -4469,12 +4541,12 @@ fn present_vertex_corner<'a>(
         (l.is_finite() && l > 0.0).then(|| [w[0] / l, w[1] / l])
     };
     let a_mid = [mid(a[0]), mid(a[1])];
-    let d1 = unit2(a_mid).ok_or_else(|| cvl!())?;
+    let d1 = unit2(a_mid).ok_or(Unpresented::Local)?;
     let tv = at(t_v);
     let d2 = unit2(core::array::from_fn(|i| {
         away * mid(-h.pa[i] * tv.sin() + h.pb[i] * tv.cos() + h.pl[i])
     }))
-    .ok_or_else(|| cvl!())?;
+    .ok_or(Unpresented::Local)?;
     // `B` leans back off the curve's tangent by a quarter of `A`, so the
     // tangent is `A/4 + B`, strictly inside the quadrant.
     let len = length(a_mid);
@@ -4485,8 +4557,8 @@ fn present_vertex_corner<'a>(
     let lean = (n[0] * bv[0] + n[1] * bv[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt();
     match interval_sign_as(lean, SELF_INTERSECTION_CORNER, band) {
         Some(Sign::Positive) => {}
-        Some(Sign::Negative) => return Err(cvs!()),
-        _ => return Err(cvl!()),
+        Some(Sign::Negative) => return Err(Unpresented::Structural),
+        _ => return Err(Unpresented::Local),
     }
     let det = a[0] * bv[1] - a[1] * bv[0];
     let lin = |w: [Interval; 2]| {
@@ -4497,12 +4569,12 @@ fn present_vertex_corner<'a>(
     };
     let cell = lin([iv(piece.u) - vc[0], iv(piece.v) - vc[1]]);
     if !(cell[0].is_certified() && cell[1].is_certified()) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let x = (cell[0].lo().min(0.0), cell[0].hi().max(0.0));
     let y = (cell[1].lo().min(0.0), cell[1].hi().max(0.0));
     if !(x.1 > 0.0 && y.1 > 0.0) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let affine = Map::Affine { o: vc, a, b: bv };
     let reach = Presented {
@@ -4516,7 +4588,7 @@ fn present_vertex_corner<'a>(
     };
     let (fu, fv) = reach.chart(iv(x), iv(y));
     if !(fu.is_certified() && fv.is_certified()) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let footprint = ((fu.lo(), fu.hi()), (fv.lo(), fv.hi()));
     // The premise of the straight edge's copies (the doc above). No row
@@ -4527,18 +4599,18 @@ fn present_vertex_corner<'a>(
         let (lo, hi) = axis.of(footprint);
         periodic[axis.index()] && whole_turn(lo, hi)
     }) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let chart = ChartCurve::Harmonic(h);
     let kc = turns_to(periodic, chart.at(tv), vc);
     let curve_reach = reach_of(pieces_of((t0, t1)).iter().map(|&t| chart.at(t)));
-    for c in copies(periodic, curve_reach, footprint).ok_or_else(|| cvl!())? {
+    for c in copies(periodic, curve_reach, footprint).ok_or(Unpresented::Local)? {
         if c != kc && !copy_misses(&chart, (t0, t1), c, footprint) {
-            return Err(cvl!());
+            return Err(Unpresented::Local);
         }
     }
     if !reach_holds_only(piece, &reach, &[line, other], &[v], band) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let curve = ChartCurve::Harmonic(in_frame(&h, shifted(vc, kc.map(|k| -k)), lin));
     let (fx, fy, _) = reach.jet();
@@ -4560,7 +4632,7 @@ fn present_vertex_corner<'a>(
     leaves(Axis::V)?;
     // The curve's tangent at `V` is inside `Q` by `B`'s choice, so a
     // decided fall in `x` there is no reflex corner: not read here.
-    leaves(Axis::U).map_err(|_| cvl!())?;
+    leaves(Axis::U).map_err(|_| Unpresented::Local)?;
     Ok(Presentation::Of(Box::new(Presented {
         surface,
         map: affine,
@@ -4664,13 +4736,13 @@ fn leaves_line(
     let start = h.at(at(t_v));
     let k = turns_to(periodic, start, vertex);
     if !on_vertex(shifted(start, k), vertex, speed, band) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let lever = speed[held.index()];
     let away = if from_start { 1.0 } else { -1.0 };
     let width = t1 - t0;
     if !(width.is_finite() && width > 0.0) {
-        return Err(cvl!());
+        return Err(Unpresented::Local);
     }
     let pieces = pieces_of((t0, t1));
     let reach = reach_of(pieces.iter().map(|&t| h.at(t)));
@@ -4678,12 +4750,12 @@ fn leaves_line(
     // vertex on the face's side while it is in `R`; `gone` keeps a piece
     // that comes back into `R` after the run has left — from any side, at
     // any rate — from being read as the run.
-    for c in copies(periodic, reach, r).ok_or_else(|| cvl!())? {
+    for c in copies(periodic, reach, r).ok_or(Unpresented::Local)? {
         if c != k {
             if copy_misses(h, (t0, t1), c, r) {
                 continue;
             }
-            return Err(cvl!());
+            return Err(Unpresented::Local);
         }
         // The pieces in order from the vertex, each with its depth.
         let mut todo: Vec<((f64, f64), u32)> =
@@ -4717,13 +4789,13 @@ fn leaves_line(
                 if split(&mut todo) {
                     continue;
                 }
-                return Err(cvl!());
+                return Err(Unpresented::Local);
             }
             let rise = h.rate(held, t) * at(sigma * away * (z - a) * lever);
             match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rise), band) {
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) if (if from_start { a } else { z }) == t_v => {
-                    return Err(cvs!());
+                    return Err(Unpresented::Structural);
                 }
                 // Off the vertex a decided `Negative` is refused outright.
                 // It is not reached otherwise — the rate is continuous, so
@@ -4731,10 +4803,10 @@ fn leaves_line(
                 // refuses at the [`LEAVES`] cap, and a piece past the run's
                 // exit is refused by `gone` before its rate is read — but
                 // the refusal does not rest on those three.
-                Ok(Sign::Negative) => return Err(cvl!()),
+                Ok(Sign::Negative) => return Err(Unpresented::Local),
                 _ => {
                     if !split(&mut todo) {
-                        return Err(cvl!());
+                        return Err(Unpresented::Local);
                     }
                 }
             }
@@ -4827,6 +4899,9 @@ struct Graph {
     y: (f64, f64),
     above: bool,
     t: (f64, f64),
+    /// The corner's other edge, where the graph runs on along it past
+    /// the vertex ([`RunOn`]); `t` then stops at the vertex.
+    run: Option<RunOn>,
 }
 
 /// **The curve as a graph over the column axis** in `piece`'s cell
@@ -4840,7 +4915,7 @@ fn graph(
     through: Option<&Through>,
     band: Band,
 ) -> Result<Graph, Unpresented> {
-    graph_read(piece, ei, plus, p, through, band).ok_or_else(|| cvl!())?
+    graph_read(piece, ei, plus, p, through, band).ok_or(Unpresented::Local)?
 }
 
 /// [`graph`], `None` where the curve is not read as one; a corner it
@@ -4881,7 +4956,7 @@ fn graph_read(
     let (b0, b1) = other.of(cell);
     // Step 1: the ONE run in reach of the cell, monotone across the
     // columns, narrowed to them.
-    let mut all = gr!(runs(p, surface, (a0, a1)), format!("runs col={column:?} cell={cell:?}"));
+    let mut all = runs(p, surface, (a0, a1))?;
     let nearest = |g: Interval| {
         if periodic(surface, other) {
             wrap(g, geom::mid_param(b0, b1))
@@ -4898,18 +4973,17 @@ fn graph_read(
                 .map(nearest)
         })
         .collect::<Option<_>>()?;
-    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG reaches col={column:?} cell={cell:?} other=({b0},{b1}) reaches={reaches:?}"); }
     let inside = |g: &Interval| g.lo() <= b1 && b0 <= g.hi();
     // A second run held by the cell is refused by `apart` below, which is
     // the load-bearing guard: `R`'s range holds the cell's, so a run that
     // meets the cell meets `R`. The first held run is the one read.
-    let (chosen, _) = gr!(reaches.iter().enumerate().find(|(_, g)| inside(g)), "no run inside");
+    let (chosen, _) = reaches.iter().enumerate().find(|(_, g)| inside(g))?;
     let run = all.swap_remove(chosen);
     let mut others = reaches;
     others.swap_remove(chosen);
     let lever = speeds(surface, cell.0, cell.1)[column.index()];
-    let (run, rising) = gr!(monotone_run(p, run, (a0, a1), lever, band), "monotone_run");
-    let (ta, tb) = gr!(narrowed(p, &run, rising, (a0, a1)), "narrowed");
+    let (run, rising) = monotone_run(p, run, (a0, a1), lever, band)?;
+    let (ta, tb) = narrowed(p, &run, rising, (a0, a1))?;
     // Step 2: `R`, and nothing in it but the curve.
     const REACH: u32 = 8;
     let slice = |j: u32| ta + (tb - ta) * f64::from(j) / f64::from(REACH);
@@ -4925,29 +4999,30 @@ fn graph_read(
     if !Real::is_bounded(g) {
         return None;
     }
+    // `R` over the range `rb` on the other axis, where nothing is in it
+    // but the curve, and through a corner its other edge.
+    let clear = |rb: (f64, f64)| {
+        if periodic(surface, other) && whole_turn(rb.0, rb.1) {
+            return None;
+        }
+        if !apart(rb, &others, periodic(surface, other)) {
+            return None;
+        }
+        let (x, y) = match column {
+            Axis::U => ((a0, a1), rb),
+            Axis::V => (rb, (a0, a1)),
+        };
+        let local = if rb == (b0, b1) && cell == own {
+            piece.local.clone()
+        } else {
+            let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+            let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
+            Local::of(piece.boundary, ball, band)
+        };
+        alone(piece, ei, through.map(|th| th.corner.other), &local).then_some((x, y))
+    };
     let rb = (b0.min(g.lo()), b1.max(g.hi()));
-    if periodic(surface, other) && whole_turn(rb.0, rb.1) {
-        return None;
-    }
-    if !apart(rb, &others, periodic(surface, other)) {
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG apart rb={rb:?} others={others:?}"); }
-        return None;
-    }
-    let (x, y) = match column {
-        Axis::U => ((a0, a1), rb),
-        Axis::V => (rb, (a0, a1)),
-    };
-    let local = if rb == (b0, b1) && cell == own {
-        piece.local.clone()
-    } else {
-        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
-        let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
-        Local::of(piece.boundary, ball, band)
-    };
-    if !alone(piece, ei, through.map(|th| th.corner.other), &local) {
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVG alone x={x:?} y={y:?} local={:?}", local.edges); }
-        return None;
-    }
+    let (x, y) = clear(rb)?;
     // Step 3: the face's side.
     let above = piece
         .boundary
@@ -4963,10 +5038,8 @@ fn graph_read(
         let (ts, te) = (p.params(run.first()?).lo(), p.params(run.last()?).hi());
         let held = nearest(p.chart.on(other, at(th.t)));
         if !(ts <= th.t && th.t <= te && within(ends.along(th.t), (a0, a1)) && within(held, rb)) {
-            if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC premise ts={ts} te={te} t={} along={:?} a=({a0},{a1}) held={held:?} rb={rb:?}", th.t, ends.along(th.t)); }
             return None;
         }
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC premise-ok col={column:?} conic={} t={} ta={ta} tb={tb} rising={rising} above={above}", th.conic, th.t); }
         let ts = Interval::from_bounds(ta, tb);
         let vertex = match column {
             Axis::U => [ends.along(th.t), held],
@@ -4975,8 +5048,8 @@ fn graph_read(
         let tau = (p.chart.rate(column, ts), p.chart.rate(other, ts));
         // An arc of the curve's own conic is on the run read: nothing
         // leaves it ([`Reading::Conic`]).
-        if !th.conic
-            && let Err(e) = leaves_graph(
+        if !th.conic {
+            let l = leaving(
                 piece,
                 th,
                 column,
@@ -4987,9 +5060,62 @@ fn graph_read(
                 vertex,
                 (x, y),
                 band,
-            )?
-        {
-            return Some(Err(e));
+            )?;
+            if l.leaves != Leaves::Face {
+                // The other edge is not decided onto the face's side of
+                // the curve continued: the two are read as one run
+                // ([`present_corner`], "one run through the vertex").
+                let o = piece.boundary.edges.get(th.corner.other)?;
+                let (ends, k) = {
+                    let (_, ends) = straight(surface, o, th.corner.vertex)?;
+                    let k = turns_to(periodic_axes(surface), [ends[0].x, ends[0].y], vertex);
+                    (ends, k)
+                };
+                // It runs on across the columns the way the curve came to
+                // the vertex, past their far end.
+                let onward = rising != th.start;
+                let advance = column.of((l.d[0], l.d[1])) * at(l.speed[column.index()]);
+                let sign = interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band)?;
+                let end = column.of((l.far[0], l.far[1]));
+                let passes = if onward {
+                    sign == Sign::Positive && end.lo() >= a1
+                } else {
+                    sign == Sign::Negative && end.hi() <= a0
+                };
+                if !passes {
+                    return None;
+                }
+                // Its reach on the other axis over the columns it crosses:
+                // from the vertex to the far column end, no further than
+                // its own end.
+                let start = column.of((l.near[0], l.near[1]));
+                let exit = at(if onward { a1 } else { a0 });
+                let share = ((exit - start) / column.of((l.d[0], l.d[1]))).hi();
+                if !(share.is_finite() && share >= 0.0) {
+                    return None;
+                }
+                let reach = other.of((l.near[0], l.near[1]))
+                    + other.of((l.d[0], l.d[1])) * iv((0.0, share.min(1.0)));
+                if !Real::is_bounded(reach) {
+                    return None;
+                }
+                let (x, y) = clear((rb.0.min(reach.lo()), rb.1.max(reach.hi())))?;
+                no_other_copy(surface, ends, k, (x, y))?;
+                // The curve's own part of the run: its parameters up to
+                // the vertex's.
+                let t = if th.start { (th.t, tb) } else { (ta, th.t) };
+                if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC run read v={:?} col={column:?} x={x:?} y={y:?} t={t:?}", th.corner.vertex); }
+                return (t.0 < t.1).then_some(Ok(Graph {
+                    x,
+                    y,
+                    above,
+                    t,
+                    run: Some(RunOn {
+                        edge: o.key,
+                        start: th.start,
+                    }),
+                }));
+            }
         }
     }
     Some(Ok(Graph {
@@ -4997,6 +5123,7 @@ fn graph_read(
         y,
         above,
         t: (ta, tb),
+        run: None,
     }))
 }
 
@@ -5573,6 +5700,9 @@ struct On {
     edges: Vec<EdgeKey>,
     vertices: Vec<VertexKey>,
     whole: bool,
+    /// The edge the graph separator's graph runs on along, past its own
+    /// edge's end ([`graph_of`]).
+    run: Option<EdgeKey>,
 }
 
 impl On {
@@ -5713,12 +5843,17 @@ fn sign_on(
             if c.past.is_some() && !past_read(p, against) {
                 return None;
             }
+            // A side that runs on along the next edge is zero only under
+            // the graph built along that edge too.
+            let run = c.run.map(|r| r.edge);
             let zero = match (on, psi) {
                 (Some(on), Psi::Graph { piece, .. }) => {
-                    on.holds(&c.along, false) && c.along.under_graph(*piece)
+                    on.holds(&c.along, false)
+                        && c.along.under_graph(*piece)
+                        && run.is_none_or(|o| on.run == Some(o))
                 }
-                (Some(on), _) => on.holds(&c.along, true),
-                (None, _) => c.psi(psi).is_some_and(|v| is_zero(v, band)),
+                (Some(on), _) => run.is_none() && on.holds(&c.along, true),
+                (None, _) => run.is_none() && c.psi(psi).is_some_and(|v| is_zero(v, band)),
             };
             if !zero {
                 return None;
@@ -5839,7 +5974,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     };
     let plane = |p: &Piece<'_>| matches!(p.surface, Surface::Plane { .. });
     if (walled(x, &ex) || walled(y, &ey)) && !plane(x) && !plane(y) {
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVR walled {:?} {:?}", x.face, y.face); }
         return Outcome::Refuse(EngineRefusal::Uncertified {
             a: x.face,
             b: y.face,
@@ -5851,7 +5985,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let py = present(y, &ey, &near.vertices, band);
     if std::env::var_os("CV_TRACE").is_some() {
         let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
-            Ok(Presentation::Of(q)) => format!("Of(zero={} x={:?} y={:?})", match &q.zero { Zero::None=>"None".to_string(), Zero::Side(s,_)=>format!("Side({s:?})"), Zero::Past(s,_)=>format!("Past({s:?})"), Zero::Corner(..)=>"Corner".into(), Zero::Curve(s,c)=>format!("Curve({s:?},past={:?})", c.past), Zero::Point(..)=>"Point".into()}, q.x, q.y),
+            Ok(Presentation::Of(q)) => format!("Of(zero={} x={:?} y={:?})", match &q.zero { Zero::None=>"None".to_string(), Zero::Side(s,a)=>format!("Side({s:?},params={:?})", a.params.map(|p| p.t)), Zero::Past(s,_)=>format!("Past({s:?})"), Zero::Corner(..)=>"Corner".into(), Zero::Curve(s,c)=>format!("Curve({s:?},past={:?},run={:?},t={:?})", c.past, c.run, c.t), Zero::Point(..)=>"Point".into()}, q.x, q.y),
             Ok(Presentation::Vacuous) => "Vacuous".into(),
             Err(e) => format!("Err({e:?})"),
         };
@@ -5881,7 +6015,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         }
     }
     if stuck(x, &px) && stuck(y, &py) {
-        if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVR stuck {:?} {:?}", x.face, y.face); }
         return Outcome::Refuse(EngineRefusal::Uncertified {
             a: x.face,
             b: y.face,
@@ -5904,8 +6037,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         let ix = implicit_of(x, band).map(|i| (sign_on(&Psi::Carrier(i), None, qy, None, band)));
         let iy = implicit_of(y, band).map(|i| (sign_on(&Psi::Carrier(i), None, qx, None, band)));
         let pl: Vec<_> = planes_through(x, near, qx, qy).into_iter().map(|(psi, on)| (sign_on(&psi, Some(&on), qx, Some(qy), band), sign_on(&psi, Some(&on), qy, Some(qx), band))).collect();
-        let gp = graph_of(x, y, near, qx, qy, band).map(|(psi, on)| (sign_on(&psi, Some(&on), qx, Some(qy), band), sign_on(&psi, Some(&on), qy, Some(qx), band)));
-        eprintln!("CVSEP carrier_x_on_y={ix:?} carrier_y_on_x={iy:?} planes={pl:?} graph={gp:?}");
+        let g = graph_of(x, y, near, qx, qy, band);
+        let gp = g.as_ref().map(|(psi, on)| (sign_on(psi, Some(on), qx, Some(qy), band), sign_on(psi, Some(on), qy, Some(qx), band)));
+        eprintln!("CVSEP carrier_x_on_y={ix:?} carrier_y_on_x={iy:?} planes={pl:?} graph={gp:?} psi={:?}", g.map(|(p, o)| (p, o.run)));
     }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
@@ -5935,7 +6069,8 @@ fn stuck(piece: &Piece<'_>, p: &Result<Presentation<'_>, Unpresented>) -> bool {
     match p {
         Err(Unpresented::Structural) => true,
         Ok(Presentation::Of(q)) => matches!(&q.zero,
-            Zero::Curve(_, c) if c.past.is_some_and(|v| piece.local.vertices.contains(&v))),
+            Zero::Curve(_, c) if c.run.is_none()
+                && c.past.is_some_and(|v| piece.local.vertices.contains(&v))),
         _ => false,
     }
 }
@@ -6015,6 +6150,7 @@ fn planes_through(
         edges: rims.iter().map(|r| r.key).collect(),
         vertices: rims.iter().flat_map(|r| r.ends).collect(),
         whole: true,
+        run: None,
     };
     let conic = |r: &Rim| match r.arc.as_ref()? {
         (
@@ -6069,6 +6205,7 @@ fn planes_through(
                     edges: Vec::new(),
                     vertices: vec![v],
                     whole: true,
+                    run: None,
                 };
                 let q = *b.vertices.get(&v)?;
                 Some((
@@ -6301,19 +6438,109 @@ fn graph_of<'a>(
     {
         return None;
     }
+    let slope = m.dot(d) / advance;
+    // One face's side running on along its next edge: the graph runs on
+    // along that edge too.
+    let runs = |p: &Presented<'_>, b: &'a Boundary| match &p.zero {
+        Zero::Curve(_, c) => c
+            .run
+            .map(|r| graph_run(e, *span, piece, b, r, p.whole(), (t, m), band)),
+        _ => None,
+    };
+    let (slope, run) = match (runs(px, x.boundary), runs(py, y.boundary)) {
+        (None, None) => (slope, None),
+        (Some(r), None) | (None, Some(r)) => {
+            let (s, key) = r?;
+            (hull(slope, s), Some(key))
+        }
+        (Some(_), Some(_)) => return None,
+    };
     Some((
-        Psi::Graph {
-            m,
-            t,
-            slope: m.dot(d) / advance,
-            piece,
-        },
+        Psi::Graph { m, t, slope, piece },
         On {
             edges: vec![e.key],
             vertices,
             whole: false,
+            run,
         },
     ))
+}
+
+/// **The graph run on along a corner's other edge** ([`graph_of`]): the
+/// slopes of `γ` over that edge, and its key. `e` is the graph's own
+/// edge, over `span`, `piece` what the graph holds of its carrier, and
+/// `run` the other edge of `b` a presentation's curved side runs on
+/// along, over the image `image` of its rectangle.
+///
+/// - The other edge, over every parameter of it `image` may hold
+///   ([`edge_piece`]), advances along `t` away from the vertex the way
+///   `e` comes to it, decided as the graph's own edge is
+///   ([`SELF_INTERSECTION_GRAPH`]): it is a graph over `s` too, running
+///   on from the vertex.
+/// - `piece` stops at the vertex's parameter, or runs past it along the
+///   carrier (a partner's side read to the rounding of its chart line,
+///   [`graph_of`]) by a stretch decided `Zero` at
+///   [`SELF_INTERSECTION_CORNER_VERTEX`]: the two edges' points at the
+///   vertex read as one ([`on_vertex`]'s concession, at its scale). `γ`
+///   past the piece's end is the other edge's graph moved, within that
+///   gap, to start there.
+#[allow(clippy::too_many_arguments)]
+fn graph_run(
+    e: &Rim,
+    span: (Interval, Interval),
+    piece: (f64, f64),
+    b: &Boundary,
+    run: RunOn,
+    image: Point3<Interval>,
+    (t, m): (Vec3<Interval>, Vec3<Interval>),
+    band: Band,
+) -> Option<(Interval, EdgeKey)> {
+    let (carrier, _) = e.arc.as_ref()?;
+    let o = b.edges.iter().find(|r| r.key == run.edge)?;
+    let (other, other_span) = o.arc.as_ref()?;
+    let v = if run.start { e.ends[0] } else { e.ends[1] };
+    let t_v = if run.start { span.0.lo() } else { span.1.hi() };
+    let past = if run.start {
+        t_v - piece.0
+    } else {
+        piece.1 - t_v
+    };
+    if std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC graph_run piece={piece:?} t_v={t_v} past={past:e}"); }
+    if past > 0.0 {
+        let stretch = if run.start {
+            (piece.0, t_v)
+        } else {
+            (t_v, piece.1)
+        };
+        let gap = arc_deriv(carrier, stretch).norm() * at(past);
+        if !matches!(
+            decide(SELF_INTERSECTION_CORNER_VERTEX, Margin::of(gap), band),
+            Ok(Sign::Zero)
+        ) {
+            return None;
+        }
+    }
+    let reached = edge_piece(other, *other_span, false, &[image])?;
+    let d = arc_deriv(other, reached);
+    let away = if o.ends[0] == v {
+        1.0
+    } else if o.ends[1] == v {
+        -1.0
+    } else {
+        return None;
+    };
+    // `s` grows toward the vertex where it is the graph's edge's end.
+    let onward = if run.start { -1.0 } else { 1.0 };
+    let advance = t.dot(d);
+    if interval_sign_as(
+        advance * at(away * onward * (reached.1 - reached.0)),
+        SELF_INTERSECTION_GRAPH,
+        band,
+    ) != Some(Sign::Positive)
+    {
+        return None;
+    }
+    Some((m.dot(d) / advance, o.key))
 }
 
 /// **A wedge-0/2π shared edge**: the faces' outward normals opposed at
@@ -8463,6 +8690,7 @@ mod presentation_rows {
             edges: vec![edge(10)],
             vertices: Vec::new(),
             whole: false,
+            run: None,
         };
         assert_eq!(
             sign_on(&graph, Some(&on), &p, Some(&exact), band()),
@@ -10441,6 +10669,7 @@ mod presentation_rows {
             edges,
             vertices: Vec::new(),
             whole,
+            run: None,
         };
         assert!(
             sign_on(&plane, Some(&on(vec![rim], true)), &q, None, band()).is_some(),
@@ -10523,6 +10752,7 @@ mod presentation_rows {
             edges,
             vertices: Vec::new(),
             whole,
+            run: None,
         };
         let on = through(vec![edge(1)], true);
         let graph = Psi::Graph {
@@ -12119,6 +12349,7 @@ mod presentation_rows {
                 edges: vec![edge(10)],
                 vertices: Vec::new(),
                 whole: false,
+                run: None,
             },
         )
     }
@@ -12197,6 +12428,7 @@ mod presentation_rows {
             edges: vec![edge(10)],
             vertices: Vec::new(),
             whole: true,
+            run: None,
         };
         assert!(
             sign_on(&rim_plane, Some(&holds_rim), &corner, None, band()).is_some(),
@@ -12541,6 +12773,7 @@ mod presentation_rows {
             edges: vec![edge(1)],
             vertices: Vec::new(),
             whole: false,
+            run: None,
         };
         assert_eq!(
             sign_on(&graph((0.25, 0.45)), Some(&on), &q, None, band()),
