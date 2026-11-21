@@ -5,7 +5,7 @@ title: A loft over a one-segment circle at Interval refuses ArcSweepUndecided(En
 status: open
 opened: 2026-11-20
 priority: P3
-cost: S
+cost: E
 ---
 
 

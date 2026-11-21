@@ -215,7 +215,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_t
         tol,
     );
     let (pipe, boxed) = (PI * 4.0, 2.0 * x * 0.6 * 0.6);
-    let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
+    let whole = Some((pipe, (3, 3, 2, 1), [0, 0]));
     let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
     for (op, r, want) in [
         ("p ∪ b", topo::union(&p, &b, tol), whole),

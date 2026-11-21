@@ -404,13 +404,10 @@ const SPOUT_STATIONS: usize = 7;
 const _: () = assert!(SPOUT_STATIONS == 7);
 /// **How many arcs each circular section is authored as.**
 ///
-/// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is two
-/// segments, so each lateral wall would span a semicircle — two
-/// rational Béziers joined at an interior knot of multiplicity =
-/// degree, a C⁰ crease the TESSELLATOR refuses by name. That is
-/// `work/mesh`'s
-/// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
-/// and `CircleSplit(4)` is the door through it.
+/// FOUR quarter arcs, each lateral wall one quarter turn. Whether a
+/// plain `LoopProgram::Circle` section (one segment, one wall per
+/// station) builds, meshes and exports here is unmeasured:
+/// `work/profile/the-teapot-spout-lofts-four-arc-circles-for-a-crease-the-mesher-now-meshes.md`.
 ///
 /// **The sections are ROUND, so this body's volume is an ENCLOSURE.**
 /// A circle is RATIONAL, so these lateral walls are rational patches,

@@ -347,7 +347,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
         .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(walls.len(), 2);
+    assert_eq!(walls.len(), 1, "an extruded circle mints one wall");
     for r in [0.05_f64, 0.5, 0.9, 0.999, 1.001, 1.1, 2.0, 10.0] {
         for theta in [0.4_f64, 2.0, 4.0] {
             for h in [0.3_f64, 1.0, 1.7] {

@@ -2615,13 +2615,10 @@ class TestTeapot(unittest.TestCase):
     SPOUT_BORE: ClassVar[float] = 3.0 / 4.0
     #: How many sections the skin is fitted through.
     SPOUT_STATIONS: ClassVar[int] = 7
-    #: And how many ARCS each circular section is authored as. FOUR,
-    #: not a plain `circle`: a `circle` loop is two segments, so each
-    #: lateral wall would span a semicircle -- two rational Beziers
-    #: joined at an interior knot of multiplicity = degree, a C0 crease
-    #: the tessellator refuses by name. `work/mesh`'s
-    #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`
-    #: carries that; `circle_split` is the door.
+    #: And how many ARCS each circular section is authored as: FOUR
+    #: quarter arcs, as the Rust scene does. Whether a plain `circle`
+    #: section lofts, meshes and exports there is unmeasured:
+    #: `work/profile/the-teapot-spout-lofts-four-arc-circles-for-a-crease-the-mesher-now-meshes.md`.
     #:
     #: The sections are ROUND, and at a tight eps that costs the body
     #: its volume NUMBER rather than its certificate. A circle is

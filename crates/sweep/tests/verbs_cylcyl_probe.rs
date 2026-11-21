@@ -425,10 +425,10 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
 // ---------------------------------------------------------------- D3 --
 //
 // The curved containment door, pinned in BOTH directions on a real
-// cylinder chart. The operand is an extruded circle, so its wall is two
-// half-cylinder faces: azimuth window a half turn wide, height range
-// [z0, z1], and boundary edges that are rim arcs and seam meridians —
-// exactly the iso-bounded class the trim is exact for.
+// cylinder chart. The operand is an extruded circle, so its wall is one
+// face closed by its seam: azimuth window a whole turn wide, height
+// range [z0, z1], and boundary edges that are the two rims and the seam
+// meridian — exactly the iso-bounded class the trim is exact for.
 
 /// The wall faces of `body`, in face-arena order.
 fn wall_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
@@ -449,29 +449,16 @@ fn the_containment_door_answers_both_directions_on_a_cylinder_chart() {
     let band = geom_core::Band::linear(tol).unwrap();
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls = wall_faces(&body);
-    assert_eq!(walls.len(), 2, "an extruded circle mints two half-walls");
+    assert_eq!(walls.len(), 1, "an extruded circle mints one wall");
 
-    // Every azimuth strictly inside ONE of the two windows, at a height
-    // strictly inside the band: the point is IN exactly one wall face
-    // and OUT of the other.
-    for theta in [0.4_f64, 1.2, 2.4, 3.6, 4.8, 6.0] {
+    // Every azimuth off the seam, at a height strictly inside the band:
+    // the point is IN the wall, π across from the seam included.
+    for theta in [0.4_f64, 1.2, 2.4, core::f64::consts::PI, 3.6, 4.8, 6.0] {
         let q = on_wall(theta, 1.0);
-        let verdicts: Vec<_> = walls
-            .iter()
-            .map(|&f| topo::curved_face_containment(&body, f, q, band).unwrap())
-            .collect();
-        let ins = verdicts
-            .iter()
-            .filter(|v| **v == Some(topo::FaceContainment::In))
-            .count();
-        let outs = verdicts
-            .iter()
-            .filter(|v| **v == Some(topo::FaceContainment::Out))
-            .count();
         assert_eq!(
-            (ins, outs),
-            (1, 1),
-            "θ = {theta}: exactly one wall holds the point, got {verdicts:?}"
+            topo::curved_face_containment(&body, walls[0], q, band).unwrap(),
+            Some(topo::FaceContainment::In),
+            "θ = {theta}: the wall holds the point"
         );
     }
 
@@ -523,9 +510,9 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
         assert!(named, "a rim point at h = {h} must name the rim edge");
     }
 
-    // A seam-meridian point (azimuth exactly at a window edge, height
-    // interior): the LINE arm names the meridian edge.
-    for theta in [0.0_f64, core::f64::consts::PI] {
+    // A seam-meridian point (azimuth exactly at the window's edge,
+    // height interior): the LINE arm names the meridian edge.
+    for theta in [0.0_f64, core::f64::consts::TAU] {
         let q = on_wall(theta, 1.0);
         let named = walls.iter().any(|&f| {
             matches!(
@@ -538,7 +525,7 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
 
     // A boundary VERTEX (both band edges at once): the vertex pass wins,
     // ahead of either edge arm.
-    for (theta, h) in [(0.0_f64, 0.0_f64), (core::f64::consts::PI, 2.0)] {
+    for (theta, h) in [(0.0_f64, 0.0_f64), (core::f64::consts::TAU, 2.0)] {
         let q = on_wall(theta, h);
         let named = walls.iter().any(|&f| {
             matches!(
