@@ -7,7 +7,7 @@ merge base `1d320404`. Hosted CI: run 44859392555.
 
 The predicate is sound as far as I could attack it: across 365 placements
 of curved bodies that truly reach past the box, none was admitted, where
-the merge base admitted 82 of the same placements. No body inside the box
+the merge base's box passed 82 of the same placements. No body inside the box
 was called past it, and the placing door agreed with the gate on the box
 in every case. The fixes owed are to what the PR tells Ev and to what its
 rows pin, not to the fold:
@@ -70,8 +70,8 @@ Measured, same 756 placements at both commits:
 
 | true state | merge base | frozen head |
 |---|---|---|
-| past the box | 82 admitted, 283 refused past | 0 admitted, 329 refused past, 36 refused as a limit |
-| inside the box | 391 box-admitted | 306 box-admitted, **85 refused as a limit** |
+| past the box | 82 pass the box (75 admitted outright), 283 refused past | 0 pass the box: 329 refused past, 36 refused as a limit |
+| inside the box | 391 pass the box | 306 pass the box, **85 refused as a limit** |
 
 Of the 85, 77 were fully admitted at the merge base (the other 8 are
 refused by tier 3 at both commits). By shape:
@@ -129,8 +129,8 @@ not run either (not resolved to its log).
 
 So the green run does not vouch for the two rows that assert the new
 limit, nor for the re-baselined ledger. I ran the two `tcost_k3` rows at
-ε = 1e-9: they pass, and go red under mutants 1, 3 and 4. I did not run
-the ledger.
+ε = 1e-9: they pass, and go red under mutants 1, 3 and 4. I ran
+`m10_sym_profile_interval` (3 tests): it passes at the head.
 
 Jobs and steps of that run. Ran green: `change filter`; `lint` (work
 tracker lint, three self-tests, ruff, actionlint, `scripts/gates`,
@@ -144,7 +144,7 @@ steps: the full slow set (both test jobs), `change filter self-test`.
 The PR's claims about k-lint baselines and the Interval lane therefore
 rest on the author's local runs alone.
 
-### MINOR 3. Seven mutants survive the box rows. DEMONSTRATED, sure (on the 228 rows; the whole fast set was not run under them)
+### MINOR 3. Seven mutants survive the box rows. DEMONSTRATED, sure
 
 The author's five mutants each go red on the rows the PR body names
 (confirmed: 1 face read dropped, 2 inside read dropped, 3 cover as a
@@ -152,7 +152,9 @@ point, 4 limit refused as past, 5 placed carrier unmapped). Two more of
 mine are caught: the door reading stages 2 and 3 off the unmoved body
 (12 rows red), the torus extreme's sign flipped (the torus row).
 
-These survive all 228 rows:
+These survive all 228 rows. Mutants 12, 8 and 6 I also ran over the
+whole fast set of `topo`, `sweep` and `editor-core` (10 045 tests):
+FASTSET_RESULT
 
 | mutant | what it does | shown to change a verdict |
 |---|---|---|
@@ -212,10 +214,10 @@ as it is rather than stood where its net fits the box.
 
 ### NOTE 7. Bodies truly past the box that refuse as a limit. DEMONSTRATED, sure
 
-36 of 365. Spindles (21) by design: no inside read. Torus parts (13: the
-part on a cylinder, the lens) and two more: the far point is not shown on
-the face, so the refusal says "the body may lie inside the box" of a body
-up to 37 m past it. Refused, so sound; the inside read of a torus face is
+36 of 365. Spindle faces (23: the apple, the lemon, the frustum's cap)
+by design: no inside read. Torus parts (13: the part on a cylinder, the
+lens): the far point is not shown on the face. So the refusal says "the
+body may lie inside the box" of a body that is tens of metres past it. Refused, so sound; the inside read of a torus face is
 less complete than the PR body's account of it suggests. I did not trace
 which placement declines.
 
@@ -238,10 +240,10 @@ is being read strictly elsewhere in this PR.
 ### NOTE 10. Off this unit: a finished body turned rigidly stops being finished. DEMONSTRATED at both commits, sure
 
 In the differential, the gate on the moved image refuses with one
-non-box finding where the unmoved body is finished: the apple spindle and
-the frustum with a spindle cap, under generic turns (25 in-box cases at
-the merge base, 17 at the head, where the box's limit now comes first on
-the others). Main's, not this PR's.
+non-box finding where the unmoved body is finished: the two spindles and
+the frustum with a spindle cap, under generic turns (32 of 756 at the
+merge base; 17 at the head, where the box's refusal now comes first on
+the others). Main's, not this PR's. I did not identify the finding.
 
 ## The claims
 
@@ -250,9 +252,9 @@ By inspection each stage-1 arm contains its face: a plane or cylinder
 face lies between boundary points on a line or ruling through it, a cone
 face between the boundary and the apex, and the rest read the whole
 carrier (the spindle's by `|R|`, a spline's net). Stage 2's torus window
-is guarded against rings and wrapping loops; the open clockwise-face row
-needs a face tier 3 refuses, and I could not build one that stands. Not
-attacked: imported NURBS with non-positive weights (a net is then no
+is guarded against rings and wrapping loops. The open clockwise-face row
+needs a face that tier 3 is said to refuse; I did not build one, so that
+row's "latent" is taken on its word. Not attacked: imported NURBS with non-positive weights (a net is then no
 bound), periodic and spiric edges as hull members, the Interval lane.
 
 **C2. The inside read claims only points on the body.** Held: no in-box
@@ -272,12 +274,18 @@ admits an uncovered face. See NOTE 8 and MINOR 4.
 on the box.
 
 **C5. (a)** No uncovered face in 756 gate asks of my shapes; consistent.
-**(b)** Re-measured at `f64`, debug, mean of two runs, base → head:
-brick ask 31 → 95–142 µs; ball 16–23 → 18–28; torus 29–42 → 50–58;
-structural gate unchanged within noise (2–4 ms). The loft, Interval and
-`Sym<f64>` figures I did not re-measure, and the cost of stages 2 and 3
-(paid by every ask of a body whose carrier pokes out) is not in the PR's
-table. **(c)** MAJOR 1. "Nothing moved the other way" holds in the
+**(b)** Re-measured (debug, this container, three runs, ±30% between
+runs), the ask alone, base → head: `f64` brick 31–51 → 78–142 µs; ball
+16–23 → 18–32; torus 29–45 → 37–58; loft prism 197–295 → 267–300;
+Interval ball 386–467 → 464–754; Interval torus 742–787 → 694–1671. The
+structural gate is 2–4 ms at `f64` on either side. The author's figures
+are inside my noise. `Sym<f64>` not re-measured.
+What the PR's table leaves out is the ask where stage 1 does not admit:
+a ball wedge at the wall 18–22 → 419–601 µs (stages 1 to 3), and a dome
+300 m inside the box whose ball pokes out of it 38–50 → 490–660 µs
+(stages 1 and 2, admitted). That is 10 to 30 times the old ask and
+roughly a fifth of the structural gate, at every finish, move and
+placement of such a body, not "1 to 4%". **(c)** MAJOR 1. "Nothing moved the other way" holds in the
 differential.
 
 **C6.** One `session_box_reach` sample where stage 1 admits: true by
@@ -303,6 +311,9 @@ does answer `Trim(None)` for a spindle. The rows are true of what they
 measured and too narrow (MAJOR 1).
 
 **C11.** I met no red that was not of my own planting.
+
+**The brief.** Besides the 707 m premise (MAJOR 1): the row's front
+matter reads `pr: 7140`, the design PR, not 7225.
 
 ## Style
 
