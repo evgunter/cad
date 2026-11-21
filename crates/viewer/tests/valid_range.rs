@@ -170,8 +170,8 @@ fn a_bound_with_no_millimetre_value_is_not_worded_as_infinity() {
         "a bound with no millimetre value was spelled as one: {words}"
     );
     assert!(
-        words.contains("up to 1e306 m "),
-        "and the sentence has to say it in a unit that can name it: {words}"
+        words.contains("up to 1e309 mm "),
+        "and the sentence says it in millimetres, which name it: {words}"
     );
     assert!(
         words.contains("valid from 1e307 mm"),

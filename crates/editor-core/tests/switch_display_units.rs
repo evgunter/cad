@@ -308,8 +308,8 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
             row.symbol()
         );
         // The text parser reaches the same row from the suffix, and
-        // the canonical value is the decimal times the row's factor,
-        // one multiply (the parser's stated contract).
+        // the canonical value is the decimal through the row's one door
+        // (the parser's stated contract).
         let text = format!("2.5 {}", row.symbol());
         let read = parse_formula(&text, &no_params())
             .unwrap_or_else(|err| panic!("`{text}` must parse: {err:?}"));
@@ -328,8 +328,9 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         );
         assert_eq!(
             parsed.literal_value().unwrap().to_bits(),
-            (2.5_f64 * row.factor()).to_bits(),
-            "{} did not land on one f64 multiply",
+            row.canonical(&quantity::Decimal::parse("2.5").expect("a decimal"))
+                .to_bits(),
+            "{} did not land on its door's float",
             row.symbol()
         );
         // The wire, to the byte. The seal changed how a `UnitDef`'s

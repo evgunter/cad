@@ -340,7 +340,14 @@ impl Quantity {
     /// What is spelled in `unit` at `extra` figures past the grid;
     /// `None` for a reading that does not read.
     fn spelled_in(&self, unit: UnitDef, extra: usize) -> Option<Spelled> {
-        let figures = |x: f64| grid_figures(x, unit, self.dimension) + extra;
+        let figures = |x: f64| {
+            let (grid, own) = grid_figures(x, unit, self.dimension);
+            if grid + extra >= own {
+                ROUND_TRIP_FIGURES
+            } else {
+                grid + extra
+            }
+        };
         let outward = |x: f64, side: Side| toward(x, unit, figures(x), side);
         Some(match self.held {
             Held::Given(Read::Value(x)) => Spelled::One(given(x, unit)),
@@ -360,7 +367,7 @@ impl Quantity {
                 };
                 // At round-trip figures the offer is the bound itself,
                 // which is inside its window.
-                let Some(offer) = (figures(x).min(ROUND_TRIP_FIGURES)..=ROUND_TRIP_FIGURES)
+                let Some(offer) = (figures(x)..=ROUND_TRIP_FIGURES)
                     .map(|figures| toward(x, unit, figures, side))
                     .find(within)
                 else {
@@ -873,35 +880,47 @@ impl fmt::Display for Member {
     }
 }
 
-/// The decade of a length's grid step in `unit` at the canonical `x`:
-/// the largest power of ten of the unit that is no more than a tenth of
-/// the default tolerance, or where the floats at `x` are sparser than
-/// that, the first power of ten at or above the gap to the next float.
-fn length_step_decade(x: f64, unit: UnitDef) -> i64 {
-    let gap = x.abs().next_up() - x.abs();
-    if !gap.is_finite() {
-        // The top of the format: no decimal step is finer than it.
-        return unit.decade(x).0;
-    }
-    // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
-    // k = LENGTH_GRID_DECADE plus the decade of a metre in the unit.
-    let cap = LENGTH_GRID_DECADE + unit.decade(1.0).0;
-    let (decade, exact) = unit.decade(gap);
-    cap.max(decade + i64::from(!exact))
-}
-
 /// The significant figures of the grid in `unit` at the canonical `x`
-/// (the module docs).
-fn grid_figures(x: f64, unit: UnitDef, dimension: Dimension) -> usize {
-    let figures = match dimension {
-        Dimension::Length if x != 0.0 && x.is_finite() => {
-            GRID_FIGURES.max(unit.decade(x).0 - length_step_decade(x, unit) + 1)
-        }
-        Dimension::Length | Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
+/// (the module docs), and the figures at which a decimal of the unit
+/// steps no finer than the floats at `x`, past which a digit spells the
+/// float's own rounding: there `x` is told as received. Neither is more
+/// than [`ROUND_TRIP_FIGURES`].
+///
+/// A length's grid step is the largest power of ten of the unit that is
+/// no more than a tenth of the default tolerance, or where the floats
+/// at `x` are sparser than that, the first power of ten at or above the
+/// gap to the next float.
+fn grid_figures(x: f64, unit: UnitDef, dimension: Dimension) -> (usize, usize) {
+    if x == 0.0 || !x.is_finite() {
+        return (GRID_FIGURES as usize, ROUND_TRIP_FIGURES);
+    }
+    let decade = unit.decade(x).0;
+    let (gap, top) = match x.abs().next_up() - x.abs() {
+        up if up.is_finite() => (up, false),
+        // At the top of the format the gap is the one below.
+        _ => (x.abs() - x.abs().next_down(), true),
     };
-    usize::try_from(figures)
-        .unwrap_or(ROUND_TRIP_FIGURES)
-        .min(ROUND_TRIP_FIGURES)
+    let (gap_decade, exact) = unit.decade(gap);
+    // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
+    // k = LENGTH_GRID_DECADE plus the decade of a metre in the unit; at
+    // the top of the format no decimal step is finer than the floats.
+    let cap = LENGTH_GRID_DECADE + unit.decade(1.0).0;
+    let step = if top {
+        decade
+    } else {
+        cap.max(gap_decade + i64::from(!exact))
+    };
+    let own = decade - gap_decade + 1;
+    let grid = match dimension {
+        Dimension::Length => GRID_FIGURES.max(decade - step + 1),
+        Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
+    };
+    let clamp = |figures: i64| {
+        usize::try_from(figures.max(1))
+            .unwrap_or(ROUND_TRIP_FIGURES)
+            .min(ROUND_TRIP_FIGURES)
+    };
+    (clamp(grid), clamp(own))
 }
 
 /// `x` in `unit` exactly as received: the shortest decimal that reads
@@ -915,7 +934,8 @@ fn given(x: f64, unit: UnitDef) -> Number {
 }
 
 /// `x` in `unit` rounded to nearest at `figures` significant figures;
-/// at round-trip figures, `x` as received. A rounding past the largest
+/// at round-trip figures, or as many as the floats at `x` carry
+/// ([`grid_figures`]), `x` as received. A rounding past the largest
 /// float is the grid point toward zero from it.
 fn nearest(x: f64, unit: UnitDef, figures: usize) -> Number {
     if !x.is_finite() || figures >= ROUND_TRIP_FIGURES {
@@ -1931,7 +1951,7 @@ mod tests {
                         };
                         let reach = step(q, 4) + 2.0 * spacing(q);
                         assert!(
-                            (float(&numbers[0]) - q).abs() <= reach,
+                            (float(&numbers[0]) - q).abs() <= reach || typed_back(text)[0] == x,
                             "{x:e} is offered as {text}"
                         );
                     }
@@ -1995,7 +2015,8 @@ mod tests {
                 if let Some(q) = q.filter(|q| q.is_finite()) {
                     let reach = if past_the_grid(Some(q)) { 1.0 } else { 0.5 };
                     assert!(
-                        (float(&numbers[0]) - q).abs() <= step(q, 4) * reach,
+                        (float(&numbers[0]) - q).abs() <= step(q, 4) * reach
+                            || typed_back(&text)[0] == x,
                         "{x:e} reads {text}"
                     );
                 }
@@ -2033,8 +2054,16 @@ mod tests {
                         }
                         let slack = |q: f64| 2.0 * spacing(q);
                         let (told_lo, told_hi) = (float(&numbers[0]), float(&numbers[1]));
-                        assert!(q_lo - told_lo <= step(q_lo, 4) + slack(q_lo), "{text}");
-                        assert!(told_hi - q_hi <= step(q_hi, 4) + slack(q_hi), "{text}");
+                        // Within a step of the grid, or where the floats are
+                        // sparser than the grid, the end as received.
+                        assert!(
+                            q_lo - told_lo <= step(q_lo, 4) + slack(q_lo) || ends[0] == lo,
+                            "{text}"
+                        );
+                        assert!(
+                            told_hi - q_hi <= step(q_hi, 4) + slack(q_hi) || ends[1] == hi,
+                            "{text}"
+                        );
                     }
                 }
             }
@@ -2059,11 +2088,11 @@ mod tests {
                                 let pair = a(&x, dimension).beside(&b(&y, dimension));
                                 let first = pair.first().told_in(notation).to_string();
                                 let second = pair.second().told_in(notation).to_string();
-                                let ((p, unit), (q, other)) = (said(&first), said(&second));
+                                let ((_, unit), (_, other)) = (said(&first), said(&second));
                                 assert_eq!(unit, other, "{first} beside {second}");
                                 assert_eq!(unit, dimension.unit(notation), "{first}");
                                 assert_eq!(
-                                    Some(p[0].cmp_value(&q[0])),
+                                    typed_back(&first)[0].partial_cmp(&typed_back(&second)[0]),
                                     x.partial_cmp(&y),
                                     "{x:e} beside {y:e} reads {first} and {second}"
                                 );

@@ -2,12 +2,13 @@
 id: a-unit-that-cannot-say-a-quantity-falls-back-to-the-canonical-one
 kind: issue
 title: A quantity its notation's unit cannot say is told in the canonical unit, which the README does not provide for, and it happens at ordinary magnitudes
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
 parent: patherror-display-renders-float-noise
 rides_with: a-number-in-a-unit-is-rounded-once
+closed: 2026-11-21
 ---
 
 
@@ -47,3 +48,7 @@ what the fallback does to a sentence.
 ## Decided
 
 Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.
+
+## Closed
+
+Built by `a-number-in-a-unit-is-rounded-once`: a number in a unit is its decimal times the unit's exact factor rounded once (`quantity::UnitDef::canonical`), every finite float has a decimal of at most seventeen figures in every unit that reads back as it (`UnitDef::shortest`), and `geom_core::Told` spells decimals of the unit, so no role, pair or position falls back (`told.rs`, `Quantity::spelled_in` returns `None` only for a reading that does not read). A value whose number of the unit is past the float format is said in the unit (`1e306 m` reads `1e309 mm`).

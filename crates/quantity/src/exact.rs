@@ -84,6 +84,7 @@ impl Nat {
     }
 
     /// The value, where it fits a `u64`.
+    #[cfg(test)]
     pub(crate) fn to_u64(&self) -> Option<u64> {
         match self.0.as_slice() {
             [] => Some(0),
