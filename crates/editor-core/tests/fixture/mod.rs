@@ -704,9 +704,7 @@ pub fn at_rest<T>(
     ev: &Evaluation<T>,
 ) -> Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>
 where
-    T: editor_core::checks::at_rest::LocalizeLane
-        + geom_core::CertifiedBounds
-        + editor_core::ChartCoherenceLane,
+    T: editor_core::checks::at_rest::LocalizeLane + geom_core::CertifiedBounds,
 {
     let cfg = editor_core::ChecksConfig {
         connectedness: editor_core::Severity::Off,

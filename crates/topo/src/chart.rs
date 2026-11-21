@@ -26,12 +26,8 @@
 //! What is NOT here is each consumer's DISPOSITION of an answer: the
 //! typed refusal `mesh` turns an unclassifiable carrier into, the band
 //! spelling it reads a separation at, its rotation, its pole fan and
-//! its emission; and this crate's own band and its report. A
-//! disposition belongs to the crate that disposes. `chart_iso`'s items
-//! say which half is theirs, and
-//! `mesh::walk::tests::the_two_spellings_of_the_band_agree` is the
-//! executed reconciliation of the band (`Eps` is `mesh`-local by
-//! MESH-4's ruling and has no accessor).
+//! its emission. A disposition belongs to the crate that disposes, and
+//! `chart_iso`'s items say which half is theirs.
 
 use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;

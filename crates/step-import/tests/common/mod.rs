@@ -152,21 +152,15 @@ pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
 /// (1, 1, 1), the corpus's only touching assembly, is recorded by the
 /// shared tier-3′ gate as a contact between its two instances
 /// (`topo::record_at_rest`).
-///
-/// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
-/// which every caller but the coherence-channel suite leaves `false`.
-pub fn own_import_options(examine: bool) -> step_import::ImportOptions {
-    step_import::ImportOptions {
-        examine_chart_coherence: examine,
-        ..step_import::ImportOptions::default()
-    }
+pub fn own_import_options() -> step_import::ImportOptions {
+    step_import::ImportOptions::default()
 }
 
 /// Imports a fixture's committed `.step`, panicking on refusal (the
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    step_import::import_step(&text, &own_import_options(false), Tol::witness())
+    step_import::import_step(&text, &own_import_options(), Tol::witness())
         .unwrap_or_else(|e| panic!("importing {name}: {e_at}", e_at = e.render()))
 }
 

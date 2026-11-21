@@ -471,10 +471,7 @@ fn report_band_arm_under_the_runs_eps() {
 /// `CertificateExceeded` — a refusal about the chord budget standing
 /// in for a refusal about the premise — is reachable here.
 ///
-/// The π itself is still REPORTED rather than asserted on, by
-/// `topo::examine_chart_coherence` (issue 868), and
-/// `topo/tests/mesh8_coherence.rs` is where this body's half-turn is
-/// pinned as a value. The refusal's own rows are
+/// The refusal's own rows are
 /// `mesh/tests/mesh11_arc_branch.rs`; this one keeps the SEAM the
 /// review found — shape door yes, branch door no, on one face.
 #[test]

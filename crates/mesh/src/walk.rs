@@ -58,8 +58,7 @@
 //! is what made a tolerance look necessary. Taking the vertex's own
 //! value makes the quantity identically zero instead. How far the
 //! carrier's own azimuth was is a fact about the SOURCE and not about
-//! the mesh, and it is measured from the body by
-//! `topo::coherence`'s `MeridianClosure` rather than here.
+//! the mesh, and this walk does not measure it.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint**, the endpoint
@@ -142,12 +141,11 @@ use crate::sizing::Eps;
 use crate::types::TessellateError;
 
 // The chart's closed forms and the boundary classification built on
-// them live in `topo` (`topo::chart`, `topo::chart_iso`), where the
-// body-side coherence examination runs the SAME expressions this walk
-// does rather than a second copy of them. What stays here is this
-// crate's own disposition of their answers: the typed refusal a
-// non-iso carrier becomes, the band the separation test is read at,
-// the walk's rotation and pole handling, and the emission itself.
+// them live in `topo` (`topo::chart`, `topo::chart_iso`). What stays
+// here is this crate's own disposition of their answers: the typed
+// refusal a non-iso carrier becomes, the band the separation test is
+// read at, the walk's rotation and pole handling, and the emission
+// itself.
 use geom_core::period::Period;
 pub(crate) use topo::chart::Chart;
 pub(crate) use topo::chart_iso::TravKind;
@@ -409,8 +407,8 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// a length — the only unit the two are honestly comparable in. A
 /// scale-free radian constant necessarily mis-ranks features, because a
 /// fixed source-coordinate error subtends a larger angle on a smaller
-/// one (`topo::coherence` keeps the trace: 21 pm reads as 3.6e-9 rad
-/// on a 0.117-inch hole). At `lever == 0` the coordinate carries no length
+/// one (21 pm reads as 3.6e-9 rad on a 0.117-inch hole,
+/// `nist_ftc_09_asme1_rd.stp`). At `lever == 0` the coordinate carries no length
 /// at all, so every gap is noise — the correct limit, reached without a
 /// special case or a division. The comparison is
 /// [`Eps::dominates`](crate::sizing::Eps::dominates) — a strict `<`,
@@ -441,25 +439,13 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// true, so the band is now a backstop that no in-tree fixture needs;
 /// the row that witnesses it is synthetic.
 ///
-/// # Where the COHERENCE conditions are, which is not here
+/// # What this band does not measure
 ///
 /// A gap between two of a BODY's own accounts of one chart coordinate
 /// — a carrier's midpoint azimuth against its own endpoint vertex's,
 /// two sub-edges of one iso side against each other — is measured
-/// nowhere in this crate. It is a fact about the body, computable from
-/// the body alone with no mesh state and no δ, and it cannot move a
-/// mesh byte: `topo::coherence` states all three such conditions as a
-/// non-gating findings report, with the ledger and the two π-rad
-/// witnesses. A tessellator is not a lint for other people's data.
-///
-/// Both of those witnesses are a meridian ARC crossing a pole
-/// mid-edge, and both are now refused typed by
-/// `props::require_one_chart_branch` before this walk runs (issue
-/// 1571): the Euler-door body of `tests/mesh11_arc_branch.rs` and the
-/// imported half-cap of `step-import/tests/poleguard.rs`. The report
-/// still measures them — it has no door in front of it, by design —
-/// so what it says about them is now a second account of a body this
-/// lane already refused, not the only one.
+/// nowhere in this crate. It is a fact about the body, it cannot move a
+/// mesh byte, and a tessellator is not a lint for other people's data.
 ///
 /// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
@@ -1443,9 +1429,7 @@ pub(crate) fn loop_polygon(
                     // paths (two carrier circles' centres), so the
                     // difference the substitution discards is a
                     // statement about the INPUT and not about the mesh,
-                    // which is the same row either way. It is measured
-                    // where such statements belong, from the body:
-                    // `topo::coherence`'s `RimContinuation`.
+                    // which is the same row either way.
                     prev_v
                 };
                 let ju = if k == 0 {
@@ -1539,9 +1523,7 @@ pub(crate) fn loop_polygon(
                     // two paths are. `u_raw` is the twin discarded
                     // here, and how far it was is a statement about the
                     // INPUT and not about the mesh, which is the same
-                    // column either way. It is measured where such
-                    // statements belong, from the body:
-                    // `topo::coherence`'s `MeridianContinuation`.
+                    // column either way.
                     prev_u
                 };
                 if let Some(vp) = jpole {
@@ -1759,53 +1741,6 @@ mod tests {
     #[test]
     fn on_the_axis_every_gap_is_noise() {
         assert!(gap_is_noise(core::f64::consts::PI, 0.0, Eps::exactly(1e-9)));
-    }
-
-    /// **THE TWO SPELLINGS OF THE BAND AGREE, rung by rung.**
-    ///
-    /// The band has two spellings and cannot have one:
-    /// [`gap_is_noise`] here reads it through [`Eps::dominates`], the
-    /// newtype MESH-4 made `mesh`-local and gave no accessor, so its
-    /// value cannot cross a crate boundary as a number;
-    /// `topo::coherence::gap_is_noise` takes the run's ε as an `f64`
-    /// because a body-side examination has no `Eps` to read. Two
-    /// spellings of one comparison is exactly the shape that drifts,
-    /// and prose reconciling them is not a mechanism.
-    ///
-    /// This is the mechanism: every rung of this file's own ladder —
-    /// the spatial-vs-angular pair, the lever-arm scaling pair, the
-    /// zero-lever limit, both band edges, and a poisoned operand on
-    /// each side — run through BOTH spellings and compared. A change
-    /// to either that moves one and not the other reds here, whichever
-    /// crate it was made in.
-    #[test]
-    fn the_two_spellings_of_the_band_agree() {
-        const LADDER: [(f64, f64, f64); 10] = [
-            // `nist_ftc_09`'s residue at a real lever and an absurd one
-            (3.56e-9, 0.05, 3.38e-5),
-            (3.56e-9, 1e5, 3.38e-5),
-            // the same angle, a hundred times the arc
-            (1e-6, 1.0, 1e-5),
-            (1e-6, 100.0, 1e-5),
-            // the zero-lever limit, and the corner where a zero band
-            // meets it
-            (core::f64::consts::PI, 0.0, 1e-9),
-            (core::f64::consts::PI, 0.0, 0.0),
-            // both band edges: exactly on it, and just inside
-            (1.0, 1e-9, 1e-9),
-            (1.0, 1e-9, 1.000_001e-9),
-            // a poisoned operand on either side is never noise
-            (f64::NAN, 1.0, 1e-9),
-            (1.0, f64::NAN, 1e-9),
-        ];
-        for (gap, lever, band) in LADDER {
-            assert_eq!(
-                gap_is_noise(gap, lever, Eps::exactly(band)),
-                topo::coherence::gap_is_noise(gap, lever, band),
-                "the two spellings of the band disagree at \
-                 (gap {gap}, lever {lever}, eps {band})"
-            );
-        }
     }
 
     /// **[`Period::near`] lands within half a period of its anchor, for
