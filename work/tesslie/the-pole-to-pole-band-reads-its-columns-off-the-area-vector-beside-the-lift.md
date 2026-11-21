@@ -2,11 +2,12 @@
 id: the-pole-to-pole-band-reads-its-columns-off-the-area-vector-beside-the-lift
 kind: issue
 title: the walk's pole-to-pole band places its columns off the loop's area vector beside the stored lift
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: M
 refs: [singular-turn-spells-the-chart-winding-rule-by-hand, mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers]
+branch: tesslie/lift-turns
 ---
 
 Found by `tesslie/wrap-strip-period`'s sweep (2026-11-20), which moved
