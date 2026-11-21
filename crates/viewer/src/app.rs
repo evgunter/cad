@@ -9666,8 +9666,8 @@ mod properties_pane_tests {
 
         /// The cylinder's face on a carrier of `kind`, as a pick on it:
         /// of planes, its cap at `z` (`0`, its start, or its height, its
-        /// end), named by the extrude's role; its cylinder, the first
-        /// of the two half-walls the disc's split circle sweeps.
+        /// end), named by the extrude's role; its cylinder, the one
+        /// wall the disc's circle sweeps.
         fn face(
             session: &DocSession,
             cylinder: RecipeNodeId,
@@ -9689,8 +9689,8 @@ mod properties_pane_tests {
                         .into_iter()
                         .filter(|name| !caps.contains(name))
                         .collect();
-                    let [wall, _] = walls.as_slice() else {
-                        panic!("two half-walls besides the caps: {walls:?}")
+                    let [wall] = walls.as_slice() else {
+                        panic!("one wall besides the caps: {walls:?}")
                     };
                     wall.clone()
                 }

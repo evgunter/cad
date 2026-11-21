@@ -159,25 +159,30 @@ fn shared(k: f64, g: f64) -> f64 {
 ///   so the order between the two pairs reads in band
 ///   (`bool_join_nearest`). The round is all mutual, so that order is
 ///   free (`join::first_pair`: its matching is the round's in any order),
-///   and the run moves on to the finish. It stops there: the coplanar
-///   merge's pcurve span check on a merged half-edge reads in band
-///   (`pcurve_interval_forward`), an escalation at a later door, not a
+///   and the run moves on to the finish. It stops there: a pcurve span
+///   check on the section's half-edge reads in band
+///   (`pcurve_interval_forward`), at the coplanar merge or at the
+///   boolean's own pcurve mint, an escalation at a later door, not a
 ///   guess
 ///   (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`;
 ///   `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
 /// - `k = 60`, at the travel order: `24` bands of arc do not clear the
 ///   sites' slack of `60` (`bool_join_arc_clear`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
-    match e {
-        BooleanError::Merge(merge) if k == 10.0 => matches!(
-            merge.error(),
-            topo::MergeCoplanarError::Pcurve {
-                source: topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
-                    ..
-                },
+    let span = |source: &topo::PcurveMintError| {
+        matches!(
+            source,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
+                ..
             } if cause.predicate == Some("pcurve_interval_forward")
-        ),
+        )
+    };
+    match e {
+        BooleanError::Merge(merge) if k == 10.0 => {
+            matches!(merge.error(), topo::MergeCoplanarError::Pcurve { source } if span(source))
+        }
+        BooleanError::Pcurves { source } if k == 10.0 => span(source),
         BooleanError::Escalated { diag, .. } if k == 60.0 => {
             diag.predicate == Some("bool_join_arc_clear")
         }

@@ -172,8 +172,11 @@ fn a_loft_placed_on_a_rotated_frame_certifies_under_a_box_elsewhere() {
 
 /// What each row's loft does, one evaluation at `Interval` with no
 /// box: the profile is elaborated at the lane, so the arc section and
-/// the rotated placement are a few ulps wide. The arc's weight is no
-/// point and refuses by name; the rotated copy places in `T`.
+/// the rotated placement are a few ulps wide. The circle's one full
+/// turn refuses by name whether it ends where it starts, read off its
+/// lane-wide vertex's distance from itself
+/// (`work/inlane/a-lofted-one-segment-circle-at-the-lane-refuses-its-endpoints-undecided.md`);
+/// the rotated copy places in `T`.
 #[test]
 fn with_no_box_an_arc_section_refuses_and_a_rotated_copy_places() {
     use editor_core::NodeErrorKind;
@@ -191,12 +194,11 @@ fn with_no_box_an_arc_section_refuses_and_a_rotated_copy_places() {
     let (arc, arc_loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
     let (rotated, rotated_loft) = loft_doc(|| rect(len(1.0)), [0.6, 0.8, 0.0]);
     match run(&arc).node_error(arc_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Skin(SkinError::Structure(e)))
-            if matches!(
-                e.refusal(),
-                geom_core::spline::SplineError::CarrierWeightNotAPoint { .. }
-            ) => {}
-        other => panic!("the arc's weight is no point at Interval, got {other:?}"),
+        Some(NodeErrorKind::Skin(SkinError::ArcSweepUndecided {
+            which: sweep::ArcSweepDecision::Endpoints,
+            ..
+        })) => {}
+        other => panic!("the full turn's endpoints are undecided at Interval, got {other:?}"),
     }
     let rotated_run = run(&rotated);
     assert!(

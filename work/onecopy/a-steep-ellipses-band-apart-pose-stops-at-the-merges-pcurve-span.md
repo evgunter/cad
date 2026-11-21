@@ -26,3 +26,5 @@ That is an escalation at a real door, not a wrong body. But the pose's doc expec
 ## What closing it takes
 
 Read why the merged half-edge's pcurve span reads in band at `pcurve_interval_forward` on this pose. It may be the scale-moving door of `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`, met one stage later, or the merge's own pcurve derivation on a short arc. Then either build the pose or name the door's limit, and move the row's `k = 10` expectation with it.
+
+- 2026-11-20 — Evidence from PROFILE's `circle-lowers-to-one-segment` (branch `profile/circle-lowers-to-one-segment`): with the cylinder's `circle()` lowered to one segment, the `k = 10` pose's `A ∪ B` stops at the same reading one door earlier, the boolean's own pcurve mint: `BooleanError::Pcurves { Certify { Escalated { check: ParamSpan, predicate: "pcurve_interval_forward" } } }`, margin `3.394e-9` as here. The row's `stops_where_expected` takes either door for `k = 10`.

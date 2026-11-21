@@ -105,8 +105,11 @@ fn hole_rim(index: &PickIndex, node: RecipeNodeId) -> (EdgeId, Vec<Point3<f64>>)
     let (cx, cy) = (width * 0.5, depth * 0.5);
     // The rim is one full-circle edge, chosen by GEOMETRY — the edge
     // whose points all lie on the hole's circle in the top face — rather
-    // than by the order the edges were minted in.
-    drawn_edges(index, node)
+    // than by the order the edges were minted in. The rows' cursors are
+    // laid out against its +y half: the drawn points between its vertex
+    // at +x and −x, a prefix of the polyline or, drawn clockwise, its
+    // suffix.
+    let (id, points) = drawn_edges(index, node)
         .into_iter()
         .find(|(_, points)| {
             !points.is_empty()
@@ -116,7 +119,17 @@ fn hole_rim(index: &PickIndex, node: RecipeNodeId) -> (EdgeId, Vec<Point3<f64>>)
                             < PLATE_HOLE_RADIUS * 1.05
                 })
         })
-        .expect("the plate's top face carries the hole's rim")
+        .expect("the plate's top face carries the hole's rim");
+    let above = |p: &&Point3<f64>| p.y >= cy - 1.0e-9;
+    let prefix: Vec<Point3<f64>> = points.iter().take_while(above).copied().collect();
+    let upper = if prefix.len() > 2 {
+        prefix
+    } else {
+        let mut suffix: Vec<Point3<f64>> = points.iter().rev().take_while(above).copied().collect();
+        suffix.reverse();
+        suffix
+    };
+    (id, upper)
 }
 
 /// Where a world point lands in the pane, in physical pixels.

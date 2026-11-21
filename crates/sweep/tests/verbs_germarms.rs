@@ -435,8 +435,9 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
 /// **A wall's sense bit is checked against its boundary even when the
 /// wall is notched or ringed.** Tier 3's check 6 reads a cylinder
 /// face's side off every loop's chart area; flipping the bit of a
-/// notched wall (the bar driven seam to seam) or of a ringed one (the
-/// bar whose section closes inside one wall face) must refuse
+/// notched wall (the bar driven across the wall's seam, its outer loop
+/// cut there; its far side rings the same face) or of a ringed one (the
+/// bar whose section closes inside the wall on both sides) must refuse
 /// `CurvedSenseInverted` on that face.
 #[test]
 fn a_notched_or_ringed_walls_flipped_sense_refuses() {
@@ -464,9 +465,9 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
                 };
                 cylinder
                     && if ringed {
-                        !f.rings.is_empty()
+                        !f.rings.is_empty() && outer_edges == 4
                     } else {
-                        f.rings.is_empty() && outer_edges > 4
+                        outer_edges > 4
                     }
             })
             .map(|(k, _)| k)
