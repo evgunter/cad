@@ -751,3 +751,37 @@ its edge, so its zero is on the shared cell. Two consequences:
 **The cheapest evidence** is this row's lune at 0.34 s.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+## Census: 49 cylinder-bucket tests at the at-rest gate (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+Traced from the per-solid census (`measure/gate/census-c2a0c41f40.json`
+on `embed/gate-measure`), on `embed/trace-cylinder-measure` with
+`CV_TRACE=1` and the Structural exits printed. **49 valid bodies refuse
+at their door here**: 19 of the cylinder/cylinder edge bucket, 16
+cylinder/plane, 8 plane/cylinder, 4 cylinder/cylinder at a vertex, 2
+cylinder/plane at a vertex.
+
+- **The exit.** `beside_curve`'s `unread_corner` (`Unpresented::Structural`):
+  the cell holds a vertex of the shared cell where a curved edge meets
+  another and neither `corner_of`/`reading` nor `vertex_corner` reads
+  it. In 39 of the 49 both faces exit there and `departure` refuses at
+  once (`stuck`); in the other 10 one face does and the pair runs to
+  `Budget(Depth)`.
+- **The families.** `bisector_nodes` 9 (equal cylinders whose axes meet:
+  the intersection's ellipse arcs meet at a node vertex), the
+  hand-built bicylinder and its subtraction piece (`topo boolean::node_probe_rows`,
+  2), `crossing_equal_rods` 3 (the tee of this row's Evidence),
+  `a_vertex_on_a_grazing_plane` 3, `a_ruling_lying_on_a_wall` 2 (a
+  ruling across an ellipse), `ring_carry_through_by_piece` 2,
+  `sheets_part_on_slanted_rims` 2, `bisector_lane_stubs` 2,
+  `verbs_germarms2` 2, `parallel_cylinder_join` 2, `pis_arc_capped_poses`
+  2, and 18 singletons.
+- **Cheapest reproducer:** `topo boolean::node_probe_rows::the_bicylinder_built_by_hand_is_a_finished_body`
+  (0.08 s): cylinder `1v1` against cylinder `2v1` across three shared
+  edges, both `Structural` at `beside_curve`, refused `stuck` at the
+  root cell.
+- **Not separated:** which of this row's shapes each corner is (two
+  different conics, a line and a conic the line corner does not read, a
+  spiric continued). The trace does not print the corner's two edges;
+  the bicylinder and `bisector_nodes` corners are of two ellipse arcs
+  by construction, the rest unchecked.
