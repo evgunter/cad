@@ -12,20 +12,24 @@
 //! evidence of, never its parameter or its kind's choice of arm. Each arm
 //! is a whole-trim inequality, no sampling:
 //!
-//! - **a printed spline on a built line or circle**: the ring composites
-//!   of the curve recognizer ([`crate::recognize_curve`], INV-C3 for the
-//!   line, INV-C1 and INV-C2 for the circle) built over the printed
-//!   spline and cut at its trim's ends
-//!   ([`crate::recognize_curve::composite_sup_within`]), so the sup is
-//!   over exactly the spans the edge uses. The built carrier's frame is
+//! - **any printed carrier on a built line**: the far end of the
+//!   distance range from the line of the printed carrier's cover over its
+//!   trim ([`geom::Curve3::cover_over`] at the certification scalar: a
+//!   spline's pieces' nets over the window, a line's segment, a conic's
+//!   arc), which holds every point of the trim. The distance from a line
+//!   is convex, so a net's farthest vertex bounds its hull;
+//! - **a printed spline on a built circle**: the ring composites of the
+//!   curve recognizer ([`crate::recognize_curve`], INV-C1 and INV-C2)
+//!   built over the printed spline and cut at its trim's ends
+//!   ([`crate::recognize_curve::circle_locus_within`]), so the sup is
+//!   over exactly the spans the edge uses. The built circle's frame is
 //!   read as exact, as the recognizer reads its own estimate
 //!   (`docs/DESIGN.md` `[simple.conditioned]`);
 //! - **a printed spline on the identical spline** (a wall's column the
 //!   file repeats bit for bit): zero;
-//! - **a printed line on a built line**: the farther of the printed
-//!   trim's two ends from the built line. The distance from a line is
-//!   convex along a segment, so the ends bound every point between them;
-//! - **a printed conic (circle or ellipse) on a built conic**: each
+//! - **a printed circle's arc on a built circle**: the extremes over the
+//!   trim of two sinusoids ([`arc_on_circle`]);
+//! - **any other printed conic on a built conic**: each
 //!   carrier is `c + cos θ·A + sin θ·B` for a centre `c` and conjugate
 //!   semi-diameters `A`, `B`, and `θ ↦ Q(θ)` names a point of the built
 //!   conic for every θ under each of its own reparameterizations chosen
@@ -38,8 +42,8 @@
 //!   forms are read as exact; the sums are outward.
 //!
 //! Every other pair (a printed spline on a built spline that is not its
-//! twin bit for bit, a spline on an ellipse or a spiric, a curve of one
-//! conic kind on a line) has no certificate here, and [`printed_on`]
+//! twin bit for bit, a spline on an ellipse or a spiric) has no
+//! certificate here, and [`printed_on`]
 //! answers `None`: the build then reads the printed carrier's ends and
 //! middle (`work/exch/the-printed-on-built-certificate-has-no-arm-for-a-built-spline.md`).
 
@@ -50,7 +54,6 @@
 use geom::{Curve3, NurbsCurve3};
 use geom_core::interval::certification::Certification as _;
 use geom_core::interval::{cross, max_bound, norm_sup};
-use geom_core::spline::compose::{CurveCertData, linear_composite};
 use geom_core::{Bounds, Interval, Point3, Vec3};
 
 use crate::entities::EdgeSpec;
@@ -61,11 +64,14 @@ use crate::recognize_curve::circle_locus_within;
 /// pair, or the arm certifies no finite bound.
 pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let trim = (spec.t0, spec.t1);
+    let line = match built {
+        Curve3::Line(line) => Some(*line),
+        _ => None,
+    };
+    if let Some(line) = line {
+        return printed_off_line(spec, line);
+    }
     let bound = match (&spec.carrier, built) {
-        (Curve3::Nurbs(printed), Curve3::Line(line)) => hull_within(printed, trim)?
-            .into_iter()
-            .map(|p| line_distance_sup(p, line.origin, line.dir))
-            .fold(0.0_f64, max_bound),
         (Curve3::Nurbs(printed), Curve3::Circle(circle)) => circle_locus_within(
             printed,
             (circle.frame.origin, circle.frame.axis, circle.radius()),
@@ -78,10 +84,6 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
                 return None;
             }
         }
-        (Curve3::Line(_), Curve3::Line(line)) => trim_ends(spec)
-            .into_iter()
-            .map(|p| line_distance_sup(p, line.origin, line.dir))
-            .fold(0.0_f64, max_bound),
         (Curve3::Circle(printed), Curve3::Circle(built)) => arc_on_circle(printed, trim, built),
         (printed, built) => {
             let (Some(printed), Some(built)) = (Conic::of(printed), Conic::of(built)) else {
@@ -116,70 +118,88 @@ pub(crate) fn bitwise_twin(a: &NurbsCurve3<f64>, b: &NurbsCurve3<f64>) -> bool {
             .all(|(x, y)| x.to_bits() == y.to_bits())
 }
 
-/// **The printed carrier's distance from the segment `[a, b]` over its
-/// trim**, certified: every point of a printed line's trim or a printed
-/// spline's lies in the hull of [`trim_ends`] or [`hull_within`], and the
-/// distance from a segment is convex, so the hull's farthest point bounds
-/// it. `None` for any other printed carrier, or where no bound certifies.
-pub(crate) fn printed_on_segment(spec: &EdgeSpec, ends: (Point3<f64>, Point3<f64>)) -> Option<f64> {
-    let hull = match &spec.carrier {
-        Curve3::Line(_) => trim_ends(spec).to_vec(),
-        Curve3::Nurbs(printed) => hull_within(printed, (spec.t0, spec.t1))?,
-        _ => return None,
-    };
-    let bound = hull
-        .into_iter()
-        .map(|p| segment_distance_sup(p, (pt(ends.0), pt(ends.1))))
-        .fold(0.0_f64, max_bound);
+/// **The printed carrier over its trim, read where its cover holds it**:
+/// the carrier at the certification scalar, exact, and its cover over
+/// the trim ([`Curve3::cover_over`]: a spline's pieces' nets over the
+/// window, a line's segment, a conic's arc), which holds every point the
+/// trim does. `None` where no cover is read.
+fn trim_cover(spec: &EdgeSpec) -> Option<geom::cover::Cover<Interval>> {
+    let carrier = spec.carrier.map_scalar(Interval::point);
+    let window = geom::cover::ParamWindow::new(Interval::point(spec.t0), Interval::point(spec.t1));
+    carrier.cover_over(window).ok()
+}
+
+/// A line at the certification scalar, exact.
+fn exact_line(origin: Point3<f64>, dir: Vec3<f64>) -> geom::Line<Interval> {
+    let [ox, oy, oz] = pt(origin);
+    let [dx, dy, dz] = vc(dir);
+    geom::Line {
+        origin: Point3::new(ox, oy, oz),
+        dir: Vec3::new(dx, dy, dz),
+    }
+}
+
+/// **The printed carrier's farthest from a built line over its trim**:
+/// the far end of its trim cover's distance range from the line
+/// ([`geom::cover::Cover::distance_range`]), read outward. Every printed
+/// point lies in the cover, so none stands farther. `None` where no
+/// bound certifies.
+fn printed_off_line(spec: &EdgeSpec, line: geom::Line<f64>) -> Option<f64> {
+    let site = geom::cover::Site::Line(exact_line(line.origin, line.dir));
+    let (_, far) = trim_cover(spec)?.distance_range(&site);
+    let bound = far.hi();
     bound.is_finite().then_some(bound)
 }
 
-/// A printed line's trim ends, as exact enclosures.
-fn trim_ends(spec: &EdgeSpec) -> [[Interval; 3]; 2] {
-    [spec.t0, spec.t1].map(|t| pt(spec.carrier.eval(t)))
+/// **The printed carrier's farthest from the segment `[a, b]` over its
+/// trim**, certified: its trim cover's farthest from the segment's line
+/// and how far its range along the segment runs past either end, `hypot`
+/// of the two, outward; every printed point lies in the cover. `None`
+/// where the segment is not certified to have a length or no bound
+/// certifies.
+pub(crate) fn printed_on_segment(
+    spec: &EdgeSpec,
+    (a, b): (Point3<f64>, Point3<f64>),
+) -> Option<f64> {
+    let d = sub(pt(b), pt(a));
+    let length2 = geom_core::interval::norm_sq(&d);
+    if !(length2.lo() > 0.0) {
+        return None;
+    }
+    let cover = trim_cover(spec)?;
+    let site = geom::cover::Site::Line(exact_line(a, b - a));
+    let (_, across) = cover.distance_range(&site);
+    let [dx, dy, dz] = d;
+    let (lo, hi) = cover.range_along(Vec3::new(dx, dy, dz));
+    let start = geom_core::interval::dot(&pt(a), &d);
+    let length = length2.sqrt();
+    let past = ((Interval::zero() - (lo - start)) / length)
+        .hi()
+        .max(((hi - start - length2) / length).hi())
+        .max(0.0);
+    let bound = (across.sqr() + Interval::point(past).sqr()).sqrt().hi();
+    bound.is_finite().then_some(bound)
 }
 
-/// **The rational Bézier control points of `curve`'s spans inside
-/// `trim`**, as enclosures: the curve cut at the trim's ends
-/// ([`CurveCertData::with_breaks`], exact in ℝ, no control re-rounded),
-/// each span's weighted coordinate rows over its weight row
-/// ([`linear_composite`] of each coordinate). With every weight row
-/// certified positive the span is a convex combination of these points,
-/// so the part of the curve inside `trim` lies in their hull. `None`
-/// where a weight is not certified positive, a composite refuses, or no
-/// span lies inside `trim`.
-fn hull_within(curve: &NurbsCurve3<f64>, (t0, t1): (f64, f64)) -> Option<Vec<[Interval; 3]>> {
-    let coords = curve.certified_coords();
-    let cuts = [t0, t1];
-    let data = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords)
-        .ok()?
-        .with_breaks(&cuts);
-    let axis = |d: usize| {
-        let mut e = [0.0; 3];
-        e[d] = 1.0;
-        linear_composite(&data, &e, 0.0).ok()
-    };
-    let (x, y, z) = (axis(0)?, axis(1)?, axis(2)?);
-    let at = x.num.breaks();
-    let weights = x.den.spans();
-    let mut hull = Vec::new();
-    // Fixed ascending span and coefficient order (D9).
-    for (i, w) in weights.iter().enumerate() {
-        let (&lo, &hi) = (at.get(i)?, at.get(i + 1)?);
-        if !(lo >= t0 && hi <= t1) {
-            continue;
-        }
-        for (k, &wk) in w.iter().enumerate() {
-            if !(wk.lo() > 0.0) {
-                return None;
-            }
-            let row = |c: &geom_core::spline::compose::CompositeForm| {
-                c.num.spans().get(i).and_then(|r| r.get(k)).map(|&n| n / wk)
-            };
-            hull.push([row(&x)?, row(&y)?, row(&z)?]);
-        }
+/// A certified upper bound on the distance of the exact point `p` from
+/// the segment `[a, b]`: its distance from the segment's line and how far
+/// its projection runs past either end, `hypot` of the two, outward; from
+/// `a`, plus the segment's length, where the segment is not certified to
+/// have one. `NaN` where it certifies none.
+pub(crate) fn point_segment_sup(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
+    let off = sub(pt(p), pt(a));
+    let d = sub(pt(b), pt(a));
+    let length = geom_core::interval::norm_sq(&d).sqrt();
+    if !(length.lo() > 0.0) {
+        return geom_core::interval::add_up(norm_sup(&off), norm_sup(&d));
     }
-    (!hull.is_empty()).then_some(hull)
+    let across = Interval::point(norm_sup(&cross(&off, &d))) / length;
+    let along = geom_core::interval::dot(&off, &d) / length;
+    let past = (Interval::zero() - along)
+        .hi()
+        .max((along - length).hi())
+        .max(0.0);
+    (across.sqr() + Interval::point(past).sqr()).sqrt().hi()
 }
 
 /// The componentwise enclosure of `p` (exact).
@@ -195,48 +215,6 @@ fn vc(v: Vec3<f64>) -> [Interval; 3] {
 /// `a − b`, componentwise and outward.
 fn sub(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-/// A certified upper bound on the distance of the enclosed point `p`
-/// from the line through `origin` along `dir` (any nonzero length):
-/// `|(p − o) × d| / |d|`, outward. `NaN` where it certifies none.
-fn line_distance_sup(p: [Interval; 3], origin: Point3<f64>, dir: Vec3<f64>) -> f64 {
-    let d = vc(dir);
-    let num = norm_sup(&cross(&sub(p, pt(origin)), &d));
-    let den = geom_core::interval::norm_sq(&d).sqrt();
-    if !(den.lo() > 0.0) {
-        return f64::NAN;
-    }
-    (Interval::point(num) / den).hi()
-}
-
-/// A certified upper bound on the distance of the enclosed point `p` from
-/// the segment `[a, b]`: its distance from the segment's line and how far
-/// its projection runs past either end, `hypot` of the two, outward; from
-/// `a` where the segment is not certified to have a length. `NaN` where
-/// it certifies none.
-pub(crate) fn segment_distance_sup(
-    p: [Interval; 3],
-    (a, b): ([Interval; 3], [Interval; 3]),
-) -> f64 {
-    let off = sub(p, a);
-    let d = sub(b, a);
-    let length = geom_core::interval::norm_sq(&d).sqrt();
-    if !(length.lo() > 0.0) {
-        return geom_core::interval::add_up(norm_sup(&off), norm_sup(&d));
-    }
-    let across = Interval::point(norm_sup(&cross(&off, &d))) / length;
-    let along = geom_core::interval::dot(&off, &d) / length;
-    let past = (Interval::zero() - along)
-        .hi()
-        .max((along - length).hi())
-        .max(0.0);
-    (across.sqr() + Interval::point(past).sqr()).sqrt().hi()
-}
-
-/// [`segment_distance_sup`] of an exact point.
-pub(crate) fn point_segment_sup(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
-    segment_distance_sup(pt(p), (pt(a), pt(b)))
 }
 
 /// **A printed circle's arc on a built circle**, over the arc's trim
