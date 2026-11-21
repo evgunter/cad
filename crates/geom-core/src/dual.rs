@@ -535,6 +535,16 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::tau())
     }
 
+    /// The value `T`'s ([`Real::difference_dot`]); the derivative the
+    /// plain formula's chain rule.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2];
+        Self {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            deriv: plain.deriv,
+        }
+    }
+
     /// `(√a, a' / (r + r))` where `r = √a` — the value-channel root is
     /// computed once and reused; the doubling `r + r` is exact at `f64`
     /// and tight at intervals. At the kink `a = 0` the derivative channel

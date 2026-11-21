@@ -2092,6 +2092,10 @@ impl Real for Probe {
         Self(Real::sqrt(self.0))
     }
 
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::difference_dot(q.map(|x| x.0), o.map(|x| x.0), n.map(|x| x.0)))
+    }
+
     fn abs(self) -> Self {
         Self(Real::abs(self.0))
     }

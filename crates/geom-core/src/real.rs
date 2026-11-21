@@ -468,6 +468,23 @@ pub trait Real:
         None
     }
 
+    /// **`(q − o)·n`, posed so its digits are the result's own**: the
+    /// offset of `q` from `o` along `n`, which cancels whenever `q` and
+    /// `o` lie far apart across `n` (a plane's stored origin far along
+    /// the plane from the point read against it). At a value scalar each
+    /// difference and product is error-free and their sum compensated
+    /// (Ogita, Rump and Oishi's `Dot2`), so the value is the exact one's
+    /// rounding up to a term of order `u²·Σ|nᵢ(qᵢ − oᵢ)|`, whatever the
+    /// cancellation; at an enclosure stated at points it is the exact sum
+    /// enclosed. The
+    /// default is the plain formula, the real function every scalar
+    /// computes; a scalar that carries `T`'s value channel computes it
+    /// through `T`'s own.
+    #[must_use]
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+    }
+
     /// **The `f64` this value states**, where it is a plain enclosure
     /// that is a certified point (its two ends one `f64`); `None` (the
     /// default) elsewhere: a point scalar's value is a rounding, not a
@@ -2281,6 +2298,26 @@ impl Real for f64 {
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    /// `Dot2` over the error-free differences; where that is not finite
+    /// the plain formula's poison or overflow is the answer.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        use crate::exact::{two_product, two_sum};
+        let (mut hi, mut lo) = (0.0, 0.0);
+        for i in 0..3 {
+            let (d, de) = two_sum(q[i], -o[i]);
+            let (p, pe) = two_product(d, n[i]);
+            let (s, se) = two_sum(hi, p);
+            hi = s;
+            lo += se + pe + de * n[i];
+        }
+        let v = hi + lo;
+        if v.is_finite() {
+            v
+        } else {
+            (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+        }
+    }
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
