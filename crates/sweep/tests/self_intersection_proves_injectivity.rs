@@ -1800,7 +1800,9 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
 /// short of the north pole's latitude. A lune holds its pole vertex, so
 /// its extent reaches the latitude, and a cell at the pole is read
 /// through the pole's collapsed side. Red, out of pairs on the two
-/// northern lunes, where the cell is clipped to the stored extent.
+/// northern lunes, where the cell is clipped to the stored extent. Built
+/// at `f64` alone, as the drum's cavity above is: the fixture and the
+/// door's cavity are `f64` bodies.
 #[test]
 fn a_two_arc_spheres_cavity_holds_across_its_poles() {
     use crate::common::latitude_seam::{door_cavity, two_arc_sphere};
@@ -3157,18 +3159,192 @@ fn a_two_ball_union_holds_with_its_poles_read() {
 /// triangle at `y = 0.3` stores `0`.
 #[test]
 fn a_unit_cone_with_its_apex_off_the_origin_holds() {
-    let profile = validated::<f64>(&[ProfileLoop::polygon(
-        [(0.0, 2.7), (0.0, 1.7), (1.0, 2.7)].map(|(x, y)| Point2::new(x, y)),
-    )]);
-    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
+    for report in holds_at_both(
+        "the cone with its apex at y = 1.7",
+        cone_tip(1.7, 1.0, 1.0, false),
+        cone_tip(1.7, 1.0, 1.0, false),
+    ) {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+        assert!(report.receipt.splits < 400, "{:?}", report.receipt);
+    }
+}
+
+/// A cone tip revolved a full turn about `y`: the triangle with its
+/// apex on the axis at `y0 + h` (`up`) or at `y0`, radius `r`.
+fn cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Body<T> {
+    let pts = if up {
+        [(0.0, y0), (r, y0), (0.0, y0 + h)]
+    } else {
+        [(0.0, y0 + h), (0.0, y0), (r, y0 + h)]
+    };
+    let profile = validated::<T>(&[ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))]);
+    revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
-        .into_body();
-    let report = injective(&body, None, BUDGET);
-    assert_holds("the cone with its apex at y = 1.7", &report, &body);
-    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
-    assert!(report.receipt.splits < 400, "{:?}", report.receipt);
+        .into_body()
 }
+
+/// A rigid turn about a generic axis and a translation, as a sketch
+/// plane: three frames, and the plain one at `0`.
+fn turned_plane(k: usize) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    if k == 0 {
+        return SketchPlane::xy();
+    }
+    let (ax, th, off) = [
+        ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
+        ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
+        ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
+    ][k - 1];
+    let a = Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+        tol(),
+    ))
+}
+
+/// A profile of straight and bulged segments on `plane`, revolved a
+/// full turn about its `y`, at `f64`.
+fn revolved_on(plane: SketchPlane<f64>, verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+    let profile = Profile::new(plane, vec![profile::test_support::bulge_loop(verts)])
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// **Cones a hundred units off the origin and fifty long hold**, where
+/// a meridian's image ends an ulp of its own far end off the apex:
+/// - the triangle `r = 20`, `h = 50` with its apex down at `y = 101.3`,
+///   at both scalars. Its half-cones store `v` from `7.1e-15`, an ulp of
+///   53.85;
+/// - the same shape with its apex up at `y = 50`, its axial door's
+///   cavity at `t = 1` (`f64`: the door's fixture is);
+/// - the triangle `r = 0.37`, `h = 2.3` with its apex up at `y = 103.6`,
+///   its cavity at `t = 0.0185`, whose half-cones store `v` to
+///   `-1.4e-14`.
+///
+/// Each stored end is at the apex by the band, so the extent reaches
+/// `v = 0`, and each meridian ends at the apex's vertex, so it runs on
+/// to the apex's side. Red, `Uncertified` on the departure arm, where
+/// the extent moves only across `chart_slack`, or the meridian must
+/// cover its side to within the cover's own `few_ulps`.
+#[test]
+fn cones_far_from_the_origin_hold_across_their_apexes() {
+    use crate::common::latitude_seam::door_cavity;
+    for report in holds_at_both(
+        "the long cone with its apex at y = 101.3",
+        cone_tip(101.3, 20.0, 50.0, false),
+        cone_tip(101.3, 20.0, 50.0, false),
+    ) {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+        assert!(report.receipt.splits < 500, "{:?}", report.receipt);
+    }
+    for (what, y0, r, h, t, ceiling) in [
+        ("the long cone's cavity", 0.0, 20.0, 50.0, 1.0, 500),
+        (
+            "the cone's cavity at y = 101.3",
+            101.3,
+            0.37,
+            2.3,
+            0.0185,
+            700,
+        ),
+    ] {
+        let cavity = door_cavity(&cone_tip(y0, r, h, true), t);
+        let report = injective(&cavity, None, BUDGET);
+        assert_holds(what, &report, &cavity);
+        assert_eq!(report.receipt.refused, 0, "{what}: {:?}", report.receipt);
+        assert!(
+            report.receipt.splits < ceiling,
+            "{what}: {:?}",
+            report.receipt
+        );
+    }
+}
+
+/// **A ball a hundred units off the origin holds at both scalars, and
+/// balls and a cone in turned frames hold**: the unit ball about
+/// `y = 101.3`; the unit ball and the unit cone tip on each of three
+/// sketch planes turned about a generic axis and moved
+/// ([`turned_plane`]), at `f64`. A sphere's poles and a cone's apex are
+/// read off the face's own vertices in whatever frame the body is in.
+#[test]
+fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
+    fn ball<T: Scalar>(y0: f64) -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![p(y0 - 1.0, 1.0), p(y0 + 1.0, 0.0)],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    for report in holds_at_both("the ball about y = 101.3", ball(101.3), ball(101.3)) {
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    }
+    for k in 1..4 {
+        let at = |x: f64, y: f64| Point2::new(x, y);
+        let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
+        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
+        let report = injective(&ball, None, BUDGET);
+        assert_holds(&format!("the ball in frame {k}"), &report, &ball);
+        assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
+        let cone = revolved_on(
+            turned_plane(k),
+            vec![
+                (at(0.0, 0.0), 0.0),
+                (at(1.0, 0.0), 0.0),
+                (at(0.0, 1.0), 0.0),
+            ],
+        );
+        let report = injective(&cone, None, BUDGET);
+        assert_holds(&format!("the cone in frame {k}"), &report, &cone);
+        assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
+    }
+}
+
+/// **A slender cone in a turned frame refuses on the departure arm at
+/// its apex**: the triangle `r = 0.37`, `h = 2.3` with its apex up at
+/// `y = 103.6`, on the second turned sketch plane. Its apex is placed
+/// and its meridians run on to it; the two half-cones, which share both
+/// rulings, are then not parted at the apex
+/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_slender_cone_in_a_turned_frame_refuses_departure_at_its_apex() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let cone = revolved_on(
+        turned_plane(2),
+        vec![
+            (at(0.0, 101.3), 0.0),
+            (at(0.37, 101.3), 0.0),
+            (at(0.0, 103.6), 0.0),
+        ],
+    );
+    let report = injective(&cone, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        ),
+        "{:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
 /// **Review sweep (PR 7115): cone tips revolved off the origin, and their
 /// door cavities**, f64. The triangle with its apex on the axis at the
 /// top (`up`: `(0, y0) (r, y0) (0, y0 + h)`) or the bottom (`(0, y0 + h)
@@ -3263,7 +3439,6 @@ fn review_sweep_cone_tips_off_the_origin() {
 #[ignore = "review sweep: prints, asserts nothing"]
 fn review_sweep_delta_shapes() {
     use crate::common::latitude_seam::door_cavity;
-    use geom_core::{Affine3, Mat3, Vec3};
     let ask = |what: &str, body: Body<f64>, t: f64| {
         let rep = injective(&body, None, BUDGET);
         println!("DELTA {what} body: {:?} {:?}", rep.verdict, rep.receipt);
@@ -3289,30 +3464,7 @@ fn review_sweep_delta_shapes() {
             .map(|&(x, y)| (Point2::new(x, y), 0.0))
             .collect::<Vec<_>>()
     };
-    // Turned frames: a rotation about a generic axis and a translation.
-    let turned = |k: usize| -> SketchPlane<f64> {
-        if k == 0 {
-            return SketchPlane::xy();
-        }
-        let (ax, th, off) = [
-            ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
-            ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
-            ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
-        ][k - 1];
-        let a =
-            Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
-        let (c, s) = (f64::cos(th), f64::sin(th));
-        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
-        let m = Mat3::from_cols(
-            col(Vec3::new(1.0, 0.0, 0.0)),
-            col(Vec3::new(0.0, 1.0, 0.0)),
-            col(Vec3::new(0.0, 0.0, 1.0)),
-        );
-        SketchPlane::from_frame(geom_core::test_support::rigid(
-            &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
-            tol(),
-        ))
-    };
+    let turned = turned_plane;
     for k in 0..4 {
         for &(y0, r, h, up) in &[
             (0.0, 1.0, 1.0, true),
@@ -3419,30 +3571,7 @@ fn review_sweep_delta_shapes() {
 #[ignore = "review probe"]
 fn review_probe_delta_refusers() {
     use crate::common::latitude_seam::door_cavity;
-    use geom_core::{Affine3, Mat3, Vec3};
-    let turned = |k: usize| -> SketchPlane<f64> {
-        if k == 0 {
-            return SketchPlane::xy();
-        }
-        let (ax, th, off) = [
-            ((1.0, 2.0, 3.0), 0.7, (0.3, -1.1, 2.9)),
-            ((-0.4, 0.1, 0.9), 2.3, (17.0, 4.2, -8.8)),
-            ((0.0, 1.0, 1.0), 1.1, (0.0, 0.0, 0.0)),
-        ][k - 1];
-        let a =
-            Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
-        let (c, s) = (f64::cos(th), f64::sin(th));
-        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
-        let m = Mat3::from_cols(
-            col(Vec3::new(1.0, 0.0, 0.0)),
-            col(Vec3::new(0.0, 1.0, 0.0)),
-            col(Vec3::new(0.0, 0.0, 1.0)),
-        );
-        SketchPlane::from_frame(geom_core::test_support::rigid(
-            &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
-            tol(),
-        ))
-    };
+    let turned = turned_plane;
     for &(k, y0, r, h, up, cav) in &[
         (0, 0.0, 20.0, 50.0, true, true),
         (0, 101.3, 0.37, 2.3, true, true),
@@ -3478,32 +3607,4 @@ fn review_probe_delta_refusers() {
             rep.verdict, rc.discharged, rc.refused, rc.splits
         );
     }
-}
-
-/// **A cone's cavity a hundred units off the origin holds**: the
-/// triangle `(0, 101.3) (0.37, 101.3) (0, 103.6)` revolved a full turn
-/// about `y`, apex at the top, and its axial door cavity at `t =
-/// 0.0185`. Each inner half-cone's stored extent ends at `v =
-/// -1.403e-14` under its apex: the rounding of `c + l·t` at coordinates
-/// near 100, past `chart_slack` of a 2.2-long extent. So
-/// `reaching_its_singular_points` reads the end as contradicting the
-/// apex vertex and the face refuses `Structural`. Red at `39f25fc2`
-/// (`Uncertified … Departure` at 167 / 17 / 178); with the slack
-/// loosened it runs on to a `Departure` refusal of its own, untraced.
-/// Found by the delta review of PR 7115.
-#[test]
-#[ignore = "red: an apex end rounded at the body's coordinates, past chart_slack of the extent"]
-fn a_cone_cavity_a_hundred_units_off_the_origin_holds() {
-    use crate::common::latitude_seam::door_cavity;
-    let profile = validated::<f64>(&[ProfileLoop::polygon(
-        [(0.0, 101.3), (0.37, 101.3), (0.0, 103.6)].map(|(x, y)| Point2::new(x, y)),
-    )]);
-    let body = revolve(&profile, axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body
-        .into_body();
-    let cavity = door_cavity(&body, 0.0185);
-    let report = injective(&cavity, None, BUDGET);
-    assert_holds("the cone's cavity at y = 101.3", &report, &cavity);
-    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
