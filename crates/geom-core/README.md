@@ -469,11 +469,12 @@ This section is where that rule's parts live.
   behind the one `Conic` reading, held about its centre or about a
   point of the arc it serves with its parameter zero there; its
   construction fixes which, the same at every size, and a construction
-  whose centre runs off at a pose it can reach holds the arc. At `f64`
-  a point is summed by short chords from a point of the curve, a
-  centre-held conic's from its seam vertex; at the enclosure scalars a
-  centre-held conic is read about its centre, each stored term once.
-  Every reading of where a conic is goes through the conic. No
+  whose centre runs off at a pose it can reach holds the arc. A conic
+  is the curve its stored numbers state, and no reading replaces it
+  with a rounded copy: one held at its centre is read from its centre,
+  and so fixes a point of its arc only to the rounding of the centre's
+  distance and directions. Every reading of where a conic is goes
+  through the conic. No
   `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every

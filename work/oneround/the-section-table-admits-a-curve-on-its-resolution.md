@@ -164,11 +164,15 @@ and measured before it was set aside; the measurements are in
   cylinder cut toward its axis, the equal-cylinder bisector) holds the
   arc always, and holding a centre there is a kernel bug. Nothing
   converts one placement to the other.
-- **Reading.** An arc-held conic sums short chords from its stored
-  point at every scalar. A centre-held one sums chords from its seam
-  vertex at `f64`, and reads `centre + size·direction` at the
-  enclosure scalars, each stored term once. Its centre is the stored
-  value: the same number, range or symbolic node.
+- **A conic is the curve its stored numbers state**, and every
+  reading, and every measurement of one, is judged against that curve.
+  A centre-held conic is read from its centre at every scalar, as it
+  was before this unit; it fixes a point of its arc only to the
+  rounding of the centre's distance and directions, so a large one
+  refuses near-tangent decisions it cannot place. An arc-held conic
+  sums short chords from its stored point, which is exact. Reading a
+  centre-held conic by chords from a rounded seam vertex reads another
+  curve: measured, twelve roots 1.4 to 2.7 ε off at a 10 km radius.
 - **Readers go through the conic.** Covers, extents, chart images and
   the inverse; none restates the curve as `centre + size·direction`. A
   reader that needs only directions derives no position
