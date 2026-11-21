@@ -512,10 +512,11 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// ## The premise that argument needs, and where it is established
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
-/// chart. [`classify`] does not establish that: a `Line` carrier is a
-/// meridian unconditionally, and a `Circle` is a rim iff
-/// `|n · axis| > 0.5` — a cone of directions, not coaxiality. So the
-/// real premise is **every boundary edge is an iso-curve of this
+/// chart. The walk does not decide that: it reads each edge's family
+/// from the shape door's answer ([`side_of`]). A reading by carrier kind
+/// alone would not establish it — a `Line` a meridian unconditionally, a
+/// `Circle` a rim iff `|n · axis| > 0.5`, a cone of directions, not
+/// coaxiality — which is what the door is for. So the real premise is **every boundary edge is an iso-curve of this
 /// chart, traversed on ONE branch of it**, and it is verified at
 /// props: the two halves of it by
 /// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
@@ -579,8 +580,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// right about one face. What follows for a reader here: this walk's
 /// premise is NOT "whatever props admits", it is the branch door by
 /// name, and a change to the flux lane's admission set does not move
-/// it. The cheap hardening once recorded here (a coaxiality test in
-/// `classify`) is still not taken: the doors decide both halves at
+/// it. There is no second test here: the walk reads the doors'
+/// per-edge answer ([`side_of`]), so each family is decided once, at
 /// props' band, on props' margins.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
