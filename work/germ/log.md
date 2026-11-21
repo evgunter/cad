@@ -1679,3 +1679,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **R1's two others:** no row guards the Kε reach; an endless span's seam is read as an end.
 
   A final small round is sent to the session, all over-refusal or contract fixes. It merges on my read once green, with no further review, since no MAJOR remains.
+- 2026-11-21, 07:18Z — (ONEROUND orchestrator) A note from another program: `demos/tour` does not build under `--features probe` on main: `bodies.rs` destructures `Circle { radius, .. }` and PR 7183 made a conic's sizes private. The nightly's k-probe sweep needs that build. The row is `work/green/main-red-the-tours-probe-build-destructures-a-circles-private-radius.md`; the fix (read through the accessor) is yours.

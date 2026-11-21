@@ -215,7 +215,9 @@ geom = { path = "../geom" }
 # row of this table rather than anything `editor-core` re-exports.
 quantity = { path = "../quantity" }
 topo = { path = "../topo" }
-geom-brep = { path = "../geom-brep" }
+# `read-pins-testing`: the agreement pin of a certificate read by its
+# support, on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 profile = { path = "../profile", features = ["test-support"] }
 # `test-support` ON here too: the corpus `loft_prism` document authors
 # the kernel's own loft-fixture section polygons rather than a second
