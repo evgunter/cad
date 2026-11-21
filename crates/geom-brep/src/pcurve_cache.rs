@@ -13497,6 +13497,8 @@ fn spiric_chart_pcurve<T: Decide>(
     place: Placement<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
+    // The consumed arc's extent, read from below: the chart axis's lever.
+    let arc = crate::edge_extent_inf(carrier, place.span.0, place.span.1);
     let Curve3::Spiric {
         center,
         axis,
@@ -13546,7 +13548,7 @@ fn spiric_chart_pcurve<T: Decide>(
             // it, so their far or Zero arm is the chart's incidence, never
             // a lane choice. The axis reading's sign is all that can
             // place it: a reading Zero or in the sliver puts the axes
-            // within `K·ε` over the oval's reach of perpendicular, far from the parallel ones
+            // within `K·ε` over the arc's extent of perpendicular, far from the parallel ones
             // every torus holding the oval has, so it is definitely off
             // (no margin to quote). A poisoned read says only that. The centre's reading in the sliver is
             // the chart's distance from the own torus, an incidence
@@ -13560,13 +13562,10 @@ fn spiric_chart_pcurve<T: Decide>(
             };
             let sigma = decide(
                 "pcurve_spiric_chart_axis",
-                // A cosine of unit vectors, levered at the oval's own
-                // extent: the turn between the axes moves the oval by
-                // it over the region the oval occupies.
-                Margin::levered(
-                    chart_axis.dot(axis),
-                    crate::ExtentBall::of_covered(carrier.cover().as_ref().ok()).lever(),
-                ),
+                // A cosine of unit vectors, levered at the consumed arc's
+                // extent from below: the turn between the axes moves the
+                // arc by it over the span it occupies.
+                Margin::levered(chart_axis.dot(axis), arc),
                 band,
             )
             .map_err(|cause| {
