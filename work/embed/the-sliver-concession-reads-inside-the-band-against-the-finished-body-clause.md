@@ -72,29 +72,44 @@ cell is not a lever the kernel admits. The sliver waves those cells
 through. It is also a `Zero` taken from a cell bound, which PR 6821
 rules out.
 
-**The final state.** The departure reading is metered at the reach of
-the faces it governs. `Presentation::Vacuous` means only that the cell
-lies off the face. The sliver's funnel site, its entry in the module's
-"ε concessions" and the rows that assert `Vacuous` through it go.
+**The final state (Ev, PR 7095, 2026-11-19 to 2026-11-21).** The
+sliver retires at all three of its readers, with no refusal in its
+place. The departure reading keeps its margin, metered at the reach of
+the faces it governs and never at a cell: Ev asked whether that margin
+tolerates geometry being ε off, and it does (two faces each ε off over
+their reach r meet at an angle uncertain by about ε/r, so a wedge that
+opens by less than about 2ε at the faces' far side could really open
+the other way). It is one reading with tier 3's wedge check
+(`crates/topo/src/edge_wedge.rs`, check 4: "bounded away from the ends
+by θ = ε/r", levered at the faces' extent, read at stations along the
+edge), not a second answer to the same question.
+`Presentation::Vacuous` means only that the cell lies off the face.
+The sliver's funnel site, its entry in the module's "ε concessions" and
+the rows that assert `Vacuous` through it go.
 
-**The order.**
-1. The margin is metered at the faces' reach. Measured by proxy (the
-   rate's sign decided at the least band, the sliver left on): no
-   verdict moves in the tour or the suites, and 40 tour bodies take
-   fewer pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
-   pins a count that moves (14 corner certificates to 18).
-2. `present_line_corner`'s and `present_plane_corner`'s slivers go
-   with it: no sweep reaches the first, and `chute`, the stepped ring
-   and `tiltedcut_above` hold without the second, each pair by the
-   carrier arm with the thin rectangle read.
-3. `present_chart`'s goes once the filleted drum holds at `Interval`
-   without it
-   (`the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam`).
+**The unit.**
+1. The margin is metered at the faces' reach, by the lever
+   `edge_wedge` reads. Measured by proxy before the ruling (the rate's
+   sign decided at the least band, the sliver left on): no verdict
+   moves in the tour or the suites, and 40 tour bodies take fewer
+   pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
+   pins a count that moves (14 corner certificates to 18). The banded
+   form itself was not measured; the designers put its margins on
+   these bodies at 0.1 to 0.4 m against 1e-8 m.
+2. All three slivers go with it (`present_line_corner`,
+   `present_plane_corner`, `present_chart`). `chute`, the stepped ring
+   and `tiltedcut_above` hold without them, each pair by the carrier
+   arm with the thin rectangle read.
+3. The filleted drum's `Interval` half then refuses
+   (`the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam`,
+   three changes each of which closes it). It is a test and no demo,
+   so Ev let it go: its row is pinned at its refusal, with the exit
+   named, until that row's fix lands.
 
-Until step 3 no new reader adopts the sliver. The touch concession
-(`few_ulps`, in `vacuous` and `present_chart`) is the same compensation
-at chart scale and does not retire here: at 0, with the sliver gone,
-`hollowring`, `hollowtorus` and `teapotlid` refuse.
+The touch concession (`few_ulps`, in `vacuous` and `present_chart`) is
+the same compensation at chart scale and does not retire here: at 0,
+with the sliver gone, `hollowring`, `hollowtorus` and `teapotlid`
+refuse.
 
 ## Measured: what holds only through the sliver (EMBED, lane sliver-measure, 2026-11-17)
 
