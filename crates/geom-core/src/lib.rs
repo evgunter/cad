@@ -38,6 +38,7 @@ pub mod structure;
 pub mod sym;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
+pub mod told;
 pub mod tolerance;
 
 /// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
@@ -91,6 +92,7 @@ pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use structure::{structure_ascends, structure_nonzero};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
+pub use told::{Compared, Dimension, Told};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,

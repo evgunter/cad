@@ -186,6 +186,7 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
                 SymOp::Acos => Some(Real::acos(kid(0)?)),
                 SymOp::Atan => Some(Real::atan(kid(0)?)),
                 SymOp::Floor => Some(Real::floor(kid(0)?)),
+                SymOp::LessSin => Some(Real::less_sin(kid(0)?)),
                 SymOp::Atan2 => Some(Real::atan2(kid(0)?, kid(1)?)),
                 SymOp::Min => Some(Real::min(kid(0)?, kid(1)?)),
                 SymOp::Max => Some(Real::max(kid(0)?, kid(1)?)),

@@ -1,15 +1,16 @@
 //! **The circle root cores**: the two root finders every circle × surface
-//! door hands its residual to. A door (`topo`'s conic × quadric door,
+//! door hands its residual to. A door ([`super::conic_quadric`],
 //! [`super::circle_torus`], [`super::ellipse_torus`]) computes the
-//! residual's harmonics from the geometry, names its rows and its
-//! decision, and answers [`CircleRoots`]; the first harmonic's root
-//! finding lives here, and a degree-two or higher residual's in
-//! [`crate::half_angle`], which [`door_half_angle_roots`] and
-//! [`door_refusal`] read in the door's vocabulary.
-//! Every door has one shape: `(carrier, t0, t1, surface, band)`,
-//! a wrong kind is [`DoorRefusal::Invariant`], and an in-band
-//! classifying sign is [`DoorRefusal::Escalated`], which the caller
-//! escalates as the door's decision.
+//! residual's harmonics from the geometry, names its rows, and answers
+//! [`CircleRoots`]; the first harmonic's root finding lives here, and a
+//! degree-two or higher residual's in [`crate::half_angle`], which
+//! [`door_half_angle_roots`] and [`door_refusal`] read in the door's
+//! vocabulary. Every door has one shape: `(carrier, t0, t1, surface,
+//! band)`. A torus door refuses in [`DoorRefusal`]: a wrong kind is
+//! [`DoorRefusal::Invariant`], and an in-band classifying sign is
+//! [`DoorRefusal::Escalated`]. The conic × quadric door refuses in its
+//! own [`super::conic_quadric::ConicQuadricRefusal`], naming the
+//! surface's arm. The caller names the decision an escalation is.
 //!
 //! # The first-harmonic door
 //!
