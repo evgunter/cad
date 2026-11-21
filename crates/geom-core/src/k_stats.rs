@@ -279,10 +279,11 @@ thread_local! {
 /// one predicate is a choice where a reader builds from its sign and a
 /// check where a validator reads it off a body already built
 /// (`geom_brep::DIHEDRAL_SIGN` is both).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Role {
     /// Another sign can change what the node builds or names. The
     /// default: a decision is a choice unless its caller says otherwise.
+    #[default]
     Choice,
     /// Another sign can only make the node refuse: a reading taken off a
     /// body already built (the at-rest doors), or an instrument whose
@@ -1649,12 +1650,73 @@ pub fn splice_superseded(recording: Detached) {
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
 /// no sample reaches the sink.
+///
+/// **A certificate read by its support** is one such caller: it relogs,
+/// in place of the one derivation it stands for, that derivation's
+/// record as [`Replayable::here`] states it in this scope. That is not
+/// the double splice [`Detached`] guards against, which would move one
+/// recording onto a frame twice; a read relogs once, exactly where
+/// deriving would have recorded. The recording scalar (`Probe`) reads no
+/// certificate, so a read never stands for a derivation that would have
+/// sampled. Its row is geom-brep's `a_read_records_what_a_derivation_records`.
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.extend(recorded);
         }
     });
+}
+
+/// **A derivation's record, held with the role it was taken in**, for a
+/// certificate that stands for that derivation and replays it in its
+/// place ([`relog`]). A verdict's and a mark's role is the scope's it
+/// was taken in ([`checking`]), not the derivation's own, so a record is
+/// a derivation's in another scope only where the roles agree.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Replayable {
+    recorded: Recorded,
+    taken_as: Role,
+}
+
+/// `work`, run under its own frame, its record spliced where this
+/// thread's decisions go, and handed back with the role it was taken in
+/// for a certificate to keep and [`relog`] in place of deriving again.
+pub fn run_replayable<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+    let taken_as = current_role();
+    let (out, recording) = detached(work);
+    let record = Replayable {
+        recorded: recording.recorded().clone(),
+        taken_as,
+    };
+    splice(recording);
+    (out, record)
+}
+
+impl Replayable {
+    /// **This record as the derivation it stands for would record it
+    /// here, where that is exact**: verbatim in the role it was taken
+    /// in, and every verdict and mark a [`Role::Check`] inside a check
+    /// scope, which records every decision taken in it as a check.
+    /// `None` in a choice scope for a record taken in a check scope,
+    /// whose own checks a choice scope would not record as checks: a
+    /// reader there derives again.
+    #[must_use]
+    pub fn here(&self) -> Option<Recorded> {
+        match (current_role(), self.taken_as) {
+            (now, then) if now == then => Some(self.recorded.clone()),
+            (Role::Check, Role::Choice) => {
+                let mut checks = self.recorded.clone();
+                for v in &mut checks.verdicts {
+                    v.role = Role::Check;
+                }
+                for m in &mut checks.marks {
+                    m.role = Role::Check;
+                }
+                Some(checks)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
@@ -1972,6 +2034,14 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    /// **Never the same**: the recording scalar's K samples are its
+    /// purpose, so no certificate is read by its support here; each is
+    /// derived where it is asked, and records its margins.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
     /// channel IS an `f64` and every comparison it makes is that
     /// `f64`'s.

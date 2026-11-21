@@ -464,7 +464,7 @@ where
 /// them).
 fn pole_findings<T>(body: &Body<T>) -> Vec<topo::ValidationError>
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy,
 {
     let errors = topo::validate_geometric(body, Tol::witness()).unwrap_err();
     assert!(

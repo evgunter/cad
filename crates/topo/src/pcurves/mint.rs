@@ -4,7 +4,8 @@
 
 use geom::Surface;
 use geom_brep::{
-    CertifyingDoor, ChartImage, Pcurve, PcurveCache, PcurveCertifyError, Period, probe_pick,
+    CertifyingDoor, ChartImage, FittedLaneOf, Pcurve, PcurveCache, PcurveCertifyError, Period,
+    probe_pick,
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -1996,19 +1997,12 @@ fn carry_rows<T: AtRestPolicy>(
         // A producer that moved the edge's interval under the row
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
-        let (t0, t1) = row.params();
-        let restated = PcurveCache::certify_stated_image(
-            row.pcurve(),
-            (t0, t1),
-            &carrier,
-            surface,
-            band,
-            T::fitted_lane(),
-        )
-        .map_err(|error| PcurveMintError::Certify {
-            half_edge: he,
-            error,
-        })?;
+        let restated = row
+            .restated(&carrier, surface, band, T::fitted_lane())
+            .map_err(|error| PcurveMintError::Certify {
+                half_edge: he,
+                error,
+            })?;
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
@@ -2181,4 +2175,45 @@ pub(super) fn derive_image<T: AtRestPolicy>(
         }
     };
     Ok((carrier, image))
+}
+
+#[cfg(test)]
+mod not_owed_rows {
+    use geom_brep::PcurveCertifyError;
+    use geom_core::Dual64;
+
+    use super::{PcurveMintError, not_owed};
+    use crate::entity::HalfEdgeKey;
+
+    /// At a dual only the want of the fitted lane is excused: a
+    /// defective image's own refusal is a finding and propagates.
+    #[test]
+    fn at_a_dual_only_the_want_of_the_lane_is_not_owed() {
+        let of = |error| PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error,
+        };
+        assert!(
+            not_owed::<Dual64>(&of(PcurveCertifyError::FittedLaneUnsupported {
+                scalar: "dual"
+            })),
+            "a dual owes no fitted row"
+        );
+        for defect in [
+            PcurveCertifyError::IntervalNotForward,
+            PcurveCertifyError::PlaceholderChart,
+        ] {
+            let shown = format!("{defect:?}");
+            assert!(
+                !not_owed::<Dual64>(&of(defect)),
+                "a defective image is owed its refusal at a dual: {shown}"
+            );
+        }
+        assert!(
+            !not_owed::<f64>(&of(PcurveCertifyError::FittedLaneUnsupported {
+                scalar: "f64"
+            })),
+            "a scalar that holds the door owes the row"
+        );
+    }
 }
