@@ -477,6 +477,9 @@ fn read_polished<T: Decide>(
     (s, t): (T, T),
     band: Band,
 ) {
+    if std::env::var_os("CAD_STOP_PROBE").is_some() {
+        stop_probe(found, (ra, pa), (rb, pb), (s, t), band);
+    }
     let ((s, on_a), (t, on_b)) = (at_end(ra.span, s, band), at_end(rb.span, t, band));
     let candidate = super::Candidate {
         point: ra.curve().eval(s),
@@ -485,6 +488,89 @@ fn read_polished<T: Decide>(
         bound: Some(window((ra, pa, s), (rb, pb, t), band)),
     };
     found.read_pair(ra.span, rb.span, candidate, (on_a, on_b), band);
+}
+
+/// PROBE (step 4 measurement, not for merge): the stop's outcome at three
+/// pairs, the polished one, the whole-carrier feet from it and the feet
+/// held to the pieces, with a dense oracle over the pieces.
+#[allow(clippy::all, clippy::pedantic, clippy::restriction)]
+fn stop_probe<T: Decide>(
+    found: &Found<T>,
+    (ra, pa): (&Read<'_, '_, T>, Piece<T>),
+    (rb, pb): (&Read<'_, '_, T>, Piece<T>),
+    (s, t): (T, T),
+    band: Band,
+) {
+    let (ca, cb) = (ra.curve(), rb.curve());
+    let fv = |x: T| x.enclosure_probe().map_or(f64::NAN, |(l, h)| 0.5 * (l + h));
+    let outcome = |s: T, t: T| -> String {
+        let mut f: Found<T> = Found { points: found.points.clone(), held: Vec::new() };
+        let n0 = f.points.len();
+        let ((s2, on_a), (t2, on_b)) = (at_end(ra.span, s, band), at_end(rb.span, t, band));
+        let candidate = super::Candidate {
+            point: ca.eval(s2),
+            ta: s2,
+            tb: t2,
+            bound: Some(window((ra, pa, s2), (rb, pb, t2), band)),
+        };
+        f.read_pair(ra.span, rb.span, candidate, (on_a, on_b), band);
+        let faults: Vec<String> = f.held.iter().map(|(_, e)| format!("{e:?}")).collect();
+        format!("met+{} {:?} held{:?}", f.points.len() - n0, f.points[n0..].iter().map(|m| m.point).collect::<Vec<_>>(), faults)
+    };
+    let gap = |s: T, t: T| (ca.eval(s) - cb.eval(t)).norm();
+    let stat = |s: T, t: T| {
+        let (p, du) = ca.ders1(s);
+        let (q, dv) = cb.ders1(t);
+        let w = p - q;
+        let n = w.norm();
+        (n, du.dot(w) / (du.norm() * n), dv.dot(w) / (dv.norm() * n))
+    };
+    let widen = |p: Piece<T>, u: T| (p.a.min(u), p.b.max(u));
+    let tw = cb.foot(ca.eval(s), t).seed();
+    let sw = ca.foot(cb.eval(tw), s).seed();
+    let th = cb.foot_within(ca.eval(s), widen(pb, t), t).seed();
+    let sh = ca.foot_within(cb.eval(th), widen(pa, s), s).seed();
+    let o_pol = outcome(s, t);
+    let o_whole = outcome(sw, tw);
+    let o_held = outcome(sh, th);
+    let fault = |o: &String| !o.ends_with("held[]");
+    let _ = fault;
+    // Oracle: a grid over the pieces, refined by clamped Gauss-Newton.
+    let n = 200usize;
+    let at = |p: Piece<T>, i: usize| p.a + (p.b - p.a) * T::from_f64(i as f64 / n as f64);
+    let mut best = (gap(pa.a, pb.a), pa.a, pb.a);
+    for i in 0..=n {
+        let si = at(pa, i);
+        let pi = ca.eval(si);
+        for j in 0..=n {
+            let tj = at(pb, j);
+            let g = (pi - cb.eval(tj)).norm();
+            if fv(g) < fv(best.0) { best = (g, si, tj); }
+        }
+    }
+    let (mut os, mut ot) = (best.1, best.2);
+    for _ in 0..50 {
+        let (p, du) = ca.ders1(os);
+        let (q, dv) = cb.ders1(ot);
+        let w = p - q;
+        let (a11, a12, a22) = (du.dot(du), -du.dot(dv), dv.dot(dv));
+        let (b1, b2) = (-du.dot(w), dv.dot(w));
+        let det = a11 * a22 - a12 * a12;
+        if fv(det) == 0.0 { break; }
+        let ds = (b1 * a22 - a12 * b2) / det;
+        let dt = (a11 * b2 - a12 * b1) / det;
+        let (ns, nt) = ((os + ds).max(pa.a).min(pa.b), (ot + dt).max(pb.a).min(pb.b));
+        if fv(gap(ns, nt)) > fv(gap(os, ot)) { break; }
+        os = ns; ot = nt;
+    }
+    eprintln!(
+        "STOPPROBE pa ({:?}, {:?}) pb ({:?}, {:?}) | pol s {:?} t {:?} st {:?} -> {} | whole s {:?} t {:?} st {:?} -> {} | held s {:?} t {:?} st {:?} -> {} | oracle s {:?} t {:?} gap {:?} pt {:?}",
+        pa.a, pa.b, pb.a, pb.b,
+        s, t, stat(s, t), o_pol,
+        sw, tw, stat(sw, tw), o_whole,
+        sh, th, stat(sh, th), o_held,
+        os, ot, gap(os, ot), ca.eval(os),
+    );
 }
 
 /// **Whether `u` is held at an end of `span`**: `u` is exactly one of
