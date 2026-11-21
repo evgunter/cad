@@ -853,7 +853,15 @@ mod tests {
                 panic!("piece {k}'s wall name holds a face")
             };
             let fits = match (want, built.body.face_surface(face).unwrap()) {
-                (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
+                (
+                    Wall::Plane(y),
+                    Surface::Plane {
+                        frame: plane_frame, ..
+                    },
+                ) => {
+                    let origin = plane_frame.origin();
+                    (origin.y - y).abs() < 1e-12
+                }
                 (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => {
                     (*radius - r).abs() < 1e-12
                 }

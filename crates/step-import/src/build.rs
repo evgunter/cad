@@ -554,7 +554,10 @@ fn choose(
     // coaxial cylinder's circles is a distance from it): the edge's own
     // diameter is no reach from there.
     let extent = [sa, sb].into_iter().fold(extent, |lever, s| match *s {
-        Surface::Cone { apex, .. } => lever.max(region.lever_from(apex)),
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            lever.max(region.lever_from(apex))
+        }
         _ => lever,
     });
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
@@ -812,7 +815,19 @@ fn analytic_pair(
 /// The two normals of a pair of planes; `None` for any other pair.
 fn plane_normals(a: &Surface<f64>, b: &Surface<f64>) -> Option<(Vec3<f64>, Vec3<f64>)> {
     match (a, b) {
-        (Surface::Plane { normal: n1, .. }, Surface::Plane { normal: n2, .. }) => Some((*n1, *n2)),
+        (
+            Surface::Plane {
+                frame: plane_frame_2,
+                ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let n1 = plane_frame_2.axis();
+            let n2 = plane_frame.axis();
+            Some((n1, n2))
+        }
         _ => None,
     }
 }
@@ -1167,19 +1182,21 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
         return Vec::new();
     };
     let axis = frame.square().axis;
-    let off = p - frame.origin;
+    let off = p - frame.origin();
     let along = off.dot(axis);
     let across = off - axis * along;
     let Ok((radial, rho)) = across.checked_direction() else {
         return Vec::new();
     };
     match *surface {
-        Surface::Cylinder { origin, radius, .. } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
             vec![Curve3::line(origin + radial * radius, axis)]
         }
         Surface::Cone {
-            apex, half_angle, ..
+            frame, half_angle, ..
         } => {
+            let apex = frame.origin();
             // The ruling from the apex to `p`: along `+axis` on the nappe
             // that opens that way, against it on the mirror nappe (the
             // kernel's cone is the complete double-nappe locus).
@@ -1187,7 +1204,12 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             let c = if along < 0.0 { -c } else { c };
             vec![Curve3::line(apex, axis * c + radial * s)]
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere {
+            frame: carrier_frame,
+            radius,
+            ..
+        } => {
+            let center = carrier_frame.origin();
             // The station's direction in the meridian half-plane, read as
             // the unit vector it is.
             let Ok((dir, _)) = Vec3::new(rho, along, 0.0).checked_direction() else {
@@ -1204,11 +1226,12 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             ]
         }
         Surface::Torus {
-            center,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let center = carrier_frame.origin();
             // The tube's direction at `p` in the meridian half-plane,
             // (cos v, sin v) read as the unit vector it is, not an angle.
             let Ok((tube, _)) = Vec3::new(rho - major_radius, along, 0.0).checked_direction()
@@ -1506,8 +1529,23 @@ fn cap_row(
     };
     for &(wall, net) in &walls {
         let cap = match (wall, sa, sb) {
-            (Side::Plus, _, Surface::Plane { origin, normal, .. })
-            | (Side::Minus, Surface::Plane { origin, normal, .. }, _) => (*origin, *normal),
+            (
+                Side::Plus,
+                _,
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            )
+            | (
+                Side::Minus,
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+                _,
+            ) => {
+                let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+                (origin, normal)
+            }
             _ => continue,
         };
         let Ok((normal, _)) = cap.1.checked_direction() else {
@@ -1888,8 +1926,8 @@ fn circle_column_match(
     // A closed column's ends read both ways round: it runs with the edge
     // about the circle's axis or against it about the reversed one.
     [
-        (order.forward, circle.frame.axis),
-        (order.reversed, -circle.frame.axis),
+        (order.forward, circle.frame.axis()),
+        (order.reversed, -circle.frame.axis()),
     ]
     .into_iter()
     .filter(|&(holds, _)| holds)
@@ -1898,9 +1936,9 @@ fn circle_column_match(
             crate::recognize_curve::arc_residual(
                 curve,
                 (
-                    circle.frame.origin,
+                    circle.frame.origin(),
                     axis,
-                    circle.frame.u_ref,
+                    circle.frame.u_ref(),
                     circle.radius(),
                 ),
                 closed,
@@ -1917,7 +1955,7 @@ fn circle_column_match(
             let (lo, hi) = spline.domain();
             spec.t0 <= lo
                 && spec.t1 >= hi
-                && arc(spline, circle.frame.axis).is_some_and(|own| {
+                && arc(spline, circle.frame.axis()).is_some_and(|own| {
                     let gap = geom_core::interval::add_up(own, column);
                     file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero
                 })
@@ -1947,10 +1985,10 @@ fn column_circle(
         return Some(circle);
     }
     match Curve3::circle(
-        circle.frame.origin,
-        -circle.frame.axis,
+        circle.frame.origin(),
+        -circle.frame.axis(),
         circle.radius(),
-        circle.frame.u_ref,
+        circle.frame.u_ref(),
     ) {
         Curve3::Circle(reversed) => Some(reversed),
         _ => None,
@@ -2284,8 +2322,13 @@ fn singular_point(
         return Ok(None);
     };
     let point = match *surface {
-        Surface::Cone { apex, .. } => apex,
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Cone { frame, .. } => frame.origin(),
+        Surface::Sphere {
+            frame: carrier_frame,
+            radius,
+            ..
+        } => {
+            let center = carrier_frame.origin();
             let Some(frame) = surface.frame() else {
                 return Ok(None);
             };
@@ -2791,8 +2834,7 @@ mod tests {
         );
         // On the circle printed the other way round (its axis reversed),
         // the edge from `p1` to `p0` IS the piece, run against it.
-        let mut reversed = circle;
-        reversed.frame.axis = -circle.frame.axis;
+        let reversed = circle.with_frame(circle.frame.reversed());
         assert!(
             circle_column_match(&piece, &reversed, (p1, p0), None, file),
             "a column run against the edge matches the reversed circle"
@@ -2807,7 +2849,7 @@ mod tests {
         // the ends read Zero and the turning holds, and the deciding read
         // is the residual's.
         let mut bowed_net = piece.control().to_vec();
-        let mid = bowed_net[1] - circle.frame.origin;
+        let mid = bowed_net[1] - circle.frame.origin();
         bowed_net[1] = bowed_net[1] + mid * (1e-9 / mid.norm());
         let bowed =
             geom::NurbsCurve3::new(kv_piece.clone(), bowed_net, piece.weights().to_vec()).unwrap();
@@ -2844,10 +2886,8 @@ mod tests {
             ))
         };
         let cylinder = |origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>| Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, u_ref),
             radius: 1.0,
-            u_ref,
         };
         let face = |id: u64, surface: Surface<f64>| FaceSpec {
             id,
@@ -2952,10 +2992,12 @@ mod tests {
     #[test]
     fn the_generators_through_a_point_lie_on_their_surface() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(1.0, 2.0, 3.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(1.0, 2.0, 3.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let p = Point3::new(1.0, 4.0, 5.0);
         let rulings = generators_through(&cylinder, p);
@@ -2969,11 +3011,13 @@ mod tests {
             "the ruling passes through the point"
         );
         let torus = Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let v: f64 = 0.7;
         let q = Point3::new(0.0, 3.0 + v.cos(), v.sin());

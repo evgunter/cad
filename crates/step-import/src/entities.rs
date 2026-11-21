@@ -558,13 +558,10 @@ impl<'a> Resolver<'a> {
         // vector's length is no distance for the file's band to read, so
         // only a vanishing one (a reference exactly along its axis) is
         // degenerate, and the move is the build's to report.
-        let stated = geom::Frame {
-            origin,
-            axis,
-            u_ref: reference,
-        };
-        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_affine(stated)) {
-            return Ok((stated, rigid, None));
+        if let Ok(rigid) =
+            geom_core::RigidMotion::check_rigid(&stated_affine(origin, axis, reference))
+        {
+            return Ok((geom::Frame::of_motion(&rigid), rigid, None));
         }
         let built = geom_core::RigidMotion::from_axis_and_reference(
             origin,
@@ -579,18 +576,14 @@ impl<'a> Resolver<'a> {
                        whose reference direction is not parallel to its axis (a \
                        parallel pair states no frame)",
         })?;
-        let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
+        let frame = geom::Frame::of_motion(&built);
         // A `direction` is a ratio vector, so dividing one by its length
         // is what it means, not a move: the move is measured from the
         // frame of the two directions normalized, and is none where that
         // frame is rigid within its rounding (a reference the build only
         // scaled).
         let unit = |v: Vec3<f64>| v.checked_direction().map_or(v, |(u, _)| u);
-        let normalized = stated_affine(geom::Frame {
-            origin,
-            axis: unit(axis),
-            u_ref: unit(reference),
-        });
+        let normalized = stated_affine(origin, unit(axis), unit(reference));
         let moved = geom_core::RigidMotion::check_rigid(&normalized)
             .is_err()
             .then(|| in_box_displacement(&built.to_affine(), &normalized));
@@ -642,15 +635,9 @@ impl<'a> Resolver<'a> {
                 let [_, placement] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis: normal,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 })
             }
             "CYLINDRICAL_SURFACE" => {
@@ -658,16 +645,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
-                    origin,
-                    axis,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, CYLINDER_RADIUS)?,
-                    u_ref,
                 })
             }
             "CONICAL_SURFACE" => {
@@ -729,21 +710,18 @@ impl<'a> Resolver<'a> {
                         },
                     ));
                 }
-                let geom::Frame {
-                    origin: location,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
+                let (location, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let apex = if radius == 0.0 {
                     location
                 } else {
                     location - axis * (radius / half_angle.tan())
                 };
+                // The placement's own frame, moved to the apex: its axes
+                // as adopted, not squared again.
                 Ok(Surface::Cone {
-                    apex,
-                    axis,
+                    frame: carrier_frame.with_origin(apex),
                     half_angle,
-                    u_ref,
                 })
             }
             "SPHERICAL_SURFACE" => {
@@ -751,16 +729,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
-                    center,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, SPHERE_RADIUS)?,
-                    axis,
-                    u_ref,
                 })
             }
             // Both radii are roots no construction takes unless
@@ -777,21 +749,15 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 let major_radius = self.root_length(id, major, expected, TORUS_MAJOR_RADIUS)?;
                 let minor_radius = self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?;
                 self.budget
                     .positive_length(id, TORUS_RING, major_radius - minor_radius)?;
                 Ok(Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 })
             }
             "QUASI_UNIFORM_SURFACE" => {
@@ -1044,11 +1010,11 @@ impl<'a> Resolver<'a> {
                 // The kernel's deciding door, at the file's band, which
                 // reads the minor semi-axis the rule above has read.
                 Curve3::ellipse(
-                    frame.origin,
-                    frame.axis,
+                    frame.origin(),
+                    frame.axis(),
                     semi_u,
                     semi_v,
-                    frame.u_ref,
+                    frame.u_ref(),
                     self.budget.band(),
                 )
                 .map_err(|_| {
@@ -1668,13 +1634,7 @@ impl<'a> Resolver<'a> {
                 what: "internal: an edge-free face without its vertex loop",
             });
         };
-        let Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } = surface
-        else {
+        let Surface::Sphere { frame, radius } = surface else {
             return Err(StepImportError::Topology {
                 id,
                 what: "an ADVANCED_FACE bounded by a VERTEX_LOOP on a surface that is \
@@ -1683,6 +1643,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -2728,10 +2689,10 @@ type BuiltPlacement = (geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64
 /// A placement frame as the file states it, as a map: its columns the
 /// reference direction, the axis crossed with it and the axis,
 /// unnormalized.
-fn stated_affine(stated: geom::Frame<f64>) -> Affine3<f64> {
+fn stated_affine(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Affine3<f64> {
     Affine3::from_parts(
-        Mat3::from_cols(stated.u_ref, stated.axis.cross(stated.u_ref), stated.axis),
-        stated.origin - Point3::origin(),
+        Mat3::from_cols(u_ref, axis.cross(u_ref), axis),
+        origin - Point3::origin(),
     )
 }
 

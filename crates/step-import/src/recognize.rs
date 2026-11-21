@@ -378,9 +378,11 @@ fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>,
     let normal = frame.w().get();
     // The flush is posture no test guards (`crate::signed_zero`).
     let plane = Surface::Plane {
-        origin: plus_zero_point(origin),
-        normal: plus_zero(normal),
-        u_ref: plus_zero(frame.u().get()),
+        frame: geom::Frame::new(
+            plus_zero_point(origin),
+            plus_zero(normal),
+            plus_zero(frame.u().get()),
+        ),
     };
     // The whole-patch certificate every kind reads
     // ([`geom_brep::patch_distance_sup`]): on a plane the composite is
@@ -468,10 +470,12 @@ fn try_cylinder(
         return Ok(None);
     };
     let cylinder = Surface::Cylinder {
-        origin: plus_zero_point(center),
-        axis: plus_zero(axis),
+        frame: geom::Frame::new(
+            plus_zero_point(center),
+            plus_zero(axis),
+            plus_zero(radial_hat),
+        ),
         radius,
-        u_ref: plus_zero(radial_hat),
     };
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
@@ -623,10 +627,8 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
     let apex = plus_zero_point(apex);
     let u_ref = plus_zero(seam_reference(patch, apex, axis)?);
     Some(Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, u_ref),
         half_angle: slope.atan(),
-        u_ref,
     })
 }
 
@@ -706,10 +708,8 @@ fn estimate_sphere(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<
     let axis = plus_zero(axis);
     let u_ref = plus_zero(radial_of(seam, center, axis)?);
     (radius.is_finite() && radius > 0.0).then_some(Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, axis, u_ref),
         radius,
-        axis,
-        u_ref,
     })
 }
 
@@ -757,11 +757,9 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
     let axis = plus_zero(axis);
     let u_ref = plus_zero(seam_reference(patch, center, axis)?);
     Some(Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         major_radius,
         minor_radius,
-        u_ref,
     })
 }
 
@@ -1143,10 +1141,12 @@ mod review_probes {
     /// cylinder (chart normal radially outward by construction).
     fn unit_cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -1223,7 +1223,7 @@ mod review_probes {
                         "a promoted plane is pre-aligned: never flipped"
                     );
                     match surface {
-                        Surface::Plane { normal, .. } => normal,
+                        Surface::Plane { frame, .. } => frame.axis(),
                         other => panic!("a plane patch promotes to a plane: {other:?}"),
                     }
                 }
@@ -1292,7 +1292,8 @@ mod review_probes {
                 assert_eq!(kind, PromotedKind::Cylinder);
                 assert!(residual <= 0.9, "truthful residual: {residual:e}");
                 match surface {
-                    Surface::Cylinder { radius, axis, .. } => {
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let axis = frame.axis();
                         assert!((radius - 1.0).abs() < 1e-12, "radius {radius}");
                         assert!(axis.dot(Vec3::new(0.0, 0.0, 1.0)).abs() > 1.0 - 1e-12);
                     }
@@ -1410,12 +1411,12 @@ mod review_probes {
             let (surface, residual) = promoted(&torus, eps_in, "the exact torus");
             match surface {
                 Surface::Torus {
-                    center,
-                    axis,
+                    frame,
                     major_radius,
                     minor_radius,
                     ..
                 } => {
+                    let (center, axis) = (frame.origin(), frame.axis());
                     assert!((major_radius - 3.0).abs() < 1e-12, "R = {major_radius}");
                     assert!((minor_radius - 1.0).abs() < 1e-12, "r = {minor_radius}");
                     assert!(axis.y.abs() > 1.0 - 1e-12, "axis {axis:?}");
@@ -1432,12 +1433,8 @@ mod review_probes {
             );
             let (surface, _) = promoted(&sphere, eps_in, "the exact sphere octant");
             match surface {
-                Surface::Sphere {
-                    center,
-                    radius,
-                    axis,
-                    ..
-                } => {
+                Surface::Sphere { frame, radius, .. } => {
+                    let (center, axis) = (frame.origin(), frame.axis());
                     assert!((radius - 2.0).abs() < 1e-12, "radius {radius}");
                     assert!(
                         (center - Point3::origin()).norm() < 1e-12,
@@ -1454,11 +1451,9 @@ mod review_probes {
             let (surface, _) = promoted(&cone, eps_in, "the exact cone frustum");
             match surface {
                 Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    ..
+                    frame, half_angle, ..
                 } => {
+                    let (apex, axis) = (frame.origin(), frame.axis());
                     assert!(
                         (half_angle - core::f64::consts::FRAC_PI_4).abs() < 1e-12,
                         "half-angle {half_angle}"
@@ -1875,7 +1870,7 @@ mod plane_frame {
 
     fn promoted_plane(patch: &NurbsSurface<f64>) -> (Vec3<f64>, Vec3<f64>) {
         match try_plane(patch, crate::interpret::FileBand::test(1e-9)) {
-            Some((Surface::Plane { normal, u_ref, .. }, _)) => (normal, u_ref),
+            Some((Surface::Plane { frame }, _)) => (frame.axis(), frame.u_ref()),
             other => panic!("a flat patch promotes to a plane: {other:?}"),
         }
     }
@@ -1923,11 +1918,12 @@ mod plane_frame {
                 |p| Point3::new(p.x * scale, p.y * scale, p.z),
                 domains,
             );
-            let Some((Surface::Plane { normal, u_ref, .. }, _)) =
+            let Some((Surface::Plane { frame }, _)) =
                 try_plane(&patch, crate::interpret::FileBand::test(1e-9))
             else {
                 panic!("a flat square at scale {scale:e} over {domains:?} promotes");
             };
+            let (normal, u_ref) = (frame.axis(), frame.u_ref());
             assert_eq!(
                 [normal.x, normal.y, normal.z, u_ref.x, u_ref.y, u_ref.z],
                 [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],

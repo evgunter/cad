@@ -27,20 +27,20 @@ const SMALL_R: f64 = 0.5;
 
 fn donut() -> geom::Surface<f64> {
     geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: BIG_R,
         minor_radius: SMALL_R,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn plane(origin: [f64; 3], normal: Vec3<f64>) -> geom::Surface<f64> {
     let normal = normal.normalize();
     geom::Surface::Plane {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        normal,
-        u_ref: normal.cross(Vec3::unit_y()).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(origin[0], origin[1], origin[2]),
+            normal,
+            normal.cross(Vec3::unit_y()).normalize(),
+        ),
     }
 }
 
@@ -434,11 +434,9 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
         ("spindle", SMALL_R, BIG_R, Ring, false, RING_LEVER),
     ] {
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::unit_x(),
         };
         let got = pair_section_frame_at(
             &torus,
@@ -542,9 +540,7 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
         seed.face,
         crate::construction::FaceSurface::New {
             surface: geom::Surface::Plane {
-                origin: Point3::origin(),
-                normal: n,
-                u_ref: (to - Point3::origin()).normalize(),
+                frame: geom::Frame::new(Point3::origin(), n, (to - Point3::origin()).normalize()),
             },
             sense: true,
         },

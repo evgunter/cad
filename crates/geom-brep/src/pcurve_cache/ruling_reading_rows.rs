@@ -23,19 +23,23 @@ use super::*;
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.25, -0.5, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.25, -0.5, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.5,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The unit-speed line through the cylinder's wall point at azimuth
 /// `phi`, tilted along the wall's tangent by `tilt` off the axis.
 fn tilted(phi: f64, tilt: f64) -> Curve3<f64> {
-    let Surface::Cylinder { origin, radius, .. } = cylinder() else {
+    let Surface::Cylinder {
+        frame: carrier_frame,
+        radius,
+        ..
+    } = cylinder()
+    else {
         unreachable!("a cylinder")
     };
+    let origin = carrier_frame.origin();
     let (s, c) = phi.sin_cos();
     Curve3::line(
         origin + Vec3::new(c, s, 0.0) * radius + Vec3::new(0.0, 0.0, 0.3),
@@ -46,10 +50,12 @@ fn tilted(phi: f64, tilt: f64) -> Curve3<f64> {
 /// The cone of E4's probe.
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.4, 0.1, -0.3),
-        axis: Vec3::new(0.1, -0.2, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(0.4, 0.1, -0.3),
+            Vec3::new(0.1, -0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.0, -0.1).normalize(),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, -0.1).normalize(),
     }
 }
 
@@ -58,11 +64,14 @@ fn cone() -> Surface<f64> {
 /// rim there.
 fn cone_at(phi: f64, sigma: f64, h: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let Surface::Cone {
-        apex, half_angle, ..
+        frame: carrier_frame,
+        half_angle,
+        ..
     } = cone()
     else {
         unreachable!("a cone")
     };
+    let apex = carrier_frame.origin();
     let Some((_, e)) = projected::chart_frame(&cone()) else {
         unreachable!("a cone has a frame")
     };
@@ -131,13 +140,16 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
 }
 
 /// The image over `span` certifies at both scalars: its certificate's
-/// envelope inside the band.
+/// envelope inside the band. Where `pin` is given, at ε 1e-12 the
+/// `Interval` certificate is pinned to escalate `pcurve_envelope` with
+/// its margin in that band instead ([`super::frame_cost`]).
 fn certifies(
     what: &str,
     image: (&Pcurve<f64>, &Pcurve<Interval>),
     carrier: &Curve3<f64>,
     span: (f64, f64),
     surface: &Surface<f64>,
+    pin: Option<(f64, f64)>,
 ) {
     let f = Interval::from_f64;
     let (carrier_i, surface_i) = lift(carrier, surface);
@@ -150,8 +162,18 @@ fn certifies(
         &carrier_i,
         &surface_i,
         band(),
-    )
-    .unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
+    );
+    let cache_i = match (
+        cache_i,
+        pin.filter(|_| super::frame_cost::at_the_least_band()),
+    ) {
+        (Err(e), Some(band)) if super::frame_cost::envelope_escalates(&e, band) => return,
+        (got, Some(band)) => panic!(
+            "{what}: pinned to escalate pcurve_envelope in {band:?} at Interval at ε 1e-12: {:?}",
+            got.map(|_| ())
+        ),
+        (got, None) => got.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}")),
+    };
     let (envelope, hi) = (
         cache.certificate().envelope,
         cache_i.certificate().envelope.hi(),
@@ -201,7 +223,7 @@ fn takes_the_general_lane(
                 image.projected().is_some() && image_i.projected().is_some(),
                 "{what}: takes the projected image at both scalars: {image:?}"
             );
-            certifies(what, (&image, &image_i), carrier, span, surface);
+            certifies(what, (&image, &image_i), carrier, span, surface, None);
             true
         }
         (at_f64, at_interval) => {
@@ -260,6 +282,7 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
             &carrier,
             span,
             &surface,
+            None,
         );
         assert_eq!(
             chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
@@ -302,9 +325,10 @@ fn a_scaled_direction_reads_the_same_margin() {
     let short_tilt = 100.0 * band().escalate();
     let short = 0.25 * zero() / short_tilt;
     let (anchor, g, tangent) = cone_at(1.0, 1.0, 1.0);
-    let Surface::Cone { apex, .. } = cone() else {
+    let Surface::Cone { frame, .. } = cone() else {
         unreachable!("a cone")
     };
+    let apex = frame.origin();
     let theta = cone_in_band_turn(CONE_SPAN.1);
     let cone_line = Curve3::line(anchor, g * theta.cos() + tangent * theta.sin());
     let rows = [
@@ -403,6 +427,16 @@ fn a_shifted_ruling_takes_the_general_lane() {
 /// anchored definitely off the apex's height, over a short and a long
 /// span, takes the generator's closed form and certifies at both
 /// scalars; its family is the rulings'.
+///
+/// At ε 1e-12 the long span `(0.5, 40)` certifies at `f64` and its
+/// `Interval` certificate escalates `pcurve_envelope`, margin in
+/// `(1.1e-12, 1.2e-12]` (measured 1.121e-12 to 1.158e-12 over the four
+/// generators). Cause: both jointly: a stored frame read as its polar
+/// enclosure (decision 1, #7131) and frames built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274); either alone stays
+/// under the band, so mutant A alone and mutant F1X alone each certify
+/// it and turn this pin red; both are levered by the span's 40 m. Every
+/// span certifies at ε 1e-9 and 1e-6.
 #[test]
 fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
     let surface = cone();
@@ -426,7 +460,10 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
                 let image_i =
                     chart_pcurve_over(&carrier_i, f(span.0), f(span.1), &surface_i, band())
                         .unwrap_or_else(|e| panic!("{what}: mints at Interval: {e:?}"));
-                certifies(&what, (&image, &image_i), &carrier, span, &surface);
+                // The long span at ε 1e-12: a stored frame read as its
+                // polar enclosure and the bracket frames (#7131; fork 274).
+                let pin = (span.1 > 10.0).then_some((1.1e-12, 1.2e-12));
+                certifies(&what, (&image, &image_i), &carrier, span, &surface, pin);
                 assert_eq!(
                     chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
                     Ok(Some(IsoFamily::U)),
@@ -454,9 +491,10 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
         cylinder(),
         Ruling::Axis(Vec3::unit_z()),
     )];
-    let Surface::Cone { apex, .. } = cone() else {
+    let Surface::Cone { frame, .. } = cone() else {
         unreachable!("a cone")
     };
+    let apex = frame.origin();
     for sigma in [1.0, -1.0] {
         let (anchor, g, tangent) = cone_at(1.0, sigma, 1.0);
         let theta = cone_in_band_turn(l);
@@ -756,9 +794,10 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
 #[test]
 fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
     let surface = cylinder();
-    let Surface::Cylinder { origin, radius, .. } = surface else {
+    let Surface::Cylinder { frame, radius, .. } = surface else {
         unreachable!("a cylinder")
     };
+    let origin = frame.origin();
     let f = Interval::from_f64;
     for phi in [0.3, -2.0] {
         let (s, c) = f64::sin_cos(phi);
@@ -826,9 +865,10 @@ fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
 #[test]
 fn a_line_whose_span_holds_no_origin_reads_its_origins_standoff() {
     let surface = cylinder();
-    let Surface::Cylinder { origin, radius, .. } = surface else {
+    let Surface::Cylinder { frame, radius, .. } = surface else {
         unreachable!("a cylinder")
     };
+    let origin = frame.origin();
     let (h, delta) = (0.2, 0.45 * zero());
     for phi in [0.3, -2.0] {
         let (s, c) = f64::sin_cos(phi);

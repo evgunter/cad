@@ -91,8 +91,6 @@ mod cert1_r1_import_probes;
 mod cert_n2r2_consumer_probes;
 #[path = "chart_singularity_vertex.rs"]
 mod chart_singularity_vertex;
-#[path = "coherence_channel.rs"]
-mod coherence_channel;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
@@ -111,8 +109,6 @@ mod imported_loft_rim_offset;
 mod inst_review_probes;
 #[path = "lamina_annulus_round_trip.rs"]
 mod lamina_annulus_round_trip;
-#[path = "mesh8r2_probes.rs"]
-mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
 #[path = "onb_wild_normal_census.rs"]

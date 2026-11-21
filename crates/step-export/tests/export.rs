@@ -524,6 +524,18 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// for byte. Both spellings are the one turn, so this is rounding: the
 /// reference stays as orthogonal to the cap's normal as it was, and no
 /// point, normal or wall moved.
+///
+/// **Regenerated when the carriers held their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): 34 lines in
+/// two fixtures, every one a `DIRECTION`, and no point, vertex or edge.
+/// `composed_die`'s 33 are its blend faces' frames, squared from their
+/// two directions where they were stored as computed: a component a
+/// rounding short of one reads `1.0` (21) and a `-0.0` reads `0.0` (12).
+/// `lily_lantern`'s 1 is the axis of its angle-π meridian off the axis,
+/// now its turned placement's own frame, whose axis carries the half
+/// turn's `sin π` (`-1.2246467991473532E-16`) where it was the sketch
+/// normal negated, paired with that placement's direction (a pair a
+/// rounding off square).
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {
@@ -605,11 +617,12 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let tops: Vec<_> = body
         .surfaces()
         .filter_map(|(k, s)| match s {
-            geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } if origin.z == 1.0 && normal.z.abs() == 1.0 => Some((k, *origin, *normal, *u_ref)),
+            geom::Surface::Plane { frame }
+                if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>
+            {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some((k, origin, normal, u_ref))
+            }
             _ => None,
         })
         .collect();

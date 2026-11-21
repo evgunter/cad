@@ -531,29 +531,29 @@ fn line_meetings<T: Decide>(
         }
         geom::Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_43,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_43.origin(),
+                carrier_frame_43.axis(),
+                carrier_frame_43.u_ref(),
+            );
             let radius = circle.radius();
             conic(center, axis, u_ref, radius, radius)
         }
         geom::Curve3::Ellipse(
             ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_42,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_42.origin(),
+                carrier_frame_42.axis(),
+                carrier_frame_42.u_ref(),
+            );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             conic(center, axis, u_ref, semi_u, semi_v)
         }

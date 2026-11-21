@@ -1758,7 +1758,8 @@ impl Corner<'_> {
 
 /// **The faces across the edges of face `fk`'s loops (its outer loop and
 /// its rings) at each boundary mesh id**: for every edge of a loop, the
-/// face its other half-edge bounds, at each of the edge's chord ids
+/// face across it ([`ChordPass::across`], a view over the chord pass's
+/// [`ChordPass::holders`]), at each of the edge's chord ids
 /// (`crate::chords`), ends included, so a vertex's id holds the faces
 /// across both edges meeting there. Two polygon points that one face here
 /// holds both of are two points that face's own triangulation may join.
@@ -1770,6 +1771,10 @@ impl Corner<'_> {
 /// once by this one triangulation. A one-face full-turn cone wall
 /// reaches that arm: its development holds the seam's two copies on the
 /// sector's two rays ([`singular_row_shape`]).
+///
+/// This is an input of the face, and the memo key folds it: each edge's
+/// face across, renumbered by first appearance along the walk
+/// (`memo::EdgeInputs::across`), read off the same holders.
 fn faces_across(
     body: &Body<f64>,
     fk: FaceKey,
@@ -1783,18 +1788,10 @@ fn faces_across(
     for (lk, _, _) in face.loops() {
         sides.extend(crate::walk::loop_half_edges(body, lk, fk)?);
     }
-    for (hek, ek, _) in sides {
-        let other = body
-            .mate(hek)
-            .and_then(|mate| body.get_half_edge(mate))
-            .and_then(|he| body.get_loop(he.parent_loop))
-            .ok_or(TessellateError::MissingEntity {
-                what: "the face across an edge",
-            })?
-            .face;
-        if other == fk {
+    for (_, ek, _) in sides {
+        let Some(other) = chords.across(ek, fk)? else {
             continue;
-        }
+        };
         let ids = chords.ids.get(&ek).ok_or(TessellateError::MissingEntity {
             what: "edge chords",
         })?;
@@ -4225,14 +4222,12 @@ pub(super) mod tests {
             for (fk, face) in body.faces() {
                 let surface = body.face_surface(fk).unwrap();
                 let geom::Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    ..
+                    frame, half_angle, ..
                 } = *surface
                 else {
                     continue;
                 };
+                let (apex, axis) = (frame.origin(), frame.axis());
                 if routes.lane(fk).unwrap()
                     != crate::tessellate::Routed::To(crate::tessellate::Lane::Trimmed)
                 {
@@ -4538,10 +4533,8 @@ pub(super) mod tests {
             let surfaces = [
                 (
                     Surface::Cone {
-                        apex: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         half_angle: 0.5,
-                        u_ref,
                     },
                     Analytic::Cone {
                         half_angle: 0.5,
@@ -4550,10 +4543,8 @@ pub(super) mod tests {
                 ),
                 (
                     Surface::Sphere {
-                        center: far,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         radius: scale,
-                        axis,
-                        u_ref,
                     },
                     Analytic::Sphere {
                         radius: scale,
@@ -4562,11 +4553,9 @@ pub(super) mod tests {
                 ),
                 (
                     Surface::Spindle {
-                        center: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         major_radius: -0.5 * scale,
                         minor_radius: scale,
-                        u_ref,
                     },
                     Analytic::Spindle {
                         major: -0.5 * scale,
@@ -4609,20 +4598,16 @@ pub(super) mod tests {
             for (surface, kind) in [
                 (
                     Surface::Cylinder {
-                        origin: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         radius: scale,
-                        u_ref,
                     },
                     Analytic::Cylinder { radius: scale },
                 ),
                 (
                     Surface::Torus {
-                        center: far,
-                        axis,
+                        frame: geom::Frame::new(far, axis, u_ref),
                         major_radius: 2.0 * scale,
                         minor_radius: 0.5 * scale,
-                        u_ref,
                     },
                     Analytic::Torus {
                         major: 2.0 * scale,
@@ -5619,10 +5604,12 @@ pub(super) mod tests {
         use geom_core::{Band, Point3, Tol, Vec3};
         use spade::MIN_ALLOWED_VALUE as FLOOR;
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let row = crate::chart_table::ChartRow::Analytic(
             crate::chart_table::AnalyticRow::new(&sphere, 1.0).unwrap(),
@@ -5713,10 +5700,12 @@ pub(super) mod tests {
 
         fn cone(half_angle: f64) -> Surface<f64> {
             Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             }
         }
 

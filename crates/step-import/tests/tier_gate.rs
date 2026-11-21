@@ -1175,10 +1175,7 @@ fn every_corpus_import_passes_the_shared_gate() {
         let text = std::fs::read_to_string(root.join(rel))
             .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
         for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
-            let options = ImportOptions {
-                eps_in,
-                ..ImportOptions::default()
-            };
+            let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
             let Some(want) = expected(rel, row, eps_tag) else {
                 // Off the pinned ambient matrix. The disposition of an

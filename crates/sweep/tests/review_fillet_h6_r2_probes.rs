@@ -38,9 +38,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 fn cap_plane(n: Vec3<f64>) -> Surface<f64> {
     let (u, _) = n.orthonormal_basis();
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: n,
-        u_ref: u,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), n, u),
     }
 }
 
@@ -51,9 +49,7 @@ fn cap_plane(n: Vec3<f64>) -> Surface<f64> {
 fn wall_plane(chord: Vec3<f64>, w: Vec3<f64>) -> Surface<f64> {
     let m = chord.cross(w).normalize();
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: m,
-        u_ref: chord.normalize(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), m, chord.normalize()),
     }
 }
 
