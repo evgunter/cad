@@ -2926,3 +2926,68 @@ mod tests {
         );
     }
 }
+
+/// Reviewer-1 probe (not for merge): on a CURVED column, does the printed
+/// kind still choose? The printed spline is the column itself, re-knotted
+/// (knots doubled: same locus, same sense, other bits).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod rev1_kind_probe {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    #[test]
+    fn rev1_a_curved_column_reknotted_is_withheld_but_its_circle_is_matched() {
+        let file = FileBand::test(1e-9);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let column = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            control.clone(),
+            vec![1.0, w, 1.0],
+        )
+        .unwrap();
+        let reknotted = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0], 2).unwrap(),
+            control,
+            vec![1.0, w, 1.0],
+        )
+        .unwrap();
+        let ends = (column.eval(0.0), column.eval(1.0));
+        let spline = EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier: Curve3::Nurbs(std::sync::Arc::new(reknotted)),
+            t0: 0.0,
+            t1: 2.0,
+            reversed: false,
+            curve: None,
+        };
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let promoted = EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier: circle,
+            t0: 0.0,
+            t1: core::f64::consts::FRAC_PI_2,
+            reversed: false,
+            curve: None,
+        };
+        let as_spline = column_match(&spline, &column, ends, file).is_some();
+        let as_circle = column_match(&promoted, &column, ends, file).is_some();
+        eprintln!("rev1: reknotted spline matched={as_spline}, its circle matched={as_circle}");
+        assert!(
+            as_spline == as_circle,
+            "the printed kind chooses: spline {as_spline}, circle {as_circle}"
+        );
+    }
+}

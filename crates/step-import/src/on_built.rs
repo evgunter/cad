@@ -589,3 +589,325 @@ mod tests {
         assert!((beside - 0.4).abs() <= 1e-15, "{beside}");
     }
 }
+
+/// Reviewer-1 probes (not for merge).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::cast_precision_loss)]
+mod rev1_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn f(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn s(&mut self) -> f64 {
+            2.0 * self.f() - 1.0
+        }
+        fn v(&mut self) -> Vec3<f64> {
+            Vec3::new(self.s(), self.s(), self.s())
+        }
+    }
+    fn spec(carrier: Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeSpec {
+        EdgeSpec {
+            start: 1,
+            end: 2,
+            carrier,
+            t0,
+            t1,
+            reversed: false,
+            curve: None,
+        }
+    }
+    fn dense(spec: &EdgeSpec, truth: impl Fn(Point3<f64>) -> f64) -> f64 {
+        (0..=20000)
+            .map(|k| f64::from(k) / 20000.0)
+            .map(|f| truth(spec.carrier.eval(spec.t0 + (spec.t1 - spec.t0) * f)))
+            .fold(0.0, f64::max)
+    }
+    fn off_circle(p: Point3<f64>, c: Point3<f64>, n: Vec3<f64>, r: f64) -> f64 {
+        let d = p - c;
+        let h = d.dot(n);
+        let rho = (d - n * h).norm();
+        h.hypot(rho - r)
+    }
+
+    /// arc_on_circle and the conic frame bound against dense truth over
+    /// random circles near each other, random trims (wraps, full turns,
+    /// trims across the extremes, either normal sense).
+    #[test]
+    fn rev1_arc_on_circle_fuzz() {
+        let mut g = Lcg(0x5eed);
+        let mut worst = 0.0_f64;
+        let mut fails = Vec::new();
+        for case in 0..4000 {
+            let scale = [1e-3, 1.0, 100.0][case % 3];
+            let r2 = scale * (0.5 + g.f());
+            let n2 = g.v().normalize();
+            let c2 = Point3::new(g.s() * scale, g.s() * scale, g.s() * scale);
+            let built = Curve3::circle(c2, n2, r2, n2.cross(g.v()).normalize());
+            let kick = [1e-9, 1e-6, 1e-3, 0.1][case % 4];
+            let n1 = (n2 + g.v() * kick).normalize();
+            let n1 = if g.f() < 0.5 { -n1 } else { n1 };
+            let c1 = c2 + g.v() * (kick * scale);
+            let r1 = r2 * (1.0 + g.s() * kick);
+            let printed = Curve3::circle(c1, n1, r1, n1.cross(g.v()).normalize());
+            let t0 = 20.0 * g.s();
+            let len = match case % 5 {
+                0 => core::f64::consts::TAU,
+                1 => 1e-3 * g.f(),
+                _ => core::f64::consts::TAU * g.f(),
+            };
+            let s = spec(printed, (t0, t0 + len));
+            let bound = printed_on(&s, &built).unwrap();
+            let truth = dense(&s, |p| off_circle(p, c2, n2, r2));
+            let ratio = truth / bound;
+            worst = worst.max(ratio);
+            if bound < truth * (1.0 - 1e-6) - 1e-15 * scale {
+                fails.push(format!("case {case}: bound {bound:e} < truth {truth:e}"));
+            }
+            // The frame bound on the same pair (whole conic), via an ellipse-typed built twin.
+        }
+        assert!(
+            fails.is_empty(),
+            "unsound: {} cases, first {:?}",
+            fails.len(),
+            &fails[..fails.len().min(5)]
+        );
+        eprintln!("rev1 arc worst truth/bound {worst}");
+    }
+
+    /// Conic frame bound: printed ellipse on built circle / ellipse, random.
+    #[test]
+    fn rev1_conic_frame_fuzz() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let mut g = Lcg(0xbeef);
+        let mut fails = Vec::new();
+        for case in 0..600 {
+            let n2 = g.v().normalize();
+            let c2 = Point3::new(g.s(), g.s(), g.s());
+            let (a2, b2) = (1.0 + g.f(), 0.3 + 0.5 * g.f());
+            let kick = [1e-6, 1e-3, 0.05][case % 3];
+            let u2 = n2.cross(g.v()).normalize();
+            let built = if case % 2 == 0 {
+                Curve3::ellipse(c2, n2, a2, b2, u2, band).unwrap()
+            } else {
+                Curve3::circle(c2, n2, a2, u2)
+            };
+            let n1 = (n2 + g.v() * kick).normalize();
+            let n1 = if g.f() < 0.5 { -n1 } else { n1 };
+            let c1 = c2 + g.v() * kick;
+            let printed = if case % 4 < 2 {
+                let (a1, b1) = if case % 2 == 0 {
+                    (a2 * (1.0 + g.s() * kick), b2 * (1.0 + g.s() * kick))
+                } else {
+                    (a2 * (1.0 + g.s() * kick), a2 * (1.0 + g.s() * kick))
+                };
+                let (a1, b1) = if a1 >= b1 { (a1, b1) } else { (b1, a1) };
+                {
+                    let u1 = n1.cross(g.v()).normalize();
+                    Curve3::ellipse(c1, n1, a1, b1, u1, band)
+                        .unwrap_or_else(|_| Curve3::circle(c1, n1, a1, u1))
+                }
+            } else {
+                Curve3::circle(
+                    c1,
+                    n1,
+                    a2 * (1.0 + g.s() * kick),
+                    n1.cross(g.v()).normalize(),
+                )
+            };
+            if matches!((&printed, &built), (Curve3::Circle(_), Curve3::Circle(_))) {
+                continue;
+            }
+            let s = spec(printed, (0.0, core::f64::consts::TAU));
+            let Some(bound) = printed_on(&s, &built) else {
+                continue;
+            };
+            // truth: distance to the built conic, dense samples refined by ternary search.
+            let tau = core::f64::consts::TAU;
+            let m = 2000;
+            let dist = |p: Point3<f64>| {
+                let (mut best, mut bt) = (f64::INFINITY, 0.0);
+                for k in 0..m {
+                    let t = tau * f64::from(k) / f64::from(m);
+                    let d = built.eval(t).distance(p);
+                    if d < best {
+                        best = d;
+                        bt = t;
+                    }
+                }
+                let (mut lo, mut hi) = (bt - tau / f64::from(m), bt + tau / f64::from(m));
+                for _ in 0..100 {
+                    let (x1, x2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                    if built.eval(x1).distance(p) < built.eval(x2).distance(p) {
+                        hi = x2
+                    } else {
+                        lo = x1
+                    }
+                }
+                built.eval(0.5 * (lo + hi)).distance(p).min(best)
+            };
+            let truth = (0..=200)
+                .map(|k| s.carrier.eval(tau * f64::from(k) / 200.0))
+                .map(dist)
+                .fold(0.0, f64::max);
+            let slack = 1e-12;
+            if bound < truth - slack {
+                fails.push(format!("case {case}: bound {bound:e} < truth {truth:e}"));
+            }
+        }
+        assert!(
+            fails.is_empty(),
+            "unsound: {} cases, first {:?}",
+            fails.len(),
+            &fails[..fails.len().min(5)]
+        );
+    }
+
+    /// Spline on circle: random trims inside spans and near the domain ends,
+    /// a 4-span rational circle with one random control pushed.
+    #[test]
+    fn rev1_spline_on_circle_trim_fuzz() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut g = Lcg(0xc1c1);
+        let mut fails = Vec::new();
+        let mut worst = 0.0_f64;
+        for case in 0..400 {
+            let r = 2.0;
+            let mut control = vec![
+                Point3::new(r, 0.0, 0.0),
+                Point3::new(r, r, 0.0),
+                Point3::new(0.0, r, 0.0),
+                Point3::new(-r, r, 0.0),
+                Point3::new(-r, 0.0, 0.0),
+                Point3::new(-r, -r, 0.0),
+                Point3::new(0.0, -r, 0.0),
+                Point3::new(r, -r, 0.0),
+                Point3::new(r, 0.0, 0.0),
+            ];
+            let k = 1 + (case % 7);
+            let push = [1e-9, 1e-6, 1e-3][case % 3];
+            control[k] = control[k] + g.v() * push;
+            let knots = KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0],
+                2,
+            )
+            .unwrap();
+            let printed = Curve3::Nurbs(std::sync::Arc::new(
+                NurbsCurve3::new(knots, control, vec![1.0, w, 1.0, w, 1.0, w, 1.0, w, 1.0])
+                    .unwrap(),
+            ));
+            let built = Curve3::circle(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            );
+            let a = 4.0 * g.f();
+            let b = 4.0 * g.f();
+            let (t0, t1) = if case % 5 == 0 {
+                (0.0, b.max(1e-3))
+            } else if case % 5 == 1 {
+                (a.min(4.0 - 1e-3), 4.0)
+            } else {
+                (a.min(b), a.max(b) + 1e-9)
+            };
+            let s = spec(printed, (t0, t1.min(4.0)));
+            let Some(bound) = printed_on(&s, &built) else {
+                fails.push(format!("case {case}: None on ({t0},{t1})"));
+                continue;
+            };
+            let truth = dense(&s, |p| {
+                off_circle(p, Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), r)
+            });
+            worst = worst.max(bound / truth.max(1e-300));
+            if bound < truth * (1.0 - 1e-9) - 1e-15 {
+                fails.push(format!(
+                    "case {case}: ({t0},{t1}) bound {bound:e} < truth {truth:e}"
+                ));
+            }
+        }
+        assert!(
+            fails.is_empty(),
+            "{} cases, first {:?}",
+            fails.len(),
+            &fails[..fails.len().min(5)]
+        );
+        eprintln!("rev1 spline-circle worst bound/truth {worst}");
+    }
+
+    /// Spline on line: random trims, random bulges.
+    #[test]
+    fn rev1_spline_on_line_trim_fuzz() {
+        let mut g = Lcg(0x1111);
+        let mut fails = Vec::new();
+        for case in 0..400 {
+            let knots =
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0, 3.0], 3)
+                    .unwrap();
+            let off = [1e-9, 1e-6, 1e-3][case % 3];
+            let control: Vec<Point3<f64>> = (0..6)
+                .map(|i| Point3::new(f64::from(i), 0.0, 0.0) + g.v() * off)
+                .collect();
+            let printed = Curve3::Nurbs(std::sync::Arc::new(
+                NurbsCurve3::new(knots, control, (0..6).map(|_| 0.5 + g.f()).collect()).unwrap(),
+            ));
+            let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+            let (a, b) = (3.0 * g.f(), 3.0 * g.f());
+            let s = spec(printed, (a.min(b), a.max(b) + 1e-12));
+            let Some(bound) = printed_on(&s, &built) else {
+                fails.push(format!("{case}: None"));
+                continue;
+            };
+            let truth = dense(&s, |p| p.y.hypot(p.z));
+            if bound < truth * (1.0 - 1e-9) {
+                fails.push(format!("case {case}: bound {bound:e} < truth {truth:e}"));
+            }
+        }
+        assert!(
+            fails.is_empty(),
+            "{} cases, first {:?}",
+            fails.len(),
+            &fails[..fails.len().min(5)]
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod rev1_ellipse_probe {
+    use super::*;
+    /// A printed CIRCLE on a built ellipse within 1e-10·r of it (a nearly
+    /// round section), its seam at 45° to the ellipse's major axis.
+    #[test]
+    fn rev1_a_circle_on_a_near_round_ellipse() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let (c, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let r = 0.01;
+        let built =
+            Curve3::ellipse(c, z, r * (1.0 + 1e-10), r, Vec3::new(1.0, 0.0, 0.0), band).unwrap();
+        for seam in [Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.0)] {
+            let printed = Curve3::circle(c, z, r, seam);
+            let spec = EdgeSpec {
+                start: 1,
+                end: 2,
+                carrier: printed,
+                t0: 0.0,
+                t1: 1.0,
+                reversed: false,
+                curve: None,
+            };
+            let bound = printed_on(&spec, &built);
+            eprintln!(
+                "rev1 circle-on-ellipse seam {seam:?}: bound {bound:?} (truth <= {:e})",
+                r * 1e-10
+            );
+        }
+    }
+}
