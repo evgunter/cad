@@ -487,21 +487,22 @@ fn an_arc_whose_middle_alone_is_past_the_box_refuses_past_it() {
 
 /// **A sphere face through both poles reads its whole ball, so a wedge in
 /// the box whose ball pokes out of it refuses as a limit, never as past
-/// it** (reviewer r2). A ball of radius 300 revolved 1.1 rad, turned a
-/// half turn about `y` to face `−x`, its axis at `x = 900`: every point of
-/// it is within 900 m, and its sphere's ball reaches 1200 m. The face
+/// it** (reviewer r2). A ball of radius 30 revolved 1.1 rad, turned a
+/// half turn about `y` to face `−x`, its axis at `x = 990`: every point of
+/// it is within 990 m, and its sphere's ball reaches 1020 m. The face
 /// runs pole to pole and reads no window, so its cover is the ball; the
-/// ball's `+x` pole, at 1200 m, is a candidate the face does not hold.
-/// Refused as the limit 200 m past, at the gate and at the placing door.
+/// ball's `+x` pole, at 1020 m, is a candidate the face does not hold.
+/// Refused as the limit 20 m past, at the gate and at the placing door.
+/// (The radius is 30 so the wedge certifies at every ε the suite runs.)
 /// *Breaks if* the inside read keeps a candidate the face does not hold
-/// (then the wedge, which is in the box, refuses as past it by 200 m).
+/// (then the wedge, which is in the box, refuses as past it by 20 m).
 #[test]
 fn a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit() {
     let tol = Tol::witness();
     let wedge = sweep::test_support::try_revolved_about_y_at::<f64>(
         vec![
-            (Point2::new(0.0, -300.0), 1.0),
-            (Point2::new(0.0, 300.0), 0.0),
+            (Point2::new(0.0, -30.0), 1.0),
+            (Point2::new(0.0, 30.0), 0.0),
         ],
         Revolution::Partial(1.1),
         tol,
@@ -512,7 +513,7 @@ fn a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit() {
         core::f64::consts::PI,
     )
     .unwrap();
-    let at = geom_core::RigidMotion::translation(Vec3::new(900.0, 0.0, 0.0))
+    let at = geom_core::RigidMotion::translation(Vec3::new(990.0, 0.0, 0.0))
         .unwrap()
         .compose(turn)
         .unwrap();
@@ -522,8 +523,8 @@ fn a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit() {
         ("placing door", door_class(&wedge, &at, tol)),
     ] {
         assert!(
-            class == "Unshown" && (margin - 200.0).abs() < 1e-6,
-            "{door}: the wedge's ball reaches 200 m past, read {class} {margin}"
+            class == "Unshown" && (margin - 20.0).abs() < 1e-6,
+            "{door}: the wedge's ball reaches 20 m past, read {class} {margin}"
         );
     }
 }
