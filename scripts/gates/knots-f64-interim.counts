@@ -37,7 +37,10 @@ crates/step-export 9
 # midpoint jet through patch_jet_mid, the plane arm's one reader (EXCH).
 # step-import 37 -> 35: the cylinder's envelope is gone; the curved
 # certificates read the held knot values (EXCH, whole-patch promotion).
-crates/step-import 35
+# 35 -> 33: recognize_curve's line limb split into locus (try_line) and
+# the straight map reading (straight_map), which alone reads the knots
+# (EXCH).
+crates/step-import 33
 crates/sweep 139
 crates/topo 36
 demos/tour 2

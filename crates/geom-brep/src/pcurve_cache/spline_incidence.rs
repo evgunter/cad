@@ -696,7 +696,9 @@ impl<'a, T: Decide> Net<'a, T> {
         let read = rounding_charge(
             T::from_f64(2.0) * (reach + (q - Point3::origin()).norm() + self.centre.norm()),
         );
-        (gap - T::from_computed(cut_rounding(cell)) - read).max(T::zero())
+        // In step with `topo`'s spline trim floor (`Patch::floor`): the
+        // read first, then the cut, then the clamp.
+        (gap - read - T::from_computed(cut_rounding(cell))).max(T::zero())
     }
 }
 

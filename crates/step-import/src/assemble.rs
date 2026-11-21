@@ -901,6 +901,14 @@ fn assemble_solid(
         .collect())
 }
 
+/// A built body, its ledger, and the curves whose promotion it does not
+/// carry (`build::CurveHolders`).
+pub(crate) type Built = (
+    Body<f64>,
+    Vec<StructureNormalization>,
+    crate::build::CurveHolders,
+);
+
 /// The assembly proper: one solid record into a body of its OWN. Its
 /// outer shell and each void shell are assembled alike (phase A +
 /// verification + adoption, then one pcurve mint), each into a body of
@@ -918,14 +926,15 @@ pub(crate) fn build_one_solid(
     record: &SolidRecord,
     tol: Tol,
     file: FileCoincidence,
-) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
-    let (mut body, mut joins) = build_one_shell(&record.outer, tol, file)?;
+) -> Result<Built, StepImportError> {
+    let (mut body, mut joins, mut held) = build_one_shell(&record.outer, tol, file)?;
     let Some((keeper, _)) = body.solids().next() else {
         unreachable!("an assembled shell stands under the solid its mvfs minted")
     };
     for void in &record.voids {
-        let (cavity, void_joins) = build_one_shell(void, tol, file)?;
+        let (cavity, void_joins, void_held) = build_one_shell(void, tol, file)?;
         joins.extend(void_joins);
+        held.extend(void_held);
         let donor = topo::graft_disjoint(&mut body, &cavity).unwrap_or_else(|e| {
             unreachable!(
                 "a one-solid source grafts: the disjoint graft refuses only a source \
@@ -936,15 +945,16 @@ pub(crate) fn build_one_solid(
             unreachable!("both solids were just minted in this body and resolve ({e:?})")
         });
     }
-    Ok((body, joins))
+    Ok((body, joins, held))
 }
 
-/// One shell into a body of its own.
+/// One shell into a body of its own, its ledger, and the curves whose
+/// promotion it does not carry (`build::CurveHolders`).
 fn build_one_shell(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
-) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
+) -> Result<Built, StepImportError> {
     // A tolerance that makes no band (an ε within K of `f64::MAX`) reads
     // neither a smooth join nor whether a vertex is joinable, so the
     // solid refuses here, once, rather than at each edge.
@@ -972,7 +982,7 @@ fn build_one_shell(
         .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
     moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
-    Ok((body, moves))
+    Ok((body, moves, shell.holders))
 }
 
 /// **The import ends with the join** every finisher ends with
@@ -1158,6 +1168,7 @@ mod tests {
                 },
             )]),
             vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
+            holders: crate::build::CurveHolders::default(),
         };
         // Use 0 is the self-loop's forward use, 1 its reversed use, 2
         // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =
