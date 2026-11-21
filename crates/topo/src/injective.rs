@@ -3140,7 +3140,8 @@ fn present_curved<'a>(
     let continued = e.ends[0] == e.ends[1] && whole_turn(t0, t1) && lattice;
     // The curve is the zero: the shared edge, or at a vertex the pair
     // shares alone the arc read on through it.
-    let zeroed = corner.is_some_and(|c| c.alone) || sharing(ei, near_edges, near_vertices)?;
+    let zeroed =
+        corner.is_some_and(|c| c.alone || c.run) || sharing(ei, near_edges, near_vertices)?;
     let through = through_of(piece.boundary, e, corner, (t0, t1))?;
     for column in [Axis::U, Axis::V] {
         let span = through.as_ref().map_or((t0, t1), |th| th.span);
@@ -3156,19 +3157,52 @@ fn present_curved<'a>(
             Err(Unpresented::Local) => continue,
             Err(e) => return Err(e),
         };
+        // A run through the vertex: the part of it on the shared cell is
+        // the curve's, or the straight edge's it gives way to.
+        let running = through.as_ref().zip(run).and_then(|(th, share)| {
+            let o = piece.boundary.edges.get(th.corner.other)?;
+            Some(if th.corner.run {
+                let (line, (t0, t1)) = o.arc.as_ref()?;
+                let start = o.ends[0] == th.corner.vertex;
+                let (tv, tf) = if start { (*t0, *t1) } else { (*t1, *t0) };
+                let along = Along::over(
+                    piece.surface,
+                    piece.boundary,
+                    th.corner.other,
+                    false,
+                    || segment_params(tv, tf, (0.0, share)).filter(|_| !line.is_curved()),
+                );
+                (Some(along), RunOn { edge: e.key, start })
+            } else {
+                (
+                    None,
+                    RunOn {
+                        edge: o.key,
+                        start: th.start,
+                    },
+                )
+            })
+        });
+        if run.is_some() && running.is_none() {
+            return Err(Unpresented::Local);
+        }
+        let (shared, run) = match running {
+            Some((along, run)) => (along, Some(run)),
+            None => (None, None),
+        };
         let zero = if zeroed {
             Zero::Curve(
                 Side::of(column.other(), above),
                 Box::new(Curved {
                     form: Form::Harmonic { chart, image },
                     t,
-                    along: Along {
+                    along: shared.unwrap_or(Along {
                         edges: vec![e.key],
                         vertex: None,
                         whole: matches!(carrier, Curve3::Circle(_) | Curve3::Ellipse(_)),
                         params: Some(Params { t, periodic: true }),
                         on_edges: false,
-                    },
+                    }),
                     past: through
                         .as_ref()
                         .filter(|th| th.conic || run.is_some())
@@ -3620,6 +3654,10 @@ struct Corner {
     read: usize,
     other: usize,
     alone: bool,
+    /// `other` is the wall on the shared cell, a plane's line edge, and
+    /// `read` the curve it gives way to at the vertex: the two are read
+    /// as one run ([`present_corner`], "one run through the vertex").
+    run: bool,
 }
 
 /// A curve read through a corner: the corner, the curve's parameter at
@@ -3689,12 +3727,14 @@ fn corner_of(
             read: e,
             other: f,
             alone: false,
+            run: false,
         }),
         (false, true) => Some(Corner {
             vertex,
             read: f,
             other: e,
             alone: false,
+            run: false,
         }),
         (false, false) if vertex_alone(near_edges.is_empty(), near_vertices) == Some(vertex) => {
             // The arc read is the one of lower key, so the reading does not
@@ -3705,6 +3745,7 @@ fn corner_of(
                 read,
                 other,
                 alone: true,
+                run: false,
             })
         }
         _ => None,
@@ -3775,7 +3816,26 @@ fn present_corner<'a>(
             present_wall(piece, c.read, w, Some(c), near_edges, near_vertices, band)
         }
         Reading::Line(o) => present_line_corner(piece, c, sheet, o, band),
-        Reading::PlaneLine(o) => present_plane_corner(piece, c, o, band),
+        Reading::PlaneLine(o) => present_plane_corner(piece, c, o, band).or_else(|unread| {
+            // The conic is not decided onto the line's face side: the two
+            // as one run, read by the conic.
+            let run = Corner {
+                read: c.other,
+                other: c.read,
+                run: true,
+                ..c
+            };
+            let curve = piece.boundary.edges.get(c.other);
+            if !curve.is_some_and(|r| reads_curve(piece.surface, r)) {
+                return Err(unread);
+            }
+            present_curved(piece, c.other, Some(run), near_edges, near_vertices, band).map_err(
+                |e| match (unread, e) {
+                    (Unpresented::Structural, _) | (_, Unpresented::Local) => Unpresented::Local,
+                    (unread, _) => unread,
+                },
+            )
+        }),
     })
 }
 
@@ -4898,9 +4958,11 @@ struct Graph {
     y: (f64, f64),
     above: bool,
     t: (f64, f64),
-    /// The corner's other edge, where the graph runs on along it past
-    /// the vertex ([`RunOn`]); `t` then stops at the vertex.
-    run: Option<RunOn>,
+    /// Where the graph runs on along the corner's other edge past the
+    /// vertex ([`RunOn`]), how much of that edge, from the vertex, the
+    /// columns hold: no more than this share of it. `t` then stops at the
+    /// vertex.
+    run: Option<f64>,
 }
 
 /// **The curve as a graph over the column axis** in `piece`'s cell
@@ -5060,7 +5122,7 @@ fn graph_read(
                 (x, y),
                 band,
             )?;
-            if l.leaves != Leaves::Face {
+            if th.corner.run || l.leaves != Leaves::Face {
                 // The other edge is not decided onto the face's side of
                 // the curve continued: the two are read as one run
                 // ([`present_corner`], "one run through the vertex").
@@ -5108,10 +5170,7 @@ fn graph_read(
                     y,
                     above,
                     t,
-                    run: Some(RunOn {
-                        edge: o.key,
-                        start: th.start,
-                    }),
+                    run: Some(share.min(1.0)),
                 }));
             }
         }
@@ -6477,29 +6536,23 @@ fn graph_run(
     (t, m): (Vec3<Interval>, Vec3<Interval>),
     band: Band,
 ) -> Option<(Interval, EdgeKey)> {
-    let (carrier, _) = e.arc.as_ref()?;
     let o = b.edges.iter().find(|r| r.key == run.edge)?;
     let (other, other_span) = o.arc.as_ref()?;
     let v = if run.start { e.ends[0] } else { e.ends[1] };
     let t_v = if run.start { span.0.lo() } else { span.1.hi() };
+    // The graph's own edge stops at the vertex: a piece widened past it
+    // would have the graph run on along its carrier there, not along the
+    // other edge.
     let past = if run.start {
         t_v - piece.0
     } else {
         piece.1 - t_v
     };
-    if past > 0.0 {
-        let stretch = if run.start {
-            (piece.0, t_v)
-        } else {
-            (t_v, piece.1)
-        };
-        let gap = arc_deriv(carrier, stretch).norm() * at(past);
-        if !matches!(
-            decide(SELF_INTERSECTION_CORNER_VERTEX, Margin::of(gap), band),
-            Ok(Sign::Zero)
-        ) {
-            return None;
-        }
+    if !matches!(
+        past.partial_cmp(&0.0),
+        Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+    ) {
+        return None;
     }
     let reached = edge_piece(other, *other_span, false, &[image])?;
     let d = arc_deriv(other, reached);
