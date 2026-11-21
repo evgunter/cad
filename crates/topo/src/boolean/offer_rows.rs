@@ -1870,10 +1870,14 @@ fn a_quoted_enclosure_is_its_end_nearer_zero() {
     );
 }
 
-/// Whether `got` is `want` to the precision a fixed pose's margin is
-/// computed to.
+/// The precision a fixed pose's margin `want` is computed to.
+fn precision(want: f64) -> f64 {
+    1e-4 * want.abs() + 1e-15
+}
+
+/// Whether `got` is `want` to [`precision`].
 fn near(got: f64, want: f64) -> bool {
-    (got - want).abs() <= 1e-4 * want.abs() + 1e-15
+    (got - want).abs() <= precision(want)
 }
 
 /// The cases declared negative whose first raise quotes their margin's
@@ -1889,8 +1893,11 @@ const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_
 /// **The value a case's first raise quotes and offers is its computed
 /// margin's**: the quoted margin is the one the case computes from its
 /// geometry, and a valued offer is that margin's `|m|/K` at the design
-/// band (the coincfr4 review's MY1: a chain's outcome alone cannot see
-/// an inflated value that still reaches a pass).
+/// band as an offered bound is told, for a margin within [`near`] of it
+/// (the coincfr4 review's MY1: a chain's outcome alone cannot see an
+/// inflated value that still reaches a pass). Held by
+/// [`every_offered_tolerance_passes_just_below_it`] and
+/// [`every_withdrawn_tolerance_stays_withdrawn`].
 fn check_value(case: &Case, text: &str) -> Result<(), String> {
     let quoted = quoted_margin(text);
     let computed = if QUOTED_AS_A_LENGTH.contains(&case.name) {
@@ -1905,13 +1912,21 @@ fn check_value(case: &Case, text: &str) -> Result<(), String> {
         ));
     }
     let offered = test_utils::offer::offered_below(text);
-    let want = (case.offer == Valued).then(|| design_band().tolerance_deciding(case.margin));
-    match (offered, want) {
-        (Some(v), Some(w)) if near(v, w) => Ok(()),
-        (None, None) => Ok(()),
+    let within = |v| {
+        crate::test_support::offers_a_margin_within(
+            design_band(),
+            v,
+            case.margin,
+            precision(case.margin),
+        )
+    };
+    match (offered, case.offer == Valued) {
+        (Some(v), true) if within(v) => Ok(()),
+        (None, false) => Ok(()),
         _ => Err(format!(
-            "{}: offers {offered:?}, its margin gives {want:?}: {text}",
-            case.name
+            "{}: offers {offered:?}, its margin gives {:?}: {text}",
+            case.name,
+            design_band().offer_deciding(case.margin)
         )),
     }
 }

@@ -238,10 +238,15 @@ fn design_band() -> Band {
     Band::new(DESIGN_EPS, geom_core::tolerance::DEFAULT_K * DESIGN_EPS).unwrap()
 }
 
-/// Whether `got` is `want` to the precision a fixed pose's margin is
-/// computed to.
+/// The precision a fixed pose's margin `want` is computed to, to which
+/// `every_sphere_offer_passes_just_below_it` holds its quote and offer.
+fn precision(want: f64) -> f64 {
+    1e-4 * want.abs() + 1e-15
+}
+
+/// Whether `got` is `want` to [`precision`].
 fn near(got: f64, want: f64) -> bool {
-    (got - want).abs() <= 1e-4 * want.abs() + 1e-15
+    (got - want).abs() <= precision(want)
 }
 
 /// **Every sphere offer is true of its decision**, and the cases here
@@ -289,7 +294,14 @@ fn every_sphere_offer_passes_just_below_it() {
             .and_then(|m| m.parse::<f64>().ok());
         let offered = test_utils::offer::offered_below(text);
         if !quoted.is_none_or(|m| near(m, margin))
-            || !offered.is_some_and(|v| near(v, design_band().tolerance_deciding(margin)))
+            || !offered.is_some_and(|v| {
+                topo::test_support::offers_a_margin_within(
+                    design_band(),
+                    v,
+                    margin,
+                    precision(margin),
+                )
+            })
         {
             false_offers.push(format!(
                 "{name}: quotes {quoted:?} and offers {offered:?}, computed margin {margin:e}: \
