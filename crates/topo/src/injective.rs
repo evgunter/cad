@@ -5908,7 +5908,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
     }
-    if let Some(alone) = vertex_alone(near) {
+    if let Some(alone) = at_end_vertex(near) {
         let (rx, ry) = (
             present(x, &[], &alone.vertices, band),
             present(y, &[], &alone.vertices, band),
@@ -5937,7 +5937,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// separator a plane through the edges cannot be: a plane face and a cone
 /// face sharing a ruling to the apex, the cone's cell about the second
 /// ruling the plane's carrier holds through the apex.
-fn vertex_alone(near: &Near) -> Option<Near> {
+fn at_end_vertex(near: &Near) -> Option<Near> {
     match near.vertices.as_slice() {
         [v] if !near.edges.is_empty() => Some(Near {
             edges: Vec::new(),
