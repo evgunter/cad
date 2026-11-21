@@ -33,7 +33,8 @@ use crate::py::{
 };
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, snap_relation_tag,
+    step_import_error_tag,
 };
 use crate::validation;
 use pncad::analysis as a;
@@ -1803,40 +1804,6 @@ impl Evaluation {
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
-    /// **The frame a sketch tracing a face stands on** — `Through` the
-    /// traced face's own axis and a vertex of the plane face `plane`,
-    /// square to it, its origin that vertex's foot on the axis
-    /// (`pncad::trace::traced_frame`). Each is a `(body, name)` of this
-    /// evaluation's document; pass the answer as `Node.drawn_profile`'s
-    /// `frame`. A boss swept up the axis from a piece leaving the traced
-    /// wall's trace along its tangent is tangent to the wall by
-    /// construction.
-    ///
-    /// Raises `ValueError` naming why no frame reads off the two: the
-    /// traced face has no axis, the plane face is no plane square to it,
-    /// or has no vertex off the axis.
-    fn traced_frame(
-        &self,
-        plane: (super::doc::BodyArg, String),
-        traced: (super::doc::BodyArg, String),
-    ) -> PyResult<super::pose::PoseDef> {
-        let face = |(body, name): (super::doc::BodyArg, String)| {
-            Ok::<_, PyErr>(d::Operand::select(
-                body.read(),
-                vec![super::doc::name_from_text(&name)?],
-            ))
-        };
-        pncad::trace::traced_frame(
-            &self.doc,
-            &self.inner,
-            &face(plane)?,
-            &face(traced)?,
-            Tol::witness(),
-        )
-        .map(|inner| super::pose::PoseDef { inner })
-        .map_err(|fault| pyo3::exceptions::PyValueError::new_err(fault.to_string()))
-    }
-
     /// **Where is the edge I selected?** — the named edge's certified
     /// carrier frame, [`Self::face_frame`]'s sibling.
     ///
@@ -2346,6 +2313,19 @@ impl StructureNormalization {
         }
     }
 
+    /// The snap catalogue's relation whose construction moved the surface
+    /// record `face` names (`coaxial`, `tangent`, `axis_normal`) — on
+    /// `snapped` alone.
+    #[getter]
+    fn relation(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::Snapped { relation, .. } => {
+                Some(snap_relation_tag(relation))
+            }
+            _ => None,
+        }
+    }
+
     /// Where the file put the chart singularity import made a vertex —
     /// on `chart_singularity_vertex` alone.
     #[getter]
@@ -2372,12 +2352,19 @@ impl StructureNormalization {
 
     /// The move's bound (metres): how far building the frames moved a
     /// point of the session box on `placement_re_minted`, how far a face
-    /// on either record lies from the other's surface on `one_record`.
+    /// on either record lies from the other's surface on `one_record`,
+    /// how far the snap moved a point of the surface's faces on `snapped`,
+    /// how far the build moved a vertex from its printed point on
+    /// `vertex_built`, how far the printed carrier stands off the built one
+    /// on `carrier_built`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
-            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => Some(*moved_by),
+            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
+            | pncad::step_import::NormalizationKind::Snapped { moved_by, .. }
+            | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
+            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
             _ => None,
         }
     }

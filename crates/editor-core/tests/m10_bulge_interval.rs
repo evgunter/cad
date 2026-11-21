@@ -318,8 +318,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
-    // ONEHOME stage 2: the d-tab's placement asks the session box of its
-    // image (`Replay::moved_by`), one numeric decision.
+    // The d-tab's placement asks the session box of where it stands
+    // (`topo::session_box_at`, PR 7088: the door that places a copy asks
+    // it, its measure does not), one numeric decision.
     ("session_box_reach", [0, 1]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
@@ -540,8 +541,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("segment_direction_axis", [1, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
-            // ONEHOME stage 2: the boss's placement asks the session box
-            // of its image (`Replay::moved_by`), one numeric decision.
+            // The boss's placement asks the session box of where it
+            // stands (`topo::session_box_at`, PR 7088: the door that
+            // places a copy asks it, its measure does not), one numeric
+            // decision.
             ("session_box_reach", [0, 1]),
             ("side_cylinders_cosurface", [2, 0]),
             // Limb 2's distance bound (C2), owed by every Intersection

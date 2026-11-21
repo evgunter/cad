@@ -1725,6 +1725,10 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             ),
             ("fixtures.rs", "the torn-body fixtures report a dead loop"),
             (
+                "splitting/section_cones.rs",
+                "each loop goes to `loop_points::loop_corners`, whose miss is a desync",
+            ),
+            (
                 "review_m0_pr7.rs",
                 "a census of a body the validator has not certified",
             ),

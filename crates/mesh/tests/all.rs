@@ -63,6 +63,8 @@ mod d9_mesh_goldens;
 mod errors;
 #[path = "exact_vs_mesh.rs"]
 mod exact_vs_mesh;
+#[path = "faces_that_bound_no_region.rs"]
+mod faces_that_bound_no_region;
 #[path = "fitted_refusals.rs"]
 mod fitted_refusals;
 #[path = "genus.rs"]

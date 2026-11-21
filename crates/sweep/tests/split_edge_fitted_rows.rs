@@ -333,14 +333,13 @@ fn fitted_row<T: AtRestPolicy + geom_core::Bounds>() {
         panic!("the mint stores the interior column's General image")
     };
     let (carrier, t0, t1) = seam_carrier(&body, edge);
-    let fitted = PcurveCache::certify_fitted(
+    let fitted = geom_brep::FittedLaneOf::certify_fitted(
+        T::fitted_lane().expect("the scalar holds the fitted door"),
         image,
-        t0,
-        t1,
+        (t0, t1),
         &carrier,
         body.get_surface(chart).unwrap(),
         band(),
-        T::fitted_lane().expect("the scalar holds the fitted door"),
     )
     .expect("the image certifies as a Fitted row");
     body.attach_pcurve(he, fitted);

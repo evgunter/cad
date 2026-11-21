@@ -52,7 +52,7 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `topo::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
-- `topo::boolean::conic_quadric::mod`, `ellipse_torus`, `circle_torus`,
+- `geom_brep::curve_face::conic_quadric`, `ellipse_torus`, `circle_torus`,
   `reduce` (harmonic rungs): `rounding_charge(h.terms) / h.per`, a
   harmonic residual's noise over its per-metre rate.
 - `geom_brep::pair_section::gap` (`e_r1`, `e_r2` over `rho`) and

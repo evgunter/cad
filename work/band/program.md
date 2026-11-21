@@ -8,8 +8,8 @@ group: kernel/sweep/blend
 prefix: band/
 tag: (BAND orchestrator)
 ab_band: 7800-7899
-paths: [crates/sweep/src/blend/*, crates/sweep/src/fillet.rs, crates/sweep/src/chamfer.rs, crates/sweep/src/blend/consume.rs, crates/sweep/src/blend/admit.rs, crates/sweep/src/blend/mod.rs, crates/sweep/src/blend/surgery.rs, crates/sweep/src/blend/open/*]
-keep_out: [opened by CARVE's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CARVE measured 73 budget points and was cut into three tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are CARVE BAND STRUT and they share crates/sweep by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, TANG owns the declared-tangency lane and ISO the rational carriers, topo/src is TOPO's and its cut siblings', split 2026-10-26 along its priority seam (work/README.md Track size) when it measured about 100 points - BAND keeps the P2 slate and the P4 residue, its P3 tail went to BANDRULE (shapes the band-feature rule would build) BANDREACH (predicate 2's reach and screen) and BANDMETER (the surgery's ring cap and strip meters), with the chain-walk and corner readers to CARVEREST, and the four share crates/sweep/src/blend by design, BANDRULE merged in on 2026-11-02 (docs/doc-ledger/bandrule-leaves-the-tracker.md) - its notes: opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BANDREACH the reach meter and support screen - BANDMETER the surgery's ring cap and strip meters - all four share crates/sweep/src/blend by design - so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - step 4 of the band-feature rule (whole shells and the seal) stays BAND's and the feature rows here build beside it]
+paths: [crates/sweep/src/blend/*, crates/sweep/src/fillet.rs, crates/sweep/src/chamfer.rs, crates/sweep/src/blend/consume.rs, crates/sweep/src/blend/admit.rs, crates/sweep/src/blend/mod.rs, crates/sweep/src/blend/surgery.rs, crates/sweep/src/blend/open/*, crates/sweep/src/blend/reach.rs, crates/sweep/src/blend/battery.rs]
+keep_out: [opened by CARVE's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CARVE measured 73 budget points and was cut into three tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are CARVE BAND STRUT and they share crates/sweep by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, TANG owns the declared-tangency lane and ISO the rational carriers, topo/src is TOPO's and its cut siblings', split 2026-10-26 along its priority seam (work/README.md Track size) when it measured about 100 points - BAND keeps the P2 slate and the P4 residue, its P3 tail went to BANDRULE (shapes the band-feature rule would build) BANDREACH (predicate 2's reach and screen) and BANDMETER (the surgery's ring cap and strip meters), with the chain-walk and corner readers to CARVEREST, and the four share crates/sweep/src/blend by design, BANDRULE merged in on 2026-11-02 (docs/doc-ledger/bandrule-leaves-the-tracker.md) - its notes: opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BANDREACH the reach meter and support screen - BANDMETER the surgery's ring cap and strip meters - all four share crates/sweep/src/blend by design - so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - step 4 of the band-feature rule (whole shells and the seal) stays BAND's and the feature rows here build beside it, BANDMETER merged in on 2026-11-20 (docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md) - it held no P0 or P1 row, from BANDMETER: opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, from BANDMETER: BANDRULE the shapes the band-feature rule would build, from BANDMETER: BANDREACH predicate 2's reach meter and support screen, from BANDMETER: all four share crates/sweep/src/blend by design, from BANDMETER: so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled, BANDREACH merged in on 2026-11-20 (docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md) - it held no P0 or P1 row, from BANDREACH: opened 2026-10-26 by BAND's priority-seam split (work/README.md Track size) when BAND measured about 100 points against 30 - BAND keeps the P2 slate and the P4 residue, from BANDREACH: BANDRULE the shapes the band-feature rule would build, from BANDREACH: BANDMETER the surgery's ring cap and strip meters, from BANDREACH: all four share crates/sweep/src/blend by design and CARVEREST holds battery.rs's chain walk and corner readers, from BANDREACH: so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 The band a roll builds over a rim, and the record it leaves. Its
 opening P0 and P1 rows are built (the D-hole crease, the slit name, the
@@ -68,3 +68,54 @@ a refusal whose ending names the wrong recourse:
 - **Endings.** `DependentNormals`' run-out policy and missing margin,
   and two `UnsupportedGeometry` sites whose shape recourse fits
   neither.
+
+## From BANDMETER (merged 2026-11-20)
+
+BANDMETER — the blend surgery's ring, cap and strip meters reading wider than they need
+
+**The surgery's meters, P3.** Before it carves, the blend surgery
+meters what the band leaves in place against what it removes:
+`ring_clearance_pass`'s arms (a) to (d) in `surgery.rs`, the rim's
+`support_boundary_clearance`, and the cut-off's cap sliver
+(`CapSliver`, `blend/open/end_face.rs`). Every row here is one of
+them reading wider than the geometry:
+
+- **The ring and strip meters.** An ellipse ring edge, a requested
+  ruled ring edge, a ring wholly inside the strip read as crossing,
+  the planar strip's bounding rectangle, and other carriers bounded by
+  the whole carrier.
+- **The cap sliver.** A curved edge read term by term, an oblique
+  cap's inside reading charged the major semi-axis, a chord end's
+  triangle with no outside verdict, the rim arcs' whole-circle arms
+  with no cap row, and a co-requested open link read at its stored
+  place.
+- **The turn's overrun.** It is metered as the far band's whole
+  cut-off sliver, and it refuses a short near edge.
+
+Charter and order: `work/band/plan.md`; narrative in
+`docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md`.
+
+## From BANDREACH (merged 2026-11-20)
+
+BANDREACH — predicate 2 reading wider than it needs: the blend's reach meter and its support screen
+
+**Predicate 2's over-refusals, P3.** Predicate 2 asks whether a
+band's material meets any face other than its supports. It is read
+twice: by the support screen in `battery.rs` (sampled gaps along each
+requested edge) and by the reach meter in `reach.rs` (each other
+face's cells against the band's reach). Every row here is a place
+where one of them reads wider than the geometry: it refuses what
+clears, or excuses a pair it never meters:
+
+- **The reach.** A NURBS face metered on its box alone, an open arc
+  link's reach taken over the whole turn, a bore clear of a ruled
+  cut-off's sliver, an oblique cell past a window's end that the
+  cross-chain excuse misses, and two bands of one chain never metered
+  against each other.
+- **The screen.** It reads a support's vertices and not its edges. It
+  refuses a feature across the requested edge's line, where the band
+  never reaches. It skips adjacent boundary features wherever they
+  approach.
+
+Charter and order: `work/band/plan.md`; narrative in
+`docs/doc-ledger/bandmeter-and-bandreach-merge-into-band.md`.

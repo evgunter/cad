@@ -305,6 +305,54 @@ fn a_lower_bound_the_neck_breaks_is_violated_by_a_verified_pair() {
     );
 }
 
+/// **A clearance against a placed copy moves neither body**
+/// (`[placement.frame]`): [`facing`]'s second block is a translated copy
+/// of the first, so the two seats are one body in two frames. The sweep
+/// reads each seat off that body as it stands, the copy's carriers
+/// through the relative motion (`topo::clearance::Side::windows_at`), and its
+/// verifier reads the `f64` rebuild's the same way: the evaluation maps
+/// no body, and the walls still read `0.4 + gap` apart, so `≥ 0.5` is
+/// violated by a pair at the gap and `≥ 0.3` holds.
+///
+/// *Breaks if* a clearance seat is read by moving its body
+/// (`Framed::read_in`: a rigid map counted), or its window's carrier is
+/// read without its side's motion (the copy's wall read where the block
+/// stands, on the first block's own wall: a pair at 1, not 0.4).
+#[test]
+fn a_clearance_against_a_placed_copy_maps_no_body() {
+    let ask = |bound| {
+        let f = facing(&[bound]);
+        let before = editor_core::EvalCounters::on_this_thread();
+        let ev = eval_over::<geom_core::Interval>(&f.doc, None);
+        let counted = editor_core::EvalCounters::on_this_thread().since(before);
+        (report_of(&ev, f.assertions[0]), counted)
+    };
+    let (report, counted) = ask(ClearanceBounds::AtLeast(0.5));
+    let ClearanceVerdict::Violated(w) = report.verdict() else {
+        panic!("0.5 above a 0.4 gap is violated: {}", report.render());
+    };
+    let d = w.geometry.distance;
+    assert!(
+        (d - NECK_GAP).abs() < 1e-9,
+        "the copy's wall is read where the copy stands, 0.4 off: {d}"
+    );
+    assert_eq!(
+        counted.rigid_maps, 0,
+        "the clearance maps neither seat's body: {counted:?}"
+    );
+    let (report, counted) = ask(ClearanceBounds::AtLeast(0.3));
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "0.3 under a 0.4 gap holds: {}",
+        report.render()
+    );
+    assert_eq!(
+        counted.rigid_maps, 0,
+        "nor over a holding bound: {counted:?}"
+    );
+}
+
 /// **Row 2**: `clearance ≤ 0.5` is proved by a pair within it, and
 /// `clearance ≤ 0.3` is exceeded — no pair of the walls is within it.
 #[test]

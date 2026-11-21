@@ -241,7 +241,10 @@ pub(crate) fn rings<T: Real>(body: &Body<T>) -> usize {
 /// build.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
 fn assert_absorbed<
-    T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>> + geom_core::CertifiedBounds,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + AtRestPolicy<Finished = topo::AtRestBody<T>>
+        + geom_core::CertifiedBounds,
 >(
     verb: Verb,
     body: &Body<T>,
@@ -567,7 +570,7 @@ pub(crate) fn past_the_chord(dist: f64) -> (f64, f64) {
 /// ellipses, and the arc's inside reading charges the cycle its major
 /// semi-axis across the section's minor one, which at lean `s` costs
 /// `a·(√(1 + s²) − 1)`, `1.8e-4` at `0.3`
-/// (`work/bandmeter/an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis.md`;
+/// (`work/band/an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis.md`;
 /// the convex bore reads the same).
 #[test]
 fn a_bar_a_hair_across_the_fills_boundary_crosses_and_one_inside_is_absorbed() {

@@ -1075,11 +1075,11 @@ impl<T: Decide> Sweep<T> {
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
-    /// sections; each circle/ellipse section edge then adds its exact
-    /// closed-form segment excess
-    /// `[(c − O)×(B − A)]·n̂ + s_a·s_b·(axis·n̂)·Δt − [(A − O)×(B − O)]·n̂`
-    /// (the eccentric-anomaly parameterization's constant areal rate,
-    /// the fact `geom_brep::props::arc_segment_term` reads), and its
+    /// sections; each circle/ellipse section edge then adds the segment
+    /// between it and its chord, `s_a·s_b·(axis·n̂)·(Δt − sin Δt)`
+    /// (`geom_brep::props::arc_segment_term`: a reading of the semi-axes
+    /// and the span alone, so a centre far from the arc costs it
+    /// nothing), and its
     /// perimeter contribution is raised from the chord to the
     /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
     /// only shrinks the mean-width margin — refuses more, never less).
@@ -1155,7 +1155,6 @@ impl<T: Decide> Sweep<T> {
                     });
                 }
             };
-            let (c_e, axis_e) = (conic.frame().origin, conic.frame().axis);
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;
@@ -1163,17 +1162,12 @@ impl<T: Decide> Sweep<T> {
             let a_pt = body.resolve_vertex_point(he_data.start, crate::live::Proven);
             let b_pt = body.resolve_vertex_point(end, crate::live::Proven);
             let dt_signed = if forward { span } else { T::zero() - span };
-            let a = a_pt - origin;
-            let b = b_pt - origin;
-            let excess = (c_e - origin)
-                .cross(b_pt - a_pt)
-                .dot(self.plane.normal.get())
-                + sa * sb * axis_e.dot(self.plane.normal.get()) * dt_signed
-                - a.cross(b).dot(self.plane.normal.get());
+            let excess = geom_brep::props::arc_segment_term(conic.frame().axis, sa * sb, dt_signed)
+                .dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             // The arc's length over-stated by its larger semi-axis
             // (`reach`), whichever is stored first.
-            perimeter = perimeter + (reach * span.abs() - (b - a).norm());
+            perimeter = perimeter + (reach * span.abs() - (b_pt - a_pt).norm());
         }
         // `twice_area` IS 2A (shoelace), so dividing by the full
         // perimeter yields the documented margin 2·|A|/P — the mean
@@ -1873,5 +1867,215 @@ mod curved_section_rows {
             ),
             "a spline section edge refuses, naming the section and the edge: {got:?}"
         );
+    }
+
+    /// The arc of `carrier` (a circle) over `span` and its chord: one
+    /// face inside the two edges and one outside. The arc is stated as
+    /// its start point turned about the circle's axis, so no wall is
+    /// read to certify it.
+    fn lens(carrier: geom::Curve3<f64>, span: (f64, f64), tol: Tol) -> Body<f64> {
+        use geom_brep::EdgeCurveSpec;
+        let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0, true).unwrap();
+        let arc = body
+            .mev(
+                crate::euler::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec::arc_of_circle(carrier, span.0, span.1).unwrap(),
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            crate::euler::MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            crate::euler::FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        body
+    }
+
+    /// The sweep of a section in `z = 0`, deciding at `band`.
+    fn sweep_in_z0(band: Band, tol: Tol) -> Sweep<f64> {
+        let plane =
+            crate::test_support_fixtures::split_plane(Point3::origin(), Vec3::unit_z(), tol);
+        Sweep {
+            ends: Vec::new(),
+            partner: SecondaryMap::new(),
+            joiner: ChordJoiner::new(band),
+            completed: Vec::new(),
+            above_set: SecondaryMap::new(),
+            plane,
+            band,
+            section: SectionCtx {
+                origin: plane.origin,
+                normal: plane.normal,
+                plane_key: None,
+                branch: None,
+            },
+        }
+    }
+
+    /// **A far-centred arc's sliver is read at its own size.** A lens in
+    /// `z = 0`: an arc of a circle of radius `far`, seamed at a point in
+    /// the session box with its centre `far` away, closed by its chord.
+    /// Its mean width `2A/P` is `far·Δ²/12` to a part in `Δ²` (the
+    /// bracket below, from `Δ³/6·(1 − Δ²/20) ≤ Δ − sin Δ ≤ Δ³/6` and
+    /// `Δ·(1 − Δ²/24) ≤ 2·sin(Δ/2) ≤ Δ`), so a lens a quarter of `ε` wide
+    /// is a degenerate section and one forty `ε` wide is an area, on both
+    /// of its loops. A reading that subtracts two areas of size
+    /// `far·chord` about the far centre certifies the degenerate one.
+    #[test]
+    fn a_far_centred_arcs_sliver_is_read_at_its_own_size() {
+        let tol = Tol::witness();
+        let (sweep, eps) = (sweep_in_z0(band(), tol), tol.eps());
+        // A far arc is an edge only where its points' spacing, about
+        // `u·far`, is under ε: past that its certification refuses it
+        // (`carrier_matches_mapped_source`), from `far = 1e4` at 1e-12.
+        let fars = if eps < 1.0e-9 {
+            [1.0e3, 2.0e3, 4.0e3]
+        } else {
+            [1.0e4, 1.0e5, 1.0e6]
+        };
+        for far in fars {
+            for (widths, area) in [(0.25, false), (40.0, true)] {
+                let turn = (12.0 * widths * eps / far).sqrt();
+                let span = (-turn / 3.0, 2.0 * turn / 3.0);
+                let carrier = geom::Curve3::circle(
+                    Point3::new(3.0, 2.0 - far, 0.0),
+                    Vec3::unit_z(),
+                    far,
+                    Vec3::unit_y(),
+                );
+                let body = lens(carrier, span, tol);
+                let dt = span.1 - span.0;
+                let lead = far * dt * dt / 12.0;
+                let (lo, hi) = (lead * (1.0 - dt * dt / 20.0), lead / (1.0 - dt * dt / 48.0));
+                assert!(
+                    if area { lo >= 10.0 * eps } else { hi <= eps },
+                    "far {far:e}, {widths} ε: the lens's own width [{lo:e}, {hi:e}] is not \
+                     on the side of the band this row reads"
+                );
+                let mut loops = 0;
+                for (lp, data) in body.loops() {
+                    let got = sweep.certify_section_area(&body, data.face, lp);
+                    assert!(
+                        if area {
+                            got.is_ok()
+                        } else {
+                            matches!(got, Err(JoinError::DegenerateSection { .. }))
+                        },
+                        "far {far:e}, {widths} ε, loop {lp:?} of {:?}: a lens [{lo:e}, {hi:e}] \
+                         wide read {got:?}",
+                        data.face
+                    );
+                    loops += 1;
+                }
+                assert_eq!(
+                    loops, 2,
+                    "the lens has its cap's loop and the loop outside it"
+                );
+            }
+        }
+    }
+
+    /// A deterministic stream in `[0, 1)` (xorshift): the pose list of
+    /// the row below, an enumeration that is the same in every tree.
+    struct Poses(u64);
+    impl Poses {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+    }
+
+    /// **A far-centred arc's sliver reads its own width to a part in a
+    /// million.** Lenses of circles of radius `far`, their seams turned
+    /// every way, arcs at the seam and far from it, widths across the
+    /// band; each loop's margin is read through a band too wide to
+    /// decide, so the reading itself is compared. The oracle is the
+    /// two-term brackets of `Δ − sin Δ` and of the chord, which hold the
+    /// true `2A/P` to a part in `Δ²`. A reading about the far centre is
+    /// off by up to seven orders, and one that takes the difference
+    /// `Δ − sin Δ` as written by up to 60%.
+    #[test]
+    fn a_far_centred_arcs_sliver_reads_its_own_width_to_a_part_in_a_million() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let sweep = sweep_in_z0(Band::new(1.0e-300, 1.0e300).unwrap(), tol);
+        let mut poses = Poses(0x9e37_79b9_7f4a_7c15);
+        // Past these an arc's own certification refuses it
+        // (`carrier_matches_mapped_source`).
+        let fars: &[f64] = if eps < 1.0e-9 {
+            &[1.0e2, 3.0e2, 1.0e3]
+        } else {
+            &[1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6]
+        };
+        for &far in fars {
+            for i in 0..40 {
+                let width = eps * (0.1 + 11.9 * poses.next());
+                let psi = core::f64::consts::TAU * poses.next();
+                let t0 = [0.0, 1.7, -2.5, 3.0, 0.3][i % 5] + 0.01 * poses.next();
+                let frac = poses.next();
+                let turn = (12.0 * width / far).sqrt();
+                let (ta, tb) = if i % 5 == 0 {
+                    (t0 - frac * turn, t0 + (1.0 - frac) * turn)
+                } else {
+                    (t0, t0 + turn)
+                };
+                let q = Point3::new(10.0 * poses.next() - 5.0, 10.0 * poses.next() - 5.0, 0.0);
+                let u = Vec3::new(psi.cos(), psi.sin(), 0.0);
+                let v = Vec3::new(-psi.sin(), psi.cos(), 0.0);
+                let tm = 0.5 * (ta + tb);
+                let centre = q - (u * tm.cos() + v * tm.sin()) * far;
+                let carrier = geom::Curve3::circle(centre, Vec3::unit_z(), far, u);
+                let body = lens(carrier, (ta, tb), tol);
+                let dt = tb - ta;
+                let (d2, lead) = (dt * dt, far * far * dt * dt * dt / 6.0);
+                let (area_lo, area_hi) = (lead * (1.0 - d2 / 20.0), lead);
+                let (per_lo, per_hi) = (far * dt * (2.0 - d2 / 24.0), 2.0 * far * dt);
+                let (lo, hi) = (area_lo / per_hi, area_hi / per_lo);
+                for (lp, data) in body.loops() {
+                    let got = sweep.certify_section_area(&body, data.face, lp);
+                    let Err(JoinError::Escalated { diag, .. }) = got else {
+                        panic!(
+                            "far {far:e}, pose {i}: a band of 1e-300 to 1e300 decides \
+                             nothing, read {got:?}"
+                        );
+                    };
+                    let read = diag
+                        .margin
+                        .diagnostic_f64_for_error_text()
+                        .value()
+                        .expect("a point margin at f64");
+                    assert!(
+                        lo * (1.0 - 1.0e-6) <= read && read <= hi * (1.0 + 1.0e-6),
+                        "far {far:e}, pose {i}, span [{ta:e}, {tb:e}]: the lens's width is \
+                         in [{lo:e}, {hi:e}] and the site read {read:e}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The segment term re-values to its own bits.** A recording
+    /// scalar keeps `Δ − sin Δ` as the one function it is, so the DAG of
+    /// a curved area, re-valued at the point it was built at, is the
+    /// build's value ([`crate::revalue_pin`]).
+    #[test]
+    fn the_segment_term_revalues_to_the_builds_own_bits() {
+        let found = crate::revalue_pin::revalued([0.5, 0.5 + 1.0e-3], |_, p| {
+            let span = p * <crate::revalue_pin::S as geom_core::Real>::from_f64(1.0e-3);
+            vec![geom_brep::props::chord_bulge(span)]
+        });
+        assert_eq!(found.laundered, 0, "{found:?}");
     }
 }

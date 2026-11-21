@@ -58,26 +58,33 @@ fn certifies_exactly(name: &str, r: f64, b: f64) {
 #[test]
 fn probe_near_polar_half_cap_twins_certify() {
     // ε-three-outcome honesty: at ambient 1e-6 these twins never
-    // reach props — the rim/plane wedge angle's ADOPTION margin
-    // (~8.6e-6 rad) is inside that band's escalation window, and the
-    // coarse band honestly cannot tell this near-tangency from a
-    // tangency. That cell is pinned by predicate name here and in
-    // `tier_gate.rs`'s EPS_ROWS; the default and fine bands certify
-    // the exact closed form.
+    // reach props — the file is read no finer than the run, and the rim
+    // the build makes from its plane and its sphere lies in that band
+    // of the printed rim (~2.2e-6 m) without reading one with it: the
+    // coarse band honestly cannot tell this near-tangency's rim from the
+    // printed one. That cell is pinned by its reading here and in
+    // `tier_gate.rs`'s EPS_ROWS; the default and fine bands certify the
+    // exact closed form.
     if (geom_core::Tol::witness().eps() - 1e-6).abs() < 1e-18 {
         for f in ["nearpolar_split.step", "nearpolar_nosplit.step"] {
             let err =
                 step_import::import_step(&fixture(f), &ImportOptions::default(), Tol::witness())
                     .err()
                     .unwrap_or_else(|| {
-                        panic!("{f}: expected the adoption escalation at ambient 1e-6")
+                        panic!("{f}: expected the interpretation refusal at ambient 1e-6")
                     });
-            // The predicate's name is routing the sentence leaves out;
-            // the typed refusal carries it.
-            let err = format!("{err:?}");
             assert!(
-                err.contains("predicate: Some(\"dihedral_wedge\")"),
-                "{f}: the coarse-band refusal must be the wedge adoption escalation, got: {err}"
+                matches!(
+                    err,
+                    step_import::StepImportError::Interpretation {
+                        refusal: step_import::InterpretationRefusal::Ambiguous {
+                            reading: "step_edge_on_description",
+                            ..
+                        },
+                        ..
+                    }
+                ),
+                "{f}: the coarse-band refusal must be the rim's reading in band, got: {err:?}"
             );
         }
         return;

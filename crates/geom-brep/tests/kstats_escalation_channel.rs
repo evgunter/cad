@@ -111,7 +111,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
         Vec3::new(0.0f64, 0.0, 1.0),
         1.0f64,
         ReferenceNormal::of_split_plane(Vec3::new(0.0f64, 0.0, 1.0)),
-        0.0f64,
+        geom_core::test_support::fixture_lever(0.0f64),
         band,
     );
     let recorded = bracket.finish();

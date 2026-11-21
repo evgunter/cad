@@ -76,7 +76,9 @@
 //!   face side at the closest crossing, at the tube's radius.
 //! - `bool_torus_region_component`: which of a plane's two curves a root
 //!   lies on, and an edge's offset from a leg's plane it is parallel to.
-//! - `plane_crossing_*`: the roots, the plane door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: the roots, the
+//!   plane door's class and their places (the curve × face pose's and
+//!   crossing's rows).
 //! - `bool_torus_region_arc_*` and `bool_torus_region_spiric_*`: the
 //!   boundary readings' rows.
 //!
@@ -100,7 +102,6 @@ use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
@@ -181,7 +182,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         return Err(corrupt());
     };
     let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &planar)? else {
+    let Some(edges) = region::boundary(body, face, &planar)? else {
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion::on(
@@ -494,15 +495,18 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 .height_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => {
+            geom::Curve3::Circle(
+                conic_k @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            u_ref,
+                        },
+                    ..
+                },
+            ) => {
+                let radius = conic_k.radius();
                 let w = y - center;
                 // A parallel leg across a meridian's or a Villarceau
                 // circle's plane, which meets the torus in it and its
@@ -907,14 +911,14 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            carrier: geom::Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            }),
+            )),
             t0,
             t1,
             turn: crate::region::fixture_turn(t0, t1),
@@ -1141,17 +1145,7 @@ mod tests {
             );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
         }
-        let null = nulled
-            .edges()
-            .find(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
-            .map(|(e, _)| e)
-            .unwrap();
-        let far = nulled
-            .get_half_edge(nulled.get_edge(null).unwrap().he_minus)
-            .unwrap()
-            .start;
-        let moved = nulled.add_point(at(1.0, 0.0));
-        nulled.get_vertex_mut(far).unwrap().point = moved;
+        crate::region::part_null_edge(&mut nulled, at(1.0, 0.0));
         assert!(
             matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
             "a parted null edge is a gap in the boundary"

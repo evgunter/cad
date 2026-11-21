@@ -44,7 +44,7 @@ two `edge_faces` become one is a crate-boundary question and is the
 second half of this row.
 
 `test_support.rs` is BLEND's by the announced seam
-(`work/reroute/program.md`'s `keep_out`), which is why both of its sites are
+(`work/comb/program.md`'s `keep_out`), which is why both of its sites are
 here rather than on a suite program's slate.
 
 ## What the instrument could not see
@@ -52,7 +52,7 @@ here rather than on a suite program's slate.
 The count comes from `git grep parent_loop` over `crates/sweep/`, read
 site by site. It cannot see a walk split across a helper boundary wider
 than one function, and it says nothing about `sweep/tests` — those 72
-sites are `work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
+sites are `work/fixture/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
 
 ## The edge-level door, and what it took (TQUERY, 2026-10-02)
 
