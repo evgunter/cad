@@ -10,17 +10,16 @@ Every f64 rounding charge, lever arm and consumed extent reads its one ratified 
 
 ## Posture
 
-State on 2026-11-20, 21:50Z. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's 19:30Z entry and the entries after it.
+State on 2026-11-21, 00:15Z. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's 19:30Z entry and the entries after it.
 
-- **Landed:** `oneround/rounded-room` (PR 7145), `oneround/section-area` (PR 7146).
-- **In its second delta review** (the same reviewer, from `7fd54f87` to `df4f0fcb5b`): `oneround/lever-doors` (PR 7143; M, single FULL): `a-lever-carries-a-callers-length-through-its-geometric-constructors`. Its residue is `lever-doors-pinned-sites-await-a-geometry-read`.
+- **Landed:** `oneround/rounded-room` (PR 7145), `oneround/section-area` (PR 7146), `oneround/lever-doors` (PR 7143); two main reds of ours or found by us are handled in the log (the `less_sin` census, closed; the ringless cone probe, on GREEN, being bisected).
 - **Building:**
-  - `oneround/rounded-pairs` (M, single FULL): `value-error-pairs-are-carried-beside-rounded-in-four-modules`, with `rounded-readings-read-by-hand-off-their-fields` riding it.
-  - `oneround/box-region` (H, dual review, a concurrent pair): `the-session-box-reach-misses-a-curved-faces-bulge`, the predicate over a region and the one fold asking every face. Its PR carries the report back Ev is owed (PR 7140) before it merges.
+  - `oneround/rounded-pairs` (PR 7221; M, single FULL): `value-error-pairs-are-carried-beside-rounded-in-four-modules`, with `rounded-readings-read-by-hand-off-their-fields` riding it.
+  - `oneround/box-region` (PR 7225; H, dual review, a concurrent pair): `the-session-box-reach-misses-a-curved-faces-bulge`, the predicate over a region and the one fold asking every face. Its PR carries the report back Ev is owed (PR 7140) before it merges.
   - `oneround/box-certify-ask` (M, single FULL), stacked on it: `a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling`.
 - **Built, waiting:** `oneround/anchored-conic` (PR 7203; H, dual review, a concurrent pair), stacked on `onehome/carrier-frames` (PR 7131): `the-section-table-admits-a-curve-on-its-resolution`, with `a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` riding it. It has no hosted CI until its base takes main, and its review is not dispatched until Ev answers PR 7194, which decides its final shape. Meanwhile its lane checks the verdicts one chain moved against an exact oracle.
 - **With Ev:** PR 7194, one stored form for every conic (anchored on its arc, parameter zero at the anchor, the centre derived), which revises the PR 4812 decision.
-- **Building, stacked on `oneround/lever-doors`** (each single FULL):
+- **Built or building on what `lever-doors` landed** (each single FULL; PRs 7227 and 7228 are open):
   - `oneround/lever-sites-brep` (M) and `oneround/lever-sites-topo` (H): the pinned row's sites whose own function holds the geometry.
   - `oneround/unsourced-bits` (M): the unsourced arms that need no ruling.
 - **Decided, still to be cut** (the log's 21:46Z entry lists them in order):
