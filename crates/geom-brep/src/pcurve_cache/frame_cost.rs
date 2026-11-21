@@ -27,7 +27,10 @@
 
 use super::PcurveCertifyError;
 
-pub(super) use geom_core::test_support::at_the_frame_cost_band as at_the_least_band;
+/// Whether the witness band is the one the cost rows pin.
+pub(super) fn at_the_least_band() -> bool {
+    geom_core::test_support::at_the_frame_cost_band(geom_core::Tol::witness())
+}
 
 /// Whether `error` is the sampled envelope's escalation
 /// (`pcurve_envelope`, on the envelope or on one of its terms) with its

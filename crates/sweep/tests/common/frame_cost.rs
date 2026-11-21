@@ -29,7 +29,12 @@ use geom_brep::props::PropsError;
 use geom_core::Indeterminate;
 use topo::{MassPropsError, ValidationError};
 
-pub use geom_core::test_support::at_the_frame_cost_band as at_the_least_band;
+/// Whether the witness band is the one the cost rows pin
+/// ([`geom_core::test_support::at_the_frame_cost_band`]).
+#[must_use]
+pub fn at_the_least_band() -> bool {
+    geom_core::test_support::at_the_frame_cost_band(geom_core::Tol::witness())
+}
 
 /// Whether `cause` escalated `predicate` with its margin's upper end in
 /// `(lo, hi]`.

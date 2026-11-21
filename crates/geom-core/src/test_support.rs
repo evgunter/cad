@@ -19,8 +19,8 @@ pub fn upper(margin: MarginDiag) -> f64 {
 /// stored frame's polar read or a frame squared from stated directions
 /// costs reads that refusal, and at every other ε it builds.
 #[must_use]
-pub fn at_the_frame_cost_band() -> bool {
-    Tol::witness().eps() <= 1e-12
+pub fn at_the_frame_cost_band(tol: Tol) -> bool {
+    tol.eps() <= 1e-12
 }
 
 /// The lower end of a reporting margin: the point margin, or the
