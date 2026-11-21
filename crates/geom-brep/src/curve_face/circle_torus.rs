@@ -206,7 +206,7 @@ pub(super) fn torus_wrapper<T: Decide>(
     use super::pose::{Pose, PoseRefusal};
     let span = crate::curve_pair::Span::new(carrier, (t0, t1));
     match super::pose::pose(&span, torus, band) {
-        Err(refusal) if refusal.zero_band() => Ok(Err(Unsettled::Tangency)),
+        Err(refusal) if let Some(why) = refusal.unsettled() => Ok(Err(why)),
         Ok(Pose::Lies) => Ok(Ok(Roots::On(OnCarrier))),
         Ok(Pose::Apart) => Ok(Ok(Roots::Miss)),
         Ok(Pose::Tangent(_)) => Ok(Err(Unsettled::Tangency)),

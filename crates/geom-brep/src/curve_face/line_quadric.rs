@@ -99,27 +99,28 @@ pub fn line_quadric_roots<T: Decide>(
     let span = crate::curve_pair::Span::new(&carrier, (t0, t1));
     let pose = match super::pose::pose(&span, surface, band) {
         Ok(pose) => pose,
-        Err(refusal) if refusal.zero_band() => return Ok(Some(Err(Unsettled::Tangency))),
+        Err(refusal) if let Some(why) = refusal.unsettled() => return Ok(Some(Err(why))),
         // An apex spread the band cannot call is the apex's, refused
         // typed, never escalated.
-        Err(PoseRefusal::InBand {
-            rung: PoseRung::Apex,
-            diag,
-        }) if diag.predicate == Some("curve_face_pose_cone_apex_spread") => {
-            return Ok(Some(Err(Unsettled::AtApex)));
-        }
-        Err(PoseRefusal::InBand { rung, diag }) => return Err(arm(diag, rung)),
-        Err(PoseRefusal::Meter {
-            rung: PoseRung::Apex,
-            ..
-        }) => return Ok(Some(Err(Unsettled::AtApex))),
-        Err(PoseRefusal::Meter { row, .. }) => return Ok(Some(Err(Unsettled::Meter { row }))),
         Err(
-            PoseRefusal::Enclosed
-            | PoseRefusal::Unbuilt(_)
-            | PoseRefusal::Torus(_)
-            | PoseRefusal::Fault(_),
-        ) => return Ok(None),
+            PoseRefusal::InBand {
+                rung: PoseRung::ApexSpread,
+                ..
+            }
+            | PoseRefusal::Meter {
+                rung: PoseRung::ApexSpread,
+                ..
+            },
+        ) => return Ok(Some(Err(Unsettled::AtApex))),
+        Err(PoseRefusal::InBand { rung, diag }) => return Err(arm(diag, rung)),
+        Err(PoseRefusal::Meter { row, .. }) => return Ok(Some(Err(Unsettled::Meter { row }))),
+        // A kernel fault fails loud, never "not this door's".
+        Err(PoseRefusal::Fault(what)) => {
+            return Err(LineQuadricRefusal::Torus(DoorRefusal::Invariant(what)));
+        }
+        Err(PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_) | PoseRefusal::Torus(_)) => {
+            return Ok(None);
+        }
     };
     Ok(Some(match pose {
         Pose::Lies => Ok(CircleRoots::On(crate::roots::OnCarrier)),
@@ -448,17 +449,27 @@ impl<T: Decide> Centred<T> {
     /// `|a|` and `2|b|` times them. Read about the start
     /// ([`About::Start`]) it is the plain `disc`.
     pub fn charged(&self, disc: T, about: About) -> T {
-        if about == About::Start {
-            return disc;
-        }
-        let [a, b, _] = self.coeffs;
-        let e = a.abs() * geom_core::rounding_charge(self.far * self.near)
-            + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
         geom_core::Rounded {
             value: disc,
-            error: e,
+            error: self.disc_error(about),
         }
         .toward_zero()
+    }
+
+    /// **`|disc|` with its rounding from the shift added**, a bound above
+    /// it ([`Self::charged`]'s charge, the other way).
+    pub fn disc_bound(&self, disc: T, about: About) -> T {
+        disc.abs() + self.disc_error(about)
+    }
+
+    /// The rounding [`Self::charged`] holds `disc` to.
+    fn disc_error(&self, about: About) -> T {
+        if about == About::Start {
+            return T::zero();
+        }
+        let [a, b, _] = self.coeffs;
+        a.abs() * geom_core::rounding_charge(self.far * self.near)
+            + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed)
     }
 
     /// **Both roots in the line's own parameter, and a bound on either's
@@ -807,17 +818,19 @@ pub fn line_cone_roots<T: Decide>(
             Ok(placed) => Ok(ConeRoots::Two(placed)),
             Err(why) => Err(why),
         }),
-        Err(PoseRefusal::Meter {
-            rung: PoseRung::Apex,
-            ..
-        }) => Ok(Err(Unsettled::AtApex)),
-        // An in-band spread is the apex's, refused typed, never escalated.
-        Err(PoseRefusal::InBand {
-            rung: PoseRung::Apex,
-            diag,
-        }) if diag.predicate == Some("curve_face_pose_cone_apex_spread") => {
-            Ok(Err(Unsettled::AtApex))
-        }
+        // A spread past or in the band is the apex's, refused typed,
+        // never escalated.
+        Err(
+            PoseRefusal::Meter {
+                rung: PoseRung::ApexSpread,
+                ..
+            }
+            | PoseRefusal::InBand {
+                rung: PoseRung::ApexSpread,
+                ..
+            },
+        ) => Ok(Err(Unsettled::AtApex)),
+        Err(refusal) if let Some(why) = refusal.unsettled() => Ok(Err(why)),
         Err(PoseRefusal::InBand { diag, .. }) => Err(diag),
         Err(other) => unreachable!("the cone's rungs refuse in band only: {other:?}"),
     }

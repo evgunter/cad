@@ -4,11 +4,10 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::k_stats::decide;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_core::{Band, Decide, Indeterminate};
 
-use crate::curve_pair::{GapMeter, Place, Span, SpanEnd};
+use crate::curve_pair::{Place, Span};
 use crate::edge_crossing::CrossingDecision;
 
 /// Which lane finds where a carrier's span crosses a plane
@@ -228,10 +227,10 @@ pub enum RootPlace {
 /// What a span meets of a plane ([`span_plane_meet`]).
 #[derive(Debug)]
 pub enum SpanPlaneMeet<T> {
-    /// The carrier is parallel to the plane, wholly at `offset`, its
-    /// signed distance from it (a conic's centre's, a line's at the
-    /// span's middle): in the plane or never meeting it, the caller's to
-    /// decide.
+    /// The pose read the span lying in the plane ([`super::pose::Pose::Lies`]):
+    /// `offset` is its signed distance from it (a conic's centre's, a
+    /// line's at the span's middle), in the zero band. A span parallel
+    /// to the plane off it is no root ([`SpanPlaneMeet::Roots`], empty).
     Parallel {
         /// The carrier's signed distance from the plane.
         offset: T,
@@ -256,13 +255,13 @@ pub enum SpanPlaneMeet<T> {
 ///   [`RootPlace::Undecided`], where the lane refuses the whole span;
 /// - an [`SpanEnds::Endless`] span reads every root of the whole turn,
 ///   none at an end, each named within half a turn of the span's middle;
-/// - a line's one root is read here, in closed form: its signed distance
-///   `d(t) = (o − q)·n̂ + t·(d̂·n̂)` is affine, parallel where the slope
-///   times the span's length is in the zero band
-///   (`plane_crossing_line_parallel`), and otherwise the root
-///   `−d(0)/(d̂·n̂)` is read against the span as a conic's is, at the
-///   line's speed;
-/// - a graze is [`SpanPlaneMeet::Touch`] where it touches the span.
+/// - a line is read too, by the pose's own plane × line rungs
+///   (`super::pose`'s `plane_line`: lying, apart, or its one root read
+///   against the span as a conic's is, at the line's speed);
+/// - a graze is [`SpanPlaneMeet::Touch`]: the pose answers a touch only
+///   where it reaches the span, and `Apart` past it.
+///
+/// Both carriers' classes are the pose's (`super::pose()`), read once.
 ///
 /// # Errors
 ///
@@ -276,77 +275,66 @@ pub fn span_plane_meet<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<Option<SpanPlaneMeet<T>>, ConicRootFault> {
+    use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
+    let refused = |refusal: PoseRefusal| match refusal {
+        PoseRefusal::InBand {
+            rung: PoseRung::PlaneParallel | PoseRung::AxisParallel,
+            diag,
+        } => ConicRootFault::PlaneParallel(diag),
+        PoseRefusal::InBand { diag, .. } => ConicRootFault::BellyGraze(diag),
+        other => unreachable!("the plane arm refuses in band only: {other:?}"),
+    };
+    let span = Span::new(carrier, (t0, t1));
+    let placed = |t: T| match ends {
+        SpanEnds::Endless => Some(RootPlace::Inside),
+        SpanEnds::Ended => span_place(&span, t, band),
+    };
     let found = match (carrier.conic(), carrier) {
         (Some(conic), _) => {
-            use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
-            let span = Span::new(carrier, (t0, t1));
-            let (candidates, graze) =
-                match super::pose::plane_conic(&span, &conic, (plane_origin, plane_normal), band) {
-                    Ok(Pose::Lies) => {
+            let roots =
+                match super::pose::plane_conic(&span, &conic, (plane_origin, plane_normal), band)
+                    .map_err(refused)?
+                {
+                    Pose::Lies => {
                         let (d0, _, _) =
                             crate::curve_pair::pose::height(&conic, plane_origin, plane_normal);
                         return Ok(Some(SpanPlaneMeet::Parallel { offset: d0 }));
                     }
-                    Ok(Pose::Apart) => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
-                    Ok(Pose::Tangent(touch)) => ([Some(touch.at), None], true),
-                    Ok(Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots }))) => {
-                        ([Some(roots[0]), Some(roots[1])], false)
-                    }
-                    Ok(Pose::Isolated(_) | Pose::Through(_)) => {
+                    Pose::Apart => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
+                    // The pose answers a touch only where it reaches the span
+                    // (its `kappa`): past the span and clear of both ends, it
+                    // is `Apart`.
+                    Pose::Tangent(_) => return Ok(Some(SpanPlaneMeet::Touch)),
+                    Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots })) => roots,
+                    Pose::Isolated(_) | Pose::Through(_) => {
                         unreachable!("a conic's plane arm answers no other form")
                     }
-                    Err(PoseRefusal::InBand {
-                        rung: PoseRung::PlaneParallel,
-                        diag,
-                    }) => return Err(ConicRootFault::PlaneParallel(diag)),
-                    Err(PoseRefusal::InBand { diag, .. }) => {
-                        return Err(ConicRootFault::BellyGraze(diag));
-                    }
-                    Err(other) => unreachable!("the plane arm refuses in band only: {other:?}"),
                 };
-            let mut roots = Vec::with_capacity(2);
-            for t in near_span(candidates, (t0, t1)) {
-                let place = match ends {
-                    SpanEnds::Endless => Some(RootPlace::Inside),
-                    SpanEnds::Ended => span_place(&span, t, band),
-                };
-                if let Some(place) = place {
-                    roots.push(SpanRoot { t, place });
-                }
-            }
-            if graze {
-                let touch = !roots.is_empty()
-                    || near_span(candidates, (t0, t1)).any(|t| {
-                        graze_reaches_span(&conic, &span, (plane_origin, plane_normal), t, band)
-                    });
-                return Ok(Some(if touch {
-                    SpanPlaneMeet::Touch
-                } else {
-                    SpanPlaneMeet::Roots(Vec::new())
-                }));
-            }
-            roots
+            near_span(roots.map(Some), (t0, t1))
+                .filter_map(|t| placed(t).map(|place| SpanRoot { t, place }))
+                .collect()
         }
-        (None, geom::Curve3::Line(line)) => {
-            let slope = line.dir.dot(plane_normal);
-            let d0 = geom::plane_offset(plane_origin, plane_normal, line.origin);
-            match decide(
-                "plane_crossing_line_parallel",
-                Margin::of(slope * (t1 - t0)),
-                band,
-            ) {
-                Ok(Sign::Zero) => {
-                    let offset = d0 + slope * geom::mid_param(t0, t1);
+        (None, &geom::Curve3::Line(line)) => {
+            match super::pose::plane_line(line, (t0, t1), (plane_origin, plane_normal), band)
+                .map_err(refused)?
+            {
+                Pose::Lies => {
+                    let offset = geom::plane_offset(
+                        plane_origin,
+                        plane_normal,
+                        line.origin + line.dir * geom::mid_param(t0, t1),
+                    );
                     return Ok(Some(SpanPlaneMeet::Parallel { offset }));
                 }
-                Ok(Sign::Positive | Sign::Negative) => {}
-                Err(diag) => return Err(ConicRootFault::PlaneParallel(diag)),
+                Pose::Apart => Vec::new(),
+                Pose::Isolated(super::pose::Form(Formed::PlaneLine { root })) => placed(root)
+                    .map(|place| SpanRoot { t: root, place })
+                    .into_iter()
+                    .collect(),
+                Pose::Isolated(_) | Pose::Tangent(_) | Pose::Through(_) => {
+                    unreachable!("a line's plane arm answers no other form")
+                }
             }
-            let t = (T::zero() - d0) / slope;
-            span_place(&Span::new(carrier, (t0, t1)), t, band)
-                .map(|place| SpanRoot { t, place })
-                .into_iter()
-                .collect()
         }
         (None, _) => return Ok(None),
     };
@@ -364,38 +352,6 @@ fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl It
         .into_iter()
         .flatten()
         .map(move |c| Period::angle().near(c, mid))
-}
-
-/// **Whether a graze's roots can reach the span** ([`span_plane_meet`]):
-/// a belly decided `Zero` keeps only the sinusoid's extremum `t`, but the
-/// conic's true roots, if it crosses, lie within `δ = acos(1 − z/r)` of
-/// it (`z` the band's zero, `r` the sinusoid's amplitude), so an
-/// extremum off the span by less than `δ` may have a root on it. Read on
-/// `plane_crossing_graze_reach`, the extremum's metered distance into the
-/// span widened by `δ` at each end; anything short of definitely outside
-/// is a reach, and the door answers a touch.
-fn graze_reaches_span<T: Decide>(
-    conic: &dyn geom::Conic<T>,
-    span: &Span<'_, T>,
-    (on, n): (geom_core::Point3<T>, geom_core::Vec3<T>),
-    t: T,
-    band: Band,
-) -> bool {
-    let (_, a, b) = crate::curve_pair::pose::height(conic, on, n);
-    let r = (a.powi(2) + b.powi(2)).sqrt();
-    let z = T::from_f64(band.zero());
-    let delta = (T::one() - z / r).max(T::zero() - T::one()).acos();
-    // Each widened end's gap at the inf over the gap: only a definite
-    // Negative (outside) is acted on, and the inf makes it sound.
-    let gap = |end| span.end_gap_widened(t, end, delta, GapMeter::Clear);
-    [gap(SpanEnd::Start), gap(SpanEnd::Stop)]
-        .into_iter()
-        .all(|margin| {
-            !matches!(
-                decide("plane_crossing_graze_reach", margin, band),
-                Ok(Sign::Negative)
-            )
-        })
 }
 
 /// **A parameter of a span's carrier against the span's ends**: the
@@ -843,7 +799,8 @@ mod tests {
     /// **A line's root is read in closed form**: the unit line along `x`
     /// over `[0, 1]` against `x = 0.3` crosses inside, against `x = 1`
     /// at its end, against `x = 2` nowhere; a plane containing its
-    /// direction is parallel, at the line's offset.
+    /// direction off it is no root (the pose's `Apart`), and one containing
+    /// the line is parallel, at the line's offset (its `Lies`).
     #[test]
     fn a_line_crosses_a_plane_at_its_affine_root() {
         use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
@@ -878,17 +835,25 @@ mod tests {
             panic!("past: expected roots")
         };
         assert!(past.is_empty(), "past the span: {past:?}");
-        let parallel = span_plane_meet(
-            &line,
-            (0.0, 1.0),
-            SpanEnds::Ended,
-            Point3::new(0.0, 0.25, 0.0),
-            Vec3::unit_y(),
-            band(),
-        );
+        let parallel = |y: f64| {
+            span_plane_meet(
+                &line,
+                (0.0, 1.0),
+                SpanEnds::Ended,
+                Point3::new(0.0, y, 0.0),
+                Vec3::unit_y(),
+                band(),
+            )
+        };
+        let off = parallel(0.25);
         assert!(
-            matches!(parallel, Ok(Some(SpanPlaneMeet::Parallel { offset })) if (offset + 0.25).abs() < 1e-15),
-            "parallel at its offset: {parallel:?}"
+            matches!(off, Ok(Some(SpanPlaneMeet::Roots(ref r))) if r.is_empty()),
+            "parallel off the plane: {off:?}"
+        );
+        let on = parallel(0.25 * band().zero());
+        assert!(
+            matches!(on, Ok(Some(SpanPlaneMeet::Parallel { offset })) if (offset + 0.25 * band().zero()).abs() < 1e-20),
+            "in the plane, at its offset: {on:?}"
         );
     }
 
@@ -898,7 +863,8 @@ mod tests {
     /// circle once inside `[0.3, 2.0]`. The belly reads it a graze and
     /// keeps only the extremum, which lies off the span; the door still
     /// answers a touch, never a miss. Clear of the span by twice the
-    /// spread it misses.
+    /// touch's reach at the band's escalation (the pose's arc at `Kε`,
+    /// past which every span point is past the band) it misses.
     #[test]
     fn a_graze_whose_roots_reach_the_span_touches() {
         use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
@@ -923,10 +889,11 @@ mod tests {
             "{:?}",
             meet(0.3 - 0.5 * spread)
         );
+        let reach = core::f64::consts::FRAC_PI_2 * (2.0 * (band.escalate() + 0.5 * z)).sqrt();
         assert!(
-            matches!(meet(0.3 - 2.0 * spread), SpanPlaneMeet::Roots(ref r) if r.is_empty()),
+            matches!(meet(0.3 - 2.0 * reach), SpanPlaneMeet::Roots(ref r) if r.is_empty()),
             "{:?}",
-            meet(0.3 - 2.0 * spread)
+            meet(0.3 - 2.0 * reach)
         );
     }
 }

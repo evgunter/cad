@@ -164,7 +164,10 @@ pub enum Unsettled {
     /// tangent plane.
     AtApex,
     /// The residual's form degenerates where the band reads its leading
-    /// term zero (a line along a cone's generator).
+    /// term zero (a line along a cone's generator), or reads zero at
+    /// every point the pose samples with no rung deciding the span lies
+    /// on the surface (a Villarceau circle on a torus: the curve × face
+    /// pose's not-`Lies` rung in its zero band).
     Degenerate,
     /// A meeting within the band of a crease of a spline carrier, where
     /// it has no tangent to read a crossing by.

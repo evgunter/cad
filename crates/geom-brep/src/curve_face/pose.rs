@@ -21,9 +21,11 @@
 //!   root ([`PoseRung::Kappa`]): definitely positive is a nondegenerate
 //!   double root, and in the zero band is a higher-order contact, which
 //!   escalates ([`PoseRefusal::InBand`], the gate's rejection of the
-//!   zero reading, [`zero_band`]). Its arc
-//!   ([`Touch::arc`]) encloses every span parameter whose point is within
-//!   the band of the surface about the touch, and never understates it.
+//!   zero reading, [`zero_band`]). It is read only where it decides: a
+//!   double root past the span whose reach stands clear of it leaves the
+//!   span `Apart`. Its arc ([`Touch::arc`]) encloses every parameter on
+//!   the span, or between it and the touch, whose point is within the
+//!   band of the surface, and never understates it there.
 //! - **A singular point is not a meeting.** A cone's apex on the span is
 //!   [`Pose::Through`]: the pose's datum, which a consumer reads before
 //!   any meeting.
@@ -64,8 +66,10 @@ pub struct Touch<T: Real> {
     /// Its point.
     pub point: Point3<T>,
     /// An arc of carrier parameters about `at` that holds every
-    /// parameter near it whose point is within the band of the surface:
-    /// it never understates that arc.
+    /// parameter on the span, or between the span and `at`, whose point
+    /// is within the band of the surface: it never understates that arc
+    /// there. Past both (a line × cone's arc is read through the run's
+    /// reach from the apex) it claims nothing.
     pub arc: (T, T),
 }
 
@@ -140,6 +144,9 @@ pub enum PoseRung {
     Kappa,
     /// Whether the span reaches a cone's apex.
     Apex,
+    /// The spread of the residual's roots about a cone's apex the span
+    /// reaches.
+    ApexSpread,
     /// Whether a line turns off a cone's generator over the span.
     ConeLead,
     /// Whether a circle is a torus's meridian.
@@ -196,6 +203,25 @@ impl PoseRefusal {
     #[must_use]
     pub fn zero_band(&self) -> bool {
         matches!(self, Self::InBand { diag, .. } if diag.margin.rejected_sign() == Some(Sign::Zero))
+    }
+
+    /// **What a zero-band refusal is, in the root doors' shape** (their
+    /// wrappers): a span no point of which reads off the surface
+    /// ([`PoseRung::NotLies`]) is [`crate::roots::Unsettled::Degenerate`],
+    /// its residual read zero along it with nothing deciding it lies; any
+    /// other rung's zero reading is a graze the class cannot call,
+    /// [`crate::roots::Unsettled::Tangency`]. `None` for a refusal that
+    /// is not a zero-band one.
+    #[must_use]
+    pub(super) fn unsettled(&self) -> Option<crate::roots::Unsettled> {
+        match self {
+            Self::InBand {
+                rung: PoseRung::NotLies,
+                ..
+            } if self.zero_band() => Some(crate::roots::Unsettled::Degenerate),
+            _ if self.zero_band() => Some(crate::roots::Unsettled::Tangency),
+            _ => None,
+        }
     }
 }
 
@@ -278,52 +304,150 @@ pub(super) fn axis_drift<T: Decide>(drift: Margin<T>, band: Band) -> Result<bool
 ///
 /// [`PoseRung::AxisParallel`] in band, the two ends' straddle.
 fn axis_offset<T: Decide>(at_mid: T, half_drift: T, band: Band) -> Result<Pose<T>, PoseRefusal> {
-    let (below, above) =
-        crate::roots::spread_readings("curve_face_pose_axis_offset", at_mid, half_drift, band)
-            .map_err(PoseRefusal::in_band(PoseRung::AxisParallel))?;
-    match (below.sign, above.sign) {
-        (Sign::Positive, _) | (_, Sign::Negative) => Ok(Pose::Apart),
-        (Sign::Zero, Sign::Zero) => Ok(Pose::Lies),
-        _ => Err(PoseRefusal::InBand {
-            rung: PoseRung::AxisParallel,
-            diag: straddle("curve_face_pose_axis_offset", below, above, band),
-        }),
+    constant(
+        "curve_face_pose_axis_offset",
+        PoseRung::AxisParallel,
+        (at_mid, half_drift),
+        band,
+    )?
+    .pose(PoseRung::AxisParallel)
+}
+
+/// **A residual read as one value** on `name`: `value` to within `spread`
+/// everywhere on the span ([`crate::roots::spread_readings`]).
+#[derive(Clone, Copy, Debug)]
+enum Constant {
+    /// Definitely one-signed: the span and the surface do not meet.
+    Apart,
+    /// In the zero band all round: the span lies on the surface.
+    Lies,
+    /// Any other reading, a straddle, with its diagnostics.
+    Straddle(Indeterminate),
+}
+
+/// The one reading of a constant residual ([`Constant`]), the spread's
+/// gap refusing on `rung`.
+fn constant<T: Decide>(
+    name: &'static str,
+    rung: PoseRung,
+    (value, spread): (T, T),
+    band: Band,
+) -> Result<Constant, PoseRefusal> {
+    let (below, above) = crate::roots::spread_readings(name, value, spread, band)
+        .map_err(PoseRefusal::in_band(rung))?;
+    Ok(match (below.sign, above.sign) {
+        (Sign::Positive, _) | (_, Sign::Negative) => Constant::Apart,
+        (Sign::Zero, Sign::Zero) => Constant::Lies,
+        _ => Constant::Straddle(straddle(name, below, above, band)),
+    })
+}
+
+impl Constant {
+    /// The class, a straddle refusing on `rung`.
+    fn pose<T: Real>(self, rung: PoseRung) -> Result<Pose<T>, PoseRefusal> {
+        match self {
+            Self::Apart => Ok(Pose::Apart),
+            Self::Lies => Ok(Pose::Lies),
+            Self::Straddle(diag) => Err(PoseRefusal::InBand { rung, diag }),
+        }
     }
 }
 
-/// **The relative-curvature rung** at a double root at `at`, whose
-/// residual there is `value` (in band) and whose residual's second
-/// derivative in the carrier's parameter is `bend` in magnitude, the
-/// carrier running at `speed` there: `κ = bend/speed²` levered by the
-/// span's length at its least speed, a sagitta (`Margin::sagitta`): how
-/// far the carrier departs from the surface's tangent plane over the span
-/// the reading reads, as the axis-parallel rung's drift is. Definitely positive is
-/// [`Pose::Tangent`], its arc `(π/2)·√(2z/bend)` about `at` in the
-/// parameter, `z` the band's zero plus `|value|` plus `noise`: a residual
-/// that falls from its extreme no faster than a first harmonic of that
-/// curvature leaves the band no nearer than that (`1 − cos ψ ≥ 2ψ²/π²`).
+/// **A double root an arm read** in the zero band ([`kappa`]).
+#[derive(Clone, Copy, Debug)]
+struct Graze<T: Real> {
+    /// Its parameter on the carrier, within half a turn of the span's
+    /// middle on a conic.
+    at: T,
+    /// The arm's form there (in band), and the bound on its error.
+    value: T,
+    noise: T,
+    /// The magnitude of the form's second derivative in the carrier's
+    /// parameter there.
+    bend: T,
+    /// The carrier's speed there.
+    speed: T,
+    /// The carrier's own scale at the touch, the lever the curvature is
+    /// read over: a conic's largest semi-axis, a wall's or a sphere's
+    /// radius, the touch's distance from a cone's apex.
+    scale: T,
+    /// Whether the root is the residual's, where the arm's form is not
+    /// the residual (a cone's `F`, read through its floor): its refusal
+    /// stands where the root reaches the span, and past it a definite
+    /// form, whose sign is the residual's, is read alone.
+    confirm: Result<(), PoseRefusal>,
+}
+
+/// **The relative-curvature rung** at a double root `g` the arm read in
+/// the zero band, its form along the carrier `form`.
+///
+/// - **Where the root is.** Its arc `(π/2)·√(2z/bend)` about `at` in the
+///   parameter, `z` the band's zero plus `|value|` plus `noise`, holds
+///   every parameter near it whose point is within the band of the
+///   surface: a form that falls from its extreme no faster than a first
+///   harmonic of that curvature leaves the band no nearer than that
+///   (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. Past the
+///   span (`Span::place_param`) and clear of an end widened by the same
+///   formula at the band's escalation `Kε`
+///   (`curve_face_pose_graze_reach`, read at the inf over the gap, only
+///   a definite outside acted on), every point of the span is definitely
+///   past the band: `Apart`, the root's curvature deciding nothing.
+///   Otherwise the touch reaches the span, and stands only where the arm
+///   confirmed it the residual's (`g.confirm`).
+/// - **`κ = bend/speed²`** levered by the carrier's own scale at the touch
+///   (`g.scale`), a sagitta (`Margin::sagitta`): how far the carrier
+///   departs from the surface's tangent plane over its own scale, the
+///   span's length no part of it. Definitely positive is [`Pose::Tangent`]
+///   with that arc.
 ///
 /// # Errors
 ///
-/// [`PoseRung::Kappa`] in band: in the gap, or in the zero band.
-fn kappa<T: Decide>(
-    span: &Span<'_, T>,
-    at: T,
-    (value, noise): (T, T),
-    bend: T,
-    speed: T,
-    band: Band,
-) -> Result<Pose<T>, PoseRefusal> {
-    let (t0, t1) = span.params();
-    let length = span.speeds().0.get() * (t1 - t0).abs();
+/// [`PoseRung::Kappa`] in band: the root's place against an end in the
+/// gap, or the curvature in the gap or in the zero band.
+fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<T>, PoseRefusal> {
+    let in_band = PoseRefusal::in_band(PoseRung::Kappa);
+    let z = T::from_f64(band.zero()) + g.value.abs() + g.noise;
+    let half = (T::from_f64(core::f64::consts::FRAC_PI_2)
+        * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
+    .min(T::pi());
+    if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
+        // Clear of either end widened by the reach at the band's
+        // escalation (the arc's formula at `Kε`), read at the inf over the
+        // gap (only a definite `Negative`, outside, is acted on): every
+        // span point is definitely past the band.
+        let reach = (T::from_f64(core::f64::consts::FRAC_PI_2)
+            * (T::from_f64(2.0) * (T::from_f64(band.escalate()) + g.value.abs() + g.noise)
+                / g.bend.abs())
+            .sqrt())
+        .min(T::pi());
+        let gap = |end| span.end_gap_widened(g.at, end, reach, crate::curve_pair::GapMeter::Clear);
+        let clear = [
+            crate::curve_pair::SpanEnd::Start,
+            crate::curve_pair::SpanEnd::Stop,
+        ]
+        .into_iter()
+        .any(|end| {
+            matches!(
+                decide("curve_face_pose_graze_reach", gap(end), band),
+                Ok(Sign::Negative)
+            )
+        });
+        if clear {
+            return Ok(Pose::Apart);
+        }
+    }
+    g.confirm?;
     let decided = geom_core::k_stats::decide_reported(
         "curve_face_pose_kappa",
-        // Unsourced lever: the span's own length at its least speed, the
-        // run the reading reads, as the axis-parallel rung's drift is.
-        Margin::sagitta(bend / speed.powi(2), geom_core::Lever::unsourced(length)),
+        // Unsourced lever: the carrier's own scale at the touch
+        // (`Graze::scale`), each arm's stated where it builds the graze.
+        Margin::sagitta(
+            g.bend / g.speed.powi(2),
+            geom_core::Lever::unsourced(g.scale),
+        ),
         band,
     )
-    .map_err(PoseRefusal::in_band(PoseRung::Kappa))?;
+    .map_err(&in_band)?;
     if decided.sign == Sign::Zero {
         return Err(zero_band(
             PoseRung::Kappa,
@@ -332,14 +456,10 @@ fn kappa<T: Decide>(
             band,
         ));
     }
-    let z = T::from_f64(band.zero()) + value.abs() + noise;
-    let half = (T::from_f64(core::f64::consts::FRAC_PI_2)
-        * (T::from_f64(2.0) * z / bend.abs()).sqrt())
-    .min(T::pi());
     Ok(Pose::Tangent(Touch {
-        at,
-        point: span.carrier().eval(at),
-        arc: (at - half, at + half),
+        at: g.at,
+        point: span.carrier().eval(g.at),
+        arc: (g.at - half, g.at + half),
     }))
 }
 
@@ -360,25 +480,35 @@ fn plane<T: Decide>(
     let (t0, t1) = span.params();
     match (carrier.conic(), carrier) {
         (Some(conic), _) => plane_conic(span, &conic, (origin, normal), band),
-        (None, &geom::Curve3::Line(line)) => {
-            let lead = line.dir.dot(normal);
-            let mid = geom::mid_param(t0, t1);
-            let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
-            let run = (t1 - t0).abs();
-            if axis_drift(
-                Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
-                band,
-            )? {
-                return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
-            }
-            Ok(Pose::Isolated(Form(Formed::PlaneLine {
-                root: mid - at_mid / lead,
-            })))
-        }
+        (None, &geom::Curve3::Line(line)) => plane_line(line, (t0, t1), (origin, normal), band),
         (None, _) => Err(PoseRefusal::Fault(
             "the plane arm was handed a carrier that is not a line or a conic",
         )),
     }
+}
+
+/// **A line against a plane** over the run `(t0, t1)`: the axis-parallel
+/// rung on its drift `|d·n̂|·run` ([`axis_drift`]), then its offset at the
+/// run's middle ([`axis_offset`]: lies or apart); past it, its one root.
+pub(super) fn plane_line<T: Decide>(
+    line: geom::Line<T>,
+    (t0, t1): (T, T),
+    (origin, normal): (Point3<T>, geom_core::Vec3<T>),
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    let lead = line.dir.dot(normal);
+    let mid = geom::mid_param(t0, t1);
+    let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
+    let run = (t1 - t0).abs();
+    if axis_drift(
+        Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
+        band,
+    )? {
+        return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
+    }
+    Ok(Pose::Isolated(Form(Formed::PlaneLine {
+        root: mid - at_mid / lead,
+    })))
 }
 
 /// **A conic against a plane**: its height above the plane,
@@ -414,17 +544,13 @@ pub(super) fn plane_conic<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::PlaneParallel))?
     {
         Sign::Zero => {
-            let (below, above) =
-                crate::roots::spread_readings("curve_face_pose_plane_offset", d0, r, band)
-                    .map_err(PoseRefusal::in_band(PoseRung::PlaneParallel))?;
-            return match (below.sign, above.sign) {
-                (Sign::Positive, _) | (_, Sign::Negative) => Ok(Pose::Apart),
-                (Sign::Zero, Sign::Zero) => Ok(Pose::Lies),
-                _ => Err(PoseRefusal::InBand {
-                    rung: PoseRung::PlaneParallel,
-                    diag: straddle("curve_face_pose_plane_offset", below, above, band),
-                }),
-            };
+            return constant(
+                "curve_face_pose_plane_offset",
+                PoseRung::PlaneParallel,
+                (d0, r),
+                band,
+            )?
+            .pose(PoseRung::PlaneParallel);
         }
         Sign::Positive | Sign::Negative => {}
     }
@@ -452,8 +578,17 @@ pub(super) fn plane_conic<T: Decide>(
                 NonzeroSign::Positive => phi + T::pi(),
             };
             let at = geom_core::period::Period::angle().near(at, near);
-            let extreme = r - d0.abs();
-            kappa(span, at, (extreme, T::zero()), r, conic.speed_at(at), band)
+            let graze = Graze {
+                at,
+                value: r - d0.abs(),
+                noise: T::zero(),
+                bend: r,
+                speed: conic.speed_at(at),
+                // The conic's largest semi-axis.
+                scale: conic.speed_hi(),
+                confirm: Ok(()),
+            };
+            kappa(span, graze, band)
         }
     }
 }
@@ -534,6 +669,8 @@ pub(super) enum LineQuadric<T: Real> {
         value: T,
         /// `|F″|` in the line's parameter.
         bend: T,
+        /// The wall's or the sphere's radius.
+        radius: T,
     },
 }
 
@@ -544,12 +681,23 @@ impl<T: Decide> LineQuadric<T> {
             Self::Parallel { at_mid, half_drift } => axis_offset(at_mid, half_drift, band),
             Self::Apart => Ok(Pose::Apart),
             Self::Two(roots, _) => Ok(Pose::Isolated(Form(Formed::LineQuadratic { roots }))),
-            Self::Graze { at, value, bend } => kappa(
-                span,
+            Self::Graze {
                 at,
-                (value, T::zero()),
+                value,
                 bend,
-                span.speeds().1.get(),
+                radius,
+            } => kappa(
+                span,
+                Graze {
+                    at,
+                    value,
+                    noise: T::zero(),
+                    bend,
+                    speed: span.speeds().1.get(),
+                    // The wall's or the sphere's radius.
+                    scale: radius,
+                    confirm: Ok(()),
+                },
                 band,
             ),
         }
@@ -653,6 +801,7 @@ fn discriminant<T: Decide>(
                 at: (T::zero() - b) / a + centred.shift,
                 value: (c - b.powi(2) / a) / two_r,
                 bend: a / radius,
+                radius,
             })
         }
     }
@@ -690,6 +839,12 @@ pub(super) enum ConeRead<T: Real> {
         value: T,
         /// `|F″|` in the line's parameter.
         bend: T,
+        /// The vertex's distance from the apex.
+        scale: T,
+        /// The vertex's residual read through the cone's floor in the
+        /// zero band, or the depth's zero reading rejected
+        /// (`curve_face_pose_cone_graze`).
+        confirm: Result<(), PoseRefusal>,
     },
 }
 
@@ -699,23 +854,34 @@ pub(super) enum ConeRead<T: Real> {
 ///
 /// - **the apex** (`curve_face_pose_cone_apex`), the run's distance from
 ///   it: not definitely positive, the run reaches the apex, at the end
-///   the apex is decided at, else at its foot; a generator there
-///   (`curve_face_pose_cone_lead` Zero) lies on the cone, and otherwise
-///   the line passes through the apex, its roots within the spread
-///   (`curve_face_pose_cone_apex_spread`, which must be in the zero band:
-///   past it, a meter that refused);
-/// - **the lead** off the apex, `A/|d|²` levered by the run: Zero, the
+///   the apex is decided at, else at its foot. With the lead in the zero
+///   band and the run's whole reach through the cone's floor
+///   (`curve_face_pose_cone_on_surface`) in it too, the line lies on the
+///   cone; otherwise, `Lies` excluded on the residual itself
+///   (`curve_face_pose_not_lies`), it passes through the apex, its roots
+///   within the spread (`curve_face_pose_cone_apex_spread`, which must be
+///   in the zero band: past it, a meter that refused);
+/// - **the lead** off the apex, `A/|d|²` levered by the run: Zero, a
+///   generator's segment off the apex lies on the cone (its reach through
+///   the floor in the zero band), and otherwise, `Lies` excluded, the
 ///   line runs parallel to a generator, the method's degenerate form;
 /// - **the depth** (`curve_face_pose_cone_depth`), `disc/(|A|·R)`, `R`
 ///   at least the residual's factor over the run, `disc` held to the
 ///   shift's rounding: positive, two roots; negative, apart; Zero, a
-///   graze at the vertex.
+///   graze at the vertex once the vertex's residual read through the
+///   floor is in the zero band too (`curve_face_pose_cone_graze`).
+///
+/// No class is decided on a zero reading of `F` alone: `|F| ≤ |res|`, so
+/// a definite sign of `F` is the residual's, but `F` in the zero band
+/// bounds the residual only through the floor `m = min(sin α, cos α)`.
 ///
 /// # Errors
 ///
-/// [`PoseRung::Apex`], [`PoseRung::ConeLead`] or
-/// [`PoseRung::Discriminant`] in band; [`PoseRefusal::Meter`] for a
-/// spread definitely past the band.
+/// [`PoseRung::Apex`], [`PoseRung::ApexSpread`], [`PoseRung::ConeLead`],
+/// [`PoseRung::NotLies`] or [`PoseRung::Discriminant`] in band (a depth in the zero band whose
+/// residual through the floor is past it, the depth's zero reading
+/// rejected); [`PoseRefusal::Meter`] for a spread definitely past the
+/// band.
 pub(super) fn line_cone_read<T: Decide>(
     line: geom::Line<T>,
     (cone, half_angle): (geom::Line<T>, T),
@@ -746,6 +912,32 @@ pub(super) fn line_cone_read<T: Decide>(
         )
         .map_err(PoseRefusal::in_band(PoseRung::ConeLead))
     };
+    let residual = |t: T| crate::cone_elevation(cone, half_angle, None, line.at(t));
+    // `Lies` on the run's whole reach through the cone's floor
+    // (`curve_face_pose_cone_on_surface`), never on the apex's and the
+    // lead's readings apart (each `F`'s, not the residual's): the residual
+    // `ρ cos α − |h| sin α` is 1-Lipschitz, so against the line through
+    // the apex parallel to this one it moves at most `e`, the line's
+    // distance from the apex; on that line `Q = A·s²` and
+    // `Q = res·(ρ cos α + |h| sin α)`, the factor at least `m·|q|`,
+    // `m = min(sin α, cos α)`, so `|res| ≤ |A|·|s|/(m·|d|)`. The run's
+    // reach is `e + (|A|/|d|²)·L/m`, `L` the farther end's distance
+    // from the line's foot. In the zero band the run lies on the cone;
+    // past it nothing is decided, and the caller excludes `Lies` by a
+    // reading of the residual itself ([`not_lies_over`]).
+    let on_surface = || -> Result<bool, PoseRefusal> {
+        let star = line.param(apex);
+        let e = at(star).norm();
+        let far = (lo - star).abs().max((hi - star).abs()) * dir.norm();
+        let (sin, cos) = half_angle.sin_cos();
+        let reach = e + a2.abs() / dd * far / sin.min(cos);
+        match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band)
+            .map_err(PoseRefusal::in_band(PoseRung::ConeLead))?
+        {
+            Sign::Zero => Ok(true),
+            Sign::Positive | Sign::Negative => Ok(false),
+        }
+    };
     match decide("curve_face_pose_cone_apex", Margin::norm3(at(foot)), band)
         .map_err(PoseRefusal::in_band(PoseRung::Apex))?
     {
@@ -764,46 +956,81 @@ pub(super) fn line_cone_read<T: Decide>(
                     break;
                 }
             }
-            if lead()? == Sign::Zero {
+            if lead()? == Sign::Zero && on_surface()? {
                 return Ok(ConeRead::Lies);
             }
+            not_lies_over((t0, t1), residual, band)?;
             let spread = apex_root_spread(at(at_apex), dir, (axis, half_angle));
             return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band)
-                .map_err(PoseRefusal::in_band(PoseRung::Apex))?
+                .map_err(PoseRefusal::in_band(PoseRung::ApexSpread))?
             {
                 Sign::Zero => Ok(ConeRead::Through {
                     at: at_apex,
                     reach: spread / dir.norm(),
                 }),
                 Sign::Positive | Sign::Negative => Err(PoseRefusal::Meter {
-                    rung: PoseRung::Apex,
+                    rung: PoseRung::ApexSpread,
                     row: "curve_face_pose_cone_apex_spread",
                 }),
             };
         }
     }
     if lead()? == Sign::Zero {
+        // A segment of a generator off the apex lies on the cone too.
+        if on_surface()? {
+            return Ok(ConeRead::Lies);
+        }
+        not_lies_over((t0, t1), residual, band)?;
         return Ok(ConeRead::Parallel);
     }
     let disc = centred.disc();
     let vertex = centred.shift - b2 / a2;
     let reach = at(lo).norm().max(at(hi).norm()).max(at(vertex).norm());
-    match decide(
+    let depth = geom_core::k_stats::decide_reported(
         "curve_face_pose_cone_depth",
         Margin::of(centred.charged(disc, About::Nearest) / (a2.abs() * reach)),
         band,
     )
-    .map_err(PoseRefusal::in_band(PoseRung::Discriminant))?
-    {
+    .map_err(PoseRefusal::in_band(PoseRung::Discriminant))?;
+    match depth.sign {
         Sign::Positive => Ok(ConeRead::Two),
         Sign::Negative => Ok(ConeRead::Apart),
-        // `|res| ≥ |G|/R` on the near nappe, `G` the quadratic: its value
-        // and curvature over `R`.
-        Sign::Zero => Ok(ConeRead::Graze {
-            at: vertex,
-            value: (c2 - b2.powi(2) / a2) / reach,
-            bend: a2.abs() / reach,
-        }),
+        // `|res| ≥ |G|/R`, `G` the quadratic, so the depth in the zero
+        // band bounds the residual only from below: its graze is read
+        // through the floor (`curve_face_pose_cone_graze`), `|res| ≤
+        // |G|/(m·|q|)` at the vertex (`on_surface` above), past which the
+        // vertex's residual is undecided, a crossing or a miss, and the
+        // depth's zero reading is rejected. Read in the band, its value
+        // and curvature are `G`'s over `R`.
+        Sign::Zero => {
+            // `|res(v)| ≤ |G(v)|/(m·|q(v)|)`, and `≤ |q(v)|` (the residual
+            // is 1-Lipschitz and zero at the apex), which holds at the
+            // apex itself.
+            let (sin, cos) = half_angle.sin_cos();
+            let qv = at(vertex).norm();
+            let above =
+                qv.min(centred.disc_bound(disc, About::Nearest) / (a2.abs() * sin.min(cos) * qv));
+            let confirm = match decide("curve_face_pose_cone_graze", Margin::of(above), band) {
+                Ok(Sign::Zero) => Ok(()),
+                Ok(Sign::Positive | Sign::Negative) => Err(zero_band(
+                    PoseRung::Discriminant,
+                    "curve_face_pose_cone_depth",
+                    depth,
+                    band,
+                )),
+                Err(diag) => Err(PoseRefusal::InBand {
+                    rung: PoseRung::Discriminant,
+                    diag,
+                }),
+            };
+            Ok(ConeRead::Graze {
+                at: vertex,
+                value: (c2 - b2.powi(2) / a2) / reach,
+                bend: a2.abs() / reach,
+                scale: qv,
+                confirm,
+            })
+        }
     }
 }
 
@@ -825,8 +1052,24 @@ fn line_cone<T: Decide>(
         }),
         ConeRead::Apart => Pose::Apart,
         ConeRead::Two => Pose::Isolated(Form(Formed::LineCone { parallel: false })),
-        ConeRead::Graze { at, value, bend } => {
-            return kappa(span, at, (value, T::zero()), bend, line.dir.norm(), band);
+        ConeRead::Graze {
+            at,
+            value,
+            bend,
+            scale,
+            confirm,
+        } => {
+            let graze = Graze {
+                at,
+                value,
+                noise: T::zero(),
+                bend,
+                speed: line.dir.norm(),
+                // The vertex's distance from the apex.
+                scale,
+                confirm,
+            };
+            return kappa(span, graze, band);
         }
     })
 }
@@ -953,7 +1196,11 @@ fn lane<T: Decide>(
 /// - **extremes** (`curve_face_pose_extreme`), each the interval its
 ///   noise spans: one definitely past zero on the far side is `Apart`,
 ///   definitely straddling is `Isolated`, and one in the zero band is a
-///   graze at that extreme, whose curvature `A₁` [`kappa`] reads.
+///   graze at that extreme, whose curvature `A₁` [`kappa`] reads; on a
+///   cone, whose `F` bounds the residual only through its floor, once
+///   that extreme read through the floor is in the zero band too
+///   (`curve_face_pose_cone_graze`), its zero reading rejected
+///   otherwise.
 fn first_harmonic<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn geom::Conic<T>,
@@ -974,12 +1221,14 @@ fn first_harmonic<T: Decide>(
     }
     let (c0, a1) = ((h.lo + h.hi) / two, (h.hi - h.lo) / two);
     if let Ok(Sign::Zero) = decide("curve_face_pose_coaxial", Margin::of(a1), band) {
-        let (below, above) =
-            crate::roots::spread_readings("curve_face_pose_constant", c0, a1 + noise, band)
-                .map_err(PoseRefusal::in_band(PoseRung::Coaxial))?;
-        match (below.sign, above.sign) {
-            (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Pose::Apart),
-            (Sign::Zero, Sign::Zero) => {
+        match constant(
+            "curve_face_pose_constant",
+            PoseRung::Coaxial,
+            (c0, a1 + noise),
+            band,
+        )? {
+            Constant::Apart => return Ok(Pose::Apart),
+            Constant::Lies => {
                 let Some(floor) = cone else {
                     return Ok(Pose::Lies);
                 };
@@ -995,7 +1244,7 @@ fn first_harmonic<T: Decide>(
                     }),
                 };
             }
-            _ => {}
+            Constant::Straddle(_) => {}
         }
     }
     // Each extreme read as the interval its noise spans: ends that
@@ -1016,21 +1265,56 @@ fn first_harmonic<T: Decide>(
     if lo == Sign::Positive {
         return Ok(Pose::Apart);
     }
-    let (hi, _) = extreme(h.hi, h.hi_noise)?;
+    let (hi, hi_read) = extreme(h.hi, h.hi_noise)?;
     if hi == Sign::Negative {
         return Ok(Pose::Apart);
     }
     let near = geom::mid_param(span.params().0, span.params().1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(near);
     let turn = geom_core::period::Period::angle();
-    let graze = |at: T, value: T, noise: T| {
+    let graze = |at: T, (value, noise): (T, T), read: geom_core::Decided| {
+        // On a cone the extreme is `F`'s, `|res| ≤ |F| / floor`: an `F`
+        // in the zero band is the residual's graze only once it reads in
+        // the zero band through the floor too
+        // (`curve_face_pose_cone_graze`). Past it the residual's extreme
+        // is undecided, a crossing or a miss: the extreme's zero reading
+        // is rejected, as any extreme the class needs definite.
+        let confirm = cone.map_or(Ok(()), |floor| {
+            match decide(
+                "curve_face_pose_cone_graze",
+                Margin::of((value.abs() + noise) / floor),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(()),
+                Ok(Sign::Positive | Sign::Negative) => Err(zero_band(
+                    PoseRung::Extreme,
+                    "curve_face_pose_extreme",
+                    read,
+                    band,
+                )),
+                Err(diag) => Err(PoseRefusal::InBand {
+                    rung: PoseRung::Extreme,
+                    diag,
+                }),
+            }
+        });
         let at = turn.near(at, near);
-        kappa(span, at, (value, noise), a1, conic.speed_at(at), band)
+        let g = Graze {
+            at,
+            value,
+            noise,
+            bend: a1,
+            speed: conic.speed_at(at),
+            // The conic's largest semi-axis.
+            scale: conic.speed_hi(),
+            confirm,
+        };
+        kappa(span, g, band)
     };
     match (lo, hi) {
         (Sign::Negative, Sign::Positive) => Ok(Pose::Isolated(Form(Formed::FirstHarmonic(h)))),
-        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), h.lo, h.lo_noise),
-        (Sign::Negative, Sign::Zero) => graze(phi, h.hi, h.hi_noise),
+        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), (h.lo, h.lo_noise), lo_read),
+        (Sign::Negative, Sign::Zero) => graze(phi, (h.hi, h.hi_noise), hi_read),
         _ => Err(zero_band(
             PoseRung::Extreme,
             "curve_face_pose_extreme",
@@ -1074,11 +1358,11 @@ fn conic_apex<T: Decide>(
             spread: (theta_a - spread_phi, theta_a + spread_phi),
         }))),
         Err(diag) => Err(PoseRefusal::InBand {
-            rung: PoseRung::Apex,
+            rung: PoseRung::ApexSpread,
             diag,
         }),
         Ok(Sign::Positive | Sign::Negative) => Err(PoseRefusal::Meter {
-            rung: PoseRung::Apex,
+            rung: PoseRung::ApexSpread,
             row: "curve_face_pose_conic_apex_spread",
         }),
     }
@@ -1098,14 +1382,26 @@ fn not_lies<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<(), PoseRefusal> {
-    let (t0, t1) = span.params();
+    not_lies_over(
+        span.params(),
+        |t| crate::implicit_residual(surface, span.carrier().eval(t)),
+        band,
+    )
+}
+
+/// [`not_lies`] over the run `(t0, t1)` of any carrier whose residual at
+/// `t` is `residual(t)`: the span-free half the ray lane reads too.
+fn not_lies_over<T: Decide>(
+    (t0, t1): (T, T),
+    residual: impl Fn(T) -> T,
+    band: Band,
+) -> Result<(), PoseRefusal> {
     let (mut gap, mut zero) = (None, None);
     for k in [2.0, 0.0, 4.0, 1.0, 3.0] {
         let t = t0 + (t1 - t0) * T::from_f64(k / 4.0);
-        let residual = crate::implicit_residual(surface, span.carrier().eval(t));
         match geom_core::k_stats::decide_reported(
             "curve_face_pose_not_lies",
-            Margin::of(residual),
+            Margin::of(residual(t)),
             band,
         ) {
             Ok(read) if read.sign != Sign::Zero => return Ok(()),
@@ -1208,22 +1504,13 @@ fn conic_torus<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::Coaxial))?
         {
             Sign::Zero => {
-                let (value, spread) = door::coaxial(&circle, surface, minor_radius, &axes);
-                let (below, above) = crate::roots::spread_readings(
+                return constant(
                     "curve_face_pose_torus_constant",
-                    value,
-                    spread,
+                    PoseRung::Coaxial,
+                    door::coaxial(&circle, surface, minor_radius, &axes),
                     band,
-                )
-                .map_err(PoseRefusal::in_band(PoseRung::Coaxial))?;
-                return match (below.sign, above.sign) {
-                    (Sign::Positive, _) | (_, Sign::Negative) => Ok(Pose::Apart),
-                    (Sign::Zero, Sign::Zero) => Ok(Pose::Lies),
-                    _ => Err(PoseRefusal::InBand {
-                        rung: PoseRung::Coaxial,
-                        diag: straddle("curve_face_pose_torus_constant", below, above, band),
-                    }),
-                };
+                )?
+                .pose(PoseRung::Coaxial);
             }
             Sign::Positive => {
                 return torus_parallel(
@@ -1278,20 +1565,19 @@ fn torus_parallel<T: Decide>(
     let c =
         super::circle_torus::contours(circle, (major_radius, minor_radius), axes, span.params());
     let in_band = PoseRefusal::in_band(PoseRung::Contour);
-    let graze = match crate::roots::spread_readings(
-        "curve_face_pose_torus_plane_height",
-        c.depth,
-        c.charge_h,
-        band,
-    ) {
+    let height = "curve_face_pose_torus_plane_height";
+    let graze = match crate::roots::spread_readings(height, c.depth, c.charge_h, band) {
         Ok((below, _)) if below.sign == Sign::Positive => None,
         Ok((_, above)) if above.sign == Sign::Negative => return Ok(Pose::Apart),
-        Ok((below, _)) => Some(zero_band(
-            PoseRung::Contour,
-            "curve_face_pose_torus_plane_height",
-            below,
-            band,
-        )),
+        // A reading in the zero band is its gate's rejection; a definite
+        // straddle is a straddle, no zero reading.
+        Ok((below, _)) if below.sign == Sign::Zero => {
+            Some(zero_band(PoseRung::Contour, height, below, band))
+        }
+        Ok((_, above)) if above.sign == Sign::Zero => {
+            Some(zero_band(PoseRung::Contour, height, above, band))
+        }
+        Ok((below, above)) => Some(in_band(straddle(height, below, above, band))),
         Err(diag) => Some(in_band(diag)),
     };
     let residual = "curve_face_pose_contour_residual";
@@ -1305,8 +1591,10 @@ fn torus_parallel<T: Decide>(
             (_, Sign::Negative) => return Ok(Band3::Tube),
             (Sign::Positive, _) => {}
             (Sign::Zero, _) => return Err(zero_band(PoseRung::Contour, residual, below, band)),
-            (_, Sign::Zero | Sign::Positive) => {
-                return Err(zero_band(PoseRung::Contour, residual, above, band));
+            (_, Sign::Zero) => return Err(zero_band(PoseRung::Contour, residual, above, band)),
+            // A definite straddle of the extreme's value and its charge.
+            (Sign::Negative, Sign::Positive) => {
+                return Err(in_band(straddle(residual, below, above, band)));
             }
         }
         let read = geom_core::k_stats::decide_reported(

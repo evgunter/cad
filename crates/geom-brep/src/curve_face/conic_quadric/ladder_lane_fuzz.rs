@@ -15,17 +15,23 @@
 //! The poses: circles within the gap of square to a wall, coaxial ones
 //! included; near-circular ellipses on a sphere; a circle exactly square
 //! to a wall, coaxial, at depths across the band; and circles nearly
-//! square to a cone's axis, whose `F = Q/R` is the cone's.
+//! square to a cone's axis, whose `F = Q/R` is the cone's, its
+//! half-angle wide, narrow down to `1e-3` or near `π/2`, where the floor
+//! on `|res|/|F|` falls toward zero.
+//!
+//! Each family must draw definite answers on a tenth of its poses at
+//! least: a ladder that refused everything would contradict nothing.
 
 test_utils::gated_to![
     "crates/geom-brep/src/curve_face/conic_quadric.rs",
+    "crates/geom-brep/src/curve_face/pose.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-brep/src/curve_face/conic_oracle/",
     "crates/geom-brep/src/implicit.rs",
 ];
 
-use core::f64::consts::{PI, TAU};
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use super::*;
 use crate::curve_face::conic_oracle::exact;
@@ -162,7 +168,7 @@ fn contradiction(
 #[allow(clippy::too_many_arguments)]
 fn judge(
     rng: &mut fuzz::Rng,
-    what: &str,
+    (what, definite): (&str, &mut usize),
     c: &geom::Curve3<f64>,
     s: &geom::Surface<f64>,
     eps: f64,
@@ -174,6 +180,9 @@ fn judge(
     let got = crate::curve_face::pose::ladder_lane::forcing(|| {
         conic_quadric_roots(c, m - h, m + h, s, band)
     });
+    if matches!(got, Ok(Ok(CircleRoots::Miss | CircleRoots::Certified(_)))) {
+        *definite += 1;
+    }
     let why = contradiction(&got, &truth, c, (nearest, farthest), eps)?;
     Some(format!(
         "{what}, ε {eps:e}: {why}: {got:?}\n  truth: {} roots {:?}, depth {:.3e}, \
@@ -204,6 +213,9 @@ fn the_forced_ladder_contradicts_no_oracle() {
     let mut rng = fuzz::start("conic_quadric_ladder_lane");
     let n = fuzz::scaled(60);
     let mut wrong = Vec::new();
+    // The definite answers (a `Miss`, a certified count) each family
+    // drew: a ladder that refused everything would contradict nothing.
+    let mut definite = [0usize; 4];
     for eps in EPS_ROWS {
         let band = Band::new(eps, 10.0 * eps).unwrap();
         for i in 0..4 * n {
@@ -231,7 +243,7 @@ fn the_forced_ladder_contradicts_no_oracle() {
             let s = wall(r);
             wrong.extend(judge(
                 &mut rng,
-                "a circle near square to a wall",
+                ("a circle near square to a wall", &mut definite[0]),
                 &c,
                 &s,
                 eps,
@@ -246,7 +258,14 @@ fn the_forced_ladder_contradicts_no_oracle() {
                 r + d,
                 Vec3::new(1.0, 0.0, 0.0),
             );
-            wrong.extend(judge(&mut rng, "a rim of a wall", &rim, &s, eps, band));
+            wrong.extend(judge(
+                &mut rng,
+                ("a rim of a wall", &mut definite[1]),
+                &rim,
+                &s,
+                eps,
+                band,
+            ));
 
             // A near-circular ellipse on a sphere: `|a² − b²|/4R` drawn in
             // `[0, Kε]`, in a plane at a height `h` off the centre, its
@@ -278,7 +297,7 @@ fn the_forced_ladder_contradicts_no_oracle() {
             let s = sphere(big);
             wrong.extend(judge(
                 &mut rng,
-                "a near-circular ellipse on a sphere",
+                ("a near-circular ellipse on a sphere", &mut definite[2]),
                 &e,
                 &s,
                 eps,
@@ -287,7 +306,13 @@ fn the_forced_ladder_contradicts_no_oracle() {
 
             // A circle nearly square to a cone's axis, its centre on the
             // axis or off it, at a height off the apex: the cone's `F`.
-            let alpha = rng.range(0.1, 1.4);
+            // Its half-angle wide, narrow down to `1e-3` (the floor on
+            // `|res|/|F|` about `sin 2α`), or near `π/2`.
+            let alpha = match i % 3 {
+                0 => rng.range(0.1, 1.4),
+                1 => rng.log_uniform(1e-3, 0.1),
+                _ => FRAC_PI_2 - rng.log_uniform(1e-3, 0.1),
+            };
             let height = rng.log_uniform(0.01, 10.0);
             let reach = height * alpha.tan();
             let tilt = rng.log_uniform(1e-12, 1e-3);
@@ -306,7 +331,7 @@ fn the_forced_ladder_contradicts_no_oracle() {
             );
             wrong.extend(judge(
                 &mut rng,
-                "a circle near square to a cone",
+                ("a circle near square to a cone", &mut definite[3]),
                 &c,
                 &cone(alpha),
                 eps,
@@ -314,6 +339,15 @@ fn the_forced_ladder_contradicts_no_oracle() {
             ));
         }
     }
+    let drawn = 4 * n * EPS_ROWS.len();
+    eprintln!("definite answers per family, of {drawn}: {definite:?}");
+    // A tenth of each family's draws: at effort 1 the fewest a family
+    // drew was 18% (the cones), the most 72%.
+    assert!(
+        definite.iter().all(|&k| 10 * k >= drawn),
+        "a family drew under a tenth definite answers, of {drawn}: {definite:?} ({})",
+        fuzz::replay()
+    );
     assert!(
         wrong.is_empty(),
         "{} forced-ladder answers the oracle contradicts ({}):\n{}",

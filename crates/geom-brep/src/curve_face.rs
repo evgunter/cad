@@ -156,8 +156,11 @@ const PERIODIC_READS_ITS_VIEW: &str = "a periodic cubic's span is read on its cl
 /// module's prefix there, and has no row here until it moves beside
 /// [`route`]. A reader that asks whether a recorded name is curve × face
 /// machinery asks [`decided_by_curve_face`], not a copy of this list.
+///
+/// The plane door decides no row of its own: its class is the pose's
+/// (`curve_face_pose_*`), its roots' places the crossing's
+/// (`curve_face_cross_*`), both under [`TABLE_K_PREFIX`].
 pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
-    (Door::PlaneCrossing, "plane_crossing_"),
     (Door::LineRoots, "line_quadric_"),
     (Door::ConicQuadric, "conic_quadric_"),
     (Door::ConicTorus, "circle_torus_"),

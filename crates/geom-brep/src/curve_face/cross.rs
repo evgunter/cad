@@ -42,7 +42,8 @@ pub enum MeetingKind<T> {
     /// The pose's double root ([`Pose::Tangent`]): `arc` holds every span
     /// parameter about it whose point is within the band of the surface.
     Touch {
-        /// The in-band arc, never understated.
+        /// The in-band arc, never understated on the span
+        /// ([`super::pose::Touch::arc`]).
         arc: (T, T),
     },
 }
@@ -125,7 +126,24 @@ pub fn cross<T: Decide>(
         }
         Pose::Tangent(touch) => {
             let placed = place(span, &[touch.at], band);
-            let (meetings, windows) = placed.read(door, Some(touch));
+            let past = placed.meetings.is_empty() && placed.refused.is_empty();
+            let (meetings, mut windows) = placed.read(door, Some(touch));
+            if past {
+                // The pose answers a touch past the span only where an end
+                // read in the zero band (`pose`'s `kappa`): its arc reaches
+                // in, and the span's part of it is a window, never nothing.
+                let (lo, hi) = (
+                    span.params().0.min(span.params().1),
+                    span.params().0.max(span.params().1),
+                );
+                windows.push(Undecided {
+                    window: (touch.arc.0.max(lo).min(hi), touch.arc.1.min(hi).max(lo)),
+                    why: CrossWhy::Method {
+                        door,
+                        fault: MeetFault::Unsettled(Unsettled::Tangency),
+                    },
+                });
+            }
             return finish(pose, meetings, windows);
         }
         Pose::Through(apex) => match door {
@@ -237,7 +255,8 @@ pub(super) enum PlaceWhy<T> {
     /// A root's place against an end in the band's gap.
     End(Indeterminate),
     /// Two roots within the band of each other by their chord: one
-    /// meeting the band cannot part, the first kept.
+    /// meeting the band cannot part, at the first's parameter, a window
+    /// over both.
     Together(T),
     /// Two roots' chord, or their order, in the band's gap.
     Apart(Indeterminate),
@@ -299,7 +318,8 @@ impl<T: Decide> Placed<T> {
 /// (`curve_face_cross_apart`) and ordered by its parameters
 /// (`curve_face_cross_order`, at the carrier's greatest speed, a chord
 /// being at most its arc): two within the band of each other are a
-/// window over both, the first kept as the one meeting the band reads.
+/// window over both, neither kept: the found meetings sit outside every
+/// window.
 pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> Placed<T> {
     let carrier = span.carrier();
     let (t0, t1) = span.params();
@@ -322,13 +342,16 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
         }
     }
     // Insertion by decided order: a pair the band cannot part is a
-    // window, its first root kept.
+    // window over both.
     let mut ordered: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::with_capacity(inside.len());
     'next: for item in inside {
         let mut at = ordered.len();
         while at > 0 {
             let before = &ordered[at - 1];
             let window = (before.0.min(item.0), before.0.max(item.0));
+            // A pair the band cannot part is one window over both, and
+            // neither is a found meeting: found meetings sit outside every
+            // window.
             match decide(
                 "curve_face_cross_apart",
                 Margin::norm3(item.2 - before.2),
@@ -336,11 +359,13 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
             ) {
                 Ok(Sign::Zero) => {
                     refused.push((window, PlaceWhy::Together(before.0)));
+                    ordered.remove(at - 1);
                     continue 'next;
                 }
                 Ok(Sign::Positive | Sign::Negative) => {}
                 Err(diag) => {
                     refused.push((window, PlaceWhy::Apart(diag)));
+                    ordered.remove(at - 1);
                     continue 'next;
                 }
             }
@@ -356,6 +381,7 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
                 }
                 Err(diag) => {
                     refused.push((window, PlaceWhy::Apart(diag)));
+                    ordered.remove(at - 1);
                     continue 'next;
                 }
             }

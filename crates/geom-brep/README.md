@@ -1327,7 +1327,14 @@ reads one span point past the band (`curve_face_pose_not_lies`). A
 double root, `κ` the residual's second derivative there and `z` the
 band's zero plus the extreme's own reading, which a residual falling
 from its extreme no faster than a first harmonic of that curvature
-never understates. `cross` answers a spline arm, and an unbuilt arm,
+never understates on the span. `Kappa` is read only where it decides,
+levered by the carrier's own scale at the touch: a double root past the
+span whose reach at the band's escalation stands clear of it leaves the
+span `Apart`, and one whose reach falls inside it is a window over that
+reach (`curve_face_pose_graze_reach`). On a cone, whose form `F` bounds
+the residual only through its floor, no class is decided on `F` in its
+zero band alone (`curve_face_pose_cone_on_surface`,
+`curve_face_pose_cone_graze`). `cross` answers a spline arm, and an unbuilt arm,
 with one window over the whole span; a closed form's unsettled count
 is one window over the whole span too, and a root in band of an end or
 two roots in band of each other a window about them. The doors' older

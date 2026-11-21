@@ -108,7 +108,11 @@
 //!   `Roots::On` from the first-harmonic arm certifies only that `F` is
 //!   in the band; it stands once its whole reach read through the floor
 //!   is too (`curve_face_pose_cone_on_surface`), and refuses `Unsettled::Meter`
-//!   otherwise.
+//!   otherwise; an extreme of `F` in the zero band is the residual's
+//!   graze only once it reads in the zero band through the floor too
+//!   (`curve_face_pose_cone_graze`), and is the extreme's zero reading
+//!   rejected otherwise. No class is decided on `F` in its zero band
+//!   alone.
 //! - **Every root the arms certify, its distance from the apex** is
 //!   decided (`conic_quadric_cone_apex`): not definitely positive, and the
 //!   door refuses [`Unsettled::AtApex`] — the arms read no slope at a
@@ -270,18 +274,21 @@ pub fn conic_quadric_roots<T: Decide>(
     let span = crate::curve_pair::Span::new(carrier, (t0, t1));
     let pose = match super::pose::pose(&span, surface, band) {
         Ok(pose) => pose,
-        Err(refusal) if refusal.zero_band() => return Ok(Err(Unsettled::Tangency)),
-        // The apex in band is refused typed, never escalated: the arms
-        // read no slope at a point with no tangent plane.
-        Err(PoseRefusal::InBand {
-            rung: PoseRung::Apex,
-            ..
-        }) => return Ok(Err(Unsettled::AtApex)),
+        Err(refusal) if let Some(why) = refusal.unsettled() => return Ok(Err(why)),
+        // The apex, or its spread, in band is refused typed, never
+        // escalated: the arms read no slope at a point with no tangent
+        // plane.
+        Err(
+            PoseRefusal::InBand {
+                rung: PoseRung::Apex | PoseRung::ApexSpread,
+                ..
+            }
+            | PoseRefusal::Meter {
+                rung: PoseRung::ApexSpread,
+                ..
+            },
+        ) => return Ok(Err(Unsettled::AtApex)),
         Err(PoseRefusal::InBand { diag, .. }) => return Err(arm(diag)),
-        Err(PoseRefusal::Meter {
-            rung: PoseRung::Apex,
-            ..
-        }) => return Ok(Err(Unsettled::AtApex)),
         Err(PoseRefusal::Meter { row, .. }) => return Ok(Err(Unsettled::Meter { row })),
         Err(PoseRefusal::Fault(what)) => return Err(ConicQuadricRefusal::Invariant(what)),
         Err(PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_) | PoseRefusal::Torus(_)) => {

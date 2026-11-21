@@ -11,7 +11,7 @@ use core::f64::consts::{PI, TAU};
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 
-use super::pose::{Pose, PoseRefusal, PoseRung};
+use super::pose::{Pose, PoseRefusal, PoseRung, Touch};
 use super::{CrossWhy, Crossings, cross, pose};
 use crate::curve_pair::Span;
 
@@ -286,26 +286,142 @@ fn a_span_through_a_cones_apex_is_through() {
     }
 }
 
-/// **A higher-order contact escalates on `Kappa`**: a unit circle tilted
-/// so its swing `R` across a plane is `1.5Kε` grazes the plane, a belly
-/// in the zero band and a swing past it. Over the whole turn its
-/// relative curvature's sagitta, `κ·L²/2`, is definite: a touch. Over a
-/// span of `0.6` rad about the touch it reads in the gap.
+/// **A higher-order contact escalates on `Kappa`, whatever the span**:
+/// `κ` is levered by the carrier's own scale at the touch (a unit
+/// circle's radius), its sagitta `R/2` for a swing `R` across the plane.
+/// A swing of `1.5Kε` grazes the plane, a belly in the zero band and a
+/// swing past it, its sagitta `0.75Kε` in the gap: it escalates over the
+/// whole turn and over `0.6` rad about the touch alike. A swing of `3Kε`
+/// is a definite touch over both.
 #[test]
 fn a_higher_order_contact_escalates_on_kappa() {
-    let swing = 1.5 * band().escalate();
-    let axis = Vec3::new(0.0, swing, (1.0 - swing * swing).sqrt());
-    let c = Curve3::circle(Point3::new(0.0, 0.0, swing), axis, 1.0, Vec3::unit_x());
-    let Ok(Pose::Tangent(touch)) = pose(&whole(&c), &plane(0.0), band()) else {
-        panic!("the whole turn touches");
+    let tilted = |swing: f64| {
+        let axis = Vec3::new(0.0, swing, (1.0 - swing * swing).sqrt());
+        Curve3::circle(Point3::new(0.0, 0.0, swing), axis, 1.0, Vec3::unit_x())
     };
-    let near = Span::new(&c, (touch.at - 0.3, touch.at + 0.3));
-    match pose(&near, &plane(0.0), band()) {
-        Err(PoseRefusal::InBand {
-            rung: PoseRung::Kappa,
-            ..
-        }) => {}
-        other => panic!("0.6 rad about the touch: {other:?}"),
+    // The touch: the circle's lowest point, where the definite one reads
+    // it over the whole turn (both tilts share it).
+    let definite = tilted(3.0 * band().escalate());
+    let Ok(Pose::Tangent(Touch { at, .. })) = pose(&whole(&definite), &plane(0.0), band()) else {
+        panic!("the whole turn of a 3Kε swing touches");
+    };
+    for (swing, touches) in [(1.5, false), (3.0, true)] {
+        let c = tilted(swing * band().escalate());
+        for span in [whole(&c), Span::new(&c, (at - 0.3, at + 0.3))] {
+            let got = pose(&span, &plane(0.0), band());
+            let label = format!("swing {swing}Kε over {:?}", span.params());
+            if touches {
+                assert!(matches!(got, Ok(Pose::Tangent(_))), "{label}: {got:?}");
+            } else {
+                assert!(
+                    matches!(
+                        got,
+                        Err(PoseRefusal::InBand {
+                            rung: PoseRung::Kappa,
+                            ..
+                        })
+                    ),
+                    "{label}: {got:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **A short span far from a touch is read by the span itself**
+/// (`Kappa` only where it decides): a unit hoop tangent to a plane at
+/// `θ = π/2`, read over `±1e-5` about `θ = 0, 1, 2`, stands clear of the
+/// touch's reach: `Apart`, never `Kappa` in band over the span's short
+/// length; the plane door's old entry answers no root. A line tangent to a
+/// wall, read over a metre 4 m from the touch, is apart too.
+#[test]
+fn a_short_span_far_from_a_touch_is_apart() {
+    let hoop = Curve3::circle(
+        Point3::new(0.0, 0.0, -1.0),
+        Vec3::unit_x(),
+        1.0,
+        Vec3::unit_z(),
+    );
+    let touch = hoop.eval(PI / 2.0);
+    assert!((touch.y + 1.0).abs() < 1e-15, "the hoop's touch: {touch:?}");
+    let floor = |y: f64| geom::Surface::Plane {
+        origin: Point3::new(0.0, y, 0.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    for mid in [0.0, 1.0, 2.0] {
+        let span = Span::new(&hoop, (mid - 1e-5, mid + 1e-5));
+        let got = cross(&span, &floor(touch.y), band());
+        assert!(
+            matches!(
+                got,
+                Ok(Crossings {
+                    pose: Pose::Apart,
+                    ..
+                })
+            ),
+            "about θ = {mid}: {got:?}"
+        );
+        let old = super::plane_crossing::plane_crossing_lane(
+            &hoop,
+            mid - 1e-5,
+            mid + 1e-5,
+            Point3::new(0.0, touch.y, 0.0),
+            Vec3::unit_y(),
+            band(),
+        );
+        use super::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
+        let no_root = match &old {
+            PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
+            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots.is_empty(),
+            _ => false,
+        };
+        assert!(no_root, "the old entry about θ = {mid}: {old:?}");
+    }
+    let l = line([1.0, -5.0, 0.0], [0.0, 1.0, 0.0]);
+    let got = cross(&Span::new(&l, (8.5, 9.5)), &wall(1.0), band());
+    assert!(
+        matches!(
+            got,
+            Ok(Crossings {
+                pose: Pose::Apart,
+                ..
+            })
+        ),
+        "a line tangent to a wall, read 4 m from the touch: {got:?}"
+    );
+}
+
+/// **A touch just past the span whose reach falls inside it is a
+/// window, never nothing**: a unit hoop poking `0.5e-9` through a plane
+/// at `θ = 0`, read over `(2e-5, 1)`, has a true root at `3.16e-5`,
+/// inside the span; a line just inside a wall the same way. `cross`
+/// answers no meeting it cannot place, but a window over the touch's
+/// reach into the span.
+#[test]
+fn a_touch_reaching_into_the_span_is_a_window() {
+    let hoop = Curve3::circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_z());
+    let poke = geom::Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0 - 0.5e-9),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let l = line([1.0 - 0.5e-9, -1.0, 0.0], [0.0, 1.0, 0.0]);
+    for (label, span, s) in [
+        ("hoop", Span::new(&hoop, (2e-5, 1.0)), poke),
+        ("line", Span::new(&l, (1.0 + 2e-5, 2.0)), wall(1.0)),
+    ] {
+        let got = cross(&span, &s, band());
+        let Err(refusal) = &got else {
+            panic!("{label}: a window, got {got:?}");
+        };
+        assert!(
+            refusal.found.is_empty()
+                && refusal.windows.len() == 1
+                && refusal.windows[0].window.0 <= span.params().0 + 1e-12
+                && refusal.windows[0].window.1 >= span.params().0 + 3.2e-5,
+            "{label}: the touch's reach into the span, got {got:?}"
+        );
     }
 }
 
@@ -313,17 +429,29 @@ fn a_higher_order_contact_escalates_on_kappa() {
 type Distance = fn(&geom::Surface<f64>, Point3<f64>) -> f64;
 
 /// **A touch's arc holds every span point within the band of the
-/// surface**: a circle grazing a plane, a line grazing a sphere and a
-/// wall, each read at the true
-/// distance on a fine sampling of the span about the touch.
+/// surface**: a circle grazing a plane (and one whose swing across it is
+/// `3Kε`, its arc a quarter radian wide), a line grazing a sphere and a
+/// wall, each read at the true distance on a fine sampling of the span
+/// about the touch.
 #[test]
 fn a_touchs_arc_holds_the_in_band_arc() {
     let sin = 1e-3_f64;
     let axis = Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt());
-    let cases: [(&str, Curve3<f64>, geom::Surface<f64>, Distance); 3] = [
+    // A swing of `3Kε` across the plane: a definite touch whose arc is
+    // wide, a quarter radian, where a first harmonic falls slower than its
+    // quadratic and the arc's `π/2` is owed.
+    let wide = 3.0 * band().escalate();
+    let wide_axis = Vec3::new(0.0, wide, (1.0 - wide * wide).sqrt());
+    let cases: [(&str, Curve3<f64>, geom::Surface<f64>, Distance); 4] = [
         (
             "a circle on a plane",
             Curve3::circle(Point3::new(0.0, 0.0, sin), axis, 1.0, Vec3::unit_x()),
+            plane(0.0),
+            |_, p| p.z,
+        ),
+        (
+            "a circle swinging 3Kε across a plane",
+            Curve3::circle(Point3::new(0.0, 0.0, wide), wide_axis, 1.0, Vec3::unit_x()),
             plane(0.0),
             |_, p| p.z,
         ),
@@ -371,4 +499,193 @@ fn a_touchs_arc_holds_the_in_band_arc() {
             }
         }
     }
+}
+
+/// The cone of half-angle `alpha` with its apex at the origin, up `z`.
+fn cone_of(alpha: f64) -> geom::Surface<f64> {
+    geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **A narrow cone's `F` is no residual** (`|res| ≤ |F| / floor`, the
+/// floor about `sin 2α`): a line from the apex `4e-8` off a generator of
+/// a cone of half-angle `0.01`, its residual `−4e-8` at the run's far
+/// end, four bands, reads its apex and its lead in the zero band. It
+/// does not lie on the cone: it passes through the apex
+/// (`curve_face_pose_cone_on_surface` reads its whole reach through the
+/// floor, past the band). The door's old entry does not call it on the
+/// carrier.
+#[test]
+fn a_line_off_a_narrow_cones_generator_does_not_lie_on_it() {
+    let (alpha, off) = (0.01f64, 4e-8);
+    let c = line([0.0; 3], [(alpha - off).sin(), 0.0, (alpha - off).cos()]);
+    let span = Span::new(&c, (0.0, 1.0));
+    let got = pose(&span, &cone_of(alpha), band());
+    assert!(
+        matches!(got, Ok(Pose::Through(_))),
+        "through the apex: {got:?}"
+    );
+    let Curve3::Line(l) = c else { unreachable!() };
+    let old = super::line_quadric::line_quadric_roots(l, (0.0, 1.0), &cone_of(alpha), band());
+    assert!(
+        !matches!(old, Ok(Some(Ok(super::circle_roots::CircleRoots::On(_))))),
+        "not on the carrier: {old:?}"
+    );
+    // On the generator itself it lies, at both half-angles' ends.
+    for alpha in [0.01f64, 1.56] {
+        let g = line([0.0; 3], [alpha.sin(), 0.0, alpha.cos()]);
+        let got = pose(&Span::new(&g, (0.0, 1.0)), &cone_of(alpha), band());
+        assert!(matches!(got, Ok(Pose::Lies)), "α {alpha}: {got:?}");
+    }
+}
+
+/// **A narrow cone's `F` extreme in the zero band is no graze**: a circle
+/// at height `1` square to the axis of a cone of half-angle `0.01` (and
+/// `0.003`), its centre `1e-3` off the axis, its residual's least value
+/// `±3e-8`, three bands either way: `F`'s extreme reads in the zero band,
+/// and through the floor (`curve_face_pose_cone_graze`) it is past it.
+/// A line across the cone at that height, its least residual the same,
+/// reads its depth `|G|/R` in the zero band, the same way. Never
+/// `Tangent`: apart above, two crossings below, or a refusal.
+#[test]
+fn a_circle_by_a_narrow_cone_is_not_read_tangent_off_fs_extreme() {
+    for alpha in [0.01f64, 0.003] {
+        for least in [3e-8, -3e-8] {
+            let (sin, cos) = alpha.sin_cos();
+            let r = (sin + least) / cos + 1e-3;
+            let c = Curve3::circle(
+                Point3::new(1e-3, 0.0, 1.0),
+                Vec3::unit_z(),
+                r,
+                Vec3::unit_x(),
+            );
+            // And a line across the axis's plane at height 1, its least
+            // residual the same: its depth `|G|/R` in the zero band.
+            let l = line([-0.1, (sin + least) / cos, 1.0], [1.0, 0.0, 0.0]);
+            for (span, label) in [
+                (whole(&c), format!("circle, α {alpha}, least {least:e}")),
+                (
+                    Span::new(&l, (0.0, 0.2)),
+                    format!("line, α {alpha}, least {least:e}"),
+                ),
+            ] {
+                let got = cross(&span, &cone_of(alpha), band());
+                match &got {
+                    Ok(found) => match found.pose {
+                        Pose::Apart => assert!(least > 0.0, "{label}: {got:?}"),
+                        Pose::Isolated(_) => {
+                            assert!(least < 0.0 && found.meetings.len() == 2, "{label}: {got:?}");
+                        }
+                        _ => panic!("{label}: {got:?}"),
+                    },
+                    Err(refusal) => assert!(
+                        matches!(
+                            refusal.windows[0].why,
+                            CrossWhy::Pose(PoseRefusal::InBand {
+                                rung: PoseRung::Extreme | PoseRung::Discriminant,
+                                ..
+                            })
+                        ),
+                        "{label}: {got:?}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+/// **A drift in the zero band still bounds the offset**
+/// (`curve_face_pose_axis_offset` reads `at_mid ± drift/2`): a line along
+/// a wall's axis, `0.8ε` off the wall at its middle and drifting `0.8ε`
+/// over its run, reads its drift in the zero band, its middle in it too,
+/// and its far end `1.2ε` off, in the gap: it refuses on the axis-parallel
+/// rung, never `Lies`.
+#[test]
+fn an_axis_parallel_line_reads_its_offset_with_its_drift() {
+    let eps = band().zero();
+    let l = line([1.0 + 0.4 * eps, 0.0, 0.0], [0.8 * eps, 0.0, 1.0]);
+    let got = pose(&Span::new(&l, (0.0, 1.0)), &wall(1.0), band());
+    assert!(
+        matches!(
+            got,
+            Err(PoseRefusal::InBand {
+                rung: PoseRung::AxisParallel,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
+}
+
+/// **A circle parallel to a torus's axis in the plane of its tube's top
+/// grazes it and refuses** (`super::pose`'s parallel arm): its plane's
+/// depth into the tube reads in the zero band, and its extremes stand on
+/// either side of the centre circle, one over the hole and one beyond:
+/// two touches the band cannot call, never `Apart`.
+#[test]
+fn a_circle_grazing_a_tubes_top_across_its_centre_circle_refuses() {
+    let c = Curve3::circle(
+        Point3::new(2.0, 0.0, 0.7),
+        Vec3::unit_z(),
+        0.5,
+        Vec3::unit_x(),
+    );
+    let got = pose(&whole(&c), &torus(), band());
+    assert!(
+        matches!(
+            got,
+            Err(PoseRefusal::InBand {
+                rung: PoseRung::Contour,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
+}
+
+/// **A span no point of which reads off the surface is degenerate to the
+/// doors' old entries** (`PoseRefusal::unsettled`): a Villarceau circle
+/// of the torus escalates the pose's not-`Lies` rung in its zero band,
+/// which the circle × torus door's old entry answers
+/// `Unsettled::Degenerate`, not a graze's `Tangency`.
+#[test]
+fn a_villarceau_circle_is_degenerate_to_the_old_entry() {
+    let (big, small) = (2.0_f64, 0.7_f64);
+    let tilt = (small / big).asin();
+    let lean = Vec3::new(0.0, -1.0, 0.0) * tilt.cos() + Vec3::unit_z() * tilt.sin();
+    let villarceau = Curve3::circle(
+        Point3::new(small, 0.0, 0.0),
+        Vec3::unit_x().cross(lean),
+        big,
+        Vec3::unit_x(),
+    );
+    let got = super::circle_torus::circle_torus_roots(&villarceau, 0.0, TAU, &torus(), band());
+    assert!(
+        matches!(got, Ok(Err(crate::roots::Unsettled::Degenerate))),
+        "{got:?}"
+    );
+}
+
+/// **A pair the band cannot part is one window, neither found**
+/// (`super::cross::place`): two roots `1e-12` apart along a line are
+/// within the band of each other by their chord, so the placement keeps
+/// neither as a meeting and refuses one window over both; the found
+/// meetings sit outside every window.
+#[test]
+fn a_pair_the_band_cannot_part_is_one_window() {
+    let l = line([0.0; 3], [1.0, 0.0, 0.0]);
+    let span = Span::new(&l, (0.0, 1.0));
+    let placed = super::cross::place(&span, &[0.5, 0.5 + 1e-12], band());
+    assert!(
+        placed.meetings.is_empty() && placed.refused.len() == 1,
+        "{:?} {:?}",
+        placed.meetings,
+        placed.refused.iter().map(|r| r.0).collect::<Vec<_>>()
+    );
+    let (window, _) = placed.refused[0];
+    assert!(window.0 <= 0.5 && window.1 >= 0.5 + 1e-12, "{window:?}");
 }
