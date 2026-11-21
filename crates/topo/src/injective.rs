@@ -593,10 +593,13 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
     }
     match near.edges.as_slice() {
         [_] => departure(x, y, near, band, false),
-        _ => Outcome::Split {
-            arm: CertificateArm::Departure,
-            shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
-        },
+        _ => crate::gate_measure::reason(
+            "self-not-one-edge",
+            Outcome::Split {
+                arm: CertificateArm::Departure,
+                shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
+            },
+        ),
     }
 }
 
@@ -715,7 +718,10 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        _ => None,
+        _ => {
+            crate::gate_measure::margin_undecided(x.lo(), x.hi(), band.escalate());
+            None
+        }
     }
 }
 
@@ -1864,6 +1870,7 @@ fn present_chart<'a>(
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
             return Err({
+                crate::gate_measure::local_site("chart", line!());
                 if std::env::var_os("CV_TRACE").is_some() {
                     eprintln!("CVL chart {}", line!());
                 }
@@ -1912,6 +1919,7 @@ fn present_chart<'a>(
             // certified line.
             if !line.is_certified() {
                 return Err({
+                    crate::gate_measure::local_site("chart", line!());
                     if std::env::var_os("CV_TRACE").is_some() {
                         eprintln!("CVL chart {}", line!());
                     }
@@ -1948,6 +1956,7 @@ fn present_chart<'a>(
             Ok(Presentation::Vacuous)
         } else {
             Err({
+                crate::gate_measure::local_site("chart", line!());
                 if std::env::var_os("CV_TRACE").is_some() {
                     eprintln!("CVL chart {}", line!());
                 }
@@ -1970,6 +1979,7 @@ fn present_chart<'a>(
         let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
         if common_lo > common_hi {
             return Err({
+                crate::gate_measure::local_site("chart", line!());
                 if std::env::var_os("CV_TRACE").is_some() {
                     eprintln!("CVL chart {}", line!());
                 }
@@ -2043,6 +2053,7 @@ fn present_chart<'a>(
                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
                 Some(_) => {
                     return Err({
+                        crate::gate_measure::local_site("chart", line!());
                         if std::env::var_os("CV_TRACE").is_some() {
                             eprintln!("CVL chart {}", line!());
                         }
@@ -2098,6 +2109,7 @@ fn present_chart<'a>(
                 }
                 if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
                     return Err({
+                        crate::gate_measure::local_site("chart", line!());
                         if std::env::var_os("CV_TRACE").is_some() {
                             eprintln!("CVL chart {}", line!());
                         }
@@ -2116,6 +2128,7 @@ fn present_chart<'a>(
                     }
                     Some(_) => {
                         return Err({
+                            crate::gate_measure::local_site("chart", line!());
                             if std::env::var_os("CV_TRACE").is_some() {
                                 eprintln!("CVL chart {}", line!());
                             }
@@ -2143,6 +2156,7 @@ fn present_chart<'a>(
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
     if !piece.whole && (no_width(x) || no_width(y)) {
         return Err({
+            crate::gate_measure::local_site("chart", line!());
             if std::env::var_os("CV_TRACE").is_some() {
                 eprintln!("CVL chart {}", line!());
             }
@@ -2153,6 +2167,7 @@ fn present_chart<'a>(
     // and every corner convex.
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
         return Err({
+            crate::gate_measure::local_site("chart", line!());
             if std::env::var_os("CV_TRACE").is_some() {
                 eprintln!("CVL chart {}", line!());
             }
@@ -2337,6 +2352,7 @@ fn zero_of(
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
                 _ => Err({
+                    crate::gate_measure::local_site("zero_of", line!());
                     if std::env::var_os("CV_TRACE").is_some() {
                         eprintln!("CVL zero_of {}", line!());
                     }
@@ -2345,6 +2361,7 @@ fn zero_of(
             }
         }
         _ => Err({
+            crate::gate_measure::local_site("zero_of", line!());
             if std::env::var_os("CV_TRACE").is_some() {
                 eprintln!("CVL zero_of {}", line!());
             }
@@ -5943,8 +5960,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         });
     }
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
+        let why = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Err(Unpresented::Structural) => "Structural",
+            Err(Unpresented::Local) => "Local",
+            _ => "presented",
+        };
+        crate::gate_measure::set_reason(format!("unpresented:{}|{}", why(&px), why(&py)));
         return split;
     };
+    crate::gate_measure::clear_margin();
     let opposite = |(psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
@@ -5962,6 +5986,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
+    crate::gate_measure::set_reason_undecided();
     split
 }
 

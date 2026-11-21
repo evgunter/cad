@@ -1685,6 +1685,8 @@ impl Sweep {
                         fresh: true,
                     },
                     open,
+                    m_why: 0,
+                    m_after: false,
                 });
             }
 
@@ -1856,6 +1858,7 @@ fn walk<T: Real, Q: Question<T>>(
                 task.pair.depth,
                 std::time::Instant::now(),
             );
+            crate::gate_measure::current_task(task.pair.depth, task.pair.fresh, task.m_after);
             let m_flow = q.pair(&mut w, task, x, y);
             crate::gate_measure::walk_event(
                 (x.face, y.face),
@@ -2197,6 +2200,7 @@ where
                 (!near.is_empty()).then_some((near, la, lb))
             };
             if meet || near.is_some() {
+                crate::gate_measure::clear_reason();
                 let outcome = if meet {
                     let hull = (
                         (pair.a.u.0.min(pair.b.u.0), pair.a.u.1.max(pair.b.u.1)),
@@ -2264,6 +2268,19 @@ where
                         unreachable!("read as a split or a refusal above")
                     }
                     Outcome::Split { arm, shared } => {
+                        let m_code = crate::gate_measure::split_event(
+                            (x.face, y.face),
+                            pair.depth,
+                            arm,
+                            &shared,
+                            task.m_why,
+                            separation(&pair.a.enc, &pair.b.enc),
+                        );
+                        let task = Task {
+                            m_why: m_code,
+                            m_after: task.m_after || self.lower_refusal.is_some(),
+                            ..task
+                        };
                         // A cell paired with itself splits into its two
                         // halves each against itself and against each
                         // other: three pairs, two splits' worth of
@@ -3082,6 +3099,8 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                     below: true,
                     above: false,
                 },
+                m_why: 0,
+                m_after: false,
             });
         }
         let receipt = CellReceipt {
@@ -4287,6 +4306,11 @@ struct Task {
     /// Which bounds it is examined for (the bound question's; the
     /// minimum question reads every pair alike).
     open: Open,
+    /// MEASUREMENT ONLY: the reason code its parent split for (0: none).
+    m_why: u32,
+    /// MEASUREMENT ONLY: a touching split after the ask's first refusal
+    /// lies in its lineage.
+    m_after: bool,
 }
 
 /// One cell's interval enclosure on its carrier.
@@ -5715,6 +5739,8 @@ mod trv_rows {
                 below: true,
                 above: false,
             },
+            m_why: 0,
+            m_after: false,
         }
     }
 

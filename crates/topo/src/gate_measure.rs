@@ -428,6 +428,111 @@ struct WalkRec {
     pending: Option<String>,
     open: Vec<(FaceKey, FaceKey)>,
     crossed: Option<(FaceKey, FaceKey)>,
+    /// Per walk event (same index), the touching split it made: (reason
+    /// code, same as its parent's).
+    splits: std::collections::BTreeMap<usize, (u32, bool)>,
+    pending_split: Option<(u32, bool)>,
+    /// The crossing's (depth, fresh subtree root, touching split after
+    /// the first refusal in its lineage).
+    crossed_at: Option<(u32, bool, bool)>,
+}
+
+thread_local! {
+    static REASON: RefCell<Option<String>> = const { RefCell::new(None) };
+    static LOCAL_SITE: RefCell<Option<String>> = const { RefCell::new(None) };
+    static MARGIN: RefCell<Option<&'static str>> = const { RefCell::new(None) };
+    static CODES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static CUR: std::cell::Cell<(u32, bool, bool)> = const { std::cell::Cell::new((0, true, false)) };
+}
+
+pub fn local_site(tag: &'static str, line: u32) {
+    LOCAL_SITE.with(|s| *s.borrow_mut() = Some(format!("{tag}:{line}")));
+}
+pub fn margin_undecided(lo: f64, hi: f64, esc: f64) {
+    let class = if lo > -esc && hi < esc {
+        "margin-wholly-in-band"
+    } else if lo < 0.0 && hi > 0.0 {
+        "margin-straddles-zero"
+    } else {
+        "margin-straddles-band-edge"
+    };
+    MARGIN.with(|m| *m.borrow_mut() = Some(class));
+}
+pub fn clear_margin() {
+    MARGIN.with(|m| *m.borrow_mut() = None);
+}
+pub fn clear_reason() {
+    REASON.with(|r| *r.borrow_mut() = None);
+    LOCAL_SITE.with(|s| *s.borrow_mut() = None);
+    MARGIN.with(|m| *m.borrow_mut() = None);
+}
+pub fn set_reason(r: String) {
+    let site = LOCAL_SITE.with(|s| s.borrow().clone());
+    let r = if r.contains("Local") {
+        format!("{r}@{}", site.unwrap_or_default())
+    } else {
+        r
+    };
+    REASON.with(|x| *x.borrow_mut() = Some(r));
+}
+pub fn set_reason_undecided() {
+    let m = MARGIN
+        .with(|m| *m.borrow())
+        .unwrap_or("no-undecided-margin-read");
+    REASON.with(|x| *x.borrow_mut() = Some(format!("both-presented:{m}")));
+}
+pub fn reason<O>(tag: &str, o: O) -> O {
+    REASON.with(|x| *x.borrow_mut() = Some(tag.to_owned()));
+    o
+}
+pub fn current_task(depth: u32, fresh: bool, after: bool) {
+    CUR.with(|c| c.set((depth, fresh, after)));
+}
+fn code_of(key: String) -> u32 {
+    CODES.with(|c| {
+        let mut c = c.borrow_mut();
+        match c.iter().position(|k| *k == key) {
+            Some(i) => i as u32 + 1,
+            None => {
+                c.push(key);
+                c.len() as u32
+            }
+        }
+    })
+}
+fn key_of(code: u32) -> String {
+    CODES.with(|c| {
+        c.borrow()
+            .get(code as usize - 1)
+            .cloned()
+            .unwrap_or_default()
+    })
+}
+
+/// A touching cell pair the local certificate answered `Split` for: its
+/// reason interned (class, site, shared cell), returned for its children.
+pub fn split_event(
+    _pair: (FaceKey, FaceKey),
+    _depth: u32,
+    arm: crate::clearance::CertificateArm,
+    shared: &crate::clearance::SharedCell,
+    parent: u32,
+    _sep: geom_core::interval::Interval,
+) -> u32 {
+    let why = match format!("{arm:?}").as_str() {
+        "Monotone" => "monotone".to_owned(),
+        "SecondOrder" => "second-order".to_owned(),
+        _ => REASON
+            .with(|r| r.borrow_mut().take())
+            .unwrap_or_else(|| "departure-other".to_owned()),
+    };
+    let code = code_of(format!("{why}#{shared:?}"));
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.pending_split = Some((code, parent == code));
+        }
+    });
+    code
 }
 
 thread_local! {
@@ -489,6 +594,9 @@ pub fn crossed_in(a: FaceKey, b: FaceKey) {
     WALK.with(|w| {
         if let Some(w) = w.borrow_mut().as_mut() {
             w.crossed.get_or_insert((a, b));
+            if w.crossed_at.is_none() {
+                w.crossed_at = Some(CUR.with(|c| c.get()));
+            }
         }
     });
 }
@@ -499,6 +607,7 @@ pub fn continuing() -> bool {
 
 /// Starts recording the ask about to run, where `CAD_GATE_WALK` is set.
 pub fn walk_start() {
+    CUR.with(|c| c.set((0, true, false)));
     if std::env::var_os("CAD_GATE_WALK").is_some() {
         WALK.with(|w| *w.borrow_mut() = Some(WalkRec::default()));
     }
@@ -567,6 +676,58 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
         (Some(c), _) if refusing.contains_key(&c) => "another-refusing-pair",
         _ => "a-pair-that-did-not-refuse",
     };
+    // M5a: touching splits by reason class.
+    let mut reasons: std::collections::BTreeMap<String, (usize, usize)> = Default::default();
+    for &(code, same) in rec.splits.values() {
+        let k = key_of(code);
+        let class = k.split('#').next().unwrap_or("").to_owned();
+        let e = reasons.entry(class).or_default();
+        e.0 += 1;
+        e.1 += usize::from(same);
+    }
+    // M5b: per refusing face pair, the first depth where a split repeats
+    // its parent's reason, reads a margin wholly in band, or holds a
+    // Structural part; and what the pair spent below that depth.
+    let fixed = |code: u32, same: bool| {
+        let k = key_of(code);
+        same || k.contains("wholly-in-band") || k.contains("Structural")
+    };
+    let (mut m5b_splits, mut m5b_secs, mut m5b_pairs) = (0usize, 0f64, 0usize);
+    let mut m5b_depths: Vec<u32> = Vec::new();
+    for p in refusing.keys() {
+        let d_star = rec
+            .events
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| key(e.0, e.1) == *p)
+            .filter_map(|(n, e)| {
+                rec.splits
+                    .get(&n)
+                    .filter(|&&(c, sm)| fixed(c, sm))
+                    .map(|_| e.5)
+            })
+            .min();
+        if let Some(d) = d_star {
+            m5b_pairs += 1;
+            m5b_depths.push(d);
+            for e in rec.events.iter().filter(|e| key(e.0, e.1) == *p && e.5 > d) {
+                m5b_splits += e.2;
+                m5b_secs += e.3;
+            }
+        }
+    }
+    m5b_depths.sort_unstable();
+    let m5c = rec
+        .crossed_at
+        .map_or("none".to_owned(), |(d, fresh, after)| {
+            format!("depth={d},fresh={fresh},touching_split_after_first_refusal_in_lineage={after}")
+        });
+    write(&format!(
+        "M5\t{}\tverdict_crosses={}\tsplit_reasons={reasons:?}\tm5b_pairs={m5b_pairs}/{}\tm5b_depths={m5b_depths:?}\tm5b_after={m5b_splits}:{m5b_secs:.4}\tsecs={secs:.4}\tm5c={m5c}\n",
+        test_name(),
+        matches!(r.verdict, Embedding::Crosses(_)),
+        refusing.len(),
+    ));
     let kinds: Vec<String> = refusing.values().map(|(_, k)| k.join("+")).collect();
     let verdict = match &r.verdict {
         Embedding::Crosses(_) => "Crosses".to_owned(),
