@@ -5886,13 +5886,14 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
         return split;
     };
-    let opposite = |(psi, on): (Psi, On)| match (
+    let apart = |qx: &Presented<'_>, qy: &Presented<'_>, (psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
     ) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    let opposite = |sep| apart(qx, qy, sep);
     let corner = qx.corner || qy.corner;
     if std::env::var_os("CV_TRACE").is_some() {
         let ix = implicit_of(x, band).map(|i| (sign_on(&Psi::Carrier(i), None, qy, None, band)));
@@ -5907,10 +5908,43 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
     }
+    if let Some(alone) = vertex_alone(near) {
+        let (rx, ry) = (
+            present(x, &[], &alone.vertices, band),
+            present(y, &[], &alone.vertices, band),
+        );
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+            && planes_through(x, &alone, rx, ry)
+                .into_iter()
+                .any(|sep| apart(rx, ry, sep))
+        {
+            return Outcome::Certified {
+                corner: rx.corner || ry.corner,
+            };
+        }
+    }
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
     split
+}
+
+/// **The pair's one shared vertex, as the shared cell alone**, where the
+/// pair is near shared edges too. Each face presented against the vertex
+/// alone has its zero set at the vertex, so a plane through it that signs
+/// the two opposite holds them apart but there. A shared edge's points in
+/// both cells would read both signs, so it signs nothing there. It is the
+/// separator a plane through the edges cannot be: a plane face and a cone
+/// face sharing a ruling to the apex, the cone's cell about the second
+/// ruling the plane's carrier holds through the apex.
+fn vertex_alone(near: &Near) -> Option<Near> {
+    match near.vertices.as_slice() {
+        [v] if !near.edges.is_empty() => Some(Near {
+            edges: Vec::new(),
+            vertices: vec![*v],
+        }),
+        _ => None,
+    }
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
