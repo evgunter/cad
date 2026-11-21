@@ -601,15 +601,12 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
         Step::LineTo(Target::Point(Point2::new(4.0, 3.0))),
         Step::LineTo(Target::Start),
     ];
-    let cut = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
-        .expect("the steps before the refused close still draw");
-    let refusal = cut.loops[0]
-        .end
-        .refusal()
-        .expect("the flattened fillet is refused");
+    // Every prefix that would draw holds the fillet, so none draws.
+    let refusal = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
+        .expect_err("the flattened fillet is refused");
     assert!(
         matches!(
-            refusal,
+            &refusal,
             PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
                 if rendered.starts_with(
                     "not stored at step 8, the close: "
