@@ -284,7 +284,12 @@ pub fn span_plane_meet<T: Decide>(
         PoseRefusal::InBand { diag, .. } => ConicRootFault::BellyGraze(diag),
         other => unreachable!("the plane arm refuses in band only: {other:?}"),
     };
-    let span = Span::new(carrier, (t0, t1));
+    // A whole turn has no ends: its seam is interior, and the pose places
+    // nothing against it.
+    let span = match ends {
+        SpanEnds::Ended => Span::new(carrier, (t0, t1)),
+        SpanEnds::Endless => Span::new(carrier, (t0, t1)).endless(),
+    };
     let placed = |t: T| match ends {
         SpanEnds::Endless => Some(RootPlace::Inside),
         SpanEnds::Ended => span_place(&span, t, band),
@@ -858,9 +863,10 @@ mod tests {
     }
 
     /// **A graze just off the span's end touches** (review of PR 6609,
-    /// M1): a plane cutting the unit circle `z/2` deep, its extremum half
-    /// the root spread `δ = acos(1 − z)` before `t₀ = 0.3`, crosses the
-    /// circle once inside `[0.3, 2.0]`. The belly reads it a graze and
+    /// M1): a plane cutting the unit circle `z/2` deep, its true roots
+    /// `δ = acos(1 − z/2)` either side of its extremum, the extremum `δ/2`
+    /// before `t₀ = 0.3`, crosses the circle once inside `[0.3, 2.0]`.
+    /// The belly reads it a graze and
     /// keeps only the extremum, which lies off the span; the door still
     /// answers a touch, never a miss. Clear of the span by twice the
     /// touch's reach at the band's escalation (the pose's arc at `Kε`,
@@ -870,7 +876,8 @@ mod tests {
         use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let z = band.zero();
-        let spread = (1.0 - z).acos();
+        // The true roots' distance from the extremum: `1 − cos δ = z/2`.
+        let root = (1.0 - 0.5 * z).acos();
         let circle = Curve3::circle(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -885,9 +892,9 @@ mod tests {
                 .unwrap()
         };
         assert!(
-            matches!(meet(0.3 - 0.5 * spread), SpanPlaneMeet::Touch),
+            matches!(meet(0.3 - 0.5 * root), SpanPlaneMeet::Touch),
             "{:?}",
-            meet(0.3 - 0.5 * spread)
+            meet(0.3 - 0.5 * root)
         );
         let reach = core::f64::consts::FRAC_PI_2 * (2.0 * (band.escalate() + 0.5 * z)).sqrt();
         assert!(
@@ -895,5 +902,21 @@ mod tests {
             "{:?}",
             meet(0.3 - 2.0 * reach)
         );
+        // A whole turn has no ends: one starting just past the touch, its
+        // seam within the band of it, reads the touch as interior.
+        for gap in [3e-9, 5e-9] {
+            let whole = span_plane_meet(
+                &circle,
+                (0.4 + gap, 0.4 + gap + core::f64::consts::TAU),
+                SpanEnds::Endless,
+                Point3::origin() + Vec3::new(0.4f64.cos(), 0.4f64.sin(), 0.0) * (1.0 - 0.5 * z),
+                Vec3::new(0.4f64.cos(), 0.4f64.sin(), 0.0),
+                band,
+            );
+            assert!(
+                matches!(whole, Ok(Some(SpanPlaneMeet::Touch))),
+                "a whole turn from {gap:e} past the touch: {whole:?}"
+            );
+        }
     }
 }

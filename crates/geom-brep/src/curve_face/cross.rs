@@ -129,15 +129,13 @@ pub fn cross<T: Decide>(
             let past = placed.meetings.is_empty() && placed.refused.is_empty();
             let (meetings, mut windows) = placed.read(door, Some(touch));
             if past {
-                // The pose answers a touch past the span only where an end
-                // read in the zero band (`pose`'s `kappa`): its arc reaches
-                // in, and the span's part of it is a window, never nothing.
-                let (lo, hi) = (
-                    span.params().0.min(span.params().1),
-                    span.params().0.max(span.params().1),
-                );
+                // A touch past the span is not `Apart` only where its reach
+                // at `Kε` covers part of the span (`pose`'s `reaches`,
+                // decided definitely positive): that part is the window,
+                // never nothing and never a point.
+                let (t0, t1) = span.params();
                 windows.push(Undecided {
-                    window: (touch.arc.0.max(lo).min(hi), touch.arc.1.min(hi).max(lo)),
+                    window: (t0.min(t1).max(touch.reach.0), t1.max(t0).min(touch.reach.1)),
                     why: CrossWhy::Method {
                         door,
                         fault: MeetFault::Unsettled(Unsettled::Tangency),

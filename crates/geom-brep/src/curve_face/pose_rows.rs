@@ -681,3 +681,49 @@ fn a_pair_the_band_cannot_part_is_one_window() {
     let (window, _) = placed.refused[0];
     assert!(window.0 <= 0.5 && window.1 >= 0.5 + 1e-12, "{window:?}");
 }
+
+/// **A touch past the span is read by its reach at `Kε`, and its window
+/// is what that reach covers**: a unit hoop exactly tangent to a plane at
+/// `θ = 0`, read over `(s, 1)` for `s` from `1e-4` to `2e-4`. Its points
+/// from `s` to `√(2Kε) ≈ 1.41e-4` stand within `Kε` of the plane, in the
+/// band's gap: none may read as decided. So the span is not `Apart` while
+/// any is on it, and its window holds every one of them; no window is a
+/// point.
+#[test]
+fn a_touch_past_the_span_is_windowed_by_its_reach() {
+    let hoop = Curve3::circle(Point3::origin(), Vec3::unit_y(), 1.0, Vec3::unit_z());
+    let top = geom::Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for k in 0..=10 {
+        let s = 1e-4 + 1e-5 * f64::from(k);
+        let got = cross(&Span::new(&hoop, (s, 1.0)), &top, band());
+        let gap: Vec<f64> = (0..=1000)
+            .map(|i| s + (2e-4 - s) * f64::from(i) / 1000.0)
+            .filter(|&t| 1.0 - t.cos() < band().escalate())
+            .collect();
+        match &got {
+            Ok(found) => assert!(
+                gap.is_empty() && found.meetings.is_empty(),
+                "s = {s:e}: decided over points in the gap, {got:?}"
+            ),
+            Err(refusal) => {
+                assert!(
+                    refusal.windows.iter().all(|w| w.window.1 > w.window.0),
+                    "s = {s:e}: a point window, {got:?}"
+                );
+                for t in gap {
+                    assert!(
+                        refusal
+                            .windows
+                            .iter()
+                            .any(|w| w.window.0 <= t && t <= w.window.1),
+                        "s = {s:e}: {t:e}, in the gap, outside every window: {got:?}"
+                    );
+                }
+            }
+        }
+    }
+}

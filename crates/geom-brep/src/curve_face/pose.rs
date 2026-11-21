@@ -71,6 +71,11 @@ pub struct Touch<T: Real> {
     /// there. Past both (a line × cone's arc is read through the run's
     /// reach from the apex) it claims nothing.
     pub arc: (T, T),
+    /// The same arc at the band's escalation `Kε`: every parameter there
+    /// whose point is within `Kε` of the surface. A touch past the span
+    /// is not `Apart` only where this reach covers part of the span, and
+    /// that part is all it says anything of.
+    pub reach: (T, T),
 }
 
 /// **A singular point of the surface on the span** ([`Pose::Through`]).
@@ -147,7 +152,9 @@ pub enum PoseRung {
     /// The spread of the residual's roots about a cone's apex the span
     /// reaches.
     ApexSpread,
-    /// Whether a line turns off a cone's generator over the span.
+    /// Whether a line turns off a cone's generator over the span, and,
+    /// along one, its run's whole reach through the cone's floor
+    /// (`curve_face_pose_cone_on_surface`), whose gap refuses here.
     ConeLead,
     /// Whether a circle is a torus's meridian.
     Meridian,
@@ -374,71 +381,118 @@ struct Graze<T: Real> {
     /// apex.
     scale: T,
     /// Whether the root is the residual's, where the arm's form is not
-    /// the residual (a cone's `F`, read through its floor): its refusal
-    /// stands where the root reaches the span, and past it a definite
-    /// form, whose sign is the residual's, is read alone.
+    /// the residual (a cone's `F`, read through its floor). Read only
+    /// once the root is known to reach the span ([`Reaching::confirmed`]):
+    /// past it a definite form, whose sign is the residual's, is read
+    /// alone.
     confirm: Result<(), PoseRefusal>,
 }
 
+/// A [`Graze`] whose reach covers part of the span ([`reaches`]): the
+/// only way to its confirmation.
+struct Reaching<T: Real>(Graze<T>, (T, T));
+
+/// A [`Reaching`] graze the arm confirmed the residual's: the only thing
+/// the curvature is read on ([`curvature`]).
+struct Confirmed<T: Real>(Graze<T>, (T, T));
+
+impl<T: Real> Reaching<T> {
+    /// The arm's confirmation, read now that the root reaches the span.
+    fn confirmed(self) -> Result<Confirmed<T>, PoseRefusal> {
+        self.0.confirm?;
+        Ok(Confirmed(self.0, self.1))
+    }
+}
+
+/// The arc about `g.at` holding every parameter whose form is within
+/// `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the extreme's
+/// own reading. A form that falls from its extreme no faster than a first
+/// harmonic of that curvature leaves the band no nearer than that
+/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there.
+fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
+    let z = width + g.value.abs() + g.noise;
+    (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
+        .min(T::pi())
+}
+
 /// **The relative-curvature rung** at a double root `g` the arm read in
-/// the zero band.
-///
-/// - **Where the root is.** Its arc `(π/2)·√(2z/bend)` about `at` in the
-///   parameter, `z` the band's zero plus `|value|` plus `noise`, holds
-///   every parameter near it whose point is within the band of the
-///   surface: a form that falls from its extreme no faster than a first
-///   harmonic of that curvature leaves the band no nearer than that
-///   (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. Past the
-///   span (`Span::place_param`) and clear of an end widened by the same
-///   formula at the band's escalation `Kε`
-///   (`curve_face_pose_graze_reach`, read at the inf over the gap, only
-///   a definite outside acted on), every point of the span is definitely
-///   past the band: `Apart`, the root's curvature deciding nothing.
-///   Otherwise the touch reaches the span, and stands only where the arm
-///   confirmed it the residual's (`g.confirm`).
-/// - **`κ = bend/speed²`** levered by the carrier's own scale at the touch
-///   (`g.scale`), a sagitta (`Margin::sagitta`): how far the carrier
-///   departs from the surface's tangent plane over its own scale, the
-///   span's length no part of it. Definitely positive is [`Pose::Tangent`]
-///   with that arc.
+/// the zero band: where it is ([`reaches`]), the arm's confirmation
+/// ([`Reaching::confirmed`]), then its curvature ([`curvature`]).
 ///
 /// # Errors
 ///
-/// [`PoseRung::Kappa`] in band: the root's place against an end in the
-/// gap, or the curvature in the gap or in the zero band.
+/// [`PoseRung::Kappa`] in band, from [`reaches`] or [`curvature`]; the
+/// arm's own refusal where it could not confirm the root.
 fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<T>, PoseRefusal> {
+    match reaches(span, g, band)? {
+        Ok(reaching) => curvature(span, reaching.confirmed()?, band),
+        Err(apart) => Ok(apart),
+    }
+}
+
+/// **Where the root is**: its reach `arc(Kε)`, the one arc the touch is
+/// read by against the span. Inside the span or at an end
+/// (`Span::place_param`; an endless span has none), it reaches the span.
+/// Past it, the reach's overlap with the span, `min(t₁, at + r) −
+/// max(t₀, at − r)` metered at the span's least speed
+/// (`curve_face_pose_graze_reach`): definitely negative, every span point
+/// stands past `Kε` and the span is `Apart` (`Err`), the curvature
+/// deciding nothing; definitely positive, the touch reaches that part of
+/// the span; in the zero band, the overlap is the band's to call and
+/// refuses.
+///
+/// # Errors
+///
+/// [`PoseRung::Kappa`] in band: the root's place against an end, or the
+/// overlap, in the gap or in the zero band.
+fn reaches<T: Decide>(
+    span: &Span<'_, T>,
+    g: Graze<T>,
+    band: Band,
+) -> Result<Result<Reaching<T>, Pose<T>>, PoseRefusal> {
     let in_band = PoseRefusal::in_band(PoseRung::Kappa);
-    // The arc about `at` holding every parameter whose form is within
-    // `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the
-    // extreme's own reading.
-    let arc = |width: T| {
-        let z = width + g.value.abs() + g.noise;
-        (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
-            .min(T::pi())
-    };
+    let r = arc(&g, T::from_f64(band.escalate()));
+    let reach = (g.at - r, g.at + r);
     if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
-        // Clear of either end widened by the reach at the band's
-        // escalation (the arc at `Kε`), read at the inf over the gap
-        // (only a definite `Negative`, outside, is acted on): every span
-        // point is definitely past the band.
-        let reach = arc(T::from_f64(band.escalate()));
-        let gap = |end| span.end_gap_widened(g.at, end, reach, crate::curve_pair::GapMeter::Clear);
-        let clear = [
-            crate::curve_pair::SpanEnd::Start,
-            crate::curve_pair::SpanEnd::Stop,
-        ]
-        .into_iter()
-        .any(|end| {
-            matches!(
-                decide("curve_face_pose_graze_reach", gap(end), band),
-                Ok(Sign::Negative)
-            )
-        });
-        if clear {
-            return Ok(Pose::Apart);
+        let (t0, t1) = span.params();
+        let overlap = t1.max(t0).min(reach.1) - t0.min(t1).max(reach.0);
+        let read = geom_core::k_stats::decide_reported(
+            "curve_face_pose_graze_reach",
+            Margin::metered(overlap, span.speeds().0),
+            band,
+        )
+        .map_err(&in_band)?;
+        match read.sign {
+            Sign::Negative => return Ok(Err(Pose::Apart)),
+            Sign::Zero => {
+                return Err(zero_band(
+                    PoseRung::Kappa,
+                    "curve_face_pose_graze_reach",
+                    read,
+                    band,
+                ));
+            }
+            Sign::Positive => {}
         }
     }
-    g.confirm?;
+    Ok(Ok(Reaching(g, reach)))
+}
+
+/// **`κ = bend/speed²`** levered by the carrier's own scale at the touch
+/// (`Graze::scale`), a sagitta (`Margin::sagitta`): how far the carrier
+/// departs from the surface's tangent plane over its own scale, the
+/// span's length no part of it. Definitely positive is [`Pose::Tangent`],
+/// its arc `arc(ε)` and its reach `arc(Kε)`.
+///
+/// # Errors
+///
+/// [`PoseRung::Kappa`] in band: in the gap, or in the zero band (a
+/// higher-order contact).
+fn curvature<T: Decide>(
+    span: &Span<'_, T>,
+    Confirmed(g, reach): Confirmed<T>,
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
     let decided = geom_core::k_stats::decide_reported(
         "curve_face_pose_kappa",
         // Unsourced lever: the carrier's own scale at the touch
@@ -449,7 +503,7 @@ fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<
         ),
         band,
     )
-    .map_err(&in_band)?;
+    .map_err(PoseRefusal::in_band(PoseRung::Kappa))?;
     if decided.sign == Sign::Zero {
         return Err(zero_band(
             PoseRung::Kappa,
@@ -458,11 +512,12 @@ fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<
             band,
         ));
     }
-    let half = arc(T::from_f64(band.zero()));
+    let half = arc(&g, T::from_f64(band.zero()));
     Ok(Pose::Tangent(Touch {
         at: g.at,
         point: span.carrier().eval(g.at),
         arc: (g.at - half, g.at + half),
+        reach,
     }))
 }
 
