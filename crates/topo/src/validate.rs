@@ -3318,8 +3318,7 @@ pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
 /// [`crate::FindingFamily::SessionBox`]'s one recourse: the box bounds
 /// the model, not the tolerance, so the geometry moves.
-pub(crate) const SESSION_BOX: &str =
-    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+pub(crate) const SESSION_BOX: &str = geom_brep::session_box::SESSION_BOX_RECOURSE;
 
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
@@ -3744,9 +3743,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::OutsideSessionBox { .. } => SESSION_BOX,
-            CertifyError::SessionBoxUnshown { .. } => NOT_YET_ENDING,
-            CertifyError::ChartImageUnavailable { .. }
+            CertifyError::OutsideSessionBox { .. }
+            | CertifyError::SessionBoxUnshown { .. }
+            | CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
             | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }

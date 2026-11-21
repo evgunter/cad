@@ -183,8 +183,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("join_regular_point", &BOOLEAN),
     ("sector_apex_tilt", &BOOLEAN),
     ("sector_apex_window", &BOOLEAN),
-    ("session_box_point", &BOOLEAN),
-    ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
     // A point against a spline face's trim (`spline_trim`). Two doors
     // raise them: the boolean's spline arm (`BooleanError`, through

@@ -346,11 +346,18 @@ fn moved(p: Point3<f64>, d: Vec3<f64>) -> Point3<f64> {
 /// at each operand before anything is combined, so its controls round at
 /// their distance from the operand's origin: a plane × cylinder circle,
 /// ellipse and ruling certify at the gate's finest band at the origin
-/// and moved 1 km along every axis (where a net enclosed in world
-/// coordinates bounded about 1e-12 m and escalated).
+/// and moved 999 m along every axis, where each stands within the
+/// session box by half a metre (and where a net enclosed in world
+/// coordinates bounded about 1e-12 m and escalated). Moved 1 km, each
+/// reaches half a metre past the box, and certification refuses it
+/// there, by the box, before limb 2 reads anything.
 #[test]
 fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
-    for d in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -1000.0, 1000.0)] {
+    for d in [
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(999.0, -999.0, 999.0),
+        Vec3::new(1000.0, -1000.0, 1000.0),
+    ] {
         let cylinder = Surface::Cylinder {
             origin: moved(Point3::origin(), d),
             axis: Vec3::unit_z(),
@@ -396,7 +403,15 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
         ];
         for (name, a, b, carrier, span) in rows {
             let got = certify(a, b, carrier, span, fine_band());
-            assert!(got.is_ok(), "{name} moved by {d:?}: {got:?}");
+            let past = d.x == 1000.0;
+            assert!(
+                if past {
+                    matches!(got, Err(CertifyError::OutsideSessionBox { .. }))
+                } else {
+                    got.is_ok()
+                },
+                "{name} moved by {d:?}: {got:?}"
+            );
         }
     }
 }
@@ -417,20 +432,13 @@ fn kernel_limit(
     }
 }
 
-/// **A long line between two planes, past the session box, is the
-/// kernel's limit**: a 12 km line where two skew planes cross, at the
-/// gate's finest band. Its distance from each plane is affine along it,
-/// so the sup is at an end, and each end's distance is measured in
-/// certification arithmetic, the data lifted through its certified
-/// brackets. At 12 km that enclosure is `[0, 9.1e-12]`, the data's own
-/// rounding: it reaches zero, so it is only an upper bound, which says
-/// nothing about the input, and the composite's stall stands — at `f64`
-/// the kernel's limit ([`AnalyticRung3Refusal::KernelLimit`]), never the
-/// measured escalation. Red under an ends rule read in round-to-nearest
-/// `f64` (which passed this line on dot products rounding past the band),
-/// and under one that escalates on an end enclosure reaching zero.
+/// **A long line between two planes, past the session box, is refused
+/// by the box**: a 12 km line where two skew planes cross, at the gate's
+/// finest band, reaches 8.2 km past the box, and certification refuses
+/// it there before limb 2 reads its ends (which at 12 km enclose
+/// `[0, 9.1e-12]`, the data's own rounding).
 #[test]
-fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
+fn a_twelve_kilometre_line_between_planes_is_refused_by_the_session_box() {
     let unit = |v: Vec3<f64>| v / v.norm();
     let at = Point3::new(0.3, -0.2, 0.1);
     let (n1, n2) = (
@@ -445,25 +453,18 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
     let line = Curve3::line(at, unit(n1.cross(n2)));
     let got = certify(&plane(n1), &plane(n2), &line, (0.0, 12_000.0), fine_band());
     assert!(
-        matches!(
-            got,
-            Err(CertifyError::AnalyticRung3(
-                AnalyticRung3Refusal::KernelLimit { .. }
-            ))
-        ),
+        matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
         "{got:?}"
     );
 }
 
-/// **A long edge's own rounding is the limit**: a 12 km ruling of a
-/// skew cylinder, where a plane through its axis cuts it, at the gate's
-/// finest band, rounds at about `ulp(12000)` in the cylinder's frame, so
-/// limb 2's bound cannot clear `1e-12` m. It refuses as the kernel's
-/// approximation limit, never as a miss, with a bound within
-/// [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`] of the net's own width,
-/// and its story names shorter edges.
+/// **A long edge past the session box is refused by the box**: a 12 km
+/// ruling of a skew cylinder, where a plane through its axis cuts it, at
+/// the gate's finest band, reaches 8.6 km past the box, and certification
+/// refuses it there, before limb 2's bound (which at 12 km rounds at
+/// about `ulp(12000)` in the cylinder's frame) is read.
 #[test]
-fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
+fn a_twelve_kilometre_edge_is_refused_by_the_session_box() {
     let unit = |v: Vec3<f64>| v / v.norm();
     let at = Point3::new(0.3, -0.2, 0.1);
     let axis = unit(Vec3::new(1.0, 2.0, 3.0));
@@ -481,28 +482,9 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
     };
     let line = Curve3::line(at + across, axis);
     let got = certify(&cylinder, &plane, &line, (0.0, 12_000.0), fine_band());
-    let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
-        panic!("the kernel's limit: {got:?}");
-    };
-    assert_eq!(operand, geom::SurfaceKind::Cylinder);
     assert!(
-        bound > 1e-12,
-        "the bound does not clear the band: {bound:e}"
-    );
-    assert!(
-        width > 0.0 && bound <= geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR * width,
-        "the bound is the net's own rounding: {bound:e} against {width:e}"
-    );
-    assert!(
-        (11_999.0..12_001.0).contains(&extent),
-        "the extent: {extent}"
-    );
-    let ending = got.unwrap_err().ending(geom_brep::recourse::Reading::Build);
-    assert!(
-        ending
-            .as_deref()
-            .is_some_and(|e| e.contains("shorter edges")),
-        "{ending:?}"
+        matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
+        "{got:?}"
     );
 }
 

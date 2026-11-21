@@ -262,7 +262,7 @@ pub(crate) fn in_session_box_at<T: Decide>(
 /// definitely negative margin, and no face left uncovered.
 fn within<T: Decide>(cover: Result<T, FaceKey>, band: Band) -> bool {
     cover.is_ok_and(|reach| {
-        geom_brep::session_box::past_the_box(SESSION_BOX_REACH, reach, band).is_none()
+        geom_brep::session_box::past_the_box_as(SESSION_BOX_REACH, reach, band).is_none()
     })
 }
 
@@ -306,6 +306,17 @@ mod tests {
     use crate::test_support_fixtures::brick;
     use geom_core::Tol;
 
+    /// A brick over `x`, `y`, `z` that reaches past the session box,
+    /// which certification refuses at its first edge: the brick built at
+    /// the origin and its image translated there by
+    /// `transform::map_isometry`, which asks nothing, so the box's later
+    /// asks meet it.
+    fn beyond(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<f64> {
+        let home = brick::<f64>((0.0, x.1 - x.0), (0.0, y.1 - y.0), (0.0, z.1 - z.0), tol);
+        let to = geom_core::RigidMotion::translation(geom_core::Vec3::new(x.0, y.0, z.0)).unwrap();
+        crate::transform::map_isometry(&home, &crate::Isometry::Proper(to)).unwrap()
+    }
+
     fn refusal(body: &Body<f64>) -> Option<ValidationError> {
         crate::validate::validate_geometric(body, Tol::witness())
             .err()
@@ -324,7 +335,7 @@ mod tests {
     #[test]
     fn a_body_past_the_session_box_is_refused_at_the_finished_body_gate() {
         let tol = Tol::witness();
-        let far = brick::<f64>((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let far = beyond((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let errors = crate::validate::validate_geometric(&far, tol).unwrap_err();
         let [ValidationError::OutsideSessionBox { margin }] = &errors[..] else {
             panic!("the box refusal, alone: {errors:?}");
@@ -358,7 +369,7 @@ mod tests {
         let tol = Tol::witness();
         // No contact record: the door's own signature names the type.
         let records = Default::default();
-        let far = brick::<f64>((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let far = beyond((2e3, 2e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let errors = crate::validate::validate_pseudomanifold(&far, &records, tol).unwrap_err();
         assert!(
             matches!(&errors[..], [ValidationError::OutsideSessionBox { .. }]),
@@ -381,7 +392,7 @@ mod tests {
             "every coordinate is within 1 km"
         );
         assert_eq!(body_reach(&corner), 999.0);
-        let past = brick::<f64>((900.0, 1001.0), (900.0, 999.0), (900.0, 999.0), tol);
+        let past = beyond((900.0, 1001.0), (900.0, 999.0), (900.0, 999.0), tol);
         assert!(refusal(&past).is_some(), "x reaches 1001 m");
     }
 
@@ -393,7 +404,7 @@ mod tests {
     #[test]
     fn an_uncovered_edge_leaves_the_rest_of_the_reach() {
         let tol = Tol::witness();
-        let far = brick::<f64>((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let far = beyond((1.1e3, 1.1e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let reach = unmoved_reads(&far, |_, _| Err(EdgeUncovered::Ends)).points;
         assert!(reach >= 1.1e3 + 1.0, "{reach}");
     }
@@ -578,12 +589,27 @@ mod tests {
     }
 
     /// **The reach is never short of a vertex's coordinate**: a long thin
-    /// brick whose eight corners lie at 1.2 km is past the box.
+    /// bar along x whose eight corners lie at 1.2 km is past the box.
     #[test]
     fn the_reach_holds_every_vertex() {
         let tol = Tol::witness();
-        let long = brick::<f64>((-1.2e3, 1.2e3), (0.0, 1.0), (0.0, 1.0), tol);
-        assert!(body_reach(&long) >= 1.2e3, "{}", body_reach(&long));
+        // No 2.4 km bar along an axis stands in the box, so it is built
+        // along the xy diagonal, its ends 849 m out, and its image turned
+        // onto x by `transform::map_isometry`, which asks nothing.
+        let band = geom_core::Band::linear(tol).unwrap();
+        let z = geom_core::UnitVec3::new(geom_core::Vec3::unit_z(), "z", band).unwrap();
+        let turn = |a: f64| geom_core::RigidMotion::rotation(z, a).unwrap();
+        let diagonal = turn(core::f64::consts::FRAC_PI_4);
+        let bar = crate::test_support_fixtures::mapped_cube::<f64>(
+            |x, y, z| diagonal.transform_point(Point3::new(2.4e3 * x - 1.2e3, y, z)),
+            tol,
+        );
+        let long = crate::transform::map_isometry(
+            &bar,
+            &crate::Isometry::Proper(turn(-core::f64::consts::FRAC_PI_4)),
+        )
+        .unwrap();
+        assert!(body_reach(&long) > 1.2e3 - 1e-9, "{}", body_reach(&long));
         assert!(
             refusal(&long).is_some(),
             "corners at 1.2 km are past the box"

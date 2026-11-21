@@ -1245,12 +1245,18 @@ impl CertifyError {
     }
 
     /// The ending this door reads off the refusal itself rather than off
-    /// its decision, or `None`: a door's input interval by its span, and
-    /// a carrier's incidence by what was read, through the one map every
-    /// incidence ending goes through ([`crate::IncidenceRead::ending`]).
+    /// its decision, or `None`: a door's input interval by its span, the
+    /// session box's refusal by its one recourse wherever it is read (and
+    /// its limit as a bound not built), and a carrier's incidence by what
+    /// was read, through the one map every incidence ending goes through
+    /// ([`crate::IncidenceRead::ending`]).
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            Self::OutsideSessionBox { .. } => {
+                Some(crate::session_box::SESSION_BOX_RECOURSE.to_owned())
+            }
+            Self::SessionBoxUnshown { .. } => Some(geom_core::NOT_YET_ENDING.to_owned()),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }

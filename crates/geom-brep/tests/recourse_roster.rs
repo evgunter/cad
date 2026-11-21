@@ -47,6 +47,9 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 /// structs and `*_as` forwarders) whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
+    // The session box's two decisions (`session_box.rs`).
+    NameCarrier::Const("SESSION_BOX_REACH"),
+    NameCarrier::Const("SESSION_BOX_POINT"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -89,6 +92,7 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("apart_in_order_as"),
+    NameCarrier::Call("past_the_box_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
     NameCarrier::Call("coincident_over_extent_as"),

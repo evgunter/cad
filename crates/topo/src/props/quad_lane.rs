@@ -2297,8 +2297,8 @@ mod tests {
             let tiny = f64::from_bits((1023 - 60) << 52);
             let shells: [(&str, Body<f64>, Option<Dyadic>); 6] = [
                 (
-                    "a unit brick 5 km out",
-                    crate::test_support::brick((5e3, 5e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                    "a unit brick 900 m out",
+                    crate::test_support::brick((9e2, 9e2 + 1.0), (0.0, 1.0), (0.0, 1.0), tol),
                     Some(Dyadic::of(1.0)),
                 ),
                 (

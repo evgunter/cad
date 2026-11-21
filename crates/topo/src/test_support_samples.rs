@@ -626,6 +626,12 @@ fn certify_errors() -> Vec<CertifyError> {
             refusal: geom_brep::RowRefusal::Singular,
         },
         CertifyError::WrapOnNonPeriodic,
+        CertifyError::OutsideSessionBox {
+            margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+        CertifyError::SessionBoxUnshown {
+            margin: geom_core::MarginDiag::value(-75.0),
+        },
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {

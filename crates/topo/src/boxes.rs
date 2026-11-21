@@ -4465,14 +4465,14 @@ pub(crate) mod sphere_rect_rows {
 
     /// **A zone whose axis nears a box row keeps its radial share**
     /// (the verifier's repro). The zone below the rim `h0 = −0.3` of a
-    /// sphere of radius `1e3`, down to `−0.9` on its seam, wraps the
+    /// sphere of radius `800`, down to `−0.9` on its seam, wraps the
     /// azimuth alone, so the reach reads its latitude zone. Its axis is
     /// `t` off `ẑ`, and its top along `z` is on the rim,
     /// `c_z + r·(sin v₀·cos t + cos v₀·sin t)`. The share `√(1 − a_z²)`
     /// of the axis's normal plane cancelled to exactly zero below
     /// `t ≈ 1e-8`, so the box dropped `r·t·cos v₀`: at `ε = 1e-9` it
-    /// sat ~1e-5 m inside the face, about 800 times the pad its readers
-    /// take. The box, padded as its readers pad it, must reach the rim
+    /// sat ~1e-5 m inside the face, hundreds of times the pad its readers
+    /// take. The sphere reaches 920 m, inside the session box. The box, padded as its readers pad it, must reach the rim
     /// at every tilt and every ε.
     #[test]
     fn a_zone_axis_near_a_box_row_keeps_its_radial_share() {
@@ -4485,7 +4485,7 @@ pub(crate) mod sphere_rect_rows {
             || {
                 let tol = Tol::witness();
                 let band = Band::linear(tol).unwrap();
-                let (r, h0) = (1e3, -0.3);
+                let (r, h0) = (8e2, -0.3);
                 let c = Point3::new(120.0, -40.0, 75.0);
                 for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
                     let axis = Vec3::new(t.sin(), 0.0, t.cos());
@@ -4521,7 +4521,8 @@ pub(crate) mod sphere_rect_rows {
     /// (`[simple.conditioned]`: no charge, and no step that cancels).
     /// Random zones on a seam (the zone arm), with axes within `10⁻¹⁰`
     /// to `10⁻¹` of a random box row, at scales `1e-3`, `1` and `1e3`
-    /// (those the run's ε resolves), read at pad 0 along every row,
+    /// (those the run's ε resolves, inside the session box), read at pad 0
+    /// along every row,
     /// against the exact support ([`zone_support`]): each reading falls
     /// short of it by no more than the 4 ulps of `|c_k| + r` measured.
     /// A share read as `√(1 − a²)` loses the share outright with the
@@ -4554,6 +4555,10 @@ pub(crate) mod sphere_rect_rows {
                 s * rng.range(-2.0, 2.0),
                 s * rng.range(-2.0, 2.0),
             );
+            // Nor is one past the session box, which certification refuses.
+            if (c - Point3::origin()).norm_inf() + r >= geom_core::tolerance::SESSION_BOX_EXTENT {
+                continue;
+            }
             let row = rows[rng.below(3)];
             let (side, _, _) = frame_about(row);
             let side = {

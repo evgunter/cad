@@ -25,6 +25,11 @@ pub const SESSION_BOX_REACH: &str = "session_box_reach";
 /// largest `|coordinate|`.
 pub const SESSION_BOX_POINT: &str = "session_box_point";
 
+/// The box's one recourse: the box bounds the model, not the tolerance,
+/// so the geometry moves.
+pub const SESSION_BOX_RECOURSE: &str =
+    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+
 /// **Why a region is not shown in the session box.** `U` names what has
 /// no cover: a face of a body, or nothing for an edge, which is one
 /// region.
@@ -49,7 +54,7 @@ pub enum BoxRefusal<U> {
 /// **The margin of `reach` past the box, where it is definitely past**:
 /// `name`'s decision on the box's extent less `reach`. Geometry within
 /// the band of the box's edge is in it.
-pub fn past_the_box<T: Decide>(name: &'static str, reach: T, band: Band) -> Option<MarginDiag> {
+pub fn past_the_box_as<T: Decide>(name: &'static str, reach: T, band: Band) -> Option<MarginDiag> {
     let margin = Margin::of(Lever::<T>::session_box().length() - reach);
     match geom_core::k_stats::decide_reported(name, margin, band) {
         Ok(geom_core::Decided {
@@ -75,13 +80,13 @@ pub fn region_in_box<T: Decide, U>(
     band: Band,
 ) -> Result<(), BoxRefusal<U>> {
     let unshown = match cover {
-        Ok(reach) => match past_the_box(SESSION_BOX_REACH, reach, band) {
+        Ok(reach) => match past_the_box_as(SESSION_BOX_REACH, reach, band) {
             None => return Ok(()),
             Some(margin) => BoxRefusal::Unshown { margin },
         },
         Err(what) => BoxRefusal::Uncovered(what),
     };
-    match past_the_box(SESSION_BOX_POINT, inside(), band) {
+    match past_the_box_as(SESSION_BOX_POINT, inside(), band) {
         Some(margin) => Err(BoxRefusal::Point { margin }),
         None => Err(unshown),
     }

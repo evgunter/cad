@@ -915,15 +915,16 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
 
 /// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
 /// answer on a body whose largest `|coordinate|` is `reach`, past the
-/// 1 km box, is its refusal by the box: its finding `OutsideSessionBox`,
-/// its margin the box's extent less `reach` (to a part in 1e9 of
-/// `reach`), and its sentence the box's one recourse
+/// 1 km box, is its refusal by the box: `OutsideSessionBox` (the
+/// finished body's finding, or its farthest edge's certification), its
+/// margin the box's extent less `reach` (to a part in 1e9 of `reach`),
+/// and its sentence, read at the build door, the box's one recourse
 /// (`topo::FindingFamily::SessionBox`). `what` names the body.
 ///
 /// # Panics
 ///
 /// Where the door builds, or refuses otherwise.
-pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
+pub fn refused_by_the_session_box<T, E: geom_brep::recourse::Ended + core::fmt::Debug>(
     what: &str,
     reach: f64,
     got: Result<T, E>,
@@ -934,7 +935,10 @@ pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
     let recourse = topo::FindingFamily::SessionBox
         .recourse()
         .expect("the box has one recourse");
-    let (said, debug) = (e.to_string(), format!("{e:?}"));
+    let (said, debug) = (
+        e.ended(geom_brep::recourse::Reading::Build.into()),
+        format!("{e:?}"),
+    );
     let margin = debug
         .split_once("OutsideSessionBox { margin: MarginDiag(Value(")
         .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
@@ -976,39 +980,4 @@ pub fn in_the_box(reach: f64, unit: f64) -> bool {
 /// The pinned `1024·ε`, in [`box_unit`]s.
 pub fn unit_resolution<T: geom_core::Real>(unit: f64) -> topo::Settle<T> {
     topo::test_support::resolution(1024.0 * unit)
-}
-
-/// **A curved fixture past the session box, refused**: by the box
-/// ([`refused_by_the_session_box`]) at every ε but those of
-/// `limb_2_first_at`, where the carrier's own certificate reads first
-/// and refuses as limb 2's `KernelLimit` (the curved carriers'
-/// sup-norm bound grows with the carrier's extent, and at ε = 1e-12 it
-/// passes ε before the finished-body gate runs). That arm is asserted,
-/// so the row goes red the day the order moves.
-///
-/// # Panics
-///
-/// As [`refused_by_the_session_box`], or where a pinned row refuses
-/// otherwise.
-pub fn refused_by_the_box_or_limb_2<T, E: core::fmt::Display + core::fmt::Debug>(
-    what: &str,
-    reach: f64,
-    limb_2_first_at: &[f64],
-    got: Result<T, E>,
-) {
-    let eps = Tol::witness().get().eps;
-    if !test_utils::kernel_limit::at_row(eps, limb_2_first_at) {
-        return refused_by_the_session_box(what, reach, got);
-    }
-    let Err(e) = got else {
-        panic!("{what}: past the session box, yet the door builds it at ε {eps:e}");
-    };
-    assert!(
-        format!("{e:?}").contains("KernelLimit"),
-        "{what}: at ε {eps:e} limb 2's kernel limit reads before the box: {e:?}"
-    );
-    test_utils::vacuity::stood_down(
-        &format!("{what} at ε {eps:e}"),
-        "limb 2's kernel limit refuses before the session box reads",
-    );
 }
