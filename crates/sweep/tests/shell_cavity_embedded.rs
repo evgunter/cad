@@ -341,6 +341,7 @@ fn holds(what: &str, operand: Body<Interval>, t: f64) {
     let side = Side {
         body: &shelled.body,
         faces,
+        excluded: topo::clearance::FacePairs::none(),
     };
     let windows = side
         .windows(Which::First)

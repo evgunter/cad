@@ -322,6 +322,7 @@ impl<'b, T: geom_core::Real> ClearanceSeat<'b, T> {
         topo::clearance::Side {
             body: self.read.body(),
             faces: self.faces.clone(),
+            excluded: topo::clearance::FacePairs::none(),
         }
     }
 
