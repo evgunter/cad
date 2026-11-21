@@ -238,7 +238,8 @@ fn design_band() -> Band {
     Band::new(DESIGN_EPS, geom_core::tolerance::DEFAULT_K * DESIGN_EPS).unwrap()
 }
 
-/// The precision a fixed pose's margin `want` is computed to.
+/// The precision a fixed pose's margin `want` is computed to, to which
+/// `every_sphere_offer_passes_just_below_it` holds its quote and offer.
 fn precision(want: f64) -> f64 {
     1e-4 * want.abs() + 1e-15
 }

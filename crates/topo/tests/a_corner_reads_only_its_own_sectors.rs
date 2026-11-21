@@ -75,7 +75,9 @@ fn six([a, b]: &[AtRestBody<f64>; 2], tol: Tol) -> [Run; 6] {
 }
 
 /// Asserts `out` is the corner's crossing refusal at `margin`, offering
-/// its measured margin over K as an offered bound is told.
+/// its measured margin over K as an offered bound is told: what
+/// `an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt` holds
+/// every pose to. That the offer executes is `the_corners_offer_executes`'s.
 fn assert_corner_crossing(
     label: &str,
     out: &Result<topo::BooleanResult<f64>, BooleanError>,

@@ -1895,7 +1895,9 @@ const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_
 /// geometry, and a valued offer is that margin's `|m|/K` at the design
 /// band as an offered bound is told, for a margin within [`near`] of it
 /// (the coincfr4 review's MY1: a chain's outcome alone cannot see an
-/// inflated value that still reaches a pass).
+/// inflated value that still reaches a pass). Held by
+/// [`every_offered_tolerance_passes_just_below_it`] and
+/// [`every_withdrawn_tolerance_stays_withdrawn`].
 fn check_value(case: &Case, text: &str) -> Result<(), String> {
     let quoted = quoted_margin(text);
     let computed = if QUOTED_AS_A_LENGTH.contains(&case.name) {
