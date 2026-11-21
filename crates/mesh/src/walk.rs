@@ -812,12 +812,10 @@ impl LoopKinds {
 ///
 /// The question asked is whether a meridian traversal EXISTS, on the
 /// traversal KINDS; no coordinate and no ε is read here. The kinds are
-/// `topo::chart_iso::classify_kind`'s, which splits circle carriers on
-/// `|axis · chart.axis| > 0.5` — a float — and that split is structural
-/// only because [`crate::curved`]'s shape door has certified every
-/// carrier as a rim or a meridian carrier before this walk is called.
-/// Called on a loop the door would have refused, the guard fires on a
-/// float-classified carrier
+/// the ones [`crate::curved`]'s shape door certified, each carrier a rim
+/// or a meridian at the band, before this walk is called. Handed a loop
+/// the door would have refused, with its sides stated as rims, the guard
+/// fires on the loop as stated
 /// (`curved::tests::the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door`).
 ///
 /// It runs ahead of the two D2-row-5 re-derivations in
