@@ -2,11 +2,12 @@
 id: value-error-pairs-are-carried-beside-rounded-in-four-modules
 kind: issue
 title: Four modules carry (value, error) pairs of their own beside Rounded and spell room and magnitude on them by hand
-status: dispatched
+status: review
 opened: 2026-11-19
 priority: P1
 cost: M
 branch: oneround/rounded-pairs
+pr: 7221
 ---
 
 

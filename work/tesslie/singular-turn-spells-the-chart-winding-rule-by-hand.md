@@ -2,11 +2,13 @@
 id: singular-turn-spells-the-chart-winding-rule-by-hand
 kind: issue
 title: pcurves::singular_turn's step spells the polygon-orientation rule by hand; its home is geom_brep::PolygonOrientation
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: E
 branch: tesslie/wrap-strip-period
+closed: 2026-11-21
+pr: 7202
 ---
 
 
@@ -59,3 +61,7 @@ are still two derivations, and nothing proves they are one rule. Whether
 The topo half is done (EMBED, above): `pcurves/decision.rs` `singular_turn` takes its step through `PolygonOrientation::of_face(sides.sense).to_interior(left)`, and no `pcurves` entry remains in the fold census. What is left is all in `crates/mesh/src/walk.rs`: whether `wrap_strip`'s `period` (from the poles' heights, `rising`) and `singular_turn`'s stored step are one rule, and whether `wrap_strip` reads its period off `Body::loop_lift` instead of deriving it again (census entry `("crates/mesh/src/walk.rs", "turn")`). That is TESSWALK's ground, beside its `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` (the same read for `unwrap_tie`) and ONECOPY's `polygon-orientation-callers-fold-the-interior-side-by-hand`. The band stays P1: two derivations of one rule. Moved by `git mv`, id unchanged.
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row before this one arrived, so no sitting would have dispatched it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+## Closed (TESSLIE, PR 7202, 2026-11-21)
+
+`mesh::walk::wrap_strip` reads its period off the stored lift, `Body::loop_lift`: the far half's deck composed with the inverse of the near half's, times τ. The height-derived `rising` read and the `PolygonOrientation` parameter are gone, and topo's fold-census entry for walk.rs is struck. Measured first, then by the review: the two derivations agreed on every read, 8 in the suite and 158 + 12 in the review. Those reads cover rotated starts, mirrors, rigid motions, split wrap edges and a spindle. A lift that is not exactly one turn on a strip-shaped loop refuses typed (`WrapStripTurn`). A loop with no lift refuses `DomainUnread{Gap}` through `trimmed::face_domain`, the trimmed lane's own door. The two derivations this row named are now one. The siblings `the-pole-to-pole-band-reads-its-columns-off-the-area-vector-beside-the-lift` and `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers` (both P1) are the same shape at other sites.

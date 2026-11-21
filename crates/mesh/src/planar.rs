@@ -576,8 +576,13 @@ struct Pass {
 /// A face whose loops pass several vertices at one point is a right
 /// body (one vertex per cone of the solid at a pinch), and spade dedups
 /// the equal positions to one handle, so the handle's one `meta` id
-/// would stand for all of them. This lane's CDT and `trimmed`'s dedup
-/// the same way. Each pass of the walk through the point bounds a
+/// would stand for all of them. The handle is what this lane has to
+/// override, so it reads what spade merged, positions and not keys. On a
+/// body the census certifies that is the body's own pinch
+/// ([`topo::loop_points`], a point key at two distinct vertices), lifted
+/// over all of the face's loops: two vertices at one position on two
+/// point keys are their producer's defect. This lane's CDT and
+/// `trimmed`'s dedup the same way. Each pass of the walk through the point bounds a
 /// corner of the face between its leaving side and its arriving side,
 /// counter-clockwise where the outer loop runs counter-clockwise in the
 /// chart, and a triangle at the handle takes the id of the one pass

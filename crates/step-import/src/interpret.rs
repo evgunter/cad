@@ -61,6 +61,14 @@ pub(crate) const STEP_RIM_LINE_FRAME: &str = "step_rim_line_frame";
 /// closed class.
 pub(crate) const STEP_RECOGNIZED_CLOSURE: &str = "step_recognized_closure";
 
+/// Whether a spline the kernel holds reads as the straight MAP its chord
+/// parameterizes affinely (metres, its Greville hull): Zero reads it.
+pub(crate) const STEP_STRAIGHT_MAP: &str = "step_straight_map";
+
+/// How far an edge's trim runs past the range its promoted carrier
+/// covers (metres along the carrier): Zero is inside.
+pub(crate) const STEP_TRIM_COVERED: &str = "step_trim_covered";
+
 /// Whether one face bound lies clear of another's chart polygon, in
 /// metres: only apart decides which bound contains which.
 pub(crate) const STEP_RING_CONTAINMENT: &str = "step_ring_containment";
