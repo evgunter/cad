@@ -138,15 +138,14 @@ m a coordinate.
 
 ### Step B's rows that do not move here
 
-Twenty of step B's 45: its ten at `Interval` and the symbolic scalar
+Nineteen of step B's 45: its ten at `Interval` and the symbolic scalar
 ((c) below), `chord_join::seam_rows::an_arc_near_a_minor_vertex_resolves_at_its_own_scale`,
 `ellipse_torus::torus_rows::a_graze_pair_at_the_seam_is_two_crossings`,
 `foot_and_phase_rows::a_circle_foot_is_its_angle_on_the_turn_at_from`,
 `circle_torus::shallow_sweep::the_exact_oracle_agrees_with_mpmath_on_the_pinned_poses`,
 `m5_s12_curved_ops::revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts`,
 `curves_same_content::a_twin_one_ulp_off_in_any_stated_value_is_another_carrier`,
-the two key-walk rows and the datum-name row, and the row red on the
-base.
+the two key-walk rows and the datum-name row.
 
 ## (c) The ten `Interval` and symbolic rows step B lost
 
