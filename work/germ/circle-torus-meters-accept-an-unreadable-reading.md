@@ -20,8 +20,8 @@ posture.
 
 | site | on `Err` |
 |---|---|
-| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `bool_conic_quadric_first_noise` | refuses (`Uncertain`) — fixed in PR 3659 |
-| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `bool_conic_quadric_first_root_slack` | refuses — fixed in PR 3659 |
+| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `conic_quadric_first_noise` | refuses (`Uncertain`) — fixed in PR 3659 |
+| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `conic_quadric_first_root_slack` | refuses — fixed in PR 3659 |
 | `circle_torus::parallel_axes_roots`, `bool_circle_torus_root_slack` | refuses ("a NaN slack … is `Err` and refuses too") |
 | `circle_torus::half_angle_roots`, `rows.noise` | **accepts** (`Ok(Zero \| Negative) \| Err(_) => {}`) |
 | `circle_torus::half_angle_roots`, `rows.root_slack` | **accepts** |
@@ -86,7 +86,7 @@ ladder gives otherwise are filed as
 **The root-slack sites refuse now.** The table's last row has no site
 left. Each certified root's slack is `certified_subdivision`'s
 `RootSlack` meter (`bool_circle_torus_sub_root_slack`,
-`bool_conic_quadric_sub_root_slack`, `bool_conic_cone_root_slack`), and
+`conic_quadric_sub_root_slack`, `conic_quadric_cone_root_slack`), and
 that meter refuses `Err` (`Ok(Sign::Positive) | Err(_)` →
 `Uncertain`). Measured: made to accept, it certifies roots 1.08–1.10e-9
 m off at ε = 1e-9 on the ρ = 1500 family. That is the "what passing

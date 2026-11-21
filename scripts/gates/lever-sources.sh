@@ -31,12 +31,13 @@
 #    Their references are pinned per crate (`lever-fixtures.counts`)
 #    under that one reason: a test's stated scale.
 #
-# WHAT REVIEW HOLDS. A geometric constructor takes its geometry's
-# numbers (a sphere's radius, a box's corners, a curvature, an edge's
-# end points), so no gate can tell a caller's honest radius from a
-# length it calls one; nor a rate passed through `Margin::levered` as
-# if it were an arm; nor a dimensionless reading levered by hand outside
-# the door (`Margin::of(x * arm)`). Review holds those.
+# WHAT ITS SIBLING HOLDS. A constructor that looks geometric but takes
+# the caller's own number or point (a radius, a curvature, a lone point,
+# a box's corners) is held by `lever-doors.sh`, at pins that only fall.
+#
+# WHAT REVIEW HOLDS: a rate passed through `Margin::levered` as if it
+# were an arm, and a dimensionless reading levered by hand outside the
+# door (`Margin::of(x * arm)`).
 #
 # WHAT IT COUNTS: every reference in code (comments and string literals
 # stripped, `gate_rust_code`) under every crate's src, tests, examples

@@ -61,7 +61,7 @@ The margin-scale designers split on the far-centre ellipse: (A) mint a fitted sp
   - `geom_brep::pcurve_cache::carrier_harmonic`'s plane arm (no `terms`;
     lean, its difference mostly widens the envelope);
   - `geom_brep::pair_section::cylinders::conic_ball` (a listing filter);
-  - `topo::boolean::conic_quadric::off_the_apex` (`CONE_APEX`);
+  - `geom_brep::curve_face::conic_quadric::off_the_apex` (`CONE_APEX`);
   - `geom_brep::curve_pair::pose::harmonic_roots` (`ROOT_GAP`, a point
     gap);
   - `geom_brep::curve_pair::pose::window` (`Window::read`'s clearance,

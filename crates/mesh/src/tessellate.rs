@@ -318,7 +318,7 @@ pub(crate) fn route_of(
             let face = body
                 .get_face(fk)
                 .ok_or(TessellateError::MissingEntity { what: "face" })?;
-            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer, fk)? {
+            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer)? {
                 return Ok((Route::Trimmed(Trim::Structural), None));
             }
             let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
@@ -1078,7 +1078,7 @@ fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
 /// by two coincident edges refuses `BoundaryBoundsNoRegion`
 /// (`mesh/tests/faces_that_bound_no_region.rs`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip
-/// (`a_split_wrap_edge_is_one_strip`). A walk that put the strip's two
+/// (`a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on`). A walk that put the strip's two
 /// sides on one column again is what this census would catch.
 ///
 /// **The route is documented, not demonstrated, and the difference is

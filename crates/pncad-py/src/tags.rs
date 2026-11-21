@@ -2228,15 +2228,18 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
 /// certify is a flatness question at ε_in, a cylinder that will not is
 /// an ill-conditioned axis and wants more of the patch.
 ///
-/// The match is exhaustive, so a third promotable kind recognised
+/// The match is exhaustive, so a new promotable kind recognised
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these two words. The face and surface entity ids and the
+/// one of these words. The face and surface entity ids and the
 /// conditioning margin stay in the kernel's own `Display`, which is
 /// where they already were.
 pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
     match kind {
         PromotedKind::Plane => "plane",
         PromotedKind::Cylinder => "cylinder",
+        PromotedKind::Cone => "cone",
+        PromotedKind::Sphere => "sphere",
+        PromotedKind::Torus => "torus",
     }
 }
 
@@ -2527,6 +2530,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::UnclearedSharedSide { .. } => "uncleared_shared_side",
         TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
+        TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
     }
 }
 
