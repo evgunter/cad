@@ -584,7 +584,12 @@ pub(super) fn bisector<T: Decide>(
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
     let (dir, len) = mid.direction_and_length();
-    match sign(len, T::one(), band)? {
+    // The bounds' sum, against their nearer reach: the gap between one
+    // bound's far point and the other's reflection, read from below.
+    let [(_, start), (_, end)] = s.reached_bounds();
+    match crate::validate::decide("bool_fate_corner", Margin::levered(len, start.min(end)), band)
+        .map_err(corner_refused)?
+    {
         Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",

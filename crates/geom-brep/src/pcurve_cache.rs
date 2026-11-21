@@ -12722,6 +12722,9 @@ fn torus_oblique_circle<T: Decide>(
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
     let radius = circle.radius();
+    // The circle's plane and its tangent turn about the circle: the
+    // tilt and the sense parts are levered at its curvature arm.
+    let arm = crate::circle_curvature_arm(&circle);
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
@@ -12734,13 +12737,7 @@ fn torus_oblique_circle<T: Decide>(
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
-            // Unsourced lever: the torus's major radius `R`; the tilt's
-            // honest extent is the Villarceau circle's own radius, gated
-            // equal to `R` only within the band, so it would move bits.
-            Margin::levered(
-                n.cross(axis).norm() - r / big,
-                geom_core::Lever::unsourced(big),
-            ),
+            Margin::levered(n.cross(axis).norm() - r / big, arm),
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
@@ -12782,9 +12779,9 @@ fn torus_oblique_circle<T: Decide>(
     }
     let d = w_r.normalize();
     let tangent = n.cross(d);
-    // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
-    // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's
-    // tilt. The router reaches here by two routes:
+    // The tangent's two parts, levered at the circle's radius (`R`, by
+    // `_radius`), are `R·sin θ` (`r` on a Villarceau circle) and
+    // `R·cos θ` (`√(R² − r²)`), `θ` the plane's tilt. The router reaches here by two routes:
     // - Both class gates apart. `pcurve_torus_chart_axial` read the
     //   tube-rate part's own number, `R·sin θ`, apart.
     //   `pcurve_torus_chart_meridian` read `(a × b)·e / r = (R/r)·R·cos θ`
@@ -12814,23 +12811,11 @@ fn torus_oblique_circle<T: Decide>(
     let reread = |cause| incidence::class_escalated(shown, cause);
     let decided_sense = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
-        // Unsourced lever: `R·part` is the carrier's speed along `along`
-        // (metres per radian), a rate with no span to meter, at the
-        // torus's major radius rather than the circle's own.
-        geom_core::k_stats::decide_positive(
-            name,
-            Margin::levered(part.abs(), geom_core::Lever::unsourced(big)),
-            band,
-        )
-        .map_err(reread)?;
-        // Unsourced lever: as the magnitude's above. A part whose
-        // magnitude decided positive decides a side, so the gate's
-        // rejection of Zero is never reached.
-        geom_core::k_stats::decide_nonzero(
-            name,
-            Margin::levered(part, geom_core::Lever::unsourced(big)),
-            band,
-        )
+        geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), arm), band)
+            .map_err(reread)?;
+        // A part whose magnitude decided positive decides a side, so the
+        // gate's rejection of Zero is never reached.
+        geom_core::k_stats::decide_nonzero(name, Margin::levered(part, arm), band)
         .map(geom_core::NonzeroSign::unit)
         .map_err(reread)
     };
@@ -13555,7 +13540,6 @@ fn spiric_chart_pcurve<T: Decide>(
         Surface::Torus {
             center: chart_center,
             axis: chart_axis,
-            major_radius: chart_major,
             u_ref: chart_u,
             ..
         } => {
@@ -13564,7 +13548,7 @@ fn spiric_chart_pcurve<T: Decide>(
             // it, so their far or Zero arm is the chart's incidence, never
             // a lane choice. The axis reading's sign is all that can
             // place it: a reading Zero or in the sliver puts the axes
-            // within `K·ε/R` of perpendicular, far from the parallel ones
+            // within `K·ε` over the oval's reach of perpendicular, far from the parallel ones
             // every torus holding the oval has, so it is definitely off
             // (no margin to quote). A poisoned read says only that. The centre's reading in the sliver is
             // the chart's distance from the own torus, an incidence
@@ -13578,17 +13562,12 @@ fn spiric_chart_pcurve<T: Decide>(
             };
             let sigma = decide(
                 "pcurve_spiric_chart_axis",
-                // A COSINE of unit vectors: dimensionless, so it is
-                // metered by multiplying the chart's own lever arm
-                // (`Margin::levered`, whose docs name this exact case)
-                // — not `over_lever`, which divides a measure by a
-                // lever and belongs to an oriented area over a radius.
-                // Unsourced lever: the chart torus's major radius; the
-                // honest extent (the oval's span, or the torus's ball
-                // `R + r`) has different bits.
+                // A cosine of unit vectors, levered at the oval's own
+                // extent: the turn between the axes moves the oval by
+                // it over the region the oval occupies.
                 Margin::levered(
                     chart_axis.dot(axis),
-                    geom_core::Lever::unsourced(chart_major),
+                    crate::ExtentBall::of_covered(carrier.cover().as_ref().ok()).lever(),
                 ),
                 band,
             )
