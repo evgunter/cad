@@ -4070,7 +4070,7 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
     assert_eq!(in_m.label(), "δ 0.001 m chosen");
     assert!(
         in_m.detail()
-            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 0.000001 m needs")),
+            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 1e-6 m needs")),
         "{:?}",
         in_m.detail()
     );

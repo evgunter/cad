@@ -187,9 +187,8 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
     // construction: the render divides by the `mm` row's factor
     // (`props::written`), and this multiplies by a thousand. The two
     // roundings part by at most two ulps (the factor's own rounding and
-    // each operation's), so the text must read back, within the
-    // render's own grid, as one of the five values that close to the
-    // product. A render in any other unit misses by a factor.
+    // each operation's), so the bound below carries a float of slack.
+    // A render in any other unit misses by a factor.
     let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -198,15 +197,11 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
         DisplayTolerance::new(read * 1.0e-3).is_ok(),
         "δ {mm} mm renders as {text}, which is not a δ this door accepts"
     );
-    let near = [
-        mm.next_down().next_down(),
-        mm.next_down(),
-        mm,
-        mm.next_up(),
-        mm.next_up().next_up(),
-    ];
+    // Four figures, and half of a tenth of ε (1e-7 mm) where that is
+    // finer; one float of slack for the divide that made `mm`.
+    let grid = (0.5e-7_f64).min(mm * 5.0e-4) * (1.0 + 1.0e-9);
     assert!(
-        near.iter().any(|&value| readout::names(&text, value)),
+        (read - mm).abs() <= grid + (mm.next_up() - mm),
         "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }
@@ -383,10 +378,10 @@ fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
 /// **What the render does to a budget δ's seventeen significant
 /// figures: it shows the ones the grid asks for.** `fit_delta` solves
 /// `constant / budget`, so a δ the budget chose is a quotient with no
-/// short spelling at all. The render's grid is capped a decade below ε,
-/// so the figures it keeps here are the ones that tell this δ from the
-/// next one the kernel could distinguish — seven, not four and not
-/// seventeen — and this text is still a render and never a commit path.
+/// short spelling at all. The render's grid is four figures, and a
+/// tenth of ε where that is finer; a tenth of ε is 1e-7 mm, coarser
+/// than this δ's fourth figure, so four are kept, and this text is
+/// still a render and never a commit path.
 #[test]
 fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     // A constant in triangle·metres, exactly as `fit_delta` forms it.
@@ -398,11 +393,7 @@ fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     let exact = format!("{mm}");
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
     let rendered = d.render_in(MM);
-    assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
-    assert!(
-        readout::names(&rendered, mm),
-        "which is the whole claim: {rendered} names {mm} on the render's grid"
-    );
+    assert_eq!(rendered, "0.0003746", "and the render keeps four");
     assert!(
         exact.chars().count() > rendered.chars().count(),
         "a δ the budget chose has no spelling this short that is exact"

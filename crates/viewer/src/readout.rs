@@ -18,7 +18,8 @@
 //!
 //! - [`computed`] and [`computed_number`]: a value nobody wrote (a
 //!   driven slot, a measure, a display tolerance), on the grid.
-//! - [`handed`]: a bare number a caller handed in, exactly.
+//! - [`bare`]: the same in the canonical unit, for a sentence that
+//!   words the unit itself.
 //! - [`field_number`] and [`names`]: the fields' door, which has no
 //!   unit in hand (see [`field_number`]).
 //!
@@ -98,10 +99,24 @@ pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
     }
 }
 
-/// A bare number a caller handed in, exactly as received: the shortest
-/// digits that read back, `NaN` and `inf` for a value that is neither.
-pub fn handed(value: f64) -> String {
-    Told::given(&value, geom_core::Dimension::Dimensionless).to_string()
+/// A value the chrome computed, told on the grid in the canonical unit
+/// of `quantity` and without that unit's word, for a sentence that
+/// words the unit itself: `NaN` and `inf` for a value that is neither
+/// a number nor finite.
+pub fn bare(value: f64, quantity: UnitQuantity) -> String {
+    let unit = match quantity {
+        UnitQuantity::Length => pncad::quantity::M.def(),
+        UnitQuantity::Angle => pncad::quantity::RAD.def(),
+        UnitQuantity::Scalar => pncad::quantity::ONE.def(),
+    };
+    let text = computed(value, unit);
+    match unit.symbol() {
+        "" => text,
+        symbol => text
+            .strip_suffix(symbol)
+            .and_then(|number| number.strip_suffix(' '))
+            .map_or(text.clone(), str::to_owned),
+    }
 }
 
 /// The number a field holds, as the field shows it.
@@ -143,8 +158,8 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{MAX_CHARS, computed, computed_number, field_number, handed, names};
-    use quantity::{DEG, IN, M, MM, ONE, PI};
+    use super::{MAX_CHARS, bare, computed, computed_number, field_number, names};
+    use quantity::{DEG, IN, M, MM, ONE, PI, UnitQuantity};
 
     #[test]
     fn a_computed_value_reads_in_its_unit_on_the_grid() {
@@ -172,12 +187,14 @@ mod tests {
     }
 
     #[test]
-    fn a_handed_number_reads_exactly() {
-        assert_eq!(handed(0.1 + 0.2), "0.30000000000000004");
-        assert_eq!(handed(-0.0), "0");
-        assert_eq!(handed(f64::NAN), "NaN");
-        assert_eq!(handed(f64::INFINITY), "inf");
-        assert_eq!(handed(f64::MAX), "1.7976931348623157e308");
+    fn a_bare_number_is_told_on_its_quantitys_grid() {
+        assert_eq!(bare(0.1 + 0.2, UnitQuantity::Scalar), "0.3");
+        assert_eq!(bare(3.300_000_000_000_000_3, UnitQuantity::Angle), "3.3");
+        assert_eq!(bare(1_234.500_000_1, UnitQuantity::Length), "1234.5000001");
+        assert_eq!(bare(1_234.500_000_1, UnitQuantity::Angle), "1235");
+        assert_eq!(bare(-0.0, UnitQuantity::Length), "0");
+        assert_eq!(bare(f64::NAN, UnitQuantity::Length), "NaN");
+        assert_eq!(bare(f64::INFINITY, UnitQuantity::Angle), "inf");
     }
 
     /// No nonzero value reads as zero, every render reads back within
@@ -210,7 +227,9 @@ mod tests {
         assert_eq!(field_number(1024.0), "1024");
         assert_eq!(field_number(0.0003746), "0.0003746");
         assert_eq!(field_number(4.0e-7), "4e-7");
-        assert_eq!(field_number(f64::MAX), "1.7976931348623157e308");
+        // Past the last four-figure decimal the format holds, the grid
+        // point below.
+        assert_eq!(field_number(f64::MAX), "1.797e308");
     }
 
     #[test]

@@ -66,6 +66,7 @@ use pncad::select::Ray;
 
 use crate::narrowing::Narrow;
 use crate::readout;
+use pncad::quantity::UnitQuantity;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -308,31 +309,31 @@ pub enum CameraError {
     },
 }
 
-/// Every number a sentence quotes is one the caller handed in, told
-/// exactly as received ([`readout::handed`]).
+/// Every number a sentence quotes is told on its quantity's grid
+/// ([`readout::bare`]); the sentence words the unit.
 impl core::fmt::Display for CameraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotFinite { what, value } => write!(
                 f,
                 "the camera's {what} is {}, which is not a finite number",
-                readout::handed(*value)
+                readout::bare(*value, UnitQuantity::Scalar)
             ),
             Self::DegenerateScene { radius } => write!(
                 f,
                 "a scene radius of {} is not a positive extent to frame against",
-                readout::handed(*radius)
+                readout::bare(*radius, UnitQuantity::Length)
             ),
             Self::SceneRadiusOverflowsZoomBand { scene_radius } => write!(
                 f,
                 "a scene radius of {} is past the largest this viewer can frame: the \
                  furthest distance its zoom band allows is not a finite number",
-                readout::handed(*scene_radius)
+                readout::bare(*scene_radius, UnitQuantity::Length)
             ),
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
                 "a vertical field of view of {} rad is not strictly inside (0, pi)",
-                readout::handed(*fov_y)
+                readout::bare(*fov_y, UnitQuantity::Angle)
             ),
             Self::UndrawableProjection => f.write_str(
                 "the view projection is past the largest number a GPU matrix can hold \
@@ -435,7 +436,7 @@ pub enum CameraOpError {
     Unframeable(CameraError),
 }
 
-/// Numbers are spelled as [`CameraError`]'s are, by [`readout::handed`].
+/// Numbers are spelled as [`CameraError`]'s are, by [`readout::bare`].
 impl core::fmt::Display for CameraOpError {
     /// The [`CameraOpError::Unframeable`] arm forwards to
     /// [`CameraError`]'s own `Display`: the framing layer named that
@@ -445,12 +446,12 @@ impl core::fmt::Display for CameraOpError {
             Self::NotFinite { what, value } => write!(
                 f,
                 "the operation's {what} is {}, which is not a finite number",
-                readout::handed(*value)
+                readout::bare(*value, UnitQuantity::Scalar)
             ),
             Self::NonPositiveDolly { factor } => write!(
                 f,
                 "a dolly factor of {} is not a positive scale for a viewing distance",
-                readout::handed(*factor)
+                readout::bare(*factor, UnitQuantity::Scalar)
             ),
             Self::Unframeable(error) => write!(f, "{error}"),
         }
@@ -461,17 +462,31 @@ impl core::error::Error for CameraOpError {}
 
 /// The vocabulary in prose, for the status line that reports which
 /// move was refused. Deltas are the operation's own units — radians
-/// for angles, world units for lengths — spelled by [`readout::handed`],
+/// for angles, world units for lengths — spelled by [`readout::bare`],
 /// since a refused move's finite fields sit beside the one that is not.
 impl core::fmt::Display for CameraOp {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let n = |value: &f64| readout::handed(*value);
+        let n = |value: &f64, quantity| readout::bare(*value, quantity);
         match self {
             Self::Orbit { yaw, pitch } => {
-                write!(f, "orbit by yaw {} rad, pitch {} rad", n(yaw), n(pitch))
+                write!(
+                    f,
+                    "orbit by yaw {} rad, pitch {} rad",
+                    n(yaw, UnitQuantity::Angle),
+                    n(pitch, UnitQuantity::Angle)
+                )
             }
-            Self::Pan { right, up } => write!(f, "pan by right {}, up {}", n(right), n(up)),
-            Self::Dolly { factor } => write!(f, "dolly by a factor of {}", n(factor)),
+            Self::Pan { right, up } => write!(
+                f,
+                "pan by right {}, up {}",
+                n(right, UnitQuantity::Length),
+                n(up, UnitQuantity::Length)
+            ),
+            Self::Dolly { factor } => write!(
+                f,
+                "dolly by a factor of {}",
+                n(factor, UnitQuantity::Scalar)
+            ),
             // The button's name, and neither field: the error this
             // sentence rides beside says what was wrong with the extent
             // or the viewport's shape.

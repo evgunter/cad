@@ -4079,7 +4079,12 @@ mod tests {
             "refused at step 1: nothing is drawn: {drawn:?}"
         );
         let said = crate::pane::headless::painted_text(|ui| {
-            crate::pane::profile::preview_verdict(ui, crate::theme::Theme::DEFAULT, Some(&preview));
+            crate::pane::profile::preview_verdict(
+                ui,
+                crate::theme::Theme::DEFAULT,
+                crate::props::Notation::DEFAULT,
+                Some(&preview),
+            );
         });
         assert!(
             said.contains(&refusal.to_string()),
