@@ -6862,19 +6862,15 @@ pub trait AtRestPolicy: Decide {
         >,
     >;
 
-    /// **A certified lower bound on a spline chart's arm at `p` over
-    /// `reach`, at this scalar, or why none is read here** — the lower end
-    /// of the bracket the boolean's seam reading levers a spline face's
-    /// normal over ([`geom_brep::NurbsLane::chart_arm`],
-    /// [`geom_brep::classify_seam`]), and a spline pierced face's lever. It
-    /// is read from certified curvature bounds, at the certifying scalars
-    /// alone; a dual answers [`geom_brep::ChartArmRefusal::NoLane`], and the
-    /// seam reads smooth or escalates, never transverse.
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal>;
+    /// **This scalar's certification lane, or `None` where it does not
+    /// certify**: what a spline chart's certified arm is read through,
+    /// the lower end of the bracket the boolean's seam reading levers a
+    /// spline face's normal over ([`geom_brep::classify_seam`],
+    /// [`geom_brep::NurbsLane::chart_arm`]) and a spline pierced face's
+    /// lever. The bound is read from certified curvature bounds, at the
+    /// certifying scalars alone; a dual answers `None`, and the seam
+    /// reads smooth or escalates, never transverse.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
@@ -7128,12 +7124,8 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The march is written here.
@@ -7290,12 +7282,8 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -7450,12 +7438,8 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -7606,12 +7590,8 @@ where
         Some(geom_brep::NurbsLane::certified().chart_meetings(carrier, params, chart, band))
     }
 
-    fn spline_chart_arm(
-        chart: &geom::NurbsSurface<Self>,
-        p: geom_core::Point3<Self>,
-        reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -7779,13 +7759,9 @@ where
         None
     }
 
-    /// A dual does not certify (DL1), so it reads no certified bound.
-    fn spline_chart_arm(
-        _chart: &geom::NurbsSurface<Self>,
-        _p: geom_core::Point3<Self>,
-        _reach: Self,
-    ) -> Result<f64, geom_brep::ChartArmRefusal> {
-        Err(geom_brep::ChartArmRefusal::NoLane)
+    /// A dual does not certify (DL1), so it has no lane.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        None
     }
 
     /// The march is written at `f64` alone.

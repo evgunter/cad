@@ -540,18 +540,34 @@ fn choose(
             what: "an edge whose printed carrier has no region over its interval",
         })?;
     // The pose readings are levered at how far the edge's two faces run,
-    // as a wedge between them is (`topo::wedge_reach`): the farthest two
-    // of their vertices stand apart, and the edge's own extent where that
-    // is longer (a closed edge's whole turn).
-    let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1)
-        .max(faces_reach(solid, [plus, minus]));
+    // from below for a reading that builds on its definite sign and from
+    // above for one that builds on its Zero ([`crate::reach::faces_run`]).
+    let run = crate::reach::faces_run(solid, &[plus, minus]).map_err(|unread| match unread {
+        crate::reach::NoRegion::Edge(edge) => StepImportError::Topology {
+            id: edge,
+            what: "an edge whose printed carrier has no region over its interval",
+        },
+        crate::reach::NoRegion::Face(face) => StepImportError::Topology {
+            id: face,
+            what: "a face whose surface reads no region of its boundary",
+        },
+        crate::reach::NoRegion::NoFace => {
+            unreachable!("an edge's two faces were named")
+        }
+    })?;
     // A cone's pose readings are levered from its apex (the station of a
-    // coaxial cylinder's circles is a distance from it): the edge's own
-    // diameter is no reach from there.
-    let extent = [sa, sb].into_iter().fold(extent, |lever, s| match *s {
-        Surface::Cone { apex, .. } => lever.max(region.lever_from(apex)),
-        _ => lever,
-    });
+    // coaxial cylinder's circles is a distance from it): no diameter is a
+    // reach from there.
+    let from_apexes = |lever: geom_core::Lever<f64>| {
+        [sa, sb].into_iter().fold(lever, |lever, s| match *s {
+            Surface::Cone { apex, .. } => lever.max(region.lever_from(apex)),
+            _ => lever,
+        })
+    };
+    let extent = geom_brep::LeverBounds::Between {
+        below: from_apexes(run.below()),
+        above: from_apexes(run.above()),
+    };
     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
     if spline(sa) || spline(sb) {
         return spline_pair(
@@ -565,35 +581,6 @@ fn choose(
         );
     }
     analytic_pair(id, spec, (sa, sb), &region, extent, (file, eps_band))
-}
-
-/// The diameter of the box about the vertices the faces `faces` bound,
-/// as a lever: how far the two faces of an edge run. Read through the
-/// extent's own door ([`geom_brep::points_diameter`]) on the box's two
-/// far corners, whose distance is its diagonal.
-fn faces_reach(solid: &SolidSpec, faces: [usize; 2]) -> geom_core::Lever<f64> {
-    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for f in faces {
-        for l in &solid.faces[f].loops {
-            for u in &l.uses {
-                let e = &solid.edges[&u.edge];
-                for v in [e.start, e.end] {
-                    let p = solid.vertices[&v];
-                    for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
-                        lo[i] = lo[i].min(c);
-                        hi[i] = hi[i].max(c);
-                    }
-                }
-            }
-        }
-    }
-    if !lo.iter().chain(&hi).all(|c| c.is_finite()) {
-        return geom_brep::points_diameter(&[]);
-    }
-    geom_brep::points_diameter(&[
-        Point3::new(lo[0], lo[1], lo[2]),
-        Point3::new(hi[0], hi[1], hi[2]),
-    ])
 }
 
 /// [`topo::section_near`] of the pair at `band`, through the printed
@@ -639,7 +626,7 @@ fn spline_pair(
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     ends: (Point3<f64>, Point3<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
@@ -665,7 +652,8 @@ fn spline_pair(
     if let Some(rim) = cap_row(id, spec, (sa, sb), ends, file, true)? {
         return Ok(rim);
     }
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
@@ -738,7 +726,7 @@ fn spline_pair(
 }
 
 /// Whether two planes an edge lies on cross: the sine of their normals'
-/// angle levered at the edge's extent, read at the file's band.
+/// angle levered at the faces' run from below, read at the file's band.
 pub(crate) const STEP_PLANES_CROSS: &str = "step_planes_cross";
 
 /// Whether a wall's boundary row or column lies in a cap plane: the
@@ -752,11 +740,12 @@ fn analytic_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     use topo::SectionVerdict as V;
-    let read = |band| read_section(spec, (sa, sb), region, extent, band);
+    // The section builds on its pose readings' definite signs.
+    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
     // An escalation at the file's band is the file's ambiguity: its
     // statements do not decide the reading at their own precision.
     let at_file = read(file.band()).map_err(|source| ambiguous(id, &source, file))?;
@@ -786,7 +775,7 @@ fn analytic_pair(
         // Two planes the file's band reads parallel meet in no line: the
         // file's statements are no description there.
         Err(V::Unsupported { .. }) if let Some(normals) = plane_normals(sa, sb) => {
-            let crossing = normals.0.cross(normals.1).norm() * extent.length();
+            let crossing = normals.0.cross(normals.1).norm() * extent.below().length();
             Err(file.refused(id, file.touching(STEP_PLANES_CROSS, crossing)))
         }
         Err(V::Unsupported { .. }) => {
@@ -822,7 +811,7 @@ fn served_pair(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let ball = Some(region.ball());
@@ -948,7 +937,7 @@ fn tangent(
     spec: &EdgeSpec,
     (sa, sb): (&Surface<f64>, &Surface<f64>),
     region: &geom_brep::Reach<f64>,
-    extent: geom_core::Lever<f64>,
+    extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
     let locus = if geom_brep::tangent_locus_kinds(sa.kind(), sb.kind()) {
@@ -978,7 +967,8 @@ fn tangent(
             }
         }
     } else {
-        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent, band) {
+        // The coaxial circle is built on its axis rows' Zero.
+        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
             Ok(circle) => Ok(circle),
             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
             Err(e) => Err(Ok(e)),
@@ -2843,6 +2833,351 @@ mod tests {
             }) => assert_eq!(lane, ROOT_LANE, "the refusal names the root lane"),
             other => panic!("the vertex refuses not-yet-supported, never footed: {other:?}"),
         }
+    }
+
+    /// Two unit discs folded by `fold` along a chord `2w` long that each
+    /// is cut back to: face 0 in the plane `z = 0`, face 1 in the plane
+    /// turned `fold` about the chord, and edge 1, the chord. The faces'
+    /// only vertices are the chord's two ends; each face runs a whole
+    /// disc past them.
+    fn folded_discs(fold: f64) -> SolidSpec {
+        let w = 0.01_f64;
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let (low, high) = (Point3::new(c0, -w, 0.0), Point3::new(c0, w, 0.0));
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        // The folded plane's normal, and its direction away from the chord.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let disc = |centre: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>| {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(centre, axis, u_ref),
+                1.0,
+            ))
+        };
+        let edges = [
+            (1, (1, 2), Curve3::line(low, y), (0.0, 2.0 * w)),
+            (
+                2,
+                (2, 1),
+                disc(Point3::origin(), z, x),
+                (phi, 2.0 * pi - phi),
+            ),
+            (
+                3,
+                (1, 2),
+                disc(Point3::new(c0, 0.0, 0.0) + away * c0, n, away),
+                (phi - pi, pi - phi),
+            ),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                    curve: None,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, normal: Vec3<f64>, arc: u64| FaceSpec {
+            id,
+            surface: Surface::Plane {
+                origin: Point3::new(c0, 0.0, 0.0),
+                normal,
+                u_ref: y,
+            },
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: [1, arc]
+                    .into_iter()
+                    .map(|edge| crate::entities::EdgeUse {
+                        edge,
+                        forward: true,
+                    })
+                    .collect(),
+            }],
+            band: false,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![face(10, z, 2), face(11, n, 3)],
+            edges,
+            vertices: BTreeMap::from([(1, low), (2, high)]),
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **A crease between two faces is read over the faces' run, from
+    /// below, not over their vertices.** Two unit discs folded along a
+    /// 2 cm chord have the chord's ends for their only vertices, and
+    /// stand `2 + 2c₀ ≈ 4` m across, rim to rim. Folded by `1e-5` they
+    /// are `2e-5` apart at their far side, twenty times the file's
+    /// `1e-6`: two planes, and the chord is their crease. Folded by
+    /// `1e-7` they are one plane to the file over that run, and the
+    /// refusal's gap is the fold over it: never more than the fold over
+    /// the faces' true diameter, and most of it. Red against the
+    /// vertices or the edge's own length for the reach (the `1e-5` fold
+    /// then refuses as parallel planes), against one face's boundary for
+    /// both (a gap of `2e-7`), and against the region's box diagonal, a
+    /// bound from above, for the gap (`4.47e-7`) or for the decision.
+    #[test]
+    fn a_crease_is_read_over_its_faces_run() {
+        let read = |fold: f64| {
+            let solid = folded_discs(fold);
+            choose(
+                &solid,
+                1,
+                &solid.edges[&1],
+                (0, 1),
+                Tol::witness(),
+                FileBand::test(1e-6),
+            )
+        };
+        match read(1e-5) {
+            Ok(Chosen {
+                description: Description::Intersection,
+                carrier: Some(Curve3::Line(line)),
+                ..
+            }) => assert!(
+                line.dir.cross(Vec3::new(0.0, 1.0, 0.0)).norm() < 1e-12,
+                "the crease runs along the chord: {line:?}"
+            ),
+            other => panic!(
+                "two planes the faces' run tells apart meet in their crease: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+        match read(1e-7) {
+            Err(StepImportError::Interpretation {
+                refusal: crate::interpret::Refusal::Touching { reading, gap, .. },
+                ..
+            }) => {
+                assert_eq!(reading, STEP_PLANES_CROSS);
+                let across = 2.0 + 2.0 * (1.0 - 1e-4_f64).sqrt();
+                assert!(
+                    gap <= 1e-7 * across * (1.0 + 1e-9) && gap >= 1e-7 * 0.95 * across,
+                    "the fold over the two discs' run, never past their {across} m: {gap:e}"
+                );
+            }
+            other => panic!(
+                "one plane to the file over the faces' run: {:?}",
+                other.map(|c| c.carrier)
+            ),
+        }
+        // Folded by `2.4e-7` the planes read one within the file's band
+        // over the run from below (`9.6e-7`), where the region's box
+        // diagonal would read them in the band (`1.07e-6`).
+        assert!(
+            matches!(
+                read(2.4e-7),
+                Err(StepImportError::Interpretation {
+                    refusal: crate::interpret::Refusal::Touching { .. },
+                    ..
+                })
+            ),
+            "decided at the run from below"
+        );
+    }
+
+    /// **A pair of faces with no region refuses naming the edge at
+    /// fault**, whichever edge asked: with edge 2's interval unreadable,
+    /// edge 1, whose own carrier and interval are sound, answers with
+    /// edge 2's refusal. Red against the asking edge named.
+    #[test]
+    fn a_face_pair_with_no_region_names_the_edge_whose_carrier_does_not_read() {
+        let mut solid = folded_discs(1e-5);
+        solid.edges.get_mut(&2).unwrap().t0 = f64::NAN;
+        let refused = choose(
+            &solid,
+            1,
+            &solid.edges[&1],
+            (0, 1),
+            Tol::witness(),
+            FileBand::test(1e-6),
+        );
+        assert!(
+            matches!(refused, Err(StepImportError::Topology { id: 2, .. })),
+            "{:?}",
+            refused.map(|c| c.carrier)
+        );
+    }
+
+    /// A closed solid whose lid is the folded pair: two unit cylinders
+    /// about `z`, their axes `2c₀` apart so the walls cross along two
+    /// rulings 2 cm apart, capped below by one plane and above by two,
+    /// `z = 1` over the first lobe and a plane turned `fold` about the
+    /// chord over the second. Faces: the two lids (0, 1), the floor (2),
+    /// the two walls (3, 4). Edge 1 is the chord, the lids' crease, and
+    /// its ends are the lids' only shared vertices.
+    fn folded_lid(fold: f64) -> SolidSpec {
+        let (w, h) = (0.01_f64, 1.0_f64);
+        let c0 = (1.0 - w * w).sqrt();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let cusp = |side: f64, height: f64| Point3::new(c0, side * w, height);
+        let vertices = BTreeMap::from([
+            (1, cusp(1.0, 0.0)),
+            (2, cusp(-1.0, 0.0)),
+            (3, cusp(1.0, h)),
+            (4, cusp(-1.0, h)),
+        ]);
+        let phi = w.asin();
+        let pi = core::f64::consts::PI;
+        let second = Point3::new(2.0 * c0, 0.0, 0.0);
+        // The folded lid's plane through the chord, and the ellipse the
+        // second wall cuts it in.
+        let n = Vec3::new(fold.sin(), 0.0, fold.cos());
+        let away = Vec3::new(fold.cos(), 0.0, -fold.sin());
+        let rim = |centre: Point3<f64>| {
+            Curve3::Circle(geom::Circle::new(geom::Frame::new(centre, z, x), 1.0))
+        };
+        let lid_rim = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(second + z * (h - c0 * fold.tan()), n, away),
+            1.0 / fold.cos(),
+            1.0,
+        ));
+        let (first_span, second_span) = ((phi, 2.0 * pi - phi), (phi - pi, pi - phi));
+        let edges = [
+            (1, (4, 3), Curve3::line(cusp(-1.0, h), y), (0.0, 2.0 * w)),
+            (2, (3, 4), rim(Point3::new(0.0, 0.0, h)), first_span),
+            (3, (4, 3), lid_rim, second_span),
+            (4, (1, 2), rim(Point3::origin()), first_span),
+            (5, (2, 1), rim(second), second_span),
+            (6, (1, 3), Curve3::line(cusp(1.0, 0.0), z), (0.0, h)),
+            (7, (2, 4), Curve3::line(cusp(-1.0, 0.0), z), (0.0, h)),
+        ]
+        .into_iter()
+        .map(|(id, (start, end), carrier, (t0, t1))| {
+            (
+                id,
+                EdgeSpec {
+                    start,
+                    end,
+                    carrier,
+                    t0,
+                    t1,
+                    reversed: false,
+                    curve: None,
+                },
+            )
+        })
+        .collect();
+        let face = |id: u64, surface: Surface<f64>, bound: &[(u64, bool)]| FaceSpec {
+            id,
+            surface,
+            sense: true,
+            loops: vec![crate::entities::LoopSpec {
+                outer: true,
+                uses: bound
+                    .iter()
+                    .map(|&(edge, forward)| crate::entities::EdgeUse { edge, forward })
+                    .collect(),
+            }],
+            band: false,
+        };
+        let plane = |origin: Point3<f64>, normal: Vec3<f64>| Surface::Plane {
+            origin,
+            normal,
+            u_ref: y,
+        };
+        let wall = |origin: Point3<f64>| Surface::Cylinder {
+            origin,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        SolidSpec {
+            id: 1,
+            faces: vec![
+                face(
+                    10,
+                    plane(Point3::new(c0, 0.0, h), z),
+                    &[(2, true), (1, true)],
+                ),
+                face(
+                    11,
+                    plane(Point3::new(c0, 0.0, h), n),
+                    &[(3, true), (1, false)],
+                ),
+                face(12, plane(Point3::origin(), -z), &[(4, false), (5, false)]),
+                face(
+                    13,
+                    wall(Point3::origin()),
+                    &[(4, true), (7, true), (2, false), (6, false)],
+                ),
+                face(
+                    14,
+                    wall(second),
+                    &[(5, true), (6, true), (3, false), (7, false)],
+                ),
+            ],
+            edges,
+            vertices,
+            band_seams: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// **The folded lid imports whole.** Through the build, the
+    /// assembly and the at-rest gate, a solid whose two lids fold `1e-2`
+    /// along a 2 cm chord finishes as five faces and seven edges, read
+    /// from a file whose ε is `1e-3`. The lids stand 4 cm apart at their
+    /// far side, forty times that ε; over their vertices' reach, 2 cm,
+    /// the fold reads `2e-4`, a fifth of it. So the built body's own
+    /// readings, which lever the crease at its own extent, accept what
+    /// the import read over the lids' 4 m run. Folded `1e-4` the lids
+    /// are one plane to that file, and the crease refuses. Red against
+    /// the lids' vertices or the chord's own length for the import's
+    /// reach (the `1e-2` fold refuses as parallel planes).
+    ///
+    /// The fold and the file's ε are coarse so that the row holds at
+    /// every run ε: certification reads the crease's crossing over the
+    /// edge's own centimetre, which a finer fold leaves in a coarse
+    /// run's band, and a finer fold's crease is too ill-conditioned to
+    /// certify at a fine one.
+    #[test]
+    fn the_folded_lid_imports_whole_where_the_file_tells_its_lids_apart() {
+        let tol = Tol::witness();
+        let import = |fold: f64| {
+            let record = crate::entities::SolidRecord {
+                id: 1,
+                outer: folded_lid(fold),
+                voids: Vec::new(),
+            };
+            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(1e-3))
+                .and_then(|(body, _, _)| crate::gate(body, Some(1), tol))
+        };
+        let done = import(1e-2).unwrap_or_else(|e| panic!("a 1e-2 fold: {e}"));
+        assert_eq!((done.faces().count(), done.edges().count()), (5, 7));
+        assert!(
+            matches!(
+                import(1e-4),
+                Err(StepImportError::Interpretation {
+                    id: 1,
+                    refusal: crate::interpret::Refusal::Touching {
+                        reading: STEP_PLANES_CROSS,
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "one plane to the file over the lids' run"
+        );
     }
 
     /// **A wrap edge is the surface's own generator through the printed
