@@ -1993,7 +1993,8 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 /// edge of four triangles in a mesh `tessellate` returned; the arm's
 /// shared-side cure keeps the cone face off it
 /// ([`a_cone_face_keeps_no_side_its_plane_neighbour_can_make`] holds the
-/// family). The same at ε `10⁻⁶` and `10⁻¹²`.
+/// family). The same at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the
+/// pose (`CurvedPierceUnsupported`).
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_sound() {
     let (a, b) = t1_toward_the_apex(0.03);
@@ -2001,7 +2002,7 @@ fn a_ringless_cone_face_near_its_apex_meshes_sound() {
         "T1's box at s = 0.03",
         &a,
         &b,
-        refused_at(&[]),
+        refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
         &[("A ∩ B", 5e-3, Got::Meshed), ("B ∩ A", 5e-3, Got::Meshed)],
     );
 }
