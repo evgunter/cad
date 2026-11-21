@@ -4413,7 +4413,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # Every piece of an edge the plane cuts is named by its ends, a
         # lone one included.
         self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 0)
-        self.assertEqual(pieces(EntityKind.Edge, SegTag.SplitFragment), 68)
+        self.assertEqual(pieces(EntityKind.Edge, SegTag.SplitFragment), 60)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.

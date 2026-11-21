@@ -189,7 +189,7 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
         panic!("{what}: the only admitted escape is a certification refusal; got {r}");
     };
     let (cause, site_predicate) = match (error, error.incidence_read()) {
-        (geom_brep::CertifyError::Escalated { cause, .. }, _) => (cause.clone(), site_predicate),
+        (geom_brep::CertifyError::Escalated { cause, .. }, _) => (*cause, site_predicate),
         (_, Some(geom_brep::IncidenceRead::Undecided(cause)))
             if matches!(reposed, BooleanError::CrossingInsertion { .. }) =>
         {
