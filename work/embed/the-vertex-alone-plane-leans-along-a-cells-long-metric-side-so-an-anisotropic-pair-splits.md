@@ -4,7 +4,7 @@ kind: issue
 title: planes_through's plane at a shared vertex alone is taken across the rectangles' midpoint headings, so on an anisotropic chart it leans along the cell's long metric side and a strictly separable pair splits to the floor
 status: open
 opened: 2026-11-17
-priority: P2
+priority: P0
 cost: M
 refs: [departure-reads-no-curved-corner-off-its-shared-edge]
 ---
@@ -47,3 +47,45 @@ than their midpoints. For example, `n` across each face's two corner
 directions (the images of the quadrant's axes at the vertex), as the
 two-line case already builds one from the edges' directions. Any
 direction is exact, so this is a choice of candidate, not a decision.
+
+## 2026-11-21: planar bodies refuse on it (the per-solid census)
+
+The planar lane of the per-solid census (`embed/trace-planar`) traced
+this on plane/plane pairs. The row said no body refuses on it, and the
+gate now refuses 24 valid bodies on it, so it is re-banded P0 (a valid
+body refused at its door).
+
+On the census of main `c2a0c41f40`, **departure, vertex, plane/plane:
+24 of the 96 traced** (of 101). Both faces present as convex quadrants
+at a vertex they share alone (`Zero::Point` on both), and the pair
+splits to the depth floor. Cheapest:
+`sweep::all a_keel_tree_in_the_plane::a_deep_keel_tree_in_the_plane_splits_sound_and_sections_with_no_spur`.
+The other families are `band_mixed_vertex` (3), `union_pinch_member_order` (4),
+`three_solids_on_one_line` (2), `holes_meeting_at_a_vertex` (5),
+`join_rc_probes`, `join_reflex_wedge_probes`, `a_flank_touch_at_a_shared_corner`,
+`emit_union_borders`, `coincidence_door`, `split_through_an_apex`,
+`split_edge_on_faces_poses` and `join_pierce_runs_sweep`.
+
+**Checked by a diagnostic candidate** (`embed/trace-planar-measure`,
+not kept). At each plane/plane pair presented `Zero::Point` on both
+faces at a vertex alone, `departure` also built `n = unit((a₁ + a₂) −
+(b₁ + b₂))`. Here `a₁, a₂` and `b₁, b₂` are the unit images of each
+presentation's two corner axes at the vertex, so `n` is the difference
+of the two wedges' bisectors. The candidate was asked through the same
+`opposite` as `planes_through`'s.
+
+- In 17 of the 24 tests the candidate certified **every** such pair
+  that the midpoint-heading plane left split. In the keel trees it
+  certified 79 of 79 where the heading plane certified 3, in
+  `band_mixed_vertex` 124 of 124 where the heading plane certified 8,
+  and in `union_pinch_member_order` 38 of 38 where it certified 1.
+- In 7 it did not certify them all: `holes_meeting_at_a_vertex` (5,
+  for example 0 of 233 and 7 of 388), `union_pinch_member_order::holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_order`
+  (8 of 381) and `split_through_an_apex::a_split_through_an_apex_closes_each_corner_of_its_section`
+  (1 of 106). The bisector difference does not separate the wedges
+  there, and why is untraced.
+
+So the candidate this row asks for closes most of the planar instances,
+and the rest want a candidate chosen against both wedges' edges (a
+plane strictly separating two convex cones at their common apex, when
+it exists), or a reading of their own.
