@@ -19,3 +19,7 @@ A cut of `unsourced-levers-await-a-source` (Ev, PR 7141: no fourth source, each 
 `lever-sources.counts` falls by twelve. Each re-pose is measured by a differential on both lanes at two ε; a verdict that moves is reported with its direction.
 
 Not this unit: the sums and arc lengths and `profile` (the sibling unit `unsourced-levers-the-sums-the-arc-lengths-and-profile`), anything that changes what a record holds (Ev's condition), the bare arms of `Margin::over_lever`, deleting the `unsourced` doors.
+
+## Three more sites (2026-11-21)
+
+From the review of PR 7227: `geom_brep::intersect`'s `pn_apex_tangent_reach`, `pn_apex_point_reach` and `pair_bound` (far, near, offset) are this unit's. PR 7227 had spelled them `levered_inv(size, sine).value()` with `size = |apex_gap| + gap_err`, a bare division under a door's name; its fix pass puts them back on `Lever::unsourced` with their pins. They are family 2: the plane's apex distance plus a hand rounding term standing in for an arm.
