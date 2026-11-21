@@ -4101,9 +4101,9 @@ fn conic_section_frame_at<T: Decide>(
     if let Some((plane, cone)) = plane_and_cone(sa, sb) {
         return pk_germ_frame(plane, cone, extent, band);
     }
-    let (plane_s, cyl_s, radius) = match (sa, sb) {
-        (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (sa, sb, *radius),
-        (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (sb, sa, *radius),
+    let (plane_s, cyl_s) = match (sa, sb) {
+        (Sf::Plane { .. }, Sf::Cylinder { .. }) => (sa, sb),
+        (Sf::Cylinder { .. }, Sf::Plane { .. }) => (sb, sa),
         // The sphere germ pair (M5 S13): the C5 Circle's frame,
         // through THE table — same escalation plumbing.
         (Sf::Plane { .. }, Sf::Sphere { .. }) | (Sf::Sphere { .. }, Sf::Plane { .. }) => {
@@ -4199,7 +4199,7 @@ fn conic_section_frame_at<T: Decide>(
         FrameExtent::Radii => geom_brep::plane_cylinder_section(
             plane_s,
             cyl_s,
-            &geom_brep::Reach::of_frame(at, (radius, radius)),
+            &geom_brep::Reach::of_frame(at, cyl_s),
             band,
         ),
         FrameExtent::Reach(_) | FrameExtent::Cone(_) => {

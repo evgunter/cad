@@ -1121,7 +1121,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let center = o + a * t_star;
     let section = if closed_form_shown(
         "pc_rim_alignment",
-        Margin::levered(sin_norm, geom_core::Lever::curvature_radius(r)),
+        Margin::levered(sin_norm, crate::uniform_curvature_arm(cylinder)),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -1462,7 +1462,7 @@ pub fn plane_sphere_section<T: Decide>(
         "ps_frame_seam",
         Margin::levered(
             seam_cand.norm() - T::from_f64(0.5),
-            geom_core::Lever::curvature_radius(r),
+            crate::uniform_curvature_arm(sphere),
         ),
         band,
     ) {
@@ -1639,13 +1639,7 @@ pub fn sphere_sphere_section<T: Decide>(
                                 at.foot(),
                                 n,
                                 pair.half_chord(),
-                                ss_frame_seam(
-                                    n,
-                                    axis1,
-                                    u1,
-                                    geom_core::Lever::curvature_radius(r1),
-                                    band,
-                                ),
+                                ss_frame_seam(n, axis1, u1, crate::uniform_curvature_arm(a), band),
                             )))
                         }
                     }

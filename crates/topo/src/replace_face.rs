@@ -2861,12 +2861,7 @@ fn plan_edge<'s, T: Decide>(
         let held = body.get_surface(other_key).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
         });
-        let extent = geom_brep::edge_extent_inf(
-            &old_carrier,
-            t0,
-            t1,
-            (old_carrier.eval(t0), old_carrier.eval(t1)),
-        );
+        let extent = geom_brep::edge_extent_inf(&old_carrier, t0, t1);
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
                 (edge, start, end, sides),
@@ -3297,7 +3292,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1);
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -4221,7 +4216,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
 fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
-    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
+    geom_brep::edge_extent_inf(carrier, t0, t1)
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
