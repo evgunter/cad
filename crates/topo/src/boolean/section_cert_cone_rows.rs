@@ -21,12 +21,10 @@ use super::section_cert_rows::{
 };
 use super::*;
 use crate::boolean::ops;
-use crate::construction::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
-use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, TAU};
-use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI};
+use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
 
 /// The classification with the cone as `F`, after checking that the
@@ -406,104 +404,10 @@ fn a_parallel_axis_cylinder_every_class() {
 // The per-pair rule over real cone faces
 // -------------------------------------------------------------------
 
-/// The full rim at height `z` of the cone about `z` whose apex stands at
-/// `(0, 0, apex)` and whose radius grows `k` per unit of height, as the
-/// intersection of `cone` and the rim plane there (normal `normal`), and
-/// that plane.
-fn cone_rim(
-    body: &mut Body<f64>,
-    cone: crate::geometry::SurfaceKey,
-    (apex, k): (f64, f64),
-    z: f64,
-    normal: Vec3<f64>,
-) -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
-    let r = k * (z - apex);
-    let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), normal));
-    let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection {
-            pair: SurfacePair::new(cone, rim_plane),
-            selector: geom_brep::CurveSelector::Witness(p(-r, 0.0, z)),
-        },
-        carrier: Curve3::circle(p(0.0, 0.0, z), -normal, r, Vec3::unit_x()),
-        param_start: 0.0,
-        param_end: TAU,
-    };
-    (spec, rim_plane)
-}
-
-/// **A seamless frustum band** of [`unit_cone`] over `z ∈ [z0, z1]`:
-/// one face bounded by its two full rims and no generator edge, so it
-/// does not describe. Built as the cylinder's seamless band is: each
-/// rim splits off a cap, a strut joins them, and the strut's kill
-/// leaves the band two loops.
-pub(crate) fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    seamless_cone_band_on((0.0, 1.0), z0, z1)
-}
-
-/// [`seamless_cone_band`] on the cone about `z` whose apex stands at
-/// `(0, 0, apex)` and whose radius grows `k` per unit of height.
-pub(crate) fn seamless_cone_band_on(
-    (apex, k): (f64, f64),
-    z0: f64,
-    z1: f64,
-) -> (Body<f64>, FaceKey) {
-    let tol = Tol::witness();
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(k * (z0 - apex), 0.0, z0), true).unwrap();
-    let cone = body
-        .set_face_surface(
-            seed.face,
-            FaceSurface::New {
-                surface: Surface::Cone {
-                    apex: p(0.0, 0.0, apex),
-                    axis: Vec3::unit_z(),
-                    half_angle: k.atan(),
-                    u_ref: Vec3::unit_x(),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
-    let (bottom, bottom_plane) = cone_rim(&mut body, cone, (apex, k), z0, v(0.0, 0.0, -1.0));
-    let cap_b = body
-        .mef(
-            MefSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            bottom,
-            FaceSurface::Shared {
-                key: bottom_plane,
-                sense: true,
-            },
-            tol,
-        )
-        .unwrap();
-    let strut = body
-        .mev_line(
-            MevSite::Fan {
-                he1: cap_b.he_plus,
-                he2: cap_b.he_plus,
-            },
-            p(k * (z1 - apex), 0.0, z1),
-            tol,
-        )
-        .unwrap();
-    let (top, top_plane) = cone_rim(&mut body, cone, (apex, k), z1, Vec3::unit_z());
-    body.mef(
-        MefSite::Chords {
-            he1: strut.he_minus,
-            he2: strut.he_minus,
-        },
-        top,
-        FaceSurface::Shared {
-            key: top_plane,
-            sense: true,
-        },
-        tol,
-    )
-    .unwrap();
-    body.kemr(strut.he_plus, strut.he_minus).unwrap();
-    (body, seed.face)
+/// **A seamless frustum band** of [`unit_cone`] over `z ∈ [z0, z1]`
+/// ([`crate::test_support_fixtures::seamless_cone_band`]).
+fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
+    crate::test_support_fixtures::seamless_cone_band(z0, z1)
 }
 
 /// A slab `0.2` thick and `6` wide about `z = z0`, tilted by `tilt` about

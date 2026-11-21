@@ -702,9 +702,7 @@ mod tests {
     /// (then the slender wall refuses as a limit 9 km past the box).
     #[test]
     fn a_seamless_frustum_band_does_not_hold_its_apex() {
-        use crate::boolean::section_cert::section_cert_cone_rows::{
-            seamless_cone_band, seamless_cone_band_on,
-        };
+        use crate::test_support_fixtures::{seamless_cone_band, seamless_cone_band_on};
         let tol = Tol::witness();
         let band = geom_core::Band::linear(tol).unwrap();
         let (slender, _) = seamless_cone_band_on((-1.0e4, 1.0e-4), 0.0, 10.0);
