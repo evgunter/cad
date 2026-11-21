@@ -1641,65 +1641,128 @@ fn vacuous(
     outside: &[(Side, Interval, usize)],
 ) -> bool {
     if std::env::var_os("CV_TRACE").is_some() { for &(side, line, ei) in outside { eprintln!("CVV cell={cell:?} side={side:?} line={line:?} ei={ei} ranges={:?} ends={:?} bits={:?}", edge_ranges(b, &[ei], side.axis()), b.edges[ei].ends, b.edges[ei].uses.iter().map(|u| u.image.map(|im| im.map(|p| [p.x.lo().to_bits(), p.x.hi().to_bits(), p.y.lo().to_bits(), p.y.hi().to_bits()]))).collect::<Vec<_>>()); } }
-    let mode = std::env::var("CV_JOIN").unwrap_or_default();
-    outside.iter().enumerate().any(|(i, &(side, line, ei))| {
+    outside.iter().any(|&(side, line, ei)| {
         let (lo, hi) = side.axis().of(cell);
         let touches = match side {
             Side::XLo | Side::YLo => line.lo() <= hi + few_ulps(hi),
             Side::XHi | Side::YHi => line.hi() >= lo - few_ulps(lo),
         };
         let axis = side.axis().other();
-        let per = periodic(surface, axis);
-        if mode.is_empty() {
-            return touches
-                && edge_ranges(b, &[ei], side.axis())
-                    .is_some_and(|r| covered(axis.of(cell), &r, per));
-        }
+        // The line's edges: the face on the same side of each, on a line
+        // holding a value of this one's.
+        let on_line: Vec<usize> = outside
+            .iter()
+            .filter(|&&(s, l, _)| s == side && l.lo() <= line.hi() && line.lo() <= l.hi())
+            .map(|&(_, _, e)| e)
+            .collect();
         touches
-            && probe_run(b, outside, i, per, mode == "strict")
-                .is_some_and(|r| covered(axis.of(cell), &[r], per))
+            && line_ranges(b, surface, &run_through(b, surface, &on_line, ei, side.axis()), side.axis())
+                .is_some_and(|r| covered(axis.of(cell), &r, periodic(surface, axis)))
     })
 }
 
-/// PROBE: (lo vertex, lo end, hi vertex, hi end) of an outside entry's use.
-fn probe_ends(b: &Boundary, side: Side, ei: usize) -> Option<(VertexKey, Interval, VertexKey, Interval, bool)> {
-    let e = b.edges.get(ei)?;
-    let [u] = e.uses.as_slice() else { return None };
-    let iso = u.iso.filter(|iso| iso.held == side.axis())?;
-    let f = forward(u, iso)?;
+/// **A line edge's two ends along its line**: the vertex and the moving
+/// coordinate at its low end, then at its high. `None` for an edge the
+/// face uses twice, a whole turn's image, a use holding the other axis,
+/// and one whose direction does not certify.
+fn line_ends(e: &Rim, held: Axis) -> Option<[(VertexKey, Interval); 2]> {
+    let [u] = e.uses.as_slice() else {
+        return None;
+    };
+    let iso = u.iso.filter(|iso| iso.held == held && !iso.full)?;
     let [p, q] = u.image?;
-    let (p, q) = (iso.moving(p), iso.moving(q));
-    Some(if f > 0.0 { (e.ends[0], p, e.ends[1], q, iso.full) } else { (e.ends[1], q, e.ends[0], p, iso.full) })
+    let ends = [(e.ends[0], iso.moving(p)), (e.ends[1], iso.moving(q))];
+    Some(if forward(u, iso)? > 0.0 {
+        ends
+    } else {
+        [ends[1], ends[0]]
+    })
 }
 
-fn probe_run(b: &Boundary, outside: &[(Side, Interval, usize)], i: usize, per: bool, strict: bool) -> Option<Interval> {
-    let (side, line, ei) = outside[i];
-    let (mut v0, mut lo, mut v1, mut hi, full) = probe_ends(b, side, ei)?;
-    if full { return Some(whole_line()); }
-    let mut seen = vec![i];
-    let ulps = |a: f64, c: f64| (a.to_bits() as i128 - c.to_bits() as i128);
-    for up in [true, false] {
-        loop {
-            let at = if up { v1 } else { v0 };
-            let next: Vec<usize> = (0..outside.len()).filter(|j| !seen.contains(j)).filter(|&j| {
-                let (s, l, ej) = outside[j];
-                s == side && l.lo() <= line.hi() && line.lo() <= l.hi()
-                    && probe_ends(b, s, ej).is_some_and(|(w0, _, w1, _, f)| !f && (if up { w0 } else { w1 }) == at)
-            }).collect();
-            let [j] = next.as_slice() else { break };
-            let (_, a, _, c, _) = probe_ends(b, side, outside[*j].2)?;
-            let (mine, theirs, far) = if up { (hi, a, c) } else { (lo, c, a) };
-            let k = if per { turns_toward(theirs, mid(mine)) } else { 0.0 };
-            let mv = |x: Interval| if k == 0.0 { x } else { x + turns(k) };
-            let (theirs, far) = (mv(theirs), mv(far));
-            let meets = theirs.lo() <= mine.hi() && mine.lo() <= theirs.hi();
-            eprintln!("CVJ v={at:?} k={k} mine={:?} theirs={:?} meets={meets} gap_ulps={} diff={:e}", (mine.lo(), mine.hi()), (theirs.lo(), theirs.hi()), ulps(mid(theirs), mid(mine)), mid(theirs) - mid(mine));
-            if strict && !meets { break; }
-            seen.push(*j);
-            if up { hi = far; v1 = probe_ends(b, side, outside[*j].2)?.2; } else { lo = far; v0 = probe_ends(b, side, outside[*j].2)?.0; }
+/// **The joints of one line's edges**: each pair `(i, j)` of `edges`
+/// where the high end of `i` and the low end of `j` are one vertex by
+/// key, with the range between the two stored readings of that vertex's
+/// coordinate, `j`'s moved by whole turns to `i`'s on a periodic axis.
+///
+/// `edges` are on one line with the face on the same side of each (the
+/// caller's: one merged clip, or [`vacuous`]'s line), so they run one
+/// way along it, and at a joint one ends where the next begins. Each
+/// edge's range ends at its vertex's chart point, of which the line
+/// holds one, up to whole turns; the two stored ends are two readings of
+/// it, each its own row's, agreeing only to rounding, which no cell
+/// narrows. So the edges cover the line from the one's far end to the
+/// other's whatever the two readings are, and nothing is compared.
+/// That the readings agree is the lift's ([`crate::pcurves::Lift`]).
+///
+/// **On the closed-form charts only.** A spline chart may carry one
+/// point at two parameters of a line (a closed net), where a shared
+/// vertex does not say the ranges are adjacent.
+fn joints(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    edges: &[usize],
+    held: Axis,
+) -> Vec<(usize, usize, Interval)> {
+    if matches!(surface, Surface::Nurbs(_)) {
+        return Vec::new();
+    }
+    let periodic = periodic(surface, held.other());
+    let ends: Vec<(usize, [(VertexKey, Interval); 2])> = edges
+        .iter()
+        .filter_map(|&i| Some((i, line_ends(b.edges.get(i)?, held)?)))
+        .collect();
+    let mut out = Vec::new();
+    for &(i, [_, (v, hi)]) in &ends {
+        for &(j, [(w, lo), _]) in &ends {
+            if i == j || v != w {
+                continue;
+            }
+            let lo = if periodic { wrap(lo, mid(hi)) } else { lo };
+            out.push((
+                i,
+                j,
+                Interval::from_bounds(hi.lo().min(lo.lo()), hi.hi().max(lo.hi())),
+            ));
         }
     }
-    Some(Interval::from_bounds(lo.lo().min(hi.lo()), hi.hi().max(lo.hi())))
+    out
+}
+
+/// The edges of `on_line` joined to `ei`, end to end ([`joints`]),
+/// `ei` among them.
+fn run_through(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    on_line: &[usize],
+    ei: usize,
+    held: Axis,
+) -> Vec<usize> {
+    let joints = joints(b, surface, on_line, held);
+    let mut run = vec![ei];
+    while let Some(next) = joints.iter().find_map(|&(i, j, _)| {
+        match (run.contains(&i), run.contains(&j)) {
+            (true, false) => Some(j),
+            (false, true) => Some(i),
+            _ => None,
+        }
+    }) {
+        run.push(next);
+    }
+    run
+}
+
+/// **The ranges one line's edges cover together**: each edge's
+/// ([`edge_ranges`]) and, across each joint, the range between its two
+/// readings ([`joints`]).
+fn line_ranges(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    edges: &[usize],
+    held: Axis,
+) -> Option<Vec<Interval>> {
+    let mut out = edge_ranges(b, edges, held)?;
+    out.extend(joints(b, surface, edges, held).into_iter().map(|(.., r)| r));
+    Some(out)
 }
 
 /// The ranges the uses of `edges` holding `held` run over on the other
@@ -1739,25 +1802,14 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
 /// [`convex`].
 fn sides_are_the_faces(
     b: &Boundary,
+    surface: &Surface<Interval>,
     merged: &[Clip],
     rect: ((f64, f64), (f64, f64)),
-    periodic: impl Fn(Axis) -> bool,
 ) -> bool {
     let covers = |c: &Clip| {
         let axis = c.side.axis().other();
-        let periodic = periodic(axis);
-        let mut r = run_on(b, c, merged, periodic);
-        if std::env::var("CV_JOIN").is_ok_and(|m| m == "key") && let Some(r) = r.as_mut() {
-            for &i in &c.edges { for &j in &c.edges {
-                if i == j { continue; }
-                let (Some((_, _, v1, hi, f1)), Some((w0, lo, _, _, f2))) = (probe_ends(b, c.side, i), probe_ends(b, c.side, j)) else { continue };
-                if f1 || f2 || v1 != w0 { continue; }
-                let k = if periodic { turns_toward(lo, mid(hi)) } else { 0.0 };
-                let lo = if k == 0.0 { lo } else { lo + turns(k) };
-                eprintln!("CVJ2 v={v1:?} k={k} diff={:e}", mid(lo) - mid(hi));
-                r.push(Interval::from_bounds(hi.lo().min(lo.lo()), hi.hi().max(lo.hi())));
-            } }
-        }
+        let periodic = periodic(surface, axis);
+        let r = run_on(b, surface, c, merged);
         let ok = r.as_ref().is_some_and(|ranges| covered(axis.of(rect), ranges, periodic));
         if !ok && std::env::var_os("CV_TRACE").is_some() { eprintln!("CVC side={:?} at={:?} want={:?} ranges={:?}", c.side, c.at, axis.of(rect), r); }
         ok
@@ -1798,9 +1850,15 @@ fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
 /// past the corner, on the other line's non-face side, where the face
 /// has no point to wrap round the end into. Read only by
 /// [`sides_are_the_faces`], beside the checks that make that so.
-fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
+fn run_on(
+    b: &Boundary,
+    surface: &Surface<Interval>,
+    c: &Clip,
+    merged: &[Clip],
+) -> Option<Vec<Interval>> {
     let held = c.side.axis();
-    let mut out = edge_ranges(b, &c.edges, held)?;
+    let periodic = periodic(surface, held.other());
+    let mut out = line_ranges(b, surface, &c.edges, held)?;
     for d in merged
         .iter()
         .filter(|d| d.side.axis() != held && d.collapsed.is_none())
@@ -2222,7 +2280,7 @@ fn present_chart<'a>(
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
-    if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
+    if !piece.whole && !sides_are_the_faces(b, piece.surface, &merged, (x, y)) {
         return Err({
             if std::env::var_os("CV_TRACE").is_some() {
                 eprintln!("CVL chart {}", line!());
@@ -2275,7 +2333,7 @@ fn present_chart<'a>(
             // run-on past a vertex ([`run_on`]), whose far bound is the
             // other line's enclosure, off the edge's span.
             let on_edges = clip.is_some_and(|c| {
-                edge_ranges(b, &c.edges, held).is_some_and(|ranges| {
+                line_ranges(b, piece.surface, &c.edges, held).is_some_and(|ranges| {
                     covered(range, &ranges, periodic(piece.surface, held.other()))
                 })
             });
