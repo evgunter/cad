@@ -269,16 +269,18 @@ fn review_curved() {
     // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
     let straddle = " census=curve_pair_span_past_reach_straddle";
     report(bad, |b| {
-        (b.contains(" c=-")
+        let main = b.contains(" c=-")
             && b.contains("∪")
             && b.contains("t3p=false")
-            && b.ends_with(" census=none")
-            || b.contains("surviving record with an On code after srecledges")
-            || ((b.starts_with("r=0.05 c=0.05 ") && b.contains(" θ=0.0001: ")
-                || b.starts_with("r=0.05 c=-0.05 ") && b.contains(" θ=-0.0001: "))
-                && (b.contains("∪") || b.contains("B ∖ A"))
-                && b.contains("t3p=false")
-                && b.ends_with(straddle)))
+            && b.ends_with(" census=none");
+        let srec = b.contains("surviving record with an On code after srecledges");
+        let vertex = (b.starts_with("r=0.05 c=0.05 ") && b.contains(" θ=0.0001: "))
+            || (b.starts_with("r=0.05 c=-0.05 ") && b.contains(" θ=-0.0001: "));
+        let shared = vertex
+            && (b.contains("∪") || b.contains("B ∖ A"))
+            && b.contains("t3p=false")
+            && b.ends_with(straddle);
+        main || srec || shared
     });
 }
 
