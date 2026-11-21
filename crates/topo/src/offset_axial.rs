@@ -1227,7 +1227,8 @@ fn classify<T: Decide>(
 /// transversality whose Zero refuses, so an arm past an edge's diameter
 /// would certify a corner too shallow to pin within that edge.
 ///
-/// On a line the extent is the chord, as in the planar door. A rim arc
+/// On a line the extent is the chord, as in the planar door; on any
+/// other carrier, its chord or more. A rim arc
 /// that runs half a turn, or a chart with ONE seam that closes on
 /// itself (chord exactly zero), reads its fold `r·(1 − cos(Δt/2))`,
 /// which reaches the diameter `2r` at closure: a zero arm would make
@@ -1253,14 +1254,7 @@ fn corner_arms<T: Decide>(
             });
         };
         let (t0, t1) = curve.params();
-        out.push(match curve.carrier() {
-            // Anything else falls back to the endpoints' chord, which is
-            // what the carrier can say.
-            Curve3::Line(_) | Curve3::Circle(_) => {
-                geom_brep::edge_extent_inf(curve.carrier(), t0, t1)
-            }
-            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
-        });
+        out.push(geom_brep::edge_extent_inf(curve.carrier(), t0, t1));
     }
     Ok(out)
 }
