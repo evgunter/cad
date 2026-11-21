@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-18
 priority: P1
 refs: [7079]
+cost: M
 ---
 
 Filed by the ONEHOME orchestrator from fork 288 (PR 7079, approved
@@ -33,3 +34,7 @@ Done when both answer from the claim, with a row where a vertex
 minted on a turned operand's carrier at `Interval` passes check 3
 without re-reading its coordinates, and the zip pairs two edges in
 different frames by claim.
+
+## Moved to PARTFRAMES (2026-11-21)
+
+Moved from `work/onehome/` by `git mv`, id and body unchanged (Ev, PR 7282: stage 2 split off). The zip's half fails by construction only once parts stand in their own frames, so it is built with stage 2; check 3's half may land first. Priced `M`: two readers and their rows. Band unchanged.

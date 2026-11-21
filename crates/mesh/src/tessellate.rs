@@ -649,8 +649,8 @@ fn tessellate_impl(
     // face's own interior grid. So a shared id is exactly an id below
     // this mark — which is what the census at the end of this function
     // tests with an integer compare rather than a lookup, and what
-    // makes `positions[..shared_below]` the whole of what a face reads
-    // from outside itself.
+    // makes `positions[..shared_below]` the whole of the mesh positions
+    // a face reads from outside itself.
     let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
@@ -679,10 +679,12 @@ fn tessellate_impl(
     // is where every order-dependent thing happens — the mesh arena,
     // the memo's counters and entries, and the budget meter's rows.
     //
-    // What a face reads is `positions[..shared_below]` and nothing else
-    // it does not own (above), the chord pass has finished writing
-    // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
-    // its pure half (`PatchMemo::lookup`).
+    // Of what other faces' work writes, a face reads only finished
+    // values: the mesh positions `positions[..shared_below]` (above),
+    // the chord pass's ids, parameters and holders, and `bounds`
+    // (`nurbs_cert::FaceBounds`), which the chord pass has finished
+    // writing; the memo is read through its pure half
+    // (`PatchMemo::lookup`). What each lane reads is `memo`'s list.
     //
     // ERRORS. The refusal a caller sees is the first in ARENA order,
     // never the first the map finished. The price is that every face is
@@ -753,8 +755,8 @@ fn tessellate_impl(
                         Err(error) => return (None, Err(error)),
                     };
                     let lane = route.lane();
-                    // The lanes, each over `shared` — the whole of what
-                    // a face reads from outside itself.
+                    // The lanes, each over `shared`, the mesh positions
+                    // it shares (what else each reads is `memo`'s list).
                     //
                     // The planar lane derives its chart frame from the
                     // face's own boundary (planar.rs module docs, #284)
