@@ -6463,6 +6463,9 @@ pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
         held: &std::collections::BTreeSet<FaceKey>,
     ) -> Vec<RegionCarry<T>>;
 
+    /// A value of the walk's scalar as the interval holding it
+    /// (`Interval::from_certified`).
+    fn lift(self, x: T) -> Interval;
     /// `crate::loop_winding::enclosed_winding_with`.
     fn enclosed_winding(
         self,
@@ -6515,6 +6518,9 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         region_carries(body, c, quadrature, held, self)
     }
 
+    fn lift(self, x: T) -> Interval {
+        QuadLane::lift(self, x)
+    }
     fn enclosed_winding(
         self,
         walked: &[crate::loop_winding::Step<'_, T>],
@@ -6566,6 +6572,9 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
         match self {}
     }
 
+    fn lift(self, _x: T) -> Interval {
+        match self {}
+    }
     fn enclosed_winding(
         self,
         _walked: &[crate::loop_winding::Step<'_, T>],
