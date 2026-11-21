@@ -14,7 +14,7 @@ for tree in ihead base; do
   cd /home/user/wt-$tree || exit 1
   export CARGO_TARGET_DIR=/home/user/tgt-$tree
   export RUSTC_WORKSPACE_WRAPPER=/home/user/wt-$tree/scripts/rustc-test-crates-opt0.sh
-  cargo nextest run --no-run --profile ci --workspace > "$OUT/build-$tree.log" 2>&1 || { echo "BUILD FAILED $tree" >> "$OUT/status"; exit 1; }
+  cargo nextest run --no-run --build-jobs 2 --profile ci --workspace > "$OUT/build-$tree.log" 2>&1 || { echo "BUILD FAILED $tree" >> "$OUT/status"; exit 1; }
   echo "built $tree $(date -u +%T)" >> "$OUT/status"
 done
 for eps in 1e-9 1e-12; do
