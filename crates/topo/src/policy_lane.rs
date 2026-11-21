@@ -22,7 +22,9 @@
 //! policy does not, or omit the certificate at one whose policy does.
 
 use geom::Surface;
-use geom_brep::{Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane, StatedImage};
+use geom_brep::{
+    Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, LocusCertificate, NurbsLane, StatedImage,
+};
 use geom_core::{Band, Decide, Point3, TangentTransport};
 
 use crate::geometry::SurfaceKey;
@@ -123,24 +125,11 @@ impl Origin {
     }
 }
 
-/// [`AtRestPolicy::attach_edge`], the wedge levered at `reach`
-/// ([`fn@crate::wedge_reach`]).
-pub(crate) fn certify<T: AtRestPolicy>(
-    origin: Origin,
-    spec: EdgeCurveSpec<T>,
-    start: Point3<T>,
-    end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: geom_core::Lever<T>,
-    band: Band,
-) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_stated(origin, spec, start, end, surfaces, reach, band, None)
-}
-
 /// [`AtRestPolicy::attach_edge`] with a chart image the body already
-/// holds for the edge on one of its surfaces, the wedge levered at
-/// `reach` ([`fn@crate::wedge_reach`]).
-#[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image
+/// holds for the edge on one of its surfaces and the locus certificate
+/// of an edge whose carrier, interval and surfaces the door keeps, the
+/// wedge levered at `reach` ([`fn@crate::wedge_reach`]).
+#[allow(clippy::too_many_arguments)] // the door's inputs, plus the stated image and kept locus
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     origin: Origin,
     spec: EdgeCurveSpec<T>,
@@ -150,8 +139,9 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
+    locus: &[&LocusCertificate<T>],
 ) -> Result<EdgeCurve<T>, CertifyError> {
-    T::attach_edge(spec, start, end, surfaces, reach, band, stated)
+    T::attach_edge(spec, start, end, surfaces, reach, band, stated, locus)
         .map_err(|error| origin.read(error))
 }
 
@@ -198,13 +188,15 @@ pub(crate) fn certifying_attach<T: Decide + geom_core::CertifiedBounds>(
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
+    locus: &[&LocusCertificate<T>],
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let lane = NurbsLane::certified();
-    EdgeCurve::certify_stated(spec, start, end, surfaces, reach, band, lane, stated)
+    EdgeCurve::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, locus)
 }
 
 /// **A certifying scalar's edge door at rest**
-/// ([`AtRestPolicy::reattach_edge`]): the certificate re-derived in full.
+/// ([`AtRestPolicy::reattach_edge`]): every check run again, the edge's
+/// locus certificate read where its support is unchanged.
 #[allow(clippy::too_many_arguments)] // the door's own inputs
 pub(crate) fn certifying_reattach<T: Decide + geom_core::CertifiedBounds>(
     curve: &EdgeCurve<T>,
@@ -369,8 +361,9 @@ mod origin_census {
     use test_utils::source::{attributed_extent, balanced_end, boundary_after, line};
 
     /// `geom_brep`'s edge certification doors.
-    const DOORS: [&str; 6] = [
+    const DOORS: [&str; 7] = [
         "certify",
+        "certify_carrying",
         "certify_stated",
         "mint",
         "recertify",
