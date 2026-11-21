@@ -2163,6 +2163,10 @@ fn present_chart<'a>(
             return Ok(Presentation::Vacuous);
         }
     }
+    if std::env::var_os("CV_CLIPS").is_some() {
+        for c in &merged { eprintln!("CVC clip side={:?} at={:?} edges={:?} collapsed={:?}", c.side, c.at, c.edges.iter().map(|&i| b.edges.get(i).map(|e| (i, e.key, e.ends, e.arc.as_ref().map(|(c, _)| c.is_curved())))).collect::<Vec<_>>(), c.collapsed); }
+        eprintln!("CVC rect x={x:?} y={y:?} near_edges={near_edges:?} near_v={near_vertices:?} local={:?} edges={:?} zero={:?}", piece.local.edges, b.edges.iter().enumerate().map(|(i, e)| (i, e.key, e.ends, e.arc.as_ref().map(|(c, _)| c.is_curved()), e.uses.iter().map(|u| u.iso.map(|i| (i.held, i.full))).collect::<Vec<_>>())).collect::<Vec<_>>(), zero_of(piece.surface, b, &merged, near_edges, near_vertices).map(|z| match z { Zero::None=>"None".to_string(), Zero::Side(s,_)=>format!("Side({s:?})"), Zero::Past(s,_)=>format!("Past({s:?})"), Zero::Corner(..)=>"Corner".into(), Zero::Curve(..)=>"Curve".into(), Zero::Point(..)=>"Point".into() }));
+    }
     let zero = match zero_of(piece.surface, b, &merged, near_edges, near_vertices) {
         Ok(Zero::Side(side, a)) if a.vertex.is_none() => {
             let held = side.axis();
@@ -2257,7 +2261,7 @@ fn zero_of(
         if let Some(v) = c.collapsed {
             shared_vertex(&v)
         } else {
-            !c.edges.is_empty() && c.edges.iter().all(|e| near_edges.contains(e))
+            !c.edges.is_empty() && if std::env::var_os("CV_HACK_ZERO").is_some() { c.edges.iter().any(|e| near_edges.contains(e)) } else { c.edges.iter().all(|e| near_edges.contains(e)) }
         }
     };
     let zeros: Vec<&Clip> = clips.iter().filter(|c| on_shared(c)).collect();
@@ -2951,6 +2955,9 @@ fn beside_curve(
     near_vertices: &[VertexKey],
 ) -> Unpresented {
     let b = piece.boundary;
+    if std::env::var_os("CV_TRACE").is_some() {
+        eprintln!("CVBC walls={walls:?} first={first} near_e={near_edges:?} near_v={near_vertices:?} local_v={:?} cell=({:?},{:?}) edges={:?}", piece.local.vertices, piece.u, piece.v, walls.iter().map(|&i| b.edges.get(i).map(|e| (i, e.key, e.ends, e.arc.as_ref().map(|(c, _)| format!("{}", match c { Curve3::Line(_)=>"Line", Curve3::Circle(_)=>"Circle", Curve3::Ellipse(_)=>"Ellipse", _=>"Other" })), is_curved(piece.surface, e), reads_curve(piece.surface, e), e.uses.iter().map(|u| u.iso.map(|i| (i.held, i.full))).collect::<Vec<_>>()))).collect::<Vec<_>>());
+    }
     let ends = |i: usize| b.edges.get(i).map_or(Vec::new(), |e| e.ends.to_vec());
     let curved: Vec<usize> = walls
         .iter()
@@ -5574,7 +5581,7 @@ impl On {
     /// `whole`, on the side's whole chart line too.
     fn holds(&self, a: &Along, whole: bool) -> bool {
         (a.vertex.is_some() || !a.edges.is_empty())
-            && a.edges.iter().all(|e| self.edges.contains(e))
+            && (if std::env::var_os("CV_HACK_ZERO").is_some() { a.edges.iter().any(|e| self.edges.contains(e)) } else { a.edges.iter().all(|e| self.edges.contains(e)) })
             && a.vertex.is_none_or(|v| self.vertices.contains(&v))
             && (!whole || (self.whole && a.whole))
     }
