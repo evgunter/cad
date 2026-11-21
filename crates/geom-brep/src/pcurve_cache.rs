@@ -5098,7 +5098,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        fitted: Option<crate::FittedLane<T>>,
+        fitted: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         if self
             .held_for(carrier, surface, band, fitted.is_some())
@@ -5428,7 +5428,13 @@ impl<T: Decide> PcurveCache<T> {
                     // net's needs the fitted door, which this door does not
                     // hold ([`PcurveCache::certify_projected`]).
                     projected @ Pcurve::Projected(_) => projected::run_projected_checks(
-                        projected, t0, t1, carrier, surface, band, None,
+                        projected,
+                        t0,
+                        t1,
+                        carrier,
+                        surface,
+                        band,
+                        None::<geom_core::NoLane>,
                     ),
                 });
                 out.map(|certificate| (certificate, record))
@@ -5475,6 +5481,17 @@ impl<T: Decide> PcurveCache<T> {
     /// # Errors
     ///
     /// The first failing check, as a typed [`PcurveCertifyError`].
+    ///
+    /// It takes the lane itself, so it is declared over the certifying
+    /// bound and is no function at a dual:
+    ///
+    /// ```compile_fail,E0277
+    /// let _ = geom_brep::PcurveCache::<geom_core::Dual64>::certify_fitted;
+    /// ```
+    ///
+    /// ```
+    /// let _ = geom_brep::PcurveCache::<f64>::certify_fitted;
+    /// ```
     #[allow(clippy::too_many_arguments)] // one parameter per named quantity
     pub fn certify_fitted(
         image: Arc<NurbsCurve2<T>>,
@@ -5484,7 +5501,10 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
         lane: crate::FittedLane<T>,
-    ) -> Result<Self, PcurveCertifyError> {
+    ) -> Result<Self, PcurveCertifyError>
+    where
+        T: geom_core::Certifies,
+    {
         let span = (t0, t1);
         // The door's record travels with its certificate, so a row
         // holds the decisions of the one run that certified it.
@@ -5497,7 +5517,7 @@ impl<T: Decide> PcurveCache<T> {
             |e| e,
             |_| {
                 let (out, record) = run_replayable(|| {
-                    run_fitted_checks(&image, t0, t1, carrier, surface, band, Some(lane))
+                    run_fitted_checks(&image, span, carrier, surface, band, lane)
                 });
                 out.map(|certificate| (certificate, record))
             },
@@ -5547,8 +5567,10 @@ impl<T: Decide> PcurveCache<T> {
     /// hands it a construction's STATED `General` image with no
     /// derivation in front of it. An absent door is check 4's refusal,
     /// in check 4's place, so an image that fails checks 1–3 draws the
-    /// same verdict at every scalar, and no `General` cache is built
-    /// without the door, since check 4 derives its certificate.
+    /// same refusal at every scalar (`fitted_refusal_without_lane`: the
+    /// three checks run there with their decisions kept out of the
+    /// verdict log), and no `General` cache is built without the door,
+    /// since check 4 derives its certificate.
     ///
     /// # Errors
     ///
@@ -5561,7 +5583,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let span = (t0, t1);
         // The door's record travels with its certificate, so a row
@@ -5574,8 +5596,11 @@ impl<T: Decide> PcurveCache<T> {
             band,
             |e| e,
             |_| {
-                let (out, record) = run_replayable(|| {
-                    run_fitted_checks(&image, t0, t1, carrier, surface, band, lane)
+                let (out, record) = run_replayable(|| match lane {
+                    Some(lane) => lane.fitted_checks(&image, span, carrier, surface, band),
+                    None => Err(fitted_refusal_without_lane(
+                        &image, span, carrier, surface, band,
+                    )),
                 });
                 out.map(|certificate| (certificate, record))
             },
@@ -5609,7 +5634,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let pcurve = Pcurve::Projected(Box::new(image));
         let (certificate, recorded) = run_replayable(|| {
@@ -5651,7 +5676,8 @@ impl<T: Decide> PcurveCache<T> {
     /// curved chart ([`PcurveCache::certify_projected`]). There `None`
     /// is check 4's refusal, [`PcurveCertifyError::FittedLaneUnsupported`]
     /// naming the scalar by [`geom_core::Real::NAME`], after checks 1–3
-    /// have run; whether it is held is part of the row's support.
+    /// have run (unlogged for a fitted or general row,
+    /// `fitted_refusal_without_lane`); whether it is held is part of the row's support.
     ///
     /// # Errors
     ///
@@ -5664,7 +5690,7 @@ impl<T: Decide> PcurveCache<T> {
         (t0, t1): (T, T),
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         let row = (self.param_start, self.param_end);
         incidence_ended(
@@ -5689,19 +5715,17 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        lane: Option<crate::FittedLane<T>>,
+        lane: Option<impl crate::FittedLaneOf<T>>,
         shown: Option<incidence::Incident>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+        let span = (self.param_start, self.param_end);
         let derive = move || match &self.pcurve {
-            Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
-                image,
-                self.param_start,
-                self.param_end,
-                carrier,
-                surface,
-                band,
-                lane,
-            ),
+            Pcurve::Fitted(image) | Pcurve::General(image) => match lane {
+                Some(lane) => lane.fitted_checks(image, span, carrier, surface, band),
+                None => Err(fitted_refusal_without_lane(
+                    image, span, carrier, surface, band,
+                )),
+            },
             iso @ Pcurve::IsoLine { .. } => run_iso_checks(
                 iso,
                 self.param_start,
@@ -8866,19 +8890,72 @@ fn escape<T: Real>(gap: T) -> T {
 ///    own net, a closed-form one as its enclosing net
 ///    (`crate::carrier_net`). The row reads no mate surface: an
 ///    intersection carrier's uniqueness tube is the edge's certificate
-///    (C2). `lane` is the fitted door that derives it; `None` refuses
-///    HERE ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
-///    earlier: checks 1–3 read no door, so their verdicts are the same
-///    at every scalar.
-fn run_fitted_checks<T: Decide>(
+///    (C2). `lane` is the fitted door that derives it.
+///
+/// Checks 1–3 are [`fitted_defects`], which reads no door, so a
+/// defective image draws the same refusal at every scalar; a pass that
+/// holds no lane runs them through [`fitted_refusal_without_lane`].
+pub(crate) fn run_fitted_checks<T: geom_core::Certifies>(
     image: &Arc<NurbsCurve2<T>>,
-    t0: T,
-    t1: T,
+    span: (T, T),
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-    lane: Option<crate::FittedLane<T>>,
+    lane: crate::FittedLane<T>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let max_residual = fitted_defects(image, span, carrier, surface, band)?;
+    // ---- Check 4: the envelope, RE-DERIVED. ----
+    let hull_sup =
+        lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), span, band)?;
+    // The envelope is banded exactly as the closed-form lane's is, and
+    // for the same reason: a certificate whose own bound exceeds ε is
+    // not a certificate. It is NOT folded into `max_residual` (the
+    // sampled max and the sup bound stay separate statements).
+    envelope_verdict(hull_sup, band, || PcurveCheck::Envelope)?;
+
+    Ok(PcurveCertificate::closed(
+        CERT_SAMPLES,
+        max_residual,
+        hull_sup,
+        EnvelopeStatement::MapResidualComposite,
+    ))
+}
+
+/// **What a fitted or general row refuses at a scalar that holds no
+/// fitted lane**: its own defect where checks 1–3 find one
+/// ([`fitted_defects`]), and [`PcurveCertifyError::FittedLaneUnsupported`]
+/// where they find none, check 4 being the lane's. The checks decide as
+/// they do with a lane and their decisions are kept out of the verdict
+/// log (ledger row F47): no certificate is stated here, so no verdict
+/// of one is recorded.
+pub(crate) fn fitted_refusal_without_lane<T: Decide>(
+    image: &Arc<NurbsCurve2<T>>,
+    span: (T, T),
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> PcurveCertifyError {
+    let defects = geom_core::k_stats::unlogged("F47", || {
+        fitted_defects(image, span, carrier, surface, band)
+    });
+    match defects {
+        Err(defect) => defect,
+        Ok(_) => PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME },
+    }
+}
+
+/// **Checks 1–3 of the fitted lane**, and the greatest sample residual
+/// they read: the chart is a spline chart and no placeholder, the span
+/// runs forward, and the image meets its carrier at the shared
+/// schedule's stations. Each evaluates and decides at `T`; none reads a
+/// bracket and none builds a certificate.
+fn fitted_defects<T: Decide>(
+    image: &Arc<NurbsCurve2<T>>,
+    (t0, t1): (T, T),
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
@@ -8921,23 +8998,7 @@ fn run_fitted_checks<T: Decide>(
         band,
         &mut max_residual,
     )?;
-
-    // ---- Check 4: the envelope, RE-DERIVED. ----
-    let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-    let hull_sup =
-        lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), (t0, t1), band)?;
-    // The envelope is banded exactly as the closed-form lane's is, and
-    // for the same reason: a certificate whose own bound exceeds ε is
-    // not a certificate. It is NOT folded into `max_residual` (the
-    // sampled max and the sup bound stay separate statements).
-    envelope_verdict(hull_sup, band, || PcurveCheck::Envelope)?;
-
-    Ok(PcurveCertificate::closed(
-        CERT_SAMPLES,
-        max_residual,
-        hull_sup,
-        EnvelopeStatement::MapResidualComposite,
-    ))
+    Ok(max_residual)
 }
 
 /// The arc-rim class' sub-arc in the scalar, and its one decided
@@ -17826,7 +17887,7 @@ mod row_support_rows {
         let other = Band::new(1e-9, 2e-8).unwrap();
         assert!(!held(&line(0.0), &surface, other, false), "the band");
         let again = cache
-            .restated(&line(0.0), &surface, band(), None)
+            .restated(&line(0.0), &surface, band(), None::<geom_core::NoLane>)
             .expect("its own support reads");
         assert!(
             again.certificate().same_as(cache.certificate()),

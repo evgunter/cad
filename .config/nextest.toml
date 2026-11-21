@@ -191,6 +191,11 @@ failure-output = "immediate-final"
 # 7208's hosted run, faster on that branch than on main (medians 1.28 s
 # and 1.36 s, one box), so it sits at the bar:
 #    1.03 s  sweep::all snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds
+# A near-tangent cut through a frustum's ruling: 1.057 s against the
+# 1.0 s bar on PR 7277's hosted run. It times the same on main as on that
+# branch (medians 2.36 s and 2.36 s, ten local debug runs each, one box),
+# so it sits at the bar:
+#    1.06 s  sweep::all split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly
 # The chamfer over rounded outlines, its strips and frustums meeting at
 # junctions: closed rims turned, moved and drawn in arc pieces, pockets,
 # open runs and the plate at the certified scalar, the adversarial rows,
@@ -478,7 +483,8 @@ not (
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
   (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
-  (binary_id(sweep::all) & test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds))
+  (binary_id(sweep::all) & test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds)) |
+  (binary_id(sweep::all) & test(=split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly))
 )
 """
 
