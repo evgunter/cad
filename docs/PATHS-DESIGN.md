@@ -385,11 +385,20 @@ Open lacks. In a fully-filleted loop no side is privileged: the
 loop is a cyclic sequence of [corner, side-bindings] units and the
 seam fillet reads exactly like the interior ones.
 
-**Composition**: there is no path-concatenation operator. Repeated
-motifs are BUILDER FUNCTIONS over the one chain
+**Composition**: there is no path-concatenation operator. A counted
+motif is a run over an index (DESIGN `[repetition]`): `each k { steps }`
+inside the one chain, each copy starting where the last ended, and in
+the loop list `each k { loop }` is one loop per value. The steps of a
+run leave the pen in the lattice state they entered in, which the door
+checks once with the count unknown. A ring, a loop that is nothing but
+the copies of a run, is `at(P[0]); each k from P[k] { steps …, to Next }`
+with `Next` meaning `P[(k + 1) mod N]`: at the last copy that is the
+value the chain starts from, so it lowers to `Start` and the ring
+closes with nothing compared. A motif whose copies differ in structure
+is a BUILDER FUNCTION over the one chain
 (`fn motif(p: PartialPath<Directed>) -> PartialPath<Directed>`) —
-associative at the language level, no second path value, no glue
-seam to value-match.
+associative at the language level. Either way there is no second path
+value and no glue seam to value-match.
 
 ## 2a. G1 vocabulary growth, 2026-08-08 — ratified via PROFILES-V2-DESIGN VQ1(b)
 

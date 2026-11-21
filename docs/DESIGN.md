@@ -1475,7 +1475,14 @@ value of it, and each of its outputs is a **family** of that kind (a
 `Bodies` is the family of `Body`), one member per value, keyed by the
 tuple of the indices it reaches, outer first. Membership is derived
 from reads, as dependency is: no node holds a template, and there is
-no pattern operation. A variable defined by reading `k` is, to a
+no pattern operation. A profile's program is the one place an extent
+is written: a loop, or a run of one chain's steps, written `each k`
+takes the index whole and is drawn once per value, in index order, by
+the one pen, so the profile is one profile holding every copy and not
+a family. The extent is written because a step inside it (a `tangent`,
+a `fillet(r)`, a relative `turn`) need read nothing, so membership
+there cannot be derived; a read of `k` elsewhere in that profile
+refuses. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
