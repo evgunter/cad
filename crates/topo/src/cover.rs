@@ -460,11 +460,18 @@ pub(crate) fn face_cover_unproven<T: Decide>(
 /// - **Torus**: along each axis `e` with a part `ê` off the torus axis
 ///   (read as `a × (e × a)`, which keeps its direction however small),
 ///   its two extremes `c ± (R·ê + r·e)` (the other two critical points
-///   are saddles, never a patch's interior extreme); along the torus
-///   axis, whose extremes are the top and bottom circles, eight points
-///   of each.
+///   are saddles, never a patch's interior extreme). Along the torus
+///   axis the extremes are the top and bottom circles, and none is a
+///   candidate: a face holding an arc of one inside it has a boundary
+///   that crosses the circle, at the circle's height, unless it holds the
+///   whole circle, and every finished torus face that does has a
+///   meridian seam (the revolve, the tube and the import's band
+///   normalization seam every full turn), which reaches it.
 /// - **Cone**: its apex. A coordinate is linear along each ruling, so a
-///   ruled face's extremes are on its boundary or at the apex.
+///   ruled face's extremes are on its boundary or at the apex. A finished
+///   face holding its apex carries it as a vertex (tier 3's chart
+///   singularities); a face mid-construction, a cap stated by its rim,
+///   need not.
 /// - **Plane and cylinder**: none, for the same reason.
 /// - **Spindle**: none. Its extremes are a torus's, but the placement
 ///   reads no spindle face's trim, so none is shown on the face.
@@ -488,7 +495,7 @@ pub(crate) fn face_extreme_points<T: Decide>(
             axis,
             major_radius,
             minor_radius,
-            u_ref,
+            ..
         } => {
             let (big, small) = (major_radius.abs(), minor_radius.abs());
             let mut at = Vec::new();
@@ -496,29 +503,13 @@ pub(crate) fn face_extreme_points<T: Decide>(
                 // `e`'s part off the axis, `a × (e × a)`: each component a
                 // product, or a sum of squares where `e − a(a·e)` would
                 // cancel to `1 − (a·e)²`, so its direction is conditioned
-                // however near `e` the axis lies.
+                // however near `e` the axis lies. Along the axis itself
+                // there is none, and the extremes are the top and bottom
+                // circles, which a finished face's edges read.
                 let off = axis.cross(e.cross(axis));
                 if crate::validate::is_direction(&off) {
                     let reach = off * (big / off.norm()) + e * small;
                     at.extend([center + reach, center - reach]);
-                } else {
-                    let across = axis.cross(u_ref);
-                    let (one, zero) = (T::one(), T::zero());
-                    let half = (one / (one + one)).sqrt();
-                    let compass = [
-                        (one, zero),
-                        (half, half),
-                        (zero, one),
-                        (zero - half, half),
-                        (zero - one, zero),
-                        (zero - half, zero - half),
-                        (zero, zero - one),
-                        (half, zero - half),
-                    ];
-                    for (cos, sin) in compass {
-                        let ring = center + (u_ref * cos + across * sin) * big;
-                        at.extend([ring + e * small, ring - e * small]);
-                    }
                 }
             }
             at
@@ -640,18 +631,26 @@ pub(crate) fn cone_face_reach<T: Decide>(
 }
 
 /// **Whether a face on `cone` may hold its apex**: unless every loop's
-/// lift closes in the chart
-/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
-/// every vertex of it is decided off the apex. The lift is decided
-/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
-/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
-/// pole, and a bounded face holding it has a loop that winds round it a
-/// whole turn, or one that passes through it, where a loop that closes
-/// in the chart clear of it leaves it outside. Every loop, not the
-/// outer alone: a file's designated outer bound can be a hole, and the
-/// loop enclosing the apex then a ring. A loop whose lift is not
-/// decided, or a vertex whose incidence on the apex is undecided, may
-/// hold it.
+/// lift is decided ([`crate::pcurves::Lift::decided`], at the band: the
+/// cover is read mid-operation too, of faces whose rows are not all
+/// written), every vertex of it is decided off the apex, and either
+/// every lift closes in the chart ([`crate::pcurves::Lift::closes_in_chart`])
+/// or exactly two wind the axis once each and the face's corners decide
+/// one nappe ([`crate::offset_nappe::face_nappe_reading`]).
+///
+/// The apex is the chart's pole, and on one nappe the chart is an
+/// annulus about it. A bounded face holding the apex has a loop through
+/// it, or exactly one loop that winds round it a whole turn (a cap,
+/// whose rim is that loop). A loop that closes in the chart clear of the
+/// apex leaves it outside; a face whose boundary holds two loops that
+/// each wind once is the band between them (a connected region of an
+/// annulus has at most two boundary curves that wind it), which reaches
+/// the apex only through a loop that does, or across to the other nappe.
+/// Every loop, not the outer alone: a file's designated outer bound can
+/// be a hole, and the loop enclosing the apex then a ring. A loop whose
+/// lift is not decided, one that winds otherwise, a vertex whose
+/// incidence on the apex is undecided, and a band whose nappe is not
+/// decided may hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -664,19 +663,42 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     let Some(view) = body.face(face) else {
         return true;
     };
-    view.cycles().any(|(_, cycle)| {
-        let closes =
+    let mut winding_once = 0;
+    for (_, cycle) in view.cycles() {
+        let Some(lift) =
             constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
-                .is_some_and(|lift| lift.closes_in_chart());
-        !closes
-            || cycle.iter().any(|&he| {
-                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
-                constraint(|| {
-                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
-                }) != Some(false)
-            })
-    })
+        else {
+            return true;
+        };
+        let at_apex = cycle.iter().any(|&he| {
+            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+            constraint(|| {
+                geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+            }) != Some(false)
+        });
+        if at_apex {
+            return true;
+        }
+        match lift.winding().map(|w| w.deck) {
+            Some(crate::joint::Deck {
+                u: 0,
+                v: 0,
+                twin: false,
+            }) => {}
+            Some(crate::joint::Deck {
+                u: -1 | 1,
+                v: 0,
+                twin: false,
+            }) => winding_once += 1,
+            _ => return true,
+        }
+    }
+    match winding_once {
+        0 => false,
+        2 => constraint(|| crate::offset_nappe::face_nappe_reading(body, face, band)).is_none(),
+        _ => true,
+    }
 }
 
 /// **The boundary's cover**: each boundary edge's cover

@@ -206,8 +206,11 @@
 //!   region bounded by its carrier and boundary alone
 //!   (`face_cover_unproven`), and where that reaches past the box each
 //!   face's own [`face_cover`]: a looser cover refuses a body that lies
-//!   in the box, and only as a limit (`SessionBoxUnshown`), never admits
-//!   one past it. From inside, points known to lie on the body: each
+//!   in the box, and only as a limit (`SessionBoxUnshown`). A cover that
+//!   held less than its face would admit a body past the box, since stage
+//!   2 admits on it alone: that is the soundness the torus window's open
+//!   row bears on (`work/boxes/torus-box-window-does-not-bound-a-clockwise-face.md`,
+//!   latent while no door mints a clockwise torus face at rest). From inside, points known to lie on the body: each
 //!   edge's [`edge_cover`] read along the world axes (`Cover::box_in`)
 //!   from below through `geom_brep::edge_coordinate_reach_below`, which
 //!   reads NO looseness (on a line the cover's box is its segment's, at
