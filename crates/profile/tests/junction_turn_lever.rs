@@ -362,17 +362,18 @@ fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
 }
 
 /// **The seam reads the shorter of its two legs, the closing one here.**
-/// A tangent arc of chord 20ε (radius about 58ε, so its arm is the chord)
-/// declared off a metre-long leg closes into a metre-long first leg,
-/// arriving 2.5° off it: `sin 2.5° · 20ε` is zero at tolerance at the
-/// closing arc's arm, though it is decided at the first leg's.
+/// A tangent arc of chord 40ε (leaving its chord 20°, so its radius is
+/// about 58ε and its arm is the chord) declared off a metre-long leg
+/// closes into a metre-long first leg, arriving 1° off it: `sin 1° · 40ε`
+/// is zero at tolerance at the closing arc's arm, though it is decided at
+/// the first leg's.
 #[test]
 fn the_seam_reads_a_short_closing_arc_at_its_arm() {
     let tol = Tol::witness();
-    let lever = 20.0 * tol.eps();
-    // The closing chord runs at −7.5°; the tangent arc leaves it 10°
-    // below (along −17.5°) and so arrives 10° above, at 2.5°.
-    let [chord, depart, arrive] = [-7.5_f64, -17.5, 2.5].map(f64::to_radians);
+    let lever = 40.0 * tol.eps();
+    // The closing chord runs at −19°; the tangent arc leaves it 20° below
+    // (along −39°) and so arrives 20° above, at 1°.
+    let [chord, depart, arrive] = [-19.0_f64, -39.0, 1.0].map(f64::to_radians);
     let before = Point2::new(-lever * chord.cos(), -lever * chord.sin());
     let err = Open
         .at(Point2::new(0.0, 0.0))
@@ -386,7 +387,7 @@ fn the_seam_reads_a_short_closing_arc_at_its_arm() {
         )
         .expect("a real corner")
         .line_to(before, tol)
-        .expect("a metre-long leg along −17.5°")
+        .expect("a metre-long leg along −39°")
         .tangent()
         .tangent_arc_to(Start, tol)
         .expect_err("the seam's turn is zero at the closing arc's arm");
@@ -394,7 +395,7 @@ fn the_seam_reads_a_short_closing_arc_at_its_arm() {
         panic!("expected the seam's turn-within-tolerance refusal, got {err:?}")
     };
     let shown = err.to_string();
-    // Arriving at 2.5°, leaving along +x: a clockwise turn.
+    // Arriving at 1°, leaving along +x: a clockwise turn.
     assert_names_its_factors(
         "closing arc",
         turn,
