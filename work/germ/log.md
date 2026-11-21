@@ -1674,3 +1674,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The minors are taken.
 
   **Delta review** dispatched to both reviewers (the same agents continued), with identical briefs on the new head.
+- 2026-11-21 12:50 — **U3a delta reviews: APPROVE (R2) and APPROVE-WITH-FIXES (R1).** Every original MAJOR and MINOR is confirmed fixed by re-run probes and mutants. Both reviewers re-derived the new floor bounds (`e + (|A|/|d|²)·L/m`; `(|F|+noise)/floor`) as sound. No new wrong class.
+  - **Bilateral new MINOR:** the past-touch window is sized from the ε-arc while the not-`Apart` decision used the Kε reach, so a window can collapse to a point while in-gap span points sit outside it.
+  - **R1's two others:** no row guards the Kε reach; an endless span's seam is read as an end.
+
+  A final small round is sent to the session, all over-refusal or contract fixes. It merges on my read once green, with no further review, since no MAJOR remains.
