@@ -67,7 +67,12 @@ pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
 
 /// The dimension a value read in `unit` has.
 fn dimension(unit: UnitDef) -> geom_core::Dimension {
-    match unit.quantity() {
+    dimension_of(unit.quantity())
+}
+
+/// The told dimension of a unit table's quantity.
+fn dimension_of(quantity: UnitQuantity) -> geom_core::Dimension {
+    match quantity {
         UnitQuantity::Length => geom_core::Dimension::Length,
         UnitQuantity::Angle => geom_core::Dimension::Angle,
         UnitQuantity::Scalar => geom_core::Dimension::Dimensionless,
@@ -89,14 +94,9 @@ pub fn computed(canonical: f64, unit: UnitDef) -> String {
 /// itself; `None` where `unit` cannot say the value, since a number
 /// with the wrong unit beside it is a different value.
 pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
-    let text = computed(canonical, unit);
-    match unit.symbol() {
-        "" => Some(text),
-        symbol => text
-            .strip_suffix(symbol)
-            .and_then(|number| number.strip_suffix(' '))
-            .map(str::to_owned),
-    }
+    Told::computed(&canonical, dimension(unit))
+        .number_in(Notation::CANONICAL.with(unit))
+        .map(|number| number.to_string())
 }
 
 /// A value the chrome computed, told on the grid in the canonical unit
@@ -104,19 +104,14 @@ pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
 /// words the unit itself: `NaN` and `inf` for a value that is neither
 /// a number nor finite.
 pub fn bare(value: f64, quantity: UnitQuantity) -> String {
-    let unit = match quantity {
-        UnitQuantity::Length => pncad::quantity::M.def(),
-        UnitQuantity::Angle => pncad::quantity::RAD.def(),
-        UnitQuantity::Scalar => pncad::quantity::ONE.def(),
-    };
-    let text = computed(value, unit);
-    match unit.symbol() {
-        "" => text,
-        symbol => text
-            .strip_suffix(symbol)
-            .and_then(|number| number.strip_suffix(' '))
-            .map_or_else(|| text.clone(), str::to_owned),
-    }
+    canonical_number(&Told::computed(&value, dimension_of(quantity)))
+}
+
+/// A quantity's number in the canonical unit, which says every
+/// quantity.
+fn canonical_number(told: &Told) -> String {
+    told.number_in(Notation::CANONICAL)
+        .map_or_else(|| told.to_string(), |number| number.to_string())
 }
 
 /// The number a field holds, as the field shows it.
@@ -132,9 +127,7 @@ pub fn bare(value: f64, quantity: UnitQuantity) -> String {
 /// unit to the formatter is
 /// `work/vgeom/the-field-door-tells-a-written-number-with-no-unit-in-hand.md`.
 pub fn field_number(value: f64) -> String {
-    let text = as_field(value).to_string();
-    text.strip_suffix(" m")
-        .map_or_else(|| text.clone(), str::to_owned)
+    canonical_number(&as_field(value))
 }
 
 /// Whether `spelling` names `value` as a field shows it: it reads as a

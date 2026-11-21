@@ -976,7 +976,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 /// over the band where it has something to refuse.
 ///
 /// The band is the render's, not the parser's: `readout::field_number`
-/// spells the shortest text that reads back on the render's own grid,
+/// spells its number on the told grid,
 /// so a field can be showing a text that names its value only to
 /// within that grid. That text is also what an `egui::DragValue`
 /// commits when focus leaves it, so a field that took its own render

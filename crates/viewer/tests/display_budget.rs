@@ -231,8 +231,8 @@ fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
 /// **The population is every δ the door accepts, and the row reaches
 /// both ends of it.** A geometric grid carries the millimetre and metre
 /// magnitudes a user types; the ends it cannot reach are named, and they
-/// now include the TOP — [`COARSEST_DELTA`], the band below it where the
-/// millimetre value is spelled exactly, and the last δ under that band.
+/// now include the TOP — [`COARSEST_DELTA`], the band below it where
+/// four figures round out of the format, and the last δ under that band.
 /// The row used to stop at a kilometre, three hundred decades short,
 /// and so stated a universal it never tested at the end where the
 /// millimetre conversion is what gives way.

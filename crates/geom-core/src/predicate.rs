@@ -2543,7 +2543,8 @@ impl MarginDiag {
                 "{untold} Recourse: {lever}, or, if this {size} is intended, re-export the file \
                  with its uncertainty declared below {} and tighten the tolerance below \
                  {}",
-                Told::at_most_reading(told::Reading::value(near), Dimension::Length, None),
+                Told::at_most_reading(told::Reading::value(near), Dimension::Length, None)
+                    .of_the_tolerance(),
                 below
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),

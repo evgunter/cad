@@ -389,16 +389,16 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// table's eight rows, so it is a multiplication UP by up to three
 /// decades, and a canonical length above `f64::MAX * MILLI`
 /// (`1.7976931348623156e305` m) has no millimetre value — the quotient
-/// is `inf`, which [`render_number`] spells `inf` and
-/// [`crate::readout::computed`] spells `inf` too. A text reading
+/// is `inf`, which [`render_number`] spells `inf`. A text reading
 /// infinity names no value, and the value it was asked about is one
-/// the document holds perfectly well.
+/// the document holds perfectly well. ([`crate::readout::computed`]
+/// is handed the canonical value and tells such a length in metres.)
 ///
 /// **The other end is the same question and is not symmetric.** One
 /// row's factor is above one — `pi rad`, at π — so a canonical angle
 /// of exactly `5e-324` rad divides to `0.0`, and a text reading zero
-/// is a hundred percent away from the value it claims to be, which is
-/// the first thing [`crate::readout::computed`] refuses. It is
+/// is a hundred percent away from the value it claims to be, which
+/// no told number is (its grid has no floor). It is
 /// one value rather than a band because π is barely above one: two
 /// subnormals up, the quotient is a subnormal again. Measured, not
 /// reasoned: `5e-324 / π == 0.0` and `1e-323 / π == 5e-324`.
@@ -415,9 +415,11 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// value is a number and the unit is a unit, and the value written in
 /// that unit is neither.
 pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    let written = in_written(canonical, unit);
-    let names_the_value = written.is_finite() && (written != 0.0 || canonical == 0.0);
-    names_the_value.then_some(written)
+    // The unit's own question (`UnitDef::number_of`, which a told
+    // quantity asks too), and this door's addition: a value that is
+    // not finite is no number to show in any unit.
+    unit.number_of(canonical)
+        .filter(|written| written.is_finite())
 }
 
 /// What a render says where [`written`] answers `None` — the one
@@ -1163,8 +1165,8 @@ pub fn field_source(row: &SlotRow) -> Option<String> {
 /// in an editable field or in a sentence quoting one: the value fields
 /// here, and the numbers the create pane writes into an edit
 /// ([`crate::pane::create`]). The other is
-/// [`crate::readout::computed`], which spells a number to fit a FIXED
-/// WIDTH and trades digits for it — right for the View pane's δ field,
+/// [`crate::readout::computed`], which tells a value nobody wrote on
+/// the told grid and trades digits for it — right for a readout,
 /// wrong for a coordinate a reader compares against what the panel
 /// shows.
 pub fn render_number(value: f64) -> String {

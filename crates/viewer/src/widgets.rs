@@ -321,10 +321,9 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// bound this crate already has and this door is the one place it was
 /// not applied: `readout`'s own header calls this function *the
 /// fields' door* onto the same rule, and `MAX_CHARS`' doc already says
-/// what a box narrower than it costs. So a field is now spelled within
-/// it wherever [`crate::readout::field_number`] is, which is everywhere but
-/// the band at the top of the type, where four figures round out of
-/// `f64` and the exact scientific spelling is twenty-two characters.
+/// what a box narrower than it costs. So a field is spelled within
+/// it wherever [`crate::readout::field_number`] is, which is
+/// everywhere: a told number is never wider.
 ///
 /// **It is still invisible to a drag**, and that is a measurement
 /// rather than a hope. The widest spelling a millimetre field's range
@@ -336,16 +335,13 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// rather than the only one measured: `UNITS` offers no length
 /// smaller, and the scalar, count and angle ticks are all coarser.
 ///
-/// # An INTEGER field is exempt, because it has no search to end
+/// # An INTEGER field is exempt, because it has one spelling
 ///
-/// [`crate::readout::MAX_CHARS`] is what ENDS A SEARCH — `readout`'s
-/// own doc says so, and [`crate::readout::field_number`] is a loop over
-/// precisions that has to stop somewhere. A range of `0..=0` offers
-/// ONE spelling, so there is no search here to end, and applying the
-/// bound anyway substitutes the render's answer for the widget's: a
-/// count of `-1000000000` was rendered `-1.000e9`, and a count of
-/// `12345678901` renders as whatever reads back within
-/// [`crate::readout::names`]'s grid — **a different count**. For a
+/// [`crate::readout::MAX_CHARS`] bounds a told number, and a range of
+/// `0..=0` offers ONE spelling, the integer's own. Applying the bound
+/// anyway substitutes the render's answer for the widget's: a count
+/// of `12345678901` would render as the told grid's nearest reading
+/// of it — **a different count**. For a
 /// continuous quantity that band is the ratified render accuracy; for
 /// an integer, every value inside it is a different value, so the
 /// substitution is the wrong-number-on-screen defect this door exists
@@ -396,7 +392,8 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// away again hands the chrome's own render straight back at it. The
 /// render names its value only to [`crate::readout::names`]'s
 /// grid, so that round trip can MOVE the value — by less than the
-/// grid, which is capped a decade below ε, and by more than nothing.
+/// grid (four figures, or a tenth of ε of the number where that is
+/// finer), and by more than nothing.
 ///
 /// **The echo is identifiable as text, exactly**, which is why the
 /// rule is a comparison rather than a tolerance: the formatter below
@@ -2395,10 +2392,11 @@ pub(crate) mod message_tests {
         );
     }
 
-    /// Every number [`crate::readout::field_number`] can return at its widest:
-    /// the top of the type both ways, the widest decimal spellings (22
-    /// characters, a sign counted among them), the small end's
-    /// three-digit exponents, and the non-finite fallbacks.
+    /// Numbers at the widest a told number is written
+    /// (`geom_core::WIDEST_NUMBER`, which `-1.2345678901234567e-300`
+    /// reaches): the top of the type both ways, long decimal
+    /// spellings, the small end's three-digit exponents, and the
+    /// non-finite spellings.
     const WIDEST_NUMBERS: [f64; 10] = [
         f64::MAX,
         -f64::MAX,
@@ -2414,8 +2412,8 @@ pub(crate) mod message_tests {
 
     /// The fonts a message can be drawn in here: the body font, and a
     /// monospace one through a context-wide style override — where every
-    /// glyph is one width, so the widest spelling is the twenty-three
-    /// characters at the top of the type rather than twenty-two digits.
+    /// glyph is one width, so the widest spelling is the one with the
+    /// most characters.
     const STYLES: [Option<egui::TextStyle>; 2] = [None, Some(egui::TextStyle::Monospace)];
 
     /// Display scales a glyph's position is snapped at: each moves where
@@ -3425,7 +3423,7 @@ mod field_tests {
     /// exactly by something.
     ///
     /// Each is a value no spelling inside `crate::readout::MAX_CHARS`
-    /// names exactly: the render's grid is capped a decade below ε, so
+    /// names exactly: the render's grid is a tenth of ε at its finest, so
     /// an inexact render now needs more significant figures than the
     /// bound can spend rather than merely more than four.
     const RENDERED_INEXACTLY: [f64; 3] = [

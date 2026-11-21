@@ -309,8 +309,12 @@ pub enum CameraError {
     },
 }
 
-/// Every number a sentence quotes is told on its quantity's grid
-/// ([`readout::bare`]); the sentence words the unit.
+/// Every number a sentence quotes is told as computed, on its
+/// quantity's grid ([`readout::bare`]); the sentence words the unit.
+/// Computed and not given: no field here is a number a person or a
+/// file wrote. `crate::input` forms each as a product (pointer pixels
+/// by a rate, `exp` of a scroll, a pinch's reciprocal), so its float
+/// noise is the chrome's own and is not told back.
 impl core::fmt::Display for CameraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

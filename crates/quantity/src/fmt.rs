@@ -159,8 +159,10 @@ pub(crate) fn authored(value: f64, factor: f64) -> Option<f64> {
 /// the spec's `25 mm` surface shape.
 ///
 /// This is the same rendering as `geom_core::Readable`, character for
-/// character. It is a second copy because this crate is a leaf:
-/// `geom-core` depends on it, never the reverse.
+/// character, and a second copy: this crate is a leaf, so it cannot
+/// call that one, and that one writes to a `Formatter` without
+/// building a `String`. Each is `{:?}` less its integral tail, which
+/// `geom-core` pins of its copy.
 fn render_shortest(d: f64) -> String {
     let repr = format!("{d:?}");
     match repr.strip_suffix(".0") {

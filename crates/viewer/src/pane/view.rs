@@ -602,8 +602,8 @@ mod tests {
         field.type_text(".");
         assert_eq!(field.request, None, "nothing re-tessellates mid-entry");
         // The two keystrokes, appended to the render the field was
-        // showing when the focus arrived — `0.05`, the shortest decimal
-        // spelling that reads back as this δ.
+        // showing when the focus arrived — `0.05`, this δ as it is told
+        // in millimetres.
         assert_eq!(field.draft.as_deref(), Some("0.050."));
     }
 

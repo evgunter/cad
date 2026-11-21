@@ -6,8 +6,10 @@
 //! (a value, an enclosure, or unreadable), the [`Dimension`] and the
 //! role, and it writes the number and the unit word. It has no
 //! arithmetic and no ordering, and a computed number does not come
-//! back out of it: its `Debug` writes what it tells, and two are equal
-//! when they tell the same thing in the same role.
+//! back out of it: its `Debug` writes what it tells in metres and
+//! radians, and two are equal when that canonical telling is the same
+//! in the same role. Equality is not of every notation: two that round
+//! to one spelling in radians can read apart in degrees.
 //!
 //! # Whose notation
 //!
@@ -199,13 +201,9 @@ fn write_unit_word(unit: UnitDef, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     }
 }
 
-/// The number of `unit` that `canonical` is, rounded to a float; `None`
-/// where the factor carries a finite value out of the format or a
-/// nonzero one to zero.
+/// The number of `unit` that `canonical` is, where the unit has one.
 fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    let q = canonical / unit.factor();
-    let lost = canonical.is_finite() && (!q.is_finite() || (q == 0.0 && canonical != 0.0));
-    (!lost).then_some(q)
+    unit.number_of(canonical)
 }
 
 /// The canonical value a number typed in `unit` is: the text door's one
@@ -451,9 +449,11 @@ fn write_spelled(spelled: Option<Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::R
     }
 }
 
-/// Two are equal when they tell the same thing in the same role: the
-/// same canonical spelling, and the same unit in every notation. Two
-/// computed numbers that round to one spelling are equal.
+/// Two are equal when their canonical telling is the same in the same
+/// role: the same spelling in metres or radians, and both or neither
+/// naming the tolerance. Two computed numbers that round to one
+/// canonical spelling are equal, though another notation's grid may
+/// tell them apart.
 impl PartialEq for Quantity {
     fn eq(&self, other: &Self) -> bool {
         let bits = |spelled: Option<Spelled>| {
@@ -630,6 +630,20 @@ impl Told {
             Spelled::One(y) => Some(y),
             Spelled::Ends(..) => None,
         }
+    }
+
+    /// The number alone as it is told in `notation`, for a surface
+    /// that writes the unit itself beside it. `None` where the
+    /// notation's unit cannot say this quantity: it would be told in
+    /// the canonical unit, and a number beside another unit's name is
+    /// a different value. The canonical notation always answers.
+    #[must_use]
+    pub fn number_in(&self, notation: Notation) -> Option<impl fmt::Display + use<>> {
+        let quantity = *self.0;
+        let unit = quantity.unit(notation);
+        let spelled = quantity.spelled_in(unit, 0);
+        (spelled.is_some() || quantity.exact().is_none())
+            .then(|| fmt::from_fn(move |f| write_spelled(spelled, f)))
     }
 
     /// The number in the canonical unit, without its unit word.
@@ -1959,6 +1973,57 @@ mod tests {
         let tolerance = Told::at_most(&2e-10, Dimension::Length).of_the_tolerance();
         assert_eq!(tolerance.told_in(NOTATIONS[1]).to_string(), "2e-10 m");
         assert_ne!(tolerance, Told::at_most(&2e-10, Dimension::Length));
+    }
+
+    /// Equality is of canonical text; a notation can tell two equal
+    /// quantities apart.
+    #[test]
+    fn equal_told_quantities_may_read_apart_in_another_notation() {
+        let (a, b) = (
+            Told::computed(&1.000_02, Dimension::Angle),
+            Told::computed(&1.000_48, Dimension::Angle),
+        );
+        assert_eq!(a, b);
+        assert_ne!(
+            a.told_in(NOTATIONS[1]).to_string(),
+            b.told_in(NOTATIONS[1]).to_string()
+        );
+    }
+
+    /// How often a round metre bound reads with a run of nines in
+    /// millimetres: the bound's own number types back one float past
+    /// it, so the offer is the grid point before
+    /// (`work/scalar/an-offer-in-a-decimal-unit-reads-a-run-of-nines.md`).
+    #[test]
+    fn a_round_metre_offer_in_millimetres_reads_its_neighbour_below_a_fifth_of_the_time() {
+        let n = (1..=20_000_u32)
+            .filter(|k| {
+                let b: f64 = format!("{}e-5", k * 3 + 7).parse().unwrap();
+                Told::at_most(&b, Dimension::Length)
+                    .told_in(NOTATIONS[1])
+                    .to_string()
+                    .contains("9999")
+            })
+            .count();
+        assert!((3_500..4_500).contains(&n), "{n}");
+    }
+
+    /// The number alone is the told number without its word, and is
+    /// withheld where the word would have been another unit's.
+    #[test]
+    fn the_number_alone_is_withheld_where_the_unit_cannot_say_it() {
+        let number = |told: &Told, notation| told.number_in(notation).map(|n| n.to_string());
+        let length = Told::computed(&0.025, Dimension::Length);
+        assert_eq!(number(&length, NOTATIONS[1]).as_deref(), Some("25"));
+        assert_eq!(
+            number(&length, Notation::CANONICAL).as_deref(),
+            Some("0.025")
+        );
+        let huge = Told::computed(&1e306, Dimension::Length);
+        assert_eq!(number(&huge, NOTATIONS[1]), None);
+        assert_eq!(number(&huge, Notation::CANONICAL).as_deref(), Some("1e306"));
+        let unreadable = Told::computed(&f64::NAN, Dimension::Length);
+        assert_eq!(number(&unreadable, NOTATIONS[1]).as_deref(), Some("NaN"));
     }
 
     /// A kept sentence is told in the notation of whoever reads it,
