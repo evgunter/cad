@@ -415,19 +415,23 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 /// aligned body. Where the rim vertices sit in the sliver band apart,
 /// the glue door reads the shared rim and escalates the seam cover's
 /// order there, in both operand orders. Further apart, turned one way,
-/// it builds. Turned the other way to about `√(70·ε·R)` apart, the
-/// tube's one seam ruling, whose top end lies on the hemisphere's rim
-/// just outside one sphere face, keeps the covered line rung's door
-/// against that face
+/// it builds. Turned the other way to about `√(70·ε·R)` apart, with the
+/// tube first, the tube's one seam ruling, whose top end lies on the
+/// hemisphere's rim just outside one sphere face, keeps the covered
+/// line rung's door against that face, and with the cap first it
+/// builds
 /// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
 /// face's reach clears the ruling by `R·(1 − cos θ)`, which is inside
 /// the sweep's pad. Further apart the reach clears the pair, and it
 /// builds.
 #[test]
 fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
+    #[derive(Clone, Copy)]
     enum Expect {
         Builds((usize, usize, usize, usize)),
-        RulingDoor,
+        /// The covered line rung's door with the tube first; the
+        /// census of the body the cap first builds.
+        RulingDoorTubeFirst((usize, usize, usize, usize)),
         /// The glue door's rim routing escalates.
         RimDoor,
     }
@@ -445,7 +449,10 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
         (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
         (5.0 * escalate, Expect::Builds((4, 7, 5, 1))),
         ((R * escalate).sqrt(), Expect::Builds((4, 7, 5, 1))),
-        (-(R * escalate).sqrt(), Expect::RulingDoor),
+        (
+            -(R * escalate).sqrt(),
+            Expect::RulingDoorTubeFirst((4, 7, 5, 1)),
+        ),
         ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 7, 5, 1))),
     ] {
         let deg = (apart / R).to_degrees();
@@ -456,6 +463,12 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
         ] {
             let label = format!("turned {deg}°, {order}");
             let r = topo::union(x, y, tol);
+            let expect = match expect {
+                Expect::RulingDoorTubeFirst(rims) if tube_is == topo::Operand::B => {
+                    Expect::Builds(rims)
+                }
+                other => other,
+            };
             match expect {
                 Expect::Builds(rims) => {
                     let (v, c, _) = built(&label, r);
@@ -465,7 +478,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                     );
                     assert_eq!(c, rims, "{label}: F, E, V, shells");
                 }
-                Expect::RulingDoor => {
+                Expect::RulingDoorTubeFirst(_) => {
                     let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
                         panic!("{label}: the covered line rung's door: {r:?}");
                     };
