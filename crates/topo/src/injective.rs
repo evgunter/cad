@@ -9307,6 +9307,62 @@ mod presentation_rows {
         );
     }
 
+    /// **An edge runs on to the pole's side only where its image ends at
+    /// the pole by the band**: a polar cap whose loop wraps the sphere
+    /// (its extent says nothing, so nothing has checked its rows), with a
+    /// meridian spur up to the pole's vertex. The cell beside the spur at
+    /// the pole is presented where the spur's image ends half the band's
+    /// zero short of the latitude, and is `Local` where it ends twice
+    /// the band's escalation short: that edge and its vertex name two
+    /// places. Red where the vertex's key alone grants the run-on.
+    #[test]
+    fn an_edge_runs_on_only_where_its_image_ends_at_the_pole_by_the_band() {
+        let (s, _) = octant();
+        let top = pole_latitude(true).lo();
+        let cap = |end: f64| Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0)),
+                rim(2, [1, 3], Axis::U, 1.5, (1.5, 1.0), (1.5, end)),
+            ],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (1.2, 1.5),
+                v: (1.5, core::f64::consts::FRAC_PI_2.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            read(present_chart(&piece, &[], &[vertex(3)], band()))
+        };
+        assert!(
+            matches!(at_pole(&cap(top - 0.5 * band().zero())), Read::Of(..)),
+            "in the band: {:?}",
+            at_pole(&cap(top - 0.5 * band().zero()))
+        );
+        assert_eq!(
+            at_pole(&cap(top - 2.0 * band().escalate())),
+            Read::Local,
+            "past the band"
+        );
+    }
+
     /// **A rectangle wholly past a singular latitude is not presented**:
     /// a polar cap whose loop wraps the sphere, so its extent says
     /// nothing, read in a cell past `π/2` with the pole's vertex in
