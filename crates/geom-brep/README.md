@@ -1265,7 +1265,7 @@ Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
 spiric's own plane, so it meets a plane not parallel to that one only
 on the line where the two planes meet, which the line × torus door reads
 against the spiric's own torus over the stretch of the line on the
-oval's side of the axis, each root's minor angle the span's parameter.
+oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
