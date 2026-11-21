@@ -1,0 +1,92 @@
+diff --git a/crates/geom-core/src/k_stats.rs b/crates/geom-core/src/k_stats.rs
+index 2f11d17a..befd757a 100644
+--- a/crates/geom-core/src/k_stats.rs
++++ b/crates/geom-core/src/k_stats.rs
+@@ -473,6 +473,14 @@ fn classify<T: Decide>(
+     let prev = CURRENT.with(|c| c.replace(name));
+     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+     CURRENT.with(|c| c.set(prev));
++    static DIFF_ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    if *DIFF_ON.get_or_init(|| std::env::var_os("CAD_DIFF_DIR").is_some()) {
++        let (v, b) = match &outcome {
++            Ok(d) => (format!("{:?}", d.sign), format!("{:?}", d.margin)),
++            Err(e) => ("E".to_string(), format!("{:?}", e.margin)),
++        };
++        review_probe::note(name, std::any::type_name::<T>(), v, b);
++    }
+     // THE STAGED-CEILING DIAL, and it exists only under the test-only
+     // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
+     // feature off there is no branch here at all, which is the whole
+@@ -2916,3 +2924,72 @@ mod tests {
+         }
+     }
+ }
++
++/// REVIEW PROBE (not for merge): hashes every classified decision per
++/// thread, from the thread's first decision, written on thread exit to
++/// `$CAD_DIFF_DIR`.
++#[doc(hidden)]
++pub mod review_probe {
++    use std::cell::RefCell;
++    use std::hash::{DefaultHasher, Hash, Hasher};
++    pub(super) struct Acc {
++        seq: u64,
++        bseq: u64,
++        n: u64,
++        sum: u64,
++        bsum: u64,
++        names: std::collections::BTreeMap<String, (u64, u64, u64)>,
++    }
++    impl Drop for Acc {
++        fn drop(&mut self) {
++            flush(self);
++        }
++    }
++    fn flush(a: &Acc) {
++        if a.n == 0 {
++            return;
++        }
++        if let Ok(dir) = std::env::var("CAD_DIFF_DIR") {
++            let t = std::thread::current();
++            let name = t.name().unwrap_or("?").to_string();
++            let args: Vec<String> = std::env::args().skip(1).collect();
++            let mut s = format!(
++                "T {name}\tA {}\tN {} SEQ {:016x} BSEQ {:016x} SUM {:016x} BSUM {:016x}\n",
++                args.join(" "),
++                a.n, a.seq, a.bseq, a.sum, a.bsum
++            );
++            for (k, (n, sum, bsum)) in &a.names {
++                s.push_str(&format!("P {k} {n} {sum:016x} {bsum:016x}\n"));
++            }
++            let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
++            let path = format!("{dir}/{}-{:?}-{nanos}", std::process::id(), t.id());
++            let _ = std::fs::write(path, s);
++        }
++    }
++    thread_local! {
++        pub(super) static ACC: RefCell<Acc> = RefCell::new(Acc {
++            seq: 0, bseq: 0, n: 0, sum: 0, bsum: 0, names: Default::default(),
++        });
++    }
++    fn h<X: Hash>(x: X) -> u64 {
++        let mut s = DefaultHasher::new();
++        x.hash(&mut s);
++        s.finish()
++    }
++    pub(super) fn note(name: &'static str, ty: &'static str, verdict: String, bits: String) {
++        let v = h((name, ty, &verdict));
++        let b = h((name, ty, &verdict, &bits));
++        let _ = ACC.try_with(|a| {
++            let mut a = a.borrow_mut();
++            a.n += 1;
++            a.seq = h((a.seq, v));
++            a.bseq = h((a.bseq, b));
++            a.sum = a.sum.wrapping_add(v);
++            a.bsum = a.bsum.wrapping_add(b);
++            let e = a.names.entry(format!("{name}|{ty}")).or_insert((0, 0, 0));
++            e.0 += 1;
++            e.1 = e.1.wrapping_add(v);
++            e.2 = e.2.wrapping_add(b);
++        });
++    }
++}

@@ -1,0 +1,76 @@
+diff --git a/crates/topo/src/offset_axial.rs b/crates/topo/src/offset_axial.rs
+index 33a91d47..126259a5 100644
+--- a/crates/topo/src/offset_axial.rs
++++ b/crates/topo/src/offset_axial.rs
+@@ -1254,7 +1254,30 @@ fn corner_arms<T: Decide>(
+             });
+         };
+         let (t0, t1) = curve.params();
+-        out.push(geom_brep::edge_extent_inf(curve.carrier(), t0, t1));
++        let __arm = geom_brep::edge_extent_inf(curve.carrier(), t0, t1);
++        if let Ok(f) = std::env::var("CAD_REACH_FILE") {
++            use std::io::Write;
++            let kind = match curve.carrier() {
++                Curve3::Line(_) => "line".to_string(),
++                Curve3::Circle(c) => format!("circle span={:?} r={:?}", t1 - t0, c.radius()),
++                Curve3::Ellipse(_) => "ellipse".to_string(),
++                Curve3::Spiric { .. } => "spiric".to_string(),
++                _ => "spline".to_string(),
++            };
++            let chord = geom_brep::ExtentBall::point(curve.carrier().eval(t1)).lever_from(curve.carrier().eval(t0));
++            let mode = std::env::var("CAD_ARM_MODE").unwrap_or_default();
++            let _ = writeln!(std::fs::OpenOptions::new().create(true).append(true).open(f).unwrap(),
++                "{} {kind} new={:?} chord={:?} mode={mode}", std::thread::current().name().unwrap_or("?"), __arm.length(), chord.length());
++        }
++        let __arm = match std::env::var("CAD_ARM_MODE").as_deref() {
++            Ok("chord") => geom_brep::ExtentBall::point(curve.carrier().eval(t1)).lever_from(curve.carrier().eval(t0)),
++            Ok("arc") => match curve.carrier() {
++                Curve3::Circle(c) => geom_core::Lever::unsourced((t1 - t0).abs() * c.radius()),
++                _ => __arm,
++            },
++            _ => __arm,
++        };
++        out.push(__arm);
+     }
+     Ok(out)
+ }
+@@ -3352,6 +3375,39 @@ mod tests {
+         Profile::Line { n: (1.0, 0.0), c }
+     }
+ 
++    /// REVIEW PROBE (PR 7227): the corner solve ACTS on the conditioning's
++    /// Zero (it answers the tangent foot), so the arm it is levered at is
++    /// not a refuse-on-Zero lever. A line–circle pair (profile radius 1)
++    /// whose roots stand `±4e-6` off the foot, read at the arm a half-turn
++    /// edge of radius `0.1` had (`π·0.1`, its arc length) and has (`2·0.1`,
++    /// its diameter, `edge_extent_inf`), under the band `(1e-6, 1e-5)`:
++    /// the old arm escalates (the solve refuses), the new arm reads Zero
++    /// and answers the foot, `4e-6` (four zero-bands) off either root.
++    #[test]
++    fn review_probe_the_shorter_arm_answers_a_foot_where_the_arc_length_refused() {
++        let band = Band::new(1e-6, 1e-5).unwrap();
++        let delta = 8e-12;
++        let pair = [station(11.0 - delta), CIRCLE];
++        let at = |arm: f64| {
++            let arms = [geom_core::test_support::fixture_lever(arm)];
++            solve_pairs(&pair, &arms, (11.0, 4e-6), VertexKey::default(), band)
++        };
++        let r_edge = 0.1;
++        let old = at(std::f64::consts::PI * r_edge);
++        let new = at(2.0 * r_edge);
++        eprintln!("old (arc length): {old:?}\nnew (diameter): {new:?}");
++        assert!(
++            matches!(old, Err(ReplaceFaceError::Escalated { .. })),
++            "the arc-length arm refuses: {old:?}"
++        );
++        let (rho, h) = new.unwrap().expect("the diameter arm answers");
++        // The pair's two true roots.
++        let half = (1.0 - (1.0 - delta) * (1.0 - delta)).sqrt();
++        let off = ((rho - (11.0 - delta)).powi(2) + (h - half).powi(2)).sqrt();
++        eprintln!("answered ({rho}, {h}); nearer root (11 - δ, {half:e}); off by {off:e}");
++        assert!(off > band.zero(), "the foot is more than a zero band off the root: {off:e}");
++    }
++
+     /// **The pair ladders' order** (the ladder's rule over the fan):
+     /// - a tangent foot later in the fan answers past an earlier tangency
+     ///   in band (red under a rule that kept the first of either);
