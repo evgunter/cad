@@ -17,6 +17,12 @@
 //! holding the axis (the apex line pair), the half-space `y ≥ 0.5` (the
 //! axis-normal circle), and a coaxial pin of radius 0.4 (the coaxial
 //! circles).
+//!
+//! A `geom::Frame` is a rotation by its type, so `Frame::new` squares a
+//! stated lean back to a seam square to the axis, to rounding: the tilts
+//! here may square to one and the same seam. A tilt whose seam is
+//! bit-identical to an earlier tilt's is the same body, and its booleans
+//! are not run again.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -48,8 +54,8 @@ fn revolved(polygon: &[(f64, f64)]) -> Body<f64> {
 }
 
 /// The cone with its seam restated `tilt` along its axis: at rest, or
-/// the at-rest gate's refusal.
-fn tilted_cone(tilt: f64) -> Result<AtRestBody<f64>, String> {
+/// the at-rest gate's refusal, with the seam as stored (its `Debug`).
+fn tilted_cone(tilt: f64) -> (Result<AtRestBody<f64>, String>, String) {
     let mut body = revolved(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]);
     let mut cones: Vec<_> = body
         .faces()
@@ -71,15 +77,16 @@ fn tilted_cone(tilt: f64) -> Result<AtRestBody<f64>, String> {
         carrier_frame.u_ref(),
     );
     let leaning = u_ref * (1.0 - tilt * tilt).sqrt() + axis * tilt;
+    let frame = geom::Frame::new(apex, axis, leaning);
     assert!(topo::test_support::restate_surface(
         &mut body,
         cones[0],
-        Surface::Cone {
-            frame: geom::Frame::new(apex, axis, leaning),
-            half_angle,
-        },
+        Surface::Cone { frame, half_angle },
     ));
-    topo::finish(body, Tol::witness()).map_err(|e| format!("{e:?}"))
+    (
+        topo::finish(body, Tol::witness()).map_err(|e| format!("{e:?}")),
+        format!("{frame:?}"),
+    )
 }
 
 /// The coaxial pin of radius `r` over `y ∈ [−1, 2]`.
@@ -115,9 +122,16 @@ fn a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed() {
         ),
     ];
     let quarter = 0.25 * crate::revolve_common::eps();
+    let mut seams: Vec<(f64, String)> = Vec::new();
     for tilt in [0.0, 1e-9, 1e-6, quarter] {
         let mut built = 0;
-        let cone = match tilted_cone(tilt) {
+        let (cone, seam) = tilted_cone(tilt);
+        if let Some((earlier, _)) = seams.iter().find(|(_, s)| *s == seam) {
+            eprintln!("tilt {tilt:e}: its seam squares to tilt {earlier:e}'s, the same body");
+            continue;
+        }
+        seams.push((tilt, seam));
+        let cone = match cone {
             Ok(c) => c,
             Err(e) => {
                 assert!(
