@@ -38,9 +38,11 @@ fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 
 fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::from_array(o),
-        normal: Vec3::from_array(n),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::from_array(o),
+            Vec3::from_array(n),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -189,7 +191,8 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let z_face = |z: f64| {
         body.faces()
             .find(|(fk, _)| match body.face_surface(*fk) {
-                Some(&topo::Surface::Plane { origin, normal, .. }) => {
+                Some(&topo::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
                 }
                 _ => false,

@@ -282,17 +282,17 @@ fn split_collar() -> Body<f64> {
         .find_map(|(_, e)| match carrier(&c, e) {
             Some(geom::Curve3::Circle(
                 conic_k @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
+                    frame: carrier_frame_11,
                     ..
                 },
             )) if (conic_k.radius() - BORE).abs() < 1e-12
-                && (center.y - COLLAR.0).abs() < 1e-12 =>
+                && (carrier_frame_11.origin().y - COLLAR.0).abs() < 1e-12 =>
             {
+                let (center, axis, u_ref) = (
+                    carrier_frame_11.origin(),
+                    carrier_frame_11.axis(),
+                    carrier_frame_11.u_ref(),
+                );
                 Some(geom::Curve3::circle(
                     Point3::new(center.x, 1.5, center.z),
                     axis,

@@ -67,12 +67,18 @@ enum Touch<T: Real> {
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
     let carrier = body.face(f)?.surface();
     match *carrier {
-        geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
-        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere {
-            center,
-            radius,
-            arm: geom_brep::uniform_curvature_arm(carrier),
-        }),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(Surface::Plane { origin, normal })
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Some(Surface::Sphere {
+                center,
+                radius,
+                arm: geom_brep::uniform_curvature_arm(carrier),
+            })
+        }
         _ => None,
     }
 }
@@ -404,9 +410,7 @@ mod tests {
         let band = Band::new(1e-12, 1e-11).unwrap();
         let circle = geom::Curve3::circle(c, a, 1.0, a.orthonormal_basis().0);
         let plane = geom::Surface::Plane {
-            origin: c - n * sin,
-            normal: n,
-            u_ref: n.orthonormal_basis().0,
+            frame: geom::Frame::new(c - n * sin, n, n.orthonormal_basis().0),
         };
         let span = geom_brep::curve_pair::Span::new(&circle, (0.0, core::f64::consts::TAU));
         let at = match geom_brep::curve_face::pose(&span, &plane, band) {

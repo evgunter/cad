@@ -229,8 +229,8 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() == 1.0 && origin.x == 2.0
+                Some(topo::Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() == 1.0 && frame.origin().x == 2.0
             )
         })
         .map(|(k, _)| k)
@@ -410,8 +410,8 @@ fn a_carried_record_with_no_touch_behind_it_refuses_at_the_booleans_gate() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() == 1.0 && origin.z == 0.0
+                Some(topo::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() == 1.0 && frame.origin().z == 0.0
             )
         })
         .map(|(k, _)| k)
@@ -660,9 +660,9 @@ fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(topo::Surface::Plane { origin, normal, .. })
-                    if [normal.x, normal.y, normal.z][axis].abs() == 1.0
-                        && [origin.x, origin.y, origin.z][axis] == at
+                Some(topo::Surface::Plane { frame, .. })
+                    if [frame.axis().x, frame.axis().y, frame.axis().z][axis].abs() == 1.0
+                        && [frame.origin().x, frame.origin().y, frame.origin().z][axis] == at
             )
         })
         .map(|(k, _)| k)

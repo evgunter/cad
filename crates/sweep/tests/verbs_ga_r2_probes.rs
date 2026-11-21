@@ -63,10 +63,12 @@ fn turned() -> Body<f64> {
 #[test]
 fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
     let wall_b = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 2.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 2.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // The residual charge of reduce.rs's both-outside arm, verbatim:
     // f2 per kind, q = f2*span^2, m = |r_v - r_u|,
@@ -101,10 +103,12 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
     // And (+-1, 0, 0) are the section's self-crossings: both walls'
     // residuals vanish there (x^2+y^2=1 and x^2+z^2=1 meet in y=+-z).
     let wall_a = geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, -2.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -2.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     for x in [-1.0, 1.0] {
         let p = Point3::new(x, 0.0, 0.0);

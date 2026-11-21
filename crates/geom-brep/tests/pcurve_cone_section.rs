@@ -26,10 +26,12 @@ fn cone_at(axis_sign: f64, half_angle: f64) -> Surface<f64> {
     let axis = Vec3::new(0.2, -0.3, 1.0).normalize() * axis_sign;
     let seed = Vec3::unit_x();
     Surface::Cone {
-        apex: Point3::new(0.4, -0.7, 0.2),
-        axis,
+        frame: geom::Frame::new(
+            Point3::new(0.4, -0.7, 0.2),
+            axis,
+            (seed - axis * seed.dot(axis)).normalize(),
+        ),
         half_angle,
-        u_ref: (seed - axis * seed.dot(axis)).normalize(),
     }
 }
 
@@ -43,15 +45,18 @@ fn section() -> Curve3<f64> {
 /// its axis, 2.5 along it from the apex.
 fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
     let surface = cone_at(1.0, half_angle);
-    let Surface::Cone { apex, axis, .. } = surface else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = surface
+    else {
         unreachable!()
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let side = axis.cross(Vec3::unit_x()).normalize();
     let normal = (axis * tilt.cos() + side * tilt.sin()).normalize();
     let plane = Surface::Plane {
-        origin: apex + axis * 2.5,
-        normal,
-        u_ref: side.cross(normal),
+        frame: geom::Frame::new(apex + axis * 2.5, normal, side.cross(normal)),
     };
     let Ok(PlaneConeSection::TiltedEllipse(e)) =
         plane_cone_section(&plane, &surface, &at_apex(&surface, 3.0), band())
@@ -65,18 +70,18 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse(
         conic_k @ geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_13,
             ..
         },
     ) = e
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_13.origin(),
+        carrier_frame_13.axis(),
+        carrier_frame_13.u_ref(),
+    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center, -axis, u_ref),
@@ -91,18 +96,18 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     let &Curve3::Ellipse(
         conic_k @ geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_12,
             ..
         },
     ) = e
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_12.origin(),
+        carrier_frame_12.axis(),
+        carrier_frame_12.u_ref(),
+    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (u_ref, semi_u, semi_v) = match k % 4 {
         0 => (u_ref, semi_u, semi_v),
@@ -111,11 +116,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         _ => (-axis.cross(u_ref), semi_v, semi_u),
     };
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame {
-            origin: center,
-            axis,
-            u_ref,
-        },
+        geom::Frame::new(center, axis, u_ref),
         semi_u,
         semi_v,
     ))
@@ -224,19 +225,15 @@ fn a_wrong_number_in_the_image_refuses() {
         );
     }
     let Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
-        u_ref,
     } = surface
     else {
         unreachable!()
     };
     let other = Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle: half_angle + h,
-        u_ref,
     };
     assert!(
         PcurveCache::certify(image, 0.3, 4.0, &carrier, &other, band()).is_err(),
@@ -328,16 +325,20 @@ fn skew_section(alpha: f64, s: f64, f: f64) -> Result<(Curve3<f64>, Surface<f64>
     let m = skew();
     let (top, foot) = (0.5 * s, 0.5 * s + s * alpha.tan());
     let surface = Surface::Cone {
-        apex: m.transform_point(Point3::new(0.0, s + top / alpha.tan(), 0.0)),
-        axis: m.transform_vec(Vec3::new(0.0, -1.0, 0.0)),
+        frame: geom::Frame::new(
+            m.transform_point(Point3::new(0.0, s + top / alpha.tan(), 0.0)),
+            m.transform_vec(Vec3::new(0.0, -1.0, 0.0)),
+            m.transform_vec(Vec3::unit_x()),
+        ),
         half_angle: alpha,
-        u_ref: m.transform_vec(Vec3::unit_x()),
     };
     let phi = f * (core::f64::consts::FRAC_PI_2 - alpha);
     let plane = Surface::Plane {
-        origin: m.transform_point(Point3::new(0.0, 0.5 * s, 0.0)),
-        normal: m.transform_vec(Vec3::new(phi.sin(), phi.cos(), 0.0)),
-        u_ref: m.transform_vec(Vec3::unit_z()),
+        frame: geom::Frame::new(
+            m.transform_point(Point3::new(0.0, 0.5 * s, 0.0)),
+            m.transform_vec(Vec3::new(phi.sin(), phi.cos(), 0.0)),
+            m.transform_vec(Vec3::unit_z()),
+        ),
     };
     let across = (2.0 * foot).max((s * s + (foot + top).powi(2)).sqrt());
     let e = match plane_cone_section(&plane, &surface, &at_apex(&surface, across), band()) {
@@ -359,24 +360,16 @@ fn read_off_the_sum(
 ) -> Pcurve<f64> {
     let (
         &Pcurve::FocalSection(focal),
-        &Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        u_ref: e_u,
-                        ..
-                    },
-                ..
-            },
-        ),
+        &Curve3::Ellipse(ellipse @ geom::Ellipse { frame, .. }),
         &Surface::Cone {
-            apex, axis, u_ref, ..
+            frame: cone_frame, ..
         },
     ) = (image, carrier, surface)
     else {
         unreachable!()
     };
+    let (center, e_u) = (frame.origin(), frame.u_ref());
+    let (apex, axis, u_ref) = (cone_frame.origin(), cone_frame.axis(), cone_frame.u_ref());
     let semi_u = ellipse.semi_u();
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
@@ -406,8 +399,10 @@ fn whole_turn_miss(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface
 /// What certification makes of the two depends on ε, so each verdict is
 /// asserted where its miss puts it: the image read off the sum refuses
 /// wherever its miss clears the band, and the minted one certifies
-/// wherever its miss is under a quarter of ε — at `f64` and lifted to
-/// `Interval`. At ε = 1e-9 both are asserted. The pose itself exists
+/// wherever its miss is under a quarter of ε at `f64`, and lifted to
+/// `Interval` certifies or reads in band (its frames lifted there to
+/// their polar enclosures, η ≤ 5.3e-16, are a few ulps wide, levered by
+/// `A/k`). At ε = 1e-9 both are asserted. The pose itself exists
 /// only near that ε: at 1e-6 the arm's own band refuses it, and at 1e-12
 /// the carrier's rounding (`u·A ≈ 7e-12`) is past the chart's incidence
 /// band; the row says so, and is required to reach its verdicts at the
@@ -483,14 +478,29 @@ fn a_skew_section_near_the_parabola_certifies() {
             });
         let envelope = cache.certificate().envelope;
         assert!(envelope < 0.5 * eps(), "f64 envelope {envelope:e}");
-        let cache = certify_lifted(&image).unwrap_or_else(|e| {
-            panic!(
+        // Lifted to `Interval` the frames are their polar enclosures
+        // (η ≤ 5.3e-16), about an ulp wide at each entry, that the
+        // envelope levers by about `A/k`: certified or in band at this
+        // pose, never a definite miss. Certified, the envelope is under
+        // the zero band, as certification states; the `0.5·ε` the f64
+        // read meets is not the enclosure's (it certifies at 9.5e-10 at
+        // ε 1e-9, where the wider interval-only polar read it in band).
+        match certify_lifted(&image) {
+            Ok(cache) => {
+                let envelope = cache.certificate().envelope.hi();
+                assert!(envelope < eps(), "Interval envelope {envelope:e}");
+            }
+            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) => {
+                println!(
+                    "IN BAND at Interval: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
+            }
+            Err(e) => panic!(
                 "Interval: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
-            )
-        });
-        let envelope = cache.certificate().envelope.hi();
-        assert!(envelope < 0.5 * eps(), "Interval envelope {envelope:e}");
+            ),
+        }
     }
     println!(
         "eps {:e}: the sum's refusal {}, the mint's certificate {}",
@@ -540,10 +550,12 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
         (ta * ta * cz * cz - cx * cx).sqrt(),
     ));
     let surface = Surface::Cone {
-        apex: m.transform_point(Point3::new(0.0, 0.0, 0.0)),
-        axis: m.transform_vec(Vec3::unit_z()),
+        frame: geom::Frame::new(
+            m.transform_point(Point3::new(0.0, 0.0, 0.0)),
+            m.transform_vec(Vec3::unit_z()),
+            m.transform_vec(Vec3::unit_x()),
+        ),
         half_angle: alpha,
-        u_ref: m.transform_vec(Vec3::unit_x()),
     };
     (carrier, surface)
 }
@@ -703,7 +715,10 @@ fn interval_mints(poses: &[(f64, f64)]) -> Vec<IntervalMint> {
 /// with the root taken of `1 − e²` gains `1/k` on `e`'s rounding near a
 /// parabola (`k² = 1 − e²`): minted at `Interval` its enclosure was
 /// 5.3e-14 at `k = 0.23`, 6.1e-13 at 2.4e-2 and 5.7e-12 at 2.4e-3 on
-/// this pose. Read as `|rb|/|ra|` it is rounding-wide at every `k`.
+/// this pose. Read as `|rb|/|ra|` it is rounding-wide at every `k`:
+/// 176–229u at every pose (measured), the width of the frames the cone
+/// and the section are lifted to at `Interval` (polar enclosure, η ≤
+/// 5.3e-16, 4.8u), and no `1/k`.
 #[test]
 fn beta_encloses_to_rounding_however_near_the_parabola() {
     let poses = [
@@ -720,7 +735,7 @@ fn beta_encloses_to_rounding_however_near_the_parabola() {
     {
         let width = image.beta.hi() - image.beta.lo();
         assert!(
-            width < 128.0 * f64::EPSILON,
+            width < 256.0 * f64::EPSILON,
             "scale {scale}, f {f}, k {k:e}: beta width {width:e}"
         );
     }
@@ -732,8 +747,13 @@ fn beta_encloses_to_rounding_however_near_the_parabola() {
 /// at the last four poses (`[0, 2.7e-9]`, `[0, 6.8e-8]`, `[0, 6.5e-9]`,
 /// `[0, 2.0e-7]`) and at the first certified at 58× the f64 mint's
 /// lifted envelope (2.1e-10 against 3.6e-12). With `β` rounding-wide the
-/// Interval envelope is 3.3–3.9× the lifted one at every pose, so the
-/// ceiling is 8×.
+/// Interval envelope is 3.3–3.9× the lifted one at every pose it
+/// certifies, so the ceiling is 8×. The frames are lifted to `Interval`
+/// as polar enclosures of their rotations (η ≤ 5.3e-16, 4.8u), a few
+/// ulps wide, and at the
+/// two poses nearest the parabola (`k` 7.4e-3 at scale 1, 2.4e-3 at
+/// scale 0.1) the envelope levers that width into the band
+/// (`[0, 4.2e-9]` at both): pinned as the poses in band.
 #[test]
 fn a_near_parabola_section_minted_at_interval_certifies() {
     let lift = <Interval as Real>::from_f64;
@@ -749,6 +769,7 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
         PcurveCache::certify(image, lift(-1.0), lift(1.0), &lc, &ls, band())
             .map(|cache| cache.certificate().envelope.hi())
     };
+    let mut in_band = Vec::new();
     for IntervalMint {
         scale,
         f,
@@ -761,17 +782,20 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
         let at = format!("scale {scale}, f {f}, k {k:e}");
         // Off the default ε the box may now mint a section its read used
         // to refuse, and its envelope may land in band there: the
-        // certificate's honest answer, not this row's subject.
+        // certificate's honest answer, not this row's subject. At the
+        // default ε two poses land in band too: the cone's and the
+        // section's frames are lifted to `Interval` as polar enclosures
+        // (η ≤ 5.3e-16), a few ulps wide, which the envelope levers by
+        // about `1/k`.
         let minted = match certify(Pcurve::FocalSection(image), &carrier, &surface) {
             Ok(minted) => minted,
-            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. })
-                if eps() != geom_core::tolerance::DEFAULT_EPS =>
-            {
+            Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) => {
                 println!(
                     "IN BAND {at} at ε {:e}: {e_at}",
                     eps(),
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 );
+                in_band.push((scale, f));
                 continue;
             }
             Err(e) => panic!(
@@ -803,6 +827,13 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
             "{at}: envelope {minted:e} minted at Interval, {lifted:e} lifted"
         );
     }
+    if eps() == geom_core::tolerance::DEFAULT_EPS {
+        assert_eq!(
+            in_band,
+            [(1.0, 0.99999), (0.1, 0.999_999)],
+            "the poses in band at the default ε"
+        );
+    }
 }
 
 /// **Off a section, the image misses by the carrier's own radial gap.**
@@ -830,18 +861,18 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     };
     let Curve3::Ellipse(
         conic_k @ geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_11,
             ..
         },
     ) = exact
     else {
         unreachable!()
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_11.origin(),
+        carrier_frame_11.axis(),
+        carrier_frame_11.u_ref(),
+    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
@@ -901,10 +932,11 @@ fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
         let Curve3::Ellipse(e) = carrier else {
             unreachable!("skew_section answers an ellipse")
         };
-        let center = e.frame.origin;
-        let Surface::Cone { apex, .. } = surface else {
+        let center = e.frame.origin();
+        let Surface::Cone { frame, .. } = surface else {
             unreachable!("skew_section answers a cone")
         };
+        let apex = frame.origin();
         let size = e
             .semi_axes_by_size()
             .0

@@ -547,18 +547,21 @@ fn with_reversed_face(
         .faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
             Some(geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            }) if plane(*origin, *normal, f.sense) => Some((
-                k,
-                geom::Surface::Plane {
-                    origin: *origin,
-                    normal: -*normal,
-                    u_ref: *u_ref,
-                },
-                !f.sense,
-            )),
+                frame: carrier_frame,
+            }) if plane(carrier_frame.origin(), carrier_frame.axis(), f.sense) => {
+                let (origin, normal, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Some((
+                    k,
+                    geom::Surface::Plane {
+                        frame: geom::Frame::new(origin, -normal, u_ref),
+                    },
+                    !f.sense,
+                ))
+            }
             _ => None,
         })
         .collect();

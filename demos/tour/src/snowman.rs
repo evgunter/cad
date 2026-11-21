@@ -300,12 +300,12 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     for &f in &rolled.band_faces {
         match *rolled.body.face_surface(f).expect("its surface") {
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 assert!(
                     axis.x == 0.0 && axis.z == 0.0 && axis.y.abs() == 1.0,
                     "the band's axis is the snowman's, ±y; got {axis:?}"

@@ -58,6 +58,8 @@ use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalizat
 enum Chart {
     /// A sphere: two poles, `[north, south]`.
     Sphere {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
         axis: Vec3<f64>,
@@ -65,6 +67,8 @@ enum Chart {
     },
     /// A cone: the apex.
     Cone {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         apex: Point3<f64>,
         axis: Vec3<f64>,
         half_angle: f64,
@@ -75,28 +79,26 @@ enum Chart {
 impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Some(Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Some(Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            }),
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Sphere {
+                    frame,
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                })
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Cone {
+                    frame,
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                })
+            }
             _ => None,
         }
     }
@@ -121,31 +123,14 @@ impl Chart {
         }
     }
 
-    /// The surface the chart reads.
+    /// The surface the chart reads: its stored frame carried, not
+    /// squared again.
     fn surface(self) -> Surface<f64> {
         match self {
-            Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            },
+            Self::Sphere { frame, radius, .. } => Surface::Sphere { frame, radius },
             Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            },
+                frame, half_angle, ..
+            } => Surface::Cone { frame, half_angle },
         }
     }
 
@@ -1280,10 +1265,12 @@ mod side_through_a_pole {
         };
         let vertices = BTreeMap::from([(1, a), (2, n), (3, bb)]);
         let surface = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let use_ = |edge, forward| EdgeUse { edge, forward };
         let read = Read::of(crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap());
@@ -1405,10 +1392,12 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
             faces: vec![FaceSpec {
                 id: 101,
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
                 loops,
@@ -1539,10 +1528,8 @@ mod meetings_are_the_kernels {
     fn a_landing_beside_a_vertex_is_decided_at_the_files_band() {
         let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             radius: 1.0,
-            axis: z,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
@@ -1616,10 +1603,8 @@ mod meetings_are_the_kernels {
         );
         let half_angle = core::f64::consts::FRAC_PI_4;
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             half_angle,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")
@@ -1670,10 +1655,12 @@ mod meetings_are_the_kernels {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -1824,10 +1811,8 @@ mod meetings_are_the_kernels {
             Vec3::new(0.0, 0.0, 1.0),
         );
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")

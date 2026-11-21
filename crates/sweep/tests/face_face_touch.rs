@@ -570,15 +570,15 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
             .faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                matches!(surface(f), geom::Surface::Plane { origin, normal, .. }
-                    if normal.z.abs() > 0.5 && origin.z > 0.5)
+                matches!(surface(f), geom::Surface::Plane { frame, .. }
+                    if frame.axis().z.abs() > 0.5 && frame.origin().z > 0.5)
             })
             .unwrap();
         let walls: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
             .filter(|&f| {
-                matches!(surface(f), geom::Surface::Cylinder { axis, .. } if axis.y.abs() > 0.5)
+                matches!(surface(f), geom::Surface::Cylinder { frame, .. } if frame.axis().y.abs() > 0.5)
             })
             .collect();
         assert_eq!(walls.len(), 2, "rod y {y0}..{y1}: two wall halves");
