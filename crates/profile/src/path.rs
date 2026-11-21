@@ -376,7 +376,8 @@ use geom_core::{
 };
 
 use crate::fillet_recourse::{
-    FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
+    FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, JUNCTION_TURN_LEVER, SEAM_TURN_RECOURSE,
 };
 use crate::gate::{Escalation, Gate, decide};
 use crate::path::program::{ClosedLoop, ConstructedLoop, Step, Target};
@@ -385,8 +386,7 @@ use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, exact_fit_reach, line_line_fillet_trims,
 };
 use crate::validate::{
-    ARC_SCENE_RESOLUTION_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TURN_LEVER,
-    NoCornerReason, OverrunLegs, SEAM_TURN_RECOURSE,
+    ARC_SCENE_RESOLUTION_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, OverrunLegs,
 };
 use crate::{BuiltArc, ProfileLoop, Segment};
 
@@ -623,14 +623,22 @@ pub struct LeveredTurn {
 
 impl core::fmt::Display for LeveredTurn {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl Tell for LeveredTurn {
+    fn tell(&self, notation: Notation, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let lever_name = match self.lever_of {
-            TurnLever::ShorterLeg => "the shorter leg",
+            TurnLever::ShorterLeg => "the shorter leg's arm",
             TurnLever::AnchorSeparation => "the anchors' separation",
         };
         write!(
             f,
-            "sin φ = {} (cos φ = {}) over {lever_name} of {}",
-            self.sin_turn, self.align, self.lever
+            "sin φ = {sin} (cos φ = {align}) over {lever_name} of {lever}",
+            sin = self.sin_turn.told_in(notation),
+            align = self.align.told_in(notation),
+            lever = self.lever.told_in(notation)
         )
     }
 }
@@ -638,8 +646,9 @@ impl core::fmt::Display for LeveredTurn {
 /// The length a joint's turn is levered by ([`LeveredTurn`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TurnLever {
-    /// The shorter of the two legs' arms at the joint: a fillet's
-    /// arc-carrier corner, a path junction, the seam.
+    /// The shorter of the two legs' arms at the joint — a line's length,
+    /// an arc's lesser of radius and extent — at a fillet's arc-carrier
+    /// corner, a path junction or the seam.
     ShorterLeg,
     /// The separation of the incoming ray's start from the arrival
     /// anchor (the straight pair).
@@ -1294,9 +1303,11 @@ pub enum PathError<T: Real> {
     /// directions that happen to agree is the inference nothing here
     /// makes.
     ///
-    /// The recourse is to DECLARE the joint, or to move the seam. The
-    /// arriving leg is the later-authored one, so the declaration rides
-    /// the target and says which JOINT this is:
+    /// The recourse names both readings: lengthen the shorter leg if
+    /// the angle is real; if the seam is smooth, DECLARE the joint;
+    /// otherwise cut the loop at a corner. The arriving leg is the
+    /// later-authored one, so the declaration rides the target and says
+    /// which JOINT this is:
     /// [`Start::arrives_tangent`], legal on any closing verb and
     /// CHECKED, not inferred.
     /// Undeclared, the seam stays refused however the closing leg is
@@ -2015,6 +2026,10 @@ pub enum EscalatedAt {
     /// joint the caller never authored, so the levers are the stored
     /// form's own.
     StoredForm,
+    /// The closing verb's read of the SEAM's own junction: the gate is
+    /// the junction's, and the levers are the seam's, whose declaration
+    /// rides the target ([`Start::arrives_tangent`]).
+    Seam,
 }
 
 impl<T: Real> From<Escalation> for PathError<T> {
@@ -2027,6 +2042,11 @@ impl<T: Real> PathError<T> {
     /// An escalation of the door's own decisions.
     pub(crate) fn escalated(e: Escalation) -> Self {
         Self::at(EscalatedAt::Door, e)
+    }
+
+    /// An escalation of the seam's junction read.
+    pub(crate) fn at_seam(e: Escalation) -> Self {
+        Self::at(EscalatedAt::Seam, e)
     }
 
     /// An escalation of the stored-form re-read.
@@ -2546,6 +2566,14 @@ impl<T: Real> Tell for PathError<T> {
                         gate.kind()
                             .with_lever(FILLET_STORED_FORM_INBAND_RECOURSE)
                             .end(source),
+                    )
+                ),
+                EscalatedAt::Seam => write!(
+                    f,
+                    "{}",
+                    source.undecided(
+                        "whether the path turns at the seam",
+                        gate.kind().with_lever(SEAM_TURN_RECOURSE).end(source),
                     )
                 ),
             },
@@ -4026,6 +4054,13 @@ fn junction_check<T: Decide>(
     let u_in = inc.ang.unit;
     let u_dep = dep.unit;
     let arm = inc.arm.min(leaving_arm);
+    let escalate = |source: Escalation| {
+        if seam {
+            PathError::at_seam(source)
+        } else {
+            PathError::escalated(source)
+        }
+    };
     match seg::junction_turn(
         Gate::PathJunctionTurn,
         u_in,
@@ -4057,11 +4092,11 @@ fn junction_check<T: Decide>(
                         PathError::JunctionTurnWithinTolerance { turn: read }
                     })
                 }
-                Err(source) => Err(PathError::escalated(source)),
+                Err(source) => Err(escalate(source)),
             }
         }
         Ok(_) => Ok(()),
-        Err(source) => Err(PathError::escalated(source)),
+        Err(source) => Err(escalate(source)),
     }
 }
 
@@ -6907,7 +6942,7 @@ mod tests {
         }
         .to_string();
         assert!(
-            s.contains("sin φ = 0.5 (cos φ = 0.75) over the shorter leg of 3.7e-12 m"),
+            s.contains("sin φ = 0.5 (cos φ = 0.75) over the shorter leg's arm of 3.7e-12 m"),
             "{s}"
         );
         let cusp = PathError::<f64>::JunctionCusp {

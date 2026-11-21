@@ -228,24 +228,6 @@ pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "move the profile near
      where the scene resolves this size, an arc the path built should not miss by it, so report \
      it as a possible kernel defect";
 
-/// The lever at a junction whose turn, levered by the shorter leg's arm,
-/// is undecided, and at one where it is zero at tolerance
-/// ([`crate::PathError::JunctionTurnWithinTolerance`]). Either reading
-/// is a smooth joint or a real angle over a short leg, so it names both:
-/// lengthen the leg, declare the tangency or the continuation, or move
-/// the geometry.
-pub(crate) const JUNCTION_TURN_LEVER: &str = "if the angle is real, lengthen the shorter leg; if \
-     smooth, declare it: .tangent() (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or \
-     seam-fillet close at the seam), or line(len) for a straight continuation; otherwise move the \
-     geometry";
-
-/// The recourse at a seam whose turn is zero at tolerance and that
-/// nothing declared ([`crate::PathError::SeamTurnWithinTolerance`]): a
-/// real angle over a short leg, or a smooth seam to declare.
-pub(crate) const SEAM_TURN_RECOURSE: &str = "if the angle is real, lengthen the shorter leg; if \
-     the seam is smooth, DECLARE it with Start.arrives_tangent() on the target; otherwise cut the \
-     loop at a CORNER, where the outline turns";
-
 use crate::seg::{
     self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
 };

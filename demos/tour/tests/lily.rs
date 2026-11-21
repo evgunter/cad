@@ -577,7 +577,7 @@ mod review_probes {
         };
         let (sin_turn, arm) = (
             told("sin φ = ", " (cos φ"),
-            told("over the shorter leg of ", " m,"),
+            told("over the shorter leg's arm of ", " m,"),
         );
         assert!(sin_turn.abs() < 1e-15 && arm > 0.1, "{said}");
     }

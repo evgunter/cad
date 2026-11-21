@@ -54,7 +54,7 @@ let refused = Open
 let Err(refusal @ PathError::JunctionTurnWithinTolerance { .. }) = refused else {
     panic!("a tangent departure is refused");
 };
-assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1) over the shorter leg of 1 m"));
+assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1) over the shorter leg's arm of 1 m"));
 ```
 
 The refusal tells the **turn** and the **lever** it was read over:

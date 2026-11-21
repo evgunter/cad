@@ -1174,24 +1174,24 @@ ends exactly at the anchor, so its recourse values both levers.
 
 1. **No junction is silently within the input tolerance of
    tangent.** On a directed point, `.angle(θ)`/`.turn(δ)`
-   classifies θ against the incoming tangent and its reverse.
-   Outcomes: definitely-sharp proceeds; within ε_input of the
-   TANGENT direction refuses — ONE refusal, one recourse, for any
-   sub-ε_input margin (D4's two-tolerance principle): "the turn
-   at this junction is zero at tolerance — if the angle is real,
-   lengthen the shorter leg; if
-   intended as tangency onto a new carrier, use `.tangent()`
-   (`.tangent().tangent_arc_to(p)` for an arc; the tangent-arc or
-   seam-fillet close at the seam), which makes it exact by
-   construction; if intended as a straight
-   continuation of the same line, spell it `line(len)` off the
-   directed point — no junction exists there; otherwise move the
-   geometry (or lower the tolerance)". The margin is a product, the
-   turn's sine levered by the shorter leg's arm, and both factors
-   ride the payload as data; the message never forks on exactly-on
-   vs in-band.
-   Within ε_input of the REVERSE direction refuses as a cusp (the
-   reverse-tangent class), and the refusal names the authoring door:
+   classifies the departure against the incoming tangent and its
+   reverse, on the turn's margin `sin φ · arm`: the turn's sine
+   levered by the shorter leg's arm (a line's length; an arc's
+   lesser of radius and chord). Outcomes: definitely-sharp proceeds;
+   a margin zero at tolerance refuses — ONE refusal, one recourse,
+   for any sub-ε_input margin (D4's two-tolerance principle). The
+   margin cannot tell a small turn from a short arm, so the refusal
+   states the turn and its lever rather than a tangency: "this
+   junction's turn, sin φ = … (cos φ = …) over the shorter leg's arm
+   of … m, is zero at tolerance. Recourse: if the angle is real,
+   lengthen the shorter leg (or grow an arc's radius); if smooth,
+   declare it: .tangent() (.tangent().tangent_arc_to(p) for an arc),
+   or line(len) for a straight continuation; otherwise move the
+   geometry". Both factors ride the payload as data; the message
+   never forks on exactly-on vs in-band.
+   A margin zero at tolerance whose cosine, levered by the same arm,
+   is definitely negative refuses as a cusp (the reverse-tangent
+   class), and the refusal names the authoring door:
    `.cusp()`, the cusp analogue of `.tangent()`, authors the
    reverse-tangent junction exactly and emits the declaration.
    Declared cusps are legal kernel geometry (D1 tier 3's
