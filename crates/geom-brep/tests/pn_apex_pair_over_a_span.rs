@@ -887,7 +887,11 @@ fn a_plane_through_the_apex_reads_its_reach_on_its_gaps_rounding() {
         Vec3::new(0.37, -0.41, 0.29) * 102.96,
     );
     let (o, n) = plane_of(&p);
-    assert_eq!((Point3::origin() - o).dot(n), 0.0, "the fixture's gap computes to zero");
+    assert_eq!(
+        (Point3::origin() - o).dot(n),
+        0.0,
+        "the fixture's gap computes to zero"
+    );
     let got = plane_cone_section(&p, &cone(axis, radial, alpha), &window(0.5, 2.0, 2.0), band);
     assert!(
         matches!(got, Err(SectionError::Escalated(_))),

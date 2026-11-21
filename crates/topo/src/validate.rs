@@ -11954,9 +11954,18 @@ mod tests {
         let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
         let len = 3000.0;
         let at = |t: f64| Point3::new(t, 0.0, 0.0);
-        let noise = geom_core::one_line::on_one_line(x, (at(0.0), at(len)), (at(len), at(2.0 * len)), 0.0).noise;
+        let noise =
+            geom_core::one_line::on_one_line(x, (at(0.0), at(len)), (at(len), at(2.0 * len)), 0.0)
+                .noise;
         let gap = noise / 2.0;
-        let got = lines_meet(at(0.0), at(len), at(len + gap), at(2.0 * len), geom_core::Vec3::new(0.0, 0.0, 1.0), band);
+        let got = lines_meet(
+            at(0.0),
+            at(len),
+            at(len + gap),
+            at(2.0 * len),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            band,
+        );
         assert!(
             matches!(got, EdgePair::Unsure(_)),
             "a gap of {gap:e} within its charge reads {:?}",

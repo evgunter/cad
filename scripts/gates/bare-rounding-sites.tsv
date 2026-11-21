@@ -48,7 +48,7 @@ crates/geom-brep/src/implicit.rs	test	4	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
 crates/geom-brep/src/pair_section/gap.rs	prod	16	re-pose
-crates/geom-brep/src/pair_section/gap.rs	test	1	oracle
+crates/geom-brep/src/pair_section/gap.rs	test	2	oracle
 crates/geom-brep/src/pair_section/ruling.rs	prod	5	re-pose
 crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose

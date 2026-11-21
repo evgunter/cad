@@ -2329,12 +2329,23 @@ mod tests {
         assert!(h.noise > 0.0, "the form carries its rounding");
         let (lo, hi) = conic_residual_extremes(&plane, &circle).unwrap();
         let swing = h.a1 + h.a2;
-        assert_eq!(lo, (h.c0 - swing) - h.noise, "the lower extreme, within its rounding");
-        assert_eq!(hi, (h.c0 + swing) + h.noise, "the upper extreme, within its rounding");
+        assert_eq!(
+            lo,
+            (h.c0 - swing) - h.noise,
+            "the lower extreme, within its rounding"
+        );
+        assert_eq!(
+            hi,
+            (h.c0 + swing) + h.noise,
+            "the upper extreme, within its rounding"
+        );
         for i in 0..256 {
             let t = core::f64::consts::TAU * f64::from(i) / 256.0;
             let f = implicit_residual(&plane, geom::Conic::point_at(&circle, t));
-            assert!(lo <= f && f <= hi, "the residual {f} at {t} past [{lo}, {hi}]");
+            assert!(
+                lo <= f && f <= hi,
+                "the residual {f} at {t} past [{lo}, {hi}]"
+            );
         }
     }
 
