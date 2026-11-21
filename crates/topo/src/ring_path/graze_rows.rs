@@ -349,10 +349,8 @@ fn steep_section(
 ) -> Option<geom::Curve3<f64>> {
     let w = |v: Vec3<f64>| q[0] * v.x + q[1] * v.y + q[2] * v.z;
     let cone = geom::Surface::Cone {
-        apex,
-        axis: q[2],
+        frame: geom::Frame::new(apex, q[2], q[0]),
         half_angle: alpha,
-        u_ref: q[0],
     };
     let n = w(Vec3::new(theta.sin(), 0.0, theta.cos()));
     let o = apex + q[2] * h0;
@@ -381,23 +379,23 @@ fn split_ellipse(
 ) -> [LoopArc<f64>; 2] {
     let geom::Curve3::Ellipse(
         conic_k @ geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_7,
             ..
         },
     ) = *c
     else {
         panic!("a tilted section is an ellipse")
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_7.origin(),
+        carrier_frame_7.axis(),
+        carrier_frame_7.u_ref(),
+    );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
-            geom::Frame::new(center, axis, u_ref),
+            carrier_frame_7,
             (semi_u, semi_v),
             (v - pi, v),
             None,

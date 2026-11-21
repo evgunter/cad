@@ -117,7 +117,10 @@ fn nappe_adversaries() {
         let cones: Vec<(FaceKey, bool, Point3<f64>, Vec3<f64>)> = body
             .faces()
             .filter_map(|(k, f)| match body.face_surface(k) {
-                Some(&Surface::Cone { apex, axis, .. }) => Some((k, f.sense, apex, axis)),
+                Some(&Surface::Cone { frame, .. }) => {
+                    let (apex, axis) = (frame.origin(), frame.axis());
+                    Some((k, f.sense, apex, axis))
+                }
                 _ => None,
             })
             .collect();

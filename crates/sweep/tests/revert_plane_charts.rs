@@ -275,9 +275,7 @@ fn insert_voids_takes_the_reverted_drum_cavity() {
 /// given chart image, built through the Euler door alone.
 fn plane_face_with(image: Pcurve<f64>, carrier: Curve3<f64>, t0: f64, t1: f64) -> Body<f64> {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let mut body = Body::<f64>::new();
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));

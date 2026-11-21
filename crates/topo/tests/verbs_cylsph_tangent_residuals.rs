@@ -27,19 +27,15 @@ use geom_core::{Band, Point3, Tol, Vec3};
 /// A z-axis cylinder of radius `r` through `origin`.
 fn cyl(origin: Point3<f64>, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(origin, Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn sph(center: Point3<f64>, r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 

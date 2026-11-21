@@ -41,10 +41,11 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
             }
             Curve3::Ellipse(
                 ellipse @ geom::Ellipse {
-                    frame: geom::Frame { axis, .. },
+                    frame: carrier_frame,
                     ..
                 },
             ) => {
+                let axis = carrier_frame.axis();
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 ellipses += 1;
                 assert!(
@@ -57,7 +58,10 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                     .find_map(|f| {
                         let s = out.body.face_surface(*f)?;
                         match *s {
-                            geom::Surface::Cylinder { axis, .. } => Some(axis),
+                            geom::Surface::Cylinder { frame, .. } => {
+                                let axis = frame.axis();
+                                Some(axis)
+                            }
                             _ => None,
                         }
                     })

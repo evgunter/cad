@@ -1103,9 +1103,10 @@ fn section_reach<T: Decide>(
     let p = body.resolve_vertex_point(at, Proven);
     let uncovered = |_| uncovered(face);
     Ok(match wall {
-        geom::Surface::Cylinder { axis, .. } => {
+        geom::Surface::Cylinder { frame, .. } => {
+            let axis = frame.axis();
             let (below, above) =
-                crate::cover::face_axial_range(body, face, p, *axis, band).map_err(uncovered)?;
+                crate::cover::face_axial_range(body, face, p, axis, band).map_err(uncovered)?;
             SectionReach::Cylinder(WallReach {
                 at: p,
                 below,
@@ -1544,9 +1545,9 @@ impl<T: Real> SectionCurve<T> {
     /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.conic().frame().u_ref,
+            Self::Conic(c) => c.conic().frame().u_ref(),
             Self::Oval(o) => match o.carrier {
-                geom::Curve3::Spiric { axis, .. } => axis,
+                geom::Curve3::Spiric { frame, .. } => frame.axis(),
                 _ => unreachable!(
                     "{:?} is the spiric an oval is built of, and a spiric's axis lies in its \
                      plane",
@@ -1811,12 +1812,12 @@ fn plane_wall_case<T: Decide>(
     // each served row decides its circles' own displacement off the cut
     // beside its position datum, at any lever.
     if let geom::Surface::Torus {
-        center,
-        axis,
+        frame,
         major_radius,
         ..
     } = *wall
     {
+        let (center, axis) = (frame.origin(), frame.axis());
         let SectionReach::Torus(reach) = reach else {
             return Err(invariant(
                 "a torus wall's chord reached the section table with no reach measured of the \
@@ -2527,11 +2528,7 @@ fn chord_spec<T: Decide>(
                 Some(k) => k,
                 None => {
                     let k = body.add_surface(geom::Surface::Plane {
-                        origin: ctx.origin,
-                        normal: ctx.normal.get(),
-                        // Honest u_ref: the ruling direction lies in
-                        // the plane by the tangency classification.
-                        u_ref: ruling_hat,
+                        frame: geom::Frame::new(ctx.origin, ctx.normal.get(), ruling_hat),
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -2604,9 +2601,7 @@ fn chord_spec<T: Decide>(
         Some(k) => k,
         None => {
             let k = body.add_surface(geom::Surface::Plane {
-                origin: ctx.origin,
-                normal: ctx.normal.get(),
-                u_ref: conic.in_plane(),
+                frame: geom::Frame::new(ctx.origin, ctx.normal.get(), conic.in_plane()),
             });
             ctx.plane_key = Some(k);
             k
@@ -3736,17 +3731,15 @@ struct WallChart<T: geom_core::Real> {
 /// kind.
 fn wall_chart<T: Real>(surface: &geom::Surface<T>) -> Option<WallChart<T>> {
     match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Some(WallChart {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        }),
+        geom::Surface::Cylinder { frame, radius } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Some(WallChart {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            })
+        }
         _ => None,
     }
 }
@@ -5859,7 +5852,10 @@ fn face_plane_normal<T: Decide>(
         .map(|f| f.surface())
         .ok_or_else(|| corrupt_face(face))?
     {
-        geom::Surface::Plane { normal, .. } => Ok(*normal),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Ok(normal)
+        }
         _ => Err(JoinError::SectionInvariant {
             face,
             what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
@@ -6069,10 +6065,8 @@ mod side_ladder_rows {
         use geom_core::{Point3, Vec3};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let quadric = Quadric::of(&cylinder).unwrap();
         let ends = (Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.5));
@@ -6183,10 +6177,8 @@ mod tests {
             seed.face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -6222,15 +6214,11 @@ mod tests {
         // surface nothing references yet is an orphan.
         let seed = body.mvfs(carrier.eval(t0), true).unwrap();
         let cyl = body.add_surface(geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         });
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         });
         let made = body
             .mev(
@@ -6276,10 +6264,12 @@ mod tests {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
-                        origin: Point3::origin() + axis * along,
-                        axis,
+                        frame: geom::Frame::new(
+                            Point3::origin() + axis * along,
+                            axis,
+                            Vec3::unit_x(),
+                        ),
                         radius: 1.0,
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },
@@ -6334,10 +6324,8 @@ mod tests {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
-                        origin: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         radius: 1.0,
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },
@@ -6402,10 +6390,8 @@ mod tests {
             seed.face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -6515,10 +6501,8 @@ mod tests {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Cylinder {
-                        origin: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         radius: r,
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },
@@ -6657,9 +6641,7 @@ mod tests {
             .expect("a second corner");
         let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
         let plane = geom::Surface::Plane {
-            origin: base,
-            normal,
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(base, normal, Vec3::unit_x()),
         };
         let wall = crate::test_support_fixtures::CylFrame::canonical(r).surface::<f64>();
         let (below, above) =
@@ -6720,10 +6702,8 @@ mod tests {
             seed.face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -6731,9 +6711,7 @@ mod tests {
         .unwrap();
         let cyl = body.get_face(seed.face).unwrap().surface;
         let rim_plane = body.add_surface(geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         });
         let quarter = core::f64::consts::FRAC_PI_2;
         body.mev(
@@ -6800,10 +6778,8 @@ mod tests {
             seed.face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: r,
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },
@@ -7160,27 +7136,33 @@ mod section_case_pair_tests {
 
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.5),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
     fn cylinder() -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -7932,10 +7914,8 @@ mod cone_window_rows {
     fn a_cone_walls_window_holds_its_face() {
         let band = Band::linear(Tol::witness()).unwrap();
         let cone = geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         for (u1, (z0, z1)) in [
             (1.0, (0.5, 1.0)),

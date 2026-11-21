@@ -69,17 +69,8 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
         }
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radius = circle.radius();
             let w = q - center;
             let h = w.dot(axis);
@@ -2445,12 +2436,12 @@ fn circles_on_one_sphere_meet_at_the_certified_scalar() {
         };
         let radius = conic_k.radius();
         let v = |v: Vec3<f64>| Vec3::new(i(v.x), i(v.y), i(v.z));
-        let o = frame.origin;
+        let o = frame.origin();
         Curve3::circle(
             Point3::new(i(o.x), i(o.y), i(o.z)),
-            v(frame.axis),
+            v(frame.axis()),
             i(radius),
-            v(frame.u_ref),
+            v(frame.u_ref()),
         )
     };
     let mid = |x: Interval| geom::bracket_mid((geom_core::Bounds::lo(x), geom_core::Bounds::hi(x)));
@@ -3113,6 +3104,36 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
     }
 }
 
+/// **A segment across both branches of a thin ellipse, its one crossing
+/// of the plane between them, is never read as one meeting.** An
+/// ellipse of semi-axes `1` and `b = 4·10⁻⁴` m in the `z = 0` plane, and a
+/// segment along `y` through its centre rising `2·10⁻⁶` per metre: it
+/// crosses the plane once, at the centre, and passes `±8·10⁻¹⁰` m from
+/// the two branches, `2b` apart, inside the zero band of both. The ball of
+/// `ℓ + e` about the crossing, `ℓ = 5·10⁻³` m, holds both branches, which
+/// lie `2` m apart along the ellipse: the window's second carrier read as
+/// an arc from the polished pair is not its chord. The pair meets twice
+/// or refuses, in either order.
+#[test]
+fn a_segment_across_both_branches_of_a_thin_ellipse_is_never_one_meeting() {
+    let b = 4e-4;
+    let thin = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, b);
+    let across = line([0.0; 3], [0.0, 1.0, 2e-6]);
+    let (sa, sb) = (
+        Span::new(&across, (-1e-2, 1e-2)),
+        Span::new(&thin, (-PI, PI)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sa, &sb, band())),
+        ("ellipse first", meet(&sb, &sa, band())),
+    ] {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.len() < 2),
+            "{order}: fewer than two meetings read: {got:?}"
+        );
+    }
+}
+
 /// **A segment across a thin ellipse's vertex meets it at a root, not at
 /// the extreme between its two.** Two ellipses of semi-axes `~10⁻⁴` and
 /// `~10⁻⁸` m, and a segment nearly in the ellipse's plane, `h` over it,
@@ -3372,5 +3393,220 @@ fn a_touch_parted_about_its_roots_in_the_band_escalates() {
             matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
             "{order}: escalates: {got:?}"
         );
+    }
+}
+
+/// The dense probe's draws 4009 and 3534: an ellipse, thin enough that its
+/// two branches near the vertex lie within the zero band of each other, a
+/// segment over it, and the ellipse's span starting where the segment
+/// passes its lower branch. The parameters are `(a, b, tp, h, ψ, slope)`,
+/// the segment's span, the ellipse's and the band's escalation; the band's
+/// zero is `10⁻⁹`.
+type EndBeside = ((f64, f64, f64, f64, f64, f64), (f64, f64), (f64, f64), f64);
+
+const ENDS_BESIDE: [EndBeside; 2] = [
+    (
+        (
+            2.787_675_995_494_126_4e-4,
+            2.652_877_017_520_002e-9,
+            0.017_491_853_781_884_382,
+            3.983_433_183_545_985_3e-10,
+            5.543_433_140_289_637,
+            3.636_210_170_338_833_8e-6,
+        ),
+        (-4.404_556_639_837_989_4e-5, 4.000_262_738_647_992e-5),
+        (-0.017_214_096_000_831_052, 0.237_233_763_601_089_75),
+        1.141_210_283_307_668e-9,
+    ),
+    (
+        (
+            3.028_392_812_942_928_7e-5,
+            1.051_763_246_728_499_9e-10,
+            -0.080_179_951_251_481_8,
+            5.167_982_586_682_236e-10,
+            3.157_872_755_428_347_2,
+            2.510_686_135_774_541_7e-5,
+        ),
+        (-1.936_647_351_942_556_5e-5, 5.923_051_467_095_790_4e-6),
+        (-0.556_556_645_285_915_6, 0.072_380_780_941_249_42),
+        1.000_476_734_340_513_8e-9,
+    ),
+];
+
+/// **A root's meeting beside a span end's meeting is never dropped.** The
+/// two draws of [`ENDS_BESIDE`]: the ellipse's span starts within the zero
+/// band of the segment, the end's meeting, and the residual's root on the
+/// other branch, `1.4·10⁻⁹` m from it past the escalation, is a second
+/// meeting, the distance between them rising to `~10⁻⁸` m. Both roots are
+/// read (module docs, "The spans' ends, and deflation"). The root on the
+/// end's side lies just past the ellipse's span, `1.2·10⁻⁹` m from the
+/// end's meeting, outside its ring. It reads its gap in the band
+/// (`curve_carrier_gap`, draw 4009), or its place past the span against a
+/// gap read zero (`curve_pair_meet_window_contact`, draw 3534), and the
+/// pair refuses. Never fewer than two meetings, in either order. Red where
+/// the found end meeting is taken for a root and its reflection
+/// `2θ_hi − θ_J` offered, main's deflation: that lands beside the end on
+/// the other branch and rings onto it, and one meeting is answered.
+#[test]
+fn a_roots_meeting_beside_a_span_ends_meeting_is_read() {
+    for ((a, b, tp, h, psi, slope), span_l, span_k, escalate) in ENDS_BESIDE {
+        let band = Band::new(1e-9, escalate).unwrap();
+        let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+        let l = line(
+            [a * tp.cos(), b * tp.sin(), h],
+            [psi.cos(), psi.sin(), slope],
+        );
+        let (sl, sk) = (Span::new(&l, span_l), Span::new(&k, span_k));
+        for (order, got) in [
+            ("segment first", meet(&sl, &sk, band)),
+            ("ellipse first", meet(&sk, &sl, band)),
+        ] {
+            assert!(
+                !matches!(&got, Ok(m) if m.points.len() < 2),
+                "a = {a:e}, {order}: fewer than two meetings: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A segment ending at a near tangency reads its end's meeting once.** A
+/// circle of radius `10⁻³` m and a line in its plane `10⁻¹⁴` m inside it,
+/// the segment ending over the tangency: its end meets the circle there,
+/// and the residual's two roots, `±4.5·10⁻⁹` m along, both lie within the
+/// escalation of that meeting and ring onto it. One meeting, at the end,
+/// in either order.
+#[test]
+fn a_segment_ending_at_a_near_tangency_reads_its_ends_meeting_once() {
+    let r = 1e-3;
+    let c = circle([0.0; 3], [0.0, 0.0, 1.0], r);
+    let l = line([0.0, r - 1e-14, 0.0], [1.0, 0.0, 0.0]);
+    let (sl, sc) = (
+        Span::new(&l, (0.0, 1e-4)),
+        Span::new(&c, (FRAC_PI_2 - 0.5, FRAC_PI_2 + 0.5)),
+    );
+    for (order, got) in [
+        ("segment first", meet(&sl, &sc, band())),
+        ("circle first", meet(&sc, &sl, band())),
+    ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert_eq!(m.points.len(), 1, "{order}: one meeting: {m:?}");
+        assert!(
+            m.points[0].point.x.abs() < 1e-9,
+            "{order}: at the end: {m:?}"
+        );
+    }
+}
+
+/// A segment between a thin ellipse's branches, from 3d's full review: the
+/// ellipse in `z = 0` of semi-axes `a` and `b`, ended over `(−π, π)` or
+/// endless, and the segment `o + s·d̂`, its span `(s₀, s₁)`.
+fn between_branches(
+    (a, b, endless): (f64, f64, bool),
+    (o, d, span): ([f64; 3], [f64; 3], (f64, f64)),
+    band: Band,
+) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
+    let k = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], a, b);
+    let l = line(o, d);
+    let sk = Span::new(&k, (-PI, PI));
+    let sk = if endless { sk.endless() } else { sk };
+    let sl = Span::new(&l, span);
+    [meet(&sl, &sk, band), meet(&sk, &sl, band)]
+}
+
+/// A pose for [`between_branches`]: the ellipse's semi-axes and whether
+/// its span is endless, and the segment's origin, direction and span.
+type BetweenPose = ((f64, f64, bool), ([f64; 3], [f64; 3], (f64, f64)));
+
+/// The review's segment within the zero of a thin ellipse's branch
+/// (`a = 0.108`, `b = 2.9·10⁻⁵`), its least distance `8.35·10⁻¹⁰` m.
+const BETWEEN_NEAR: BetweenPose = (
+    (0.108_414_812_545_136_91, 2.923_990_457_646_519_8e-5, false),
+    (
+        [
+            -0.047_230_398_955_089_5,
+            5.922_683_356_092_924e-6,
+            3.160_679_294_130_166_7e-10,
+        ],
+        [
+            4.773_547_637_167_243e-4,
+            0.999_999_885_742_704_6,
+            2.543_633_518_027_999e-5,
+        ],
+        (-2.952_255_572_265_591e-5, 3.866_968_497_781_044e-5),
+    ),
+);
+
+/// The review's segments across both branches of a wider ellipse
+/// (`a = 1`), each meeting it twice, the two meetings apart past the band:
+/// (i) on an endless ellipse, (ii) on an ended one.
+const BETWEEN_TWICE: [BetweenPose; 2] = [
+    (
+        (1.0, 1.084_401_731_610_84e-2, true),
+        (
+            [0.009_225_004_908_217_026, 1.347_379_850_411_214e-4, 0.0],
+            [
+                -0.201_311_626_097_252_53,
+                0.979_527_247_807_879_4,
+                3.651_219_422_512_194e-8,
+            ],
+            (-0.017_734_429_318_869_867, 0.027_055_915_598_815_886),
+        ),
+    ),
+    (
+        (1.0, 1.847_622_951_437_222_6e-2, false),
+        (
+            [-0.103_162_797_900_067_53, 0.001_209_878_119_474_769_7, 0.0],
+            [
+                0.679_150_641_167_506_5,
+                0.733_998_914_578_055_7,
+                3.128_064_322_160_38e-8,
+            ],
+            (-0.031_246_318_019_771_79, 0.038_004_926_856_199_75),
+        ),
+    ),
+];
+
+/// **A segment between a thin ellipse's branches, within the zero of one,
+/// is never read as no meeting.** [`BETWEEN_NEAR`]'s pose: the ball about
+/// the crossing holds both branches, `2b` apart in metres and half the
+/// ellipse apart in arc. The span outside the angles about the polished
+/// pair is not clear of the ball, so the arc is read as the half turn, and
+/// the basin refuses, in either order. Red with the walk off (the angles
+/// about the pair taken to hold the window): the basin passes on the near
+/// branch's curvature, and the pair is read no meeting.
+#[test]
+fn a_segment_between_a_thin_ellipses_branches_is_never_read_as_no_meeting() {
+    let (k, l) = BETWEEN_NEAR;
+    for (order, got) in ["segment first", "ellipse first"]
+        .into_iter()
+        .zip(between_branches(k, l, band()))
+    {
+        assert!(
+            !matches!(&got, Ok(m) if m.points.is_empty()),
+            "{order}: no meeting read: {got:?}"
+        );
+    }
+}
+
+/// **A segment across both branches of an ellipse is never read as one
+/// meeting.** [`BETWEEN_TWICE`]'s two poses at the bands `(10⁻⁹, 10⁻⁸)` and
+/// `(10⁻⁹, 1.05·10⁻⁹)`: two meetings, half the ellipse apart in arc, both in
+/// the ball about the crossing. The basin refuses, in either order. Red
+/// with the walk off: the basin passes, and one meeting is read for two.
+#[test]
+fn a_segment_across_both_branches_of_an_ellipse_is_never_read_as_one_meeting() {
+    for escalate in [1e-8, 1.05e-9] {
+        let band = Band::new(1e-9, escalate).unwrap();
+        for (n, (k, l)) in BETWEEN_TWICE.into_iter().enumerate() {
+            for (order, got) in ["segment first", "ellipse first"]
+                .into_iter()
+                .zip(between_branches(k, l, band))
+            {
+                assert!(
+                    !matches!(&got, Ok(m) if m.points.len() < 2),
+                    "pose {n}, escalate {escalate:e}, {order}: fewer than two meetings: {got:?}"
+                );
+            }
+        }
     }
 }

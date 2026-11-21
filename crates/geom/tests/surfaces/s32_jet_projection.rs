@@ -109,46 +109,36 @@ fn corpus() -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane",
             Surface::Plane {
-                origin: origin(),
-                normal: axis(),
-                u_ref: u_ref(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: origin(),
-                axis: axis(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
                 radius: 2.5,
-                u_ref: u_ref(),
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: origin(),
-                axis: axis(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
                 half_angle: 0.4,
-                u_ref: u_ref(),
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: origin(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
                 radius: 2.5,
-                axis: axis(),
-                u_ref: u_ref(),
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: origin(),
-                axis: axis(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
                 major_radius: 3.0,
                 minor_radius: 0.75,
-                u_ref: u_ref(),
             },
         ),
         ("nurbs", Surface::Nurbs(Arc::new(rational_patch()))),
@@ -156,18 +146,14 @@ fn corpus() -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane_degenerate",
             Surface::Plane {
-                origin: origin(),
-                normal: axis(),
-                u_ref: Vec3::zero(),
+                frame: geom::Frame::new(origin(), axis(), Vec3::zero()),
             },
         ),
         (
             "sphere_r0",
             Surface::Sphere {
-                center: origin(),
+                frame: geom::Frame::new(origin(), axis(), u_ref()),
                 radius: 0.0,
-                axis: axis(),
-                u_ref: u_ref(),
             },
         ),
     ]
