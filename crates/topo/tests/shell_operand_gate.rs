@@ -31,7 +31,8 @@ const _: fn(&AtRestBody<f64>, f64, Tol) -> Answer = shell::<AtRestBody<f64>>;
 const _: fn(&AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = topo::shell_open::<AtRestBody<f64>>;
 /// The seat's door, which hands its operand to `shell_open`.
 type Door = ShellDoor<f64>;
-const _: fn(Door, &AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer = Door::open;
+const _: fn(Door, &AtRestBody<f64>, f64, &[FaceKey], Tol) -> Answer =
+    <Door as topo::ShellDoorOf<f64>>::open;
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw`.

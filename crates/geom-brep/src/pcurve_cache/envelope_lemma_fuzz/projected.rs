@@ -20,6 +20,7 @@ use super::super::projected::{
 };
 use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
+use crate::FittedLaneOf;
 
 /// The five charts, in a random pose.
 #[derive(Clone, Copy, Debug)]
