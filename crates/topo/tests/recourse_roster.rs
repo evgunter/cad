@@ -645,7 +645,7 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
+        "surface_group.rs: read_identity#1(coaxial_margins(self.axis, circle).map(|margin| (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
     ("boolean/trace.rs: sign_as: name", FORWARDS),
