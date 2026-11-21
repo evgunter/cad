@@ -517,7 +517,11 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let tol = Tol::witness();
     let (mut session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (rim, points) = hole_rim(&index, copy);
+    let (rim, _) = hole_rim(&index, copy);
+    let (_, points) = drawn_edges(&index, copy)
+        .into_iter()
+        .find(|(id, _)| *id == rim)
+        .expect("the rim is drawn");
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)

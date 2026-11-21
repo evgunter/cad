@@ -1613,19 +1613,17 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
     within(inner.0, outer.0) && within(inner.1, outer.1)
 }
 
-/// **Where a ring's lift sits against its outer loop's.** The 24 rings
+/// **Where a ring's lift sits against its outer loop's.** The 27 rings
 /// of the reach probes' ringed faces: a spiric oval on each half of the
 /// donut's tube, ruling-and-arc and ellipse-arc rings on the pipe's
-/// half walls, an ellipse ring on the cone's half, and a tilted circle
-/// on the ball's half band.
+/// wall, an ellipse ring on the cone's half, and a tilted circle on the
+/// ball's half band.
 ///
-/// 23 sit inside the polygon their outer loop's lift draws as stored,
-/// and no other whole-period move puts them there. One does not: on
-/// ball ∖ tube the ring is one whole `Projected` circle, its lift is on
-/// the image's own branch (`u ∈ (−2.44, −0.70)`), and the outer loop's
-/// is on `u ∈ [π, 2π]`: the ring is one `u` period below, and `(1, 0)`
-/// is the one move that places it. On ball ∪ tube the same circle is
-/// two arcs and sits inside as stored.
+/// Every one sits inside the polygon its outer loop's lift draws as
+/// stored, and no other whole-period move puts it there: on the ball
+/// less the tube, as on the ball and the tube united, the ring is one
+/// whole `Projected` circle on the outer loop's own branch, `u ∈ [π,
+/// 2π]`.
 ///
 /// `Body::face_lift` answers the same move for every ring, and every
 /// sample of the ring it moves lies inside the outer loop's polygon.
@@ -1634,7 +1632,7 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
 /// a ringed face is moved by the sphere's involution, and the ball's
 /// ring and outer loop both lie between the pole rows `v = ±π/2`.
 #[test]
-fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
+fn a_ring_sits_in_its_outer_loops_polygon_as_stored() {
     let mut sample = donut_and_bar();
     sample.extend(tube_on_ball());
     sample.extend(pipe_and_bars());
@@ -1655,15 +1653,14 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         ring_table(&rings)
     );
     for r in &rings {
-        let displaced = r.body == "the tube on the ball, B ∖ A";
-        let want = if displaced { (1, 0) } else { (0, 0) };
+        let want = (0, 0);
         assert_eq!(
             (
                 r.places.as_slice(),
                 hull_within(r.ring_hull, r.outer_hull),
                 &r.door
             ),
-            (&[want][..], !displaced, &Ok((want, true))),
+            (&[want][..], true, &Ok((want, true))),
             "{} ring {}: the one move that places it, whether it is inside as stored, and \
              the door's move and whether the ring it moved is inside\n{}",
             r.body,
@@ -1687,18 +1684,18 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
             );
         }
     }
-    let displaced = rings
+    let held = rings
         .iter()
         .find(|r| r.body == "the tube on the ball, B ∖ A")
         .expect("the ball less the tube holds a ring");
-    let (u, o) = (displaced.ring_hull.0, displaced.outer_hull.0);
+    let (u, o) = (held.ring_hull.0, held.outer_hull.0);
     assert!(
-        displaced.forms == ["Projected"]
-            && u.0 < -2.4
-            && u.1 < -0.7
+        held.forms == ["Projected"]
+            && u.0 > PI - MEET
+            && u.1 < TAU + MEET
             && (o.0 - PI).abs() < MEET
             && (o.1 - TAU).abs() < MEET,
-        "the displaced ring is one whole projected circle, a period below its outer loop\n{}",
+        "the ball less the tube's ring is one whole projected circle on its outer loop's branch\n{}",
         ring_table(&rings)
     );
 }

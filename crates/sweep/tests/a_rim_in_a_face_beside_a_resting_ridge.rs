@@ -319,3 +319,44 @@ fn an_edge_in_a_face_run_into_a_walls_foot_builds() {
         &OPS[..1],
     );
 }
+
+#[test]
+#[ignore = "lane probe"]
+fn zz_lane_probe_ridge_grid() {
+    let (b, rd) = (block(), ridge());
+    for (block_first, p, q) in [(true, &b, &rd), (false, &rd, &b)] {
+        let line = match topo::union(p, q, t()).unwrap() {
+            BooleanResult::Body(r) => r.body,
+            other => panic!("{other:?}"),
+        };
+        for (c, above) in [
+            ((0.3, 0.0), true),
+            ((0.3, 0.2), true),
+            ((0.3, 0.0), false),
+            ((-0.2, 0.1), false),
+        ] {
+            let tool = if above {
+                rod(c, 1.0, 0.4)
+            } else {
+                rod(c, 0.6, 0.4)
+            };
+            for (name, op) in OPS {
+                for (slot, r) in [
+                    ("tool", op(&tool, &line, t())),
+                    ("line", op(&line, &tool, t())),
+                ] {
+                    let said = match r {
+                        Ok(BooleanResult::Body(r)) => format!(
+                            "Body {} t3 {:?}",
+                            topo::test_support::pinned_volume("m", &r.body, t()).volume,
+                            topo::validate_geometric(&r.body, t()).is_ok()
+                        ),
+                        Ok(BooleanResult::Empty) => "Empty".into(),
+                        Err(e) => format!("{:?} {e:?}", e.kind()).chars().take(160).collect(),
+                    };
+                    println!("GRID bf={block_first} c={c:?} above={above} {name} {slot}: {said}");
+                }
+            }
+        }
+    }
+}
