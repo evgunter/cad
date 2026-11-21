@@ -33,7 +33,7 @@ Not checked: which of the first-wave callers a dual instantiates today, as oppos
 
 ## What is left, as of the fix pass on PR 7190 (2026-11-20)
 
-Closed since this was filed: the lane traits are sealed, and every function that takes a lane by value is declared over `Certifies` and listed by name in `scripts/gates/certification-interiors.sh` (`run_fitted_checks`, `PcurveCache::certify_fitted`, `certify_stated_bound`, `run_checks`). The gate credits a sole `CertifiedBounds` or `CertifiedEnclosure`, so a file closed that way can be listed whole.
+Closed since this was filed: the lane traits are sealed, and a function that runs with a lane in hand is declared over `Certifies` and takes the lane type (`run_fitted_checks`, `PcurveCache::certify_fitted`, `certify_stated_bound`, `run_checks`; in topo the `rederive` family, `region_carries` and `enclosed_winding_with`). `scripts/gates/certification-interiors.sh` fails any function in any crate that takes a lane by value through its holder (`impl …Of<T>`, `T::…Lane`) at a bound a dual meets; its one argued exception is `verbs`' `Shell::run_shell`, the seat's door, whose fourth argument has no values at a dual. The gate credits a sole `CertifiedBounds` or `CertifiedEnclosure`, so a file closed that way can be listed whole.
 
 Still open, and it is this row:
 

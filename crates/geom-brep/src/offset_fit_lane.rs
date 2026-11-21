@@ -207,7 +207,40 @@ impl<T: geom_core::Certifies> OffsetFitLane<T> {
 
 /// **An [`OffsetFitLane`] as a pass that runs at every scalar holds
 /// it**: the lane at a scalar that certifies, [`geom_core::NoLane`] (no
-/// values) at one that does not (`geom-core` README, DL5.3).
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed (`crate::NurbsLaneOf`'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use std::sync::Arc;
+/// use geom::{ApproxSurface, ApproxWindow, NurbsSurface, OffsetCertificate, SurfaceDescription};
+/// use geom_brep::OffsetFitError;
+/// use geom_core::Tol;
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::OffsetFitLaneOf<f64> for Mine {
+///     fn recertify(self, _a: &ApproxSurface<f64>, _t: Tol) -> Result<OffsetCertificate, OffsetFitError> {
+///         unimplemented!()
+///     }
+///     fn mint(
+///         self,
+///         _base: Arc<NurbsSurface<f64>>,
+///         _d: f64,
+///         _t: Tol,
+///     ) -> Result<Arc<ApproxSurface<f64>>, OffsetFitError> {
+///         unimplemented!()
+///     }
+///     fn remap(
+///         self,
+///         _d: &SurfaceDescription<f64>,
+///         _f: &NurbsSurface<f64>,
+///         _w: ApproxWindow,
+///         _t: Tol,
+///     ) -> Result<OffsetCertificate, OffsetFitError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
 pub trait OffsetFitLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// [`OffsetFitLane::recertify`].
     ///

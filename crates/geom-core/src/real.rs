@@ -1948,7 +1948,7 @@ pub mod bounds_allowlist {
 /// holds the line — the only door between a dual and certified code.
 /// Reopening it would be a ratified reversal of DL1 on its own
 /// evidence, never an impl someone can add in passing.
-pub trait CertifiedEnclosure: Copy {
+pub trait CertifiedEnclosure: Copy + enclosure_seal::Sealed {
     /// The bracket, or `None` if this value carries a domain violation.
     ///
     /// `Some([lo, hi])` promises both things at once: the pair brackets
@@ -1971,6 +1971,18 @@ pub trait CertifiedEnclosure: Copy {
     fn held<C: Copy + Debug + Send + Sync + 'static>(held: &<Self as Real>::Carries<C>) -> &C
     where
         Self: Real;
+}
+
+/// The seal of [`CertifiedEnclosure`], and through it of [`Certifies`]:
+/// the scalars that certify are this crate's to name, so each impl of
+/// the trait below has its line here, and no other crate can add one.
+mod enclosure_seal {
+    pub trait Sealed {}
+    impl Sealed for f64 {}
+    impl Sealed for crate::Interval {}
+    #[cfg(feature = "probe")]
+    impl Sealed for crate::k_stats::Probe {}
+    impl<T: super::CertifiedBounds> Sealed for crate::Sym<T> {}
 }
 
 /// **What a tangent-transport scalar holds where a certifying scalar
@@ -2067,8 +2079,10 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// not read it. A body that also reads a bracket names the bracket door
 /// beside it, and that read is what the [`Bounds`] scope rule asks about.
 ///
-/// Sealed, and implemented once, for every scalar that decides and has
-/// a [`CertifiedEnclosure`]: `f64`, [`crate::Interval`], `k_stats::Probe`
+/// Implemented once, for every scalar that decides and has a
+/// [`CertifiedEnclosure`], and closed because that trait is: its seal
+/// (this crate's `enclosure_seal`) names the scalars, and no crate
+/// outside can implement it, so none can make a scalar certify: `f64`, [`crate::Interval`], `k_stats::Probe`
 /// (feature `probe`) and [`crate::Sym`] over a scalar with both bracket
 /// doors. At `Sym<Sym<f64>>` it means what it means at `Sym<f64>`: the
 /// symbolic tier certifies as the scalar under it does and changes only
@@ -2105,9 +2119,9 @@ mod certifies_seal {
 }
 
 /// One roster, not two: a scalar certifies exactly when it decides and
-/// its computations answer a certified bracket ([`CertifiedEnclosure`]).
-/// The bound still grants neither: code at `T: Certifies` can name no
-/// method of either trait's bracket doors.
+/// its computations answer a certified bracket ([`CertifiedEnclosure`],
+/// which is sealed). The bound still grants neither: code at
+/// `T: Certifies` can name no method of either trait's bracket doors.
 impl<T: CertifiedEnclosure> certifies_seal::Sealed for T {}
 impl<T: crate::predicate::Decide + certifies_seal::Sealed> Certifies for T {}
 

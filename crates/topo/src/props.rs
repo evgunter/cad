@@ -6463,9 +6463,16 @@ pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
         held: &std::collections::BTreeSet<FaceKey>,
     ) -> Vec<RegionCarry<T>>;
 
-    /// A value of the walk's scalar as the interval holding it
-    /// (`Interval::from_certified`).
-    fn lift(self, x: T) -> Interval;
+    /// `crate::loop_winding::enclosed_winding_with`.
+    fn enclosed_winding(
+        self,
+        walked: &[crate::loop_winding::Step<'_, T>],
+        end: Point3<T>,
+        closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        open: bool,
+        normal: geom_core::Vec3<T>,
+        band: Band,
+    ) -> crate::loop_winding::Winding;
 }
 
 #[allow(clippy::too_many_arguments, private_interfaces)]
@@ -6508,8 +6515,16 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
         region_carries(body, c, quadrature, held, self)
     }
 
-    fn lift(self, x: T) -> Interval {
-        (self.lift)(x)
+    fn enclosed_winding(
+        self,
+        walked: &[crate::loop_winding::Step<'_, T>],
+        end: Point3<T>,
+        closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        open: bool,
+        normal: geom_core::Vec3<T>,
+        band: Band,
+    ) -> crate::loop_winding::Winding {
+        crate::loop_winding::enclosed_winding_with(self, walked, end, closing, open, normal, band)
     }
 }
 
@@ -6551,7 +6566,15 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
         match self {}
     }
 
-    fn lift(self, _x: T) -> Interval {
+    fn enclosed_winding(
+        self,
+        _walked: &[crate::loop_winding::Step<'_, T>],
+        _end: Point3<T>,
+        _closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        _open: bool,
+        _normal: geom_core::Vec3<T>,
+        _band: Band,
+    ) -> crate::loop_winding::Winding {
         match self {}
     }
 }

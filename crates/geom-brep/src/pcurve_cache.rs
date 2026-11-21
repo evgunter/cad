@@ -5372,8 +5372,10 @@ impl<T: Decide> PcurveCache<T> {
     /// hands it a construction's STATED `General` image with no
     /// derivation in front of it. An absent door is check 4's refusal,
     /// in check 4's place, so an image that fails checks 1–3 draws the
-    /// same verdict at every scalar, and no `General` cache is built
-    /// without the door, since check 4 derives its certificate.
+    /// same refusal at every scalar (`fitted_refusal_without_lane`: the
+    /// three checks run there with their decisions kept out of the
+    /// verdict log), and no `General` cache is built without the door,
+    /// since check 4 derives its certificate.
     ///
     /// # Errors
     ///
@@ -5398,7 +5400,9 @@ impl<T: Decide> PcurveCache<T> {
             |e| e,
             |_| match lane {
                 Some(lane) => lane.fitted_checks(&image, span, carrier, surface, band),
-                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+                None => Err(fitted_refusal_without_lane(
+                    &image, span, carrier, surface, band,
+                )),
             },
         )?;
         Ok(Self {
@@ -5464,7 +5468,7 @@ impl<T: Decide> PcurveCache<T> {
     /// [`PcurveCache::certify_general`] does: `None` is check 4's
     /// refusal, [`PcurveCertifyError::FittedLaneUnsupported`] naming
     /// the scalar by [`geom_core::Real::NAME`], after checks 1–3 have
-    /// run.
+    /// run (unlogged, `fitted_refusal_without_lane`).
     ///
     /// # Errors
     ///
@@ -5496,7 +5500,13 @@ impl<T: Decide> PcurveCache<T> {
                         surface,
                         band,
                     ),
-                    None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+                    None => Err(fitted_refusal_without_lane(
+                        image,
+                        (self.param_start, self.param_end),
+                        carrier,
+                        surface,
+                        band,
+                    )),
                 },
                 iso @ Pcurve::IsoLine { .. } => run_iso_checks(
                     iso,
@@ -8655,18 +8665,72 @@ fn escape<T: Real>(gap: T) -> T {
 ///    own net, a closed-form one as its enclosing net
 ///    (`crate::carrier_net`). The row reads no mate surface: an
 ///    intersection carrier's uniqueness tube is the edge's certificate
-///    (C2). `lane` is the fitted door that derives it; `None` refuses
-///    HERE ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
-///    earlier: checks 1–3 read no door, so their verdicts are the same
-///    at every scalar.
+///    (C2). `lane` is the fitted door that derives it.
+///
+/// Checks 1–3 are [`fitted_defects`], which reads no door, so a
+/// defective image draws the same refusal at every scalar; a pass that
+/// holds no lane runs them through [`fitted_refusal_without_lane`].
 pub(crate) fn run_fitted_checks<T: geom_core::Certifies>(
     image: &Arc<NurbsCurve2<T>>,
-    (t0, t1): (T, T),
+    span: (T, T),
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
     lane: crate::FittedLane<T>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let max_residual = fitted_defects(image, span, carrier, surface, band)?;
+    // ---- Check 4: the envelope, RE-DERIVED. ----
+    let hull_sup =
+        lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), span, band)?;
+    // The envelope is banded exactly as the closed-form lane's is, and
+    // for the same reason: a certificate whose own bound exceeds ε is
+    // not a certificate. It is NOT folded into `max_residual` (the
+    // sampled max and the sup bound stay separate statements).
+    envelope_verdict(hull_sup, band, || PcurveCheck::Envelope)?;
+
+    Ok(PcurveCertificate::closed(
+        CERT_SAMPLES,
+        max_residual,
+        hull_sup,
+        EnvelopeStatement::MapResidualComposite,
+    ))
+}
+
+/// **What a fitted or general row refuses at a scalar that holds no
+/// fitted lane**: its own defect where checks 1–3 find one
+/// ([`fitted_defects`]), and [`PcurveCertifyError::FittedLaneUnsupported`]
+/// where they find none, check 4 being the lane's. The checks decide as
+/// they do with a lane and their decisions are kept out of the verdict
+/// log (ledger row F47): no certificate is stated here, so no verdict
+/// of one is recorded.
+pub(crate) fn fitted_refusal_without_lane<T: Decide>(
+    image: &Arc<NurbsCurve2<T>>,
+    span: (T, T),
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> PcurveCertifyError {
+    let defects = geom_core::k_stats::unlogged("F47", || {
+        fitted_defects(image, span, carrier, surface, band)
+    });
+    match defects {
+        Err(defect) => defect,
+        Ok(_) => PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME },
+    }
+}
+
+/// **Checks 1–3 of the fitted lane**, and the greatest sample residual
+/// they read: the chart is a spline chart and no placeholder, the span
+/// runs forward, and the image meets its carrier at the shared
+/// schedule's stations. Each evaluates and decides at `T`; none reads a
+/// bracket and none builds a certificate.
+fn fitted_defects<T: Decide>(
+    image: &Arc<NurbsCurve2<T>>,
+    (t0, t1): (T, T),
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
@@ -8709,22 +8773,7 @@ pub(crate) fn run_fitted_checks<T: geom_core::Certifies>(
         band,
         &mut max_residual,
     )?;
-
-    // ---- Check 4: the envelope, RE-DERIVED. ----
-    let hull_sup =
-        lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), (t0, t1), band)?;
-    // The envelope is banded exactly as the closed-form lane's is, and
-    // for the same reason: a certificate whose own bound exceeds ε is
-    // not a certificate. It is NOT folded into `max_residual` (the
-    // sampled max and the sup bound stay separate statements).
-    envelope_verdict(hull_sup, band, || PcurveCheck::Envelope)?;
-
-    Ok(PcurveCertificate::closed(
-        CERT_SAMPLES,
-        max_residual,
-        hull_sup,
-        EnvelopeStatement::MapResidualComposite,
-    ))
+    Ok(max_residual)
 }
 
 /// The arc-rim class' sub-arc in the scalar, and its one decided

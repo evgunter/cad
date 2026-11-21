@@ -59,11 +59,20 @@
 # `bounds-allowlist.sh` reads for. A name is added there in the change
 # that declares the trait, with the declaration's path beside it.
 #
-# TWO LISTS. `CERT_FILES` holds a file whose every generic item is held.
-# `CERT_ITEMS` holds one function of a file that cannot be listed whole
-# (it also declares data a dual body holds, or passes a dual runs): the
-# `fn` of that name in that file is held, and an entry whose function is
-# no longer declared there is a red.
+# AND ONE CHECK OVER EVERY CRATE: THE LANE HELD BY VALUE. A function
+# that takes a lane type itself (`lane: QuadLane<T>`) carries the bound
+# because the type is declared over it; the compiler holds that. What
+# the compiler does not hold is the lane taken BY VALUE through its
+# holder: `lane: impl QuadLaneOf<T>` or `lane: T::QuadLane` at a bound
+# a dual meets is a function that runs with a lane in hand and is
+# well-formed at a dual. A holder is for a pass that may hold none
+# (`Option<impl …Of<T>>`, `Option<T::…Lane>`); with a lane in hand the
+# function is declared over a certifying bound and takes the lane type.
+# So in every `crates/*/src` production file, a `fn` whose signature
+# takes a holder by value and names no certifying bound fails, unless
+# it is in `CERT_HOLDER_EXCEPTIONS` with its reason. Not read: a lane
+# bound to a LOCAL after the pass asked for it (`let lane =
+# lane.ok_or(..)?`), which is a body and not a signature.
 #
 # KNOWN GAP 1: THE NAME IS NOT TIED TO A PARAMETER. `fn f<T: Decide, U:
 # Certifies>` passes with `T` unbounded, and so does a record that names
@@ -110,52 +119,28 @@ CERT_FILES=(
   # runs: an isolation in certification arithmetic and its settle.
   crates/geom-brep/src/curve_face/composite.rs
   # Importers of the `Interval` certification doors
-  # (`certification-doors.sh`'s list) whose every generic item already
-  # names a bound that keeps a dual out, or that declare none: held so
-  # the next helper written there is.
-  crates/geom-brep/src/krawczyk.rs
-  crates/geom-brep/src/pair_section/spline_implicit/curved.rs
-  crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs
-  crates/geom-brep/src/patch_carrier.rs
-  crates/geom-brep/src/pcurve_cache/speed.rs
-  crates/geom-brep/src/props/bracket.rs
-  crates/geom-brep/src/props/quad/cells.rs
-  crates/geom-brep/src/props/quad/green.rs
+  # (`certification-doors.sh`'s list) that declare a generic item and
+  # whose every one already names a bound that keeps a dual out. The
+  # importers that declare no generic item are not listed: a file with
+  # nothing to hold is no coverage.
   crates/geom-brep/src/props/rational_rim.rs
-  crates/geom-brep/src/props/trig.rs
   crates/geom-brep/src/ssi/four.rs
-  crates/geom-brep/src/ssi/node.rs
-  crates/geom-brep/src/ssi/residual.rs
   crates/geom-core/src/spline/blossom.rs
-  crates/geom-core/src/spline/compose.rs
-  crates/geom-core/src/spline/compose/patch.rs
-  crates/geom-core/src/spline/compose/tensor.rs
   crates/geom-core/src/spline/net.rs
-  crates/geom-core/src/sym/signed.rs
-  crates/geom/src/curves/second_derivative.rs
-  crates/mesh/src/chords.rs
   crates/mesh/src/nurbs_cert.rs
-  crates/step-import/src/recognize_curve.rs
 )
 
-# One function of a file that is not listed whole: `PATH FN`.
-CERT_ITEMS=(
-  # The fitted lane's four checks and the two doors that run them with
-  # the lane in hand.
-  'crates/geom-brep/src/pcurve_cache.rs run_fitted_checks'
-  'crates/geom-brep/src/pcurve_cache.rs certify_fitted'
-  'crates/geom-brep/src/pcurve_cache/stated.rs certify_stated_bound'
-  # The certifying edge doors' engine.
-  'crates/geom-brep/src/certify.rs run_checks'
-  # The interval re-derivation of a sign walk's volume, and the
-  # per-region carries.
-  'crates/topo/src/props.rs rederive'
-  'crates/topo/src/props.rs rederive_faces'
-  'crates/topo/src/props.rs shell_polygons'
-  'crates/topo/src/props.rs rederive_polygons'
-  'crates/topo/src/props.rs vertex_rings'
-  'crates/topo/src/props.rs corner_of'
-  'crates/topo/src/props.rs region_carries'
+# How a holder is spelled: a lane trait applied, or the policy's lane.
+CERT_HOLDER_RE='LaneOf<|FootOf<|DoorOf<|T::(QuadLane|RegionLane|SsiLane|FittedLane|SectionLane|ClearanceLane|OffsetFitLane|SplineFoot|ShellDoor)'
+
+# A function that takes a lane's holder by value at a bound a dual
+# meets, with the reason it may: `PATH FN`.
+CERT_HOLDER_EXCEPTIONS=(
+  # The verb seat's shell door. `Shell::run_shell` is the seat's own
+  # door at every scalar and its one use of the value is `door.open`;
+  # `verbs/tests/lane3_review_probes.rs` pins that at a dual its fourth
+  # argument has no values.
+  'crates/verbs/src/run.rs run_shell'
 )
 
 # The names that keep a dual out: the marker, each trait declared with
@@ -171,11 +156,11 @@ CERT_BOUND_NAMES=(Certifies CertifiedPolicy CertifiedBounds CertifiedEnclosure)
 gate_interior_reader() {
   local names
   names=$(gate_ere_alternation "${CERT_BOUND_NAMES[@]}")
-  CERT_NAMES_RE="(^|[^A-Za-z0-9_])(${names})([^A-Za-z0-9_]|$)" gate_record_awk -v ITEMS="${1:-}" '
+  CERT_NAMES_RE="(^|[^A-Za-z0-9_])(${names})([^A-Za-z0-9_]|$)" gate_record_awk -v HOLDERS="${1:-}" -v EXC="${2:-}" '
     BEGIN {
-      NI = split(ITEMS, rows, "\n")
-      for (k = 1; k <= NI; k++) { split(rows[k], f2, " "); IP[k] = f2[1]; IN_[k] = f2[2] }
-      if (ITEMS == "") NI = 0
+      NE = split(EXC, rows, "\n")
+      for (k = 1; k <= NE; k++) { split(rows[k], f2, " "); EP[k] = f2[1]; EF[k] = f2[2] }
+      if (EXC == "") NE = 0
       # Traits no scalar is taken through: a callback, a sequence.
       split("Fn FnMut FnOnce Iterator IntoIterator DoubleEndedIterator ExactSizeIterator", ns, " ")
       for (k in ns) NOT_A_SCALAR[ns[k]] = 1
@@ -238,6 +223,10 @@ gate_interior_reader() {
       }
       # `impl Trait` written as a type in a fn signature: an anonymous
       # type parameter. A closure trait is not one.
+      # A bound on an associated type inside an `impl Trait` argument
+      # (`impl Iterator<Item: Real>`) is a type parameter too, whatever
+      # the outer trait.
+      if (!generic && t ~ /(^|[^A-Za-z0-9_])fn[ \t]+[A-Za-z_]/ && t ~ /(^|[^A-Za-z0-9_])impl[ \t]+[A-Za-z_:]+<[^>]*[A-Za-z0-9_][ \t]*:[^:]/) generic = 1
       if (!generic && t ~ /(^|[^A-Za-z0-9_])fn[ \t]+[A-Za-z_]/) {
         sig = t
         while (match(sig, /(^|[^A-Za-z0-9_])impl[ \t]+[A-Za-z_:]+/)) {
@@ -248,18 +237,13 @@ gate_interior_reader() {
           if (!(seg[n] in NOT_A_SCALAR)) { generic = 1; break }
         }
       }
-      if (ITEMS != "") {
-        # Item mode: only the listed functions of each file, generic or not.
-        hit = 0
-        for (k = 1; k <= NI; k++) {
-          if (IP[k] != GR_FILE) continue
-          # A method taking `self` of the same name is the lane trait
-          # entry that calls the function, not the function.
-          if (t ~ ("(^|[^A-Za-z0-9_])fn[ \t]+" IN_[k] "[ \t]*\\([ \t]*&?[ \t]*(mut[ \t]+)?self([^A-Za-z0-9_]|$)")) continue
-          if (t ~ ("(^|[^A-Za-z0-9_])fn[ \t]+" IN_[k] "[ \t]*[<(]")) { SEEN[k] = 1; hit = 1 }
-        }
-        if (!hit) next
+      if (HOLDERS != "") {
+        # Holder mode: a fn signature taking a lane holder by value.
+        if (t !~ /(^|[^A-Za-z0-9_])fn[ \t]+[A-Za-z_]/) next
+        if (t !~ /[(,][ \t]*(mut[ \t]+)?[a-z_][a-z0-9_]*[ \t]*:[ \t]*(impl[ \t]+[A-Za-z_:]*(LaneOf|FootOf|DoorOf)<|T::(QuadLane|RegionLane|SsiLane|FittedLane|SectionLane|ClearanceLane|OffsetFitLane|SplineFoot|ShellDoor)([^A-Za-z0-9_]|$))/) next
         if (t ~ ENVIRON["CERT_NAMES_RE"]) next
+        for (k = 1; k <= NE; k++)
+          if (EP[k] == GR_FILE && t ~ ("(^|[^A-Za-z0-9_])fn[ \t]+" EF[k] "[ \t]*[<(]")) { USED[k] = 1; next }
         print $0
         next
       }
@@ -268,7 +252,7 @@ gate_interior_reader() {
       print $0
     }
     END {
-      for (k = 1; k <= NI; k++) if (!SEEN[k]) print "MISSING " IP[k] " " IN_[k]
+      if (HOLDERS != "") for (k = 1; k <= NE; k++) if (!USED[k]) print "STALE " EP[k] " " EF[k]
     }
   '
 }
@@ -292,25 +276,28 @@ gate() {
     gate_error "$(gate_name): a generic item in a file listed as certification code (listed above) names no bound that keeps a dual out. Write the bound that says which scalars the item means something at: T: Certifies (geom-core/src/real.rs; it grants no bracket read and needs no entry anywhere), in the generic list or the where clause; a sole T: CertifiedBounds or T: CertifiedEnclosure already passes. If the item is not certification code, it does not belong in a listed file. See crates/geom-core/README.md, DL5.3"
     exit 1
   fi
-  local -a item_files=()
-  local entry
-  for entry in "${CERT_ITEMS[@]}"; do item_files+=("${entry%% *}"); done
-  mapfile -t item_files < <(printf '%s\n' "${item_files[@]}" | sort -u)
-  gate_require_homes "$CERT_FILES_SUBJECT" "${item_files[@]}"
-  local iview ihits
-  if ! iview=$(gate_rust_code --skip-cfg-test --statements "${item_files[@]}"); then
-    gate_error "$(gate_name): the shared Rust reader could not build the statement view of the listed items' files, so what it did not match is unknown — that is not a pass"
+  # Only a file that spells a holder can hold a hit (the spelling is
+  # one token, so a wrapped signature still has it on a line), and the
+  # reader is slow over a thousand files.
+  local hview hhits
+  local -a hfiles=()
+  mapfile -t hfiles < <(grep -lE "$CERT_HOLDER_RE" "${GATE_SOURCE_FILES[@]}")
+  if [ "${#hfiles[@]}" -eq 0 ]; then
+    gate_error "$(gate_name): no crate source spells a lane holder at all — the holders were renamed or the scan is reading nothing, and neither is a pass"
     exit 1
   fi
-  ihits=$(printf '%s\n' "$iview" | gate_interior_reader "$(printf '%s\n' "${CERT_ITEMS[@]}")")
-  if [ -n "$ihits" ]; then
-    printf '%s\n' "$ihits"
-    gate_error "$(gate_name): a function listed as a certification interior (listed above) names no bound that keeps a dual out, or is no longer declared in its file (MISSING). It runs certification with a lane in hand, so it is declared over T: Certifies (geom-core/src/real.rs) and takes the lane type itself; if it moved or was renamed, move its CERT_ITEMS entry with it. See crates/geom-core/README.md, DL5.3"
+  if ! hview=$(gate_rust_code --skip-cfg-test --statements "${hfiles[@]}"); then
+    gate_error "$(gate_name): the shared Rust reader could not build the statement view of the crate sources, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  GATE_SCAN_FILES=$((${#CERT_FILES[@]} + ${#item_files[@]}))
-  GATE_SCAN_NOUN='certification file'
-  gate_ok "every generic item in the ${#CERT_FILES[@]} files listed whole, and each of the ${#CERT_ITEMS[@]} functions listed by name, names a bound that keeps a dual out"
+  hhits=$(printf '%s\n' "$hview" | gate_grep -E "$CERT_HOLDER_RE" |
+    gate_interior_reader holders "$(printf '%s\n' "${CERT_HOLDER_EXCEPTIONS[@]}")")
+  if [ -n "$hhits" ]; then
+    printf '%s\n' "$hhits"
+    gate_error "$(gate_name): a function takes a lane by value through its holder (impl …Of<T>, or the policy's T::…Lane) and names no bound that keeps a dual out (listed above), or an exception names a function that is no longer one (STALE). A function with a lane in hand runs certification: declare it over T: Certifies (geom-core/src/real.rs) and take the lane type itself, entered from the pass that holds Option<…> through the lane trait's method. A pass that may hold none takes Option<impl …Of<T>> or Option<T::…Lane>. See crates/geom-core/README.md, DL5.3"
+    exit 1
+  fi
+  gate_ok "every generic item in the ${#CERT_FILES[@]} files listed whole names a bound that keeps a dual out, and no function in any crate takes a lane by value through its holder at a bound a dual meets (${#CERT_HOLDER_EXCEPTIONS[@]} argued exception)"
 }
 
 # The clean fixture carries every listed file, each with a generic item
@@ -323,30 +310,39 @@ gate_plant_clean() {
     mkdir -p "$1/${home%/*}"
     printf 'pub fn certified<T: geom_core::Certifies>(_t: T) {}\n' > "$1/$home"
   done
-  # Each listed function, bounded, beside an unbounded neighbour the
-  # item list does not hold.
+  # Each argued exception, as its file writes it.
   local entry
-  for entry in "${CERT_ITEMS[@]}"; do
+  for entry in "${CERT_HOLDER_EXCEPTIONS[@]}"; do
     home=${entry%% *}
     mkdir -p "$1/${home%/*}"
-    [ -f "$1/$home" ] || printf 'pub fn neighbour<T: Decide>(_t: T) {}\n' > "$1/$home"
-    printf 'fn %s<T: geom_core::Certifies>(_t: T) {}\n' "${entry##* }" >> "$1/$home"
+    printf 'pub fn %s<T: DoorScalar>(door: T::ShellDoor) {}\n' "${entry##* }" >> "$1/$home"
   done
 }
 
-# The first listed item, re-declared in its file with `$2` as its bound.
-plant_item() {
-  local entry=${CERT_ITEMS[0]} home
-  home=${entry%% *}
-  printf 'pub fn neighbour<T: Decide>(_t: T) {}\n' > "$1/$home"
-  [ -z "$2" ] || printf 'fn %s<T: %s>(_t: T) {}\n' "${entry##* }" "$2" >> "$1/$home"
-  for entry in "${CERT_ITEMS[@]:1}"; do
-    [ "${entry%% *}" != "$home" ] || printf 'fn %s<T: geom_core::Certifies>(_t: T) {}\n' "${entry##* }" >> "$1/$home"
-  done
+plant_holder_impl_by_value() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'fn new_interior<T: Decide>(_lane: impl QuadLaneOf<T>) {}\n' > "$1/crates/planted/src/lib.rs"
 }
-plant_item_weaker() { plant_item "$1" Decide; }
-plant_item_gone() { plant_item "$1" ''; }
-plant_ok_item_bracket_door() { plant_item "$1" 'Certifies + CertifiedBounds'; }
+plant_holder_policy_by_value() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'fn new_interior<T: AtRestPolicy>(\n    body: &Body<T>,\n    lane: T::RegionLane,\n) {\n}\n' > "$1/crates/planted/src/lib.rs"
+}
+plant_holder_exception_gone() {
+  local entry=${CERT_HOLDER_EXCEPTIONS[0]}
+  printf 'pub fn other() {}\n' > "$1/${entry%% *}"
+}
+plant_ok_holders() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'fn pass<T: Decide>(_lane: Option<impl QuadLaneOf<T>>) {}\n'
+    printf 'fn pass2<T: AtRestPolicy>(_lane: Option<T::QuadLane>) {}\n'
+    printf 'fn interior<T: geom_core::Certifies>(_lane: QuadLane<T>) {}\n'
+    printf 'fn entry<T: Certifies>(_lane: impl QuadLaneOf<T>) {}\n'
+    printf 'fn thunk<T: Decide, L: SectionLaneOf<T>>(_lane: impl FnOnce() -> L) {}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+plant_impl_iterator_item_bound() { plant_into "$1" 'fn h(_x: impl Iterator<Item: geom_core::Real>) {}'; }
+plant_impl_intoiterator_item_bound() { plant_into "$1" 'fn h(_x: impl IntoIterator<Item: Decide>) {}'; }
 plant_impl_trait_argument() { plant_into "$1" 'pub fn helper(_t: impl geom_core::Decide) {}'; }
 plant_impl_trait_nested() { plant_into "$1" 'fn helper(_t: &geom::NurbsCurve3<impl Real>) {}'; }
 plant_ok_sole_certified_bounds() {
@@ -435,9 +431,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_method_generic_in_bounded_impl
   gate_selftest_case "$want" plant_impl_trait_argument
   gate_selftest_case "$want" plant_impl_trait_nested
-  gate_selftest_case "a function listed as a certification interior" plant_item_weaker
-  gate_selftest_case --also "MISSING" "a function listed as a certification interior" plant_item_gone
-  gate_selftest_passes "a listed function bounded beside a bracket door" plant_ok_item_bracket_door
+  gate_selftest_case "$want" plant_impl_iterator_item_bound
+  gate_selftest_case "$want" plant_impl_intoiterator_item_bound
+  gate_selftest_case "takes a lane by value through its holder" plant_holder_impl_by_value
+  gate_selftest_case "takes a lane by value through its holder" plant_holder_policy_by_value
+  gate_selftest_case --also "STALE" "takes a lane by value through its holder" plant_holder_exception_gone
+  gate_selftest_passes "a holder in an Option, a lane type at the certifying bound, a holder at the certifying bound, and a thunk that returns one" plant_ok_holders
   gate_selftest_passes "a sole certifying bracket door, on a fn and on an impl" plant_ok_sole_certified_bounds
   gate_selftest_passes "the bound in a rustfmt-wrapped where clause, beside a bracket door" plant_ok_where_clause
   gate_selftest_passes "the bound through a registered name" plant_ok_alias
@@ -446,7 +445,7 @@ gate_selftest() {
   gate_selftest_passes "a generic item under cfg(test)" plant_ok_test_code
   gate_selftest_passes "an unbounded generic item in a file that is not listed" plant_ok_unlisted_file
   gate_selftest_homes --subject "$CERT_FILES_SUBJECT" "${CERT_FILES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every listed file; fires on a fn, an impl, a struct, an enum, a trait and a type alias whose generic list holds a type parameter and whose record names no certifying bound, whether the bound is absent, weaker (Decide, Real), spread over a rustfmt where block, present only in prose, or a longer name; fires on a method that declares its own type parameter inside a bounded impl (KNOWN GAP 2) and on `impl Trait` written as a type in a signature, bare or nested; passes the bound in a where clause, through a registered name, a sole certifying bracket door, a closure parameter, lifetime-only and const-only lists, test code and unlisted files; and for the functions listed by name, fires on a weaker bound and on a function no longer declared, and passes one bounded beside a bracket door\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every listed file; fires on a fn, an impl, a struct, an enum, a trait and a type alias whose generic list holds a type parameter and whose record names no certifying bound, whether the bound is absent, weaker (Decide, Real), spread over a rustfmt where block, present only in prose, or a longer name; fires on a method that declares its own type parameter inside a bounded impl (KNOWN GAP 2) and on `impl Trait` written as a type in a signature, bare or nested; passes the bound in a where clause, through a registered name, a sole certifying bracket door, a closure parameter, lifetime-only and const-only lists, test code and unlisted files; fires on a bound on an associated type inside an `impl Trait` argument; and over every crate, fires on a lane taken by value through `impl …Of<T>` or `T::…Lane` at a bound a dual meets and on a stale exception, and passes the holder in an `Option`, the lane type, and the argued exception\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

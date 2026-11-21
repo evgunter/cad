@@ -4620,7 +4620,42 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
 
 /// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
 /// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
-/// values) at one that does not (`geom-core` README, DL5.3).
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed ([`crate::RegionLaneOf`]'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::RigidMotion;
+/// use topo::clearance::{BoundReport, Candidate, EngineRefusal, Side, Stations, Sweep, Which, Windows};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::ClearanceLaneOf<f64> for Mine {
+///     fn windows<'b>(self, _s: &Side<'b, f64>, _w: Which) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn windows_at<'b>(
+///         self,
+///         _s: &Side<'b, f64>,
+///         _w: Which,
+///         _at: Option<&RigidMotion<f64>>,
+///     ) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn sweep<W>(
+///         self,
+///         _sweep: &Sweep,
+///         _wa: &Windows<'_, f64>,
+///         _wb: &Windows<'_, f64>,
+///         _same_body: bool,
+///         _verify: impl FnMut(Candidate<'_, '_, f64>) -> Result<W, String>,
+///     ) -> BoundReport<W> {
+///         unimplemented!()
+///     }
+///     fn on_face_stations(self, _c: Candidate<'_, '_, f64>) -> (Stations, Stations) {
+///         unimplemented!()
+///     }
+/// }
+/// ```
 pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// A side's windows in its own frame.
     ///

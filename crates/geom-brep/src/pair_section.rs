@@ -2304,7 +2304,32 @@ impl SsiLane<f64> {
 
 /// **An [`SsiLane`] as a pass that runs at every scalar holds it**: the
 /// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
-/// at one that does not (`geom-core` README, DL5.3).
+/// at one that does not (`geom-core` README, DL5.3). Sealed (`NurbsLaneOf`'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_brep::{
+///     CarryError, FittedCarrier, PairSection, SectionError, SplineImplicitPose, SplinePairPose,
+/// };
+/// use geom_core::Band;
+/// #[derive(Clone, Copy, Debug)]
+/// struct Mine;
+/// impl geom_brep::SsiLaneOf<f64> for Mine {
+///     fn march(self, _s: &PairSection<f64>, _b: Band) -> Result<Vec<FittedCarrier<f64>>, CarryError> {
+///         unimplemented!()
+///     }
+///     fn spline(self, _p: SplineImplicitPose<f64>, _b: Band) -> Result<PairSection<f64>, SectionError> {
+///         unimplemented!()
+///     }
+///     fn whole(self, _p: &SplineImplicitPose<f64>, _b: Band) -> Result<PairSection<f64>, SectionError> {
+///         unimplemented!()
+///     }
+///     fn spline_pair(self, _p: SplinePairPose<f64>, _b: Band) -> Result<PairSection<f64>, SectionError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
 pub trait SsiLaneOf<T: Real>:
     crate::lane_seal::Sealed + Copy + Send + Sync + core::fmt::Debug
 {
