@@ -3525,6 +3525,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         u_off: cross(image.u_off),
         v_off: cross(image.v_off),
         v_sign: cross(image.v_sign),
+        pole: None,
     };
     let (lower, uncertified) = (certified_lower, uncertified_over);
     let knots = image.breaks.knots();
@@ -3837,14 +3838,7 @@ fn spans_of(
                 };
             };
             let controls = projected::piece_controls(twin_net, piece);
-            let (boxed, support, z, far) = projected::part_floors(&controls);
-            // The support's divisor may not certify (a chord through the
-            // axis): the box's floor stands alone then.
-            let rho = if support.is_certified() {
-                boxed.max(support)
-            } else {
-                boxed
-            };
+            let (rho, far, z) = projected::part_reach(&controls);
             let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             #[cfg(test)]
@@ -3855,23 +3849,14 @@ fn spans_of(
                 upper(far, ok),
                 (lower(z.0, ok), upper(z.1, ok)),
             );
-            let point = |x: f64| geom_core::Interval::from_bounds(x, x);
-            let meters_sup = if f_sup.is_finite()
-                && rho_lo.is_finite()
-                && rho_hi.is_finite()
-                && z.0.is_finite()
-                && z.1.is_finite()
-            {
-                meters
-                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        lower(lever, true) > 0.0
-                    })
-                    // `+∞` off the cone and the sheet only: on them the
-                    // apex reading always reads.
-                    .map_or(f64::INFINITY, |m| upper(m, true))
-            } else {
-                f64::NAN
-            };
+            let meters_sup = meters.part_bound(
+                f_sup,
+                (rho_lo, rho_hi),
+                z,
+                projected::ConeLocus::Nappe,
+                |lever| lower(lever, true),
+                |m| upper(m, true),
+            );
             // A Bézier part interpolates its end controls, so they are
             // its points at its ends.
             let floors = match (ok, controls.first(), controls.last()) {
@@ -4283,17 +4268,32 @@ mod limb2_memo {
     }
 
     /// The carrier and the surface rendered whole, each scalar as its
-    /// certified bracket's two ends beside the scalar's witness kind.
+    /// certified bracket's two ends beside the scalar's witness kind. An
+    /// analytic carrier is rendered datum by datum ([`Curve3::data`]),
+    /// never rebuilt at a bracket's end: an end is no stored size (a
+    /// straddling semi-axis's lower end is negative, an uncertified
+    /// one's NaN), and a conic built at one would not be a conic.
     pub(super) fn rendered<T: CertifiedBounds>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
     ) -> String {
         let (lo, hi) = (|x: T| end(x, false), |x: T| end(x, true));
+        let carrier = match carrier.data() {
+            geom::CurveData::Analytic(data) => {
+                let ends = |end: &dyn Fn(T) -> f64| {
+                    data.into_iter()
+                        .map(|(datum, value)| {
+                            (datum, value.scalars().map(end).collect::<Vec<f64>>())
+                        })
+                        .collect::<Vec<_>>()
+                };
+                format!("{:?}|{:?}|{:?}", carrier.kind(), ends(&lo), ends(&hi))
+            }
+            _ => format!("{:?}|{:?}", carrier.map_scalar(lo), carrier.map_scalar(hi)),
+        };
         format!(
-            "{:?}|{:?}|{:?}|{:?}|{:?}",
+            "{:?}|{carrier}|{:?}|{:?}",
             T::WITNESS,
-            carrier.map_scalar(lo),
-            carrier.map_scalar(hi),
             surface.map_scalar(lo),
             surface.map_scalar(hi),
         )
@@ -7137,7 +7137,8 @@ pub use geom_core::period::{BranchMiss, WalkStop};
 /// image (a lifted copy, no row: C4) meets the carrier exactly and those
 /// envelopes cannot see it. So the stored row is compared in the chart
 /// with the image the mint places over the same span
-/// ([`chart_pcurve_over`], `Placement::over`): the two chart points at
+/// ([`chart_pcurve_over_ends`], off the stored row's own pole end where it
+/// reads one; `Placement::over`): the two chart points at
 /// `t₀`, each **angle** channel's offset read past half its own period
 /// ([`Surface::angle_periods`]), `(|Δ| − p/2)⁺`, metered at the chart's sup
 /// stretch, as `(FidelityU, FidelityV)` in metres. Below half a period a
@@ -7176,7 +7177,13 @@ fn placement_terms<T: Decide>(
         return Ok((T::zero(), T::zero()));
     }
     let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
-    let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
+    // A row read off a pole end is placed against the image derived off
+    // that same end, at the parameter the row stores.
+    let pole = match stored {
+        Pcurve::Projected(image) => image.pole(),
+        _ => None,
+    };
+    let derived = chart_image(carrier, Some((t0, t1)), pole, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
         Some(p) => (d.abs() - p.half()).max(T::zero()),
@@ -8936,21 +8943,24 @@ fn run_iso_arc_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    }) = carrier
+    let Curve3::Circle(
+        circle @ geom::Circle {
+            frame:
+                geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                },
+            ..
+        },
+    ) = carrier
     else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
                    rational-quadratic reparameterization",
         });
     };
+    let radius = circle.radius();
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
@@ -9183,7 +9193,7 @@ fn run_iso_arc_checks<T: Decide>(
     // hull does not see a weight that is not `cos(h/2)`.
     let mut slack_weight = T::zero();
     for &(w, _) in &weights {
-        slack_weight = slack_weight.max(arc_rim_weight_miss(*radius, sin_half, cos_half, w));
+        slack_weight = slack_weight.max(arc_rim_weight_miss(radius, sin_half, cos_half, w));
     }
     #[cfg(test)]
     if mutants::arc_rim_weight_unpaid() {
@@ -9192,7 +9202,7 @@ fn run_iso_arc_checks<T: Decide>(
     for (_, margin) in weights {
         match decide(
             "pcurve_iso_boundary",
-            Margin::metered(margin, InfSpeed::new(*radius)),
+            Margin::metered(margin, InfSpeed::new(radius)),
             band,
         )
         .map_err(&esc)?
@@ -9217,11 +9227,11 @@ fn run_iso_arc_checks<T: Decide>(
     let vref = axis.cross(*u_ref);
     let on = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
-        *center + *u_ref * (*radius * c) + vref * (*radius * s)
+        *center + *u_ref * (radius * c) + vref * (radius * s)
     };
     let tangent = |a: T| {
         let (s, c) = (at0 + a).sin_cos();
-        let r = *radius / cos_half;
+        let r = radius / cos_half;
         *center + *u_ref * (r * c) + vref * (r * s)
     };
     let mut chat: Vec<Point3<T>> = Vec::with_capacity(2 * spans + 1);
@@ -10161,7 +10171,7 @@ pub fn chart_pcurve<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
-    chart_image(carrier, None, surface, band)
+    chart_image(carrier, None, None, surface, band)
 }
 
 /// [`chart_pcurve`] for an edge over `[t0, t1]`: the same image for
@@ -10180,12 +10190,40 @@ pub fn chart_pcurve_over<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
-    chart_image(carrier, Some((t0, t1)), surface, band)
+    chart_image(carrier, Some((t0, t1)), None, surface, band)
+}
+
+/// [`chart_pcurve_over`] for an edge whose producer states which of its
+/// ends lie on the chart's singular set (`ends`, decided where the loop
+/// walk decides those ends' joints): a conic's projected image on a sphere
+/// reads its azimuth at a pole end off the reduced radial
+/// ([`projected::PoleEnd`], [`PoleEnd::stated`]). Every other image is
+/// [`chart_pcurve_over`]'s.
+///
+/// # Errors
+///
+/// As [`chart_pcurve`].
+pub fn chart_pcurve_over_ends<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    ends: SingularEnds,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveCertifyError> {
+    chart_image(
+        carrier,
+        Some((t0, t1)),
+        PoleEnd::stated(ends, (t0, t1)),
+        surface,
+        band,
+    )
 }
 
 fn chart_image<T: Decide>(
     carrier: &Curve3<T>,
     span: Option<(T, T)>,
+    pole: Option<PoleEnd<T>>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
@@ -10236,7 +10274,7 @@ fn chart_image<T: Decide>(
         // with the class reading's cause where it was in band.
         Err(Underived::General { shown, undecided }) => match undecided {
             _ if projected::has_lane(carrier, surface) => {
-                projected::project(carrier, span, surface, band)
+                projected::project_ending(carrier, span, pole, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
                     .map_err(|refused| {
                         general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
@@ -11501,16 +11539,18 @@ fn derive_class_zero<T: Decide>(
                         Derivation::ConeRim { nappe, beta },
                     ))
                 }
-                Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: e_axis,
-                            u_ref: seam,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
+                Curve3::Ellipse(
+                    conic_k @ geom::Ellipse {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis: e_axis,
+                                u_ref: seam,
+                            },
+                        ..
+                    },
+                ) => {
+                    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
                     // the derivation). The slant is the axial height
@@ -11805,7 +11845,7 @@ fn derive_class_zero<T: Decide>(
                                 "pcurve_sphere_chart_meridian_frame",
                                 Margin::levered(
                                     d_hat.dot(along),
-                                    geom_core::Lever::curvature_radius(radius),
+                                    crate::uniform_curvature_arm(surface),
                                 ),
                                 band,
                                 |d| match d.sign {
@@ -12658,12 +12698,14 @@ fn torus_oblique_circle<T: Decide>(
     shown: incidence::Incident,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
-        &Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: c, axis: n, ..
+        &Curve3::Circle(
+            circle @ geom::Circle {
+                frame: geom::Frame {
+                    origin: c, axis: n, ..
+                },
+                ..
             },
-            radius,
-        }),
+        ),
         &Surface::Torus {
             center,
             axis,
@@ -12675,6 +12717,7 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
+    let radius = circle.radius();
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
@@ -13722,7 +13765,10 @@ mod speed;
 mod spline_incidence;
 mod stated;
 mod trig;
-pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub use projected::{
+    FramedCarrier, PoleEnd, ProjectedChart, ProjectedImage, SectorChannel, SingularEnds,
+    reads_singular_ends,
+};
 pub use speed::{NoSpeedBound, harmonic_range};
 pub(crate) use stated::{EdgeSpan, StatedDoor};
 
@@ -15114,14 +15160,14 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            })
+            ))
         };
         // Each row names its site by a word only that site's `why`
         // carries, so a row answered by a different site goes red.
@@ -16903,14 +16949,14 @@ mod limb2_memo_rows {
                             u_ref,
                         },
                     ..
-                }) => Curve3::Circle(geom::Circle {
-                    frame: geom::Frame {
+                }) => Curve3::Circle(geom::Circle::new(
+                    geom::Frame {
                         origin: center,
                         axis,
                         u_ref,
                     },
                     radius,
-                }),
+                )),
                 _ => unreachable!(),
             };
             format!(
@@ -17098,14 +17144,14 @@ mod limb2_quick_rows {
             else {
                 unreachable!()
             };
-            let c = Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            let c = Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            });
+            ));
             bits(&limb2_offset_sup(
                 &c,
                 (lift(0.2), lift(2.9)),

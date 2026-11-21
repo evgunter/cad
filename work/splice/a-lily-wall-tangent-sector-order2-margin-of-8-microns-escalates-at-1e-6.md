@@ -31,8 +31,8 @@ road that is has not been read.
 ## The family it belongs to
 
 It is one of three small rule-1 families on the lily at 1e-6, 26
-samples in all: `bool_ray_torus_disc` (14, `inside`),
-`tangent_sector_order2` (8, `splice`) and `bool_conic_quadric_sub_clear`
+samples in all: `line_quadric_torus_disc` (14, `inside`),
+`tangent_sector_order2` (8, `splice`) and `conic_quadric_sub_clear`
 (4, `germ`). Each margin sits a few microns from zero. At 1e-6 that is
 inside the band `(1e-6, 1e-5)`, and at 1e-9 it is definite. This is the
 case `docs/K-REPORT.md`'s M7-F1 note describes ("ε = 1e-6 has thin

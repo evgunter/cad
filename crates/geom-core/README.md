@@ -13,7 +13,7 @@ did not ask it to.
 |---|---|
 | The ring and its instantiations | `src/real.rs`, `src/dual.rs`, `src/interval.rs`, `src/sym.rs`, `src/k_stats.rs` (the `Probe` recorder) |
 | Decisions and tolerance | `src/predicate.rs`, `src/tolerance.rs`, `src/bit_identity.rs` |
-| Refusal text | `src/readable.rs` (`Readable`, the one rendering of an `f64` a refusal message interpolates) |
+| Refusal text | `src/told.rs` (`Told`, the told quantity a refusal's payload holds and a sentence quotes, and `Compared`, two of them told in their order: "A number told to a person" below), `src/readable.rs` (`Readable`, an `f64` spelled exactly, for text that must read back) |
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
 | The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |
@@ -177,14 +177,35 @@ back is sorted by what the `f64` is:
 | The `f64` is | What the code does with it |
 |---|---|
 | a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
-| a place the code chose to evaluate at: a sample, a station, a cell corner, a split | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
+| a place the code chose to evaluate at: a sample, a station, a cell corner, the point a cell is subdivided at | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
 | data built whole at `f64` | builds it at `T` |
 | a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
 
-One runtime `f64` still becomes a `T`: a solved value the result is
-built on (a root, a foot, a crossing), through `Real::from_computed`.
-Where the solve has a closed form the value stays in `T` and nothing
-re-enters.
+A solved value the result is built on (a root, a foot, a crossing) is
+not converted to `f64` and back. Where the solve has a closed form,
+the value stays in `T`. Where it does not, an `f64` search proposes a
+candidate and one door admits it: the candidate and the residual at
+`T` go in, the door runs the check that the candidate's point reads
+on within the band, and the admitted `T` or the refusal comes out. A
+caller cannot have the `T` without the residual, so what the value
+claims is what was checked: this number reads on, never that it is
+the true root. At `Sym` it is an opaque unknown and claims nothing.
+The door is bounded `Certifies` (DL5.3), so a dual cannot reach it,
+and it is the one caller of `Real::from_computed`.
+
+The door is for a value the body stores: a parameter an edge is split
+at, an end an edge is re-anchored to. A solved value that is only
+evaluated at, to decide (a normal read at a foot, an iterate of a
+search), is a place, and takes the table's row. At an enclosure scalar
+the admitted value is one number for the whole family: a parameter the
+construction states, the same for every member, with every member's
+point there checked within the band. It is not an enclosure of each
+member's own root, which lies elsewhere by up to the band over the
+sine of the crossing angle; and where the root moves farther than that
+across the box, no one number passes and the site refuses. A parameter
+solved in closed form is an enclosure of each member's own, so a
+stored parameter reads one way on an analytic carrier and the other
+on a spline.
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
 and its measurements run, and passes through decisions on its value
@@ -465,14 +486,16 @@ This section is where that rule's parts live.
   not a claim about the entity: any point is sound provided the datum
   and its lever are read at the same one, so a record that verdicts
   read from different points holds its region, not a lever.
-- **The session box** is one predicate over a body's largest
-  `|coordinate|`, read from below off its vertices' and its edges' own
-  points, never a carrier's stored terms: the box bounds each
-  coordinate (`[tolerance.units]`), so it is a cube. The finished-body
-  gate asks it, and the refusal names the operation. A body it refuses
-  has a point past the box; a curved face's interior extreme is not
-  read, so one it admits may still reach past it there
-  (`work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`).
+- **The session box** is one predicate over the region a piece of
+  geometry occupies, never a carrier's stored terms. The region is read
+  from outside as its cover, and from inside off points known to lie on
+  it. The box bounds each coordinate (`[tolerance.units]`), so it is a
+  cube. A region is in the box only where its cover is. One with a point
+  past it is refused as past the box. One whose cover alone reaches past
+  it is refused as a limit. The door at which a region comes to exist
+  asks it, before anything is decided on that region: certification asks
+  it of an edge with its ends, the finished-body gate of a body's faces,
+  and the door that stands a body by a map of that body where it stands.
 - **The Interval lane** makes an ill-posed formula loud (its
   enclosure lands in the band, which is terminal); it does not certify
   around it.

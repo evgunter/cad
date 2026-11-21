@@ -15,14 +15,14 @@ second review (r2 m-2).
 
 ## What
 
-`reduce::line_cone_roots` decides `bool_line_cone_lead` on
+`line_quadric::line_cone_roots` decides `line_quadric_cone_lead` on
 `Margin::levered(A/|dir|², L)` (`crates/topo/src/boolean/reduce.rs:3879-3882`),
 `L` the segment's length (`reduce.rs:3878`). On a short edge the lever
 is small, so the rung reads a line well off any generator as
 "parallel to a generator" and answers `Uncertain`.
 
 Measured by r2: at scale 1e-3 and ε 1e-6, 13 of 240 random sweeps
-escalate `bool_line_cone_lead`, at a margin of 6.36e-6 = `A·L` — `A`
+escalate `line_quadric_cone_lead`, at a margin of 6.36e-6 = `A·L` — `A`
 about 0.06 on a 0.1 mm edge, roughly ±15° of direction.
 `geom_brep::quartic::quadratic_roots` (`crates/geom-brep/src/quartic.rs:28`, read at `reduce.rs:3903`)
 is stable at small `A`, so the lever is the rung's, not the solve's.
@@ -36,3 +36,12 @@ speaks (a length the roots move by), not the edge's length, with a row
 of short edges at scale 1e-3 that answer and stay right.
 
 Moved from APEX to GERM on 2026-11-02, by `git mv`, when APEX merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: the ray reads this rung too (`germ/line-cone-one-rule-set`)
+
+`bool_ray_cone_lead` is retired: the point-in-solid ray reads
+`line_cone_roots` over its line's run inside the ball holding the face,
+so this rung is now both callers', levered by the run's length (an
+edge's span; twice the face's reach for a ray). An edge's lever is
+unchanged, so the short-edge refusal stands; a fix here now moves the
+ray's grazes too.

@@ -439,8 +439,8 @@ fn the_extent_on_a_steep_arc() {
             .flat_map(|a| pts.iter().map(move |b| a.distance(*b)))
             .fold(0.0, f64::max);
         let chord = from.distance(to);
-        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, (from, to)).length();
-        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, (from, to)).length();
+        let inf = geom_brep::edge_extent_inf(&arc, lo, hi).length();
+        let sup = geom_brep::edge_extent_sup(&arc, lo, hi).length();
         println!(
             "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
              inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",

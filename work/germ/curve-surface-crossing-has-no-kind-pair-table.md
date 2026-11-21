@@ -19,8 +19,8 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
   - Line uses interpolation and conic uses `splitting::conic_plane_candidates` (`crates/topo/src/splitting/classify.rs:563`).
   - Spiric and spline are refused `CrossingCarrierUnsupported`.
   - Dispatch is an Option gate, not a match.
-- **Walls:** `reduce::curved_face_arm` (`:1918`) → `conic_clearance` (`:2737`) → `wall_crossing` (`:3320`) → per-pair root finders (`line_wall_roots_of`, `line_cone_roots`, `conic_quadric_roots` at `crates/topo/src/boolean/conic_quadric/mod.rs:197`, `circle_torus_roots`, `ellipse_torus_roots`).
-  - Wildcards: `wall_crossing` `_ => Unsettled` (twice), `line_wall_roots_of` `_ => Uncertain`, `conic_quadric_roots` `_ => {}`.
+- **Walls:** `reduce::curved_face_arm` (`:1918`) → `conic_clearance` (`:2737`) → `wall_crossing` (`:3320`) → per-pair root finders (`line_quadric_roots`, `line_cone_roots`, `conic_quadric_roots` at `crates/geom-brep/src/curve_face/conic_quadric.rs`, `circle_torus_roots`, `ellipse_torus_roots`).
+  - Wildcards: `wall_crossing` `_ => Unsettled` (twice), `line_quadric_roots` `_ => Uncertain`, `conic_quadric_roots` `_ => {}`.
   - Runtime fallbacks: enclosures first, then roots, then `carrier_touch::off_face`; the dip-bound clearance, then roots; `implicit::conic_residual_extremes` harmonic, else sampled.
 - **Circle×plane is solved in about six places:**
   - `carrier_cross::circle_meets_plane`: retired (stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227));
@@ -37,7 +37,7 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
 Re-aimed to D3 "One reading per question". A curve's crossings of a surface are a pair *outcome*. One crossings reading, one exhaustive match over `(CurveKind, SurfaceKind)`, which each consumer reads. Where the crossing depends on the pair's pose (a curve lying in the surface, a tangent touch), it takes the pose reading's answer and decides no pose of its own.
 
 - Closed forms where they exist. The certified walk for spiric and spline is those arms' one method, fixed at write time, not a method reached because a closed form declined.
-- The wildcards (`wall_crossing` `_ => Unsettled`, `line_wall_roots_of` `_ => Uncertain`) become listed arms with typed refusals naming what they lack. `conic_quadric_roots`' `_ => {}` answers a default value (no roots), which D3 forbids.
+- The wildcards (`wall_crossing` `_ => Unsettled`, `line_quadric_roots` `_ => Uncertain`) become listed arms with typed refusals naming what they lack. `conic_quadric_roots`' `_ => {}` answers a default value (no roots), which D3 forbids.
 - The ladders: a stage before the method is allowed only if it is total in kind, decides the same question soundly at the same band, and cannot change the verdict by which stage decided (a box cull before exact roots). Enclosures may meet that bar. `carrier_touch::off_face` after roots, the dip-bound clearance then roots, and harmonic-else-sampled are fallbacks.
 - A consumer that serves fewer pairs (`census::point::edge_face`) matches on the reading's answer and refuses the rest typed.
 

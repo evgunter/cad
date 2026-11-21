@@ -303,15 +303,18 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n,
-                            ..
-                        },
-                    radius,
-                }) => {
+                Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame:
+                            geom::Frame {
+                                origin: center,
+                                axis: n,
+                                ..
+                            },
+                        ..
+                    },
+                ) => {
+                    let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
                         dir: s_axis,
@@ -429,6 +432,7 @@ fn mint_band(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     // The mint's whole point is D1's statement that this edge is the
@@ -556,7 +560,8 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
+        let q =
+            crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius());
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
@@ -716,6 +721,7 @@ mod tests {
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
+                curve: None,
             },
         );
         edges.insert(
@@ -732,6 +738,7 @@ mod tests {
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,
+                curve: None,
             },
         );
         let mut vertices = BTreeMap::new();

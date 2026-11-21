@@ -3130,7 +3130,7 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 ///   `CurvedPierceUnsupported`, or an escalation on the conic–quadric
 ///   reading that comes before it, at the edge and the face where the
 ///   door reads the touch in the band's gap (at `1e-9`,
-///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
+///   `conic_quadric_sub_side`; at `1e-12`, `conic_quadric_disc`).
 ///
 /// `shaft_and_bearing_ball` and `shaft_and_bearing_rounded` left this
 /// row when the join's carried lane came to chord a coaxial pair's
@@ -3154,7 +3154,8 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     refused(crate::corpus::cone_on_sphere::document(), &|e| {
         matches!(e, B::CurvedPierceUnsupported { .. })
             || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
-                if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
+                if diag.predicate.is_some_and(|p| p.starts_with("conic_quadric_")
+                    && !p.starts_with("conic_quadric_cone_")))
     });
 }
 
@@ -3793,25 +3794,8 @@ fn tag(var: VarId) -> String {
 ///
 /// Red if the edit is chosen by cell order, or names a pose no mate
 /// reaches.
-///
-/// Pinned red at every ε row: the union refuses `RingHomingAmbiguous`
-/// (`work/sect/a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path.md`).
 #[test]
 fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the housing, shaft and collar union",
-        &[
-            "evaluates",
-            "UnionFoldStep { member: 2",
-            "RingHomingAmbiguous { ring: LoopKey(1v3) }",
-        ],
-        the_axis_edit_rows,
-    );
-}
-
-fn the_axis_edit_rows() {
     use crate::corpus::{Recorder, placed_in, revolved};
     use editor_core::{Coord, Dimension, Operand, TargetAxis};
     let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {

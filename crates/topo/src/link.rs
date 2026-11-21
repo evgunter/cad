@@ -243,15 +243,17 @@ pub(crate) mod metric {
         /// the leading Taylor term of its point's distance from the face
         /// at arc length `arm`, not that distance itself, `bend` its bend
         /// past the face's normal section along it
-        /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound a
-        /// slack tied: the point's distance to second order.
+        /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound
+        /// tied with a first order the band decided, a slack hiding it or
+        /// the curvature charge refusing it
+        /// ([`crate::bound_side::TiedBy`]): the point's distance to second
+        /// order.
         pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> Self {
             Self(match d {
                 Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
-                Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
                 Departure::Jet(dir, bend) => {
-                    geom_brep::rise(dir, n, arm).value()
-                        + geom_brep::parting(bend, n, arm.length()).value()
+                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
                 }
                 Departure::Charge { slope, lever } => {
                     crate::bound_side::sagitta_charge(slope, lever, arm.length())
@@ -285,7 +287,8 @@ pub(crate) mod metric {
         /// Its bend past the face's normal section along it, one order down.
         Parted(Vec3<T>),
         /// Its direction and its bend: the rise and the parting together,
-        /// for a bound whose first order a slack hid.
+        /// for a bound whose first order the band decided and a slack hid
+        /// or the curvature charge refused.
         Jet(Vec3<T>, Vec3<T>),
         /// Its tangent ray's least separation from a curved face within
         /// the reach `arm`, the ray leaving at `slope` (a sine) past a
@@ -7119,7 +7122,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
-                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),"
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
             ),
             "`Distance::departure` is a first-order rise or a second-order parting, and \
              nothing else"
@@ -7127,15 +7130,14 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Jet(dir, bend) => {\n                    \
-                 geom_brep::rise(dir, n, arm).value()\n                        \
-                 + geom_brep::parting(bend, n, arm.length()).value()"
+                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
             ),
             "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
         );
         // A bound's side of a face is decided at the metric's door at both
         // orders: no gate of its own in the first order or the descent.
         let bound_side = include_str!("bound_side.rs");
-        for anchor in ["\nfn first_order_as<", "\n    pub(crate) fn descend("] {
+        for anchor in ["\nfn first_order_as<", "\n    fn read_down("] {
             let reading = item(bound_side, anchor);
             for needle in [
                 "decide(",

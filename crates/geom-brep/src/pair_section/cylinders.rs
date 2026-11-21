@@ -480,6 +480,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
             gap: pick(gap, T::zero() - gap),
             cos: axis.dot(partner),
             beta: partner.dot(v),
+            lever: crate::uniform_curvature_arm(&self.first)
+                .min(crate::uniform_curvature_arm(&self.second)),
         })
     }
 
@@ -847,7 +849,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     pose: CylinderCylinderPose<T>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
-    let [r1, r2] = pose.radii;
+    let [r1, _] = pose.radii;
     let axis = pose.lines[0].dir;
     let mut decided = Vec::new();
     let component = SectionComponent::closed_form;
@@ -1054,7 +1056,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         Components::Marched | Components::Reaching(_) => Vec::new(),
     };
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(r1).min(geom_core::Lever::curvature_radius(r2)),
+        lever: crate::uniform_curvature_arm(&pose.first)
+            .min(crate::uniform_curvature_arm(&pose.second)),
         nodes,
         node_sets,
         pose: PairPose::CylinderCylinder(pose),

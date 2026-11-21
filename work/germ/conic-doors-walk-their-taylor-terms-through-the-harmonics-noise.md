@@ -23,7 +23,7 @@ field, so this list is complete:
 |---|---|---|
 | `geom_brep::curve_face::circle_torus::circle_torus_roots` | `rounding_charge(h.terms)`, `~ρ⁴` | fixed (`geom_brep::conic_torus_jet`) |
 | `geom_brep::curve_face::ellipse_torus::torus_walk` | `rounding_charge(h.terms)` from `conic_torus_harmonics`, `~ρ⁴` | **open**: the same shape; `conic_torus_jet` already reads any conic (its unit row covers ellipses and a skewed frame), so the fix is `jet: Some(&…)` there, plus an oracle sweep of ellipses against the torus at the three ε |
-| `topo::boolean::conic_quadric::ladder_frame` (a conic tilted to a wall, an ellipse against a sphere) | `rounding_charge(h.terms) / h.per`, `~ρ²` | **open**: the ρ = 1500 circle tilted to a unit wall of `circle-torus-meters-accept-an-unreadable-reading` is this pose; a quadric jet (`S`, `S′`, … of `|⊥q|²`) would read it at the point. Unmeasured how many refusals it would turn |
+| `geom_brep::curve_face::conic_quadric::ladder_frame` (a conic tilted to a wall, an ellipse against a sphere) | `rounding_charge(h.terms) / h.per`, `~ρ²` | **open**: the ρ = 1500 circle tilted to a unit wall of `circle-torus-meters-accept-an-unreadable-reading` is this pose; a quadric jet (`S`, `S′`, … of `|⊥q|²`) would read it at the point. Unmeasured how many refusals it would turn |
 | `topo::boolean::section_cert::ruling` (`roots`) | `rounding_charge(t1² + 4·t2·t0)` | not measured: a ruling's quadratic, whose terms are the chart's own; no evidence of a far-centred expansion |
 | `geom_brep::curve_pair::pose::coplanar_ellipse_circle` | the pair's harmonics | not measured, as above |
 | `geom_brep::curve_pair::pose::coplanar_ellipses` | `rounding_charge(terms)` of the level polynomial | not measured, as above |

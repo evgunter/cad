@@ -653,7 +653,7 @@ fn nearest<T: Decide>(
 /// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
 /// reads: its Zero refuses and its Positive certifies the crossing. The
 /// torus's axis fork (`pt_axis_in_plane`) acts on its Zero (a meridian
-/// or spiric pose) and refuses on a definite tilt, so it reads the old
+/// or spiric pose) and refuses on any other tilt, so it reads the old
 /// edge's extent from above ([`geom_brep::edge_extent_sup`]). The cone
 /// and cylinder are handed both bounds ([`geom_brep::LeverBounds`]):
 /// their parallelism and coaxial swing act on a Zero and read the bound
@@ -669,7 +669,7 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, (old.eval(span.0), old.eval(span.1)));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -1590,14 +1590,14 @@ mod square {
         };
         let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
         let circle = |center, axis, radius, u_ref| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame {
                     origin: center,
                     axis,
                     u_ref,
                 },
                 radius,
-            })
+            ))
         };
         let cylinder = Surface::Cylinder {
             origin: o,

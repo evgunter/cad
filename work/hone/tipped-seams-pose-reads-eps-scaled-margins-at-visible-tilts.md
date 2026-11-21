@@ -20,10 +20,10 @@ at tilts the user can see, on margins of a few ε:
 
 | θ | ε | refusal | predicate | margin |
 |---|---|---|---|---|
-| 1e-4 | 1e-9 | `ArcCylinderRoots` | `bool_conic_quadric_odd` | −8.28e-9 |
+| 1e-4 | 1e-9 | `ArcCylinderRoots` | `conic_quadric_odd` | −8.28e-9 |
 | 1e-3 | 1e-9, 1e-6, 1e-12 | `PierceCurvature` | | |
-| 1e-2 | 1e-9 | `ArcCylinderRoots` | `bool_conic_quadric_split_lead` | 2.487e-9 |
-| 1e-2 | 1e-6 | `ArcCylinderRoots` | `bool_conic_quadric_split_lead` | 4.093e-6 |
+| 1e-2 | 1e-9 | `ArcCylinderRoots` | `conic_quadric_split_lead` | 2.487e-9 |
+| 1e-2 | 1e-6 | `ArcCylinderRoots` | `conic_quadric_split_lead` | 4.093e-6 |
 | 1e-2 | 1e-12 | `GermFrameUnsupported` | | |
 
 The margins hold to 1e-17 under three rigid motions of the whole pose

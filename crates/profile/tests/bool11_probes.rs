@@ -260,6 +260,7 @@ fn the_on_ray_check_is_banded_on_both_sides() {
     let refused = attempt(100.0 * eps_input);
     match refused {
         Err(PathError::ContinuationTargetOffRay { across, along }) => {
+            let (across, along) = (crate::common::told(&across), crate::common::told(&along));
             assert!((across - 100.0 * eps_input).abs() <= f64::EPSILON * across.abs().max(1.0));
             assert!(
                 (along - 1.0).abs() < 1e-6,
@@ -356,7 +357,9 @@ fn a_target_behind_the_departure_is_a_nonpositive_leg() {
         .unwrap()
         .continue_to(Point2::new(0.5, 0.0), t);
     match behind {
-        Err(PathError::NonpositiveLeg { length }) => assert!(length < 0.0),
+        Err(PathError::NonpositiveLeg { length }) => {
+            assert!(crate::common::told(&length) < 0.0);
+        }
         other => panic!("a target behind the departure must refuse: {other:?}"),
     }
 }
@@ -565,6 +568,7 @@ fn a_runs_misses_are_read_against_its_own_line_and_never_sum() {
     let off = (2.0 * t.k()).ceil() + 1.0;
     match first.continue_to(Point2::new(1.0 + off, off * bias), t) {
         Err(PathError::ContinuationTargetOffRay { across, .. }) => {
+            let across = crate::common::told(&across);
             assert!(
                 (across - off * bias).abs() < eps,
                 "read off the run's line: {across:e}"
