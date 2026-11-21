@@ -4157,6 +4157,11 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
 /// two parametrizations may differ; the reading never maps one onto the
 /// other ([`continues`]).
 fn one_conic(e: &Rim, o: &Rim) -> bool {
+    if std::env::var_os("OP_OFF").is_some()
+        && let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
+    {
+        return op_old_stated_conic(se, so);
+    }
     if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
         && one_stated_conic(se, so)
     {
@@ -4220,7 +4225,7 @@ fn coplanar(e: &Rim, o: &Rim) -> bool {
     lifted(e)
         .zip(lifted(o))
         .is_some_and(|(f, g)| one_plane(f, g))
-        || stated(e)
+        || std::env::var_os("OP_OFF").is_none() && stated(e)
             .zip(stated(o))
             .is_some_and(|(f, g)| one_stated_plane(&f, &g))
 }
@@ -13758,5 +13763,21 @@ mod presentation_rows {
             None,
             "the shared edge's far end"
         );
+    }
+}
+
+fn op_old_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
+    let same =
+        |a: Vec3<f64>, b: Vec3<f64>| (Point3::origin() + a).equals_exactly(Point3::origin() + b);
+    let line = |a: Vec3<f64>, b: Vec3<f64>| same(a, b) || same(a, -b);
+    let plane = |f: &geom::Frame<f64>, g: &geom::Frame<f64>| {
+        f.origin().equals_exactly(g.origin()) && line(f.axis(), g.axis())
+    };
+    match (e, o) {
+        (Curve3::Circle(a), Curve3::Circle(b)) => plane(&a.frame, &b.frame) && a.radius() == b.radius(),
+        (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
+            plane(&a.frame, &b.frame) && line(a.frame.u_ref(), b.frame.u_ref()) && a.semi_u() == b.semi_u() && a.semi_v() == b.semi_v()
+        }
+        _ => false,
     }
 }
