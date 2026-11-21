@@ -927,6 +927,8 @@ tiers".
   constant ([tolerance.measure]) counts only what that finish asks: it
   is a backstop against an ask that would not end, not a bound on a
   body, so a carried fact costs it nothing and keeps no count.
+  The embedding question ends at its first finding, a verified crossing
+  or a refusal, and that is its finding.
   Its refusal is the list of what it found, every finding
   kept, none folded into another: each finding belongs to a family
   (the decision or check that made it), and a family's findings share
