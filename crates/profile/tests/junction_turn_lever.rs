@@ -153,19 +153,20 @@ fn the_same_turn_escalates_at_three_eps_and_builds_at_fifty() {
 #[test]
 fn a_near_zero_turn_on_a_long_leg_is_refused_with_a_recourse_that_fits() {
     let tol = Tol::witness();
+    let sin_turn = 0.1 * tol.eps();
     let leg = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(1.0, 0.0), tol)
         .expect("a metre east");
     let err = leg
         .clone()
-        .toward(1.0, 1e-10, tol)
-        .expect_err("a turn of 1e-10 over a metre is zero at tolerance");
+        .toward(1.0, sin_turn, tol)
+        .expect_err("a turn of ε/10 over a metre is zero at tolerance");
     let PathError::JunctionTurnWithinTolerance { turn } = &err else {
         panic!("expected the turn-within-tolerance refusal, got {err:?}")
     };
     let shown = err.to_string();
-    assert_names_its_factors("junction", turn, &shown, [1e-10, 1.0, 1.0]);
+    assert_names_its_factors("junction", turn, &shown, [sin_turn, 1.0, 1.0]);
     assert!(
         shown.contains("if smooth, declare it: .tangent()")
             && shown.contains("or line(len) for a straight continuation"),
