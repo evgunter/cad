@@ -1,0 +1,6 @@
+fork: a loft built in T does not build at Interval where the lifted f64 skin did (scalar; unit f64-built-data-is-built-at-t, PR 7292)
+drawn: 2026-11-21T13:00:44Z
+arm byte: 78 (< 86: three designers)
+label byte: 71 (71 mod 3 = 2: Fable is C; the two Opus designers are A and B)
+A = Opus 5.5, B = Opus 5.5, C = Fable 5.2
+also recorded here for the model comparison: PR 7292 implementer (Fable 5.2, byte 159) reported ~12:58Z with no green run (10 red rows, stopped on this question): 331,127 tokens, 170 tool uses, 7,804 s.
