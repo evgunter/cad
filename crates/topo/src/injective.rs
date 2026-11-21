@@ -5941,7 +5941,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// both cells would read both signs, so it signs nothing there. It is the
 /// separator a plane through the edges cannot be: a plane face and a cone
 /// face sharing a ruling to the apex, the cone's cell about the second
-/// ruling the plane's carrier holds through the apex.
+/// ruling the plane's carrier holds through the apex. With no shared edge
+/// the presentations against the vertex are the pair's own, which
+/// [`planes_through`] has read already.
 fn at_end_vertex(near: &Near) -> Option<Near> {
     match near.vertices.as_slice() {
         [v] if !near.edges.is_empty() => Some(Near {
