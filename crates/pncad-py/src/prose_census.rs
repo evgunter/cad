@@ -1891,38 +1891,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/profile/src/path/program.rs",
-        "Refused",
-        "verb",
-        1,
-        "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
-         which the shared lexer does not expand, so its shape is unreadable",
-    ),
-    (
-        "crates/profile/src/path/program.rs",
-        "Takes",
-        "mode",
-        2,
-        "`mode` is a `for` pattern's and a closure parameter's binding over a \
-         method call's result (`forms.forms()`), which this census does not type",
-    ),
-    (
-        "crates/profile/src/path/program.rs",
-        "Takes",
-        "target",
-        1,
-        "`target` is a closure parameter over a method call's result \
-         (`forms.targets(mode)`), which this census does not type",
-    ),
-    (
-        "crates/profile/src/path/program.rs",
-        "Takes",
-        "verb",
-        2,
-        "`verb` is destructured from a tuple field (`self.0`) and is a closure \
-         parameter over `state.verbs()`, neither of which this census types",
-    ),
-    (
         "crates/topo/src/cover.rs",
         "FaceUncovered",
         "ek",
