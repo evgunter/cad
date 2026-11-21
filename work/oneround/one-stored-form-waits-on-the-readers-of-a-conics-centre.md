@@ -38,7 +38,7 @@ conic's centre as a datum. By family:
 
 | family | where | what it showed under a derived centre |
 |---|---|---|
-| an arc's cover | `Curve3::cover_over`, `crates/geom/src/cover/` | **unsound at a far centre**: at `a = 1e7` the cover's ball misses the arc's own point by 4.2e-10 m (`arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size`) |
+| an arc's cover | `Curve3::cover_over`, `crates/geom/src/cover/` | at `a = 1e7` the cover's ball misses the evaluator's point by 4.2e-10 m (`arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size`). **The ball misses the arc's TRUE point by that much on `main` already**: there the evaluator makes the cover's own 4.2e-10 error (`1e7 − 1e7·cos t`) and the row passes; under one form the evaluator is right to 6e-17 and the cover is the one left wrong (the analysis branch's `two-facts.md`) |
 | an edge's extent bound | `crates/geom-brep/src/extent.rs` | **short by an ulp**: a circle's sup 4 under the evaluated diameter 4.000000000000001 (`edge_extent_bounds`) |
 | chart-frame readers of a circle leg | `crates/topo/src/ruled_region.rs`, `torus_region.rs` | the count of queries a frame answers moves (35 → 36, 33 → 51); not shown wrong |
 | an edge's chart image | certification's check 4, `crates/geom-brep/src/certify.rs` (`pcurve_map_residual`) | a residual of an ulp of the radius where zero; a carried certificate no longer equals a fresh one |

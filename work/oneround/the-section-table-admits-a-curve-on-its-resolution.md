@@ -170,9 +170,10 @@ costs that are not a re-baseline:
    reader of the centre gets `(c + u·a) − u·a`: ten rows, among them
    four builds on the certified lane that become refusals.
 2. At `f64` a reader of the centre and the evaluator are a rounding of
-   the semi-axis apart: an arc's cover stops holding the arc's own point
-   at a far centre (4.2e-10 m at `a = 1e7`), an extent bound falls an ulp
-   short.
+   the semi-axis apart: an arc's cover and the evaluator part by 4.2e-10 m
+   at `a = 1e7` (the cover is the one that is off, and is off the true
+   arc on `main` too, where the evaluator shares its error), an extent
+   bound falls an ulp short.
 3. An arc away from the anchor's vertex on a long ellipse is summed
    across a semi-axis (6.5e-13 where a row holds 1e-14), since a door
    handed a centre has no arc to anchor on.
