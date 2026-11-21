@@ -27,7 +27,8 @@
 //!
 //! Two members are NOT refused by the guard, and each is rowed for what
 //! answers instead: a slit bounded by two COINCIDENT edges satisfies the
-//! premise and still walks to zero width
+//! premise, but its loop stores no lift for the band's columns and cannot
+//! be minted one, so it refuses before the walk opens a column
 //! (`work/tesslie/two-coincident-edges-open-two-columns-that-are-one.md`),
 //! and the sphere cut along a whole great circle is taken by a door in
 //! front of the walk. The second one first:
@@ -378,9 +379,8 @@ fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
 /// `arc_of_circle` twice, V2 / E2 / F2). Both poles are junctions, so both
 /// traversals open — two openings on two EDGE KEYS — and
 /// [`mesh::TessellateError::SingleColumnCurvedFace`]'s premise is
-/// satisfied. The two edges state the same column, so the walked domain
-/// still has zero width, and the answer is the hole this unit refuses
-/// everywhere else. The rung the guard is missing is one that can tell
+/// satisfied. The two edges state the same column, so a walk of it would
+/// have zero width. The rung the guard is missing is one that can tell
 /// two coincident edges from two distinct ones; comparing the openings'
 /// `u_raw` bitwise would do it and would need no ε, but it is a
 /// coordinate comparison and not the loop's incidence, so it is not this
@@ -399,7 +399,7 @@ fn the_one_seam_sphere_is_the_wrap_strip_once_its_rows_are_minted() {
 /// leaving along one direction has no decided width
 /// (`SingularMiss::EdgesCoincide`), so no lift exists for any lane to read.
 #[test]
-fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
+fn two_coincident_edges_have_no_lift_for_the_walk_to_read() {
     let tol = Tol::witness();
     let body = sphere_slit_on_two_coincident_edges();
     assert!(

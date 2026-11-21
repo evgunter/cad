@@ -133,6 +133,8 @@ mod newell_probes;
 mod patch_memo;
 #[path = "perf1_torus_sizing.rs"]
 mod perf1_torus_sizing;
+#[path = "placed_balls.rs"]
+mod placed_balls;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]
@@ -145,8 +147,6 @@ mod quadric_pair_sections;
 mod r1_probe_bool_route;
 #[path = "r1_probe_hash.rs"]
 mod r1_probe_hash;
-#[path = "r1_probes_issue1362.rs"]
-mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
 #[path = "r2_bool_door.rs"]
@@ -155,8 +155,6 @@ mod r2_bool_door;
 mod r2_bytes;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
-#[path = "r2_mesh1_probes.rs"]
-mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
 #[path = "r2_mesh6_probes.rs"]

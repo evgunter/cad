@@ -6112,6 +6112,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_loop",
             "folded_triangle",
             "invalid_chordal_tolerance",
+            "lifted_column_off",
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",

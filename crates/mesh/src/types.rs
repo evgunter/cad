@@ -166,6 +166,12 @@ pub enum TessellateError {
     /// stores no lift, or a ringed spline face's trim is not read in its
     /// chart. This is the lane's one refusal of a loop that does not
     /// close: the door's cause, carried whole.
+    ///
+    /// The curved lane reads the same door for a rimless loop, a wrap
+    /// strip or a pole-to-pole band, whose columns are its lift's
+    /// (`walk::wrap_strip`, `walk::band_columns`): such a face on a body
+    /// whose rows were never minted (built through the Euler doors and
+    /// not passed through `topo::mint_pcurves`) refuses here too.
     DomainUnread {
         /// The offending face.
         face: FaceKey,
@@ -686,6 +692,18 @@ pub enum TessellateError {
         /// where the face's lift holds no row for one of the two.
         turn: Option<topo::Deck>,
     },
+    /// A meridian of a pole-to-pole band whose own azimuth stands more than
+    /// a quarter turn from the column its lifted image is at
+    /// (`walk::band_columns`). The image and the azimuth read one meridian
+    /// down two float paths, so they differ by rounding and whole turns
+    /// alone; a gross residual is the body's chart rows contradicting the
+    /// edge (a wrong twin flag, an image of another edge). No door mints one.
+    LiftedColumnOff {
+        /// The refused face.
+        face: FaceKey,
+        /// The meridian edge whose image stands off it.
+        edge: EdgeKey,
+    },
 }
 
 /// Why the trimmed lane refuses a face's shape about a singular row of
@@ -1136,6 +1154,12 @@ impl TessellateError {
                      (`topo::mint_pcurves`)"
                 )
             }
+            Self::LiftedColumnOff { .. } => write!(
+                f,
+                "tessellate: a meridian of a face's pole-to-pole band stands more than a \
+                 quarter turn from where the face's stored chart image of it lies, so the \
+                 body's chart rows contradict the edge; re-mint them (`topo::mint_pcurves`)"
+            ),
         }
     }
 }

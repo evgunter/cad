@@ -110,6 +110,9 @@
 //!   read here. The lift places the BRANCH; that the band has extent at
 //!   all is [`require_two_columns`]' premise. The wrap strip walks one
 //!   edge both ways; its columns are [`wrap_strip`]'s, off the same lift.
+//!   So a rimless loop is meshed from its lift alone: one that stores
+//!   none (a body built through the Euler doors whose rows were never
+//!   minted) refuses `DomainUnread`, as on the trimmed lane.
 //!
 
 use std::collections::HashMap;
@@ -965,16 +968,16 @@ struct WrapStrip {
 /// # Errors
 ///
 /// [`TessellateError::MissingEntity`] where a key on the loop's walk does
-/// not resolve; the face's domain read's refusal
-/// ([`crate::trimmed::face_domain`]: [`TessellateError::DomainUnread`]
-/// where the loop stores no lift); and [`TessellateError::WrapStripTurn`]
-/// where the strip's lift is not one whole turn.
+/// not resolve; [`lifted_rows`]' refusal (a loop with no lift); and
+/// [`TessellateError::WrapStripTurn`] where the strip's lift is not one
+/// whole turn.
 fn wrap_strip(
     body: &Body<f64>,
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
     face: FaceKey,
+    lk: LoopKey,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -1006,13 +1009,8 @@ fn wrap_strip(
     };
     // The face's domain as the trimmed lane reads it, so a loop with no
     // lift refuses here as it does there.
-    let domain = crate::trimmed::face_domain(body, face, band)?;
-    let row = |half_edge: HalfEdgeKey| {
-        crate::trimmed::every_loop(&domain)
-            .flat_map(|lift| lift.rows())
-            .find(|row| row.half_edge == half_edge)
-            .map(|row| row.lift)
-    };
+    let rows = lifted_rows(body, face, lk, band)?;
+    let row = |half_edge: HalfEdgeKey| rows.get(&half_edge).map(|row| row.deck);
     let far_half = travs
         .iter()
         .find(|t| t.start == far_tip)
@@ -1080,45 +1078,107 @@ fn strip_columns(travs: &[Trav], strip: WrapStrip) -> Vec<f64> {
         .collect()
 }
 
-/// A rimless pole-to-pole band's columns, traversal for traversal: each
-/// meridian's on the branch the loop's lift (`topo::Body::loop_lift`, read
-/// through the face's domain as [`crate::trimmed::face_domain`] reads it)
-/// puts its image on. The joint at each pole stores the turn the face
-/// takes there, so the lifted images sit on the branches the face
-/// occupies, and the band's width round the poles is theirs. Each column
-/// is the traversal's own azimuth, `u_raw`, on the lifted image's branch:
-/// the image and `u_raw` read one meridian down two float paths, so they
-/// differ by rounding and whole turns alone. An image the lift moved onto
-/// a sphere chart's twin, `(u, v) ↦ (u + π, π − v)`, is read back through
-/// it. A rim takes no column here.
+/// One row of a loop's lift as the walk reads it ([`lifted_rows`]).
+#[derive(Clone, Copy, Debug)]
+struct Lifted {
+    /// The deck transformation the lift moves the half-edge's image by.
+    deck: topo::Deck,
+    /// The first chart coordinate the moved image is entered at.
+    entry_u: f64,
+}
+
+/// **The lifted rows of the loop `lk`**, by half-edge: its lift read
+/// through the face's domain as [`crate::trimmed::face_domain`] reads it, so
+/// a loop with no lift refuses here as it does on the trimmed lane, and
+/// only the lift of `lk` itself, so every row is on the walked loop.
 ///
 /// # Errors
 ///
-/// [`crate::trimmed::face_domain`]'s refusal (a loop with no lift, or one
-/// that does not close in the chart), and
-/// [`TessellateError::MissingEntity`] where the lift holds no row for a
-/// traversal.
+/// [`crate::trimmed::face_domain`]'s refusal ([`TessellateError::DomainUnread`]:
+/// a loop with no lift, or one that does not close in the chart), and
+/// [`TessellateError::MissingEntity`] where the domain holds no lift of `lk`.
+fn lifted_rows(
+    body: &Body<f64>,
+    face: FaceKey,
+    lk: LoopKey,
+    band: Band,
+) -> Result<HashMap<HalfEdgeKey, Lifted>, TessellateError> {
+    let domain = crate::trimmed::face_domain(body, face, band)?;
+    let on_lk = |lift: &&topo::pcurves::Lift<f64>| {
+        lift.rows()
+            .first()
+            .and_then(|row| body.get_half_edge(row.half_edge))
+            .is_some_and(|h| h.parent_loop == lk)
+    };
+    let lift =
+        crate::trimmed::every_loop(&domain)
+            .find(on_lk)
+            .ok_or(TessellateError::MissingEntity {
+                what: "the walked loop's lift",
+            })?;
+    Ok(lift
+        .rows()
+        .iter()
+        .map(|row| {
+            let lifted = Lifted {
+                deck: row.lift,
+                entry_u: row.entry_exit_points().0.x,
+            };
+            (row.half_edge, lifted)
+        })
+        .collect())
+}
+
+/// A rimless pole-to-pole band's columns, traversal for traversal: each
+/// meridian's on the branch the loop's lift ([`lifted_rows`]) puts its
+/// image on. The joint at each pole stores the turn the face takes there,
+/// so the lifted images sit on the branches the face occupies, and the
+/// band's width round the poles is theirs. Each column is the traversal's
+/// own azimuth, `u_raw`, on the lifted image's branch: the image and
+/// `u_raw` read one meridian down two float paths, so they differ by
+/// rounding and whole turns alone, and a column more than a quarter turn
+/// from its image is that premise failing, refused rather than placed. An
+/// image the lift moved onto a sphere chart's twin,
+/// `(u, v) ↦ (u + π, π − v)`, is read back through it.
+///
+/// # Errors
+///
+/// [`lifted_rows`]' refusal, [`TessellateError::MissingEntity`] where the
+/// lift holds no row for a traversal, and
+/// [`TessellateError::LiftedColumnOff`] where a column stands more than a
+/// quarter turn from its image.
+///
+/// # Panics
+///
+/// On a rim traversal: the band is a rimless loop's.
 fn band_columns(
     body: &Body<f64>,
     travs: &[Trav],
     face: FaceKey,
+    lk: LoopKey,
     band: Band,
 ) -> Result<Vec<f64>, TessellateError> {
-    let domain = crate::trimmed::face_domain(body, face, band)?;
+    let rows = lifted_rows(body, face, lk, band)?;
     let turn = Period::<f64>::angle();
     travs
         .iter()
         .map(|t| {
             let TravKind::Meridian { u_raw } = t.kind else {
-                return Ok(f64::NAN);
+                unreachable!("a pole-to-pole band's loop has no rim")
             };
-            let row = crate::trimmed::every_loop(&domain)
-                .flat_map(|lift| lift.rows())
-                .find(|row| row.half_edge == t.half_edge)
+            let row = rows
+                .get(&t.half_edge)
                 .ok_or(TessellateError::MissingEntity { what: "lifted row" })?;
-            let at = row.entry_exit_points().0.x;
-            let at = if row.lift.twin { at - turn.half() } else { at };
-            Ok(turn.near(u_raw, at))
+            let at = if row.deck.twin {
+                row.entry_u - turn.half()
+            } else {
+                row.entry_u
+            };
+            let column = turn.near(u_raw, at);
+            if (column - at).abs() > turn.half() / 2.0 {
+                return Err(TessellateError::LiftedColumnOff { face, edge: t.edge });
+            }
+            Ok(column)
         })
         .collect()
 }
@@ -1187,7 +1247,7 @@ pub(crate) fn loop_polygon(
     let no_rim = !kinds.rim;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(body, &travs, &poles, band, face)?
+        wrap_strip(body, &travs, &poles, band, face, lk)?
     } else {
         None
     };
@@ -1355,7 +1415,7 @@ pub(crate) fn loop_polygon(
     let band_u: Option<Vec<f64>> = if let Some(strip) = strip {
         Some(strip_columns(&travs, strip))
     } else if no_rim {
-        Some(band_columns(body, &travs, face, band)?)
+        Some(band_columns(body, &travs, face, lk, band)?)
     } else {
         None
     };

@@ -2531,6 +2531,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
         TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
+        TessellateError::LiftedColumnOff { .. } => "lifted_column_off",
     }
 }
 

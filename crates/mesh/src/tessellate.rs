@@ -1074,9 +1074,11 @@ fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
 /// refuses `SingleColumnCurvedFace` (the torus face bounded by one
 /// meridian circle,
 /// `a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column`), a
-/// slit on two coincident edges refuses `PinchWedge`
-/// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
-/// `a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
+/// slit on two coincident edges has no lift for the band's columns and
+/// refuses `DomainUnread`
+/// (`two_coincident_edges_have_no_lift_for_the_walk_to_read`), a slit face
+/// between the one-face ball's tips refuses `SingleColumnCurvedFace`
+/// (`a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
 /// by two coincident edges refuses `BoundaryBoundsNoRegion`
 /// (`mesh/tests/faces_that_bound_no_region.rs`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip
