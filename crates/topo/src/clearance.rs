@@ -2249,6 +2249,7 @@ where
                             })
                         };
                         if let Err(stop) = split {
+                            if std::env::var_os("CV_TRACE").is_some() && self.lower_refusal.is_none() { eprintln!("CVD {:?} {:?} {:?} d={} a.u={:?} a.v={:?} b.u={:?} b.v={:?} {:?}", x.face, y.face, shared, pair.depth, pair.a.u, pair.a.v, pair.b.u, pair.b.v, stop); }
                             self.lower_refusal.get_or_insert(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
