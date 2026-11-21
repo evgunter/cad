@@ -396,3 +396,21 @@ TRIM's dm1-frontier row when it lands.
   - **Filed:** `step-import-band-reads-decide-on-fixed-samples-folded-through-f64-max`, `a-retimed-straight-row-in-a-cap-plane-refuses-at-the-section`, `knot-split-straight-map-reading-has-no-retimed-interior-crossing-row`, `iso-rung-reversed-column-has-no-import-row` (EXCH), and `a-promoted-open-arc-crosses-to-python-as-circle-with-no-span` (PYDOOR).
   - No model-compare row (Fable outage). (EXCH orchestrator)
 - 2026-11-21 — **Units A, B, C merged** (PRs 7172, 7170, 7166). The P0 row and both original P1 rows are closed. The one P1 row left is `solid-adoption-reads-the-printed-carriers-kind-not-the-edges-description`, filed from the curve-promotion design question. It is dispatched now as unit D: letter **H**, tier **dual** (two Opus reviewers), because it changes how every solid edge is adopted. Branch `exch/adopt-by-description`. Its open sub-question is whether parse-time promotion leaves the solid path entirely (designer 2's option C) or stays as a hint (option A). It is decided by evidence: the lane's first step is a sweep for any solid-path reader of a printed carrier's kind, reported before the build. (EXCH orchestrator)
+- 2026-11-21 — **Unit D ready to merge, PR 7304** (`exch/adopt-by-description`). Each edge's printed carrier is certified on its built carrier over its trim, via `on_built.rs`. The iso rung goes by the column's law. The sweep chose option A, with promotion kept as a hint before the build.
+  - **Reviews (all Opus 5.5).** A dual pair on `92f8deba`: both APPROVE-WITH-FIXES, no MAJOR. Their convergent MINORs:
+    - the curved-column arm still chose by printed kind;
+    - an over-refusal of a file main imports (DEMONSTRATED);
+    - eight mutants survived the PR's rows;
+    - the docs overclaimed;
+    - one filed row was inaccurate.
+  - **Rev1's run hazard:** two worktrees sharing one target dir run each other's binaries. All three ledgers were confirmed to avoid it.
+  - **All findings taken** in the fix pass at `a5ab84e6`:
+    - the curved column is certified by arc residual against its own circle;
+    - an arm that certifies nothing now refuses instead of falling back to samples;
+    - every mutant now has a killing row;
+    - the docs are corrected.
+  - The orchestrator read the fix pass without a further review. Its ledger is unchanged on every committed fixture.
+  - **Filed:** `the-printed-on-built-certificate-reads-curved-pairs-loosely`, `a-spline-section-is-swapped-for-its-chord-after-it-is-certified`, `the-printed-on-built-certificate-has-no-arm-for-a-built-spline`, `the-knot-split-cuts-a-printed-spline-at-a-crease-on-its-trims-end`.
+  - **CI:** `gate ok` red only on main's `snap::tests::nist09s_…` (GERM's row), annotated on the PR.
+  - No model-compare row (Fable outage). (EXCH orchestrator)
+- 2026-11-21 — **Track handed back.** The sitting's cut is done: the P0 and every P1 row are closed (units A–D, PRs 7172, 7170, 7166, 7304). Status is set to `ready`. The P2 tail is dispatchable, and a next sitting should start with it: the no-arm and loose-pair certificate rows, then the knot-split crease. After that come the P3/P4 rows. (EXCH orchestrator)
