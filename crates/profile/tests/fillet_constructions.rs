@@ -254,9 +254,10 @@ fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize,
     // The converse: every anchor-fit entry of the refusal has an
     // overrun record at its corner.
     if let Err(profile::ReplayError {
-        kind: ReplayErrorKind::Path(PathError::NoCornerOfPair { corners, .. }),
+        kind: ReplayErrorKind::Path(source),
         ..
     }) = &replayed
+        && let PathError::NoCornerOfPair { corners, .. } = source.refusal()
     {
         let recorded: Vec<(Point2<f64>, f64)> = built
             .iter()
@@ -294,11 +295,15 @@ fn check_overruns(
     band: f64,
     out: &mut Vec<String>,
 ) {
-    let entries: Vec<Point2<f64>> = match replayed {
+    let refusal = match replayed {
         Err(profile::ReplayError {
-            kind: ReplayErrorKind::Path(PathError::NoCornerOfPair { corners, .. }),
+            kind: ReplayErrorKind::Path(source),
             ..
-        }) => corners
+        }) => Some(source.refusal()),
+        _ => None,
+    };
+    let entries: Vec<Point2<f64>> = match refusal {
+        Some(PathError::NoCornerOfPair { corners, .. }) => corners
             .iter()
             .filter(|e| matches!(e.reason, CornerReason::AnchorOutsideTrimmedExtent { .. }))
             .map(|e| e.at)
@@ -569,13 +574,13 @@ fn a_bare_fillet_draws_its_lines_and_its_fillet_circle() {
 }
 
 /// **An anchor-fit refusal draws the candidate that overran**, filed
-/// against the fillet step while the refusal names the binder that
-/// fixed the arrival: at r = 2.5 the setback (2.5 on a right angle)
+/// against the fillet step, as the refusal is, which the binder that
+/// fixed the arrival raises: at r = 2.5 the setback (2.5 on a right angle)
 /// outruns the arrival's 2 m, the trim's tangent points are (0.5, 0)
 /// and (3, 2.5), and the circle is about (0.5, 2.5).
 ///
 /// Red if a refused line fillet's fit records no answer, or records it
-/// against the refusing step.
+/// or the refusal against the step that raised it.
 #[test]
 fn an_anchor_fit_refusal_draws_its_overrunning_circle() {
     let tol = Tol::witness();
@@ -583,7 +588,14 @@ fn an_anchor_fit_refusal_draws_its_overrunning_circle() {
     let Err(refused) = replayed else {
         panic!("the arrival leg is too short: {replayed:?}")
     };
-    assert_eq!(refused.step, 4, "refused at the arrival's far-end binder");
+    assert_eq!(refused.step, 2, "refused at the fillet step");
+    assert!(
+        matches!(
+            &refused.kind,
+            ReplayErrorKind::Path(PathError::Deferred { raised_at: 4, .. })
+        ),
+        "raised at the arrival's far-end binder: {refused}"
+    );
     let [c] = built.as_slice() else {
         panic!("one fillet step, one construction: {built:?}")
     };

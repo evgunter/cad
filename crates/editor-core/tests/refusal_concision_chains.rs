@@ -915,7 +915,7 @@ mod kernel {
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
             ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
-            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
+            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction, Deferred,
         ];
     }
 
@@ -4674,6 +4674,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "OverdeterminedJunction",
             P::OverdeterminedJunction { site: "arc_to" },
+        ),
+        // The stored-form refusal as the close raises it about the
+        // fillet's step: the longest inner sentence a deferral carries.
+        (
+            "Deferred",
+            P::Deferred {
+                step: 2,
+                raised_at: 11,
+                deferral: profile::Deferral::FilletStoredForm,
+                refusal: Box::new(P::FilletCarrierBelowSceneResolution {
+                    turn: a(0.5),
+                    radius: gl(1e-9),
+                    scale: l(10.0),
+                    resolution: l(1e-8),
+                    predicate: "fillet_scene_resolution",
+                    margin: l(1e-12),
+                }),
+            },
         ),
     ];
     use profile::{EscalatedAt, Gate};

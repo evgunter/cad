@@ -1834,8 +1834,9 @@ pub enum PathError<T: Real> {
     /// A refusal about an earlier step than the one that raised it:
     /// a fillet is resolved by the step that fixes its arrival, and
     /// its stored form and every arc are re-read when the loop closes.
-    /// The refusal is about `step`, the step a reader edits, and says
-    /// which later step it was raised at.
+    /// The refusal is about `step`, the step a reader edits, which the
+    /// replay names ([`program::ReplayError::step`]); its sentence names
+    /// the later step that raised it.
     Deferred {
         /// The step the refusal is about, in program order.
         step: usize,
@@ -2505,25 +2506,23 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  surface should rule out (a kernel bug)"
             ),
             Self::Deferred {
-                step,
                 raised_at,
                 deferral,
                 refusal,
+                ..
             } => match deferral {
-                Deferral::FilletResolution => write!(
-                    f,
-                    "the fillet bound at step {step} cannot be resolved against its \
-                     arrival at step {raised_at}: {refusal}"
-                ),
-                Deferral::FilletStoredForm => write!(
-                    f,
-                    "the fillet bound at step {step} cannot be stored where the loop \
-                     closes, at step {raised_at}: {refusal}"
-                ),
-                Deferral::ArcReadBack => write!(
-                    f,
-                    "refused where the loop closes, at step {raised_at}: {refusal}"
-                ),
+                Deferral::FilletResolution => {
+                    write!(
+                        f,
+                        "not resolved at step {raised_at}, its arrival: {refusal}"
+                    )
+                }
+                Deferral::FilletStoredForm => {
+                    write!(f, "not stored at step {raised_at}, the close: {refusal}")
+                }
+                Deferral::ArcReadBack => {
+                    write!(f, "not read back at step {raised_at}, the close: {refusal}")
+                }
             },
         }
     }

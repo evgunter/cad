@@ -1307,7 +1307,7 @@ pub fn grid_a(
 /// Neither is the fillet corner's fit, whose gates classify on the
 /// exact band.
 pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
-    match e {
+    match e.refusal() {
         PathError::Escalated { source, .. }
             if source.predicate.is_some_and(|p| {
                 p.starts_with("path_junction_") || p == "path_fillet_joint_turn"

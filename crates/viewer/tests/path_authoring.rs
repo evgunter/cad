@@ -601,18 +601,14 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
         Step::LineTo(Target::Point(Point2::new(4.0, 3.0))),
         Step::LineTo(Target::Start),
     ];
-    let cut = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
-        .expect("the steps before the refused close still draw");
-    let refusal = cut.loops[0]
-        .end
-        .refusal()
-        .expect("the flattened fillet is refused");
+    let refusal = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
+        .expect_err("the flattened fillet is refused");
     assert!(
         matches!(
-            refusal,
+            &refusal,
             PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
                 if rendered.starts_with(
-                    "the fillet bound at step 2 cannot be stored where the loop closes, at step 8: "
+                    "not stored at step 8, the close: "
                 )
         ),
         "{refusal}",
@@ -624,7 +620,8 @@ fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door(
     });
     let said = format!("{:?}", out.refusal);
     assert!(
-        said.contains("Geometry { loop_: 0, step: 2,") && said.contains("at step 8: "),
+        said.contains("Geometry { loop_: 0, step: 2,")
+            && said.contains("not stored at step 8, the close: "),
         "the door files it at the fillet too: {said}",
     );
 }

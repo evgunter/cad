@@ -2683,9 +2683,10 @@ mod tests {
 
     /// **A fused step refused at its binder draws the chain before the
     /// fused step.** `fillet_arc` with a radius arrival leaves the tip
-    /// an arrival awaiting its binders, and the refusal lands on the
-    /// second binder (step 5); neither prefix ending on that arrival
-    /// can be closed, so the walk back ends before the fused step.
+    /// an arrival awaiting its binders, and the second binder (step 5)
+    /// raises the refusal, which is the fused step's own (step 3);
+    /// neither prefix ending on that arrival can be closed, so the walk
+    /// back ends before the fused step.
     ///
     /// Red if [`super::prefix_loop`] tries only `steps[..k]`: the
     /// preview is then an `Err` and draws nothing.
@@ -2706,8 +2707,13 @@ mod tests {
         ]);
         let (drawn, refused) = refused_loop(vec![steps]);
         assert!(
-            matches!(refused, PreviewError::Geometry { step: 5, .. }),
-            "the fillet refuses at the binder that completes its arrival: {refused}"
+            matches!(
+                &refused,
+                PreviewError::Geometry { step: 3, rendered, .. }
+                    if rendered.starts_with("not resolved at step 5, its arrival: ")
+            ),
+            "the fillet refuses at its own step, raised by the binder that completes its \
+             arrival: {refused}"
         );
         assert_eq!(
             vertex_points(&drawn),
@@ -2954,8 +2960,8 @@ mod tests {
     /// A last leg onto the start point is drawn as the close it is and
     /// says the end-of-program refusal: only its spelling is
     /// unfinished. A pending fillet is not drawn against the close,
-    /// and the chain says the close's refusal, of the kind the kernel
-    /// gives it.
+    /// and the chain says the close's refusal of it, of the kind the
+    /// kernel gives it, at the fillet's step.
     ///
     /// Red if the chain draws nothing, draws more or fewer legs than
     /// were written, says another refusal, or says it loud.
@@ -2977,12 +2983,21 @@ mod tests {
                     verb: None,
                     ..
                 } if *step == steps.len() => None,
+                // The close's refusal of the pending fillet, at the
+                // fillet's step, naming the close as its arrival.
                 PreviewError::Geometry {
                     loop_: 0,
                     step,
                     kind,
-                    ..
-                } if *step == steps.len() => Some(*kind),
+                    rendered,
+                } if *step == steps.len() - 2
+                    && rendered.starts_with(&format!(
+                        "not resolved at step {}, its arrival: ",
+                        steps.len()
+                    )) =>
+                {
+                    Some(*kind)
+                }
                 other => panic!("{steps:?}: {other}"),
             };
             assert_eq!(said, fixture.said, "{steps:?}");

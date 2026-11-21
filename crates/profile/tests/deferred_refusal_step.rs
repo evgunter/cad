@@ -83,10 +83,7 @@ fn a_fillet_refused_at_its_arrival_is_filed_against_its_own_step() {
     );
     assert_eq!(
         err.to_string(),
-        format!(
-            "step 3: the fillet bound at step 3 cannot be resolved against its arrival at \
-             step 5: {refusal}"
-        ),
+        format!("step 3: not resolved at step 5, its arrival: {refusal}"),
     );
 
     // The drawing replay files the refused fit's construction at the
@@ -154,10 +151,7 @@ fn a_fillet_its_stored_form_cannot_hold_is_filed_against_its_own_step_at_the_clo
     );
     assert_eq!(
         err.to_string(),
-        format!(
-            "step 2: the fillet bound at step 2 cannot be stored where the loop closes, at \
-             step 8: {refusal}"
-        ),
+        format!("step 2: not stored at step 8, the close: {refusal}"),
     );
 
     let t = tol();

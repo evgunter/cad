@@ -116,7 +116,7 @@ const ALL: [(&str, &str); 6] = [
 /// answered, so the situation the caller is in is that gate's, and none
 /// of the six fillet sentences belongs to it.
 fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
-    let shown = err.to_string();
+    let shown = err.refusal().to_string();
     for (name, sentence) in ALL {
         assert!(
             !shown.contains(sentence),
@@ -133,7 +133,7 @@ fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
 /// it renders (`Recourse: move the geometry`): a gate's own sentence may
 /// end on the same words as its last arm.
 fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
-    let shown = err.to_string();
+    let shown = err.refusal().to_string();
     assert!(
         shown.starts_with("the fillet at this corner is undecided"),
         "{what}: the refusal must name the site the door was resolving.\n  got: {shown}"
@@ -150,7 +150,7 @@ fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
 
 /// The escalation's predicate name, or a panic naming what came instead.
 fn escalating_predicate(err: &PathError<f64>, what: &str) -> &'static str {
-    match err {
+    match err.refusal() {
         PathError::Escalated { source, .. } => source
             .predicate
             .unwrap_or_else(|| panic!("{what}: the escalation must name its predicate")),
@@ -637,7 +637,7 @@ fn the_turn_in_band_recourse_names_both_of_its_situations() {
     // (1) the degenerate angle: a PATH key answers, so this sentence is
     // not what the caller reads there.
     let degenerate = bend(0.0, eps, 0.2).expect_err("a turn inside the band");
-    match &degenerate {
+    match degenerate.refusal() {
         PathError::Escalated { source, .. } => assert!(
             matches!(
                 source.predicate,
@@ -746,7 +746,7 @@ fn flattening_turn(radius: f64) -> f64 {
 }
 
 fn carries(err: &PathError<f64>, sentence: &str, what: &str) {
-    let shown = err.to_string();
+    let shown = err.refusal().to_string();
     assert!(
         shown.contains(sentence),
         "{what}: the caller must read this sentence.\n  got: {shown}"
@@ -893,7 +893,8 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
     let mut found = None;
     for k in 1..=64 {
         let theta = flattening_turn(radius) * (1.0 + f64::from(k) * 0.05);
-        if let Err(e @ PathError::Escalated { .. }) = bend(0.0, theta, radius)
+        if let Err(e) = bend(0.0, theta, radius)
+            && matches!(e.refusal(), PathError::Escalated { .. })
             && e.to_string().contains(FILLET_STORED_FORM_INBAND_RECOURSE)
         {
             found = Some((theta, e));
@@ -903,7 +904,7 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
     let (theta, err) = found.expect(
         "somewhere across the band's own width the stored form's classification is undecided",
     );
-    let shown = err.to_string();
+    let shown = err.refusal().to_string();
     assert!(
         shown.starts_with("the fillet arc about to be stored is undecided"),
         "the escalation names the site the door read, not a junction.\n  got: {shown}"
