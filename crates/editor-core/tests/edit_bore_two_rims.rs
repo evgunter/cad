@@ -352,3 +352,91 @@ fn a_plate_holes_bottom_rim_filleted_meshes() {
         }
     }
 }
+
+#[test]
+fn zz_lane_probe_filleted_hole_meshes_at_fine_deltas() {
+    let mut said = Vec::new();
+    for (arcs, radius) in [1, 2]
+        .into_iter()
+        .flat_map(|n| [R, R / 10.0, R / 100.0].map(|r| (n, r)))
+    {
+        for (both, at) in [(false, vec![0.0]), (true, vec![0.0, 1.0])] {
+            let hole = if arcs == 1 {
+                LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole")
+            } else {
+                LoopProgram::CircleSplit {
+                    centre: [len(0.0), len(0.0)],
+                    radius: len(0.3),
+                    n: 2,
+                    phase: editor_core::Formula::zero(editor_core::Dimension::Angle),
+                }
+            };
+            let doc = ProfileDoc::empty_derived("edit_bore_two_rims_probe", tol());
+            let (doc, profile) = fixture::insert(
+                doc,
+                Node::Profile(ProfileProgram {
+                    loops: vec![
+                        LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
+                        hole,
+                    ],
+                    ids: Vec::new(),
+                    on: None,
+                }),
+            );
+            let (doc, block) = fixture::insert(
+                doc,
+                Node::Extrude {
+                    profile: profile.into(),
+                    distance: len(1.0),
+                },
+            );
+            let ev = fixture::run(&doc, &EvalOptions::default());
+            let (t, body) = (table(&ev, block), corpus::body_of(&ev, block));
+            let rims = |z: f64| -> Vec<StableName> {
+                let keys: Vec<EdgeKey> = body
+                    .edges()
+                    .filter(|(_, e)| {
+                        matches!(
+                            body.get_curve_geom(e.curve)
+                                .and_then(|g| g.certified())
+                                .map(|c| c.carrier()),
+                            Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin, .. }, .. })) if (origin.z - z).abs() < 1e-9
+                        )
+                    })
+                    .map(|(k, _)| k)
+                    .collect();
+                t.iter()
+                    .filter_map(|(n, entry)| match entry {
+                        Entry::Unique(r) => match r.key {
+                            EntityKey::Edge(k) if keys.contains(&k) => Some(n.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .collect()
+            };
+            let mut selection: Vec<StableName> = at.iter().flat_map(|&z| rims(z)).collect();
+            selection.sort();
+            let (doc, fillet) = fixture::insert(
+                doc,
+                Node::Fillet {
+                    radius: len(radius),
+                    selection: editor_core::Operand::select(block, selection),
+                },
+            );
+            let ev = fixture::run(&doc, &EvalOptions::default());
+            let filleted = corpus::body_of(&ev, fillet);
+            for delta in [1e-2, 1e-3, 3e-4, 1e-4, 3e-5] {
+                let r = mesh::tessellate(&filleted, delta, tol());
+                said.push(format!(
+                    "PROBE arcs={arcs} r={radius} both={both} δ={delta}: {}",
+                    match r {
+                        Ok(m) => format!("ok {} tris", mesh::validate::triangle_count(&m)),
+                        Err(e) => format!("{e:?}"),
+                    }
+                ));
+            }
+        }
+    }
+    panic!("lane probe\n{}", said.join("\n"));
+}
