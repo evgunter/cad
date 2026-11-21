@@ -633,23 +633,8 @@ fn through_the_apex<T: Decide>(
             theta,
         )
     };
-    // `F` and `F′` off the rounded harmonics, each with its rounding.
-    let f = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        let (s2, c2) = (two * theta).sin_cos();
-        Rounded {
-            value: h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2,
-            error: noise,
-        }
-    };
-    let slope = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        let (s2, c2) = (two * theta).sin_cos();
-        Rounded {
-            value: h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2),
-            error: two * noise,
-        }
-    };
+    let f = |theta: T| deflated_reading(h, noise, theta).0;
+    let slope = |theta: T| deflated_reading(h, noise, theta).1;
     let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()
         + T::from_f64(4.0) * (h.c2.powi(2) + h.s2.powi(2)).sqrt();
     let mut found = [theta_a; 4];
@@ -691,6 +676,30 @@ fn through_the_apex<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Tangency)),
     }
     Read(Ok(Roots::<T, 4>::all(found).widen()))
+}
+
+/// **`F` and `F′` at `theta` off the rounded harmonics**, each with its
+/// rounding: `F` within `noise`, the bound on the harmonics' error
+/// everywhere, and `F′` within twice it, the derivative's coefficients
+/// being at most twice `F`'s (the second harmonic's turn).
+fn deflated_reading<T: Decide>(
+    h: &crate::ConicHarmonics<T>,
+    noise: T,
+    theta: T,
+) -> (Rounded<T>, Rounded<T>) {
+    let two = T::from_f64(2.0);
+    let (s, c) = theta.sin_cos();
+    let (s2, c2) = (two * theta).sin_cos();
+    (
+        Rounded {
+            value: h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2,
+            error: noise,
+        },
+        Rounded {
+            value: h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2),
+            error: two * noise,
+        },
+    )
 }
 
 /// The side a residual reads past its own rounding

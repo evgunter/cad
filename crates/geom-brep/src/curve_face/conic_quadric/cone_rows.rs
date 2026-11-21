@@ -980,3 +980,38 @@ fn a_deflated_roots_slack_charges_both_bounds() {
     let flat = cone_root_slack(at(1e-9, 1e-9), at(-0.1, 0.2), 0.0, 1.0);
     assert!(flat.is_infinite(), "a slope inside its bound: {flat}");
 }
+
+/// **The deflated reading charges `F′` twice the harmonics' noise.**
+/// Harmonics whose second-harmonic cosine is off by the whole of `noise`
+/// (an error the noise bounds) move `F` by at most `noise` and `F′` by up
+/// to `2·noise`, at `θ = π/4`: both readings hold the perturbed values
+/// within their bounds there, and `F′` would not within `noise` alone.
+#[test]
+fn the_deflated_reading_charges_the_slope_twice_the_noise() {
+    let noise = 1e-6;
+    let at = |c2: f64| crate::ConicHarmonics {
+        c0: 0.3,
+        c1: 0.5,
+        s1: -0.2,
+        c2,
+        s2: 0.1,
+        terms: 1.0,
+        per: 1.0,
+        floor: 1.0,
+    };
+    let (read, true_h) = (at(0.4), at(0.4 + noise));
+    for theta in [0.0, core::f64::consts::FRAC_PI_4, 1.0, 2.5] {
+        let (f, slope) = deflated_reading(&read, noise, theta);
+        let (f_true, slope_true) = deflated_reading(&true_h, 0.0, theta);
+        assert!(
+            (f.value - f_true.value).abs() <= f.error * (1.0 + 1e-9),
+            "F at {theta}: {f:?} against {}",
+            f_true.value
+        );
+        assert!(
+            (slope.value - slope_true.value).abs() <= slope.error * (1.0 + 1e-9),
+            "F′ at {theta}: {slope:?} against {}",
+            slope_true.value
+        );
+    }
+}

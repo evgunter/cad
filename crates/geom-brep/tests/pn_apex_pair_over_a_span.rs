@@ -862,3 +862,35 @@ fn planes_through_the_apex_read_their_gaps_sign_to_its_rounding() {
         .collect();
     assert!(missed.is_empty(), "{} of 12: {missed:#?}", missed.len());
 }
+
+/// **A plane through the apex whose gap is rounding alone reads its
+/// reach on that rounding.** At ε = 1e-9, a plane leaning to `D = −3·10⁻⁶`
+/// built through the apex of a tilted cone, its stored origin slid some
+/// 100 within it: its gap computes to exactly `0`, but the gap's own
+/// rounding (the stored origin's offset read along the normal) is some
+/// `10⁻¹⁴`, which over `|D|` is a reach a few zero bands long. So the
+/// section is not shown to be the apex point and the door escalates. Read
+/// on the gap's value alone, the reach is zero and the apex point is
+/// served on a gap the reading does not hold.
+#[test]
+fn a_plane_through_the_apex_reads_its_reach_on_its_gaps_rounding() {
+    let e = 1e-9;
+    let band = Band::new(e, Tol::witness().k() * e).unwrap();
+    let alpha = 0.4_f64;
+    let axis = Vec3::new(0.1, 0.2, 1.0).normalize();
+    let radial = Vec3::new(1.0, 0.0, -0.1).normalize();
+    let radial = (radial - axis * radial.dot(axis)).normalize();
+    let p = plane_at(
+        Point3::origin(),
+        (axis, radial, lean_for(alpha, -3e-6)),
+        0.0,
+        Vec3::new(0.37, -0.41, 0.29) * 102.96,
+    );
+    let (o, n) = plane_of(&p);
+    assert_eq!((Point3::origin() - o).dot(n), 0.0, "the fixture's gap computes to zero");
+    let got = plane_cone_section(&p, &cone(axis, radial, alpha), &window(0.5, 2.0, 2.0), band);
+    assert!(
+        matches!(got, Err(SectionError::Escalated(_))),
+        "{got:?}: the apex point served on a gap that is rounding alone"
+    );
+}
