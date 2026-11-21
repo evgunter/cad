@@ -576,14 +576,8 @@ pub struct Bottle<S: Scalar> {
 pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = exact_spine(&m);
-    let top = swept_loop::<S>(
-        &spine,
-        &annulus::<S>(&m, 0.0, tol),
-        STATIONS,
-        V_DEGREE,
-        tol,
-    )
-    .expect("the annulus sweeps along the loop's whole spine");
+    let top = swept_loop::<S>(&spine, &annulus::<S>(&m, 0.0, tol), STATIONS, V_DEGREE, tol)
+        .expect("the annulus sweeps along the loop's whole spine");
     Bottle {
         bulb: finished(
             "the bulb",

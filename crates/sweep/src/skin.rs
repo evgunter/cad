@@ -2060,14 +2060,8 @@ impl PathCarry {
         let o = Point3::origin();
         let read = |station: usize, s: f64| read_tangent(&path, station, s, band);
         let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
-            RigidMotion::from_aim_and_reference(
-                o,
-                t,
-                r.map(T::from_f64),
-                SWEEP_STATION_ROLL,
-                band,
-            )
-            .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
+            RigidMotion::from_aim_and_reference(o, t, r.map(T::from_f64), SWEEP_STATION_ROLL, band)
+                .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
         };
         let first = &self.stations[0];
         let (p0, t0) = read(0, first.at)?;

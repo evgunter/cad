@@ -150,9 +150,7 @@ use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 use pncad::topo::LeafBody as _;
 
-use pncad::geom_core::{
-    Affine3, Mat3, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
-};
+use pncad::geom_core::{Affine3, Mat3, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
