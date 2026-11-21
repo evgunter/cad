@@ -1558,9 +1558,18 @@ fn intersection(
         // already grafted it and asked the box of its image
         // (`product::gather_sources`), so its move here asks the box of the
         // same placement: a product that built holds no copy this refuses.
-        Err(topo::PlacedBooleanError::Placed { findings, .. }) => Err(Unlocalized::Refused {
-            refusal: crate::eval::NodeErrorKind::NotFinished { findings }.to_string(),
-        }),
+        Err(topo::PlacedBooleanError::Placed { operand, findings }) => {
+            let copy = match operand {
+                topo::Operand::A => a,
+                topo::Operand::B => b,
+            };
+            Err(Unlocalized::Refused {
+                refusal: format!(
+                    "copy {copy}'s image in the product's frame: {}",
+                    crate::eval::NodeErrorKind::NotFinished { findings }
+                ),
+            })
+        }
         Err(topo::PlacedBooleanError::Boolean(refusal)) => Err(Unlocalized::Refused {
             refusal: refusal.render(geom_brep::recourse::Reading::Build),
         }),

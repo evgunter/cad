@@ -129,8 +129,10 @@ fn a_placed_operand_past_the_box_refuses_naming_it() {
 
 /// **Under a boxed motion, the placed door builds what the pair door
 /// builds over the operand moved by hand, bit for bit**, at `Interval`:
-/// B turned `0.3 ± 1e-9` rad about `z` and shifted half a unit, the same
-/// enclosure either way.
+/// B turned `0.3 ± 1e-12` rad about `z` and shifted half a unit along
+/// each axis, so no face of B lies on a face of A, and each of `∪ ∩ ⊖`
+/// builds, the same enclosure either way. (At `± 1e-9` the turn's width
+/// already refuses a crossing's endpoint certificate, both ways.)
 #[test]
 fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
     use geom_core::{Interval, Real as _};
@@ -150,11 +152,11 @@ fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
     )
     .expect("a unit");
     let turn =
-        RigidMotion::rotation(z, Interval::from_bounds(0.3 - 1e-9, 0.3 + 1e-9)).expect("a turn");
+        RigidMotion::rotation(z, Interval::from_bounds(0.3 - 1e-12, 0.3 + 1e-12)).expect("a turn");
     let motion = RigidMotion::translation(Vec3::new(
         Interval::from_f64(0.5),
         Interval::from_f64(0.5),
-        Interval::from_f64(0.0),
+        Interval::from_f64(0.5),
     ))
     .expect("a shift")
     .compose(turn)
@@ -192,6 +194,8 @@ fn a_boxed_placement_builds_what_its_moved_body_builds_at_interval() {
             topo::PlacedBooleanError::Placed { findings, .. } => format!("move {findings:?}"),
             topo::PlacedBooleanError::Boolean(e) => format!("{e:?}"),
         });
-        assert_eq!(shown(by_hand), shown(placed), "{op:?}");
+        let (by_hand, placed) = (shown(by_hand), shown(placed));
+        assert!(placed.contains(" faces "), "{op:?} builds: {placed}");
+        assert_eq!(by_hand, placed, "{op:?}");
     }
 }

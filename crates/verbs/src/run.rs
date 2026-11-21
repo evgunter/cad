@@ -346,16 +346,22 @@ impl Boolean {
                 })
             }
         };
-        Ok((out, read))
+        let topo::PairTaken { a, b } = read;
+        Ok(PlacedPairOut { out, a, b })
     }
 }
 
 /// **What [`Boolean::run_pair`] returns**: the pair's outcome and the two
-/// operands it read, in the computing frame.
-pub type PlacedPairOut<'p, F> = (
-    PairOut<<F as topo::FinishedBody>::Scalar>,
-    topo::PairTaken<'p, F>,
-);
+/// operands it read, each in the computing frame (`topo::PairTaken`).
+#[derive(Debug)]
+pub struct PlacedPairOut<'p, F: topo::FinishedBody> {
+    /// The pair's outcome.
+    pub out: PairOut<F::Scalar>,
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
+}
 
 impl Members {
     /// **Run this union or intersect over its member bodies**, in list

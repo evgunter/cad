@@ -1181,6 +1181,30 @@ fn moat_split_in(
     pin: Vec<(f64, f64)>,
     moat: Vec<(f64, f64)>,
 ) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
+    let (doc, cut) = moat_cut(pocket, pin, moat);
+    let plane = fixture::plane_on(
+        &doc,
+        editor_core::Operand::output(cut, 0),
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: editor_core::Operand::output(cut, 0).into(),
+            tool: plane,
+        },
+    );
+    (fixture::run(&doc, &Default::default()), cut, sp)
+}
+
+/// [`moat_split_in`]'s block cut by its pocket and its moat, not split:
+/// the document and the cut's node.
+fn moat_cut(
+    pocket: Vec<(f64, f64)>,
+    pin: Vec<(f64, f64)>,
+    moat: Vec<(f64, f64)>,
+) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("split_section_moat", Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -1222,27 +1246,13 @@ fn moat_split_in(
             tool: pocket.into(),
         },
     );
-    let (doc, cut) = insert(
+    insert(
         doc,
         Node::Subtract {
             from: editor_core::Operand::output(cut, 0).into(),
             tool: moat.into(),
         },
-    );
-    let plane = fixture::plane_on(
-        &doc,
-        editor_core::Operand::output(cut, 0),
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-    );
-    let (doc, sp) = insert(
-        doc,
-        Node::Split {
-            target: editor_core::Operand::output(cut, 0).into(),
-            tool: plane,
-        },
-    );
-    (fixture::run(&doc, &Default::default()), cut, sp)
+    )
 }
 
 /// The names in `table` of `body`'s vertices at `p`: every row, a tie
@@ -1601,6 +1611,35 @@ fn the_kite_moats_subtract_names_its_edges_where_its_result_stands() {
         fixture::digest::digest(&ev),
         0xa4d9_ab2a_eaf0_bd50,
         "the kite moat's evaluation, bodies and name tables"
+    );
+}
+
+/// **The kite moat's two cuts name alike placed and moved by hand**: the
+/// per-PR guard of
+/// [`every_subtract_with_a_moved_operand_names_alike_placed_and_moved`],
+/// over the one fixture whose names tell an operand as held from it where
+/// the result stands. Its pocket and its moat are tools placed against
+/// the block, so each cut's door moves its tool, and each names its
+/// result against the tool as the door read it (`topo::PairTaken`) and,
+/// where the collector asks, against the tool moved by hand
+/// (`editor_core::test_support::subtract_names_of`).
+///
+/// *Breaks if* the names are minted against the operands as held, in
+/// their own frames.
+#[test]
+fn the_kite_moats_cuts_name_alike_placed_and_moved() {
+    let ((), rows) = editor_core::test_support::subtract_names_of(|| {
+        let (doc, _) = moat_cut(
+            square(0.5, 3.5),
+            square(1.5, 2.5),
+            vec![(2.0, 0.8), (3.2, 2.0), (2.0, 3.5), (0.8, 2.0)],
+        );
+        let _ = fixture::run(&doc, &Default::default());
+    });
+    assert_eq!(rows.len(), 2, "the pocket's cut and the moat's: {rows:?}");
+    assert!(
+        rows.iter().all(|(_, alike)| *alike),
+        "each cut names alike placed and moved: {rows:?}"
     );
 }
 

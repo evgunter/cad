@@ -465,10 +465,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     ///
     /// The relative map's overflow.
     pub(crate) fn seat<'b>(&self, other: &'b Self) -> Result<topo::Seat<'b, T>, RigidMotionError> {
-        Ok(match self.relative(other)? {
-            None => topo::Seat::own(other.body()),
-            Some(motion) => topo::Seat::at(other.body(), motion),
-        })
+        Ok(topo::Seat::from_motion(other.body(), self.relative(other)?))
     }
 }
 
@@ -569,10 +566,10 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
         other: &Self,
         tol: Tol,
     ) -> Result<topo::GraftKeys, GraftIn> {
-        let seat = match other.moving_into(frame).map_err(GraftIn::Motion)? {
-            None => topo::Seat::own(other.body()),
-            Some(motion) => topo::Seat::at(other.body(), motion),
-        };
+        let seat = topo::Seat::from_motion(
+            other.body(),
+            other.moving_into(frame).map_err(GraftIn::Motion)?,
+        );
         topo::boolean::graft_placed(dst, seat, other.body.kind(), tol).map_err(|e| match e {
             topo::boolean::PlacedGraftError::Move(e) => {
                 GraftIn::Moved(topo::MoveError::under_a_motion(e))

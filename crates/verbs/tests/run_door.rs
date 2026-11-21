@@ -194,7 +194,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap()
-    .0;
+    .out;
 
     let BooleanResult::Body(door) = door else {
         panic!("the fixture's union is a body");
@@ -249,7 +249,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap()
-    .0;
+    .out;
     assert!(
         matches!(via, PairOut::Empty),
         "the dispatch turned the typed empty into {via:?}"

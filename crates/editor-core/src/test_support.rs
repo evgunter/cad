@@ -1336,8 +1336,56 @@ pub struct FoldRowNames {
     pub spelled: crate::coincide::NamedCoincidence,
 }
 
+/// **Rows recorded while a call runs**, one collector at a time: what a
+/// suite reads of an evaluation's inner steps, recorded only where it
+/// collects.
+struct Collector<R> {
+    /// What it collects, for its panics.
+    what: &'static str,
+    rows: std::sync::Mutex<Option<Vec<R>>>,
+}
+
+impl<R> Collector<R> {
+    const fn new(what: &'static str) -> Self {
+        Self {
+            what,
+            rows: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Option<Vec<R>>> {
+        self.rows
+            .lock()
+            .unwrap_or_else(|_| panic!("the {} collector", self.what))
+    }
+
+    /// `f`, with every row recorded while it runs, in order.
+    fn of<O>(&self, f: impl FnOnce() -> O) -> (O, Vec<R>) {
+        {
+            let mut slot = self.slot();
+            assert!(slot.is_none(), "one {} collector at a time", self.what);
+            *slot = Some(Vec::new());
+        }
+        let out = f();
+        let rows = self.slot().take().unwrap_or_default();
+        (out, rows)
+    }
+
+    /// Whether a call is collecting.
+    fn collecting(&self) -> bool {
+        self.slot().is_some()
+    }
+
+    /// Records one row where a call is collecting.
+    fn record(&self, row: R) {
+        if let Some(rows) = self.slot().as_mut() {
+            rows.push(row);
+        }
+    }
+}
+
 /// Where [`fold_rows_of`] collects, while it runs.
-static FOLD_ROWS: std::sync::Mutex<Option<Vec<FoldRowNames>>> = std::sync::Mutex::new(None);
+static FOLD_ROWS: Collector<FoldRowNames> = Collector::new("fold-row");
 
 /// **`f`, with every fold-step row a union spells while it runs**, in
 /// spelling order. One collector at a time: a nested call panics.
@@ -1346,25 +1394,13 @@ static FOLD_ROWS: std::sync::Mutex<Option<Vec<FoldRowNames>>> = std::sync::Mutex
 ///
 /// Where another call is collecting, or the collector was poisoned.
 pub fn fold_rows_of<R>(f: impl FnOnce() -> R) -> (R, Vec<FoldRowNames>) {
-    {
-        let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
-        assert!(slot.is_none(), "one fold-row collector at a time");
-        *slot = Some(Vec::new());
-    }
-    let out = f();
-    let rows = FOLD_ROWS
-        .lock()
-        .expect("the fold-row collector")
-        .take()
-        .unwrap_or_default();
-    (out, rows)
+    FOLD_ROWS.of(f)
 }
 
 /// Each subtract with a moved operand, by its node, and whether its names
 /// against the operands the placed door read are its names against them
 /// moved by hand ([`subtract_names_of`]).
-static SUBTRACT_NAMES: std::sync::Mutex<Option<Vec<(crate::RecipeNodeId, bool)>>> =
-    std::sync::Mutex::new(None);
+static SUBTRACT_NAMES: Collector<(crate::RecipeNodeId, bool)> = Collector::new("subtract-name");
 
 /// **`f`, with every subtract that moves an operand recording whether it
 /// names alike placed and moved by hand**, in evaluation order. One
@@ -1374,34 +1410,41 @@ static SUBTRACT_NAMES: std::sync::Mutex<Option<Vec<(crate::RecipeNodeId, bool)>>
 ///
 /// Where another call is collecting, or the collector was poisoned.
 pub fn subtract_names_of<R>(f: impl FnOnce() -> R) -> (R, Vec<(crate::RecipeNodeId, bool)>) {
-    {
-        let mut slot = SUBTRACT_NAMES.lock().expect("the subtract-name collector");
-        assert!(slot.is_none(), "one subtract-name collector at a time");
-        *slot = Some(Vec::new());
-    }
-    let out = f();
-    let rows = SUBTRACT_NAMES
-        .lock()
-        .expect("the subtract-name collector")
-        .take()
-        .unwrap_or_default();
-    (out, rows)
+    SUBTRACT_NAMES.of(f)
 }
 
-/// Whether [`subtract_names_of`] is collecting.
-pub(crate) fn collecting_subtract_names() -> bool {
-    SUBTRACT_NAMES
-        .lock()
-        .expect("the subtract-name collector")
-        .is_some()
-}
-
-/// Records one subtract where [`subtract_names_of`] is collecting.
-pub(crate) fn record_subtract_names(node: crate::RecipeNodeId, alike: bool) {
-    let mut slot = SUBTRACT_NAMES.lock().expect("the subtract-name collector");
-    if let Some(rows) = slot.as_mut() {
-        rows.push((node, alike));
+/// **Where [`subtract_names_of`] collects, a subtract's names again
+/// against each operand moved by hand**, as a caller moved it before the
+/// placed door: each `(where it stands, as held)` moved from its frame
+/// into `computing` through `FinishedBody::moved`, and `names_again`
+/// run over the two. A subtract that moves neither operand records
+/// nothing; one that does records whether the two tables are one.
+pub(crate) fn probe_subtract_names<T: topo::AtRestPolicy, D: std::fmt::Debug>(
+    node: crate::RecipeNodeId,
+    names: &D,
+    operands: [(&crate::eval::Framed<T>, &std::sync::Arc<T::Finished>); 2],
+    computing: &crate::eval::Frame<T>,
+    tol: geom_core::Tol,
+    names_again: impl FnOnce(&T::Finished, &T::Finished) -> Option<D>,
+) {
+    if !SUBTRACT_NAMES.collecting() {
+        return;
     }
+    let by_hand = |(framed, held): (&crate::eval::Framed<T>, &std::sync::Arc<T::Finished>)| {
+        let motion = computing.relative(framed.frame()).ok()??;
+        topo::FinishedBody::moved(&**held, &motion, tol).ok()
+    };
+    let [a, b] = operands;
+    let (moved_a, moved_b) = (by_hand(a), by_hand(b));
+    if moved_a.is_none() && moved_b.is_none() {
+        return;
+    }
+    let again = names_again(
+        moved_a.as_ref().unwrap_or(&**a.1),
+        moved_b.as_ref().unwrap_or(&**b.1),
+    );
+    let alike = again.is_some_and(|again| format!("{again:?}") == format!("{names:?}"));
+    SUBTRACT_NAMES.record((node, alike));
 }
 
 /// Records one fold-step row where [`fold_rows_of`] is collecting.
@@ -1409,13 +1452,14 @@ pub(crate) fn record_fold_row(
     named: &crate::coincide::NamedCoincidence,
     spelled: &crate::coincide::NamedCoincidence,
 ) {
-    let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
-    let Some(rows) = slot.as_mut() else { return };
+    if !FOLD_ROWS.collecting() {
+        return;
+    }
     let name = |cell: &crate::coincide::NamedCell| match cell {
         crate::coincide::NamedCell::Entity { name, .. } => name.clone(),
         other => panic!("a fold row's cell is an entity of the union: {other:?}"),
     };
-    rows.push(FoldRowNames {
+    FOLD_ROWS.record(FoldRowNames {
         cells: named.cells.iter().map(name).collect(),
         relation: named.relation,
         spelled: spelled.clone(),

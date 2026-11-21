@@ -253,7 +253,7 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .expect("the crossing union is inside the door")
-    .0;
+    .out;
     let PairOut::Out(out) = out else {
         panic!("the crossing union is a body");
     };

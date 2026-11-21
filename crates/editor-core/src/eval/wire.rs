@@ -1890,8 +1890,11 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         // A placed operand's refusal names it, which only its operation
-        // knows (`wire_subtract`); one reaching here names none.
-        verbs::VerbError::Placed { findings, .. } => NodeErrorKind::NotFinished { findings },
+        // knows: the one caller that places an operand (`subtract_from`)
+        // raises it as `UnfinishedLeaf` before it would reach here.
+        verbs::VerbError::Placed { operand, .. } => unreachable!(
+            "a placed operand's refusal ({operand:?}) is raised by the operation that placed it"
+        ),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
@@ -3646,35 +3649,30 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .unwrap_or(&from.body)
         .frame()
         .clone();
-    let (held_a, held_b) = (body_a, body_b);
-    let body_a = from.placed_in(&computing, &held_a)?;
-    let body_b = b.placed_in(&computing, held_b)?;
+    let body_a_placed = from.placed_in(&computing, &body_a)?;
+    let body_b_placed = b.placed_in(&computing, body_b)?;
     let inputs = BooleanInputs {
         records_a: from.carry.contacts.carried(),
         records_b: b.carry.contacts.carried(),
     };
-    // The seat whose frame the subtract computes in, which a refused
-    // image of the other names.
-    let frame_of = |operand| match operand {
-        topo::Operand::A => (from.node, b.node),
-        topo::Operand::B => (b.node, from.node),
-    };
-    let (out, read) = (verb.build)(BooleanOp::Subtract, inputs)
-        .run_pair(body_a, body_b, boolean_sweep, tol)
+    let verbs::PlacedPairOut {
+        out,
+        a: read_a,
+        b: read_b,
+    } = (verb.build)(BooleanOp::Subtract, inputs)
+        .run_pair(body_a_placed, body_b_placed, boolean_sweep, tol)
         .map_err(|refusal| match refusal {
+            // A refused image names its operand, beside the one whose
+            // frame the subtract computes in.
             verbs::VerbError::Placed { operand, findings } => {
-                let (input, into) = frame_of(operand);
-                NodeErrorKind::UnfinishedLeaf {
-                    input,
-                    into: Some(into),
-                    findings,
-                }
+                let (input, into) = match operand {
+                    topo::Operand::A => (from.node, b.node),
+                    topo::Operand::B => (b.node, from.node),
+                };
+                NodeErrorKind::unfinished_in(input, Some(into))(findings)
             }
             refusal => verb_refused(refusal),
         })?;
-    // Each operand as the pair read it, in the computing frame: the names
-    // compare the result's geometry with them.
-    let [body_a, body_b] = &read;
     match out {
         verbs::PairOut::Empty => Ok(OpOut::empty()),
         verbs::PairOut::Out(out) => {
@@ -3686,64 +3684,40 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 naming,
                 holdings,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let emitted = (verb.emitter)(
-                id,
-                BooleanOp::Subtract,
-                &out.body,
-                &naming,
-                &holdings,
-                &names::OperandCtx {
-                    node: from.node,
-                    read: from.read,
-                    table: &from.table,
-                    body: body_a,
-                },
-                &names::OperandCtx {
-                    node: b.node,
-                    read: b.read,
-                    table: &b.table,
-                    body: body_b,
-                },
-                tol,
-            )
-            .map_err(NodeErrorKind::Naming)?;
-            // Where a collector asks, the names again against each moved
-            // operand moved by hand, as a caller moved it before the
-            // placed door: the two must name alike.
+            // The names, against each operand where the result stands:
+            // the pass compares the result's geometry with theirs.
+            let emit = |body_a: &T::Finished, body_b: &T::Finished| {
+                (verb.emitter)(
+                    id,
+                    BooleanOp::Subtract,
+                    &out.body,
+                    &naming,
+                    &holdings,
+                    &names::OperandCtx {
+                        node: from.node,
+                        read: from.read,
+                        table: &from.table,
+                        body: body_a,
+                    },
+                    &names::OperandCtx {
+                        node: b.node,
+                        read: b.read,
+                        table: &b.table,
+                        body: body_b,
+                    },
+                    tol,
+                )
+            };
+            let emitted = emit(&read_a, &read_b).map_err(NodeErrorKind::Naming)?;
             #[cfg(any(test, feature = "test-support"))]
-            if crate::test_support::collecting_subtract_names() {
-                let by_hand = |framed: &super::Framed<T>, held: &T::Finished| {
-                    let motion = computing.relative(framed.frame()).ok()??;
-                    topo::FinishedBody::moved(held, &motion, tol).ok()
-                };
-                let (moved_a, moved_b) = (by_hand(&from.body, &held_a), by_hand(&b.body, held_b));
-                if moved_a.is_some() || moved_b.is_some() {
-                    let again = (verb.emitter)(
-                        id,
-                        BooleanOp::Subtract,
-                        &out.body,
-                        &naming,
-                        &holdings,
-                        &names::OperandCtx {
-                            node: from.node,
-                            read: from.read,
-                            table: &from.table,
-                            body: moved_a.as_deref().unwrap_or(&**held_a),
-                        },
-                        &names::OperandCtx {
-                            node: b.node,
-                            read: b.read,
-                            table: &b.table,
-                            body: moved_b.as_deref().unwrap_or(&**held_b),
-                        },
-                        tol,
-                    );
-                    let alike = again.is_ok_and(|again| {
-                        format!("{:?}", again.table) == format!("{:?}", emitted.table)
-                    });
-                    crate::test_support::record_subtract_names(id, alike);
-                }
-            }
+            crate::test_support::probe_subtract_names(
+                id,
+                &emitted.table,
+                [(&from.body, &body_a), (&b.body, body_b)],
+                &computing,
+                tol,
+                |a, b| emit(a, b).ok().map(|again| again.table),
+            );
             OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: super::Framed::in_frame(Arc::new(out.body), computing.clone()),
@@ -4209,7 +4183,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // its first's ([`super::Framed::computing_among`]), each other member
     // placed in it through `relative` and moved there by the n-ary door.
     // Each member's node, which a refusal of its move names, beside the
-    // member whose frame it was placed into.
+    // member whose frame it was placed into. A family's members are each
+    // read from the family's node (`MemberRead::node`), so a member of a
+    // family is named by the family.
     let nodes: Vec<RecipeNodeId> = members.iter().map(|m| m.node).collect();
     let (members, apart, computing, frame_of) = match members {
         [] => return empty(),
@@ -4290,10 +4266,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let mut run = (verb.members)(nary, inputs);
         run.apart = apart;
         run.run_members(&bodies, boolean_sweep, tol)
-            .map_err(|(i, findings)| NodeErrorKind::UnfinishedLeaf {
-                input: nodes[i],
-                into: Some(frame_of),
-                findings,
+            .map_err(|(i, findings)| {
+                NodeErrorKind::unfinished_in(nodes[i], Some(frame_of))(findings)
             })?
     };
     // Each member as the run read it, in the computing frame, which the
@@ -4353,6 +4327,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 &j.body.naming,
                 &j.body.body,
                 [members[j.a].read, members[j.b].read],
+                // The member as held, not as the run read it: the senses
+                // chase the piece's edges through `b`'s topology and keys,
+                // which a move keeps (`topo::transform::map_isometry`),
+                // and compare no geometry with the result.
                 bodies[j.b].body(),
             )
             .map_err(NodeErrorKind::Naming)?;

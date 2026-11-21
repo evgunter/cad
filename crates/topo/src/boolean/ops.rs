@@ -825,10 +825,7 @@ impl<'a, F: crate::FinishedBody> Placed<'a, F> {
     pub fn new(held: &'a F, motion: Option<geom_core::RigidMotion<F::Scalar>>) -> Self {
         Self {
             held,
-            seat: match motion {
-                None => crate::Seat::own(held),
-                Some(motion) => crate::Seat::at(held, motion),
-            },
+            seat: crate::Seat::from_motion(held, motion),
         }
     }
 
@@ -860,12 +857,17 @@ impl<'a, F: crate::FinishedBody> From<&'a F> for Placed<'a, F> {
     }
 }
 
-/// **The two operands a placed pair Boolean read**, `a`'s then `b`'s,
-/// each in the computing frame ([`boolean_placed`]): an operand in that
+/// **The two operands a placed pair Boolean read**, each in the computing frame ([`boolean_placed`]): an operand in that
 /// frame as it is held, else its image there. A namer that compares the
 /// result's geometry with an operand's reads it here, where the run
 /// read it.
-pub type PairTaken<'p, F> = [std::borrow::Cow<'p, F>; 2];
+#[derive(Debug)]
+pub struct PairTaken<'p, F: crate::FinishedBody> {
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
+}
 
 /// **Why a placed Boolean did not run** ([`boolean_placed`]).
 #[derive(Debug)]
@@ -916,8 +918,11 @@ where
             .taken(tol)
             .map_err(|findings| PlacedBooleanError::Placed { operand, findings })
     };
-    let read = [taken(a, super::Operand::A)?, taken(b, super::Operand::B)?];
-    let [a, b] = [&*read[0], &*read[1]];
+    let read = PairTaken {
+        a: taken(a, super::Operand::A)?,
+        b: taken(b, super::Operand::B)?,
+    };
+    let (a, b) = (&*read.a, &*read.b);
     let result = match op {
         BooleanOp::Subtract => super::nary::cut_by_material(a, b, inputs, strategy, tol)
             .map_err(PlacedBooleanError::Boolean)?,
