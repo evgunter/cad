@@ -728,8 +728,8 @@ class TestBossplate(unittest.TestCase):
 
     The three-arc rim is the scene's point (the seam is three walls,
     not two), and it is `circle_split` — the declared-subdivision
-    carrier — not the `circle` primitive, whose private lowering is
-    two semicircles. The Rust scene's closed form is asserted
+    carrier — not the `circle` primitive, which lowers to one full
+    turn. The Rust scene's closed form is asserted
     verbatim, and its three-seam-arc census is not: the vertex count
     of the authored loop is checked instead, which is where the claim
     is actually made."""

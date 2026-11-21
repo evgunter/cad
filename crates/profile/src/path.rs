@@ -7108,7 +7108,9 @@ mod tests {
     /// encloses τ at `Interval`.
     #[test]
     fn the_circle_kernel_writes_its_full_turn_on_its_carrier_and_exactly_a_turn() {
-        fn check<T: Decide + geom_core::Bounds>(tol: Tol) {
+        /// Each case's label and stored sweep, the decided arm having
+        /// accepted it.
+        fn check<T: Decide>(tol: Tol) -> Vec<(String, T)> {
             let cases: [((f64, f64), f64, Option<f64>); 6] = [
                 ((0.0, 0.0), 1.0, None),
                 ((0.1, -0.3), 0.7, None),
@@ -7118,7 +7120,7 @@ mod tests {
                 ((3.0, 1.0), 0.2, Some(core::f64::consts::PI)),
             ];
             let band = linear_band::<T>(tol).expect("a band at the run's ε");
-            let tau = T::tau();
+            let mut sweeps = Vec::new();
             for ((cx, cy), r, phase) in cases {
                 let what = format!("({cx}, {cy}) r {r} phase {phase:?}");
                 let centre = Point2::new(T::from_f64(cx), T::from_f64(cy));
@@ -7132,15 +7134,6 @@ mod tests {
                 let crate::Segment::Arc(arc) = lp.segments()[0] else {
                     panic!("{what}: the one segment is an arc");
                 };
-                assert!(
-                    arc.sweep.lo() <= tau.lo() && arc.sweep.hi() >= tau.hi(),
-                    "{what}: the sweep [{}, {}] holds τ",
-                    arc.sweep.lo(),
-                    arc.sweep.hi()
-                );
-                if T::WITNESS == geom_core::Witness::Inexact {
-                    assert_eq!(arc.sweep.lo().to_bits(), tau.lo().to_bits(), "{what}: τ");
-                }
                 let seg = seg::build_loop_seg(
                     lp.vertices(),
                     lp.segments(),
@@ -7157,11 +7150,27 @@ mod tests {
                     "{what}: a full turn"
                 );
                 assert_eq!(g.turn, Sign::Positive, "{what}: counterclockwise");
+                sweeps.push((what, arc.sweep));
             }
+            sweeps
         }
         let tol = Tol::witness();
-        check::<f64>(tol);
-        check::<geom_core::Interval>(tol);
+        for (what, sweep) in check::<f64>(tol) {
+            assert_eq!(
+                sweep.to_bits(),
+                core::f64::consts::TAU.to_bits(),
+                "{what}: τ"
+            );
+        }
+        let tau = geom_core::Interval::tau();
+        for (what, sweep) in check::<geom_core::Interval>(tol) {
+            assert!(
+                sweep.lo() <= tau.lo() && sweep.hi() >= tau.hi(),
+                "{what}: the sweep [{}, {}] holds τ",
+                sweep.lo(),
+                sweep.hi()
+            );
+        }
     }
 
     /// `circle` is `circle_split` at one arc and phase 0, to the bit,

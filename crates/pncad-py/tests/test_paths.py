@@ -237,10 +237,11 @@ class TestTheLatticeWalks(unittest.TestCase):
 
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)
-        self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 2)
+        self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 1)
         split = circle_split(ORIGIN, 1 * m, 3, 0 * rad)
         self.assertEqual(split.step_count, 1)
         self.assertEqual(split.vertex_count, 3)
+        self.assertEqual(circle_split(ORIGIN, 1 * m, 1, 0 * rad).vertex_count, 1)
         box = rectangle((1 * m, 2 * m), 3 * m, 1 * m)
         self.assertEqual((box.step_count, box.vertex_count), (1, 4))
         # Its four sides are the one step's pieces 0..3, and no more.
@@ -381,7 +382,7 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_the_sign_gates(self):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
-        self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))
+        self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 0, 0 * rad))
         self.refuses("nonpositive_rectangle_side", lambda: rectangle(ORIGIN, 0 * m, 1 * m))
         self.refuses("nonpositive_rectangle_side", lambda: rectangle(ORIGIN, 1 * m, -1 * m))
         self.refuses("zero_direction", lambda: Open.toward(0.0, 0.0))
