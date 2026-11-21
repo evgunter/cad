@@ -450,7 +450,9 @@ This section is where that rule's parts live.
   serves, its parameter zero at the anchor and its centre derived,
   never stored. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
-  `running`'s charge doors (its `pub` items) outside this crate. Every
+  `running`'s charge doors (its `pub` items, and every call of a
+  `with_…` method that adds a charge to a `Rounded`'s bound) outside
+  this crate. Every
   site is a listed entry with its reason: in production, a formula or a
   stored form owed a re-posing, an error-free transformation, or
   test-support code; in a test, its oracle. An entry whose site has gone

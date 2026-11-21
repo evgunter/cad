@@ -284,8 +284,8 @@ pub fn conic_quadric_roots<T: Decide>(
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             return first_harmonic_roots(
                 &FirstHarmonic {
-                    lo: h.lo.widened(h.frame_error),
-                    hi: h.hi.widened(h.frame_error),
+                    lo: h.lo.with_charge(h.frame_error),
+                    hi: h.hi.with_charge(h.frame_error),
                     cos_part: h.e_u,
                     sin_part: h.e_v,
                     phase_noise: h.phase_error,

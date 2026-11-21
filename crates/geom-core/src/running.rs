@@ -159,15 +159,17 @@ impl<T: Real> Rounded<T> {
         (self.value.abs() - self.error).max(T::zero())
     }
 
-    /// The lower end of the enclosure `value ± error`: a lower bound on
-    /// the exact value, signed.
+    /// The lower end of the enclosure `value ± error`, signed. At `f64`
+    /// it is a first-order estimate of a lower bound on the exact value,
+    /// as the bound is, and its own subtraction rounds to nearest; at
+    /// `Interval` it is an enclosure of one.
     #[must_use]
     pub fn lower_end(self) -> T {
         self.value - self.error
     }
 
-    /// The upper end of the enclosure `value ± error`: an upper bound on
-    /// the exact value, signed.
+    /// The upper end of the enclosure `value ± error`, signed, read as
+    /// [`Rounded::lower_end`] is at each scalar.
     #[must_use]
     pub fn upper_end(self) -> T {
         self.value + self.error
@@ -175,12 +177,13 @@ impl<T: Real> Rounded<T> {
 
     /// This value with `charge` added to its bound: a further bound on
     /// its distance from what the caller reads it as, beside its own
-    /// rounding.
+    /// rounding. A charge is a size, so its magnitude is what is added:
+    /// a bound only ever grows here.
     #[must_use]
-    pub fn widened(self, charge: T) -> Self {
+    pub fn with_charge(self, charge: T) -> Self {
         Self {
             value: self.value,
-            error: self.error + charge,
+            error: self.error + charge.abs(),
         }
     }
 
@@ -424,12 +427,17 @@ mod tests {
             n.lower_end() < -r.value && -r.value < n.upper_end() && n.upper_end() == -r.lower_end(),
             "the negation's ends are the ends negated: {n:?}"
         );
-        let w = r.widened(0.25);
+        let w = r.with_charge(0.25);
         assert_eq!(w.value, r.value, "a charge leaves the value");
         assert_eq!(
             (w.lower_end(), w.upper_end()),
             (r.value - (r.error + 0.25), r.value + (r.error + 0.25)),
             "a charge widens both ends by itself"
+        );
+        assert_eq!(
+            r.with_charge(-0.25).error,
+            w.error,
+            "a negative charge widens as its size does, never shrinks"
         );
     }
 

@@ -394,7 +394,10 @@ impl SlackTerms {
             Point3::from_array(sc),
             r,
         );
-        let (lo, hi) = (h.lo.widened(h.frame_error), h.hi.widened(h.frame_error));
+        let (lo, hi) = (
+            h.lo.with_charge(h.frame_error),
+            h.hi.with_charge(h.frame_error),
+        );
         let (lo_n, hi_n) = (lo.error, hi.error);
         let (swing, slope) = (hi.value - lo.value, (-lo.value * hi.value).max(0.0).sqrt());
         let (near, far) = if lo.value.abs() <= hi.value.abs() {

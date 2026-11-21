@@ -54,11 +54,13 @@ pub(crate) struct Taylor<T> {
 /// remainder).
 fn term<T: Real>(c: T, w: T, k: usize) -> T {
     let factorial = match k {
-        0 | 1 => return if k == 0 { c } else { c * w },
+        0 => return c,
+        1 => return c * w,
         2 => T::from_f64(2.0),
         3 => T::from_f64(6.0),
         4 => T::from_f64(24.0),
-        _ => T::from_f64(120.0),
+        5 => T::from_f64(120.0),
+        _ => unreachable!("a Taylor term of order {k}, past the five a jet holds"),
     };
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     let power = w.powi(k as i32);

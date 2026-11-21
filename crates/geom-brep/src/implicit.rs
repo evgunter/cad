@@ -887,8 +887,8 @@ pub fn circle_residual_extremes<T: Real>(
         // the frame's defect (`CircleSphereHarmonic`).
         let h = circle_sphere_harmonic(circle, sc, r);
         return Some((
-            h.lo.widened(h.frame_error).lower_end(),
-            h.hi.widened(h.frame_error).upper_end(),
+            h.lo.with_charge(h.frame_error).lower_end(),
+            h.hi.with_charge(h.frame_error).upper_end(),
         ));
     }
     conic_residual_extremes(s, circle)
@@ -2297,17 +2297,6 @@ mod tests {
         }
     }
 
-    /// **The frame charge bounds the gap between the circle the stored
-    /// frame evaluates and the factored form, and is attained.** The
-    /// literal residual `|e + ρ(û cos θ + (n̂ × û) sin θ)|² − r²` and the
-    /// form's `P + e_n² + ρ² − r² + 2ρ(e_u cos θ + e_v sin θ)` differ, at
-    /// every rational point `(a, b)/c` of the unit circle tried, by no
-    /// more than `2r·frame_error` — exactly, in dyadic arithmetic scaled
-    /// by `c²`. Two defective frames: `n̂` tilted off `û`'s normal plane
-    /// by `2⁻²⁸`, and `û` stretched by `2⁻³⁰` with `n̂` shrunk by as
-    /// much and the sphere's centre on the axis, where at `θ = 0` the
-    /// gap is the bound to first order — so a charge of half the bound
-    /// misses there. An exactly orthonormal frame is charged nothing.
     /// **A circle's residual extremes against a sphere are its extremes'
     /// enclosure, the frame's charge included.** A frame whose axis leans
     /// `2⁻²⁸` off unit (its defect charged, `frame_error` past `10⁻¹⁰`):
@@ -2360,6 +2349,17 @@ mod tests {
         }
     }
 
+    /// **The frame charge bounds the gap between the circle the stored
+    /// frame evaluates and the factored form, and is attained.** The
+    /// literal residual `|e + ρ(û cos θ + (n̂ × û) sin θ)|² − r²` and the
+    /// form's `P + e_n² + ρ² − r² + 2ρ(e_u cos θ + e_v sin θ)` differ, at
+    /// every rational point `(a, b)/c` of the unit circle tried, by no
+    /// more than `2r·frame_error` — exactly, in dyadic arithmetic scaled
+    /// by `c²`. Two defective frames: `n̂` tilted off `û`'s normal plane
+    /// by `2⁻²⁸`, and `û` stretched by `2⁻³⁰` with `n̂` shrunk by as
+    /// much and the sphere's centre on the axis, where at `θ = 0` the
+    /// gap is the bound to first order — so a charge of half the bound
+    /// misses there. An exactly orthonormal frame is charged nothing.
     #[test]
     fn the_frame_charge_bounds_the_literal_circle() {
         let flat = circle_sphere_harmonic(
