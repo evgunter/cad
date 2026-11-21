@@ -100,3 +100,19 @@ smooth-edge fact and not re-decide it; smoothness is read per edge
 and nothing yet maps a loop vertex to the edge between its two walls.
 A filleted rim's wall is tangent to the cap, which the trace reading
 refuses as `Grazing`; the boundary loop reads the edge's own curve.
+
+## The hand-typed elbow, measured (2026-11-21)
+
+Run on hosted CI (PR 7280, run 44889924284). A pipe of radii 1 and 0.6,
+the same two circles drawn on its end cap, revolved a quarter turn
+about a line in the cap's plane 3 from the axis:
+
+- The revolve builds for one heading of the axis and refuses for the
+  other as "across the revolve axis", though the axis is clear of the
+  profile: `work/lathe/a-revolve-refuses-a-profile-on-one-side-of-its-axis-as-across-it.md`.
+- Where the revolve builds, the union of the pipe and the elbow
+  refuses: `work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`
+  (P0).
+
+So the elbow is not only an authoring gap: a picked loop makes the
+elbow a body, and joining it to its pipe waits on the union.
