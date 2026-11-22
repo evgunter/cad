@@ -454,3 +454,9 @@ body has the reasons):
   The lane creates and closes the traced-carriage row in 7151 itself, so
   this branch drops its copy to avoid an add/add conflict.
 - 2026-11-22 06:15 — **7353 merged** (`b2accf7`).
+- 2026-11-22 06:30 — **Main-latent red found via 7151's Python suite.**
+  `editor_core::NameCarrier` (OFFER, 7be2080) has no binding-census line
+  (`test_binding_census::test_every_curated_name_is_bound_or_listed`).
+  Main's push CI skips the Python job, so main never saw it. The fix is
+  ported into 7151, and OFFER should be told on its log when this
+  branch's tracker lands.
