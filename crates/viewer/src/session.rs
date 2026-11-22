@@ -480,6 +480,19 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The delete last rehearsed, with the history state and node it
+    /// was rehearsed for** ([`DocSession::priced_delete`]): the delete
+    /// button asks its wording and its refusal every frame, and one
+    /// rehearsal of the whole delete answers both.
+    ///
+    /// Keyed by the history state because the committed document is all
+    /// a rehearsal reads, and a gesture's previews move the generation
+    /// without moving it. A state's document changes under its id only
+    /// where the history is replaced or re-identified, and both drop
+    /// this ([`DocSession::clear_for_new_document`],
+    /// [`DocSession::save_as_new_document`]). Behind a mutex because
+    /// the panes ask through a shared borrow.
+    priced: std::sync::Mutex<Option<(HistoryId, RecipeNodeId, PricedDelete)>>,
     /// **The re-point buttons read this generation**
     /// ([`DocSession::repoint_button`]), each source row and "copy of" row
     /// asking under its own source and selected body: each asks the same
@@ -652,6 +665,15 @@ struct Derived {
     /// what its standing reads while no run answers the shown document
     /// ([`DocSession::name_run`]).
     verdict: Option<(Selection, Option<Box<Resolution>>)>,
+}
+
+/// **A delete rehearsed against the committed document**
+/// ([`DocSession::priced_delete`]): what its button says, and the
+/// refusal the click would get.
+#[derive(Clone)]
+struct PricedDelete {
+    affordance: DeleteAffordance,
+    refusal: Option<Arc<Refusal>>,
 }
 
 /// **Which run answers the shown document's names while its own run is
@@ -1084,6 +1106,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            priced: std::sync::Mutex::new(None),
             repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
@@ -1156,6 +1179,12 @@ impl DocSession {
     /// The `cascade` field is the deletion order itself — exactly what
     /// [`SessionOp::DeleteNode`] applies — so the number on the button
     /// and the number of features that vanish are one list read twice.
+    /// The `stranded` field counts what the delete's own rehearsal
+    /// reports ([`Self::priced_delete`]), so the number of names the
+    /// button says it strands is the number the click's
+    /// [`OpOutcome::maintenance`] is about. A delete the click would
+    /// refuse ([`Self::delete_refusal`]) removes and strands nothing,
+    /// and its affordance says so.
     ///
     /// Read off the COMMITTED document, which is the one the edits
     /// apply to; the delete op is one of the table's refusals
@@ -1163,7 +1192,7 @@ impl DocSession {
     /// holds a scratch value, so the two never disagree at a live
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
-        DeleteAffordance::of(self.committed_doc(), node)
+        self.priced_delete(node).affordance
     }
 
     /// **The chrome's cancel doors, one per gesture** — the exits
@@ -3322,6 +3351,8 @@ impl DocSession {
         match docio::save_as_new_document(path, self.history.doc(), self.tol) {
             Ok(id) => {
                 self.history.under_identity(id);
+                // Every state's document changed under its id.
+                self.forget_priced_delete();
                 // The landed run is of the old identity, so a run is
                 // owed whether or not the folder moved.
                 if !self.bind_file(path) {
@@ -3428,6 +3459,15 @@ impl DocSession {
         self.landed_withdrawals.clear();
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
+        self.forget_priced_delete();
+    }
+
+    /// Drop the kept delete rehearsal (`DocSession::priced`).
+    fn forget_priced_delete(&mut self) {
+        *self
+            .priced
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
@@ -4593,30 +4633,72 @@ impl DocSession {
         }
     }
 
-    /// **What `SessionOp::DeleteNode` would answer for `node` because
-    /// the committed document does not hold it, or `None` where it
-    /// does** — asked ahead of the click by the control that pushes
-    /// the op.
+    /// **The refusal `SessionOp::DeleteNode` would answer for `node`,
+    /// or `None` where the delete lands** — asked ahead of the click by
+    /// the control that pushes the op.
     ///
-    /// It walks [`Self::delete_node`]'s own branch over the document
-    /// that op reads: a node it does not hold takes the single edit, and
-    /// that edit is staged through the door ([`Self::stage_run`]) and never
+    /// It is [`Self::delete_node`]'s own branch rehearsed over the
+    /// document that op reads ([`Self::priced_delete`]): the plan's
+    /// fault where the delete cannot splice, and otherwise the refusal
+    /// of the first door that refuses one of its edits, staged and never
     /// recorded, so the refusal is `EditError`'s and has one home. A
-    /// selection can outlive its feature here — a face resolves
-    /// against the last LANDED run, which still holds a feature the
-    /// committed document has dropped until the next run lands, and
-    /// indefinitely after a cancel.
+    /// node the document does not hold takes the single edit, which the
+    /// door refuses: a selection can outlive its feature here — a face
+    /// resolves against the last LANDED run, which still holds a
+    /// feature the committed document has dropped until the next run
+    /// lands, and indefinitely after a cancel.
     ///
     /// Not everything `perform` can answer: a held value gesture
-    /// refuses the op before this admission runs, and a held node's
-    /// splice is applied at the click rather than rehearsed every frame.
-    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        match spliced(self.committed_doc(), node) {
-            Ok(Some(_)) => None,
+    /// refuses the op before this admission runs.
+    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Arc<Refusal>> {
+        self.priced_delete(node).refusal
+    }
+
+    /// **The delete of `node` rehearsed against the committed
+    /// document, kept** (`DocSession::priced`): rehearsed once per
+    /// history state and node, and answered from then on.
+    fn priced_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let at = self.history.current();
+        let mut kept = self
+            .priced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((state, of, priced)) = kept.as_ref()
+            && *state == at
+            && *of == node
+        {
+            return priced.clone();
+        }
+        let priced = self.rehearse_delete(node);
+        *kept = Some((at, node, priced.clone()));
+        priced
+    }
+
+    /// **[`Self::delete_node`]'s action, staged and dropped**: the
+    /// nodes it removes and the rows it reports where every door
+    /// accepts it, and the refusal where one does not.
+    fn rehearse_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let doc = self.committed_doc();
+        let staged = match spliced(doc, node) {
+            Ok(Some(splice)) => {
+                let cascade = splice.deleted.clone();
+                self.stage_run(|run| splice.apply(run))
+                    .map(|(staged, ())| (cascade, staged.maintenance))
+            }
             Ok(None) => self
                 .stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
-                .err(),
-            Err(refusal) => Some(refusal),
+                .map(|(staged, ())| (vec![node], staged.maintenance)),
+            Err(refusal) => Err(refusal),
+        };
+        match staged {
+            Ok((cascade, report)) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, cascade, &report),
+                refusal: None,
+            },
+            Err(refusal) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, Vec::new(), &[]),
+                refusal: Some(Arc::new(refusal)),
+            },
         }
     }
 
@@ -6426,6 +6508,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            priced: _,
             repoints: _,
             bundles: _,
             proposals: _,
