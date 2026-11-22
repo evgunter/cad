@@ -140,7 +140,7 @@ mod tests {
             let t = S::from_f64(0.3);
             let held = arc.eval(t).unwrap();
             let frozen = HeldArc {
-                weights: arc.weights.iter().map(|w| S::from_f64(w.value)).collect(),
+                weights: arc.weights.iter().map(|w| S::from_f64(w.value())).collect(),
                 ..arc.clone()
             }
             .eval(t)

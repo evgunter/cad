@@ -417,13 +417,13 @@ fn the_traced_wall_reads_the_radius_atom_at_sym() {
             vertices(&ev, node)
                 .into_iter()
                 .map(|p| p[axis])
-                .max_by(|a, b| a.value.hi().total_cmp(&b.value.hi()))
+                .max_by(|a, b| a.value().hi().total_cmp(&b.value().hi()))
                 .expect("vertices")
         };
         let wall = highest(scene.boss, 1);
         let rim = highest(scene.cylinder, 0);
         (
-            wall.value,
+            wall.value(),
             geom_core::sym::report::render_of(wall.node()).expect("the wall's form"),
             geom_core::sym::report::render_of(rim.node()).expect("the rim's form"),
         )

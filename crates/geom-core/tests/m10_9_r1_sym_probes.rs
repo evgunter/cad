@@ -7,7 +7,12 @@
 //!
 //! Evidence-only rows print; the rest assert what they measured.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 use geom_core::interval::Interval;
 use geom_core::predicate::{Band, Sign};

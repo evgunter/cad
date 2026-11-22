@@ -259,16 +259,12 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
 /// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sym={} rref={} rcon={} num={} disp={} chk={}/{} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sym={} rref={} num={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic,
         c.registrations_refused,
-        c.registrations_contradicted,
         c.numeric,
-        c.theorems_disputed,
-        c.checks_expanded,
-        c.checks_expanded + c.checks_frozen,
         c.frozen,
         shapes,
     )
@@ -307,10 +303,8 @@ struct Receipt {
 /// own under `budget` that BUILDS the body before reading it.
 ///
 /// **Built inside, receipted after.** A node minted before the session
-/// is not in its table, so the walk can only make it an unknown, and a
-/// contradiction check over the body's arithmetic would be reading
-/// unknowns (`SymCounts::checks_expanded`). So the session is installed
-/// first, and the receipt is the door's alone: the counts the build
+/// is not in its table, so the walk can only make it an unknown. So the
+/// session is installed first, and the receipt is the door's alone: the counts the build
 /// left ([`session_counts`](geom_core::sym::session_counts)) are taken
 /// off the end, and the shape report opens after the build.
 fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receipt> {
@@ -356,10 +350,6 @@ fn since(end: SymCounts, start: SymCounts) -> SymCounts {
     let SymCounts {
         symbolic,
         registrations_refused,
-        registrations_contradicted,
-        theorems_disputed,
-        checks_expanded,
-        checks_frozen,
         numeric,
         retried,
         frozen,
@@ -367,10 +357,6 @@ fn since(end: SymCounts, start: SymCounts) -> SymCounts {
     SymCounts {
         symbolic: symbolic - start.symbolic,
         registrations_refused: registrations_refused - start.registrations_refused,
-        registrations_contradicted: registrations_contradicted - start.registrations_contradicted,
-        theorems_disputed: theorems_disputed - start.theorems_disputed,
-        checks_expanded: checks_expanded - start.checks_expanded,
-        checks_frozen: checks_frozen - start.checks_frozen,
         numeric: numeric - start.numeric,
         retried: retried - start.retried,
         frozen: frozen - start.frozen,
@@ -395,11 +381,8 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// escalation channels' counts and hashes. The `# sym-session` block is
 /// one line per `Sym` body and door ([`counts_line`]), each the DOOR's
 /// receipt over a body the same session built ([`receipts`]): by
-/// outcome (`sym`, `rref`, `rcon`, `num`), its disputes (`disp`), its
-/// contradiction checks as the ones that saw a whole form over all of
-/// them (`chk`), the nodes its plain walks froze (`frozen`) and the
-/// shape report's length. Every receipt also clears
-/// [`dispute_coverage`] before the table is read.
+/// outcome (`sym`, `rref`, `num`), the nodes its plain walks froze
+/// (`frozen`) and the shape report's length.
 ///
 /// **When a line moves.** The table is the SERIAL walk's reading:
 /// [`the_walk_matches_the_serial_golden_at_one_thread`] holds it to
@@ -437,11 +420,6 @@ fn check_against_golden(threads: usize) {
     let eps = Tol::witness().get().eps;
     let (f64_block, receipts) =
         on_pool(threads, || (f64_block(), receipts(&sym_bodies(), budget())));
-    for r in &receipts {
-        if let Err(why) = dispute_coverage(&r.counts) {
-            panic!("{} {}: {why}: {:?}", r.name, r.door, r.counts);
-        }
-    }
     let got = digest(&f64_block, &receipts);
     let Some(want) = expected(eps) else {
         panic!("no committed digest for eps={eps:e}; this run produced\n{got}");
@@ -506,111 +484,4 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
     );
-}
-
-// ---------------------------------------------------------------- //
-// Dispute coverage: what a `disp=0` in the session block speaks for.  //
-// ---------------------------------------------------------------- //
-
-/// **The least share of a receipt's contradiction checks that must
-/// have seen a whole form**, as `(numerator, denominator)`.
-///
-/// Measured at all three ε with the bodies built inside the session:
-/// 103/110 (0.936) on the arc loft's `validate_geometric` and 104/116
-/// (0.897) on the strip's — the lowest share, ten points over this
-/// floor, eleven checks of its 116. Built outside the session the same
-/// arc door reads 14/110 (0.127).
-const COVERAGE_FLOOR: (u64, u64) = (4, 5);
-
-/// **The fewest checks the floor is read over.** A share of a handful
-/// is noise — on the 2-check `mass_properties` receipt one freeze is
-/// half of it — so below this the guard asks only that a check ran,
-/// and the golden table pins those receipts' `chk` exactly.
-const COVERAGE_MIN_CHECKS: u64 = 20;
-
-/// **The guard on `disp=0`.** A contradiction check over a form it
-/// cannot see whole cannot dispute (`SymCounts::checks_expanded`), so a
-/// receipt's zero disputes are evidence only for the checks that saw
-/// their form. The guard is a floor on that share, not on a count: it
-/// holds when the walk takes more or fewer decisions for reasons of its
-/// own, and fails when the checks it does take go blind. A receipt with
-/// no check at all fails too — its `disp=0` is about nothing.
-fn dispute_coverage(c: &SymCounts) -> Result<(), String> {
-    let checks = c.checks_expanded + c.checks_frozen;
-    let (n, d) = COVERAGE_FLOOR;
-    if checks == 0 {
-        return Err("no contradiction check ran, so disp=0 speaks for nothing".to_owned());
-    }
-    if checks >= COVERAGE_MIN_CHECKS && c.checks_expanded * d < checks * n {
-        return Err(format!(
-            "{} of {checks} contradiction checks saw a whole form, under the floor of \
-             {n}/{d}: disp={} speaks for too few of them",
-            c.checks_expanded, c.theorems_disputed
-        ));
-    }
-    Ok(())
-}
-
-/// **The guard trips where the checks go blind, and `disp=0` alone
-/// does not.** The arc loft built BEFORE the session is installed, then
-/// read through both doors inside one: every node of the body is
-/// unknown to the session, the checks of `validate_geometric` read
-/// unknowns, and the guard fails there while both doors still read no
-/// dispute. Built inside, the same door clears the guard in the golden
-/// row.
-#[test]
-fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() {
-    let body = sym_arc_loft();
-    // The measurement door's body is finished outside the session too, so
-    // its receipt is the door's own; the validation door reads it as built.
-    let finished = topo::test_support::finished("the arc loft", body.clone(), Tol::witness());
-    let all: Vec<_> = ["mass_properties", "validate_geometric"]
-        .into_iter()
-        .map(|door| {
-            let (_, c) = with_session(budget(), || match door {
-                "mass_properties" => {
-                    topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
-                }
-                _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
-            });
-            (door, c)
-        })
-        .collect();
-    for (door, c) in &all {
-        println!("sym_arc_loft {door} built outside: {c:?}");
-        assert_eq!(
-            c.theorems_disputed, 0,
-            "{door}: the blind run disputes nothing, so disp=0 cannot be the guard: {c:?}"
-        );
-    }
-    let tripped: Vec<_> = all
-        .iter()
-        .filter(|(_, c)| dispute_coverage(c).is_err())
-        .map(|(door, _)| *door)
-        .collect();
-    assert_eq!(
-        tripped,
-        ["validate_geometric"],
-        "the doors whose checks a body built outside the session blinds: {all:?}"
-    );
-}
-
-/// The guard's three branches at their edges: no check, a small
-/// receipt the floor is not read over, and a large one either side of
-/// the floor.
-#[test]
-fn the_guard_reads_its_floor_over_enough_checks() {
-    let at = |expanded, frozen| SymCounts {
-        checks_expanded: expanded,
-        checks_frozen: frozen,
-        ..SymCounts::default()
-    };
-    for (expanded, frozen, holds) in [(0, 0, false), (1, 1, true), (16, 4, true), (15, 5, false)] {
-        assert_eq!(
-            dispute_coverage(&at(expanded, frozen)).is_ok(),
-            holds,
-            "{expanded} of {} checks on whole forms",
-            expanded + frozen
-        );
-    }
 }

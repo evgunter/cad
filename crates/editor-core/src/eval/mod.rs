@@ -3098,7 +3098,7 @@ pub(crate) mod leaf {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, cancel, opts, tol);
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
-                        v.value
+                        v.value()
                     })
                 });
                 out
@@ -3721,15 +3721,15 @@ where
     geom_core::Sym<T>: geom_core::Decide,
 {
     fn quoted(self) -> f64 {
-        self.value.quoted()
+        self.value().quoted()
     }
 
     fn upper(self) -> f64 {
-        self.value.upper()
+        self.value().upper()
     }
 
     fn exactly_zero(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     fn spins_by_frames() -> bool {

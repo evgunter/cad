@@ -58,12 +58,11 @@ fn unit() -> f64 {
 
 fn counts_line(refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{} decisions={} sym={} rref={} rcon={} num={} frozen={} shapes={}",
+        "{} decisions={} sym={} rref={} num={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic,
         c.registrations_refused,
-        c.registrations_contradicted,
         c.numeric,
         c.frozen,
         shapes,
