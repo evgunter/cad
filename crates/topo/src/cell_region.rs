@@ -287,38 +287,32 @@ impl Ball {
     }
 }
 
-/// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, a torus's or spindle sheet's axis, which holds a sheet's apexes
-/// (a ring torus never comes near it), and a spline net's collapsed
-/// sides. A plane and a cylinder have none, and a sphere's poles are
-/// not read here.
+/// Is the carrier's singular set decided clear of the ball: every
+/// singular point of its one home, and a torus's or spindle sheet's axis.
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
-    // A spline net's collapsed sides, from their one home: each a point
-    // the chart's normal vanishes at.
-    let sides_clear = geom_brep::chart_singularity::singular_points(surface)
+    // Every singular point, from its one home: a sphere's poles, a
+    // cone's apex, a sheet's apexes, a spline net's collapsed sides.
+    let points_clear = geom_brep::chart_singularity::singular_points(surface)
         .into_iter()
-        .filter(|(which, _)| matches!(which, geom_brep::chart_singularity::Singularity::Side(_)))
         .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()));
-    sides_clear
-        && match *surface {
-            Surface::Cone { frame, .. } => {
-                let apex = frame.origin();
-                clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
-            }
-            Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                let axis_line = geom::Line {
-                    origin: center,
-                    dir: axis,
-                };
-                clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
-            }
-            _ => true,
+    // A torus's or spindle sheet's axis, where its azimuth's lever
+    // collapses: no singular point of a ring torus, which never comes
+    // near it, and a sheet's apexes lie on it.
+    let axis_clear = match *surface {
+        Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
+            let axis_line = geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis(),
+            };
+            clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
+        _ => true,
+    };
+    points_clear && axis_clear
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:

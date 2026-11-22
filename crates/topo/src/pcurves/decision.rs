@@ -1558,10 +1558,7 @@ pub(super) fn decide_joint<T: Decide>(
     };
     let mut free = [false; 2];
     for side in walked.into_iter().flatten() {
-        match side.fixed {
-            ChartAxis::U => free[1] = true,
-            ChartAxis::V => free[0] = true,
-        }
+        free[usize::from(side.fixed.other() == ChartAxis::V)] = true;
     }
     if free == [false; 2] {
         return by(ordinary);

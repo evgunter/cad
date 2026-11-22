@@ -1417,7 +1417,7 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
         let (next_axis, next_pieces, next_row) = &held[(k + 1) % m];
         if m > 1 && next_axis == axis {
             let next = side(*next_axis, next_pieces)?;
-            let across = other_axis(*axis);
+            let across = axis.other();
             let end = match this.way {
                 Way::WithChannel => geom_brep::ChartEnd::High,
                 Way::AgainstChannel => geom_brep::ChartEnd::Low,
@@ -1458,14 +1458,6 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
          cut-loft unit's)",
     ))?;
     Ok(TrimRectangle { rect, turn, jumps })
-}
-
-/// The other channel of a chart.
-fn other_axis(axis: geom_brep::ChartAxis) -> geom_brep::ChartAxis {
-    match axis {
-        geom_brep::ChartAxis::U => geom_brep::ChartAxis::V,
-        geom_brep::ChartAxis::V => geom_brep::ChartAxis::U,
-    }
 }
 
 /// One piece of a run as [`side`] reads it: its line's held value and its

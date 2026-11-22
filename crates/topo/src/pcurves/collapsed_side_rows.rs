@@ -18,19 +18,9 @@ fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }
 
-/// A triangle of a wall: its `u = 0` column from `pole` to `top`, its
-/// `u = 1` column from (3, 0, 0) to (3, 2, 0).
+/// A triangle of a wall ([`geom::test_support::collapsed::triangle`]).
 fn triangle(pole: Point3<f64>, top: Point3<f64>) -> Surface<f64> {
-    let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap());
-    let control = vec![
-        pole,
-        top,
-        Point3::new(3.0, 0.0, 0.0),
-        Point3::new(3.0, 2.0, 0.0),
-    ];
-    Surface::Nurbs(Arc::new(
-        NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap(),
-    ))
+    Surface::Nurbs(Arc::new(geom::test_support::collapsed::triangle(pole, top)))
 }
 
 /// The joint into the bottom row `(0, 0) → (1, 0)` from the top row's
@@ -62,7 +52,7 @@ fn a_joint_on_a_collapsed_side_is_the_identity_and_one_ulp_off_it_is_a_gap() {
         "one stored point: the identity, read {:?}",
         joint(&one, pole).ok()
     );
-    let ulp = Point3::new(f64::from_bits(1.0_f64.to_bits() + 1), 1.0, 0.0);
+    let ulp = geom::test_support::collapsed::ulp_along_x(pole);
     let apart = triangle(pole, ulp);
     assert!(
         geom_brep::chart_singularity::singular_points(&apart).is_empty(),

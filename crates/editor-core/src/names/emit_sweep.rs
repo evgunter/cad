@@ -961,27 +961,10 @@ mod tests {
     /// one slab of three; every table total over its body.
     #[test]
     fn a_loft_with_pinned_corners_is_named_whole() {
-        use geom_core::{Affine3, Point3, Vec3};
-        let square = || {
-            vec![ProfileLoop::polygon(
-                [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
-                    .iter()
-                    .map(|&(x, y)| Point2::new(x, y)),
-            )]
-        };
-        let turn = |at: [f64; 3], about: [f64; 3], angle: f64| {
-            Affine3::rotation_about_axis(
-                Point3::new(at[0], at[1], at[2]),
-                Vec3::new(about[0], about[1], about[2]),
-                angle,
-            )
-        };
+        use geom_core::{Affine3, Vec3};
+        use sweep::test_support::{pinned_square as square, rigid_places, turn_about as turn};
         let tol = Tol::witness();
-        let places = |ms: &[Affine3<f64>]| -> Vec<SketchPlane<f64>> {
-            ms.iter()
-                .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
-                .collect()
-        };
+        let places = |ms: &[Affine3<f64>]| rigid_places(ms, tol);
         for (what, ms) in [
             (
                 "wedge",

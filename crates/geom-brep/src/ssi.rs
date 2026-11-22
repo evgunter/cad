@@ -1728,6 +1728,17 @@ pub enum ChartAxis {
     V,
 }
 
+impl ChartAxis {
+    /// The chart's other parameter.
+    #[must_use]
+    pub const fn other(self) -> Self {
+        match self {
+            Self::U => Self::V,
+            Self::V => Self::U,
+        }
+    }
+}
+
 /// Why a NURBS operand's chart cannot carry a length in metres into its
 /// parameters ([`SsiError::ChartSpeed`]).
 ///

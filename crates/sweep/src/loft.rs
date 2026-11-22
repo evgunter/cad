@@ -1254,24 +1254,6 @@ fn hinge_at_rest<T: Decide + topo::AtRestPolicy>(
     Ok(())
 }
 
-/// The stacking door's classes as the assembly reads them, per body
-/// slab: a corner pinned there, and a segment pinned at both ends that
-/// is the same curve in its sections.
-struct Spans<C, F> {
-    corner: C,
-    flat: F,
-}
-
-impl<C: Fn(usize, usize, usize) -> bool, F: Fn(usize, usize, usize) -> bool> Spans<C, F> {
-    fn at(&self, li: usize, j: usize, s: usize) -> bool {
-        (self.corner)(li, j, s)
-    }
-
-    fn flat(&self, li: usize, j: usize, s: usize) -> bool {
-        (self.flat)(li, j, s)
-    }
-}
-
 /// Assembles the loft BODY from its skinned geometry (module docs),
 /// over sections the stacking door has already accepted.
 ///
@@ -1308,10 +1290,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // every section is one slab over all of them, where the door has
     // refused a corner or segment pinned in some and not others.
     let over = |s: usize| if slabs == 1 { 0..k - 1 } else { s..s + 1 };
-    let pinned = Spans {
-        corner: |li: usize, j: usize, s: usize| over(s).all(|d| door.at(li, j, d)),
-        flat: |li: usize, j: usize, s: usize| over(s).all(|d| door.flat(li, j, d)),
-    };
+    let pinned_at = |li: usize, j: usize, s: usize| door.at_through(li, j, over(s));
+    let flat = |li: usize, j: usize, s: usize| door.flat_through(li, j, over(s));
 
     // ---- Traversals and world points, per section, per loop. ----
     let loops_at: Vec<Vec<Vec<SweptSeg<T>>>> = canonical
@@ -1584,7 +1564,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             // rim takes its place.
             let mut top: Vec<topo::HalfEdgeKey> = Vec::with_capacity(n);
             for j in 0..n {
-                if pinned.at(li, j, s) {
+                if pinned_at(li, j, s) {
                     seams[j].push(None);
                     top.push(base[j]);
                     continue;
@@ -1604,7 +1584,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 // A segment pinned at both ends and the same curve in
                 // both sections is the edge both hold: no wall, and its
                 // rim stays the next slab's base.
-                if pinned.flat(li, j, s) {
+                if flat(li, j, s) {
                     faces[j].push(None);
                     continue;
                 }
@@ -1625,7 +1605,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 // A rim every slab above holds flat is the top cap's,
                 // which states it at rest; any other far rim below the top
                 // is an interior section's.
-                if !(s + 1..slabs).all(|t| pinned.flat(li, j, t)) {
+                if !(s + 1..slabs).all(|t| flat(li, j, t)) {
                     section_rims.push((mef.edge, li, j, s));
                 }
             }
@@ -1653,7 +1633,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // caps hold, between two planes, so it rests as their wedge demands.
     for (li, base) in bases.iter().enumerate() {
         for (j, &he) in base.iter().enumerate() {
-            if (0..slabs).all(|s| pinned.flat(li, j, s)) {
+            if (0..slabs).all(|s| flat(li, j, s)) {
                 let Some(edge) = body.get_half_edge(he).map(|h| h.edge) else {
                     unreachable!("a cap rim's half-edge is live until the assembly ends")
                 };

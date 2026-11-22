@@ -1302,6 +1302,39 @@ pub fn stacked_at(zs: &[f64]) -> Vec<SketchPlane<f64>> {
     zs.iter().map(|z| sketch_at(*z)).collect()
 }
 
+/// The pinned-corner fixtures' square's corners: 2×2, corner 0 at
+/// (−1, −1), counterclockwise.
+pub const PINNED_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// **The pinned-corner fixtures' section**: [`PINNED_SQUARE`], one loop.
+#[must_use]
+pub fn pinned_square() -> Section {
+    use profile::RawLoop;
+    vec![ProfileLoop::polygon(
+        PINNED_SQUARE
+            .iter()
+            .map(|&(x, y)| geom_core::Point2::new(x, y)),
+    )]
+}
+
+/// The rotation by `angle` about the axis through `at` along `about`.
+#[must_use]
+pub fn turn_about(at: [f64; 3], about: [f64; 3], angle: f64) -> geom_core::Affine3<f64> {
+    geom_core::Affine3::rotation_about_axis(
+        geom_core::Point3::new(at[0], at[1], at[2]),
+        geom_core::Vec3::new(about[0], about[1], about[2]),
+        angle,
+    )
+}
+
+/// Each rigid map of `ms` as a section's placement, kept rigid at `tol`.
+#[must_use]
+pub fn rigid_places(ms: &[geom_core::Affine3<f64>], tol: geom_core::Tol) -> Vec<SketchPlane<f64>> {
+    ms.iter()
+        .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
+        .collect()
+}
+
 /// **Fixture sections at a lane scalar**: each loop of `sections`
 /// carried into `T` value by value as the constants a fixture's
 /// literals are ([`Real::from_f64`]), for a row that lofts at a scalar

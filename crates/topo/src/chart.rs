@@ -38,9 +38,9 @@ pub struct Chart<T: Real = f64> {
     /// Kind-specific data.
     pub kind: ChartKind<T>,
     inverse: ChartInverse<T>,
-    /// The surface's singular points, from their one home
-    /// ([`geom_brep::chart_singularity::singular_points`]).
-    singular: Vec<(geom_brep::chart_singularity::Singularity, Point3<T>)>,
+    /// The analytic surface the chart is of, which its singular points
+    /// are read off ([`Self::poles`]).
+    surface: Surface<T>,
 }
 
 /// The kind payload of a [`Chart`].
@@ -92,11 +92,10 @@ impl<T: Real> Chart<T> {
             ChartArm::Torus { major, minor } => ChartKind::Torus { major, minor },
             ChartArm::Spindle { major, minor } => ChartKind::Spindle { major, minor },
         };
-        let singular = geom_brep::chart_singularity::singular_points(surface);
         Some(Self {
             kind,
             inverse,
-            singular,
+            surface: surface.clone(),
         })
     }
 
@@ -223,9 +222,8 @@ impl Chart<f64> {
             }
         };
         let horn = self.is_horn();
-        self.singular
-            .iter()
-            .copied()
+        geom_brep::chart_singularity::singular_points(&self.surface)
+            .into_iter()
             .filter(|(which, _)| !(horn && *which == Singularity::SheetApexDown))
             .map(|(which, p)| {
                 let v = match which {
@@ -234,6 +232,7 @@ impl Chart<f64> {
                     Singularity::Apex => 0.0,
                     Singularity::SheetApexUp => v_star(),
                     Singularity::SheetApexDown => -v_star(),
+                    // `Chart::of` admits the analytic kinds alone.
                     Singularity::Side(_) => {
                         unreachable!("Chart::poles: an analytic chart has no spline side")
                     }

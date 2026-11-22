@@ -1,7 +1,10 @@
-//! **Where a chart singularity lies against a face**: a sphere's pole or
-//! a cone's apex read against the face's region, at one of its
-//! vertices, inside one of its edges, in its interior, or outside its
-//! closure ([`locate`]).
+//! **Where a chart singularity lies against a face**: a sphere's pole, a
+//! cone's apex, a spindle sheet's apex or a spline net's collapsed side
+//! read against the face's region, at one of its vertices, inside one of
+//! its edges, in its interior, or outside its closure ([`locate`]). A
+//! collapsed side is placed on the boundary like the others; off it, no
+//! side of a loop is read through a spline chart yet
+//! ([`Unread::SplineSide`]).
 //!
 //! Every chart singularity in a face's closure is a vertex of it (DESIGN
 //! `[topology.tiers]`, tier 3). Two doors read that statement:

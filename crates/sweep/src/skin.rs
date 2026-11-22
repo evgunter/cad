@@ -1221,7 +1221,7 @@ fn skin_with<T: SpanLocate>(
         let one_point = geom_brep::chart_singularity::one_stored_row(
             &sections.iter().map(|c| c.control()[i]).collect::<Vec<_>>(),
         );
-        for (r, row) in solved.iter().enumerate() {
+        for row in &solved {
             let (point, weight) = if let Some(c) = lane {
                 (Point3::new(row[at], row[at + 1], row[at + 2]), *c)
             } else {

@@ -15,16 +15,13 @@
 use geom_brep::chart_singularity::{Singularity, singular_points};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use profile::{ProfileLoop, RawLoop, SketchPlane};
+use profile::{ProfileLoop, SketchPlane};
 use sweep::{Lofted, loft_body};
 
-/// The 2×2 square, corner 0 at (−1, −1), counterclockwise.
-const SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+use sweep::test_support::PINNED_SQUARE as SQUARE;
 
 fn square() -> Vec<ProfileLoop<f64>> {
-    vec![ProfileLoop::polygon(
-        SQUARE.iter().map(|&(x, y)| Point2::new(x, y)),
-    )]
+    sweep::test_support::pinned_square()
 }
 
 /// A half disc on the chord from (−1, 0) to (1, 0): the chord, then
@@ -37,17 +34,11 @@ fn dee() -> Vec<ProfileLoop<f64>> {
 }
 
 fn places(ms: &[Affine3<f64>], tol: Tol) -> Vec<SketchPlane<f64>> {
-    ms.iter()
-        .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
-        .collect()
+    sweep::test_support::rigid_places(ms, tol)
 }
 
 fn turn(at: [f64; 3], about: [f64; 3], angle: f64) -> Affine3<f64> {
-    Affine3::rotation_about_axis(
-        Point3::new(at[0], at[1], at[2]),
-        Vec3::new(about[0], about[1], about[2]),
-        angle,
-    )
+    sweep::test_support::turn_about(at, about, angle)
 }
 
 /// The square turned about its edge x = −1 (segment 3).

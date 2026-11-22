@@ -978,25 +978,10 @@ mod collapsed_side_healing {
     use super::*;
     use geom_core::spline::KnotVector;
 
-    /// A bilinear patch whose side `u = 0` runs from (1, 1, 0) to `top`.
+    /// A bilinear patch whose side `u = 0` runs from (1, 1, 0) to `top`
+    /// ([`geom::test_support::collapsed::triangle`]).
     fn triangle(top: Point3<f64>) -> NurbsSurface<f64> {
-        let kv = || {
-            geom_core::spline::Knots::from(
-                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
-            )
-        };
-        NurbsSurface::new(
-            kv(),
-            kv(),
-            vec![
-                Point3::new(1.0, 1.0, 0.0),
-                top,
-                Point3::new(3.0, 0.0, 0.0),
-                Point3::new(3.0, 2.0, 0.0),
-            ],
-            vec![1.0; 4],
-        )
-        .unwrap()
+        geom::test_support::collapsed::triangle(Point3::new(1.0, 1.0, 0.0), top)
     }
 
     /// **A side one ulp wide is made its first point and reported**; one
@@ -1006,7 +991,7 @@ mod collapsed_side_healing {
     fn a_side_the_file_reads_as_one_point_is_made_that_point() {
         let file = crate::interpret::FileBand::test(1e-9);
         let pole = Point3::new(1.0, 1.0, 0.0);
-        let ulp = Point3::new(f64::from_bits(1.0_f64.to_bits() + 1), 1.0, 0.0);
+        let ulp = geom::test_support::collapsed::ulp_along_x(pole);
         let Ok(Some((healed, sides))) = heal_collapsed_sides(&triangle(ulp), file) else {
             panic!("one ulp: healed");
         };

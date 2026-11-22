@@ -1129,6 +1129,7 @@ mod small_arc_fuzz {
                 },
                 Err(Unread::Carrier { .. }) => t.carrier += 1,
                 Err(Unread::Loop { .. }) => t.lp += 1,
+                Err(Unread::SplineSide) => unreachable!("a sphere sweep reads no spline side"),
             }
         }
     }
