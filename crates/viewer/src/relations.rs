@@ -7,6 +7,9 @@
 //! lists them and a placement lists its source with nothing about
 //! placements here. An instance's part is another document: its row
 //! names the file, and a click there selects nothing.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, OperandSlot, ProfileProgram, RecipeNodeId, VarId};
 

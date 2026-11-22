@@ -76,6 +76,11 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 self.feature_rows_ui(ui, node, &groups);
+                // Under the node's own rows, which stay where they are.
+                let doc = self.session.doc();
+                let related = crate::relations::relations(doc, node, self.session.part_files());
+                relation_rows(ui, READS, &related.reads, self.ops);
+                relation_rows(ui, READ_BY, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -524,11 +529,6 @@ impl ViewerBehavior<'_> {
                 });
                 if *present {
                     self.label_ui(ui, *node);
-                    let doc = self.session.doc();
-                    let related =
-                        crate::relations::relations(doc, *node, self.session.part_files());
-                    relation_rows(ui, READS, &related.reads, self.ops);
-                    relation_rows(ui, READ_BY, &related.read_by, self.ops);
                 }
                 return;
             }
