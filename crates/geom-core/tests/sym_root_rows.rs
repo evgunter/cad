@@ -69,7 +69,7 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<Interval>) -> (String, Optio
         let m = build();
         (
             geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     (label(out, counts), value.enclosure_probe())
@@ -328,7 +328,7 @@ fn the_registrys_forms_and_the_walks_are_one_atom() {
         let m = left - right;
         (
             geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     let l = label(out, counts);
@@ -558,7 +558,7 @@ fn the_order_read_signs_a_minus_b_and_a_refused_difference_picks_no_arm() {
             let m = build();
             (
                 geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
-                m.value,
+                m.value(),
             )
         });
         let l = row(what, (label(out, counts), value.enclosure_probe()));
@@ -911,7 +911,7 @@ fn a_cancellation_above_a_frozen_read_is_refused_with_the_read_on() {
             let m = (x + z(x)).max(p) * q - x.max(p) * q;
             (
                 geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
-                m.value,
+                m.value(),
             )
         });
         let what = format!("S13 [4 terms, {dial}] max(x + Z, P)·Q - max(x, P)·Q");
@@ -958,7 +958,7 @@ fn the_doors_zero_beside_the_read_is_proven() {
                 let m = build(sq, x);
                 (
                     geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
-                    m.value,
+                    m.value(),
                 )
             });
             let what = format!("[x·x = x, {dial}] {what}");

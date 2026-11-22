@@ -76,7 +76,7 @@ pub(crate) fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String,
         let m = build();
         (
             geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     (label(out, counts), value)
@@ -92,7 +92,7 @@ pub(crate) fn how_counted(
         let m = build();
         (
             geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     (label(out, counts), value, counts)
@@ -312,7 +312,7 @@ fn the_earlier_tier_differentials_shut_rule_f() {
 #[test]
 fn the_underflowed_positive_form_spells_its_zero_positive() {
     let x = || one() / (one() + p("t", 1.0e200).powi(2));
-    let v = x().value;
+    let v = x().value();
     println!(
         "  1/(1 + t²) at t = 1e200 = {v:e}, sign_negative {}",
         v.is_sign_negative()
@@ -337,7 +337,7 @@ fn the_underflowed_positive_form_spells_its_zero_positive() {
 #[test]
 fn the_underflowed_negative_form_spells_its_zero_negative() {
     let x = || -(one() / (one() + p("t", 1.0e200).powi(2)));
-    let v = x().value;
+    let v = x().value();
     println!(
         "  −1/(1 + t²) at t = 1e200 = {v:e}, sign_negative {}",
         v.is_sign_negative()

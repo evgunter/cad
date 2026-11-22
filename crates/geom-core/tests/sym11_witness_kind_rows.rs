@@ -1,14 +1,16 @@
 //! **The theorem-vs-numeric contradiction at an INEXACT witness** —
 //! what `Sym<f64>` and `Sym<Probe>` do when the value channel's
-//! definite sign and the form's theorem disagree.
+//! definite sign and the form's theorem disagree, and what the test
+//! instrument (`geom_core::sym::contradiction`) reports of it.
 //!
-//! At `Sym<Interval>` a definite non-zero sign is a certified proof
-//! that the margin is not zero, so a form that is the zero polynomial
-//! contradicts it and one of the two channels is unsound. At a point
-//! scalar it is a comparison of one rounded number: rule F turns a
-//! one-ulp error in a SIGN argument into a whole `2.0` at the margin,
-//! and at a pole the point channel has no clause 1 to refuse with.
-//! Neither is a proof, so neither is an assertion's business.
+//! A definite sign is the answer at every witness and the decision asks
+//! the tier nothing about it. At a point scalar the sign is a
+//! comparison of one rounded number: rule F turns a one-ulp error in a
+//! SIGN argument into a whole `2.0` at the margin, and at a pole the
+//! point channel has no clause 1 to refuse with. The instrument reports
+//! such a margin as [`Event::Rounded`]; at `Sym<Interval>` the same
+//! report would be [`Event::Enclosure`], a defect in one of the two
+//! channels.
 //!
 //! The EXACT half of every row here is `sym11_witness_kind_interval_rows`,
 //! which shares this file's residual builders and its witness pin, and
@@ -16,11 +18,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::sym::{SymRegistration, with_session_rules};
+use geom_core::sym::contradiction::{self, Event, Report};
+use geom_core::sym::revalue::record;
+use geom_core::sym::{Rung, SymRegistration, with_session_rules};
 use geom_core::tolerance::Tol;
-use geom_core::{
-    Decide, ParamSymbol, Real, SpanLocate, Sym, SymBudget, SymCounts, SymRules, Witness,
-};
+use geom_core::{Decide, ParamSymbol, Real, Sym, SymBudget, SymCounts, SymRules, Witness};
 
 pub(crate) fn budget() -> SymBudget {
     SymBudget {
@@ -94,7 +96,7 @@ fn pole<T: Real>(t0: f64) -> Sym<T> {
 /// value channel's own number, which is what a fired assertion's
 /// message cannot show.
 fn margin_at<T: Real>(build: impl FnOnce() -> Sym<T>) -> T {
-    let (v, _) = with_session_rules(budget(), SymRules::shipped(), || build().value);
+    let (v, _) = with_session_rules(budget(), SymRules::shipped(), || build().value());
     v
 }
 
@@ -115,27 +117,31 @@ pub(crate) fn label(
     }
 }
 
-/// One decision under `budget` and `rules`, ON ITS OWN THREAD: the label, the
-/// session's counts and the numeric channel's own sign — or the panic's
-/// own message, when the contradiction assertion fired. A panic inside
-/// `with_session_rules` leaves that thread's session installed, and the
-/// next case would refuse to nest
+/// One decision under `budget` and `rules`, ON ITS OWN THREAD: the
+/// label, the session's counts, the numeric channel's own sign and what
+/// the contradiction instrument read of the decision — or the panic's
+/// own message. A panic inside `with_session_rules` leaves that
+/// thread's session installed, and the next case would refuse to nest
 /// ([`test_utils::own_thread`], which also keeps the message).
 fn decide_under<T>(
     budget: SymBudget,
     rules: SymRules,
     build: impl FnOnce() -> Sym<T> + Send + 'static,
-) -> Result<(String, SymCounts, f64), String>
+) -> Result<(String, SymCounts, f64, Report), String>
 where
     T: Real + Decide + Send + 'static,
 {
     test_utils::own_thread::caught(move || {
-        let ((out, probe), counts) = with_session_rules(budget, rules, || {
-            let m = build();
-            (
-                geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()),
-                m.value.sign_within(band()).map(|d| d.sign),
-            )
+        let ((out, probe, report), counts) = with_session_rules(budget, rules, || {
+            let ((out, probe), decisions) = record(|| {
+                let m = build();
+                (
+                    geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()),
+                    m.value().sign_within(band()).map(|d| d.sign),
+                )
+            });
+            let report = contradiction::check(&decisions).expect("inside the session");
+            (out, probe, report)
         });
         let numeric = match probe {
             Ok(Sign::Positive) => 1.0,
@@ -143,14 +149,22 @@ where
             Ok(Sign::Zero) => 0.0,
             Err(_) => f64::NAN,
         };
-        (label(out, counts), counts, numeric)
+        (label(out, counts), counts, numeric, report)
     })
+}
+
+/// The one contradiction `report` holds: its event, rung and attempt.
+fn only(report: &Report) -> Option<(Event, Rung, u8)> {
+    match report.contradictions.as_slice() {
+        [c] => Some((c.event, c.rung, c.attempt)),
+        _ => None,
+    }
 }
 
 /// [`decide_under`] at the shipped set.
 fn decide_on_a_thread<T>(
     build: impl FnOnce() -> Sym<T> + Send + 'static,
-) -> Result<(String, SymCounts, f64), String>
+) -> Result<(String, SymCounts, f64, Report), String>
 where
     T: Real + Decide + Send + 'static,
 {
@@ -194,9 +208,9 @@ pub(crate) fn witness_agrees<T: Real>(name: &str) {
         "{name} declares a {:?} witness and refuses a separated pair with {arm:?}. The two \
          are one claim about one channel: an EXACT witness PROVES two values differ and \
          answers `Contradicted`, an INEXACT one compared at a slack and can only answer \
-         `Disputed` — and `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction \
-         by the same const, so a scalar that disagrees with itself here panics on a \
-         contradiction it cannot prove, or counts one it can",
+         `Disputed` — and `Sym<T>::sign_within` checks a symbolic zero against its \
+         enclosure by the same const, so a scalar that disagrees with itself here asserts \
+         on a reading that proves nothing, or skips one that proves",
         T::WITNESS
     );
 }
@@ -233,240 +247,121 @@ fn sym11_the_recording_scalar_agrees_with_its_own_refusal_arm() {
 /// inherits it.
 ///
 /// Measured at every sampled `x` and ε-independent (this file's band is
-/// its own): the margin is `−2`, the tier keeps the numeric answer, and
-/// the dispute is on the receipt.
-///
-/// Gating, and nothing panics: before SYM-11 this row fired the
-/// contradiction `debug_assert!` at 6 of 6 points and had to be
-/// `#[ignore]`d.
+/// its own): the margin is `−2`, the numeric answer is returned, and the
+/// instrument reports the theorem it contradicts as a rounded reading,
+/// at the first attempt. Red if `contradiction::check` stops asking the
+/// algebra (its `Path::Algebra` ladder answering `None`).
 #[test]
-fn sym11_the_adversary_is_a_counted_dispute_at_sym_f64() {
+fn sym11_the_adversary_is_a_rounded_contradiction_at_sym_f64() {
     for x0 in ADVERSARY_X {
         let m = margin_at(|| adversary::<f64>(x0));
-        let (l, c, n) = decide_on_a_thread(move || adversary::<f64>(x0))
+        let (l, c, n, r) = decide_on_a_thread(move || adversary::<f64>(x0))
             .expect("an inexact witness never panics on a contradiction");
-        println!("  x = {x0:e}: margin {m:e} | {l} | numeric sign {n} | {c:?}");
+        println!("  x = {x0:e}: margin {m:e} | {l} | numeric sign {n} | {c:?} | {r:?}");
         assert_eq!(m, -2.0, "x = {x0:e}: the adversary's margin at the point");
         assert_eq!(
             l, "numeric Negative",
             "x = {x0:e}: the numeric answer is what a definite sign returns, and the \
              ratified numeric-first order is what returns it"
         );
+        assert_eq!(c.numeric, 1, "x = {x0:e}: {c:?}");
         assert_eq!(
-            c.theorems_disputed, 1,
-            "x = {x0:e}: the form is a theorem and the value channel says −2, so the run \
-             owes the receipt a dispute: {c:?}"
-        );
-        assert_eq!(
-            c.numeric, 1,
-            "x = {x0:e}: the decision itself is the numeric channel's, counted where every \
-             undischarged decision is counted — a dispute is a second fact about that \
-             decision and not a fourth column for one to land in: {c:?}"
+            (r.checked, only(&r).map(|(e, _, a)| (e, a))),
+            (1, Some((Event::Rounded, 0))),
+            "x = {x0:e}: the form is a theorem and the value channel says −2: {r:?}"
         );
     }
 }
 
-/// **A frozen check disputes nothing, and the receipt says it was
-/// frozen.** The same adversary twice at `Sym<f64>`: at [`budget`] its
-/// check sees the whole form and disputes; at a budget of two terms
-/// `(x + 1)²` freezes, the `copysign` reads an unknown, and the check
-/// finds no theorem to dispute. `theorems_disputed` reads 0 in the
-/// second run for a reason that is not agreement, and the split is
-/// what tells the two zeros apart.
+/// **Values built before the session are absent from it.** The
+/// adversary built outside any session and decided inside one: its
+/// nodes are not in the session's table, so the instrument can ask
+/// nothing of the decision and says so (`absent`) rather than reading it
+/// as agreement; built inside, it reports the contradiction. Red if
+/// `check` walks a node its session does not hold.
 #[test]
-fn sym11_a_frozen_check_is_counted_frozen_and_disputes_nothing() {
-    let starved = SymBudget {
-        max_terms: 2,
-        max_degree: 128,
-    };
-    let x0 = ADVERSARY_X[0];
-    for (b, expanded, frozen, disputed) in [(budget(), 1, 0, 1), (starved, 0, 1, 0)] {
-        let (_, c, _) = decide_under(b, SymRules::shipped(), move || adversary::<f64>(x0))
-            .expect("an inexact witness never panics on a contradiction");
-        assert_eq!(
-            (c.checks_expanded, c.checks_frozen, c.theorems_disputed),
-            (expanded, frozen, disputed),
-            "at max_terms {}: (checks_expanded, checks_frozen, theorems_disputed): {c:?}",
-            b.max_terms
-        );
-    }
-}
-
-/// **Values built before the session read frozen.** The adversary built
-/// outside any session and decided inside one: its nodes are not in the
-/// session's table, so the walk can only make each an unknown of its
-/// own, and the theorem the in-session build finds is not there to
-/// dispute. The check reads frozen, as it is; built inside, it reads
-/// expanded and disputes.
-#[test]
-fn sym11_values_built_outside_the_session_read_frozen() {
+fn sym11_values_built_outside_the_session_are_absent_to_the_instrument() {
     let x0 = ADVERSARY_X[0];
     let decide = |m: Sym<f64>| {
-        geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()).map(|_| ())
+        let (_, decisions) = record(|| {
+            geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()).map(|_| ())
+        });
+        contradiction::check(&decisions).expect("inside the session")
     };
     let outside = adversary::<f64>(x0);
-    let (_, out) = with_session_rules(budget(), SymRules::shipped(), || decide(outside));
-    let (_, inside) = with_session_rules(budget(), SymRules::shipped(), || {
+    let (out, _) = with_session_rules(budget(), SymRules::shipped(), || decide(outside));
+    let (inside, _) = with_session_rules(budget(), SymRules::shipped(), || {
         decide(adversary::<f64>(x0))
     });
-    for (at, c, want) in [("outside", out, (0, 1, 0)), ("inside", inside, (1, 0, 1))] {
+    for (at, r, want) in [("outside", out, (1, 0, 0)), ("inside", inside, (0, 1, 1))] {
         assert_eq!(
-            (c.checks_expanded, c.checks_frozen, c.theorems_disputed),
+            (r.absent, r.checked, r.contradictions.len()),
             want,
-            "built {at} the session: (checks_expanded, checks_frozen, theorems_disputed): {c:?}"
-        );
-    }
-}
-
-/// **The session's own free unknowns are not freezes.** An opaque value
-/// and a hull minted inside the session are indeterminates of the
-/// session's own naming, so `opaque + hull(x, y) + 1` is a whole form
-/// and its check reads expanded. At `Sym<Interval>`, the lane whose
-/// hull has a value; the exact witness's check runs under debug
-/// assertions, which every test profile has.
-#[test]
-fn sym11_an_opaque_value_and_a_hull_read_expanded() {
-    use geom_core::Interval;
-    let margin = || {
-        let p = |name: &str, v: f64| {
-            Sym::param(
-                ParamSymbol::new(test_utils::symbol_id(name)),
-                Interval::from_f64(v),
-            )
-        };
-        Sym::opaque(Interval::from_f64(0.5))
-            + p("x", 1.0).enclosure_hull(p("y", 2.0))
-            + Sym::from_f64(1.0)
-    };
-    let (l, c, _) = decide_under(budget(), SymRules::shipped(), margin)
-        .expect("a check that finds no theorem does not assert");
-    assert_eq!(
-        l, "numeric Positive",
-        "the margin is positive over the box: {c:?}"
-    );
-    assert_eq!(
-        (c.checks_expanded, c.checks_frozen),
-        (1, 0),
-        "(checks_expanded, checks_frozen): {c:?}"
-    );
-}
-
-/// **A poisoned form disputes nothing, so its check reads frozen.**
-/// `atan(1/(x − x)) + 1`: at `f64` the margin is a definite
-/// `π/2 + 1`, and the form went through a division by the zero
-/// polynomial, so it has no value anywhere and can be declared zero
-/// nowhere.
-#[test]
-fn sym11_a_poisoned_check_reads_frozen() {
-    let margin = || {
-        let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), 0.5);
-        (Sym::from_f64(1.0) / (x - x)).atan() + Sym::from_f64(1.0)
-    };
-    let (l, c, _) = decide_under(budget(), SymRules::shipped(), margin)
-        .expect("an inexact witness never panics on a contradiction");
-    assert_eq!(
-        l, "numeric Positive",
-        "the margin is π/2 + 1 at the point: {c:?}"
-    );
-    assert_eq!(
-        (c.checks_expanded, c.checks_frozen),
-        (0, 1),
-        "(checks_expanded, checks_frozen): {c:?}"
-    );
-}
-
-/// **A check whose plain form froze still sees its margin where the
-/// early walk does not freeze.** `(sin²t + cos²t)⁴ + x` at a budget of
-/// four terms: the plain form expands the power into five terms and
-/// freezes it, while the early walk folds `sin²t + cos²t` to `1`
-/// (rule B) and reads `1 + x`. Under every rule the check reads
-/// expanded; with every rule off there is no early form and it reads
-/// frozen, which is what shows the plain form froze — and at a budget
-/// the power fits, expanded on the plain form alone.
-#[test]
-fn sym11_a_check_the_early_walk_unfreezes_is_counted_expanded() {
-    let four = SymBudget {
-        max_terms: 4,
-        max_degree: 128,
-    };
-    let margin = || {
-        let t = Sym::param(ParamSymbol::new(test_utils::symbol_id("t")), 0.3);
-        let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), 1.0);
-        (t.sin().powi(2) + t.cos().powi(2)).powi(4) + x
-    };
-    for (b, rules, expanded, frozen) in [
-        (four, SymRules::shipped(), 1, 0),
-        (four, SymRules::none(), 0, 1),
-        (budget(), SymRules::none(), 1, 0),
-    ] {
-        let (l, c, _) = decide_under(b, rules, margin)
-            .expect("an inexact witness never panics on a contradiction");
-        let at = format!("max_terms {}, {rules:?}", b.max_terms);
-        assert_eq!(l, "numeric Positive", "{at}: the margin is 2 at the point");
-        assert_eq!(
-            (c.checks_expanded, c.checks_frozen),
-            (expanded, frozen),
-            "{at}: (checks_expanded, checks_frozen): {c:?}"
+            "built {at} the session: (absent, checked, contradictions): {r:?}"
         );
     }
 }
 
 /// The same adversary at `Sym<Probe>`, whose value channel IS an
-/// `f64`: the same rounding reaches the same door, and the K sample the
-/// funnel records stays the numeric channel's own `Definite` at a
-/// point — the dispute is visible on the receipt and not in the K token
-/// vocabulary.
+/// `f64`: the same rounding reaches the same report, and the K sample
+/// the funnel records stays the numeric channel's own `Definite` at a
+/// point.
 #[cfg(feature = "probe")]
 #[test]
-fn sym11_the_adversary_is_a_counted_dispute_at_sym_probe() {
+fn sym11_the_adversary_is_a_rounded_contradiction_at_sym_probe() {
     use geom_core::Probe;
     for x0 in ADVERSARY_X {
-        let (l, c, n) = decide_on_a_thread(move || adversary::<Probe>(x0))
+        let (l, c, n, r) = decide_on_a_thread(move || adversary::<Probe>(x0))
             .expect("an inexact witness never panics on a contradiction");
-        println!("  x = {x0:e}: {l} | numeric sign {n} | {c:?}");
+        println!("  x = {x0:e}: {l} | numeric sign {n} | {c:?} | {r:?}");
         assert_eq!(l, "numeric Negative", "x = {x0:e}");
-        assert_eq!(c.theorems_disputed, 1, "x = {x0:e}: {c:?}");
         assert_eq!(c.numeric, 1, "x = {x0:e}: {c:?}");
+        assert_eq!(
+            only(&r).map(|(e, _, _)| e),
+            Some(Event::Rounded),
+            "x = {x0:e}: {r:?}"
+        );
     }
 }
 
-/// **A REGISTERED zero under a definite sign is the door's event, not
-/// a disputed theorem.** `y` is registered as `x` at values that differ
-/// by half the witness's slack, so the inexact witness records it; the
-/// band is drawn tight enough that the same difference is a DEFINITE
-/// positive margin. The door counts the contradicted axiom
-/// ([`SymCounts::registrations_contradicted`](geom_core::SymCounts::registrations_contradicted)),
-/// and the dispute column, which asks the tier's own algebra with the
-/// door shut, stays at zero: `y − x` is no identity of the forms.
+/// **A REGISTERED zero under a definite sign is the registration's
+/// event, not the algebra's.** `y` is registered as `x` at values that
+/// differ by half the witness's slack, so the inexact witness records
+/// it; the band is drawn tight enough that the same difference is a
+/// DEFINITE positive margin. The instrument reports the contradicted
+/// axiom at the door, because its algebra, asked with the door shut,
+/// proves nothing: `y − x` is no identity of the forms. Red if `check`
+/// asks the door before the algebra declines, or not at all.
 #[test]
-fn sym11_a_contradicted_registration_is_not_a_disputed_theorem() {
+fn sym11_a_contradicted_registration_is_the_registrations_event() {
     let tol = Tol::witness();
     let x0 = 1.0e3;
     let d = 0.5 * tol.eps() * x0;
     let band = Band::new(1.0e-2 * d, 1.0e-1 * d).unwrap();
-    let ((reg, out), c) = with_session_rules(budget(), SymRules::shipped(), || {
+    let ((reg, out, r), c) = with_session_rules(budget(), SymRules::shipped(), || {
         let x = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("x")), x0);
         let y = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("y")), x0 + d);
         let reg = y.register_equal(x, tol);
-        let out = geom_core::k_stats::decide("sym11_registered", Margin::of(y - x), band);
-        (reg, out)
+        let (out, decisions) =
+            record(|| geom_core::k_stats::decide("sym11_registered", Margin::of(y - x), band));
+        (
+            reg,
+            out,
+            contradiction::check(&decisions).expect("inside the session"),
+        )
     });
-    println!("  {reg:?} {out:?} | {c:?}");
+    println!("  {reg:?} {out:?} | {c:?} | {r:?}");
     assert_eq!(
         reg,
         SymRegistration::Recorded,
         "within the inexact witness's slack"
     );
     assert_eq!(out.ok(), Some(Sign::Positive), "the numeric answer stands");
+    assert_eq!((c.symbolic, c.numeric), (0, 1), "{c:?}");
     assert_eq!(
-        (
-            c.registrations_contradicted,
-            c.theorems_disputed,
-            c.symbolic,
-            c.numeric
-        ),
-        (1, 0, 0, 1),
-        "the door counts its contradicted axiom, and no theorem is disputed: {c:?}"
+        only(&r),
+        Some((Event::Registration, Rung::Door, 0)),
+        "the registration is what the numbers deny: {r:?}"
     );
 }
 
@@ -513,7 +408,8 @@ const ROUNDED_CASES: [(&str, f64, bool); 3] = [
 /// evaluate: case (a) was `proven` though its value is `1e-15`, (b) was
 /// `proven` once atoms stopped carrying the read's gate, and (c) was a
 /// "theorem" the value channel disputed. Each now reads exactly what it
-/// reads with the read shut, and no theorem is disputed.
+/// reads with the read shut, and the instrument finds no theorem to
+/// contradict the numbers.
 #[test]
 fn sym11_the_decision_read_declines_at_sym_f64() {
     let x = std::hint::black_box(0.5_f64);
@@ -533,10 +429,11 @@ fn sym11_the_decision_read_declines_at_sym_f64() {
         println!("  {what}: read on {on:?} | read shut {shut:?}");
         assert_ne!(on.0, "proven", "{what}: the read answered at a point");
         assert_eq!(
-            (on.1.symbolic, on.1.theorems_disputed),
+            (on.1.symbolic, on.3.contradictions.len()),
             (0, 0),
-            "{what}: {:?}",
-            on.1
+            "{what}: {:?} {:?}",
+            on.1,
+            on.3
         );
         assert_eq!(on.0, shut.0, "{what}: the read shut answers the same");
     }
@@ -559,10 +456,11 @@ fn sym11_the_decision_read_declines_at_sym_probe() {
         println!("  {what}: {on:?}");
         assert_ne!(on.0, "proven", "{what}: the read answered at a point");
         assert_eq!(
-            (on.1.symbolic, on.1.theorems_disputed),
+            (on.1.symbolic, on.3.contradictions.len()),
             (0, 0),
-            "{what}: {:?}",
-            on.1
+            "{what}: {:?} {:?}",
+            on.1,
+            on.3
         );
     }
 }
@@ -595,12 +493,12 @@ fn sym11_one_session_at_two_witness_kinds_panics() {
 /// **A zero the registry did not need is not a contradicted
 /// registration** (DECIDE-10's fix pass, R1's MINOR-2). With one true,
 /// unrelated registration in the session the registry is non-empty, so
-/// every decision under a definite sign asks the door's form. Case (c)
-/// above, R1's probe, now reaches no zero at all at a point, so it
-/// counts nothing; R2's adversary is a zero by rule F's algebra, which
-/// the registry-free rungs prove, so it is the dispute it is without
-/// the registration and NOT a contradicted axiom. Each zero is charged
-/// to one column, the one its proof rests on.
+/// the instrument asks the door of every definite decision the algebra
+/// declines. Case (c) above, R1's probe, reaches no zero at all at a
+/// point, so it reports nothing; R2's adversary is a zero by rule F's
+/// algebra, which the registry-free rungs prove, so it is the rounded
+/// contradiction it is without the registration and NOT a contradicted
+/// axiom. Each zero is reported once, as the event its proof rests on.
 #[test]
 fn sym11_a_zero_that_rests_on_no_registration_is_not_a_contradicted_one() {
     let unrelated = || {
@@ -615,14 +513,11 @@ fn sym11_a_zero_that_rests_on_no_registration_is_not_a_contradicted_one() {
     .expect("an inexact witness never panics on a contradiction");
     println!("  R1's read zero, registry non-empty: {read:?}");
     assert_eq!(
-        (
-            read.1.registrations_contradicted,
-            read.1.theorems_disputed,
-            read.1.symbolic
-        ),
-        (0, 0, 0),
-        "R1's probe: {:?}",
-        read.1
+        (read.3.contradictions.len(), read.1.symbolic),
+        (0, 0),
+        "R1's probe: {:?} {:?}",
+        read.1,
+        read.3
     );
     let algebra = decide_on_a_thread(move || {
         unrelated();
@@ -632,21 +527,18 @@ fn sym11_a_zero_that_rests_on_no_registration_is_not_a_contradicted_one() {
     println!("  R2's adversary, registry non-empty: {algebra:?}");
     assert_eq!(algebra.0, "numeric Negative");
     assert_eq!(
-        (
-            algebra.1.registrations_contradicted,
-            algebra.1.theorems_disputed
-        ),
-        (0, 1),
-        "rule F's zero is a disputed theorem, not a contradicted axiom: {:?}",
-        algebra.1
+        only(&algebra.3).map(|(e, _, _)| e),
+        Some(Event::Rounded),
+        "rule F's zero is the algebra's, not a contradicted axiom: {:?}",
+        algebra.3
     );
 }
 
 /// **THE POLE (R1's residue), both arms.** At `t = 1` the tier answers
 /// the form's THEOREM on a box where the function has no value at all.
-/// Nothing false is reported and nothing is disputed — the numeric
-/// channel never answered a definite non-zero sign, so the charge never
-/// arises.
+/// Nothing false is reported and nothing contradicted — the numeric
+/// channel never answered a definite non-zero sign, so there is nothing
+/// for the instrument to ask.
 ///
 /// It is the reason the inexact channel cannot simply be GIVEN the
 /// form's answer either: at `t` clear of the pole the form is a theorem
@@ -657,16 +549,17 @@ fn sym11_a_zero_that_rests_on_no_registration_is_not_a_contradicted_one() {
 /// what an inexact witness keeps is the NUMERIC answer, which is the
 /// one thing that is true of this channel.
 #[test]
-fn sym11_the_pole_at_sym_f64_answers_the_form_and_disputes_nothing() {
+fn sym11_the_pole_at_sym_f64_answers_the_form_and_contradicts_nothing() {
     for (what, t0) in [("at the pole", 1.0), ("clear of it", 0.4)] {
-        let (l, c, n) = decide_on_a_thread(move || pole::<f64>(t0))
+        let (l, c, n, r) = decide_on_a_thread(move || pole::<f64>(t0))
             .expect("the pole does not panic at an inexact witness");
         println!("  [{what}] t = {t0}: {l} | numeric sign {n} | {c:?}");
         assert_eq!(l, "proven", "[{what}] t = {t0}");
         assert_eq!(
-            c.theorems_disputed, 0,
+            (r.checked, r.contradictions.len()),
+            (0, 0),
             "[{what}] t = {t0}: the numeric channel answered no definite sign, so there is \
-             nothing for the form to contradict: {c:?}"
+             nothing for the form to contradict: {c:?} {r:?}"
         );
     }
 }

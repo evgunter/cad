@@ -94,7 +94,7 @@ fn assert_zero_pointwise(what: &str, shape: Shape) {
             let v = lo + g * (hi - lo);
             over(name, v, v)
         };
-        let (value, _) = with_session_rules(budget(), SymRules::shipped(), || shape(&pin).value);
+        let (value, _) = with_session_rules(budget(), SymRules::shipped(), || shape(&pin).value());
         let (lo, hi) = value
             .enclosure_probe()
             .expect("a certified enclosure at a point");

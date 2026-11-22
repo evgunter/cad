@@ -53,7 +53,7 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
         let m = build();
         (
             geom_core::k_stats::decide("sym_rule_e_row", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     (label(out, counts), value)

@@ -41,7 +41,7 @@ fn how_i(rules: SymRules, build: impl FnOnce() -> Sym<Interval>) -> (String, Int
         let m = build();
         (
             geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band),
-            m.value,
+            m.value(),
         )
     });
     (label(out, counts), value)

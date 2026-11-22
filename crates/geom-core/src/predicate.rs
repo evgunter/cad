@@ -4342,7 +4342,8 @@ mod tests {
     /// in a gate's rejection, whose word names the proof and whose payload
     /// does not call the reading unclassifiable.
     /// The same reading unproven is offered one, in band, in the zero
-    /// band and as an enclosure.
+    /// band and as an enclosure clear of 0; a proven enclosure straddles
+    /// 0, as the tier's zeros do.
     #[test]
     fn a_proven_zero_is_offered_no_tolerance() {
         let band = band_1e9();
@@ -4365,25 +4366,33 @@ mod tests {
         };
         let proved =
             "a zero the symbolic tier proved, which no tolerance makes a size; Recourse: L";
+        // Each row: the reading unproven, the reading the tier may stamp
+        // proven beside it, the offer, and the proven rejection's
+        // payload. A zero the tier returns lies in its own enclosure
+        // (`Sym::sign_within`'s check), so the enclosure's proven twin
+        // straddles 0 where the unproven one is offered a tolerance.
         let rows = [
             (
+                MarginDiag::value(5e-9),
                 MarginDiag::value(5e-9),
                 "5e-10",
                 "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)",
             ),
             (
                 MarginDiag::value(5e-10),
+                MarginDiag::value(5e-10),
                 "5e-11",
                 "margin 5e-10 lies within the zero band (±1e-9)",
             ),
             (
                 MarginDiag::enclosure(2e-9, 5e-9),
+                MarginDiag::enclosure(-2e-9, 5e-9),
                 "2e-10",
-                "enclosure [2e-9, 5e-9] reaches into the ambiguity band (1e-9, 1e-8)",
+                "enclosure [-2e-9, 5e-9] reaches into the ambiguity band (1e-9, 1e-8)",
             ),
         ];
-        for (unproven, below, payload) in rows {
-            let proven = unproven.as_proven();
+        for (unproven, twin, below, payload) in rows {
+            let proven = twin.as_proven();
             assert_eq!(
                 unproven.sized_recourse(band, words),
                 format!(
@@ -4399,17 +4408,17 @@ mod tests {
             assert_eq!(
                 proven.sized_recourse(band, words),
                 "Recourse: L; n",
-                "{unproven}: proven, at rest"
+                "{twin}: proven, at rest"
             );
             assert_eq!(
                 proven.sized_recourse_in_file(band, words, file),
                 head,
-                "{unproven}: proven, at the import door"
+                "{twin}: proven, at the import door"
             );
             assert_eq!(
                 rejected(proven).under("L").to_string(),
                 format!("{payload} — {proved}"),
-                "{unproven}: proven, a gate's rejection"
+                "{twin}: proven, a gate's rejection"
             );
         }
         // Only a proof takes the subdivision lever from an enclosure a
@@ -4424,12 +4433,13 @@ mod tests {
                 ending.starts_with("Recourse: subdivide the parameter box"),
                 "{unproven}: unproven, a gate's rejection: {ending}"
             );
-            assert_eq!(
-                rejected(unproven.as_proven()).ending("L"),
-                "Recourse: L",
-                "{unproven}: proven, a gate's rejection"
-            );
         }
+        let straddling = MarginDiag::enclosure(-2e-9, 5e-9);
+        assert_eq!(
+            rejected(straddling.as_proven()).ending("L"),
+            "Recourse: L",
+            "{straddling}: proven, a gate's rejection"
+        );
     }
 
     /// **An offer is the deciding tolerance told on its working side**,
