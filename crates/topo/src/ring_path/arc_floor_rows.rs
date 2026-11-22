@@ -39,7 +39,7 @@ fn conic(
 ) -> (geom::Curve3<f64>, geom::Curve3<Interval>) {
     let p = |q: Point3<f64>| Point3::new(iv(q.x), iv(q.y), iv(q.z));
     let v = |q: Vec3<f64>| Vec3::new(iv(q.x), iv(q.y), iv(q.z));
-    let lifted = geom::Frame::new(p(frame.origin), v(frame.axis), v(frame.u_ref));
+    let lifted = geom::Frame::new(p(frame.origin()), v(frame.axis()), v(frame.u_ref()));
     #[allow(clippy::float_cmp)]
     if su == sv {
         (
@@ -367,7 +367,7 @@ fn every_box_reads_a_floor_under_each_of_its_points() {
         let span = (t0, t0 + length);
         let w = rng.log_uniform(1e-6, 0.3);
         let in_plane =
-            |at: f64, rho: f64| (frame.u_ref * at.cos() + frame.v_ref() * at.sin()) * rho;
+            |at: f64, rho: f64| (frame.u_ref() * at.cos() + frame.v_ref() * at.sin()) * rho;
         let centre = match rng.below(3) {
             0 => {
                 astride += 1;

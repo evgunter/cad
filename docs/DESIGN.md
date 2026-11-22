@@ -286,7 +286,7 @@ of them is a defect.
 | The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
-| A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
+| A refusal's recourse | one per decision, written in the decision's levers; a failure carries as data what its recourse determines (the value or the cells, and the edit where its layer can name one), and its words are rendered from that | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
@@ -911,7 +911,12 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is the edge's wedge as tier 3 reads it, one reading for
+  both: an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision. A cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1164,7 +1169,12 @@ adding a variant and letting the compiler enumerate every dispatch
 site. A kind is a locus with one chart shape: its chart, implicit
 residual and normal agree at every point, and which of its chart's
 coordinates are periodic and which points are singular is fixed by the
-kind, with no tolerance. The `Nurbs` variant is the universal fallback: any exotic surface
+kind, with no tolerance. For `Nurbs` and `Approx` (read through its fitted
+net) the kind fixes the rule, not the points: a boundary iso of the net whose control
+points are all one stored point is a chart singularity at that point, decided on the
+stored values. A constructor that decides such a side collapsed at its band builds it
+exactly one point; a side that is tiny but not one point is a regular chart with a
+short edge. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
@@ -1199,6 +1209,9 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    locus) is made exact by one construction from a closed catalogue,
    solving each connected class of such relations jointly; where the
    construction is symmetric, the record earlier in the file stays.
+   A net side whose control points read one point at the file's band is
+   made exactly that point, the first control point in file order
+   (**Extensibility**, above: a spline chart's singular set is read off its net).
    Each move is reported. A relation no catalogue construction makes
    exact, an edge whose description the kernel cannot construct, and
    data no description satisfies within ε_in fail loudly, naming the
@@ -1217,6 +1230,13 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    document's variables — are `unproven-coincidence` findings ([coincidence]),
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
+
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face of one shell that cites it; two
+entities are two records unless healing's reported one-record act joins
+them (step 3); each face is certified against its record; and the writer
+emits one surface entity per surface record. No comparison of printed
+values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -2194,8 +2214,7 @@ swallowed.
   firing one reads as evidence (`geom_brep::props::quad`'s area gauge
   is the precedent; an uncalibrated ceiling was once off by nine
   orders). Where the measured condition is reachable by input, the
-  preferred disposition is a reported value, not a tripwire
-  (`topo::coherence`).
+  preferred disposition is a reported value, not a tripwire.
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
@@ -2437,9 +2456,14 @@ these. All are shipped in `editor-core` except where noted:
   node id to label beside the node, never inside it, so it is in
   neither the id's mint nor any content key. One edit sets or clears
   it; it is not unique and never identity (references hold ids, and
-  nothing resolves a label). Kernel sentences speak a node as its
-  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none. A spoken label is never one its value can
+  nothing resolves a label). A node is spoken as its label and tag,
+  `"base plate" (3fa9c1d2a0b1)`, or as its kind and tag when it has no
+  label, `Extrude 3fa9c1d2a0b1`: the label and the tag already say
+  which node, so the kind is not repeated. A sentence carries each node
+  it names as a mention (its id, kind and label, and the document its
+  id is spelled in) rather than as text, so the viewer draws it as a
+  link to the node when the document on screen is the mention's. A
+  spoken label is never one its value can
   outlive: a value the evaluation memo reuses holds a label only when
   its memo key fixes that label. A document's own labels are outside
   its evaluation key (a rename re-evaluates nothing), so what it

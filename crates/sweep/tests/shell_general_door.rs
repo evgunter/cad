@@ -360,8 +360,8 @@ fn a_collapse_names_the_move_that_made_it() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() > 0.5 && origin.x.abs() < 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() > 0.5 && frame.origin().x.abs() < 0.5
             )
         })
         .map(|(k, _)| k)

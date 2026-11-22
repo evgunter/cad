@@ -94,3 +94,5 @@ own problem.
 (`work/lib/program.md`'s `paths`). Filed by a PORT lane under
 `work/README.md`'s rule that a finding goes on the slate of the program
 whose ground it lands on.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `chart_coherence` knob this row cites is gone from both the kernel's `ChecksConfig` and the Python door's signature; the other defaults it names stand.

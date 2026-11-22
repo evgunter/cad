@@ -2,7 +2,7 @@
 id: exch
 kind: program
 title: EXCH — STEP import recognition and promotion certificates
-status: active
+status: ready
 opened: 2026-09-03
 group: kernel/exchange
 prefix: exch/

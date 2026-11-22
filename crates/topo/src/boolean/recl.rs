@@ -2974,10 +2974,8 @@ mod tests {
         // Curved flanks: a unit cylinder along z resting on the plane
         // y = 0, tangent along the common line.
         let (ca, fca) = face_on(geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 1.0, 0.0), z, x),
             radius: 1.0,
-            u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         // Two skeletal faces, each a ruled carrier whose outer loop is a
@@ -3118,10 +3116,8 @@ mod tests {
         );
         let (pa, fa) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         let bore = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, -1.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, -1.0, 0.0), z, y),
             radius: 1.0,
-            u_ref: y,
         };
         // A bore: the material outside the cylinder.
         let bend_b = crate::bound_side::FaceBend::at(&bore, false, o);

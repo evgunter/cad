@@ -117,11 +117,10 @@ fn assert_exact_unit<T: Bounds>(what: &str, v: Vec3<T>) {
 /// A face's plane: origin, normal, `u_ref`.
 fn plane<T: Real>(body: &Body<T>, face: FaceKey) -> (Point3<T>, Vec3<T>, Vec3<T>) {
     match body.face_surface(face).expect("a live face") {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => (*origin, *normal, *u_ref),
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (origin, normal, u_ref)
+        }
         other => panic!("a plane, got {other:?}"),
     }
 }
@@ -348,7 +347,7 @@ fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::E
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
-            circle.frame.u_ref,
+            circle.frame.u_ref(),
         );
         seen += 1;
     }
@@ -364,8 +363,14 @@ fn members(lo: f64, hi: f64) -> [f64; 5] {
 /// `u_ref`, or a cylinder's axis and `u_ref`.
 fn datum<T: Real>(body: &Body<T>, face: FaceKey) -> [Vec3<T>; 2] {
     match body.face_surface(face).expect("a live face") {
-        Surface::Plane { normal, u_ref, .. } => [*normal, *u_ref],
-        Surface::Cylinder { axis, u_ref, .. } => [*axis, *u_ref],
+        Surface::Plane { frame, .. } => {
+            let (normal, u_ref) = (frame.axis(), frame.u_ref());
+            [normal, u_ref]
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (axis, u_ref) = (frame.axis(), frame.u_ref());
+            [axis, u_ref]
+        }
         other => panic!("a plane or a cylinder, got {other:?}"),
     }
 }
@@ -662,7 +667,7 @@ where
                 .as_circle()
                 .expect("a latitude is a circle")
                 .frame
-                .u_ref,
+                .u_ref(),
         );
     }
     out
@@ -868,14 +873,19 @@ fn a_slab_along_a_boxed_vector_stores_exact_caps_and_wide_walls() {
 fn worst_vertex_off_plane(body: &Body<f64>) -> f64 {
     let mut worst = 0.0_f64;
     for (fk, _) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
+        let Some(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = body.face_surface(fk)
+        else {
             continue;
         };
+        let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
         for (_, lp, _) in body.face(fk).expect("a live face").loops() {
             if let topo::entity::LoopBoundary::Cycle { first } = lp.boundary {
                 for he in body.loop_cycle(first).expect("a cycle") {
                     let q = body.half_edge_start_point(he).expect("a placed vertex");
-                    worst = worst.max(((q - *origin).dot(*normal)).abs());
+                    worst = worst.max(((q - origin).dot(normal)).abs());
                 }
             }
         }

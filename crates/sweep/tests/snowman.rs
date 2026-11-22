@@ -724,11 +724,12 @@ fn the_snowman_waist_fillets() {
     for &f in &out.band_faces {
         match *out.body.face_surface(f).unwrap() {
             geom::Surface::Torus {
-                center,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let center = frame.origin();
                 assert!(
                     (center.y - y).abs() < 1e-12,
                     "spine height {y}, got {}",
@@ -1528,14 +1529,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         .map(|(v, d)| (v, caps.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("a cap circle's conventional vertex");
     let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
-        ..
-    }) = *caps
+    let geom::Curve3::Circle(geom::Circle { frame, .. }) = *caps
         .get_curve_geom(caps.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()
@@ -1544,6 +1538,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
     else {
         panic!("the cap's edge is a circle")
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     // The cap lies on the side of its plane away from the unit sphere's
     // centre.
     let n = if axis.dot(center - Point3::origin()) > 0.0 {
@@ -1689,14 +1684,7 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
         .map(|(v, d)| (v, cap.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("the cap circle's conventional vertex");
     let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame {
-            origin: center,
-            axis,
-            ..
-        },
-        ..
-    }) = *cap
+    let geom::Curve3::Circle(geom::Circle { frame, .. }) = *cap
         .get_curve_geom(cap.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()
@@ -1705,6 +1693,7 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
     else {
         panic!("the cap's edge is a circle")
     };
+    let (center, axis) = (frame.origin(), frame.axis());
     let half = cap_volume(1.0, 0.015) / 2.0;
     let cap = finished("the cap", cap.into_body(), tol);
     let mut seen = Vec::new();

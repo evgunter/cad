@@ -355,15 +355,15 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
         }
         Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_23,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_23.origin(),
+                carrier_frame_23.axis(),
+                carrier_frame_23.u_ref(),
+            );
             let radius = circle.radius();
             let w = q - center;
             let v = axis.cross(u_ref);

@@ -312,34 +312,24 @@ fn unminted_witnesses() -> Vec<Named> {
 /// along one whole circle about its axis, which the door mints.
 fn one_circle_cuts() -> Vec<Named> {
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         radius: 1.0,
-        axis: z_axis(),
-        u_ref: x_axis(),
     };
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         half_angle: FRAC_PI_4,
-        u_ref: x_axis(),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         radius: 1.0,
-        u_ref: x_axis(),
     };
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: x_axis(),
     };
     let up = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: z_axis(),
-        u_ref: x_axis(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), z_axis(), x_axis()),
     };
     let half = (1.0f64 - 0.25).sqrt();
     let named = |name: &str, body: Body<f64>| (name.to_owned(), body);
@@ -463,9 +453,11 @@ fn seamless_band(
 /// The plane `z = z0` whose normal is `±z`.
 fn level(z0: f64, up: bool) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z0),
-        normal: if up { z_axis() } else { -z_axis() },
-        u_ref: x_axis(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, z0),
+            if up { z_axis() } else { -z_axis() },
+            x_axis(),
+        ),
     }
 }
 
@@ -488,15 +480,11 @@ fn seamless_pipe() -> Body<f64> {
         r,
     ));
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         radius: r,
-        u_ref: x_axis(),
     };
     let tilted = Surface::Plane {
-        origin: roof,
-        normal: n,
-        u_ref: major,
+        frame: geom::Frame::new(roof, n, major),
     };
     seamless_band(
         cylinder,
@@ -511,10 +499,8 @@ fn seamless_pipe() -> Body<f64> {
 /// `z = 2`.
 fn seamless_frustum() -> Body<f64> {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         half_angle: FRAC_PI_4,
-        u_ref: x_axis(),
     };
     let caps = [level(1.0, false), level(2.0, true)];
     seamless_band(cone, rim(1.0, 1.0), rim_down(2.0, 2.0), caps, None)
@@ -525,11 +511,9 @@ fn seamless_frustum() -> Body<f64> {
 fn seamless_torus_band() -> Body<f64> {
     let (major, minor) = (2.0, 0.5);
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: x_axis(),
     };
     let (z, r) = (minor * FRAC_PI_4.sin(), major + minor * FRAC_PI_4.cos());
     let meridian = Curve3::circle(

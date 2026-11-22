@@ -96,7 +96,8 @@ use geom_brep::{
     WedgeRefusal,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
+    Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
@@ -105,7 +106,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_chord, sketch_direction, turn_axis,
+    placed_segment_spec, sketch_chord, sketch_direction,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -789,7 +790,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     if profile.loops().is_empty() {
         return Err(ExtrudeError::EmptyProfile);
     }
-    let place = profile.plane().placement();
+    // The sketch plane's rigid frame: every station and wall below is
+    // this frame placed, carried or turned.
+    let place = profile.plane().frame();
     let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
@@ -849,7 +852,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         course,
         normal: Unit3::from_frame(profile.plane().normal()),
     };
-    let top_place = Affine3::translation(w) * place;
+    // The far station's frame: the sketch frame carried by the sweep,
+    // its axes kept and its origin moved by `w`.
+    let top_place = place.with_origin(place.origin() + w);
 
     // ---- Swept traversals, each wall run collapsed to one segment
     // (`swept::collapse_runs`: a station inside a run has no entity),
@@ -918,7 +923,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             seed.r#loop,
             qs[0],
             [place, top_place],
-            normal,
             sweep,
             bottom_cap,
             tol,
@@ -937,7 +941,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             qs[1],
-            placed_segment_spec(&outer[0], place, normal, qs[0], tol),
+            placed_segment_spec(&outer[0], place, qs[0], tol),
             tol,
         )?;
         hes.push(first.he_plus);
@@ -949,7 +953,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 qs[j],
-                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], tol),
+                placed_segment_spec(&outer[j - 1], place, qs[j - 1], tol),
                 tol,
             )?;
             hes.push(m.he_plus);
@@ -960,7 +964,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], tol),
+            placed_segment_spec(&outer[n - 1], place, qs[n - 1], tol),
             bottom_cap,
             tol,
         )?;
@@ -991,7 +995,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                         ring,
                         hq[0],
                         [place, top_place],
-                        normal,
                         sweep,
                         disc,
                         tol,
@@ -1013,7 +1016,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1],
-            placed_segment_spec(&segs[0], place, normal, hq[0], tol),
+            placed_segment_spec(&segs[0], place, hq[0], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -1025,7 +1028,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], tol),
+                placed_segment_spec(&segs[j - 1], place, hq[j - 1], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -1036,7 +1039,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], tol),
+            placed_segment_spec(&segs[m - 1], place, hq[m - 1], tol),
             swept::transient_disc(bottom_surface),
             tol,
         )?;
@@ -1065,7 +1068,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 qs,
                 place,
                 top_place,
-                normal,
                 sweep,
                 band,
                 tol,
@@ -1150,9 +1152,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     members: &[Vec<usize>],
     hes: &[topo::HalfEdgeKey],
     qs: &[Point3<T>],
-    place: Affine3<T>,
-    top_place: Affine3<T>,
-    normal: Vec3<T>,
+    place: RigidMotion<T>,
+    top_place: RigidMotion<T>,
     sweep: Sweep<T>,
     band: Band,
     tol: Tol,
@@ -1169,7 +1170,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 he2: hes[j],
             },
             qs[j] + w,
-            extruded_strut_spec(segs[j].chord.a, place, qs[j], sweep),
+            extruded_strut_spec(segs[j].chord.a, place.to_affine(), qs[j], sweep),
             tol,
         )?);
     }
@@ -1181,8 +1182,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         n,
         |j| struts[j].he_minus,
         |body, j, faces| {
-            let surface = side_surface(body, segs, joins, faces, j, qs, place, normal, sweep, tol);
-            let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, tol);
+            let surface = side_surface(body, segs, joins, faces, j, qs, place.into(), sweep, tol);
+            let top = placed_segment_spec(&segs[j], top_place, qs[j] + w, tol);
             Ok::<_, ExtrudeError>(Some((top, surface)))
         },
         tol,
@@ -1307,8 +1308,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     seg: &WallSeg<T>,
     r#loop: topo::LoopKey,
     q: Point3<T>,
-    [place, top_place]: [Affine3<T>; 2],
-    normal: Vec3<T>,
+    [place, top_place]: [RigidMotion<T>; 2],
     sweep: Sweep<T>,
     near_cap: FaceSurface<T>,
     tol: Tol,
@@ -1320,8 +1320,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         &[None],
         0,
         &[q],
-        place,
-        normal,
+        place.into(),
         sweep,
         tol,
     );
@@ -1331,7 +1330,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
             MappedSource::ExtrudedPoint {
                 point: seg.chord.a,
-                place: top_place,
+                place: top_place.to_affine(),
                 vec: back,
             },
         )),
@@ -1343,10 +1342,10 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
         body,
         r#loop,
         q,
-        placed_segment_spec(seg, top_place, normal, far, tol),
+        placed_segment_spec(seg, top_place, far, tol),
         wall,
         strut,
-        placed_segment_spec(seg, place, normal, q, tol),
+        placed_segment_spec(seg, place, q, tol),
         near_cap,
         tol,
     )?;
@@ -1402,8 +1401,7 @@ fn side_surface<T: Real>(
     faces: &[Option<FaceKey>],
     j: usize,
     qs: &[Point3<T>],
-    place: Affine3<T>,
-    normal: Vec3<T>,
+    place: Placing<T>,
     sweep: Sweep<T>,
     tol: Tol,
 ) -> FaceSurface<T> {
@@ -1421,15 +1419,46 @@ fn side_surface<T: Real>(
         // It is where the four corners' centroid stood when the wall was
         // fitted to them, to rounding, and where a reader of a face's
         // point expects it; nothing is fitted or read back.
+        //
+        // Along the normal the wall's frame is the sketch frame turned
+        // onto the segment's direction ([`Placing::frame_toward`]), its
+        // axes re-chosen among their own so the normal is the right
+        // normal the course signs ([`Course::wall_normal`]): rigid by
+        // construction, so nothing is re-squared. Along a vector the
+        // normal is a cross product normalized, which no frame's axis
+        // is, and the wall is squared from its two directions.
         SegmentKind::Line => {
-            let along = Placing::from(place).direction(d);
+            let along = place.direction(d);
             let half = T::from_f64(0.5);
             let length = sketch_chord(&segs[j]).1;
-            Surface::Plane {
-                origin: qs[j] + along.get() * (length * half) + sweep.w * half,
-                normal: course.wall_normal(place.into(), d).get(),
-                u_ref: along.get(),
-            }
+            let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
+            let frame = match course {
+                // Along the normal the frame is turned onto the segment's
+                // right normal ([`swept::sketch_right_vector`]): its `u` is
+                // that normal placed and its `v` the direction, so the
+                // wall is its axes cycled (`u = v`, `v = w`, `w = u`), no
+                // axis negated. Against the normal it is turned onto the
+                // direction itself: `u` the direction, `w` its left normal
+                // placed (the course's), `v` the station's normal reversed.
+                Course::Normal { reversed: false } => {
+                    let turned = place.frame_toward(swept::sketch_right_vector(&segs[j]));
+                    let Some(wall) = turned.with_signed_axes((1, false), (2, false)) else {
+                        unreachable!("v and w are two axes")
+                    };
+                    geom::Frame::of_motion(&wall.with_origin(origin))
+                }
+                Course::Normal { reversed: true } => {
+                    let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
+                    let Some(wall) = turned.with_signed_axes((0, false), (2, true)) else {
+                        unreachable!("u and w are two axes")
+                    };
+                    geom::Frame::of_motion(&wall.with_origin(origin))
+                }
+                Course::Vector { .. } => {
+                    geom::Frame::new(origin, course.wall_normal(place, d).get(), along.get())
+                }
+            };
+            Surface::Plane { frame }
         }
         SegmentKind::Arc { arc, turn } => {
             // The carrier axis line is the arc's centre extruded:
@@ -1441,16 +1470,23 @@ fn side_surface<T: Real>(
             // ulp-level, not bitwise (M2 PR 4 review, A7). Certified
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
-            let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
+            let c_world = place.point(arc.centre);
             // The SAME rigidity the bottom rim carrier registers, about
             // the same extruded centre through the same lamina vertex
             // (`swept::register_rigidity`).
             crate::swept::register_rigidity(qs[j] - c_world, arc, segs[j].chord.a, tol);
+            // The sketch frame turned onto the arc's start radial, its
+            // normal the turn-signed plane normal ([`swept::turn_negates`]'s sign,
+            // the frame run back): rigid by construction.
+            let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
+            let turned = if swept::turn_negates(turn) {
+                turned.reversed_as_difference()
+            } else {
+                turned
+            };
             Surface::Cylinder {
-                origin: c_world,
-                axis: turn_axis(turn, normal),
+                frame: geom::Frame::of_motion(&turned.with_origin(c_world)),
                 radius: arc.radius,
-                u_ref: Placing::from(place).direction(d).get(),
             }
         }
     };
