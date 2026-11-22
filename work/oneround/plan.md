@@ -10,7 +10,7 @@ Every f64 rounding charge, lever arm and consumed extent reads its one ratified 
 
 ## Posture
 
-State on 2026-11-22, 19:15Z, after a usage outage that held the track from 09:20Z on the 21st. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's entries of the 21st and the entry of the 22nd.
+State on 2026-11-22, 19:14Z, after a usage outage that held the track from 09:20Z on the 21st. Each lane is its own cloud session; the session ids, heads and what each is owed are in the log's entries of the 21st and the entry of the 22nd.
 
 - **Landed:** `oneround/rounded-room` (PR 7145), `oneround/section-area` (PR 7146), `oneround/lever-doors` (PR 7143), and three fixes to main reds they caused or uncovered (PRs 7223, 7238, 7246). The other reds on main are routed to their programs in the log.
 - **With Ev:** PR 7258, what a conic stores. A family of two placements behind the one `Conic` reading (held about its centre, or about a point of its arc), fixed by the construction with no size rule; a centre-built conic unchanged; readers through the conic. It replaces PR 7194's one arc-held form. On the answer: the readers unit, the four runaway mints, and the row for `profile`'s point-written arcs.
