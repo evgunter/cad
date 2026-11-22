@@ -1904,6 +1904,36 @@ pub enum PathError<T: Real> {
         /// The elaboration site.
         site: &'static str,
     },
+    /// A refusal about an earlier step than the one that raised it:
+    /// a fillet is resolved by the step that fixes its arrival, and
+    /// its stored form and every arc are re-read when the loop closes.
+    /// The refusal is about `step`, the step a reader edits, which the
+    /// replay names ([`program::ReplayError::step`]); its sentence names
+    /// the later step that raised it.
+    Deferred {
+        /// The step the refusal is about, in program order.
+        step: usize,
+        /// The later step that raised it.
+        raised_at: usize,
+        /// What that later step was doing.
+        deferral: Deferral,
+        /// The refusal itself.
+        refusal: Box<PathError<T>>,
+    },
+}
+
+/// **Why a refusal about one step is raised at a later one**
+/// ([`PathError::Deferred`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Deferral {
+    /// The step fixing a fillet's arrival resolves it.
+    FilletResolution,
+    /// The close fixes a fillet's arrival, and resolves it.
+    FilletResolvedAtClose,
+    /// The close re-reads each fillet arc's stored form.
+    FilletStoredForm,
+    /// The close reads each arc back against what was authored.
+    ArcReadBack,
 }
 
 /// Which arm of [`PathError`] refused — the discriminant alone, with no
@@ -1921,9 +1951,14 @@ pub enum PathError<T: Real> {
 /// of a refusal rides anywhere the error itself cannot: into a
 /// `PartialEq` error enum, a hash key, an FFI tag map.
 ///
-/// One variant per [`PathError`] arm, and [`PathError::kind`] matches
-/// exhaustively — a new arm stops every consumer compiling rather than
-/// falling into a wildcard.
+/// One variant per [`PathError`] arm — the attribution
+/// [`PathError::Deferred`] excepted, which is its refusal's class —
+/// and [`PathError::kind`] matches exhaustively, so a new arm stops
+/// this crate compiling until it is classed here. A consumer that maps
+/// this enum is stopped only by a new variant here; one that matches
+/// [`PathError`] itself under a wildcard is stopped by neither, which
+/// is why the attribution peels ([`PathError::refusal`]) rather than
+/// carrying a class of its own.
 ///
 /// The exhaustiveness runs one way only. A variant here with no arm
 /// behind it is a PHANTOM: nothing constructs it, so no test can reach
@@ -2062,7 +2097,8 @@ impl<T: Real> PathError<T> {
     /// Which arm refused, without the payload.
     ///
     /// Exhaustive over [`PathError`]: adding an arm there is a compile
-    /// error here and in every consumer that maps this enum.
+    /// error here, and a new variant of [`PathErrorKind`] is one in
+    /// every consumer that maps it.
     pub fn kind(&self) -> PathErrorKind {
         match self {
             Self::JunctionTurnWithinTolerance { .. } => PathErrorKind::JunctionTurnWithinTolerance,
@@ -2104,6 +2140,98 @@ impl<T: Real> PathError<T> {
             Self::Structure(_) => PathErrorKind::Structure,
             Self::UnderdeterminedLeg { .. } => PathErrorKind::UnderdeterminedLeg,
             Self::OverdeterminedJunction { .. } => PathErrorKind::OverdeterminedJunction,
+            Self::Deferred { refusal, .. } => refusal.kind(),
+        }
+    }
+
+    /// The refusal itself, under its attribution to an earlier step
+    /// ([`Self::Deferred`]) where it has one.
+    #[must_use]
+    pub fn refusal(&self) -> &Self {
+        match self {
+            Self::Deferred { refusal, .. } => refusal,
+            other => other,
+        }
+    }
+
+    /// The earlier step this refusal is about, where a later step
+    /// raised it ([`Self::Deferred`]); `None` where it is the raising
+    /// step's own.
+    #[must_use]
+    pub fn step(&self) -> Option<usize> {
+        match self {
+            Self::Deferred { step, .. } => Some(*step),
+            _ => None,
+        }
+    }
+
+    /// Files `refusal`, raised at `raised_at`, against `step` where
+    /// that is an earlier one. A refusal already filed keeps its step.
+    ///
+    /// A refusal raised while a fillet is resolved is the fillet's
+    /// unless its recourse edits only the arrival
+    /// ([`Self::edits_only_the_arrival`]), or it is a junction's: a
+    /// junction a director bound before the fillet is read again at the
+    /// fillet's run in, and a junction is charged to the step whose
+    /// leg leaves it, here the arrival's ([`Self::is_junction`]). Both
+    /// stay the raising step's own.
+    pub(crate) fn deferred(
+        step: usize,
+        raised_at: usize,
+        deferral: Deferral,
+        refusal: Self,
+    ) -> Self {
+        let resolving = matches!(
+            deferral,
+            Deferral::FilletResolution | Deferral::FilletResolvedAtClose
+        );
+        if step == raised_at
+            || refusal.step().is_some()
+            || (resolving && (refusal.edits_only_the_arrival() || refusal.is_junction()))
+        {
+            return refusal;
+        }
+        Self::Deferred {
+            step,
+            raised_at,
+            deferral,
+            refusal: Box::new(refusal),
+        }
+    }
+
+    /// Whether every lever this refusal offers moves the fillet's
+    /// arrival and nothing else: a corner behind the arrival's anchor,
+    /// or an anchor fit whose only lever is the arrival leg's anchor.
+    fn edits_only_the_arrival(&self) -> bool {
+        match self {
+            Self::NoCornerOfPair { corners, .. } => {
+                !corners.is_empty()
+                    && corners.iter().all(|c| match c.reason.recourse() {
+                        Some(Recourse::ArrivalBeyondCorner) => true,
+                        Some(Recourse::AnchorOrRadius {
+                            anchors,
+                            radius: None,
+                        }) => {
+                            !anchors.is_empty()
+                                && anchors
+                                    .iter()
+                                    .all(|(leg, _)| *leg == crate::FilletLeg::Outgoing)
+                        }
+                        _ => false,
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether this is a junction's refusal ([`junction_check`]'s).
+    fn is_junction(&self) -> bool {
+        match self {
+            Self::JunctionTurnWithinTolerance { .. }
+            | Self::SeamTurnWithinTolerance { .. }
+            | Self::JunctionCusp { .. } => true,
+            Self::Escalated { gate, .. } => gate.predicate().starts_with("path_junction_"),
+            _ => false,
         }
     }
 }
@@ -2589,11 +2717,43 @@ impl<T: Real> Tell for PathError<T> {
                 "the sketch junction at {site} is overdetermined, which the authoring \
                  surface should rule out (a kernel bug)"
             ),
+            Self::Deferred {
+                step,
+                raised_at,
+                deferral,
+                refusal,
+            } => match deferral {
+                Deferral::FilletResolution => write!(
+                    f,
+                    "step {step}'s fillet, not resolved at step {raised_at}: {}",
+                    refusal.told_in(notation)
+                ),
+                Deferral::FilletResolvedAtClose => write!(
+                    f,
+                    "step {step}'s fillet, not resolved at the close: {}",
+                    refusal.told_in(notation)
+                ),
+                Deferral::FilletStoredForm => write!(
+                    f,
+                    "step {step}'s fillet, not stored at the close: {}",
+                    refusal.told_in(notation)
+                ),
+                // The read-back's own sentence opens on the piece it
+                // read, `step N's arc`.
+                Deferral::ArcReadBack => write!(f, "{}", refusal.told_in(notation)),
+            },
         }
     }
 }
 
-impl<T: Real> std::error::Error for PathError<T> {}
+impl<T: Real> std::error::Error for PathError<T> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Deferred { refusal, .. } => Some(refusal.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 // ------------------------------------------------------------------
 // Internal state. Fields are private throughout: binders are the only
@@ -3017,6 +3177,18 @@ enum ArrivalCarrier<T: Real> {
     AuthoredArc,
 }
 
+/// One fillet arc in the chain, for the close's re-read of its stored
+/// form ([`Core::fillets_carry_their_tangency`]).
+#[derive(Clone, Copy, Debug)]
+struct FilletArcRecord<T: Real> {
+    /// The vertex the arc leaves.
+    leaving: usize,
+    /// The radius that was asked for.
+    radius: T,
+    /// The step that bound the fillet.
+    bound_at: usize,
+}
+
 /// A fillet whose run out may be the next emission: the step that
 /// authored its radius, the arrival ray the run rides, and the
 /// tolerance witness the riding is decided under.
@@ -3145,16 +3317,17 @@ pub struct Core<T: Real> {
     /// refuse.
     pending: Option<(verbs::Pending<T>, PendingMeta)>,
     /// Every fillet arc emitted into the chain, as the index of the
-    /// vertex it LEAVES paired with the radius that was asked for —
-    /// what [`Core::fillets_carry_their_tangency`] re-reads at the
-    /// close, and the radius its sentence names.
+    /// vertex it LEAVES with the radius that was asked for and the step
+    /// that bound it — what [`Core::fillets_carry_their_tangency`]
+    /// re-reads at the close, the radius its sentence names, and the
+    /// step its refusal is filed against.
     ///
     /// Not `radii` below in another spelling, and deliberately not
     /// folded into it: this one is a CLOSE-TIME CHECK keyed by vertex
     /// and carrying the scalar radius the sentence prints, that one is
     /// the authored ADDRESS of every radius-drawn arc — fillet and
     /// carrier alike — and carries no scalar at all.
-    fillet_arcs: Vec<(usize, T)>,
+    fillet_arcs: Vec<FilletArcRecord<T>>,
     /// Which segment each authored radius drew, in emission order —
     /// recorded as the pass emits, and reported beside the spans
     /// ([`Core::finish`]). See [`crate::structure::RadiusEmission`].
@@ -3613,7 +3786,11 @@ impl<T: Real> Core<T> {
     /// all of them rather than of the ones a site remembered to push.
     fn record_fillet_arc(&mut self, radius: T, bound_at: usize) -> Result<usize, PathError<T>> {
         let leaving = self.record_radius(bound_at, crate::structure::RadiusRole::Fillet)?;
-        self.fillet_arcs.push((leaving, radius));
+        self.fillet_arcs.push(FilletArcRecord {
+            leaving,
+            radius,
+            bound_at,
+        });
         self.claim(bound_at, crate::structure::PieceRole::Arc);
         Ok(leaving)
     }
@@ -4546,100 +4723,121 @@ impl<T: Decide> Core<T> {
     /// oversight.
     fn fillets_carry_their_tangency(&self, tol: Tol) -> Result<(), PathError<T>> {
         let band = linear_band(tol)?;
-        let n = self.verts.len();
-        for &(leaving, radius) in &self.fillet_arcs {
-            let stored = |i: usize| {
-                let (start, segment, _) = self.stored_segment(i, None);
-                // Every segment here is its construction's own output,
-                // verified at that construction (D1), so this re-read
-                // asks what validation asks of its shape and joints,
-                // not its consistency.
-                seg::build_constructed_seg(start, self.verts[(i + 1) % n].at, segment, band)
-            };
-            // A recorded index always names a vertex of the chain it was
-            // recorded on: `record_fillet_arc` reads `verts.len() - 1`
-            // with the chain's last vertex the arc's own start, and
-            // nothing removes a vertex afterwards. A chain that has
-            // neither is not a loop, and saying so is cheaper than a
-            // silent skip.
-            let arc_seg = leaving
-                .checked_add(1)
-                .filter(|_| n >= 2 && leaving < n)
-                .ok_or(PathError::UnderdeterminedLeg {
-                    site: "a recorded fillet arc outside the chain it was recorded on",
+        let closing = self.current_step()?;
+        for &FilletArcRecord {
+            leaving,
+            radius,
+            bound_at,
+        } in &self.fillet_arcs
+        {
+            self.fillet_carries_its_tangency(leaving, radius, band)
+                .map_err(|refusal| {
+                    PathError::deferred(bound_at, closing, Deferral::FilletStoredForm, refusal)
                 })?;
-            let turn = match self.verts[leaving].arc {
-                Some(built) => built.arc.sweep,
-                None => {
-                    return Err(PathError::UnderdeterminedLeg {
-                        site: "a recorded fillet arc whose segment is not an arc",
+        }
+        Ok(())
+    }
+
+    /// [`Self::fillets_carry_their_tangency`] for the one fillet arc
+    /// leaving vertex `leaving`.
+    fn fillet_carries_its_tangency(
+        &self,
+        leaving: usize,
+        radius: T,
+        band: Band,
+    ) -> Result<(), PathError<T>> {
+        let n = self.verts.len();
+        let stored = |i: usize| {
+            let (start, segment, _) = self.stored_segment(i, None);
+            // Every segment here is its construction's own output,
+            // verified at that construction (D1), so this re-read
+            // asks what validation asks of its shape and joints,
+            // not its consistency.
+            seg::build_constructed_seg(start, self.verts[(i + 1) % n].at, segment, band)
+        };
+        // A recorded index always names a vertex of the chain it was
+        // recorded on: `record_fillet_arc` reads `verts.len() - 1`
+        // with the chain's last vertex the arc's own start, and
+        // nothing removes a vertex afterwards. A chain that has
+        // neither is not a loop, and saying so is cheaper than a
+        // silent skip.
+        let arc_seg = leaving
+            .checked_add(1)
+            .filter(|_| n >= 2 && leaving < n)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "a recorded fillet arc outside the chain it was recorded on",
+            })?;
+        let turn = match self.verts[leaving].arc {
+            Some(built) => built.arc.sweep,
+            None => {
+                return Err(PathError::UnderdeterminedLeg {
+                    site: "a recorded fillet arc whose segment is not an arc",
+                });
+            }
+        };
+        let flattened =
+            |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
+                turn: angle(turn),
+                radius: authored_length(radius),
+                arc_length: length(radius * turn.abs()),
+                predicate,
+                margin: length(margin),
+            };
+        let arc = match stored(leaving) {
+            Ok(arc) => arc,
+            Err(seg::ShapeIssue::Escalated(source)) => {
+                return Err(PathError::stored_form(source));
+            }
+            Err(
+                issue @ (seg::ShapeIssue::Degenerate { margin }
+                | seg::ShapeIssue::DegenerateTurn { margin }
+                | seg::ShapeIssue::NearFull { margin }),
+            ) => {
+                return Err(flattened(issue.predicate(), margin));
+            }
+        };
+        // The stored segment came back an arc, or it did not: that
+        // is the discriminator between the two losses, read off the
+        // classification rather than guessed from the geometry.
+        let stores_an_arc = matches!(arc.kind, seg::SegKind::Arc(_));
+        // Joint v is the junction between segment v − 1 and segment
+        // v, so the arc's incoming joint is its own index and its
+        // outgoing joint the next one — each checked only where the
+        // door declared it (see the reach, above).
+        for (joint, before) in [(leaving, true), (arc_seg % n, false)] {
+            if !self.tangent.contains(&joint) {
+                continue;
+            }
+            let other = if before {
+                (leaving + n - 1) % n
+            } else {
+                arc_seg % n
+            };
+            let Ok(other) = stored(other) else { continue };
+            let (prev, next) = if before {
+                (&other, &arc)
+            } else {
+                (&arc, &other)
+            };
+            let reading = stored_joint(prev, next, band)?;
+            match reading.class {
+                // A constructed joint whose carriers are tangent is
+                // the construction verified; one whose carriers are
+                // the SAME is a tangent joint too (the directions
+                // agree), and validation accepts it.
+                seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
+                seg::JointClass::Transversal if stores_an_arc => {
+                    return Err(PathError::FilletCarrierBelowSceneResolution {
+                        turn: angle(turn),
+                        radius: authored_length(radius),
+                        scale: length(reading.scale),
+                        resolution: length(reading.resolution),
+                        predicate: reading.predicate,
+                        margin: length(reading.margin),
                     });
                 }
-            };
-            let flattened =
-                |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
-                    turn: angle(turn),
-                    radius: authored_length(radius),
-                    arc_length: length(radius * turn.abs()),
-                    predicate,
-                    margin: length(margin),
-                };
-            let arc = match stored(leaving) {
-                Ok(arc) => arc,
-                Err(seg::ShapeIssue::Escalated(source)) => {
-                    return Err(PathError::stored_form(source));
-                }
-                Err(
-                    issue @ (seg::ShapeIssue::Degenerate { margin }
-                    | seg::ShapeIssue::DegenerateTurn { margin }
-                    | seg::ShapeIssue::NearFull { margin }),
-                ) => {
-                    return Err(flattened(issue.predicate(), margin));
-                }
-            };
-            // The stored segment came back an arc, or it did not: that
-            // is the discriminator between the two losses, read off the
-            // classification rather than guessed from the geometry.
-            let stores_an_arc = matches!(arc.kind, seg::SegKind::Arc(_));
-            // Joint v is the junction between segment v − 1 and segment
-            // v, so the arc's incoming joint is its own index and its
-            // outgoing joint the next one — each checked only where the
-            // door declared it (see the reach, above).
-            for (joint, before) in [(leaving, true), (arc_seg % n, false)] {
-                if !self.tangent.contains(&joint) {
-                    continue;
-                }
-                let other = if before {
-                    (leaving + n - 1) % n
-                } else {
-                    arc_seg % n
-                };
-                let Ok(other) = stored(other) else { continue };
-                let (prev, next) = if before {
-                    (&other, &arc)
-                } else {
-                    (&arc, &other)
-                };
-                let reading = stored_joint(prev, next, band)?;
-                match reading.class {
-                    // A constructed joint whose carriers are tangent is
-                    // the construction verified; one whose carriers are
-                    // the SAME is a tangent joint too (the directions
-                    // agree), and validation accepts it.
-                    seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
-                    seg::JointClass::Transversal if stores_an_arc => {
-                        return Err(PathError::FilletCarrierBelowSceneResolution {
-                            turn: angle(turn),
-                            radius: authored_length(radius),
-                            scale: length(reading.scale),
-                            resolution: length(reading.resolution),
-                            predicate: reading.predicate,
-                            margin: length(reading.margin),
-                        });
-                    }
-                    seg::JointClass::Transversal => {
-                        return Err(flattened(reading.predicate, reading.margin));
-                    }
+                seg::JointClass::Transversal => {
+                    return Err(flattened(reading.predicate, reading.margin));
                 }
             }
         }
@@ -4657,6 +4855,7 @@ impl<T: Decide> Core<T> {
         self.cusps_leave_on_arcs()?;
         self.fillets_carry_their_tangency(tol)?;
         let band = linear_band(tol)?;
+        let closing = self.current_step()?;
         let n = self.verts.len();
         for (k, v) in self.verts.iter().enumerate() {
             let start = v.at;
@@ -4674,7 +4873,10 @@ impl<T: Decide> Core<T> {
                         site: "an arc segment named by a step the program does not hold",
                     },
                 )?;
-                arc_reads_back(built, start, self.verts[(k + 1) % n].at, band, piece, verb)?;
+                arc_reads_back(built, start, self.verts[(k + 1) % n].at, band, piece, verb)
+                    .map_err(|refusal| {
+                        PathError::deferred(piece.step, closing, Deferral::ArcReadBack, refusal)
+                    })?;
             }
         }
         Ok(self.finish(tol))
@@ -4690,6 +4892,25 @@ impl<T: Decide> Core<T> {
         self.pending
             .take()
             .ok_or(PathError::OverdeterminedJunction { site })
+    }
+
+    /// Runs the resolution of the fillet bound at `bound_at`, at an
+    /// arrival that closes the loop or not, filing what it refuses
+    /// against that step where it is the fillet's
+    /// ([`PathError::deferred`]).
+    fn resolving<R>(
+        &mut self,
+        bound_at: usize,
+        closes: bool,
+        resolve: impl FnOnce(&mut Self) -> Result<R, PathError<T>>,
+    ) -> Result<R, PathError<T>> {
+        let arrival = self.current_step()?;
+        let deferral = if closes {
+            Deferral::FilletResolvedAtClose
+        } else {
+            Deferral::FilletResolution
+        };
+        resolve(self).map_err(|refusal| PathError::deferred(bound_at, arrival, deferral, refusal))
     }
 
     /// Resolves a FUSED-incoming fillet (`Pending::Arc`) against a
@@ -4786,6 +5007,7 @@ impl<T: Decide> Core<T> {
         arr_pos: Point2<T>,
         arr_ang: Dir<T>,
         kind: ArrivalKind,
+        closes: bool,
         tol: Tol,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
         // A `.to(Start)` seam RETRIMS the entry vertex, so the segment
@@ -4804,6 +5026,21 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         });
         let (pending, meta) = self.take_pending("fillet resolution without an opened fillet")?;
+        self.resolving(meta.bound_at, closes, |core| {
+            core.resolve_taken(pending, meta, arr_pos, arr_ang, kind, tol)
+        })
+    }
+
+    /// [`Self::resolve_fillet`] once the opened fillet is taken.
+    fn resolve_taken(
+        &mut self,
+        pending: verbs::Pending<T>,
+        meta: PendingMeta,
+        arr_pos: Point2<T>,
+        arr_ang: Dir<T>,
+        kind: ArrivalKind,
+        tol: Tol,
+    ) -> Result<(ArcData<T>, Sign), PathError<T>> {
         let pending = match pending {
             verbs::Pending::Ray(ray) => ray,
             // §2c: a fused verb AUTHORED the incoming arc, so a straight
@@ -5601,7 +5838,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
         match (self.tip.ang.map(|b| b.dir), self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core
-                    .resolve_fillet(p, theta, ArrivalKind::Continues, tol)?;
+                    .resolve_fillet(p, theta, ArrivalKind::Continues, false, tol)?;
             }
             (Some(theta), false) => {
                 self.core.seed(p);
@@ -5637,7 +5874,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             let at = pos.at;
             if self.core.pending.is_some() {
                 self.core
-                    .resolve_fillet(at, dir, ArrivalKind::Continues, tol)?;
+                    .resolve_fillet(at, dir, ArrivalKind::Continues, false, tol)?;
             } else if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(dir);
             }
@@ -6059,7 +6296,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let gamma = chord_director(d);
         if self.core.pending.is_some() {
             self.core
-                .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
+                .resolve_fillet(at, gamma, ArrivalKind::Continues, false, tol)?;
         } else {
             if let Some(inc) = self.tip_pos()?.incoming {
                 self.core.pend_junction(&inc, gamma, tol)?;
@@ -6090,7 +6327,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let gamma = chord_director(d);
         if self.core.pending.is_some() {
             self.core
-                .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
+                .resolve_fillet(at, gamma, ArrivalKind::Continues, true, tol)?;
         } else if let Some(inc) = self.tip_pos()?.incoming {
             self.core.pend_junction(&inc, gamma, tol)?;
         }
@@ -6331,7 +6568,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         order::far_end_ends_an_open_fillet(self.core.pending.is_some())?;
         let (arc, fit_out) =
             self.core
-                .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor, tol)?;
+                .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor, false, tol)?;
         if fit_out == Sign::Positive {
             let head = self.core.head()?;
             let arm = (anchor - head).norm_squared().sqrt();
@@ -6367,7 +6604,7 @@ impl<T: Decide> PartialPath<T, NoPos, NoAng> {
             site: "close before the entry direction is bound",
         })?;
         self.core
-            .resolve_fillet(start_pos, start_ang, ArrivalKind::Seam, tol)?;
+            .resolve_fillet(start_pos, start_ang, ArrivalKind::Seam, true, tol)?;
         self.core.build(tol)
     }
 }

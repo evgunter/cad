@@ -3100,7 +3100,7 @@ fn path_error_tags_are_stable() {
         .to(p2(3.0, 2.0), Tol::witness())
         .expect_err("the setback outruns the arrival leg");
     assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
-    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = overrun.refusal() else {
         panic!("expected the envelope, got {overrun:?}")
     };
     let entries: Vec<&'static str> = corners
