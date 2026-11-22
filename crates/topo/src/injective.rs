@@ -2478,7 +2478,7 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         };
         return Ok(Presentation::Of(Box::new(Presented {
             surface: piece.surface,
@@ -2504,7 +2504,7 @@ fn present_plane<'a>(
     // An edge's chart points in the loop's order, each with its parameter.
     type End = (Point2<Interval>, Interval);
     let segment = |ei: usize| -> Result<(End, End), Unpresented> {
-        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
+        let e = b.edges.get(ei).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
         let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
         };
@@ -2558,7 +2558,7 @@ fn present_plane<'a>(
     // cell holds with no end in it, across the face from `e` (a strip).
     let along = |e: usize, far: Option<usize>| -> Result<Presentation<'a>, Unpresented> {
         if !piece.local.vertices.is_empty() {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         }
         let ((p, ta), (q, tb)) = segment(e)?;
         let a = [q.x - p.x, q.y - p.y];
@@ -2577,20 +2577,20 @@ fn present_plane<'a>(
         let len = len2.sqrt();
         let inside = (x * len).min((at(1.0) - x) * len);
         if !positive(inside, SELF_INTERSECTION_SPAN) {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         }
         let top = match far {
             None => y.hi(),
             Some(f) => {
                 let ((pf, _), (qf, _)) = segment(f)?;
                 let to = |pt| coords(p, a, bv, pt);
-                let h = height(to(pf), to(qf), x).ok_or(Unpresented::Local)?;
+                let h = height(to(pf), to(qf), x).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
                 let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
                 let on_e = [p.x + x * a[0] - pf.x, p.y + x * a[1] - pf.y];
                 if !(positive(h * len, SELF_INTERSECTION_CORNER)
                     && positive(lean(nf, on_e), SELF_INTERSECTION_CORNER))
                 {
-                    return Err(Unpresented::Local);
+                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
                 }
                 h.hi().min(y.hi())
             }
@@ -2628,11 +2628,11 @@ fn present_plane<'a>(
                   cap: Option<(usize, VertexKey)>|
      -> Result<Presentation<'a>, Unpresented> {
         let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         };
         let held = |w: VertexKey| w == vtx || cap.is_some_and(|(_, v)| w == v);
         if !piece.local.vertices.iter().all(|&w| held(w)) {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         }
         let ((p1, s1), (q1, f1)) = segment(e1)?;
         let ((p2, s2), (q2, f2)) = segment(e2)?;
@@ -2669,7 +2669,7 @@ fn present_plane<'a>(
         if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
             && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
         {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         }
         let det = a[0] * bv[1] - a[1] * bv[0];
         let d = [cell_u - o.x, cell_v - o.y];
@@ -2681,23 +2681,23 @@ fn present_plane<'a>(
         let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
         let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
         if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
-            return Err(Unpresented::Local);
+            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
         }
         let z1 = near_edges.contains(&e1);
         let z2 = near_edges.contains(&e2);
         let top = match cap {
             None => {
                 if !positive((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN) {
-                    return Err(Unpresented::Local);
+                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
                 }
                 y.hi()
             }
             Some((f, end)) => {
                 // A shared vertex at the far corner is on no zero side.
                 if near_vertices.contains(&end) && !z2 {
-                    return Err(Unpresented::Local);
+                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
                 }
-                let rf = b.edges.get(f).ok_or(Unpresented::Local)?;
+                let rf = b.edges.get(f).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
                 let ((pf, _), (qf, _)) = segment(f)?;
                 let startf = if rf.uses[0].plus {
                     rf.ends[0]
@@ -2708,7 +2708,7 @@ fn present_plane<'a>(
                 let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
                 let reach = iv((0.0, x.hi()));
                 let to = |pt| coords(o, a, bv, pt);
-                let h = height(to(atf), to(farf), reach).ok_or(Unpresented::Local)?;
+                let h = height(to(atf), to(farf), reach).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
                 let on_e1 = [o.x + reach * a[0] - atf.x, o.y + reach * a[1] - atf.y];
                 // Convex at the far corner, and `cap` and `e1` each on
                 // the other's face side over the reach.
@@ -2721,7 +2721,7 @@ fn present_plane<'a>(
                 ) && positive(h * lb, SELF_INTERSECTION_CORNER)
                     && positive(lean(nf, on_e1), SELF_INTERSECTION_CORNER))
                 {
-                    return Err(Unpresented::Local);
+                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
                 }
                 h.hi().min(y.hi())
             }
@@ -2767,7 +2767,7 @@ fn present_plane<'a>(
             Some(vtx) => corner(e1, e2, vtx, None),
             // Across the face from each other, anchored on the shared one.
             None => match (near_edges.contains(&e1), near_edges.contains(&e2)) {
-                (true, true) => Err(Unpresented::Local),
+                (true, true) => { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Err(Unpresented::Local) }
                 (false, true) => along(e2, Some(e1)),
                 _ => along(e1, Some(e2)),
             },
@@ -2783,12 +2783,12 @@ fn present_plane<'a>(
             let mut ends: Vec<_> = ends.collect();
             ends.sort_by_key(|&(_, (_, v1), (_, v2))| !(held(v1) && held(v2)));
             let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
-                return Err(Unpresented::Local);
+                { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
             };
             match (near_edges.contains(&n1), near_edges.contains(&n2)) {
                 (_, false) => corner(n1, m, v1, Some((n2, v2))),
                 (false, true) => corner(n2, m, v2, Some((n1, v1))),
-                (true, true) => Err(Unpresented::Local),
+                (true, true) => { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Err(Unpresented::Local) }
             }
         }
         _ => Err(Unpresented::Local),
