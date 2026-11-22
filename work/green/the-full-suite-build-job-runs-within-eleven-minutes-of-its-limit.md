@@ -2,8 +2,9 @@
 id: the-full-suite-build-job-runs-within-eleven-minutes-of-its-limit
 kind: issue
 title: The nightly's full-suite build job ran 75 to 109 minutes against its 120-minute limit, and a timeout there leaves every eps row without a run
-status: open
+status: closed
 opened: 2026-11-14
+closed: 2026-11-22
 priority: P2
 cost: E
 ---
@@ -59,3 +60,18 @@ time goes:
 
 PR 7365 makes that change and moves the topo scalpel (6-11 min) into its
 own job. The 120-minute limit is unchanged.
+
+## Closed (2026-11-22, PR 7365)
+
+Nightly 44989234943 ran this job with the fix:
+
+- Build step 95.8 min, whole job 98.3 min, so 22 min under the limit.
+  Before, the job took 113-118 min.
+- That runner was a slow one: `editor-core` lib took 2222 s, against 2123
+  s on the slow baseline probe and 1693 s on the fast one. On the fast
+  probe runner the same configuration built in 73 min.
+- The topo scalpel ran green as its own job in 11.4 min.
+
+The rest of the build is limited by 4 cores' throughput and by the
+editor-core chain, filed as
+`the-full-suite-build-is-cpu-bound-on-four-cores-at-ninety-five-minutes-on-a-slow-runner`.

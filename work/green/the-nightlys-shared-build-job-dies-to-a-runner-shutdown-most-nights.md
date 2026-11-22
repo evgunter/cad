@@ -2,8 +2,9 @@
 id: the-nightlys-shared-build-job-dies-to-a-runner-shutdown-most-nights
 kind: issue
 title: The nightly's shared build job is killed by a runner shutdown on three nights of four, so no full-suite leg runs and main's slow set goes unread
-status: open
+status: closed
 opened: 2026-11-19
+closed: 2026-11-22
 priority: P1
 cost: M
 ---
@@ -60,3 +61,17 @@ PR 7365 adds 12 GB of swap before the build and builds viewer, pncad and
 pncad-py at opt-level 1, which takes their rustcs out of the contended
 window. The build step now runs `scripts/ci-resource-sampler.sh` into
 its own log, so a future kill records memory up to its last minute.
+
+## Closed (2026-11-22, PR 7365)
+
+On the old configuration, the 11-22 scheduled nightly (44989179403) lost
+this job again at 92 min, with the same "starves it for CPU/Memory"
+annotation. The fixed configuration, dispatched as nightly 44989234943 at
+this PR's head, finished the job green in 98 min (job 137167113008). Its
+sampler shows 15.3 GB of swap available and up to 6.4 GB of it in use,
+with over 3 GB in use for 25 of 96 samples, so this build went past the
+3 GB swap the runner ships with. Available memory never fell below 2.2
+GB. All five eps legs ran from its archive. This is one green night, not
+a rate. If a kill comes back, the sampler's lines in the build step's
+log say what memory looked like up to it. The time that remains is
+`the-full-suite-build-is-cpu-bound-on-four-cores-at-ninety-five-minutes-on-a-slow-runner`.
