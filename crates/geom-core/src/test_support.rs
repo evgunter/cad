@@ -132,6 +132,19 @@ mod offer_tests {
     fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
         let band = Band::new(1e-9, 1e-8).expect("the design band");
         let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
+        // The rule's own offer passes at every scale the suites raise at:
+        // a quote equal to the rule's answer, so only the bound by |m|/K
+        // can refuse it.
+        for m in [
+            3.0000000000031634e-10,
+            9.999999999999951e-11,
+            5.5e-9,
+            1.234567e-7,
+            4.2e-6,
+        ] {
+            let offered = band.offer_deciding(m).expect("an offer above the floor");
+            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
+        }
         assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
         assert!(
             at(5.756e-11, 5.756955e-10),
@@ -155,17 +168,6 @@ mod offer_tests {
             !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
             "a step below both"
         );
-        // The rule's own offer passes at every scale the suites raise at.
-        for m in [
-            3.0000000000031634e-10,
-            9.999999999999951e-11,
-            5.5e-9,
-            1.234567e-7,
-            4.2e-6,
-        ] {
-            let offered = band.offer_deciding(m).expect("an offer above the floor");
-            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
-        }
     }
 }
 
