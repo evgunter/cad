@@ -3914,12 +3914,11 @@ fn coplanar(e: &Rim, o: &Rim) -> bool {
 /// alone would not do: the polar factor's axis leans on all three stored
 /// axes wherever they are not exactly rigid.
 fn one_stated_plane(f: &geom::Frame<f64>, g: &geom::Frame<f64>) -> bool {
-    let same = |a: Vec3<f64>, b: Vec3<f64>| a.x == b.x && a.y == b.y && a.z == b.z;
     let (m, n) = (f.motion(), g.motion());
     f.origin().equals_exactly(g.origin())
         && [(m.u(), n.u()), (m.v(), n.v()), (m.w(), n.w())]
             .into_iter()
-            .all(|(a, b)| same(a.get(), b.get()) || same(a.get(), -b.get()))
+            .all(|(a, b)| a.get().equals_exactly(b.get()) || a.get().equals_exactly(-b.get()))
 }
 
 /// **`o` is `e`'s continuation through `v` along one conic**
