@@ -11575,6 +11575,294 @@ mod properties_pane_tests {
                 "the probe ran for the anchor's x"
             );
         }
+
+        /// **What a held field's entry leaves behind**: the anchor's x
+        /// as the document holds it, the refused text standing in a
+        /// field if one does, whether the draft is pending, and what
+        /// the status line says.
+        fn left(driven: &mut Driven) -> (crate::props::SlotRow, Option<String>, Option<String>, String) {
+            let row = driven.row(profile(), outline(0, StepArg::PointX));
+            let standing = driven
+                .app
+                .drafts
+                .expr_target
+                .is_some()
+                .then(|| driven.app.drafts.expr_text.clone());
+            let pending = edit(driven).pending().map(|pending| format!("{pending:?}"));
+            let status = driven
+                .app
+                .status
+                .as_ref()
+                .map(|said| said.text().to_owned())
+                .unwrap_or_default();
+            (row, standing, pending, status)
+        }
+
+        /// The one value a row reads, if it reads one.
+        fn reads(row: &crate::props::SlotRow) -> Option<f64> {
+            row.value
+                .as_ref()
+                .ok()
+                .and_then(crate::props::Reading::one)
+                .map(|v| v.as_f64())
+        }
+
+        /// **Ev's sequence at a held field**: a good entry, a bad one,
+        /// the corrected one, then a plain number. The refused text
+        /// stands only until the next entry lands, the corrected entry
+        /// commits, and the number replaces the expression as one undo
+        /// step, after which the slot is a literal whose unit can be
+        /// picked.
+        #[test]
+        fn a_refused_entry_at_a_held_field_goes_once_the_next_one_lands() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "w/7");
+            let (row, standing, pending, _) = left(&mut driven);
+            assert!(row.driver.is_driven(), "good entry: driven by w/7");
+            assert_eq!(reads(&row), Some(0.01), "good entry: reads w/7");
+            assert_eq!(standing, None, "good entry: nothing stands");
+            assert_eq!(pending, None, "good entry: nothing pending");
+            type_into_x(&mut driven, 0, "zz");
+            let (_, standing, _, _) = left(&mut driven);
+            assert_eq!(standing.as_deref(), Some("zz"), "bad entry: it stands");
+            type_into_x(&mut driven, 0, "w/2");
+            let (row, standing, pending, status) = left(&mut driven);
+            assert_eq!(standing, None, "corrected entry: the bad one is gone");
+            assert_eq!(pending, None, "corrected entry: nothing pending: {status:?}");
+            assert_eq!(reads(&row), Some(0.035), "corrected entry: reads w/2");
+            let states = driven.app.session.history().len();
+            let corrected = driven.app.session.committed_doc().clone();
+            type_into_x(&mut driven, 0, "0.02");
+            let (row, standing, pending, status) = left(&mut driven);
+            assert_eq!(standing, None, "number: nothing stands");
+            assert_eq!(pending, None, "number: nothing pending: {status:?}");
+            assert!(
+                !row.driver.is_driven(),
+                "number: the literal replaced the expression: {row:?} ({status:?})"
+            );
+            assert_eq!(reads(&row), Some(0.02), "number: reads what was typed");
+            assert_eq!(
+                driven
+                    .app
+                    .session
+                    .slot_unit_refusal(profile(), row.slot)
+                    .map(|refusal| refusal.to_string()),
+                None,
+                "number: the unit picker reads the literal's unit, not `computed`"
+            );
+            assert_eq!(
+                driven.app.session.history().len(),
+                states + 1,
+                "number: one history state"
+            );
+            let out = driven.app.session.perform(SessionOp::Undo);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&corrected),
+                "one undo takes the number back to w/2"
+            );
+            let out = driven.app.session.perform(SessionOp::Redo);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            driven.quiet();
+            let (row, ..) = left(&mut driven);
+            assert_eq!(reads(&row), Some(0.02), "redo lands the number again");
+            assert!(!row.driver.is_driven(), "redo: a literal again");
+        }
+
+        /// **A plain number straight after the bad entry** — the other
+        /// way back Ev reported: it lands over the expression standing,
+        /// and the refused text goes with it.
+        #[test]
+        fn a_number_after_a_refused_entry_at_a_held_field_lands() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "w/7");
+            type_into_x(&mut driven, 0, "zz");
+            type_into_x(&mut driven, 0, "0.02");
+            let (row, standing, pending, status) = left(&mut driven);
+            assert_eq!(standing, None, "nothing stands: {status:?}");
+            assert_eq!(pending, None, "nothing pending: {status:?}");
+            assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
+            assert!(!row.driver.is_driven(), "a literal: {row:?}");
+        }
+
+        /// **A plain number after a bad first entry over a literal**:
+        /// the slot was never driven, and the number releases the
+        /// refused text it lands over.
+        #[test]
+        fn a_number_after_a_bad_first_entry_at_a_held_field_releases_it() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "zz");
+            let (_, standing, _, _) = left(&mut driven);
+            assert_eq!(standing.as_deref(), Some("zz"), "the bad entry stands");
+            type_into_x(&mut driven, 0, "0.02");
+            let (row, standing, pending, status) = left(&mut driven);
+            assert_eq!(standing, None, "nothing stands: {status:?}");
+            assert_eq!(pending, None, "nothing pending: {status:?}");
+            assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
+        }
+    }
+
+    /// **A slot row's value field over a refused entry** — the Properties
+    /// pane's half of what `profile_editor_fields`' held-field rows ask:
+    /// the startup extrude's depth, typed into as a person types.
+    mod refused_slot_entry {
+        use eframe::egui;
+        use pncad::document::SlotId;
+
+        use super::{Driven, extrude};
+        use crate::session::{Selection, SessionOp};
+
+        /// The startup plate with a length `w` of 4 mm declared, the
+        /// extrude selected.
+        fn with_w() -> Driven {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: pncad::document::VarName::from_static("w"),
+                    value: pncad::document::FreeVar::continuous(
+                        pncad::document::Dimension::Length,
+                        0.004,
+                    ),
+                },
+                SessionOp::Select(Selection::Node(extrude())),
+            ]);
+            driven.quiet();
+            driven
+        }
+
+        /// Type `text` into the depth's field, replacing what it holds,
+        /// and press Enter.
+        fn type_depth(driven: &mut Driven, text: &str) {
+            let label = driven.row(extrude(), SlotId::Distance).label;
+            let painted = driven.quiet();
+            let at = painted
+                .windows(2)
+                .find(|pair| pair[0].0 == label)
+                .map(|pair| pair[1].1.center())
+                .unwrap_or_else(|| panic!("the depth's field follows {label:?}: {painted:?}"));
+            let key = |key, modifiers| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            };
+            driven.click_at(at);
+            driven.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)]);
+            driven.frame(vec![egui::Event::Text(text.to_owned())]);
+            driven.frame(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+            driven.quiet();
+        }
+
+        /// The depth as the document holds it, the refused text standing
+        /// in its field if one does, and what the status line says.
+        fn left(driven: &Driven) -> (crate::props::SlotRow, Option<String>, String) {
+            let row = driven.row(extrude(), SlotId::Distance);
+            let standing = (driven.app.drafts.expr_target == Some((extrude(), SlotId::Distance)))
+                .then(|| driven.app.drafts.expr_text.clone());
+            let status = driven
+                .app
+                .status
+                .as_ref()
+                .map(|said| said.text().to_owned())
+                .unwrap_or_default();
+            (row, standing, status)
+        }
+
+        /// The one value a row reads, if it reads one.
+        fn reads(row: &crate::props::SlotRow) -> Option<f64> {
+            row.value
+                .as_ref()
+                .ok()
+                .and_then(crate::props::Reading::one)
+                .map(|v| v.as_f64())
+        }
+
+        /// **Ev's sequence at a slot field**: a good entry, a bad one,
+        /// the corrected one, then a plain number. The refused text
+        /// stands only until the next entry lands, the corrected entry
+        /// commits, and the number replaces the expression as one undo
+        /// step, after which the slot is a literal whose unit can be
+        /// picked.
+        #[test]
+        fn a_refused_entry_at_a_slot_field_goes_once_the_next_one_lands() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "w");
+            let (row, standing, _) = left(&driven);
+            assert!(row.driver.is_driven(), "good entry: driven by w");
+            assert_eq!(standing, None, "good entry: nothing stands");
+            type_depth(&mut driven, "zz");
+            let (_, standing, _) = left(&driven);
+            assert_eq!(standing.as_deref(), Some("zz"), "bad entry: it stands");
+            type_depth(&mut driven, "w*2");
+            let (row, standing, status) = left(&driven);
+            assert_eq!(standing, None, "corrected entry: the bad one is gone");
+            assert_eq!(reads(&row), Some(0.008), "corrected entry: {status:?}");
+            let states = driven.app.session.history().len();
+            let corrected = driven.app.session.committed_doc().clone();
+            type_depth(&mut driven, "0.02");
+            let (row, standing, status) = left(&driven);
+            assert_eq!(standing, None, "number: nothing stands");
+            assert!(
+                !row.driver.is_driven(),
+                "number: the literal replaced the expression: {row:?} ({status:?})"
+            );
+            assert_eq!(reads(&row), Some(0.02), "number: reads what was typed");
+            assert_eq!(
+                driven
+                    .app
+                    .session
+                    .slot_unit_refusal(extrude(), SlotId::Distance)
+                    .map(|refusal| refusal.to_string()),
+                None,
+                "number: the unit picker reads the literal's unit, not `computed`"
+            );
+            assert_eq!(
+                driven.app.session.history().len(),
+                states + 1,
+                "number: one history state"
+            );
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.quiet();
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&corrected),
+                "one undo takes the number back to w*2"
+            );
+            driven.app.perform_batch(vec![SessionOp::Redo]);
+            driven.quiet();
+            let (row, ..) = left(&driven);
+            assert_eq!(reads(&row), Some(0.02), "redo lands the number again");
+            assert!(!row.driver.is_driven(), "redo: a literal again");
+        }
+
+        /// **A plain number straight after the bad entry** — the other
+        /// way back Ev reported: it lands over the expression standing,
+        /// and the refused text goes with it.
+        #[test]
+        fn a_number_after_a_refused_entry_at_a_slot_field_lands() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "w");
+            type_depth(&mut driven, "zz");
+            type_depth(&mut driven, "0.02");
+            let (row, standing, status) = left(&driven);
+            assert_eq!(standing, None, "nothing stands: {status:?}");
+            assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
+            assert!(!row.driver.is_driven(), "a literal: {row:?}");
+        }
+
+        /// **A plain number after a bad first entry over a literal**:
+        /// the slot was never driven, and the number releases the
+        /// refused text it lands over.
+        #[test]
+        fn a_number_after_a_bad_first_entry_at_a_slot_field_releases_it() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "zz");
+            let (_, standing, _) = left(&driven);
+            assert_eq!(standing.as_deref(), Some("zz"), "the bad entry stands");
+            type_depth(&mut driven, "0.02");
+            let (row, standing, status) = left(&driven);
+            assert_eq!(standing, None, "nothing stands: {status:?}");
+            assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
+        }
     }
 
     /// **A real viewport click on a full-revolve rim, with the blend
