@@ -5670,7 +5670,13 @@ impl Psi {
                 };
                 unit(line.offset(p)).dot(square_to(axis, v)) * cos - axis.dot(v) * (nappe * sin)
             }
-            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
+            Self::Graph { m, t, slope, .. } => {
+                if std::env::var_os("ISO_OLD").is_some() {
+                    (m - t * slope).dot(v)
+                } else {
+                    m.dot(v) - t.dot(v) * slope
+                }
+            }
         }
     }
 
@@ -5686,6 +5692,9 @@ impl Psi {
 /// **`v` less its part along `axis`**: `v − axis·(axis·v)/|axis|²`. A
 /// vector square to the axis has the same dot with it as with `v`.
 fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
+    if std::env::var_os("ISO_OLD").is_some() {
+        return v;
+    }
     v - axis * (axis.dot(v) / axis.norm_squared())
 }
 
