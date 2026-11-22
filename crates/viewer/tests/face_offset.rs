@@ -71,6 +71,8 @@ fn editor(tools: &mut Tools) -> &mut MateTool {
 
 /// **The editor's change offered as the panel offers it**: against the
 /// landed pair, judged by the session's door.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
 fn offered(session: &DocSession, tool: &mut MateTool) -> Option<SessionOp> {
     let (doc, ev) = session.landed_pair().expect("landed");
     tool.offer(doc, ev, session.tol(), |op| session.bundle_door(op))
@@ -100,11 +102,7 @@ fn commit(session: &mut DocSession, tools: &mut Tools, what: &str) {
         "{what}: one SetBundle: {op:?}"
     );
     landed(session, tools, op);
-    assert_eq!(
-        session.history().len(),
-        states + 1,
-        "{what}: one undo step"
-    );
+    assert_eq!(session.history().len(), states + 1, "{what}: one undo step");
 }
 
 /// **The block's lower cap rested on the base's top**, picked and
@@ -113,11 +111,8 @@ fn commit(session: &mut DocSession, tools: &mut Tools, what: &str) {
 /// (opposed).
 fn rested(session: &mut DocSession, tools: &mut Tools, kind: VarKind) {
     let index = common::asm::index_of(session);
-    let bottom = common::displayed_face_at(
-        session,
-        &index,
-        &common::up_at(BLOCK_AT[0], BLOCK_AT[1]),
-    );
+    let bottom =
+        common::displayed_face_at(session, &index, &common::up_at(BLOCK_AT[0], BLOCK_AT[1]));
     let top = common::displayed_face_at(session, &index, &common::down_at(0.0, 0.0));
     let tool = editor(tools);
     assert!(tool.pick(session.doc(), bottom).is_none());
@@ -143,13 +138,16 @@ fn near(got: f64, want: f64, what: &str) {
     assert!((got - want).abs() < 1e-9, "{what}: {got} vs {want}");
 }
 
-/// The copy's one mate, as the bundle writes it.
+/// The copy's one mate, as the bundle writes it: each anonymous pose a
+/// side reads as its definition.
 fn the_mate(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> Mate<Formula> {
-    let Some(Node::Place { constraints, .. }) = doc.node(copy).map(|node| node.authored(doc))
-    else {
+    let Some(Node::Place { constraints, .. }) = doc.node(copy).map(|node| node.written(doc)) else {
         panic!("{copy:?} is a placement")
     };
-    let mates: Vec<_> = constraints.iter().filter_map(|c| c.mate().cloned()).collect();
+    let mates: Vec<_> = constraints
+        .iter()
+        .filter_map(|c| c.mate().cloned())
+        .collect();
     let [mate] = &mates[..] else {
         panic!("one mate: {mates:?}")
     };
@@ -198,7 +196,11 @@ fn a_value_cannot_stand_in_for_a_standoff() {
         !slides(&the_mate(doc, copy).to),
         "the picks write the face's plane, unslid"
     );
-    near(at(&session, copy)[2], BASE[2], "the block rests on the base");
+    near(
+        at(&session, copy)[2],
+        BASE[2],
+        "the block rests on the base",
+    );
     let (doc, ev) = session.landed_pair().expect("landed");
     let mut typed = editor(&mut tools).clone();
     typed.type_value(Coord::slide(TargetAxis::Z), common::len(GAP));
@@ -226,11 +228,244 @@ fn a_value_cannot_stand_in_for_a_standoff() {
     rested(&mut session, &mut tools, VarKind::Direction);
     editor(&mut tools).type_value(Coord::slide(TargetAxis::Z), common::len(BASE[2] + GAP));
     commit(&mut session, &mut tools, "the normal slide as a value");
-    near(at(&session, copy_d)[2], BASE[2] + GAP, "stood off by a value");
+    near(
+        at(&session, copy_d)[2],
+        BASE[2] + GAP,
+        "stood off by a value",
+    );
     grown(&mut session, base_d, BASE[2] + 0.003);
     near(
         at(&session, copy_d)[2],
         BASE[2] + GAP,
         "the value is measured from the origin: the copy stays as the face moves",
+    );
+}
+
+/// The editor brought up to the session's document, as the chrome does
+/// each frame.
+fn reconciled(session: &DocSession, tools: &mut Tools) {
+    let pair = session.landed_pair().expect("landed");
+    editor(tools).reconcile(session.committed_doc(), pair);
+}
+
+/// **The first row's offset, set through the editor and committed.**
+fn stood_off(session: &mut DocSession, tools: &mut Tools, by: Option<Formula>, what: &str) {
+    editor(tools).set_offset(0, by);
+    commit(session, tools, what);
+}
+
+/// **A block placed 5 mm off a face follows the face, and each offset
+/// change is one undo step.** The offset row slides the base's top along
+/// its own outward normal under the rest's flip; the block stands 5 mm
+/// above the top, and stays 5 mm above it as the base grows. An editor
+/// opened afresh reads the offset back off the bundle and writes the
+/// bundle it read. Undo takes the offset off, redo puts it back, and
+/// the editor follows both. Cleared, the offset unwraps; set to `0`,
+/// it is a written offset of zero.
+///
+/// *Breaks if* the offset slides along the flipped normal (the block
+/// sinks into the base), is measured from anything but the face, or a
+/// load reads it as part of a side as written.
+#[test]
+fn a_block_placed_off_a_face_follows_the_face() {
+    let (mut session, mut tools, base, copy) = scene("face-offset-follows");
+    rested(&mut session, &mut tools, VarKind::Plane);
+    near(at(&session, copy)[2], BASE[2], "the rest");
+    let rest = the_mate(session.committed_doc(), copy);
+
+    stood_off(
+        &mut session,
+        &mut tools,
+        Some(common::len(GAP)),
+        "the offset",
+    );
+    let offset = the_mate(session.committed_doc(), copy);
+    near(at(&session, copy)[2], BASE[2] + GAP, "5 mm off the top");
+    let role = viewer::matetool::offset_role(VarKind::Plane).expect("a plane takes an offset");
+    assert_eq!(
+        offset.to,
+        viewer::matetool::offset_side(rest.to.clone(), role, common::len(GAP)),
+        "the far side is the rest's, slid"
+    );
+    assert_eq!(offset.on, rest.on, "the near side is untouched");
+
+    let fresh = MateTool::edit(session.committed_doc(), copy).expect("a placement");
+    assert_eq!(
+        fresh.rows()[0].offset(),
+        Some(&common::len(GAP)),
+        "a fresh editor reads the offset back"
+    );
+    let mut fresh = fresh;
+    fresh.set_sense(0, true);
+    assert!(
+        offered(&session, &mut fresh).is_none() && fresh.pending().is_none(),
+        "and writes the bundle it read: {:?}",
+        fresh.pending()
+    );
+
+    grown(&mut session, base, BASE[2] + 0.003);
+    near(
+        at(&session, copy)[2],
+        BASE[2] + 0.003 + GAP,
+        "the block follows the grown face",
+    );
+
+    for (step, want, offset) in [
+        (SessionOp::Undo, BASE[2] + GAP, Some(common::len(GAP))),
+        (SessionOp::Undo, BASE[2], None),
+        (SessionOp::Redo, BASE[2] + GAP, Some(common::len(GAP))),
+    ] {
+        let what = format!("{step:?} to {want}");
+        let outcome = session.perform(step);
+        assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+        session.pump();
+        reconciled(&session, &mut tools);
+        near(at(&session, copy)[2], want, &what);
+        assert_eq!(
+            editor(&mut tools).rows()[0].offset(),
+            offset.as_ref(),
+            "{what}: the editor follows"
+        );
+        assert_eq!(
+            slides(&the_mate(session.committed_doc(), copy).to),
+            offset.is_some(),
+            "{what}: the bundle's far side"
+        );
+    }
+
+    stood_off(&mut session, &mut tools, None, "the offset cleared");
+    near(at(&session, copy)[2], BASE[2], "cleared, the block rests");
+    assert_eq!(
+        the_mate(session.committed_doc(), copy).to,
+        rest.to,
+        "cleared, the far side is unwrapped"
+    );
+    let zero = Formula::zero(Dimension::Length);
+    stood_off(
+        &mut session,
+        &mut tools,
+        Some(zero.clone()),
+        "an offset of 0",
+    );
+    near(at(&session, copy)[2], BASE[2], "an offset of zero rests");
+    assert_eq!(
+        the_mate(session.committed_doc(), copy).to,
+        viewer::matetool::offset_side(rest.to, role, zero),
+        "a written zero keeps its slide"
+    );
+}
+
+/// **The offset takes a formula**: typed `2 * gap`, it reads the
+/// document's `gap`, and one edit to `gap` moves the block. The field
+/// left empty takes the offset off, and an angle is refused.
+///
+/// *Breaks if* the offset field reads only numbers, or a variable's
+/// edit does not reach the standoff.
+#[test]
+fn the_offset_takes_a_formula() {
+    let (mut session, mut tools, _, copy) = scene("face-offset-formula");
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::from_static("gap"),
+        value: pncad::document::FreeVar::continuous(Dimension::Length, GAP),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    session.pump();
+    rested(&mut session, &mut tools, VarKind::Plane);
+    let doc = session.committed_doc();
+    assert!(
+        matches!(viewer::matetool::typed_offset(doc, "  "), Ok(None)),
+        "an empty field is no offset"
+    );
+    assert!(
+        matches!(
+            viewer::matetool::typed_offset(doc, "3 deg"),
+            Err(viewer::matetool::TypedValueError::OffsetDimension { .. })
+        ),
+        "an angle is no offset"
+    );
+    let by = viewer::matetool::typed_offset(doc, "2 * gap").expect("a length formula");
+    stood_off(&mut session, &mut tools, by, "the formula");
+    near(
+        at(&session, copy)[2],
+        BASE[2] + 2.0 * GAP,
+        "2 * gap off the top",
+    );
+    let gap = common::var_of(session.committed_doc(), "gap");
+    let moved = session.perform(SessionOp::SetVariable {
+        var: gap,
+        value: viewer::props::SlotValue::Continuous(0.002),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    session.pump();
+    near(
+        at(&session, copy)[2],
+        BASE[2] + 0.004,
+        "gap's edit moves it",
+    );
+}
+
+/// **The offset's spelling round-trips, and is only ever its own**:
+/// [`viewer::matetool::side_offset`] takes off exactly what
+/// [`viewer::matetool::offset_side`] put on — on a plane, on a flipped
+/// one, on a frame along its `z` — and a slide it did not write (along
+/// a flipped plane's normal, the other sign) is no offset, left as
+/// written. Only a plane and a frame take one.
+///
+/// *Breaks if* a load reads a foreign slide as an offset, whose rewrite
+/// would move the copy to the other side of the face.
+#[test]
+fn an_offset_is_read_back_only_where_the_editor_wrote_it() {
+    use pncad::document::pose::{PoseRole, RoleRead};
+    use viewer::matetool::{offset_role, offset_side, side_offset};
+    let face = Operand::Var(pncad::document::VarId::WORLD);
+    let plane = Operand::Pose(Box::new(PoseDef::Plane { face: face.clone() }));
+    let flip = |pose: Operand| {
+        Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(pose),
+        }))
+    };
+    let frame = Operand::Pose(Box::new(PoseDef::Through {
+        axis: RoleRead::plain(Operand::Pose(Box::new(PoseDef::Axis { of: face.clone() }))),
+        point: RoleRead::plain(Operand::Pose(Box::new(PoseDef::Point { of: face }))),
+    }));
+    let by = common::len(GAP);
+    for (what, side, role) in [
+        ("a plane", plane.clone(), PoseRole::Normal),
+        ("a flipped plane", flip(plane.clone()), PoseRole::Normal),
+        ("a frame", frame.clone(), PoseRole::Z),
+        ("a turned frame", flip(frame), PoseRole::Z),
+    ] {
+        let off = offset_side(side.clone(), role, by.clone());
+        assert_eq!(
+            side_offset(&off, role),
+            (side.clone(), Some(by.clone())),
+            "{what}"
+        );
+        assert_eq!(side_offset(&side, role), (side, None), "{what} unslid");
+    }
+    let foreign = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(flip(plane.clone())),
+        along: RoleRead::through(flip(plane), PoseRole::Normal),
+        by,
+    }));
+    assert_eq!(
+        side_offset(&foreign, PoseRole::Normal),
+        (foreign.clone(), None),
+        "a slide of a flipped plane is left as written"
+    );
+    let takes: Vec<_> = [
+        VarKind::Plane,
+        VarKind::Axis,
+        VarKind::Point,
+        VarKind::Direction,
+        VarKind::Frame,
+    ]
+    .into_iter()
+    .filter(|&kind| offset_role(kind).is_some())
+    .collect();
+    assert_eq!(
+        takes,
+        [VarKind::Plane, VarKind::Frame],
+        "the kinds that take one"
     );
 }

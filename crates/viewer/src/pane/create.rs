@@ -246,6 +246,55 @@ pub(crate) fn mate_picks_row(
     crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
 }
 
+/// **A mate row's offset row** (DESIGN `[placement.mates]`: a standoff
+/// is a construction on the target, never a value): a length field
+/// showing how far the row's `to` stands off along its own direction
+/// ([`crate::matetool::offset_role`]), empty while it does not. It takes
+/// a number or a formula, read as the value rows read theirs
+/// ([`crate::matetool::typed_offset`]); left empty, it takes the offset
+/// off. Drawn for a row whose kind takes an offset; answers the change
+/// the field committed as it lost focus. `edits` holds the text typed
+/// and not yet committed, by row (`Drafts::mate_offset_edits`), the one
+/// buffer every placement editor's offset rows share.
+pub(crate) fn mate_offset_row(
+    ui: &mut egui::Ui,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    row: &crate::matetool::MateRow,
+    at: usize,
+    edits: &mut Vec<(usize, String)>,
+) -> Option<Result<Option<pncad::document::Formula>, crate::matetool::TypedValueError>> {
+    crate::matetool::offset_role(row.kind())?;
+    let held = edits.iter().position(|(row, _)| *row == at);
+    let mut text = held.map_or_else(
+        || {
+            row.offset()
+                .map(|by| crate::matetool::value_text(doc, by))
+                .unwrap_or_default()
+        },
+        |held| edits[held].1.clone(),
+    );
+    let mut committed = None;
+    ui.horizontal(|ui| {
+        ui.label("offset");
+        let field = ui
+            .text_edit_singleline(&mut text)
+            .on_hover_text("how far `to` stands off along its own normal; empty for none");
+        if field.changed() {
+            match held {
+                Some(held) => edits[held].1 = text.clone(),
+                None => edits.push((at, text.clone())),
+            }
+        }
+        if field.lost_focus()
+            && let Some(held) = edits.iter().position(|(row, _)| *row == at)
+        {
+            let (_, typed) = edits.remove(held);
+            committed = Some(crate::matetool::typed_offset(doc, &typed));
+        }
+    });
+    committed
+}
+
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
 /// [`crate::widgets::message_floor`].
@@ -709,6 +758,20 @@ impl ViewerBehavior<'_> {
                     edited.strike(at, struck);
                 }
             });
+            if let Some(change) = mate_offset_row(
+                ui,
+                self.session.committed_doc(),
+                row,
+                at,
+                &mut self.drafts.mate_offset_edits,
+            ) {
+                match change {
+                    Ok(by) => edited.set_offset(at, by),
+                    Err(error) => self
+                        .notices
+                        .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
+                }
+            }
             mate_picks_row(ui, &tool, at, by, &self.theme);
             if let Some(&(_, space)) = off_target
                 .iter()

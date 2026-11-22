@@ -2382,7 +2382,14 @@ The draft is **mate rows** (`matetool::MateRow`), each a kind of
 frame), a sense of two named values (`matetool::senses`: `opposed` or
 `flush` for a plane, `same` or `reversed` for an axis and a direction,
 `same` or `turned over` for a frame, none for a point) written as the
-flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+flip of `to`, its seats, and a stroke. A plane's and a frame's row also
+has an **offset** (`MateTool::set_offset`, `pane::create::mate_offset_row`):
+a length field taking a number or a formula, which writes `to` slid along
+its own normal, a frame's `z` (`matetool::offset_side`, a `PoseDef::Slide`
+under the sense's flip, so the offset runs along the face's outward normal
+in either sense); left empty it takes the slide off, and `0` is an offset
+written as zero. It is the standoff DESIGN `[placement.mates]` makes a
+construction on the target, so the copy follows the face. **Picks are seated by body**: a
 pick on the draft's copy fills the active row's `on` seat and any other
 pick its `to` seat; order carries nothing. A frame's side has an axis
 seat an edge fills and a point seat a vertex fills, written
