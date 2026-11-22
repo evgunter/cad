@@ -7860,6 +7860,168 @@ mod presentation_rows {
         }
     }
 
+    // ---- PROBE (embed/corner-pieces, design phase; not for merge) ----
+
+    fn pp_plane(normal: [f64; 3], u: [f64; 3]) -> Surface<Interval> {
+        let v3 = |[x, y, z]: [f64; 3]| Vec3::new(iv0(x), iv0(y), iv0(z));
+        Surface::Plane {
+            frame: geom::Frame::new(origin(), v3(normal), v3(u)),
+        }
+    }
+
+    fn pp_rim(key: u64, d: [f64; 3], plus: bool) -> Rim {
+        Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some((
+                Curve3::line(origin(), Vec3::new(iv0(d[0]), iv0(d[1]), iv0(d[2]))),
+                (iv0(0.0), iv0(4.0)),
+            )),
+            ends: [vertex(1), vertex(key + 100)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        }
+    }
+
+    /// A piece: the cone of `d1` and `d2` at vertex 1, the origin, as a
+    /// convex two-line corner. Rim 0 is along `d2` (key `k2`), rim 1 along
+    /// `d1` (key `k1`).
+    fn pp_piece(d1: [f64; 3], d2: [f64; 3], k1: u64, k2: u64) -> (Surface<Interval>, Boundary) {
+        let n = [
+            d1[1] * d2[2] - d1[2] * d2[1],
+            d1[2] * d2[0] - d1[0] * d2[2],
+            d1[0] * d2[1] - d1[1] * d2[0],
+        ];
+        (
+            pp_plane(n, d1),
+            Boundary {
+                sense: true,
+                edges: vec![pp_rim(k2, d2, false), pp_rim(k1, d1, true)],
+                vertices: BTreeMap::from([(vertex(1), origin())]),
+                extent: None,
+            },
+        )
+    }
+
+    /// Whether the piece pair is certified, asked either way, sharing
+    /// `edges` (indices into each piece's rims) and vertex 1.
+    fn pp_certified(
+        p: &(Surface<Interval>, Boundary),
+        q: &(Surface<Interval>, Boundary),
+        edges: &[(usize, usize)],
+    ) -> bool {
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        fn mk<'a>(s: &'a (Surface<Interval>, Boundary), local: &'a Local) -> Piece<'a> {
+            Piece {
+                face: FaceKey::default(),
+                surface: &s.0,
+                whole: false,
+                boundary: &s.1,
+                u: (-0.5, 0.5),
+                v: (-0.5, 0.5),
+                local,
+                ball: Ball::holding(origin(), origin()),
+            }
+        }
+        let fwd = Near {
+            edges: edges.to_vec(),
+            vertices: vec![vertex(1)],
+        };
+        let back = Near {
+            edges: edges.iter().map(|&(i, j)| (j, i)).collect(),
+            vertices: vec![vertex(1)],
+        };
+        let (x, y) = (mk(p, &local), mk(q, &local));
+        let one = |o: Outcome| match o {
+            Outcome::Certified { .. } => true,
+            Outcome::Split { .. } | Outcome::Cusp { .. } => false,
+            other => panic!("certified, split or cusp: {other:?}"),
+        };
+        let a = one(departure(&x, &y, &fwd, band(), true));
+        let b = one(departure(&y, &x, &back, band(), true));
+        assert_eq!(a, b, "either piece first");
+        a
+    }
+
+    const UP: [f64; 3] = [0.0, 0.0, 1.0];
+    const DOWN: [f64; 3] = [0.0, 0.0, -1.0];
+    const XP: [f64; 3] = [1.0, 0.0, 0.0];
+    const XM: [f64; 3] = [-1.0, 0.0, 0.0];
+    const YP: [f64; 3] = [0.0, 1.0, 0.0];
+
+    /// **A two-line corner split by a ray into the face, each piece pair
+    /// asked alone, the vertex alone shared.** `F` lies in `x = 0`, from
+    /// `+y` round through `-z` to `far`, split by `-z`.
+    #[test]
+    fn probe_pieces_sharing_the_vertex_alone() {
+        // G: the half z >= 0 of y = 0, split by +z.
+        let g = [pp_piece(XP, UP, 20, 21), pp_piece(UP, XM, 30, 31)];
+        // G along F: the half x >= 0 of y = 0, split by +x; its second
+        // piece holds F's ray -z.
+        let along = [pp_piece(UP, XP, 20, 21), pp_piece(XP, DOWN, 30, 31)];
+        // G reflex: in y = 0 from +x round through +z to (-1, 0, -0.5).
+        let reflex = [
+            pp_piece(XP, UP, 20, 21),
+            pp_piece(UP, [-1.0, 0.0, -0.5], 30, 31),
+        ];
+        for (what, far) in [
+            ("exactly straight", [0.0, -1.0, 0.0]),
+            ("convex by 1e-13", [0.0, -1.0, -1e-13]),
+            ("reflex by 1e-13", [0.0, -1.0, 1e-13]),
+            ("reflex, 207 degrees", [0.0, -1.0, 0.5]),
+            ("reflex, 260 degrees", [0.0, -0.17, 1.0]),
+        ] {
+            let f = [pp_piece(YP, DOWN, 2, 3), pp_piece(DOWN, far, 10, 11)];
+            let ask = |gs: &[(Surface<Interval>, Boundary); 2]| -> Vec<bool> {
+                f.iter()
+                    .flat_map(|p| gs.iter().map(move |q| pp_certified(p, q, &[])))
+                    .collect()
+            };
+            assert_eq!(ask(&g), [true; 4], "{what}: against a straight partner");
+            assert_eq!(ask(&reflex), [true; 4], "{what}: against a reflex partner");
+            assert_eq!(
+                ask(&along),
+                [true, false, true, false],
+                "{what}: the piece pairs that share the ray -z are not parted"
+            );
+        }
+    }
+
+    /// **Pieces where the faces share an edge of the corner, or both.**
+    /// `F` is the half `y >= 0` of `z = 0` and `G` the half `z <= 0` of
+    /// `y = 0`; their common line is the `x` axis, split at the origin
+    /// into edge 1 (`+x`) and edge 2 (`-x`).
+    #[test]
+    fn probe_pieces_sharing_an_edge_of_the_corner() {
+        // F1 = cone(+x, +y), F2 = cone(+y, -x); G1 = cone(-z, +x),
+        // G2 = cone(-x, -z). Rays carry keys 91..94.
+        let f1 = pp_piece(XP, YP, 1, 91);
+        let f2 = pp_piece(YP, XM, 92, 2);
+        let g1 = pp_piece(DOWN, XP, 93, 1);
+        let g2 = pp_piece(XM, DOWN, 2, 94);
+        assert!(pp_certified(&f1, &g1, &[(1, 0)]), "the pieces on edge 1");
+        assert!(pp_certified(&f2, &g2, &[(0, 1)]), "the pieces on edge 2");
+        assert!(pp_certified(&f1, &g2, &[]), "edge 1's piece, edge 2's piece");
+        assert!(pp_certified(&f2, &g1, &[]), "edge 2's piece, edge 1's piece");
+        // A fold: G turned onto F's side, the half y >= 0 ... of the plane
+        // z = 0 itself is F; G' = the half z >= 0 of y = 0 shares the line
+        // too and is as separable. The fold is G'' lying IN z = 0, y >= 0:
+        // its piece on edge 1 is F1 again.
+        let fold = pp_piece(YP, XP, 95, 1);
+        assert!(
+            !pp_certified(&f1, &fold, &[(1, 1)]),
+            "a partner folded onto the face is not parted"
+        );
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
