@@ -766,15 +766,29 @@ fn a_tangent_ruling_reads_as_an_unbounded_component() {
     }
 }
 
-/// A plane section of a wall is essential or unbounded on the wall, and
-/// its count is never certified single (two rulings or one ellipse).
+/// **A plane cuts a wall in one loop essential on the wall, certified
+/// single, or in two rulings the region cuts, each unbounded.**
 #[test]
-fn a_wall_and_a_plane_are_essential_on_the_wall_and_never_single() {
+fn a_plane_cuts_a_wall_in_one_essential_loop_or_unbounded_rulings() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
-    for n in [v(0.2, 0.1, 1.0), v(1.0, 0.0, 0.0)] {
-        let s = classify(&a, &plane(p(0.0, 0.0, 0.5), n));
-        assert_eq!(shape(&s), (1, false, vec![true], vec![false], vec![false]));
-    }
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(0.2, 0.1, 1.0)));
+    assert_eq!(
+        shape(&s),
+        (1, true, vec![true], vec![false], vec![false]),
+        "the tilted ellipse: {s:?}"
+    );
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0)));
+    assert_eq!(
+        shape(&s),
+        (
+            2,
+            false,
+            vec![false, false],
+            vec![false, false],
+            vec![true, true]
+        ),
+        "the rulings: {s:?}"
+    );
 }
 
 // -------------------------------------------------------------------
@@ -1482,6 +1496,18 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     (body, seed.face)
 }
 
+/// **A table that holds no pair, over a region holding the rows'
+/// bodies**: the region a pair with no bounded side (a plane and a
+/// cylinder) is read over, as the glue door's table hands it.
+fn regioned() -> crate::boolean::section_table::SectionTable<f64> {
+    crate::boolean::section_table::SectionTable::reader(
+        None,
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), LEVER)),
+        band(),
+    )
+    .finish()
+}
+
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
 pub(super) fn scan(
@@ -1492,7 +1518,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1690,7 +1716,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,

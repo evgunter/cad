@@ -323,11 +323,11 @@
 //!   (lines). Equal radii with meeting axes (`δ₀` and `r₁ − r₂` both
 //!   `Zero`) give the two bisector-plane ellipses, which cross at two
 //!   nodes: one component, essential on both walls, witnessed at a node.
-//! - **Cylinder × plane**: an ellipse encircling the wall, or rulings.
-//!   Either way the section cannot lie in a wall that describes. The
-//!   count is not certified (two rulings, or one ellipse), so W4 is
-//!   never read here and the pair clears by W2 or refuses.
-//! - **Sphere × {plane, sphere}**: one circle. **Sphere × cylinder**
+//! - **Cylinder × plane** (the section value's, over the region): one
+//!   ellipse or rim circle encircling the wall, certified single, or two
+//!   rulings the region cuts, each unbounded. Either way the section
+//!   cannot lie in a wall that describes.
+//! - **Sphere × {plane, sphere}** (the section value's): one circle. **Sphere × cylinder**
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   two loops encircling the cylinder when `e + ρc < ρs`, each loop
 //!   witnessed by the ruling sweep.

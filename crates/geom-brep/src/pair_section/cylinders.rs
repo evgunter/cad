@@ -98,8 +98,9 @@ impl CcDecision {
 
 impl SectionError {
     /// **Whether this is two parallel walls' gap or nest read in band**
-    /// ([`CcDecision::ParallelGap`], [`CcDecision::ParallelNest`]): the
-    /// walls meet in rulings, a tangent ruling or nothing, so every
+    /// ([`CcDecision::ParallelGap`], [`CcDecision::ParallelNest`]), or the
+    /// gap of a plane parallel to a cylinder's axis (`pc_parallel_gap`):
+    /// the surfaces meet in rulings, a tangent ruling or nothing, so every
     /// component the section could have is a line.
     #[must_use]
     pub fn parallel_walls_undecided(&self) -> bool {
@@ -110,6 +111,7 @@ impl SectionError {
             [CcDecision::ParallelGap, CcDecision::ParallelNest]
                 .into_iter()
                 .any(|d| p == d.name() || p == d.floor())
+                || ["pc_parallel_gap", "pc_parallel_gap_floor"].contains(&p)
         })
     }
 }

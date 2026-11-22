@@ -3429,7 +3429,10 @@ pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
                 .carrier()
                 .as_line()
                 .is_some();
-            if !straight || !rides_carried(sections, (body_a, face_a), (body_b, face_b))? {
+            if !straight
+                || !rides_carried(sections, (body_a, face_a), (body_b, face_b))?
+                || tangent_along_a_ruling(sections, (body_a, face_a), (body_b, face_b))
+            {
                 return Ok(SectionPick::Only);
             }
         }
@@ -3468,6 +3471,34 @@ pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
         return Ok(SectionPick::Only);
     };
     loops.branch_at(site, band)
+}
+
+/// **Whether a pair the table carries is tangent along a ruling a plane
+/// lane cuts**: a plane and a wall whose classified section is only
+/// tangent rulings, which carry nothing. A germ along a straight edge
+/// lying on such a ruling copies its edge and the plane's chord lane
+/// takes it ([`KindArm::PlaneWall`]).
+fn tangent_along_a_ruling<T: crate::props::AtRestPolicy>(
+    sections: &super::section_table::SectionTable<T>,
+    a: (&Body<T>, FaceKey),
+    b: (&Body<T>, FaceKey),
+) -> bool {
+    let kind = |(body, f): (&Body<T>, FaceKey)| keyed_surface(body, f).1.kind();
+    if kind_arm(kind(a), kind(b)) == KindArm::None {
+        return false;
+    }
+    let Some(Ok(section)) = sections.held(a, b) else {
+        return false;
+    };
+    section.counted().is_some_and(|listed| {
+        !listed.is_empty()
+            && listed.iter().all(|c| {
+                matches!(
+                    c.carrier,
+                    geom_brep::ClassCarrier::Unminted(geom_brep::NoCarrier::Tangent)
+                )
+            })
+    })
 }
 
 /// **The line of a plane×cone pair's apex line pair a germ rides**
