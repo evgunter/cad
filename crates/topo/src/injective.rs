@@ -13079,7 +13079,6 @@ mod rate_rows {
             ] {
                 let v = Vec3::new(0.8, 0.6, 0.0);
                 let rate = psi.rate(boxed(q, h), v.map(iv0));
-                let value = psi.value(boxed(q, h));
                 assert!(
                     interval_sign_as(rate, SELF_INTERSECTION_DEPARTURE, band()).is_none(),
                     "{what} {name}: a sign read over a box holding the axis"
