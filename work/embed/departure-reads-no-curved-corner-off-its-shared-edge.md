@@ -785,3 +785,22 @@ cylinder/plane at a vertex.
   spiric continued). The trace does not print the corner's two edges;
   the bicylinder and `bisector_nodes` corners are of two ellipse arcs
   by construction, the rest unchecked.
+
+## Census tests whose cylinder corner certifies now and whose partner stops here (EMBED lane `embed/iso-end`, 2026-11-22)
+
+With the cylinder carrier's rate read square to its axis, the cylinder bucket's reflex and lone-clip pairs certify where their partner is presented. In these 12 the partner, a plane or cylinder face holding a line and an arc at the vertex, is refused at `beside_curve`'s unread corner (`Structural`) or at `curved_walls`' unread wall (`Local`), so the test still refuses at that pair or at a later one. Whether the corner is tangent was not checked per test.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all emit_union_seam_rank::crossings_of_one_open_arc_name_apart_by_sense_in_every_member_order`
+- `sweep::all parallel_cylinder_join::equal_wider_and_nested_rods_join_along_their_rulings`
+- `sweep::all parallel_cylinder_join::one_face_walls_read_their_axes_as_an_angle`
+- `sweep::all ring_carry_through_by_piece::a_ring_refuses_at_its_least_margin_in_either_subtraction_order`
+- `editor-core::all intent_s6_d_tangency::a_tangent_arc_leaving_the_trace_proves`
+- `editor-core::all m10_di_dual_corpus::at_rest_census_verdicts_match_f64_at_interval`
+- `editor-core::all m4_pr8_corpus_interval::every_document_evaluates_green_at_interval`
+- `editor-core::all review_m5_pr9_doc_probe::the_boss_union_document_row_interval_bit_replay`
+- `sweep::all parallel_cylinder_join::an_island_and_a_turned_pose_join_along_their_rulings`
+- `sweep::all review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`
+- `sweep::all ring_carry_through_by_piece::a_lens_ring_beside_a_hole_rim_builds_in_either_order`
+- `sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order`
