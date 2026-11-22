@@ -5379,7 +5379,8 @@ pub fn loop_edges<T: Decide>(
 pub fn chart_image_edges<T: Decide>(
     lp: CycleLoop<'_, T>,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
-    image_of_cycle(lp.body(), &lp.cycle())
+    let (_, cycle) = loop_edges(lp)?;
+    image_of_cycle(lp.body(), &cycle)
 }
 
 /// [`chart_image_edges`] of a loop's cycle the caller has walked.

@@ -2,7 +2,8 @@
 id: a-faces-loops-are-walked-by-hand-in-thirty-four-places
 kind: issue
 title: once(face.outer).chain(face.rings) is written out at every face-loop walk in topo/src — 33 copies at last count, each re-deciding what a non-Cycle boundary means
-status: open
+status: review
+branch: walks/face-region
 opened: 2026-09-14
 priority: P1
 cost: D
@@ -115,3 +116,27 @@ gives the outer walk one home should look next at
 question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` walk is gone.
+
+## Decided
+
+A loop that is not a cycle means one thing per question, stated once in
+`crates/topo/src/live.rs`'s module docs: a torn loop is a broken link
+(FaceView panics; the unchecked readers report it); a lone-vertex ring
+is a boundary point that bounds no area; a lone-vertex outer loop is a
+face with no outline, refused once as `NoOutline` with
+`LONE_LOOP_REFUSAL`'s standing. The region a face bounds is
+`FaceView::area_loops` (outer cycle, ring cycles, lone rings as
+points); a question asked of one loop's half-edges is
+`FaceView::cycle_loops`; a per-loop reader takes a `CycleLoop`, which
+only live.rs builds (those two facets, and `Body::cycle_loop` for a key
+a caller passed). `props::{loop_edges, chart_image_edges}`,
+`contain::{loop_cycle_points, loop_circle}`,
+`splitting::containment::{carrier_loop, certify_plane, loop_points,
+point_in_vertex_polygon, point_in_loop_projected}`,
+`loop_points::{loop_corners, loop_pinches}`, the tier-3 winding's
+`read_loop` and the section outline's `loop_edges` take one. The
+discard register keeps its shape (a source pin of the files matching
+`LoopBoundary` would list over a hundred); its entries for the sites
+routed through the facet are gone, and the Euler operators' entries are
+audited as the preconditions they are.
+

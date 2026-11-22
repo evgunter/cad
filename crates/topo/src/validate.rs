@@ -407,7 +407,6 @@ use crate::contact::{ContactPair, ContactRefusal};
 use crate::contain::ContainError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
-use crate::live::{AreaLoops, FaceView};
 use crate::null::CurveGeom;
 
 use crate::entity::{
@@ -7711,25 +7710,6 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 // availability differs by caller: bundling them into one struct would
 // hide behind a single name exactly the thing each parameter is here to
 // make the caller state.
-/// The premise every tier-3 reader of a face's region stands on: tier 2
-/// refuses a lone-vertex loop at rest
-/// ([`ValidationError::ScaffoldingEmptyLoop`]), and tier 3 runs only
-/// after it.
-const TIER_2_BANS_LONE_LOOPS: &str = "tier 2 refuses a lone-vertex loop at rest (ScaffoldingEmptyLoop), and tier 3 runs only after it";
-
-/// `face`'s region for a tier-3 reader ([`FaceView::area_loops`]), every
-/// loop a cycle by [`TIER_2_BANS_LONE_LOOPS`].
-#[track_caller]
-pub(crate) fn at_rest_area<T: geom_core::Real>(face: FaceView<'_, T>) -> AreaLoops<'_, T> {
-    match face.area_loops() {
-        Ok(area) if area.lone_rings().is_empty() => area,
-        Ok(_) | Err(_) => unreachable!(
-            "face {:?} holds a lone-vertex loop: {TIER_2_BANS_LONE_LOOPS}",
-            face.key()
-        ),
-    }
-}
-
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -8005,26 +7985,24 @@ pub(crate) fn tier3_local_checks_marked<
         let plane @ Surface::Plane { .. } = face.surface() else {
             continue;
         };
-        for (lp, _) in at_rest_area(face).cycles() {
-            for member in lp.members() {
-                let (vertex, point) = (member.vertex(), body.member_point(&member));
-                match geom_brep::read_point_incidence(point, plane, band)
-                    .map_err(|e| geom_brep::IncidenceRead::of(&e))
-                {
-                    Ok(()) => {}
-                    Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
-                        errors.push(ValidationError::PlanarFaceEscalated {
-                            face: face_key,
-                            vertex,
-                            cause,
-                        });
-                    }
-                    Err(_) => {
-                        errors.push(ValidationError::PlanarFaceResidual {
-                            face: face_key,
-                            vertex,
-                        });
-                    }
+        for member in face.boundary() {
+            let (vertex, point) = (member.vertex(), body.member_point(&member));
+            match geom_brep::read_point_incidence(point, plane, band)
+                .map_err(|e| geom_brep::IncidenceRead::of(&e))
+            {
+                Ok(()) => {}
+                Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
+                    errors.push(ValidationError::PlanarFaceEscalated {
+                        face: face_key,
+                        vertex,
+                        cause,
+                    });
+                }
+                Err(_) => {
+                    errors.push(ValidationError::PlanarFaceResidual {
+                        face: face_key,
+                        vertex,
+                    });
                 }
             }
         }
@@ -8371,10 +8349,15 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
         let sheet = matches!(surface, Surface::Spindle { .. });
-        let Ok(full) = at_rest_area(body.proven_face(face_key))
-            .cycles()
-            .map(|(lp, _)| crate::props::loop_edges(lp))
-            .collect::<Result<FlatLoops<T>, _>>()
+        let Ok(full) = body
+            .proven_face(face_key)
+            .area_loops()
+            .map_err(|_| ())
+            .and_then(|area| {
+                area.cycles()
+                    .map(|(lp, _)| crate::props::loop_edges(lp).map_err(|_| ()))
+                    .collect::<Result<FlatLoops<T>, _>>()
+            })
         else {
             if sheet {
                 unflattened.push(face_key);
@@ -9138,7 +9121,7 @@ fn pinch_corner_errors<T: Decide>(
     if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
-    for (lp, _) in at_rest_area(body.proven_face(face_key)).cycles() {
+    for (lp, _) in body.proven_face(face_key).cycle_loops() {
         let corners = crate::loop_points::loop_corners(lp);
         for group in corners.groups() {
             if let Err(error) =
@@ -9810,14 +9793,13 @@ fn ring_outer_meeting<T: Decide>(
     };
 
     // ---- Arm 4: two whole circles. ----
-    let cycle = |lk: LoopKey| {
+    // A lone-vertex loop is no circle.
+    let circle = |lk: LoopKey| {
         body.cycle_loop(lk)
-            .unwrap_or_else(|_| unreachable!("loop {lk:?}: {TIER_2_BANS_LONE_LOOPS}"))
+            .ok()
+            .and_then(|lp| crate::contain::loop_circle(lp, band).ok().flatten())
     };
-    if let (Ok(Some(o)), Ok(Some(r))) = (
-        crate::contain::loop_circle(cycle(outer), band),
-        crate::contain::loop_circle(cycle(ring), band),
-    ) {
+    if let (Some(o), Some(r)) = (circle(outer), circle(ring)) {
         return match circle_pair(
             circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
             band,
