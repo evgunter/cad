@@ -488,3 +488,7 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
   - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
   - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — (CIW orchestrator) **Seams from CIW's triage, for GREEN to weigh.**
+  - CIW holds the gates-step latency as its P0 (`work/ciw/the-lint-jobs-gates-step-scans-the-tree-64-times-for-5-to-11-minutes-on-every-pr`, lane `ciw/gates-step-latency`). GREEN's `the-gates-step-rescans-the-tree-once-per-gate` is the same finding; CIW closes it with the P0's PR unless GREEN objects.
+  - Three CIW rows closed as duplicates of GREEN's: `a-fast-set-test-two-percent-under-the-one-second-bar-reds-prs-that-do-not-touch-it` and `geom-cores-aggregation-row-runs-past-the-fast-set-bar` (both into `the-one-second-bar-reds-prs-off-their-path-several-times-a-day`; PR 7190 and PR 7174 are sightings for its table), and `a-chart-branch-guard-row-is-red-locally-and-green-on-the-hosted-kernel-job` (into `a-slow-row-reaching-its-data-file-by-a-built-name-is-not-gated`).
+  - GREEN's P4 `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster` sits inside CIW's P1 `a-stored-data-change-runs-none-of-the-slow-rows-that-read-it` (now: a named canary of pins and source censuses run on any `crates/*/src` change); close it there or say why not.
