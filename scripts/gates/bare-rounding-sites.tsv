@@ -52,7 +52,7 @@ crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose
 crates/geom-brep/src/pair_section/torus_arms.rs	prod	2	re-pose
 crates/geom-brep/src/pcurve_cache.rs	prod	13	re-pose
-crates/geom-brep/src/pcurve_cache.rs	test	1	oracle
+crates/geom-brep/src/pcurve_cache.rs	test	4	oracle
 crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs	test	8	oracle
 crates/geom-brep/src/pcurve_cache/ellipse_lane_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/cone_line_rows.rs	test	3	oracle
@@ -228,6 +228,7 @@ crates/topo/src/separation.rs	prod	1	re-pose
 crates/topo/src/spline_trim.rs	prod	8	re-pose
 crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
+crates/topo/src/transform.rs	test	1	oracle
 crates/topo/src/vertex_section.rs	prod	6	re-pose
 crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs	test	1	oracle
 crates/topo/tests/census_g2_carrier.rs	test	2	oracle

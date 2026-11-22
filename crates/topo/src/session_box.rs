@@ -48,7 +48,7 @@ fn unmoved_reach<T: Decide>(
 /// the one fold [`body_reach`] reads, over the data
 /// `transform::map_isometry` writes into the image. Each vertex's point
 /// goes through the motion's affine; each certified edge's stored
-/// carrier through `map_carrier`, its reading over its span re-taken on
+/// carrier through `map_carrier_stretched`, its reading over its span re-taken on
 /// the image (`EdgeCurve::carried`); its two ends through the affine. So
 /// it reads the image's own quantity, from the image's own data, which a
 /// placement holds without building the image.

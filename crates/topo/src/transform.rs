@@ -262,7 +262,7 @@ impl Hand {
 ///
 /// `motion` is the map as the rigid motion it is, where it is one: an
 /// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
-/// rigid image of a rigid frame, as [`map_carrier`] moves a conic's. A
+/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's. A
 /// reflection, or a map handed only as an affine, maps the frame's three
 /// data and squares them ([`geom::Frame::new`]), the plane's normal as
 /// the axial image.
@@ -585,7 +585,7 @@ fn mapped_image<T: Real>(
 /// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
 ///
 /// A spiric image is restated for its mapped carrier, whose stand-off
-/// is `−d` ([`map_carrier`]): `f(t) = √((R + r·cos t)² − d²)` is even in
+/// is `−d` ([`map_carrier_stretched`]): `f(t) = √((R + r·cos t)² − d²)` is even in
 /// `d`, so a plane cap keeps its coefficients (its chart is unmoved),
 /// and a torus wall, whose chart reverses its azimuth, reads
 /// `−u0 − σμ·atan2(f, d) = u0′ + σμ·atan2(f, −d)` with
