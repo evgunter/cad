@@ -15,7 +15,7 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are twelve — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are thirteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
@@ -27,7 +27,9 @@
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
 //! which mint a gesture's operations from its name; and [`drag_ops`]
-//! with [`drag_gesture_ops`], which read a `Response`.
+//! with [`drag_gesture_ops`], which read a `Response`; and
+//! [`let_go_of_the_focused_edit`], which writes a context's focus and
+//! memory.
 //!
 //! [`drag_ops`] is the one worth naming — it is the one mapping from a
 //! `DragValue` to session operations, and the whole reason a dragged
@@ -1968,6 +1970,7 @@ mod roster_tests {
             "free_move_gesture",
             "drag_ops",
             "drag_gesture_ops",
+            "let_go_of_the_focused_edit",
         ];
         found.sort_unstable();
         let mut named_sorted = named;
