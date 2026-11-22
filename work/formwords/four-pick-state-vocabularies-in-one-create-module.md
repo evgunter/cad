@@ -2,10 +2,12 @@
 id: four-pick-state-vocabularies-in-one-create-module
 kind: issue
 title: create.rs answers 'what is this button waiting for' in four unrelated vocabularies
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7374
+branch: formwords/seat-vocab
 ---
 
 

@@ -2,10 +2,12 @@
 id: a-fifth-spelling-of-this-seat-is-empty
 kind: issue
 title: A fifth spelling of 'this seat is empty', in a file whose own doc says the sentence is composed centrally
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7374
+branch: formwords/seat-vocab
 ---
 
 

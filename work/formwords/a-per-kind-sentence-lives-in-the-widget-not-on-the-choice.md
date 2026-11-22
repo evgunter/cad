@@ -2,11 +2,13 @@
 id: a-per-kind-sentence-lives-in-the-widget-not-on-the-choice
 kind: issue
 title: A sentence true of one datum kind is hardcoded in the widget rather than beside the choice it describes
-status: open
+status: review
 opened: 2026-09-21
 priority: P4
 cost: E
 rides_with: four-pick-state-vocabularies-in-one-create-module
+pr: 7374
+branch: formwords/seat-vocab
 ---
 
 
