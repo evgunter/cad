@@ -698,7 +698,10 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 op.op(),
                 members[a].body,
                 members[b].body,
-                &BooleanInputs::default(),
+                &BooleanInputs {
+                    records_a: members[a].inputs.records.clone(),
+                    records_b: members[b].inputs.records.clone(),
+                },
                 (None, None),
                 sweep,
                 tol,

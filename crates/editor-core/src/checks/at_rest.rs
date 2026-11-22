@@ -1351,7 +1351,10 @@ fn intersection(
     match topo::boolean_placed(
         topo::BooleanOp::Intersect,
         (placed(body_a), placed(body_b)),
-        &topo::BooleanInputs::default(),
+        &topo::BooleanInputs {
+            records_a: topo::FinishedBody::records(&*body_a.0).carried(),
+            records_b: topo::FinishedBody::records(&*body_b.0).carried(),
+        },
         topo::SweepStrategy::Realized,
         tol,
     ) {
