@@ -1341,7 +1341,11 @@ suits the slot.
   the profile's own axes (an extrude's signed depth, above or below the
   profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
-  ("Constructing a coincidence").
+  ("Constructing a coincidence"). A profile drawn on a face's chart
+  may also hold that face's boundary loops as loops of its own: the
+  outline, or the hole through a named edge. Such a loop stores names
+  and no number, and is the face's boundary as it is at each
+  evaluation, as a shell's open face is.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1504,8 +1508,9 @@ no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; a subtract's tool is one `Body`, so cutting by a family is
-`subtract(a, union(holes))`.
+members spelled as reads; so does a subtract's tool, so
+`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
+cuts it member by member.
 Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
