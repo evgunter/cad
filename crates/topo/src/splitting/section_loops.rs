@@ -14,7 +14,8 @@
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
 use geom::Conic;
-use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
+use geom_core::bisect::{Step, bisect};
+use geom_core::{Decide, Indeterminate, Point3, Real, SupSpeed, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -257,14 +258,14 @@ pub(super) fn nest<T: Decide, O, H>(
 ///   carry only these kinds decides every shared point — at a vertex of
 ///   either loop, along an arc, or where two edges cross.
 /// - **A pair with an ellipse edge**, which check 9's edge arms skip:
-///   separated on the CARRIERS, a superset of the arcs. A line against
-///   a conic: the conic's whole carrier lies on one side of the line
-///   through the segment (**`split_nest_line_conic`**, the offset of
-///   the conic's centre from the line less its amplitude across it,
-///   `√((m·a)² + (m·b)²)`). Two conics: in the unit coordinates of one,
-///   the other's carrier lies wholly inside or wholly outside the unit
-///   circle, either way round (**`split_nest_conic_conic`**; the bound
-///   is at [`conics_clear`]).
+///   separated on the ARCS, by a piece walk ([`arc_clears`]). A segment
+///   against an elliptic arc: every piece of the arc lies farther from
+///   the segment than the piece's own reach about its middle point
+///   (**`split_nest_segment_arc`**). Two conic arcs: first on the
+///   carriers, in the unit coordinates of one the other's carrier lying
+///   wholly inside or wholly outside the unit circle, either way round
+///   (**`split_nest_conic_conic`**; the bound is at [`conics_clear`]),
+///   then piece against piece (**`split_nest_arc_arc`**).
 /// - **A spiric or NURBS edge, or an edge with no certified curve**:
 ///   nothing decides it, so `false`.
 ///
@@ -288,13 +289,18 @@ pub(super) fn outlines_disjoint<T: Decide>(
         for y in &eb {
             let separated = match (x, y) {
                 (OutlineEdge::Undecided, _) | (_, OutlineEdge::Undecided) => return Ok(false),
-                (OutlineEdge::Line(p, q), OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)))
-                | (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)), OutlineEdge::Line(p, q)) => {
-                    line_clears_conic(*p, *q, conic(c), band)
-                }
-                (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)), OutlineEdge::Conic(d))
-                | (OutlineEdge::Conic(c), OutlineEdge::Conic(d @ geom::Curve3::Ellipse(_))) => {
+                (
+                    &OutlineEdge::Line(p, q),
+                    OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_), span),
+                )
+                | (
+                    OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_), span),
+                    &OutlineEdge::Line(p, q),
+                ) => arc_clears(conic(c), *span, &Other::Segment(p, q), band),
+                (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_), s), OutlineEdge::Conic(d, t))
+                | (OutlineEdge::Conic(c, s), OutlineEdge::Conic(d @ geom::Curve3::Ellipse(_), t)) => {
                     conics_clear(conic(c), conic(d), band)
+                        || arc_clears(conic(c), *s, &Other::Arc(conic(d), *t), band)
                 }
                 // Lines and circles: check 9 decided them above.
                 _ => true,
@@ -308,11 +314,12 @@ pub(super) fn outlines_disjoint<T: Decide>(
 }
 
 /// One outline edge, as [`outlines_disjoint`] reads it: a segment by
-/// its ends; a conic by its carrier, a circle or an ellipse (the kind
-/// check 9's edge arms skip); or a kind nothing decides.
+/// its ends; a conic arc by its carrier, a circle or an ellipse (the
+/// kind check 9's edge arms skip), and its parameter window; or a kind
+/// nothing decides.
 enum OutlineEdge<T: Real> {
     Line(Point3<T>, Point3<T>),
-    Conic(geom::Curve3<T>),
+    Conic(geom::Curve3<T>, (T, T)),
     Undecided,
 }
 
@@ -364,7 +371,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
                 OutlineEdge::Line(point(h.start)?, point(end)?)
             }
             geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-                OutlineEdge::Conic(curve.carrier().clone())
+                OutlineEdge::Conic(curve.carrier().clone(), curve.params())
             }
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 OutlineEdge::Undecided
@@ -374,28 +381,75 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
     Ok(out)
 }
 
-/// The conic's whole carrier lies definitely on one side of the line
-/// through `p`, `q` (both in the conic's plane).
-fn line_clears_conic<T: Decide>(
-    p: Point3<T>,
-    q: Point3<T>,
+/// What an arc is read clear of: a segment by its ends, or another
+/// conic's arc by its carrier and parameter window.
+#[derive(Clone, Copy)]
+enum Other<'a, T: Real> {
+    Segment(Point3<T>, Point3<T>),
+    Arc(&'a dyn Conic<T>, (T, T)),
+}
+
+/// **The arc of `c` over `span` lies definitely clear of `other`**, by a
+/// piece walk ([`bisect`]). A piece of an arc lies within its reach
+/// ([`geom_core::bisect::reach`] at the carrier's speed over the piece,
+/// [`Conic::speed_over`]) of its middle point, so a piece is clear of a
+/// segment where the middle point's distance from it
+/// ([`geom::Line::distance_within`]) less that reach is definitely
+/// positive, and of another arc's piece where the gap between their
+/// middle points less both reaches is. A pair whose middle points read
+/// within the band of each other has the curves meeting, or too close to
+/// call, and stops the walk undecided, as a walk past its budget does;
+/// any other pair is halved, `c`'s piece and the other arc's in turn.
+fn arc_clears<T: Decide>(
     c: &dyn Conic<T>,
+    span: (T, T),
+    other: &Other<'_, T>,
     band: geom_core::Band,
 ) -> bool {
-    let along = q - p;
-    if !positive("split_nest_line_conic", along.norm(), band)
-        || !positive("split_nest_line_conic", c.speed_lo(), band)
-    {
-        return false;
-    }
-    let m = c.frame().axis.cross(along.normalize());
-    let (p_m, q_m) = c.along(m);
-    let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
-    positive(
-        "split_nest_line_conic",
-        m.dot(c.frame().origin - p).abs() - reach,
-        band,
-    )
+    let middle = |c: &dyn Conic<T>, (a, b): (T, T)| {
+        let m = geom::mid_param(a, b);
+        let reach = geom_core::bisect::reach(SupSpeed::new(c.speed_over((a, b))), (a, b));
+        (m, c.point_at(m), reach)
+    };
+    let (clear, meets) = match other {
+        Other::Segment(..) => ("split_nest_segment_arc", "split_nest_segment_arc_gap"),
+        Other::Arc(..) => ("split_nest_arc_arc", "split_nest_arc_arc_gap"),
+    };
+    let walk = bisect([(span, *other, 0u32)], |(s, o, depth)| {
+        let (ms, at, reach) = middle(c, s);
+        let (gap, reach) = match o {
+            Other::Segment(p, q) => (
+                geom::Line {
+                    origin: p,
+                    dir: q - p,
+                }
+                .distance_within(at, (T::zero(), T::one())),
+                reach,
+            ),
+            Other::Arc(d, t) => {
+                let (_, other_at, other_reach) = middle(d, t);
+                ((at - other_at).norm(), reach + other_reach)
+            }
+        };
+        if positive(clear, gap - reach, band) {
+            return Step::Settled;
+        }
+        if !positive(meets, gap, band) {
+            return Step::Stop(());
+        }
+        let depth = depth + 1;
+        match o {
+            Other::Arc(d, (a, b)) if depth % 2 == 0 => {
+                let m = geom::mid_param(a, b);
+                Step::Halve([
+                    (s, Other::Arc(d, (a, m)), depth),
+                    (s, Other::Arc(d, (m, b)), depth),
+                ])
+            }
+            _ => Step::Halve([((s.0, ms), o, depth), ((ms, s.1), o, depth)]),
+        }
+    });
+    matches!(walk, Ok(None))
 }
 
 /// `h`'s carrier lies definitely inside or definitely outside `e`'s
