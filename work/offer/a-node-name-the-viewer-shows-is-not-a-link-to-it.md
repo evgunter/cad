@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-22
 priority: P1
 cost: M
+design: true
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "any time it says something like 'Revolve 3', you should be able to click it to take you to it".
