@@ -753,7 +753,7 @@ class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
         tip = Open.at((0 * m, 0 * m)).line_to((10 * m, 0 * m))
         with self.assertRaises(pncad.PathError) as caught:
             tip.line_to((10.001 * m, 1e-10 * m))
-        self.assertEqual(caught.exception.variant, "junction_tangent")
+        self.assertEqual(caught.exception.variant, "junction_turn_within_tolerance")
 
 
 if __name__ == "__main__":

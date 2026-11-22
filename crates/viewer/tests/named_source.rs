@@ -867,7 +867,7 @@ fn a_mirror_whose_plane_is_on_b_offers_nothing_for_bracket() {
     session.pump();
     let out = session.perform(SessionOp::AddMirror {
         body: post.into(),
-        plane: top_of(body),
+        plane: viewer::session::ToolPlane::Face(top_of(body)),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -1079,10 +1079,10 @@ fn a_body_reached_first_as_a_plane_then_as_a_body_offers() {
     );
     let out = session.perform(SessionOp::AddMirror {
         body: a.into(),
-        plane: viewer::session::FaceSelection {
+        plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
             node: x,
             ..top_of(body)
-        },
+        }),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -1236,10 +1236,10 @@ fn a_mirror_whose_plane_is_on_a_copy_is_not_on_that_copy() {
     assert!(c < d, "C is minted first");
     let out = session.perform(SessionOp::AddMirror {
         body: d.into(),
-        plane: viewer::session::FaceSelection {
+        plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
             node: c,
             ..top_of(body)
-        },
+        }),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();

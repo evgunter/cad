@@ -101,8 +101,8 @@
 //! (PR 4), certifies all three C2 limbs, and proves the domain
 //! exhausted or refuses typed. Every other rung-3 arm keeps its typed
 //! refusal and **cites the trace shape it would use** and what is
-//! actually missing: for the cone pairs, the meters conversion of the
-//! cone's composite.
+//! actually missing: for the cone pairs, the tube's cone arm
+//! (`ssi::enclose::has_implicit_enclosure`) and the pair doors.
 //!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
@@ -286,9 +286,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    tangency sub-case exists, a coaxial cylinder always cuts \
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC and route to the general rung, whose \
-                   cone×cylinder arm has not retired — the cone's composite has no \
-                   meters conversion, so its certificate, not its trace, is what is \
-                   missing (arms retire one at a time, each with its proof)",
+                   cone×cylinder arm has not retired — the uniqueness tube has no \
+                   cone arm, so its certificate, not its trace, is what is missing \
+                   (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -314,24 +314,24 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the common-apex line-pair special case is \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the common-apex line-pair special case is \
                    not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the coaxial pose has a closed form \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the coaxial pose has a closed form \
                    (cone_sphere_section), which this dispatch does not route to",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the coaxial pose has a closed form \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the coaxial pose has a closed form \
                    (cone_torus_section), which this dispatch does not route to",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
@@ -1098,22 +1098,37 @@ pub fn plane_cylinder_section_read<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(PlaneCylinderSection<T>, Decided), SectionError> {
+    plane_cylinder_classified(plane, cylinder, reach, band)
+        .map(|(section, parallel, _)| (section, parallel))
+}
+
+/// A row that decided a section's class, and the margin it decided on.
+pub(crate) type DecidingRow = (&'static str, MarginDiag);
+
+/// [`plane_cylinder_section_read`], with the row `pc_parallel_gap` and
+/// the margin it decided `Zero` on, where the section is the tangent
+/// ruling.
+pub(crate) fn plane_cylinder_classified<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    cylinder: &Surface<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(PlaneCylinderSection<T>, Decided, Option<DecidingRow>), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
     let (parallel, ruled) =
         plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
     if let Some(ruled) = ruled {
-        return Ok((
-            match ruled {
-                RuledSection::ParallelLines { l1, l2, .. } => {
-                    PlaneCylinderSection::ParallelLines { l1, l2 }
-                }
-                RuledSection::TangentLine { line, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line(line))
-                }
-                RuledSection::Empty { .. } => PlaneCylinderSection::Empty,
-            },
-            parallel,
-        ));
+        let (section, tangent) = match ruled {
+            RuledSection::ParallelLines { l1, l2, .. } => {
+                (PlaneCylinderSection::ParallelLines { l1, l2 }, None)
+            }
+            RuledSection::TangentLine { line, gap } => (
+                PlaneCylinderSection::TangentLine(Curve3::Line(line)),
+                Some((PC_PARALLEL_GAP[0], gap)),
+            ),
+            RuledSection::Empty { .. } => (PlaneCylinderSection::Empty, None),
+        };
+        return Ok((section, parallel, tangent));
     }
     let PlaneCylinder { q, n, o, a, r } = pc;
     // Bounded cut: rim circle vs tilted ellipse.
@@ -1135,7 +1150,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
         let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
         PlaneCylinderSection::TiltedEllipse(e)
     };
-    Ok((section, parallel))
+    Ok((section, parallel, None))
 }
 
 /// The major direction of the ellipse a plane of unit normal `n` cuts
@@ -1300,13 +1315,16 @@ pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) ->
 /// here is a crossing or a clearance no tilt within the swing closes,
 /// which is how the tangent-locus lane refuses a pair the axis row
 /// leaves in band ([`crate::tangent_locus`]).
+/// `pc_parallel_gap` and its floor row ([`ruled_gap`]).
+pub(crate) const PC_PARALLEL_GAP: [&str; 2] = ["pc_parallel_gap", "pc_parallel_gap_floor"];
+
 pub(crate) fn ruled_gap<T: Decide>(
     pc: &PlaneCylinder<T>,
     frame: &RuledFrame<T>,
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     decide_across_reported(
-        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        PC_PARALLEL_GAP,
         pc.r - frame.gap_signed.abs(),
         Margin::levered(frame.c, frame.lever).value(),
         band,
@@ -1434,6 +1452,21 @@ pub fn plane_sphere_section<T: Decide>(
     sphere: &Surface<T>,
     band: Band,
 ) -> Result<PlaneSphereSection<T>, SectionError> {
+    plane_sphere_section_read(plane, sphere, band).map(|(section, _)| section)
+}
+
+/// [`plane_sphere_section`], with the one row that classifies the
+/// section, `ps_center_gap`, and its reading, whose `Zero` is the
+/// tangency.
+///
+/// # Errors
+///
+/// As [`plane_sphere_section`].
+pub fn plane_sphere_section_read<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    sphere: &Surface<T>,
+    band: Band,
+) -> Result<(PlaneSphereSection<T>, (&'static str, Decided)), SectionError> {
     let Some((q, n)) = plane.site() else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
@@ -1484,16 +1517,20 @@ pub fn plane_sphere_section<T: Decide>(
             polar_cand.normalize()
         }
     };
-    match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
-        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::circle(
+    const ROW: &str = "ps_center_gap";
+    let gap =
+        decide_reported(ROW, Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)?;
+    let section = match gap.sign {
+        Sign::Positive => PlaneSphereSection::Circle(Curve3::circle(
             foot,
             n,
             ((r - s.abs()) * (r + s.abs())).sqrt(),
             u_ref,
-        ))),
-        Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
-        Sign::Negative => Ok(PlaneSphereSection::Empty),
-    }
+        )),
+        Sign::Zero => PlaneSphereSection::TangentPoint(foot),
+        Sign::Negative => PlaneSphereSection::Empty,
+    };
+    Ok((section, (ROW, gap)))
 }
 
 // ---------------------------------------------------------------------
@@ -1582,6 +1619,21 @@ pub fn sphere_sphere_section<T: Decide>(
     b: &Surface<T>,
     band: Band,
 ) -> Result<SphereSphereSection<T>, SectionError> {
+    sphere_sphere_section_read(a, b, band).map(|(section, _)| section)
+}
+
+/// [`sphere_sphere_section`], with the row that classified the section
+/// and its reading: `ss_carrier_external` where it decides, else
+/// `ss_carrier_internal`, whose `Zero` is the tangency.
+///
+/// # Errors
+///
+/// As [`sphere_sphere_section`].
+pub fn sphere_sphere_section_read<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    band: Band,
+) -> Result<(SphereSphereSection<T>, (&'static str, Decided)), SectionError> {
     let wrong = || SectionError::WrongLane {
         expected: "sphere×sphere",
     };
@@ -1614,10 +1666,12 @@ pub fn sphere_sphere_section<T: Decide>(
     {
         Sign::Zero | Sign::Negative => Err(SectionError::CoincidentSurfaces),
         Sign::Positive => {
-            match decide("ss_carrier_external", Margin::of(pair.external()), band)
-                .map_err(SectionError::Escalated)?
-            {
-                Sign::Positive => Ok(SphereSphereSection::Empty),
+            const EXTERNAL: &str = "ss_carrier_external";
+            const INTERNAL: &str = "ss_carrier_internal";
+            let external = decide_reported(EXTERNAL, Margin::of(pair.external()), band)
+                .map_err(SectionError::Escalated)?;
+            match external.sign {
+                Sign::Positive => Ok((SphereSphereSection::Empty, (EXTERNAL, external))),
                 // Externally tangent: `d = r₁ + r₂ ≥` the definite
                 // identity margin, so the division is safe. The contact
                 // is the degenerate section circle, `c₁ + n̂·a` at
@@ -1625,12 +1679,16 @@ pub fn sphere_sphere_section<T: Decide>(
                 // `r₁`. Substituting `d = r₁ + r₂` does give `a = +r₁`
                 // here; the internal branch below is where the sign
                 // matters, and one formula serves both.
-                Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
+                Sign::Zero => Ok((
+                    SphereSphereSection::TangentPoint(at.foot()),
+                    (EXTERNAL, external),
+                )),
                 Sign::Negative => {
-                    match decide("ss_carrier_internal", Margin::of(pair.internal()), band)
-                        .map_err(SectionError::Escalated)?
-                    {
-                        Sign::Negative => Ok(SphereSphereSection::Empty),
+                    let internal = decide_reported(INTERNAL, Margin::of(pair.internal()), band)
+                        .map_err(SectionError::Escalated)?;
+                    let row = (INTERNAL, internal);
+                    match internal.sign {
+                        Sign::Negative => Ok((SphereSphereSection::Empty, row)),
                         // Internally tangent: `d = |Δr|` and the
                         // identity margin `d + |Δr| = 2d` is definite,
                         // so `d` is bounded away from zero. Here the
@@ -1644,17 +1702,18 @@ pub fn sphere_sphere_section<T: Decide>(
                         // sphere at the origin against radius 3 at
                         // `x = 2` it returns `(1,0,0)`, which is B's own
                         // centre, and the true contact is `(−1,0,0)`.
-                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
+                        Sign::Zero => Ok((SphereSphereSection::TangentPoint(at.foot()), row)),
                         // Proper secant: `d > |Δr|` definitely, so
                         // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
                             let n = at.direction();
-                            Ok(SphereSphereSection::Circle(Curve3::circle(
+                            let circle = Curve3::circle(
                                 at.foot(),
                                 n,
                                 pair.half_chord(),
                                 ss_frame_seam(n, axis1, u1, crate::uniform_curvature_arm(a), band),
-                            )))
+                            );
+                            Ok((SphereSphereSection::Circle(circle), row))
                         }
                     }
                 }
@@ -3220,8 +3279,8 @@ fn coaxial_cone_sphere<T: Decide>(
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cone×sphere",
                 why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, and the \
-                      pair's general-rung arm has not retired — the cone's composite has no \
-                      meters conversion",
+                      pair's general-rung arm has not retired — the uniqueness tube has no \
+                      cone arm",
             });
         }
     }
@@ -3641,8 +3700,8 @@ pub fn cone_cylinder_section<T: Decide>(
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
                       circle, and the pair's general-rung arm has not retired — the \
-                      cone's composite has no meters conversion (arms retire one at a \
-                      time, each with its proof)",
+                      uniqueness tube has no cone arm (arms retire one at a time, each \
+                      with its proof)",
             });
         }
     }
@@ -3713,8 +3772,8 @@ pub fn cone_cylinder_section<T: Decide>(
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
                   not a circle, and the pair's general-rung arm has not retired — the \
-                  cone's composite has no meters conversion (arms retire one at a time, \
-                  each with its proof)",
+                  uniqueness tube has no cone arm (arms retire one at a time, each with \
+                  its proof)",
         }),
     }
 }
