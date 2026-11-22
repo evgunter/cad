@@ -72,8 +72,9 @@
 //!
 //! # The pairs it serves
 //!
-//! Cylinder × sphere, the three torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`]) and two
+//! Cylinder × sphere, the four torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`], and against a
+//! cone off its axis, [`cone_torus`]) and two
 //! cylinders ([`cylinders`]), which have no bounded side and are read
 //! over the operation's region; and, through the march door, a plane,
 //! cylinder, sphere or torus against a NURBS or approximating surface
@@ -82,12 +83,14 @@
 //! reads and the boolean's join carries). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
-//! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
+//! [`TorusTorusPose`], [`ConeTorusPose`], [`CylinderCylinderPose`]) is
+//! decided once, and
 //! every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
 //! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
-//! [`crate::ssi::torus_torus_ssi`]), and through this value the
+//! [`crate::ssi::torus_torus_ssi`], [`crate::ssi::cone_torus_ssi`]), and
+//! through this value the
 //! Boolean's section table and the section certificate. A torus pair's
 //! tangency is its critical gap's ([`gap`]), the one place it is
 //! decided.
@@ -101,6 +104,7 @@ use crate::ExtentBall;
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
+pub mod cone_torus;
 pub mod cylinders;
 pub mod gap;
 pub(crate) mod ruling;
@@ -111,6 +115,7 @@ mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
+pub use cone_torus::{ApexContact, ConeTorusPose, ConeTorusRefusal, KtQuestion, KtStance};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use spline_implicit::SplineImplicitPose;
@@ -1194,6 +1199,8 @@ pub enum PairPose<T: Real> {
     CylinderTorus(CylinderTorusPose<T>),
     /// Torus × torus.
     TorusTorus(TorusTorusPose<T>),
+    /// Cone × torus, off the axis.
+    ConeTorus(ConeTorusPose<T>),
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
     /// A spline wall and an implicit surface.
@@ -1210,6 +1217,7 @@ impl<T: Real> PairPose<T> {
             Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
+            | Self::ConeTorus(_)
             | Self::CylinderCylinder(_)
             | Self::SplineImplicit(_)
             | Self::SplinePair(_) => None,
@@ -1225,6 +1233,7 @@ impl<T: Decide> PairPose<T> {
             Self::SphereTorus(p) => p.operands(),
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
+            Self::ConeTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
             Self::SplineImplicit(p) => p.operands(),
             Self::SplinePair(p) => p.operands(),
@@ -1247,6 +1256,7 @@ impl<T: Decide> PairPose<T> {
             Self::SphereTorus(p) => p.ball(),
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
+            Self::ConeTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.region(),
             Self::SplineImplicit(p) => p.ball(),
             Self::SplinePair(p) => p.ball(),
@@ -1262,6 +1272,7 @@ impl<T: Decide> PairPose<T> {
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
+            | Self::ConeTorus(_)
             | Self::SplineImplicit(_)
             | Self::SplinePair(_) => false,
         }
@@ -1396,6 +1407,16 @@ pub fn pair_section<T: Decide>(
                 expected: "two tori",
             }),
         },
+        // A coaxial cone is the closed form's, read where it was before.
+        (Cone, Torus) | (Torus, Cone) => match ConeTorusPose::decide(a, b, band) {
+            Some(Ok(pose)) if matches!(pose.stance(), KtStance::Coaxial { .. }) => {
+                Ok(SectionRead::Elsewhere(route(ka, kb)))
+            }
+            Some(pose) => cone_torus::cone_torus(pose?).map(SectionRead::Built),
+            None => Err(SectionError::WrongLane {
+                expected: "a cone and a torus",
+            }),
+        },
         (Cylinder, Cylinder) => {
             let region = region.ok_or(SectionError::NoRegion {
                 pair: "cylinder×cylinder",
@@ -1417,9 +1438,9 @@ pub fn pair_section<T: Decide>(
         }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
         | (Cylinder, Plane | Cone)
-        | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Cone, Plane | Cylinder | Cone | Sphere | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere)
-        | (Torus, Plane | Cone)
+        | (Torus, Plane)
         | (Nurbs | Approx, Cone)
         | (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
         | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => {
@@ -1459,8 +1480,8 @@ pub fn spline_pair_section<T: Decide>(
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     match kind {
-        Cylinder | Sphere | Torus => true,
-        Plane | Cone | Spindle | Nurbs | Approx => false,
+        Cylinder | Cone | Sphere | Torus => true,
+        Plane | Spindle | Nurbs | Approx => false,
     }
 }
 
@@ -2469,6 +2490,7 @@ fn march_over_the_ball(
             crate::ssi::march_cylinder_torus(p, domain, band).map(branches)
         }
         PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band).map(branches),
+        PairPose::ConeTorus(p) => crate::ssi::march_cone_torus(p, domain, band).map(branches),
         PairPose::CylinderCylinder(p) => {
             crate::ssi::march_cylinder_cylinder(p, &section.seeds(), domain, band)
         }

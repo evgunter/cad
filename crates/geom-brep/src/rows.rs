@@ -438,6 +438,17 @@ geom_core::row_registry! {
         straddle: "tt_critical_gap_straddle",
     };
 
+    /// The cone × torus gap's rows (`pair_section::cone_torus`).
+    pub(crate) const KT_GAP: GapRows = GapRows {
+        gap: "kt_critical_gap",
+        clear: "kt_critical_gap_clear",
+        monotone: "kt_critical_gap_monotone",
+        smooth: "kt_critical_gap_smooth",
+        turn: "kt_critical_gap_turn",
+        floor: "kt_critical_gap_floor",
+        straddle: "kt_critical_gap_straddle",
+    };
+
     /// Check 2's interval-span winding (`certify`): a periodic span's
     /// turn, and the straddle of a bounded channel's two readings.
     pub const INTERVAL_SPAN_WINDING: PeriodRows =

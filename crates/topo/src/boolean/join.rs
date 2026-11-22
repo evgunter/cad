@@ -4004,6 +4004,7 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             | P::SphereTorus(_)
             | P::CylinderTorus(_)
             | P::TorusTorus(_)
+            | P::ConeTorus(_)
             | P::SplineImplicit(_)
             | P::SplinePair(_) => true,
             P::CylinderCylinder(_) => {
