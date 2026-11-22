@@ -408,15 +408,6 @@ fn read_domain(
 }
 
 impl Route {
-    /// The lane this route runs.
-    pub(crate) fn lane(&self) -> Lane {
-        match self {
-            Self::Planar => Lane::Planar,
-            Self::Curved(_) => Lane::Curved,
-            Self::Trimmed(_) => Lane::Trimmed,
-        }
-    }
-
     /// **The route, ready to run**: a trimmed face's domain, read here
     /// where the route did not read it ([`read_domain`]).
     ///
@@ -491,7 +482,17 @@ pub(crate) struct FaceRoute {
 /// doors' and the split-side fact's where the lane runs, the domain
 /// read's on a memo hit as well ([`FaceRoute`]).
 pub(crate) struct Routes {
-    lanes: HashMap<FaceKey, Routed>,
+    faces: HashMap<FaceKey, Entry>,
+}
+
+/// One face's entry in [`Routes`]: its lane, a curved-lane face's
+/// carrying the doors' answer, which the chord rule reads beside the
+/// walk ([`Routes::rectangle`]), or the route's refusal.
+enum Entry {
+    Planar,
+    Curved(crate::curved::Rectangle),
+    Trimmed,
+    Refused,
 }
 
 impl Routes {
@@ -516,17 +517,27 @@ impl Routes {
                 }
             })
             .collect();
-        let lanes = routed
+        let faces = routed
             .iter()
             .map(|r| {
                 let entry = match &r.route {
-                    Ok(route) => Routed::To(route.lane()),
-                    Err(_) => Routed::Refused,
+                    Ok(Route::Planar) => Entry::Planar,
+                    Ok(Route::Curved(rectangle)) => Entry::Curved(rectangle.clone()),
+                    Ok(Route::Trimmed(_)) => Entry::Trimmed,
+                    Err(_) => Entry::Refused,
                 };
                 (r.face, entry)
             })
             .collect();
-        (Self { lanes }, routed)
+        (Self { faces }, routed)
+    }
+
+    /// Face `fk`'s doors' answer, where it routed to the curved lane.
+    pub(crate) fn rectangle(&self, fk: FaceKey) -> Option<&crate::curved::Rectangle> {
+        match self.faces.get(&fk) {
+            Some(Entry::Curved(rectangle)) => Some(rectangle),
+            _ => None,
+        }
     }
 
     /// Face `fk`'s entry.
@@ -536,10 +547,13 @@ impl Routes {
     /// [`TessellateError::MissingEntity`] for a face the table did not
     /// route: a key no live face of the body holds.
     pub(crate) fn lane(&self, fk: FaceKey) -> Result<Routed, TessellateError> {
-        self.lanes
-            .get(&fk)
-            .copied()
-            .ok_or(TessellateError::MissingEntity { what: "face" })
+        match self.faces.get(&fk) {
+            Some(Entry::Planar) => Ok(Routed::To(Lane::Planar)),
+            Some(Entry::Curved(_)) => Ok(Routed::To(Lane::Curved)),
+            Some(Entry::Trimmed) => Ok(Routed::To(Lane::Trimmed)),
+            Some(Entry::Refused) => Ok(Routed::Refused),
+            None => Err(TessellateError::MissingEntity { what: "face" }),
+        }
     }
 
     /// The table alone, at the witness tolerance's band: what a unit
@@ -554,12 +568,12 @@ impl Routes {
         .0
     }
 
-    /// This table with face `fk` routed to `lane`, for a row whose
-    /// subject is what a lane does with a face the route would not hand
-    /// it.
+    /// This table with face `fk` routed to the curved lane on
+    /// `rectangle`, for a row whose subject is what that lane does with a
+    /// face the route would not hand it.
     #[cfg(test)]
-    pub(crate) fn with(mut self, fk: FaceKey, lane: Lane) -> Self {
-        self.lanes.insert(fk, Routed::To(lane));
+    pub(crate) fn with_curved(mut self, fk: FaceKey, rectangle: crate::curved::Rectangle) -> Self {
+        self.faces.insert(fk, Entry::Curved(rectangle));
         self
     }
 }
@@ -781,7 +795,7 @@ fn tessellate_impl(
                             body,
                             fk,
                             surface,
-                            *rectangle,
+                            rectangle,
                             &chords.ids,
                             shared,
                             &tol,
@@ -1074,9 +1088,11 @@ fn faces_using(mesh: &Mesh, (a, b): (u32, u32)) -> Vec<FaceKey> {
 /// refuses `SingleColumnCurvedFace` (the torus face bounded by one
 /// meridian circle,
 /// `a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column`), a
-/// slit on two coincident edges refuses `PinchWedge`
-/// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
-/// `a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
+/// slit on two coincident edges has no lift for the band's columns and
+/// refuses `DomainUnread`
+/// (`two_coincident_edges_have_no_lift_for_the_walk_to_read`), a slit face
+/// between the one-face ball's tips refuses `SingleColumnCurvedFace`
+/// (`a_slit_between_the_tips_is_not_the_strip`), a planar lamina bounded
 /// by two coincident edges refuses `BoundaryBoundsNoRegion`
 /// (`mesh/tests/faces_that_bound_no_region.rs`), and the one-face ball,
 /// its wrap edge whole or split, is placed as the wrap strip

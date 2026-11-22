@@ -24,7 +24,6 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
     let cfg = ChecksConfig {
         connectedness: Severity::Off,
         at_rest: Severity::Off,
-        chart_coherence: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
         unused: Advisory::Off,
         ..ChecksConfig::default()

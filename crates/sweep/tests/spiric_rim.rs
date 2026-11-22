@@ -461,41 +461,6 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
     );
 }
 
-/// **`classify_kind` opens no iso side for a spiric rim**: the vessel
-/// cavity's torus chart, asked about each of its spiric rims through
-/// the public `topo::classify_kind`, answers `None` — the coherence
-/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
-/// meridian `Meridian`.
-#[test]
-fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
-    let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let rims = spiric_edges(&cavity);
-    assert_eq!(rims.len(), 2);
-    for (edge, _, _) in rims {
-        let e = cavity.get_edge(edge).expect("edge");
-        let curve = cavity
-            .get_curve_geom(e.curve)
-            .and_then(|g| g.certified())
-            .expect("certified");
-        let face_of = |he| {
-            cavity
-                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
-                .expect("loop")
-                .face
-        };
-        let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
-            .into_iter()
-            .map(|f| cavity.face_surface(f).expect("surface"))
-            .find(|s| matches!(s, Surface::Torus { .. }))
-            .expect("a spiric rim bounds a torus face");
-        let chart = topo::Chart::of(chart_surface).expect("the torus charts");
-        assert!(
-            topo::classify_kind(&chart, curve).is_none(),
-            "a spiric opens no iso side"
-        );
-    }
-}
-
 /// **`split_edge` meters a spiric's interiority at its minor radius**:
 /// the vessel cavity's rim split at its mid-parameter yields two
 /// certified spiric pieces whose spans partition the original, on the
