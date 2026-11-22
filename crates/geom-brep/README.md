@@ -1079,7 +1079,8 @@ march's states and through samples inside the box settled onto the
 section, its span ending at the node's point with the named ray as its
 end tangent, and C2's tube certifies it to the node.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
-pairs through the section value (`pair_section`), classified, then
+pairs, and the closed-form conic pairs plane×sphere, sphere×sphere and
+plane×cylinder, through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
@@ -1189,6 +1190,12 @@ torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
 rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
 past a transverse gap. `implemented` covers the whole operation.
+The conic pairs' poses are their closed-form doors' (`PlaneSpherePose`,
+`SphereSpherePose`, `PlaneCylinderPose`): each circle or tilted ellipse
+is one loop whose carrier is the whole closed curve, plane×cylinder's
+rulings are cut by the region as two parallel walls' are, a tangency
+is its touch point or tangent ruling with no carrier and the deciding
+row its verdict, and none is marched.
 A cone against a cylinder or a cone (`ConeRuledPose`) is classified
 on the sweep along the cone's rulings over the region, both nappes at
 once: a ruling along an asymptotic direction of the partner reads its
@@ -1199,10 +1206,11 @@ over it is decided `Zero`, the sweep's margin being a floor on that
 clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
 and two on parallel axes of one aperture, are not built here. Its
-components are the general rung's, and carrying them refuses typed:
-no march carries them: limb 2 has no composite for the cone at the
-march's search (C2), and the pair has no march door. Every other pair
-refuses: the cone against a sphere or a torus.
+components are the general rung's, and carrying them refuses typed,
+since no march carries them: the certificate has no cone arm at the
+march's search (C2), and the pair has no march door. A crossing
+tangency is a node, its arcs one node-joined set.
+Every other pair refuses: the cone against a sphere or a torus.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
