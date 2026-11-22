@@ -747,7 +747,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          to `segment_params` (3); its rectangle's bounds, the cell's reach and a cap's height \
          (9), each an enclosure's outer end, so the rectangle holds more of the plane and \
          never less; and a cap's run along its frame (2), whose two ends decide its direction \
-         behind the cap's own `is_certified()` ask. `present_chart` asks each clip line where it is placed, so 16 of its \
+         behind the cap's own `is_certified()` ask. All 17 count as asking because \
+         `present_plane` names `is_certified()` and its readings are closures inside it: the \
+         census asks of the enclosing `fn`, and the dispositions here are each read's own. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \

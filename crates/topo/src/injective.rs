@@ -8080,6 +8080,13 @@ mod presentation_rows {
             ),
             "a vertex in the cell: the sides' chords are not all there is"
         );
+        assert!(
+            matches!(
+                present_in(&plane, &b, cell, &holding(&[0], &[9]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a lone vertex in the cell beside one side: the side's chord is not all there is"
+        );
         // A sliver wedge, its sides meeting at the origin at a
         // milliradian: across its middle, a strip.
         let (plane, wedge) = segments(&[
