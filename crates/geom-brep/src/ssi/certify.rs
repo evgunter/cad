@@ -4630,3 +4630,98 @@ mod node_end_rows {
         }
     }
 }
+
+/// The search's limb 2 on the edge certificate's reader: what reading
+/// the surface's carrier rather than a face changes, and what the
+/// reader's enclosure-valued coefficients admit.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod one_reader_rows {
+    use std::sync::Arc;
+
+    use geom::{Curve3, Frame, NurbsCurve3, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Interval, Point3, Vec3};
+
+    use crate::pcurve_cache::projected::Offset;
+    use crate::pcurve_cache::{limb2_carrier_read, limb2_offset_sup};
+
+    /// The segment from `a` to `b` as a degree-1 spline on `[0, 1]`.
+    fn segment<T: geom_core::Real>(a: Point3<T>, b: Point3<T>) -> Curve3<T> {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(knots, vec![a, b], vec![T::one(); 2]).unwrap(),
+        ))
+    }
+
+    /// **A search reads a cone as the double cone**: a ruling through
+    /// the apex runs from `z = −1` on the mirror nappe to `z = ½` on the
+    /// opening one. Read against the carrier it lies on the cone, the
+    /// part at the apex read by `√|f|`; read against the face its middle
+    /// lies on (the mirror nappe), its opening half is far from that
+    /// nappe and the bound does not clear.
+    ///
+    /// Red against: a carrier reading that keeps the face's nappe.
+    #[test]
+    fn a_search_reads_a_cone_as_the_double_cone() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let half_angle: f64 = 0.5;
+        let cone = Surface::Cone {
+            frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let on = |z: f64| Point3::new(z * half_angle.tan(), 0.0, z);
+        let ruling = segment(on(-1.0), on(0.5));
+        let carrier = limb2_carrier_read(&ruling, (0.0, 1.0), &cone, band).unwrap();
+        let Offset::Bound(bound) = carrier.offset else {
+            panic!("the double cone holds the ruling: {carrier:?}");
+        };
+        assert!(bound <= band.zero(), "the ruling's bound {bound:e} clears");
+        let face = limb2_offset_sup(&ruling, (0.0, 1.0), &cone, band);
+        assert!(
+            !matches!(&face, Ok(r) if matches!(r.offset, Offset::Bound(b) if b <= band.zero())),
+            "the mirror nappe alone does not hold the ruling: {face:?}"
+        );
+    }
+
+    /// **A widened plane certifies as the family it is**: at `Interval`
+    /// a plane whose normal encloses a turn of 10⁻¹² rad (far wider than
+    /// a frame's rounding) and a segment on its nominal plane. The
+    /// search's analytic limbs pass, their bound covering what the turn
+    /// moves the segment's far end by and no more than ten times it; a
+    /// segment lifted a micron off refuses on its measured miss.
+    ///
+    /// Red against: an operand read at a midpoint or refused as widened.
+    #[test]
+    fn a_widened_plane_certifies_as_the_family_it_is() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = |x: f64| Interval::from_bounds(x, x);
+        let turn = 1e-12;
+        let plane = Surface::Plane {
+            frame: Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(Interval::from_bounds(-turn, turn), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
+        };
+        let at = |z: f64| {
+            segment(
+                Point3::new(p(0.0), p(0.0), p(z)),
+                Point3::new(p(2.0), p(0.0), p(z)),
+            )
+        };
+        let mut refused = super::Refused::default();
+        let (_, sup) =
+            super::analytic_limbs(&at(0.0), (p(0.0), p(1.0)), &plane, band, &mut refused)
+                .unwrap_or_else(|e| panic!("the family holds the segment: {e:?}"));
+        let sup = geom_core::Bounds::hi(sup);
+        assert!(
+            (2.0 * turn..=20.0 * turn).contains(&sup),
+            "the bound {sup:e} reads the family's spread at the far end"
+        );
+        let mut refused = super::Refused::default();
+        let off = super::analytic_limbs(&at(1e-6), (p(0.0), p(1.0)), &plane, band, &mut refused);
+        assert!(off.is_err(), "a micron off refuses: {off:?}");
+        assert!(!refused.spans.is_empty(), "the refusal is located");
+    }
+}

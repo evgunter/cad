@@ -3532,11 +3532,15 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         ProjectedChart::Plane => ProjectedChart::Plane,
         ProjectedChart::Cylinder => ProjectedChart::Cylinder,
         ProjectedChart::Sphere => ProjectedChart::Sphere,
-        ProjectedChart::Cone { sin, cos, nappe } => ProjectedChart::Cone {
-            sin: cross(sin),
-            cos: cross(cos),
-            nappe,
-        },
+        // The chart's sine and cosine are the lane's of the twin's
+        // angle; at the certification scalar they are its enclosures.
+        ProjectedChart::Cone { nappe, .. } => {
+            let Surface::Cone { half_angle, .. } = *twin else {
+                return Err(refuse("a cone chart's twin is not a cone"));
+            };
+            let (sin, cos) = projected::cone_sin_cos(half_angle);
+            ProjectedChart::Cone { sin, cos, nappe }
+        }
         ProjectedChart::Torus { major } => ProjectedChart::Torus {
             major: cross(major),
         },
@@ -3724,7 +3728,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
             radius: cross(radius),
         },
         Surface::Cone { half_angle, .. } => {
-            let (s, c) = cross(half_angle).sin_cos();
+            let (s, c) = projected::cone_sin_cos(half_angle);
             CanonicalSurface::Cone {
                 cos2: c.powi(2),
                 sin2: s.powi(2),

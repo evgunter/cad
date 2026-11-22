@@ -2064,6 +2064,18 @@ fn abs_z((z0, z1): (f64, f64)) -> (f64, f64) {
     }
 }
 
+/// **A cone's half-angle's sine and cosine as enclosures**: the stored
+/// angle crossed into certification arithmetic through its bracket
+/// first, and the pair taken in the interval backend's outward-rounded
+/// arithmetic, so at a point scalar they enclose the stored angle's and
+/// are never the lane's rounded values read as exact points. One home
+/// for a certification file, which has no transcendental in scope.
+pub(crate) fn cone_sin_cos<T: geom_core::CertifiedBounds>(
+    half_angle: T,
+) -> (geom_core::Interval, geom_core::Interval) {
+    geom_core::Interval::from_certified(half_angle).sin_cos()
+}
+
 /// Which of [`Meters::over`]'s conditions a positivity is asked of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Lever {
