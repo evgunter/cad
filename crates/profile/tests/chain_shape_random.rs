@@ -297,8 +297,10 @@ fn zero_chord(e: &profile::PathError<f64>) -> bool {
 /// What one prefix's comparison reached.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Compared {
-    /// Both closed the chain, and their pieces were compared.
-    Closed,
+    /// Both closed the chain, and their pieces were compared; the
+    /// continuing joints a generic one held against the replay, by
+    /// construction ([`Kind`]).
+    Closed([usize; KINDS]),
     /// Both refused the step order, at one step in one class.
     Order,
     /// Both refused on the lattice (`true` where the chain merely ended
@@ -325,15 +327,80 @@ fn straight(steps: &[Step<f64>], piece: profile::Piece) -> bool {
     )
 }
 
+/// **How a continuing piece was constructed**, which the random run
+/// counts so a generator change cannot leave a construction unreached.
+#[derive(Clone, Copy, Debug)]
+enum Kind {
+    /// A `line` off a leg end.
+    Line,
+    /// A `line` after `.tangent()`.
+    Tangent,
+    /// A fillet's run in off its leg.
+    RunIn,
+    /// `continue_to`, whose target the generator rarely puts on the ray.
+    ContinueTo,
+    /// A station of a `circle` or a `circle_split`.
+    Station,
+}
+
+const KINDS: usize = 5;
+
+/// The construction of `piece`, which continues the piece before it.
+fn kind(steps: &[Step<f64>], piece: profile::Piece) -> Kind {
+    match (piece.role, &steps[piece.step]) {
+        (profile::PieceRole::RunIn, _) => Kind::RunIn,
+        (profile::PieceRole::Piece(_), _) => Kind::Station,
+        (_, Step::ContinueTo(_)) => Kind::ContinueTo,
+        _ if piece.step > 0 && matches!(steps[piece.step - 1], Step::Tangent) => Kind::Tangent,
+        _ => Kind::Line,
+    }
+}
+
+/// **The verbs that construct a continuation at `state`**, after the
+/// step `last`: a leg end's, and `.tangent()`'s. The run picks among
+/// them half the time where there are any, and closes a leg end with a
+/// `line_to(Start)` a quarter of the time, since a uniform pick of the
+/// table's verbs closes a chain with a straight continuation in it a
+/// handful of times a run.
+fn continuing(state: TipState, last: Option<&Step<f64>>) -> &'static [Verb] {
+    match (state, last) {
+        (TipState::DirectedPoint, _) => &[Verb::Line, Verb::Tangent, Verb::Fillet, Verb::FilletArc],
+        (TipState::DirectedIncoming, Some(Step::Tangent)) => {
+            &[Verb::Line, Verb::Fillet, Verb::FilletArc]
+        }
+        _ => &[],
+    }
+}
+
+/// Whether the replay constructed the joint at the start of segment
+/// `k` of `lp` between two arcs on one circle: the same centre and
+/// radius to the rounding two constructions of one circle leave.
+fn on_one_circle(lp: &profile::ConstructedLoop<f64>, k: usize) -> bool {
+    let segs = lp.segments();
+    let n = segs.len();
+    let constructed = lp.constructed_joints().binary_search(&k).is_ok();
+    match (&segs[(k + n - 1) % n], &segs[k]) {
+        (Segment::Arc(a), Segment::Arc(b)) => {
+            constructed
+                && a.centre.distance(b.centre) + (a.radius - b.radius).abs()
+                    <= 1e-9 * (1.0 + a.radius)
+        }
+        _ => false,
+    }
+}
+
 /// The joint at the start of piece `k` of a generic closed chain, its
 /// segment `k` of `lp`, against whether the shape says the piece
 /// continues the one before: between two pieces straight by
 /// construction, exactly where the replay constructed the joint and
-/// they run one way; between two arcs, only where it constructed the
-/// joint on one circle, as a split circle's stations are (a coarse
-/// grid can also put two arcs on one circle by value); and never
-/// otherwise.
+/// they run one way; between two arcs, exactly where it constructed
+/// the joint on one circle ([`on_one_circle`]) at every value. A coarse
+/// grid also puts two arcs on one circle by value (a `via` point at the
+/// first arc's radius from its centre), so a joint the shape calls a
+/// corner and the replay put on one circle is a miss only where every
+/// redraw of the chain's values that closes it alike keeps it there.
 fn joint_agrees(
+    r: &mut Rng,
     steps: &[Step<f64>],
     shape: &profile::ChainShape,
     lp: &profile::ConstructedLoop<f64>,
@@ -351,8 +418,23 @@ fn joint_agrees(
             let (a, b) = (v[k] - v[p], v[(k + 1) % n] - v[k]);
             continues == (constructed && a.x * b.x + a.y * b.y > 0.0)
         }
-        (Segment::Arc(a), Segment::Arc(b)) => {
-            !continues || (constructed && a.centre.equals_exactly(b.centre) && a.radius == b.radius)
+        (Segment::Arc(_), Segment::Arc(_)) if continues => on_one_circle(lp, k),
+        (Segment::Arc(_), Segment::Arc(_)) if on_one_circle(lp, k) => {
+            let mut closed = 0;
+            for _ in 0..REDRAWS {
+                let again: Vec<Step<f64>> = steps.iter().map(|s| redrawn(r, s)).collect();
+                let Ok((lp, record)) = replay_recording(&again, Tol::witness()) else {
+                    continue;
+                };
+                if record.pieces != shape.pieces || lp.segments().len() != n {
+                    continue;
+                }
+                if !on_one_circle(&lp, k) {
+                    return true;
+                }
+                closed += 1;
+            }
+            closed == 0
         }
         _ => !continues,
     }
@@ -381,7 +463,7 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
                 return say("the pieces differ");
             }
             let disagrees =
-                || (0..shape.continues.len()).find(|&k| !joint_agrees(steps, shape, lp, k));
+                || (0..shape.continues.len()).find(|&k| !joint_agrees(r, steps, shape, lp, k));
             if let Some(k) = generic.then(disagrees).flatten() {
                 return say(&format!(
                     "the shape says piece {k} continues the one before it ({}), against the \
@@ -389,7 +471,13 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
                     shape.continues[k], shape.continues
                 ));
             }
-            Ok(Compared::Closed)
+            let mut kinds = [0; KINDS];
+            if generic {
+                for k in (0..shape.continues.len()).filter(|&k| shape.continues[k]) {
+                    kinds[kind(steps, shape.pieces[k]) as usize] += 1;
+                }
+            }
+            Ok(Compared::Closed(kinds))
         }
         (
             _,
@@ -478,15 +566,32 @@ fn a_chains_shape_walks_what_its_replay_walks() {
     let mut r = test_utils::fuzz::start("chain-shape-random");
     let chains = test_utils::fuzz::scaled(4_000);
     let (mut closed, mut orders) = (0, 0);
+    let mut continuing_joints = [0; KINDS];
     for _ in 0..chains {
         let mut steps: Vec<Step<f64>> = Vec::new();
         let mut state = TipState::Entry;
         for _ in 0..9 {
             let verbs: Vec<Verb> = state.verbs().collect();
-            let verb = verbs[r.below(verbs.len())];
-            steps.push(step(&mut r, verb, state));
+            let steered = continuing(state, steps.last());
+            let next = match r.below(4) {
+                0 | 1 if !steered.is_empty() => {
+                    let verb = steered[r.below(steered.len())];
+                    step(&mut r, verb, state)
+                }
+                2 if state == TipState::DirectedPoint => Step::LineTo(Target::Start),
+                _ => {
+                    let verb = verbs[r.below(verbs.len())];
+                    step(&mut r, verb, state)
+                }
+            };
+            steps.push(next);
             match compare(&mut r, &steps) {
-                Ok(Compared::Closed) => closed += 1,
+                Ok(Compared::Closed(kinds)) => {
+                    closed += 1;
+                    for (n, k) in continuing_joints.iter_mut().zip(kinds) {
+                        *n += k;
+                    }
+                }
                 Ok(Compared::Order) => orders += 1,
                 Ok(Compared::Lattice(_) | Compared::Geometry) => {}
                 Err(what) => panic!("{what}\n{}", test_utils::fuzz::replay()),
@@ -510,6 +615,108 @@ fn a_chains_shape_walks_what_its_replay_walks() {
         closed >= chains / 4 && orders >= chains / 4,
         "the run compared {closed} closed chains and {orders} order refusals over {chains} \
          chains: the generator no longer reaches them"
+    );
+    eprintln!(
+        "[chain-shape-random] continuing joints held, by construction: {continuing_joints:?}"
+    );
+}
+
+/// **Every construction that continues a carrier, at random values**:
+/// a counterexample search over chains built to close with one
+/// continuation in them — a box whose bottom side is a leg and a
+/// continuation of it (a `line`, `.tangent()` then a `line`,
+/// `continue_to`, a fillet's run in into the right side), or a circle
+/// cut at stations — each joint held against the replay's construction
+/// ([`joint_agrees`]). The random chains above reach the straight
+/// continuations a few times a run; this reaches each a few hundred
+/// times, and asserts it did.
+#[test]
+fn every_continuing_construction_is_the_replays_at_random_values() {
+    let mut r = test_utils::fuzz::start("chain-shape-continuations");
+    let chains = test_utils::fuzz::scaled(1_000);
+    let mut held = [0; KINDS];
+    for _ in 0..chains {
+        let o = Point2::new(r.range(-5.0, 5.0), r.range(-5.0, 5.0));
+        let (a, b, h) = (r.range(0.5, 3.0), r.range(0.5, 3.0), r.range(0.5, 3.0));
+        let corner = Point2::new(o.x + a + b, o.y);
+        let north = Step::Toward { dx: 0.0, dy: 1.0 };
+        let mut steps = vec![
+            Step::At(o),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::Line(a),
+        ];
+        match r.below(KINDS) {
+            0 => steps.extend([Step::Line(b), north, Step::Line(h)]),
+            1 => steps.extend([Step::Tangent, Step::Line(b), north, Step::Line(h)]),
+            2 => steps.extend([
+                Step::ContinueTo(Target::Point(corner)),
+                north,
+                Step::Line(h),
+            ]),
+            3 => {
+                let radius = r.range(0.1, 0.9) * b.min(h);
+                steps.extend([
+                    Step::Fillet { radius },
+                    north,
+                    Step::At(Point2::new(corner.x, corner.y + radius)),
+                    Step::Line(h - radius),
+                ]);
+            }
+            _ => {
+                let (centre, radius) = (o, r.range(0.5, 2.0));
+                steps = vec![match r.below(2) {
+                    0 => Step::Circle { centre, radius },
+                    _ => Step::CircleSplit {
+                        centre,
+                        radius,
+                        n: 2 + r.below(5),
+                        phase: r.range(-3.0, 3.0),
+                    },
+                }];
+            }
+        }
+        if steps.len() > 1 {
+            steps.extend([
+                Step::LineTo(Target::Point(Point2::new(o.x, o.y + h))),
+                Step::LineTo(Target::Start),
+            ]);
+        }
+        let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
+        let shape = chain_shape(&forms).unwrap_or_else(|e| {
+            panic!(
+                "the shape walks {steps:?}: {e:?}\n{}",
+                test_utils::fuzz::replay()
+            )
+        });
+        let (lp, record) = replay_recording(&steps, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "the chain replays {steps:?}: {e:?}\n{}",
+                test_utils::fuzz::replay()
+            )
+        });
+        assert_eq!(
+            shape.pieces,
+            record.pieces,
+            "every piece of {steps:?} is drawn\n{}",
+            test_utils::fuzz::replay()
+        );
+        for k in 0..shape.continues.len() {
+            assert!(
+                joint_agrees(&mut r, &steps, &shape, &lp, k),
+                "joint {k} of {steps:?} is the replay's construction: {:?}\n{}",
+                shape.continues,
+                test_utils::fuzz::replay()
+            );
+            if shape.continues[k] {
+                held[kind(&steps, shape.pieces[k]) as usize] += 1;
+            }
+        }
+    }
+    // Each kind is drawn about a fifth of the time.
+    assert!(
+        held.iter().all(|&n| n >= chains / 10),
+        "the run held {held:?} continuing joints of each construction over {chains} chains: \
+         the generator no longer reaches them all"
     );
 }
 
@@ -639,7 +846,8 @@ fn each_order_refusal_refuses_at_the_replay_and_the_shape_alike() {
 /// it (a line off a leg end, `.tangent()` then a line, `continue_to`,
 /// a fillet's run in off its leg); a direction bound by a `turn`, a
 /// director or a `line_to`'s target is a corner, as is a line leaving
-/// an arc, and every station of a split circle continues it.
+/// an arc; every station of a circle continues it, as both joints of a
+/// lone arc closed by a tangent arc off its own tangent do.
 #[test]
 fn each_continuation_the_shape_reads_is_the_replays_construction() {
     let p = Point2::new;
@@ -750,7 +958,33 @@ fn each_continuation_the_shape_reads_is_the_replays_construction() {
             }],
             vec![true; 4],
         ),
+        (
+            "a circle",
+            vec![Step::Circle {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+            }],
+            vec![true; 2],
+        ),
+        (
+            "an arc closed tangent to itself",
+            vec![
+                Step::At(p(0.0, 0.0)),
+                east,
+                Step::ArcTo(ArcData::Sweep {
+                    r: 1.0,
+                    side: ArcSide::Left,
+                    angle: core::f64::consts::FRAC_PI_2,
+                }),
+                Step::Tangent,
+                Step::TangentArcTo(Target::StartArriving),
+            ],
+            vec![true; 2],
+        ),
     ];
+    // The redraws a corner the replay put on one circle asks for; no
+    // row reaches one, so the seed is never read.
+    let mut r = test_utils::fuzz::Rng::from_seed(0);
     for (what, steps, want) in rows {
         let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
         let shape =
@@ -761,7 +995,7 @@ fn each_continuation_the_shape_reads_is_the_replays_construction() {
         assert_eq!(shape.pieces, record.pieces, "{what}: every piece is drawn");
         for k in 0..want.len() {
             assert!(
-                joint_agrees(&steps, &shape, &lp, k),
+                joint_agrees(&mut r, &steps, &shape, &lp, k),
                 "{what}: joint {k} is the replay's construction"
             );
         }

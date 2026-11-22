@@ -5527,8 +5527,9 @@ impl core::fmt::Display for ValuesDropped<'_> {
 /// [`Maintenance::StrandedAppearance`]), said in the row: the node that
 /// minted it (a delete), a profile step it names (a reshaping that
 /// dropped the step), or a piece, a run or a corner of kept steps a
-/// reshaping stopped drawing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// reshaping stopped drawing. Ordered as a reshaping ranks what it
+/// took from one name: a piece over its run, a run over its corner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Took {
     /// The node that minted the name was deleted.
     Node,
@@ -5897,11 +5898,7 @@ impl Reshaped {
                     Took::Corner
                 }
             })
-            .min_by_key(|took| match took {
-                Took::Piece => 0,
-                Took::Run => 1,
-                _ => 2,
-            })
+            .min()
     }
 }
 
@@ -6121,8 +6118,10 @@ pub struct Applied<P> {
 ///   still holds its key.
 /// - A strand of what a reshaping took from kept steps
 ///   ([`Took::Piece`], [`Took::Run`], [`Took::Corner`]) survives only
-///   while the end document's structure still does not draw it: a
-///   later reshaping that draws it again takes the strand back.
+///   where the start document's structure draws what the name denotes
+///   and the end document's does not: a later reshaping that draws it
+///   again takes the strand back, and a name that denoted something
+///   only between two edits of the action strands nothing.
 /// - A [`Maintenance::StrandedRead`] survives when its reader is live at
 ///   the end and its operand still reads the removed output: a later
 ///   edit that deleted the reader or re-pointed the operand took it
@@ -6148,9 +6147,14 @@ impl MaintenanceNet {
         self.rows.extend(edit.maintenance.iter().cloned());
     }
 
-    /// The rows that survive, against `end` — the document the last
-    /// pushed edit produced.
-    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+    /// The rows that survive, against `start` — the document the first
+    /// pushed edit was applied to — and `end`, the one the last
+    /// produced.
+    pub fn finish<P: crate::ProfilePayload>(
+        self,
+        start: &Doc<P>,
+        end: &Doc<P>,
+    ) -> Vec<Maintenance> {
         self.rows
             .into_iter()
             .filter(|row| match row {
@@ -6158,7 +6162,7 @@ impl MaintenanceNet {
                 | Maintenance::StrandedSelection { took, name, .. }
                 | Maintenance::StrandedAppearance { took, name, .. }
                     if matches!(took, Took::Piece | Took::Run | Took::Corner)
-                        && drawn_again(end, name.name()) =>
+                        && (drawn(end, name.name()) || !drawn(start, name.name())) =>
                 {
                     false
                 }
@@ -6189,17 +6193,17 @@ impl MaintenanceNet {
     }
 }
 
-/// **Whether everything `name` denotes of a profile, `end`'s structure
-/// draws again** ([`StableName::referents`]): each referent's steps
-/// are held by a profile of `end` whose partition holds it
-/// ([`crate::ProfilePayload::partition`]). What a strand of kept steps
-/// was about came back when this holds; no value is read, so a value
-/// that leaves a piece undrawn does not keep the strand.
-fn drawn_again<P: crate::ProfilePayload>(end: &Doc<P>, name: &StableName) -> bool {
+/// **Whether `doc`'s structure draws everything `name` denotes of a
+/// profile** ([`StableName::referents`]): each referent's steps are
+/// held by a profile of `doc` whose partition holds it
+/// ([`crate::ProfilePayload::partition`]). No value is read, so a value
+/// that leaves a piece undrawn neither keeps a strand nor takes one
+/// back.
+fn drawn<P: crate::ProfilePayload>(doc: &Doc<P>, name: &StableName) -> bool {
     let referents = name.referents();
     !referents.is_empty()
         && referents.iter().all(|referent| {
-            end.nodes.values().any(|node| {
+            doc.nodes.values().any(|node| {
                 let Node::Profile(program) = node else {
                     return false;
                 };
@@ -6429,7 +6433,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         }
         // A variable the action minted and removed again was never the
         // document's: its removal is no maintenance of the action's.
-        let mut maintenance = self.maintenance.finish(&doc);
+        let mut maintenance = self.maintenance.finish(self.start, &doc);
         maintenance.retain(|row| match row {
             Maintenance::AnonymousVarRemoved { var, .. } => self.start.var(var.id()).is_some(),
             _ => true,

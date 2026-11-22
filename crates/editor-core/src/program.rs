@@ -787,23 +787,8 @@ pub struct ProfilePartition {
 
 impl ProfilePartition {
     /// The pieces the structure draws.
-    #[must_use]
-    pub fn pieces(&self) -> &std::collections::BTreeSet<crate::ProfileEdgeRef> {
+    pub(crate) fn pieces(&self) -> &std::collections::BTreeSet<crate::ProfileEdgeRef> {
         &self.pieces
-    }
-
-    /// The runs a sweep builds one wall over, each spelled as a wall
-    /// name spells it.
-    #[must_use]
-    pub fn walls(&self) -> &std::collections::BTreeSet<crate::PieceRun> {
-        &self.walls
-    }
-
-    /// The vertices between two walls, each named by the piece that
-    /// starts there.
-    #[must_use]
-    pub fn corners(&self) -> &std::collections::BTreeSet<crate::ProfileVertexRef> {
-        &self.corners
     }
 
     /// One loop's pieces, in drawing order, each with whether it
@@ -815,6 +800,9 @@ impl ProfilePartition {
         for (i, &first) in starts.iter().enumerate() {
             let end = starts.get(i + 1).copied().unwrap_or(starts[0] + n);
             let mut run: Vec<usize> = (first..end).map(|k| k % n).collect();
+            // N1's spelling, `LoopAnchor::run`'s: by drawing order, so a
+            // run wrapping through the loop's start begins at its first
+            // piece after the start vertex.
             run.sort_unstable();
             self.walls.extend(crate::PieceRun::new(
                 run.into_iter().map(|k| drawn[k].0).collect(),

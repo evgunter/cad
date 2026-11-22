@@ -2512,19 +2512,20 @@ impl StableName {
     /// the host's log. The outer name is the caller's to ask `part` of
     /// first: it is always recorded here.
     pub(crate) fn spelled_outside(&self, part: &dyn Fn(&StableName) -> bool) -> Spelled {
-        let mut walk = StepPieces {
+        let mut walk = Locators {
             spelled: Spelled {
                 nodes: std::collections::BTreeSet::from([self.node]),
                 ..Spelled::default()
             },
-            pieces: std::collections::BTreeSet::new(),
+            referents: std::collections::BTreeSet::new(),
             part,
         };
         let Ok(_) = self.clone().rewrite_path(&mut walk);
         walk.spelled.steps = walk
-            .pieces
+            .referents
             .iter()
-            .filter_map(ProfileEdgeRef::step)
+            .flat_map(Referent::pieces)
+            .filter_map(|p| p.step())
             .collect();
         walk.spelled
     }
@@ -2534,22 +2535,31 @@ impl StableName {
     /// the document holds (REFERENCES.md DM7), whether the new
     /// program's partition still holds what the old one's did.
     pub(crate) fn referents(&self) -> std::collections::BTreeSet<Referent> {
-        let mut walk = Referents::default();
-        let Ok(_) = self.clone().rewrite_path(&mut walk);
-        walk.0
+        self.referents_outside(&|_| false)
     }
 
     fn step_pieces_outside(
         &self,
         part: &dyn Fn(&StableName) -> bool,
     ) -> std::collections::BTreeSet<ProfileEdgeRef> {
-        let mut walk = StepPieces {
+        self.referents_outside(part)
+            .iter()
+            .flat_map(Referent::pieces)
+            .filter(|p| matches!(p, ProfileEdgeRef::Piece { .. }))
+            .collect()
+    }
+
+    fn referents_outside(
+        &self,
+        part: &dyn Fn(&StableName) -> bool,
+    ) -> std::collections::BTreeSet<Referent> {
+        let mut walk = Locators {
             spelled: Spelled::default(),
-            pieces: std::collections::BTreeSet::new(),
+            referents: std::collections::BTreeSet::new(),
             part,
         };
         let Ok(_) = self.clone().rewrite_path(&mut walk);
-        walk.pieces
+        walk.referents
     }
 }
 
@@ -2565,35 +2575,27 @@ pub(crate) struct Spelled {
     pub(crate) steps: std::collections::BTreeSet<StepId>,
 }
 
-/// [`StableName::spelled_outside`]'s walk: every step locator collected
-/// as the piece it names, every carried name descended (its node and
-/// reads recorded) but those `part` marks, nothing rewritten.
-struct StepPieces<'p> {
+/// The walk behind [`StableName::spelled_outside`],
+/// [`StableName::step_pieces`] and [`StableName::referents`]: every
+/// locator segment read whole for what it denotes ([`RoleSeg::referents`]),
+/// every carried name descended (its node and reads recorded) but
+/// those `part` marks, nothing rewritten.
+struct Locators<'p> {
     spelled: Spelled,
-    pieces: std::collections::BTreeSet<ProfileEdgeRef>,
+    referents: std::collections::BTreeSet<Referent>,
     part: &'p dyn Fn(&StableName) -> bool,
 }
 
-impl SegRewrite for StepPieces<'_> {
+impl SegRewrite for Locators<'_> {
     type Error = core::convert::Infallible;
 
-    /// Nothing is rewritten: the walk only collects step pieces.
+    /// Nothing is rewritten: the walk only collects what it reads.
     fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
         Ok(s)
     }
 
-    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
-        if let ProfileEdgeRef::Piece { .. } = e {
-            self.pieces.insert(e);
-        }
-        Ok(e)
-    }
-
-    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
-        if let ProfileVertexRef::Piece { step, role } = v {
-            self.pieces.insert(ProfileEdgeRef::Piece { step, role });
-        }
-        Ok(v)
+    fn located(&mut self, seg: &RoleSeg) {
+        self.referents.extend(seg.referents());
     }
 
     fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
@@ -2623,65 +2625,63 @@ impl SegRewrite for StepPieces<'_> {
         Ok(index)
     }
 }
-/// [`StableName::referents`]'s walk: every locator segment read whole,
-/// every carried name descended, nothing rewritten.
-#[derive(Default)]
-struct Referents(std::collections::BTreeSet<Referent>);
 
-impl SegRewrite for Referents {
-    type Error = core::convert::Infallible;
-
-    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
-        Ok(s)
-    }
-
-    fn located(&mut self, seg: &RoleSeg) {
+impl RoleSeg {
+    /// **What this segment's own profile locators denote** ([`Referent`]):
+    /// a run-carrying segment its run, a vertex an extrude or a revolve
+    /// builds only at a corner that corner, a loft's pairings their
+    /// pieces; nothing for a segment that carries no locator. A segment
+    /// added to [`RoleSeg`] is classified here or this stops compiling.
+    fn referents(&self) -> Vec<Referent> {
         use RoleSeg as R;
-        let out = &mut self.0;
-        match seg {
+        match self {
             R::Lateral(run)
             | R::RimEdge(_, run)
             | R::Band(run)
             | R::BandPi(run)
             | R::Meridian(_, run)
-            | R::AxisEdge(run) => {
-                out.insert(Referent::Wall(run.clone()));
-            }
+            | R::AxisEdge(run) => vec![Referent::Wall(run.clone())],
             R::LateralEdge(v)
             | R::CapVertex(_, v)
             | R::BandRim(v)
             | R::BandRimPi(v)
             | R::MeridianVertex(_, v)
-            | R::Pole(v) => {
-                out.insert(Referent::Corner(*v));
-            }
-            R::LoftWall(es) => out.extend(es.iter().map(|&(_, e)| Referent::Piece(e))),
-            R::LoftSectionEdge(_, e) => {
-                out.insert(Referent::Piece(*e));
-            }
-            R::LoftSeam(vs) => out.extend(vs.iter().map(|(_, v)| Referent::Piece(v.piece()))),
-            R::LoftSectionVertex(_, v) => {
-                out.insert(Referent::Piece(v.piece()));
-            }
-            // Only the segments above carry a locator ([`locator_seg`]).
-            _ => {}
+            | R::Pole(v) => vec![Referent::Corner(*v)],
+            R::LoftWall(es) => es.iter().map(|&(_, e)| Referent::Piece(e)).collect(),
+            R::LoftSectionEdge(_, e) => vec![Referent::Piece(*e)],
+            R::LoftSeam(vs) => vs.iter().map(|(_, v)| Referent::Piece(v.piece())).collect(),
+            R::LoftSectionVertex(_, v) => vec![Referent::Piece(v.piece())],
+            inert_seg!()
+            | R::From { .. }
+            | R::Seam { .. }
+            | R::Crossing { .. }
+            | R::EdgeCrossing(_)
+            | R::Merged(_)
+            | R::Fragment(_)
+            | R::SectionEdge { .. }
+            | R::SplitFragment { .. }
+            | R::CrossingVertex { .. }
+            | R::OnToolVertex { .. }
+            | R::BlendFace(_)
+            | R::CornerFace(_)
+            | R::TrimEdge { .. }
+            | R::FootVertex { .. }
+            | R::EndArc { .. }
+            | R::Mitre { .. }
+            | R::TurnFoot { .. }
+            | R::BandSection { .. }
+            | R::HostFoot { .. }
+            | R::BandFace(_)
+            | R::BandTrim { .. }
+            | R::BandFoot(_)
+            | R::BandCross { .. }
+            | R::BandCut(_)
+            | R::BandSlit { .. }
+            | R::Inner(_)
+            | R::Rim(_)
+            | R::HoleRim { .. }
+            | R::Member { .. } => Vec::new(),
         }
-    }
-
-    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
-        Ok(Carry::Descend)
-    }
-
-    fn descended(
-        &mut self,
-        _: &StableName,
-        _: StableName,
-    ) -> Result<Option<StableName>, Self::Error> {
-        Ok(None)
-    }
-
-    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
-        Ok(index)
     }
 }
 

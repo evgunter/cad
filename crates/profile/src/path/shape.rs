@@ -367,11 +367,13 @@ impl ShapeFault {
 /// A piece `continues` the one before it where the step order
 /// constructs it onto that piece's carrier: a straight segment departing
 /// along a straight segment's own ray (a straight continuation, a
-/// station kept on a side, a fillet's run in after its leg), and every
-/// joint of a split circle. Every other joint is a corner at generic
-/// values: no verb reads an incoming arc's circle, and a `line_to`
-/// computes its direction, so two pieces on one carrier there is a
-/// coincidence of values.
+/// station kept on a side, a fillet's run in after its leg), every
+/// station of a `circle` or a `circle_split`, and both joints of a
+/// loop of two arcs whose closing `tangent_arc_to` leaves the first
+/// along its own tangent. Every other joint is a corner at generic
+/// values: no verb reads an incoming arc's circle but that closer,
+/// and a `line_to` computes its direction, so two pieces on one carrier
+/// there is a coincidence of values.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChainShape {
     /// The pieces, in the order the chain emits their segments.
@@ -467,6 +469,19 @@ impl Walk {
             TipState::DirectedPoint => true,
             TipState::DirectedIncoming => self.tangent,
             _ => false,
+        }
+    }
+
+    /// **A closing arc that lies on the first piece's circle**, where
+    /// that piece is an arc and the only one drawn before it: an arc
+    /// back to the entry tangent to that arc at the tip (`rounds`, a
+    /// `tangent_arc_to` off its own ray) is the one circle through those
+    /// two points with that tangent, so both of the loop's joints
+    /// continue it. (`arc_onto(StartArriving)` would be too, and departs
+    /// tangent to that arc, which its junction check refuses.)
+    fn close_on_the_first_circle(&mut self, rounds: bool) {
+        if rounds && self.first == Some(Seg::Arc) && self.pieces.len() == 2 {
+            self.continues.fill(true);
         }
     }
 
@@ -704,7 +719,9 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Drawn, 
             }
             (_, StepForm::TangentArcTo(target)) => {
                 walk.classified_close(target, Seg::Arc).map_err(order)?;
+                let rounds = target != TargetKind::Point && walk.along(state);
                 walk.leg(i, Seg::Arc, false);
+                walk.close_on_the_first_circle(rounds);
                 reaches(target, S::DirectedPoint)
             }
             (_, StepForm::ArcOnto(target)) => {
@@ -762,8 +779,9 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Drawn, 
                 order::circle_split_count(n).map_err(order)?;
                 carrier(&mut walk, i, carrier_pieces(Verb::CircleSplit, n), true)
             }
-            (_, StepForm::Circle | StepForm::Rectangle) => {
-                carrier(&mut walk, i, carrier_pieces(step.verb(), 0), false)
+            (_, StepForm::Circle) => carrier(&mut walk, i, carrier_pieces(Verb::Circle, 0), true),
+            (_, StepForm::Rectangle) => {
+                carrier(&mut walk, i, carrier_pieces(Verb::Rectangle, 0), false)
             }
         };
     }
@@ -787,8 +805,9 @@ fn fused_leaves_no_open_fillet(walk: &Walk, state: TipState) -> Result<(), Order
 }
 
 /// A complete-loop form's `pieces`, drawn whole: the chain is closed.
-/// Where `one_carrier`, the form is one circle cut at stations, so each
-/// joint of two pieces or more continues it.
+/// Where `one_carrier`, the form is one circle cut at stations (a
+/// `circle`'s, a `circle_split`'s), so each joint of two pieces or more
+/// continues it.
 fn carrier(walk: &mut Walk, step: usize, pieces: u32, one_carrier: bool) -> TipState {
     for k in 0..pieces {
         walk.pieces.push(Piece {

@@ -94,12 +94,17 @@ answers, per piece, whether the step order constructs it onto the
 carrier of the piece before (`ChainShape::continues`): a straight
 segment departing along a straight segment's own ray (a line off a leg
 end, `.tangent()` then a line, `continue_to`, a fillet's run in off its
-leg), and every station of a split circle. Every other joint is a
-corner: no verb reads an incoming arc's circle, so an arc-to-arc
-continuation on one circle is a value coincidence, never a
-construction. `chain_shape_random` holds the answer against the
-replay's constructed joints over random chains, and a static row per
-construction.
+leg), every station of a `circle` or a `circle_split`, and both joints
+of a lone arc closed by a `tangent_arc_to` off its own tangent, which
+is that arc's circle again. Every other joint is a corner: no other
+verb reads an incoming arc's circle, so any other arc-to-arc
+continuation on one circle is a value coincidence. `chain_shape_random`
+holds the answer against the replay's constructed joints in three
+ways. A static row covers each construction. A counterexample search
+over chains built around one continuation of each kind asserts it
+reached every kind. The random chains of the table's verbs are steered
+toward continuations; for arcs that search is two-way, and a
+coincidence is told from a miss by redrawing the chain's values.
 
 `ProfileProgram::partition` (`ProfilePartition`) reads the pieces, the
 walls a sweep builds over each run (spelled as a wall name spells it;
@@ -111,12 +116,15 @@ reads each locator segment whole: `Lateral`, `RimEdge`, `Band`,
 corner; a loft's pairings as pieces. The `SetProgram` door reports a
 held name with a referent on kept steps that the old partition holds and
 the new one does not, as `Took::Piece` where a piece went undrawn, else
-`Took::Run` or `Took::Corner`; `MaintenanceNet` takes such a strand
-back when a later reshaping draws it again.
+`Took::Run` or `Took::Corner`. `MaintenanceNet` keeps such a strand only
+where the action's start document draws what the name denotes and its
+end document does not.
 
 The pinned rows are lifted as
 `edit_set_program::a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall`
 (plus a clockwise loop and a revolve), beside
 `edit_set_program::a_reshaping_that_joins_or_breaks_a_run_reports_it_whole`;
 `edit_set_program::a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`
-stays green.
+stays green. The axis edge and pole cases the harness cannot hold end
+to end are
+`work/doctail/an-axis-edge-or-pole-a-reshaping-takes-is-reported-nowhere-end-to-end.md`.

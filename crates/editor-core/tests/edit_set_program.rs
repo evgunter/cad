@@ -1877,7 +1877,7 @@ fn an_actions_piece_strand_survives_until_a_later_reshaping_draws_it_again() {
         let mut net = editor_core::MaintenanceNet::new();
         net.push(&filleted);
         net.push(second);
-        net.finish(&second.doc)
+        net.finish(&doc, &second.doc)
             .into_iter()
             .filter(|row| matches!(row, Maintenance::StrandedSelection { .. }))
             .count()
@@ -2518,6 +2518,71 @@ fn a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall() {
             "{label}: the leg's wall, its run joined, is reported: {n:?}"
         );
     }
+}
+
+/// **An action that breaks a run and joins it again strands nothing**
+/// (`MaintenanceNet`): every name the bottom's run and legs can spell is
+/// held; inserting a director between the legs strands the run's wall,
+/// rims and the rest the run held, and dropping it again strands the
+/// legs' walls and the corner's strut, which denoted something only
+/// between the two edits. A net judged against the end document alone
+/// keeps those; judged against the start too, it keeps none, while the
+/// break alone keeps its strands.
+#[test]
+fn an_action_that_breaks_a_run_and_joins_it_again_strands_nothing() {
+    let strands = |rows: &[Maintenance]| {
+        rows.iter()
+            .filter(|row| {
+                matches!(
+                    row,
+                    Maintenance::Strand { .. }
+                        | Maintenance::StrandedSelection { .. }
+                        | Maintenance::StrandedAppearance { .. }
+                )
+            })
+            .count()
+    };
+    let (doc, profile, ext) = extruded("net-run-round-trip", vec![stationed(false)]);
+    let held = held_candidates(&doc, profile, ext, Through::Extrude);
+    let doc = hang(doc, ext, &held);
+    let o = ids_of(&doc, profile)[0].clone();
+    let k = |i: usize| Some(o[i]);
+    let broken = set_program(
+        &doc,
+        profile,
+        vec![stationed(true)],
+        vec![vec![k(0), k(1), k(2), None, k(3), k(4), k(5), k(6), k(7)]],
+    )
+    .expect("the director is inserted");
+    let b = ids_of(&broken.doc, profile)[0].clone();
+    let joined = set_program(
+        &broken.doc,
+        profile,
+        vec![stationed(false)],
+        vec![[0, 1, 2, 4, 5, 6, 7, 8].map(|i| Some(b[i])).to_vec()],
+    )
+    .expect("the director is dropped");
+    assert!(
+        strands(&broken.maintenance) > 0 && strands(&joined.maintenance) > 0,
+        "each edit alone strands names: {:?} then {:?}",
+        broken.maintenance,
+        joined.maintenance
+    );
+    let mut net = editor_core::MaintenanceNet::new();
+    net.push(&broken);
+    let alone = net.clone().finish(&doc, &broken.doc);
+    assert_eq!(
+        strands(&alone),
+        strands(&broken.maintenance),
+        "the break alone keeps every strand it reported"
+    );
+    net.push(&joined);
+    let both = net.finish(&doc, &joined.doc);
+    assert_eq!(
+        strands(&both),
+        0,
+        "the round trip strands nothing: {both:?}"
+    );
 }
 
 /// [`corner`] authored clockwise: [`corner_at`]'s steps mirrored in the
