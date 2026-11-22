@@ -5605,7 +5605,7 @@ fn check_designation<T: Decide>(
         if remaining.is_empty() {
             return Err(ShellError::OpenFacesExhaustShell { shell });
         }
-        let components = count_components(body, &remaining);
+        let components = count_components(body, shell, &remaining);
         if components != 1 {
             return Err(ShellError::OpenFacesDisconnect { shell, components });
         }
@@ -5613,29 +5613,15 @@ fn check_designation<T: Decide>(
     Ok(())
 }
 
-/// How many edge-adjacency components `faces` falls into — the
-/// validator's own pass-11 relation, restricted to a subset.
+/// How many components `shell`'s listed `faces`, a subset of its list,
+/// fall into under the glue relation ([`crate::glue::face_set_glue`]);
+/// a hop to a face outside the subset is not followed. A torn record
+/// panics naming it.
 #[track_caller]
-fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
-    let mut seen: Vec<FaceKey> = Vec::new();
-    let mut components = 0usize;
-    for seed in faces {
-        if seen.contains(seed) {
-            continue;
-        }
-        components += 1;
-        let mut work = vec![*seed];
-        seen.push(*seed);
-        while let Some(face) = work.pop() {
-            for neighbour in face_neighbours(body, face) {
-                if faces.contains(&neighbour) && !seen.contains(&neighbour) {
-                    seen.push(neighbour);
-                    work.push(neighbour);
-                }
-            }
-        }
-    }
-    components
+fn count_components<T: Decide>(body: &Body<T>, shell: ShellKey, faces: &[FaceKey]) -> usize {
+    crate::glue::face_set_glue(body, faces, EntityId::Shell(shell))
+        .unwrap_or_else(|torn| unreachable!("shell: {torn}"))
+        .count
 }
 
 /// The faces `face` shares an edge with, for a face a shell's record

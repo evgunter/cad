@@ -7,9 +7,9 @@
 //! the null-face rings) a single shell entity holds ≥ 2 disconnected
 //! closed surfaces, and the pieces must become real shells before the
 //! result can rest (tier 2 requires c = 1 per shell). GWB's `movefac`
-//! walks faces recursively; ours is the worklist form (F12: no
-//! unbounded recursion) over the same edge-adjacency relation the
-//! validator's pass-11 component enumeration uses.
+//! walks faces recursively; ours reads the components from
+//! [`crate::glue::face_set_glue`], a worklist walk (F12: no unbounded
+//! recursion) of the relation the validator's pass 11 enumerates.
 //!
 //! Like [`Body::ring_move`](crate::construction::Construct::ring_move), `movefac` is **not an Euler operator**: it
 //! re-partitions ownership. Unlike `ring_move` it mints entities (the
@@ -24,12 +24,13 @@
 
 use geom_core::Decide;
 
-use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
-use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, Solid, SolidKey};
+use crate::body::Body;
+use crate::entity::{EntityId, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, RunExtent};
-use crate::live::{Arg, link, linked, lookup};
+use crate::euler::EulerOpError;
+use crate::glue::face_set_glue;
+use crate::live::{Arg, linked, lookup};
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
@@ -49,137 +50,36 @@ impl<T: Decide> Body<T> {
             EntityId::Shell(shell),
             "solid",
         );
-        // How many half-edges claim each loop. A walk is its loop's whole
-        // cycle when every member claims the loop (`require_run_of`) and
-        // it is as long as the loop's claim count: `RunExtent::Whole`'s
-        // proof, with the arena read once rather than once per loop.
-        let mut claims: slotmap::SecondaryMap<LoopKey, usize> = slotmap::SecondaryMap::new();
-        for (_, half) in &self.half_edges {
-            match claims.get_mut(half.parent_loop) {
-                Some(count) => *count += 1,
-                None => {
-                    claims.insert(half.parent_loop, 1);
-                }
-            }
-        }
-        let mut listed: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
+        // The move builds its lists from the shell's, so a listed face
+        // naming another shell would be left naming it.
         for &face in &shell_data.faces {
-            listed.insert(face, ());
-        }
-        let mut component: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
-        let mut count = 0_usize;
-        for &seed in &shell_data.faces {
-            if component.contains_key(seed) {
-                continue;
-            }
-            let label = count;
-            count += 1;
-            // Every face pushed is resolved where it is found: a seed
-            // through the shell's list, a neighbour through its loop.
-            linked(
+            let owner = linked(
                 &self.faces,
-                seed,
+                face,
                 EntityId::Face,
                 EntityId::Shell(shell),
                 "faces",
+            )
+            .shell;
+            assert!(
+                owner == shell,
+                "movefac: shell {shell:?} lists {face:?}, which names shell {owner:?}: on a \
+                 tier-1-valid body a face's shell lists it"
             );
-            let mut pending = vec![seed];
-            component.insert(seed, label);
-            while let Some(face_key) = pending.pop() {
-                let face = self.proven_face(face_key);
-                // The move builds its lists from the shell's, so a face
-                // the walk glued on from outside them would join two
-                // components through a face it does not move.
-                assert!(
-                    face.record().shell == shell && listed.contains_key(face_key),
-                    "movefac reached {face_key:?}, which is not shell {shell:?}'s in both \
-                     directions: on a tier-1-valid body a face's shell lists it and an edge's \
-                     two faces share a shell"
-                );
-                for (loop_key, loop_data, _) in face.loops() {
-                    assert!(
-                        loop_data.face == face_key,
-                        "{face_key:?} lists loop {loop_key:?}, which names face {:?}: on a \
-                         tier-1-valid body a face's loops name it",
-                        loop_data.face
-                    );
-                    assert!(
-                        matches!(loop_data.boundary, LoopBoundary::Cycle { .. })
-                            || !claims.contains_key(loop_key),
-                        "empty loop {loop_key:?} is claimed by a half-edge: on a \
-                         tier-1-valid body an empty loop has no half-edges"
-                    );
-                    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                        continue; // empty loop: glues only its vertex
-                    };
-                    let cycle = self.loop_walk(first).closed("loop", first);
-                    let run =
-                        self.require_run_of(cycle.iter().copied(), loop_key, RunExtent::Part, &[]);
-                    assert!(
-                        claims.get(loop_key) == Some(&run.len()),
-                        "loop {loop_key:?}'s cycle walk is not every half-edge that claims it: \
-                         {CYCLES_ARE_CLAIMANTS}"
-                    );
-                    for member in cycle {
-                        let mate =
-                            self.proven_mate(member, link(EntityId::Loop(loop_key), "cycle"));
-                        let mate_loop = mate.mate_data.parent_loop;
-                        let neighbor = linked(
-                            &self.loops,
-                            mate_loop,
-                            EntityId::Loop,
-                            EntityId::HalfEdge(mate.mate),
-                            "parent_loop",
-                        )
-                        .face;
-                        let neighbor_data = linked(
-                            &self.faces,
-                            neighbor,
-                            EntityId::Face,
-                            EntityId::Loop(mate_loop),
-                            "face",
-                        );
-                        assert!(
-                            neighbor_data.outer == mate_loop
-                                || neighbor_data.rings.contains(&mate_loop),
-                            "loop {mate_loop:?} names face {neighbor:?}, which does not list it: \
-                             on a tier-1-valid body a loop's face lists it"
-                        );
-                        // A labelled neighbour carries this label. Only an
-                        // earlier, finished walk could have given it another,
-                        // and that walk popped `neighbor` and walked
-                        // `mate_loop`, which `neighbor` lists (the check
-                        // above). The mate claims `mate_loop`, so the
-                        // empty-loop proof above rules it out as `Empty`;
-                        // it is a cycle, and the count proof equates its
-                        // distinct members with all of its claimants, the
-                        // mate among them. `proven_mate` is symmetric
-                        // (`require_halves`), so the mate's mate is `member`,
-                        // which `require_run_of` proved is `loop_key`'s, a
-                        // loop `face_key` owns both ways. That walk then
-                        // labelled `face_key` with its own label, and
-                        // `face_key` holds this one.
-                        match component.get(neighbor) {
-                            Some(&reached) if reached == label => {}
-                            Some(&reached) => unreachable!(
-                                "movefac: the mate hop {member:?} -> {neighbor:?} (loop \
-                                 {mate_loop:?}) reached label {reached} from {face_key:?} at \
-                                 label {label}; the walk that labelled {neighbor:?} walked \
-                                 {mate_loop:?} whole, since the empty-loop proof rules out a \
-                                 claimed `Empty` loop and the count proof equates the cycle's \
-                                 distinct members with its claimants, and `proven_mate` is \
-                                 symmetric, so that walk hopped back to {face_key:?} and \
-                                 labelled it {reached}"
-                            ),
-                            None => {
-                                component.insert(neighbor, label);
-                                pending.push(neighbor);
-                            }
-                        }
-                    }
-                }
-            }
         }
+        let glue = face_set_glue(self, &shell_data.faces, EntityId::Shell(shell))
+            .unwrap_or_else(|torn| unreachable!("movefac: {torn}"));
+        // A face the walk glued on from outside the list would join two
+        // components through a face the move does not move.
+        if let Some(leave) = glue.leaving.first() {
+            unreachable!(
+                "movefac reached {:?}, which is not shell {shell:?}'s: the shell does not \
+                 list it, and on a tier-1-valid body an edge's two faces share a shell and a \
+                 face's shell lists it",
+                leave.to
+            );
+        }
+        let count = glue.count;
 
         // ---- Mutation (infallible from here on). ----
         if count <= 1 {
@@ -187,19 +87,8 @@ impl<T: Decide> Body<T> {
             self.assert_euler_postcondition(before, ArenaDelta::ZERO, "movefac");
             return Ok(vec![shell]);
         }
-        // Per-component face lists, preserving original relative order.
-        let mut lists: Vec<Vec<FaceKey>> = vec![Vec::new(); count];
-        for &face in &shell_data.faces {
-            let Some(&label) = component.get(face) else {
-                unreachable!(
-                    "movefac: every face of `shell_data.faces` is labelled by the \
-                     component walk above"
-                )
-            };
-            lists[label].push(face);
-        }
         let mut result = vec![shell];
-        let mut lists = lists.into_iter();
+        let mut lists = glue.components(&shell_data.faces).into_iter();
         let first = lists.next().unwrap_or_default();
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("movefac: `shell` resolved in the plan phase and this op kills no shell")
@@ -453,7 +342,7 @@ mod tests {
     use geom_core::Tol;
 
     use super::*;
-    use crate::entity::{EdgeKey, LoopKey};
+    use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
     use crate::euler::{BadArgument, MefSite, MevSite};
     use crate::fixtures::{deep_snapshot, detached_digons, ops_strut_cube};
     use crate::test_support_fixtures::declined_cube;
@@ -934,9 +823,8 @@ mod tests {
     /// another shell traded one edge's mates with the seed face and the
     /// other's with the digon: each mate hop names its edge, and the
     /// walk reaches the digon only through the pillow. Returns the body,
-    /// the shell, the pillow's shell and faces, and the pillow face the
-    /// seed face's walk reaches last, which the worklist pops first.
-    fn bridged_through_a_pillow() -> (Body<f64>, ShellKey, ShellKey, [FaceKey; 2], FaceKey) {
+    /// the shell, the pillow's shell and its faces.
+    fn bridged_through_a_pillow() -> (Body<f64>, ShellKey, ShellKey, [FaceKey; 2]) {
         let (mut body, shell, seed_face, promoted) = detached_digons(1);
         let seed = body.mvfs(p(9.0), true).unwrap();
         let seg = body
@@ -961,12 +849,7 @@ mod tests {
         let y = outer_first(&body, promoted[0]);
         trade_mates(&mut body, x, seg.he_plus);
         trade_mates(&mut body, y, chord.he_plus);
-        let face_of = |he| {
-            let l = body.get_half_edge(he).unwrap().parent_loop;
-            body.get_loop(l).unwrap().face
-        };
-        let reached = face_of(seg.he_plus);
-        (body, shell, seed.shell, [seed.face, chord.face], reached)
+        (body, shell, seed.shell, [seed.face, chord.face])
     }
 
     /// **A neighbour in another shell would join two components**: the
@@ -974,27 +857,34 @@ mod tests {
     /// which the shell does not list, and leave the two in one shell.
     /// First the pillow's faces as its own shell has them, then with
     /// their `shell` torn to the walked one, which still does not list
-    /// them.
+    /// them. The panic names the pillow face the walk reached first.
     #[test]
     fn movefac_panics_on_a_neighbour_in_another_shell() {
         for torn_back in [false, true] {
-            let (mut body, shell, _, pillow, reached) = bridged_through_a_pillow();
+            let (mut body, shell, _, pillow) = bridged_through_a_pillow();
             if torn_back {
                 for face in pillow {
                     body.get_face_mut(face).unwrap().shell = shell;
                 }
             }
-            assert_panics_torn(
+            let truth = claimed_components(&body, shell);
+            let report = crate::review_d18::assert_torn_op_panics(
+                "movefac",
                 &mut body,
-                shell,
-                &format!("movefac reached {reached:?}, which is not shell {shell:?}'s"),
+                &[&format!("which is not shell {shell:?}'s")],
+                |b| b.movefac(shell).map(|shells| misread(b, &shells, &truth)),
+            );
+            assert!(
+                pillow
+                    .iter()
+                    .any(|f| report.contains(&format!("movefac reached {f:?},"))),
+                "the panic names a pillow face {pillow:?}: {report}"
             );
         }
     }
 
-    /// A face the shell lists whose `shell` is torn to another: the walk
-    /// reaches it from the seed face, and the partition would leave it
-    /// naming the other shell.
+    /// A face the shell lists whose `shell` is torn to another: the
+    /// partition would leave it naming the other shell.
     #[test]
     fn movefac_panics_on_a_face_it_lists_that_names_another_shell() {
         let (mut body, shell, seed_face, _) = detached_digons(1);
@@ -1008,7 +898,10 @@ mod tests {
         assert_panics_torn(
             &mut body,
             shell,
-            &format!("movefac reached {neighbour:?}, which is not shell {shell:?}'s"),
+            &format!(
+                "shell {shell:?} lists {neighbour:?}, which names shell {:?}",
+                other.shell
+            ),
         );
     }
 
@@ -1113,22 +1006,19 @@ mod tests {
         }
     }
 
-    /// No over-refusal: on every valid body here — one to three
+    /// The valid bodies the labelling is measured on: one to three
     /// components, rings, struts, genus, and `Empty` loops both with no
     /// half-edge in the shell (`mvfs_state`) and beside half-edges that
     /// walk other loops of the same face (`ops_two_ring_face`'s tip ring,
-    /// which the empty-loop proof must let through) — `movefac`
-    /// partitions each shell exactly as its records do, from its face
-    /// list and from that list reversed. An enumeration, not a sample.
-    #[test]
-    fn valid_fixtures_partition_as_their_records_do() {
+    /// which the empty-loop proof must let through).
+    fn valid_fixtures() -> [(&'static str, Body<f64>); 14] {
         use crate::fixtures::{
             mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strutted,
             ops_two_ring_face, pillow, raw_prism,
         };
         use crate::test_support_fixtures::geometric_cube;
         let tol = Tol::witness();
-        let bodies: [(&str, Body<f64>); 14] = [
+        [
             ("declined_cube", declined_cube(tol).body),
             ("geometric_cube", geometric_cube(tol).body),
             ("ops_strut_cube", ops_strut_cube(tol).body),
@@ -1143,9 +1033,57 @@ mod tests {
             ("ops_two_ring_face", ops_two_ring_face(tol).body),
             ("one detached digon", detached_digons(1).0),
             ("two detached digons", detached_digons(2).0),
-        ];
+        ]
+    }
+
+    /// **The shared glue walk labels as the records do**: on every
+    /// [`valid_fixtures`] shell, from its face list and that list
+    /// reversed, [`crate::glue::face_set_glue`] gives each face the label
+    /// [`claimed_components`] reads off the half-edges' `edge` and
+    /// `parent_loop` claims, numbered the same way, and no hop leaves the
+    /// shell.
+    #[test]
+    fn the_glue_walk_labels_as_the_claims_do() {
+        for (fixture, body) in valid_fixtures() {
+            for (shell, _) in body.shells() {
+                for reversed in [false, true] {
+                    let mut trial = body.clone();
+                    if reversed {
+                        trial.get_shell_mut(shell).unwrap().faces.reverse();
+                    }
+                    let faces = trial.get_shell(shell).unwrap().faces.clone();
+                    let truth = claimed_components(&trial, shell);
+                    let glue = crate::glue::face_set_glue(&trial, &faces, EntityId::Shell(shell))
+                        .unwrap_or_else(|e| panic!("{fixture}: the valid shell is torn: {e}"));
+                    assert_eq!(
+                        glue.leaving,
+                        [],
+                        "{fixture}: no hop leaves the shell (reversed {reversed})"
+                    );
+                    let labels: Vec<usize> = faces.iter().map(|&f| glue.labels[f]).collect();
+                    let claimed: Vec<usize> = faces.iter().map(|&f| truth[f]).collect();
+                    assert_eq!(
+                        labels, claimed,
+                        "{fixture}: each face's component label (reversed {reversed})"
+                    );
+                    assert_eq!(
+                        glue.count,
+                        claimed_count(&trial, shell),
+                        "{fixture}: the component count (reversed {reversed})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// No over-refusal: on every valid body here ([`valid_fixtures`]),
+    /// `movefac` partitions each shell exactly as its records do, from
+    /// its face list and from that list reversed. An enumeration, not a
+    /// sample.
+    #[test]
+    fn valid_fixtures_partition_as_their_records_do() {
         let mut most = 0;
-        for (fixture, body) in bodies {
+        for (fixture, body) in valid_fixtures() {
             assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
             for (shell, _) in body.shells() {
                 let truth = claimed_components(&body, shell);

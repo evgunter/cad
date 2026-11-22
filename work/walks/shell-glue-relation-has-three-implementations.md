@@ -2,11 +2,12 @@
 id: shell-glue-relation-has-three-implementations
 kind: issue
 title: the per-shell component glue relation is implemented three times, and the test-support copy is the one that drifts
-status: open
+status: review
 opened: 2026-09-06
 refs: [S69, 2014]
 priority: P1
 cost: D
+branch: walks/glue-home
 ---
 
 ## What
@@ -97,3 +98,34 @@ clean, and pass 7 checks every loop's owner both ways. A unified routine has to
 carry the proofs to the copy that reads unvalidated input, so the
 `seqgen` register entry in `scripts/gates/loop-boundary-discards.sh`
 now says it lacks the proof that audits `movefac`'s.
+
+## Decided
+
+The movefac / generator / open-face half lands on branch
+`walks/glue-home`; the validator half (pass 11) is still being
+decided, so this row stays open for it.
+
+- `crates/topo/src/glue.rs`'s `face_set_glue` is the one `pub(crate)`
+  walk of the relation over a face set: seeded in the set's order, it
+  hops through each cycle member's mate and returns each face's
+  component label, numbered in that order, the count, and every mate
+  hop that leaves the set. It carries `movefac`'s loop-owner and claim
+  proofs (each listed loop names its face, no half-edge claims an empty
+  loop, a cycle walk closes on all and only its loop's claimants, the
+  mate pair is the edge's, the mate loop's face lists it). A torn
+  record comes back as a `GlueError` naming the record, never a panic.
+- `movefac`'s plan reads its partition from it and panics on the error
+  and on any hop leaving the shell. The face-owner proof (each listed
+  face names the shell) is `movefac`'s own pre-pass, because it is a
+  fact about a shell, not about a face set.
+- `seqgen`'s `shell_components` and `shell_component_faces` read it and
+  panic on the error or a leaving hop. Their `unaudited` register
+  entry is gone, and `movefac`'s audited one moved to `face_set_glue`.
+- `shell`'s `count_components` reads it over the shell's non-open
+  faces and does not follow hops into the open ones. `face_neighbours`
+  stays, for the antiparallel-walls pair check, which asks about
+  adjacency and not components.
+- Left independent: pass 11's `shell_component`, `movefac`'s test
+  oracle `claimed_components` (now also compared against
+  `face_set_glue` over `movefac`'s valid fixtures), and
+  `review_m1_pr4`'s vertex-glue `shell_components`.

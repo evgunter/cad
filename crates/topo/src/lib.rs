@@ -177,6 +177,7 @@ mod finish;
 pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod glue;
 pub(crate) mod injective;
 pub(crate) mod region;
 mod rim_wedge;
