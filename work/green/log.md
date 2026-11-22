@@ -523,3 +523,13 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - review_curved ×2: PR 7208 (ONEHOME); the class is the level-root row's; re-blessed at 1e-6.
   - The sphere offer row: greened by SCALAR's PR 7267.
   - STYLE review (Opus) dispatched, with claims on the tipped rod's band (is a body 2.6e-3 loose against a 1e-7 budget a wrong answer?) and on the re-bless's tightness.
+- 2026-11-22 — U5 reported: PR 7365, head `c1f4a5f9d3`, gate green.
+  - Measured: the nightly build job is memory-bound. Two or three rustc processes run at 5-6 GB, and available memory stays under 3 GB for 15-23 min; disk never drops below 76 GB free. Each kill carries the "starves it for CPU/Memory" annotation, including today's main nightly on the old config.
+  - The fix:
+    - 12 GB of swap;
+    - viewer, pncad and pncad-py built at opt 1 (about 70 unit-minutes for about a minute of tests);
+    - the topo scalpel in its own job;
+    - a resource sampler in the step log.
+  - Hosted nightly 44989234943 on the branch: build 98.3 min against 113-118, and all five ε legs ran.
+  - The lane closed both build-job rows on that one night, and filed the CPU-bound margin as P2.
+  - FULL review (Opus) dispatched; one of its claims is whether one night closes the shutdown row.
