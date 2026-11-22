@@ -1223,8 +1223,11 @@ mod chain_rows {
     /// at tier 3, at the run's ε. Some chain carries a direction past its
     /// rounding, so the door squares it and the edge's span is stretched.
     /// Red under the door keeping every image's bits (the lines drift off
-    /// unit), and under a squared line keeping its span (its ends stand
-    /// off its vertices by the span times the squaring).
+    /// unit), and under a squared line keeping its span, which no chain
+    /// then stretches. The stretch itself is the span times a squaring's
+    /// `≤ 8ε`, the size of the points' own drift over the chain (both
+    /// read under `8e-13 m` here), so the ends' bound holds with it or
+    /// without; it is kept because it is the map's exact reading.
     #[test]
     fn a_brick_moved_forty_times_keeps_its_lines_unit_and_on_their_vertices() {
         use super::{Body, Curve3, CurveGeom, RigidMotion, transform_rigid};
