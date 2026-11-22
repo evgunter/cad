@@ -26,6 +26,7 @@ import tomllib
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
+from typing import BinaryIO
 
 from slow_set import EXPR_LIMIT, expr
 
@@ -49,7 +50,7 @@ def report_path() -> Path:
     return target / "nextest" / PROFILE / name
 
 
-def readings(report: Path) -> dict[Pair, float | None]:
+def readings(report: Path | BinaryIO) -> dict[Pair, float | None]:
     """Every testcase of a junit report: its seconds, `None` when it did not
     pass."""
     out: dict[Pair, float | None] = {}

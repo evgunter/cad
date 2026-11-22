@@ -246,7 +246,10 @@ jobs:
           python3 scripts/slow_set.py --selftest
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
-        run: python3 scripts/check-fast-set-times.py --selftest
+        run: |
+          python3 scripts/check-fast-set-times.py --selftest
+          python3 scripts/fast_set_alone.py --selftest
+          python3 scripts/fast-set-drift.py --selftest
       - name: change filter self-test
         if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest

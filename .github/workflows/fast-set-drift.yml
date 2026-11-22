@@ -1,0 +1,72 @@
+name: fast-set drift
+
+# The per-PR gate fails a PR for the fast-set tests it adds or edits at
+# 0.25 s run alone, and for any at 1 s. A test that drifts past 0.25 s on
+# main without reaching 1 s is this check's: it reads the last day's PR-run
+# junit reports (ci.yml's test job uploads them), re-times alone on main's
+# build every test whose median suggests 0.25 s, and fails on each that
+# costs it, naming the slow-set line to add (scripts/fast-set-drift.py).
+# Its own workflow, so its red is not one among the nightly's. Owner:
+# GREEN's orchestrator.
+
+on:
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  NEXTEST_VERSION: "0.9.140"
+
+jobs:
+  drift:
+    name: fast-set drift (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [kernel, app]
+    # The test job's build env, so this restores the build-default cache and
+    # times the binaries the gate runs.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      CARGO_PROFILE_DEV_LTO: "off"
+      CARGO_PROFILE_TEST_LTO: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: the last day's PR-run readings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/fast-set-drift.py gather ${{ matrix.shard }} "$RUNNER_TEMP/drift"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-default
+          save-if: false
+      - name: integration-test binaries build at opt-level 0
+        run: |
+          {
+            echo "RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh"
+            echo "CAD_OPT0_LOG=$RUNNER_TEMP/opt0.log"
+          } >> "$GITHUB_ENV"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: build (the gate's shard, everything in it)
+        run: |
+          scope="$(python3 scripts/fast-set-drift.py scope ${{ matrix.shard }})"
+          echo "scope: $scope"
+          # shellcheck disable=SC2086 # scope is a list of cargo flags
+          cargo nextest run --no-run --profile ci $scope
+      - name: re-time alone every test whose median suggests 0.25 s
+        run: python3 scripts/fast-set-drift.py judge ${{ matrix.shard }} "$RUNNER_TEMP/drift"

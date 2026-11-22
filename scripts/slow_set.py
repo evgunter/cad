@@ -23,10 +23,10 @@ one.
 
 A slow test runs per PR on a PR that adds or edits it, and in the nightly
 every night. Both readings come from `check-fast-set-times.py --new-since`
-tokens. A PR that spells it on an added line is `is_new`, the rule
-check-fast-set-times.py holds new fast-set tests to its stricter bar by. A PR
-that edits the file it lives in (its body, its doc, a table or const beside
-it, a golden that file names in a string literal) is `is_edited`. A file
+tokens. A PR that spells it on an added line is `is_new`. A PR that edits
+the file it lives in (its body, its doc, a table or const beside it, a golden
+that file names in a string literal) is `is_edited`. Either one is also what
+check-fast-set-times.py holds a fast-set test to its 0.25 s bar by. A file
 "holds" a test when it defines a `fn` of the test's leaf name, or stands for a
 module on the test's path, so a leaf a macro makes is still found.
 

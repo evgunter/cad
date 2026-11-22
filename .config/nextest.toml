@@ -8,15 +8,18 @@
 # silently nowhere; scripts/check-slow-set-names.py fails the test job on the
 # dead name.
 #
-# Put a test here when it costs >= 0.5 s a run, whatever it has caught: a
-# slow test that catches something still catches it the next night. A
-# cheaper test goes here too when it costs more than a fraction of a second
-# averaged over every PR run and has never gone red on a PR after the one
-# that added it, unless a test the gate kept went red with it
-# (work/ciw/demote-unearned-tests.md). The per-PR default-eps step enforces
-# two bars on the runner's own times (scripts/check-fast-set-times.py): a
-# fast-set test the diff adds fails it at >= 0.5 s, and every other fast-set
-# test at >= 1 s.
+# Put a test here when it costs >= 0.25 s run alone, whatever it has
+# caught: a slow test that catches something still catches it the next
+# night. A cheaper test goes here too when it costs more than a fraction of a
+# second averaged over every PR run and has never gone red on a PR after the
+# one that added it, unless a test the gate kept went red with it
+# (work/ciw/demote-unearned-tests.md). A test's cost is its time run alone on
+# the gate's build: the per-PR default-eps step re-runs alone, three times,
+# each test its parallel pass reads over a bar and takes the fastest
+# (scripts/check-fast-set-times.py). A fast-set test the diff adds or edits
+# fails it at >= 0.25 s, and any fast-set test at >= 1 s. A test that drifts
+# past 0.25 s on main below 1 s is named by the scheduled drift check
+# (.github/workflows/fast-set-drift.yml, scripts/fast-set-drift.py).
 
 [profile.ci]
 fail-fast = false
