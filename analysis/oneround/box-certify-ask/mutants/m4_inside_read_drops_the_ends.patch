@@ -1,0 +1,15 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 2fcfb7a4..84dd777b 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -132,8 +132,8 @@ pub fn edge_in_box<T: Decide>(
+                 (t0, t1),
+                 cover.as_ref().map(|c| c.box_in(&BoxAxes::World)),
+             )
+-            .max((a - origin).norm_inf())
+-            .max((b - origin).norm_inf())
++            .max((a - origin).norm_inf().min(T::zero()))
++            .max((b - origin).norm_inf().min(T::zero()))
+         },
+         band,
+     )

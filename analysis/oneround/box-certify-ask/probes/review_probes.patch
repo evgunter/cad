@@ -1,0 +1,385 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 81b8f333..2fcfb7a4 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -332,3 +332,6 @@ mod tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod review_probes;
+diff --git a/crates/geom-brep/src/session_box/review_probes.rs b/crates/geom-brep/src/session_box/review_probes.rs
+new file mode 100644
+index 00000000..8c84a04c
+--- /dev/null
++++ b/crates/geom-brep/src/session_box/review_probes.rs
+@@ -0,0 +1,368 @@
++//! Reviewer probes for PR 7272 (frozen head cc67fa2e). Dropped in as
++//! `crates/geom-brep/src/session_box/review_probes.rs` by
++//! `probes/review_probes.patch`; every row prints what it measured and
++//! asserts only what the README promises.
++#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
++
++use super::*;
++use geom_core::spline::KnotVector;
++use geom_core::{Tol, Vec3};
++use std::sync::Arc;
++
++fn band_at(eps: f64) -> Band {
++    Band::linear_at(Tol::witness(), eps).unwrap()
++}
++
++fn kind(r: &Result<(), BoxRefusal<()>>) -> &'static str {
++    match r {
++        Ok(()) => "in",
++        Err(BoxRefusal::Point { .. }) => "POINT",
++        Err(BoxRefusal::Unshown { .. }) => "unshown",
++        Err(BoxRefusal::Uncovered(())) => "uncovered",
++    }
++}
++
++fn ask(c: &Curve3<f64>, span: (f64, f64), band: Band) -> Result<(), BoxRefusal<()>> {
++    edge_in_box(c, span, (c.eval(span.0), c.eval(span.1)), band)
++}
++
++/// The true largest |coordinate| of the edge, by a dense scan.
++fn dense_reach(c: &Curve3<f64>, span: (f64, f64)) -> f64 {
++    let n = 200_000;
++    (0..=n)
++        .map(|k| {
++            let t = span.0 + (span.1 - span.0) * f64::from(k) / f64::from(n);
++            let p = c.eval(t);
++            p.x.abs().max(p.y.abs()).max(p.z.abs())
++        })
++        .fold(0.0, f64::max)
++}
++
++/// A circle arc's largest |coordinate| from its crests: per world axis
++/// the two crest angles of `c_i + r(u_i cos t + v_i sin t)`, each taken
++/// where it falls in the span, and the two ends.
++fn crest_reach(c: &Curve3<f64>, span: (f64, f64)) -> f64 {
++    let Curve3::Circle(circ) = c else { panic!() };
++    let (u, a) = (circ.frame.u_ref, circ.frame.axis);
++    let v = a.cross(u);
++    let tau = core::f64::consts::TAU;
++    let mut ts = vec![span.0, span.1];
++    for (ui, vi) in [(u.x, v.x), (u.y, v.y), (u.z, v.z)] {
++        let crest = vi.atan2(ui);
++        for half in 0..2 {
++            let base = crest + f64::from(half) * core::f64::consts::PI;
++            let k0 = ((span.0 - base) / tau).ceil();
++            let mut t = base + k0 * tau;
++            while t <= span.1 {
++                ts.push(t);
++                t += tau;
++            }
++        }
++    }
++    ts.into_iter()
++        .map(|t| {
++            let p = c.eval(t);
++            p.x.abs().max(p.y.abs()).max(p.z.abs())
++        })
++        .fold(0.0, f64::max)
++}
++
++struct Lcg(u64);
++impl Lcg {
++    fn next(&mut self) -> f64 {
++        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
++        ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
++    }
++    fn sym(&mut self) -> f64 {
++        2.0 * self.next() - 1.0
++    }
++}
++
++fn tilted_circle(rng: &mut Lcg, scale: f64) -> (Curve3<f64>, (f64, f64)) {
++    let axis = Vec3::new(rng.sym(), rng.sym(), rng.sym()).normalize();
++    let u = axis.orthonormal_basis().0;
++    let c = Point3::new(rng.sym() * scale, rng.sym() * scale, rng.sym() * scale);
++    let r = (0.05 + rng.next()) * scale;
++    let t0 = rng.sym() * 3.0;
++    let t1 = t0 + 0.05 + rng.next() * 6.0;
++    (Curve3::circle(c, axis, r, u), (t0, t1))
++}
++
++/// C3, circle arcs in general position: the ask against a dense scan of
++/// the arc, 4000 arcs with reach drawn in [400, 1600] m, at three bands.
++/// Sound both ways means: reach < 1000 - 1e-3 is "in"; reach > 1000 + 1e-3
++/// is POINT (the circle's inside read is claimed exact).
++#[test]
++fn c3_circle_arcs_against_a_dense_scan() {
++    for eps in [1e-6, 1e-9, 1e-12] {
++        let band = band_at(eps);
++        let mut rng = Lcg(7);
++        let (mut n_in, mut n_point, mut n_unshown, mut wrong) = (0, 0, 0, 0);
++        for _ in 0..4000 {
++            let (c, span) = tilted_circle(&mut rng, 700.0);
++            let reach = dense_reach(&c, span);
++            let got = ask(&c, span, band);
++            match kind(&got) {
++                "in" => n_in += 1,
++                "POINT" => n_point += 1,
++                _ => n_unshown += 1,
++            }
++            let want = if reach < 1000.0 - 1e-3 {
++                "in"
++            } else if reach > 1000.0 + 1e-3 {
++                "POINT"
++            } else {
++                continue;
++            };
++            if kind(&got) != want {
++                wrong += 1;
++                eprintln!("eps {eps}: reach {reach} want {want} got {got:?}");
++            }
++        }
++        eprintln!("circle arcs eps {eps}: in {n_in} point {n_point} other {n_unshown} wrong {wrong}");
++        assert_eq!(wrong, 0);
++    }
++}
++
++/// C3, the band of the box's edge at 1e-12: a tilted circle arc scaled
++/// so its dense reach is 1000 m less `d`, for d from 1e-12 to 1e-9.
++/// "Geometry within the band of the box's edge is in it", and geometry
++/// short of the edge certainly is.
++#[test]
++fn c3_circle_arcs_just_inside_the_box_at_the_finest_band() {
++    let band = band_at(1e-12);
++    let mut rng = Lcg(11);
++    let mut refused = 0;
++    for i in 0..2000 {
++        let (c0, span) = tilted_circle(&mut rng, 300.0);
++        let Curve3::Circle(circ) = &c0 else { panic!() };
++        let reach0 = crest_reach(&c0, span);
++        let d = [1e-9, 1e-10, 1e-11, 3e-12][i % 4];
++        let s = (1000.0 - d) / reach0;
++        let o = Point3::origin();
++        let c = Curve3::circle(
++            o + (circ.frame.origin - o) * s,
++            circ.frame.axis,
++            circ.radius() * s,
++            circ.frame.u_ref,
++        );
++        let reach = crest_reach(&c, span);
++        if reach > 1000.0 {
++            continue;
++        }
++        let got = ask(&c, span, band);
++        if got.is_err() {
++            refused += 1;
++            eprintln!("d {d}: crest reach 1000 - {:e}: {got:?}", 1000.0 - reach);
++        }
++    }
++    eprintln!("just-inside circle arcs refused at 1e-12: {refused}");
++    assert_eq!(refused, 0, "an arc short of the box's edge is refused");
++}
++
++/// C3, ellipse arcs: the cover is the arc's own (so "in" is exact), the
++/// inside read is 17 samples. An arc whose bulge alone is past the box
++/// between two samples: what refusal does it get?
++#[test]
++fn c3_ellipse_arcs_against_a_dense_scan() {
++    let band = band_at(1e-9);
++    let mut rng = Lcg(3);
++    let (mut wrong_in, mut past_as_limit, mut past_as_point, mut inside_refused) = (0, 0, 0, 0);
++    let mut worst_limit: f64 = 0.0;
++    for _ in 0..4000 {
++        let axis = Vec3::new(rng.sym(), rng.sym(), rng.sym()).normalize();
++        let u = axis.orthonormal_basis().0;
++        let c = Point3::new(rng.sym() * 600.0, rng.sym() * 600.0, rng.sym() * 600.0);
++        let (a, b) = ((0.1 + rng.next()) * 700.0, (0.1 + rng.next()) * 700.0);
++        let Ok(e) = Curve3::ellipse(c, axis, a.max(b), a.min(b), u, band) else { continue };
++        let t0 = rng.sym() * 3.0;
++        let span = (t0, t0 + 0.05 + rng.next() * 6.0);
++        let reach = dense_reach(&e, span);
++        let got = ask(&e, span, band);
++        if reach > 1000.0 + 1e-3 {
++            match kind(&got) {
++                "in" => wrong_in += 1,
++                "POINT" => past_as_point += 1,
++                _ => {
++                    past_as_limit += 1;
++                    worst_limit = worst_limit.max(reach - 1000.0);
++                }
++            }
++        } else if reach < 1000.0 - 1e-3 && got.is_err() {
++            inside_refused += 1;
++            eprintln!("ellipse inside (reach {reach}) refused: {got:?}");
++        }
++    }
++    eprintln!(
++        "ellipse arcs: past-the-box admitted {wrong_in}, past as POINT {past_as_point}, past as \
++         'unshown' limit {past_as_limit} (worst {worst_limit} m past), inside refused \
++         {inside_refused}"
++    );
++    assert_eq!(wrong_in, 0);
++    assert_eq!(inside_refused, 0);
++}
++
++fn rational_arc(r: f64, half: f64) -> Curve3<f64> {
++    // One rational quadratic arc of radius r about the origin, from
++    // angle -half to +half.
++    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
++    let w = half.cos();
++    let control = vec![
++        Point3::new(r * half.cos(), -r * half.sin(), 0.0),
++        Point3::new(r / half.cos(), 0.0, 0.0),
++        Point3::new(r * half.cos(), r * half.sin(), 0.0),
++    ];
++    Curve3::Nurbs(Arc::new(geom::NurbsCurve3::new(knots, control, vec![1.0, w, 1.0]).unwrap()))
++}
++
++/// C3, splines: an edge INSIDE the box whose net reaches past it. How
++/// near the box's edge does a spline arc of radius r about the origin
++/// get before it is refused as a limit, and is it ever refused as PAST?
++#[test]
++fn c3_spline_arcs_inside_the_box() {
++    let band = band_at(1e-9);
++    for half in [0.2, 0.7, 1.2, 1.5] {
++        let mut first_refused = None;
++        for k in 0..2000 {
++            let r = 800.0 + 0.1 * f64::from(k);
++            let c = rational_arc(r, half);
++            let got = ask(&c, (0.0, 1.0), band);
++            assert!(
++                !matches!(got, Err(BoxRefusal::Point { .. })) || r > 1000.0,
++                "an arc of radius {r} refused as past"
++            );
++            if got.is_err() && first_refused.is_none() {
++                first_refused = Some((r, kind(&got)));
++            }
++        }
++        eprintln!("spline arc half-angle {half}: first refusal at radius {first_refused:?}");
++    }
++    // A short span of a spline whose net reaches 1e5 m.
++    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
++    let control = vec![
++        Point3::new(0.0, 0.0, 0.0),
++        Point3::new(1.0, 0.0, 0.0),
++        Point3::new(1e5, 1e5, 0.0),
++        Point3::new(2e5, 0.0, 0.0),
++    ];
++    let far = Curve3::Nurbs(Arc::new(geom::NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap()));
++    for hi in [1e-3, 1e-2, 0.05, 0.1, 0.2] {
++        let reach = dense_reach(&far, (0.0, hi));
++        eprintln!("far-net spline over (0, {hi}): dense reach {reach}: {}", kind(&ask(&far, (0.0, hi), band)));
++    }
++}
++
++/// C3, circle and line carriers that reach far past a short span.
++#[test]
++fn c3_far_carriers_short_spans() {
++    let band = band_at(1e-9);
++    // A circle of radius 1e6 centred 1e6 out, its span a metre at the origin.
++    let c = Curve3::circle(Point3::new(1e6, 0.0, 0.0), Vec3::unit_z(), 1e6, Vec3::unit_x());
++    let span = (core::f64::consts::PI - 1e-6, core::f64::consts::PI + 1e-6);
++    eprintln!("big circle, short span at the origin: reach {} : {}", dense_reach(&c, span), kind(&ask(&c, span, band)));
++    assert!(ask(&c, span, band).is_ok());
++    // The same, span reversed (t1 < t0).
++    let rev = (span.1, span.0);
++    eprintln!("  reversed span: {}", kind(&ask(&c, rev, band)));
++    // A half circle with its bulge past, span reversed.
++    let arc = Curve3::circle(Point3::new(500.0, 0.0, 0.0), Vec3::unit_z(), 600.0, Vec3::unit_x());
++    let h = core::f64::consts::FRAC_PI_2;
++    eprintln!("  bulge arc reversed span: {}", kind(&ask(&arc, (h, -h), band)));
++    // The complementary arc (through x = -100) written as (h, 3h): in the box.
++    eprintln!("  complementary arc: reach {} : {}", dense_reach(&arc, (h, 3.0 * h)), kind(&ask(&arc, (h, 3.0 * h), band)));
++    assert!(ask(&arc, (h, 3.0 * h), band).is_ok());
++    // More than a full turn.
++    eprintln!("  two turns of a 10 m circle: {}", kind(&ask(&Curve3::circle(Point3::origin(), Vec3::unit_z(), 10.0, Vec3::unit_x()), (0.0, 13.0), band)));
++}
++
++/// C4 and robustness: check 0 runs before the span is read
++/// (`ReadSpec::of`), on the spec as handed. Spans and data no door
++/// validated: does the ask panic, and what does it answer?
++#[test]
++fn c4_unvalidated_spans_and_data_at_check_zero() {
++    let band = band_at(1e-9);
++    let o = Point3::origin();
++    let x = Point3::new(1.0, 0.0, 0.0);
++    let circle = Curve3::circle(o, Vec3::unit_z(), 1.0, Vec3::unit_x());
++    let line = Curve3::line(o, Vec3::unit_x());
++    let spline = rational_arc(1.0, 0.7);
++    let spans: [(f64, f64); 9] = [
++        (0.0, f64::NAN),
++        (f64::NAN, 1.0),
++        (0.0, f64::INFINITY),
++        (f64::NEG_INFINITY, f64::INFINITY),
++        (0.0, 1e300),
++        (-1e18, 1e18),
++        (2.0, 5.0),
++        (-3.0, -2.0),
++        (0.5, 0.5),
++    ];
++    for (name, c) in [("line", &line), ("circle", &circle), ("spline", &spline)] {
++        for span in spans {
++            let got = std::panic::catch_unwind(|| edge_in_box(c, span, (o, x), band));
++            eprintln!("{name} over {span:?}: {}", got.as_ref().map_or("PANIC", |g| kind(g)));
++        }
++    }
++    // Ends that are not finite, and an end past the box on an uncovered edge.
++    let nan = Point3::new(f64::NAN, 0.0, 0.0);
++    eprintln!("nan end: {}", kind(&edge_in_box(&line, (0.0, 1.0), (o, nan), band)));
++    eprintln!("nan end + far end: {}", kind(&edge_in_box(&line, (0.0, 1.0), (Point3::new(5e3, 0.0, 0.0), nan), band)));
++    let nan_line = Curve3::line(o, Vec3::new(f64::NAN, 0.0, 0.0));
++    eprintln!("nan line, ends in: {}", kind(&edge_in_box(&nan_line, (0.0, 1.0), (o, x), band)));
++    eprintln!("nan line, end 5 km out: {}", kind(&edge_in_box(&nan_line, (0.0, 1.0), (o, Point3::new(5e3, 0.0, 0.0)), band)));
++    eprintln!("inf line span, far end: {}", kind(&edge_in_box(&line, (0.0, f64::INFINITY), (o, Point3::new(5e3, 0.0, 0.0)), band)));
++}
++
++/// C4: can an edge the box has not shown inside end up certified? A line
++/// whose span is finite but whose stated ends are not on it and one
++/// stated end is NaN, etc. Each through `EdgeCurve::certify`.
++#[test]
++fn c4_uncovered_edges_through_certify() {
++    use crate::{EdgeCurve, EdgeCurveSpec, NurbsLane};
++    let band = band_at(1e-9);
++    let o = Point3::origin();
++    let x = Point3::new(1.0, 0.0, 0.0);
++    let lever = || geom_core::test_support::fixture_lever(1.0);
++    let nan = Point3::new(f64::NAN, 0.0, 0.0);
++    let cases = [
++        ("nan end", EdgeCurveSpec::line_between(o, x), o, nan),
++        ("degenerate line_between(p,p)", EdgeCurveSpec::line_between(o, o), o, o),
++        ("degenerate far line_between(p,p)", EdgeCurveSpec::line_between(Point3::new(5e3, 0.0, 0.0), Point3::new(5e3, 0.0, 0.0)), Point3::new(5e3, 0.0, 0.0), Point3::new(5e3, 0.0, 0.0)),
++        ("inf end", EdgeCurveSpec::line_between(o, x), o, Point3::new(f64::INFINITY, 0.0, 0.0)),
++    ];
++    for (name, spec, a, b) in cases {
++        let got = EdgeCurve::certify(spec, a, b, |_| None, lever(), band, NurbsLane::certified());
++        eprintln!("{name}: {:?}", got.map(drop));
++    }
++}
++
++/// C8: the ask's cost on a few edges (wall time, this build's profile).
++#[test]
++fn c8_cost_of_the_ask() {
++    use std::time::Instant;
++    let band = band_at(1e-9);
++    let line = (Curve3::line(Point3::origin(), Vec3::unit_x()), (0.0, 1.0));
++    let circle = (Curve3::circle(Point3::origin(), Vec3::new(0.3, 0.4, 0.5).normalize(), 2.0, Vec3::new(0.3, 0.4, 0.5).normalize().orthonormal_basis().0), (0.1, 2.0));
++    let ellipse = (Curve3::ellipse(Point3::origin(), Vec3::unit_z(), 3.0, 2.0, Vec3::unit_x(), band).unwrap(), (0.1, 2.0));
++    let spline = (rational_arc(5.0, 0.7), (0.0, 1.0));
++    let knots = KnotVector::clamped((0..24).map(|k| f64::from((k - 3).clamp(0, 17))).collect(), 3).unwrap();
++    let control: Vec<_> = (0..20).map(|k| Point3::new(f64::from(k), f64::from(k % 3), f64::from(k % 5))).collect();
++    let long = (Curve3::Nurbs(Arc::new(geom::NurbsCurve3::new(knots, control, vec![1.0; 20]).unwrap())), (0.5, 16.5));
++    let spiric = Curve3::spiric(Point3::origin(), Vec3::unit_z(), Vec3::unit_x(), 3.0, 1.0, 0.5, band).ok().map(|s| (s, (0.1, 1.0)));
++    let far_line = (Curve3::line(Point3::new(2e3, 0.0, 0.0), Vec3::unit_x()), (0.0, 1.0));
++    let mut cases = vec![("line", line), ("circle", circle), ("ellipse", ellipse), ("spline deg2 3pt", spline), ("spline deg3 20pt", long), ("far line (refused)", far_line)];
++    if let Some(s) = spiric {
++        cases.push(("spiric", s));
++    }
++    for (name, (c, span)) in &cases {
++        let ends = (c.eval(span.0), c.eval(span.1));
++        let n = 20_000u32;
++        let t = Instant::now();
++        let mut ok = 0u32;
++        for _ in 0..n {
++            ok += u32::from(std::hint::black_box(edge_in_box(std::hint::black_box(c), *span, ends, band)).is_ok());
++        }
++        let per = t.elapsed().as_secs_f64() / f64::from(n);
++        eprintln!("{name}: {:.2} us per ask ({} in)", per * 1e6, ok);
++    }
++}

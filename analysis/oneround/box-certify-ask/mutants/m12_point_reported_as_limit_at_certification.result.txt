@@ -1,0 +1,4 @@
+     Summary [  34.846s] 1468 tests run: 1466 passed, 2 failed, 224 skipped
+error: test run failed
+( 781/1468) geom-brep pcurve_cache::analytic_image_rows::a_correct_image_far_out_certifies_or_ends_in_its_lever
+(1291/1468) geom-brep session_box::tests::every_certification_door_asks_the_box_before_any_residual

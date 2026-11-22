@@ -1,0 +1,17 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 2fcfb7a4..62600ba3 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -127,11 +127,7 @@ pub fn edge_in_box<T: Decide>(
+         reach,
+         || {
+             let origin = Point3::origin();
+-            crate::edge_coordinate_reach_below(
+-                carrier,
+-                (t0, t1),
+-                cover.as_ref().map(|c| c.box_in(&BoxAxes::World)),
+-            )
++            { let _ = &cover; T::zero() }
+             .max((a - origin).norm_inf())
+             .max((b - origin).norm_inf())
+         },

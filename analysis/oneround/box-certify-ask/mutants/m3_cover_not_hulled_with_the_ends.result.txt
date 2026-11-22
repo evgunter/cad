@@ -1,0 +1,4 @@
+     Summary [  33.929s] 1468 tests run: 1466 passed, 2 failed, 224 skipped
+error: test run failed
+(1291/1468) geom-brep session_box::tests::every_certification_door_asks_the_box_before_any_residual
+(1295/1468) geom-brep session_box::tests::an_end_past_the_box_refuses

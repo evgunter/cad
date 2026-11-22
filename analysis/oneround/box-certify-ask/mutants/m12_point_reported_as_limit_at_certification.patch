@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index 9a968526..ed3f0e54 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5231,7 +5231,7 @@ fn in_the_box<T: Decide>(
+         // An edge has no cover only where its data is not finite, which
+         // the checks below refuse as their own poison.
+         Ok(()) | Err(BoxRefusal::Uncovered(())) => Ok(()),
+-        Err(BoxRefusal::Point { margin }) => Err(CertifyError::OutsideSessionBox { margin }),
++        Err(BoxRefusal::Point { margin }) => Err(CertifyError::SessionBoxUnshown { margin }),
+         Err(BoxRefusal::Unshown { margin }) => Err(CertifyError::SessionBoxUnshown { margin }),
+     }
+ }

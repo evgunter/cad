@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index 9a968526..0ab1c854 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5232,7 +5232,7 @@ fn in_the_box<T: Decide>(
+         // the checks below refuse as their own poison.
+         Ok(()) | Err(BoxRefusal::Uncovered(())) => Ok(()),
+         Err(BoxRefusal::Point { margin }) => Err(CertifyError::OutsideSessionBox { margin }),
+-        Err(BoxRefusal::Unshown { margin }) => Err(CertifyError::SessionBoxUnshown { margin }),
++        Err(BoxRefusal::Unshown { margin }) => { let _ = margin; Ok(()) }
+     }
+ }
+ 

@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/session_box.rs b/crates/geom-brep/src/session_box.rs
+index 2fcfb7a4..64e80d79 100644
+--- a/crates/geom-brep/src/session_box.rs
++++ b/crates/geom-brep/src/session_box.rs
+@@ -121,7 +121,7 @@ pub fn edge_in_box<T: Decide>(
+         .cover_over(ParamWindow::new(t0, t1))
+         .ok()
+         .zip(Cover::points(vec![a, b]))
+-        .map(|(arc, ends)| arc.hull(ends));
++        .map(|(arc, _ends)| arc);
+     let reach = cover.as_ref().map(cover_reach).ok_or(());
+     region_in_box(
+         reach,

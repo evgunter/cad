@@ -1,0 +1,97 @@
+diff --git a/crates/geom-brep/src/certify.rs b/crates/geom-brep/src/certify.rs
+index 9a968526..3ca822f8 100644
+--- a/crates/geom-brep/src/certify.rs
++++ b/crates/geom-brep/src/certify.rs
+@@ -5227,7 +5227,12 @@ fn in_the_box<T: Decide>(
+             band,
+         )
+     };
+-    match ask() {
++    if std::env::var_os("CAD_BOX_ASK").is_some_and(|v| v == "off") {
++        return Ok(());
++    }
++    let got = ask();
++    review_log(&got, spec, ends);
++    match got {
+         // An edge has no cover only where its data is not finite, which
+         // the checks below refuse as their own poison.
+         Ok(()) | Err(BoxRefusal::Uncovered(())) => Ok(()),
+@@ -5241,6 +5246,45 @@ fn in_the_box<T: Decide>(
+ /// between check 2 and the canonical description, then the sampled
+ /// checks and C2's limbs through `lane`.
+ #[allow(clippy::too_many_arguments)] // one parameter per named quantity
++thread_local! { static REVIEW_UNCOVERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
++
++fn review_write(line: &str) {
++    use std::io::Write;
++    if let Some(path) = std::env::var_os("CAD_BOX_LOG") {
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let name = std::thread::current().name().unwrap_or("?").to_owned();
++            let _ = writeln!(f, "{line}\ttest={name}");
++        }
++    }
++}
++
++fn review_log<T: Decide>(
++    got: &Result<(), crate::session_box::BoxRefusal<()>>,
++    spec: &EdgeCurveSpec<T>,
++    ends: (Point3<T>, Point3<T>),
++) {
++    use crate::session_box::BoxRefusal;
++    let kind = match got {
++        Ok(()) => return,
++        Err(BoxRefusal::Point { .. }) => "POINT",
++        Err(BoxRefusal::Unshown { .. }) => "UNSHOWN",
++        Err(BoxRefusal::Uncovered(())) => {
++            REVIEW_UNCOVERED.with(|c| c.set(true));
++            "UNCOVERED"
++        }
++    };
++    review_write(&format!(
++        "{kind}\tscalar={}\tcarrier={:?}\tspan=({:?},{:?})\tends={:?}\tgot={:?}",
++        core::any::type_name::<T>(),
++        spec.carrier.kind(),
++        spec.param_start,
++        spec.param_end,
++        ends,
++        got
++    ));
++}
++
++#[allow(clippy::too_many_arguments)]
+ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
+     spec: &EdgeCurveSpec<T>,
+     start: Point3<T>,
+@@ -5251,6 +5295,32 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
+     stated: Option<&StatedImage<T>>,
+     band: Band,
+     kept: &[&LocusCertificate<T>],
++) -> Result<Checked<T>, CertifyError> {
++    REVIEW_UNCOVERED.with(|c| c.set(false));
++    let out = run_checks_real(spec, start, end, surfaces, reach, lane, stated, band, kept);
++    if REVIEW_UNCOVERED.with(|c| c.replace(false)) {
++        review_write(&format!(
++            "UNCOVERED-OUTCOME\t{}",
++            match &out {
++                Ok(_) => "CERTIFIED".to_owned(),
++                Err(e) => format!("refused {e:?}").chars().take(160).collect(),
++            }
++        ));
++    }
++    out
++}
++
++#[allow(clippy::too_many_arguments)]
++fn run_checks_real<T: geom_core::Certifies + geom_core::CertifiedBounds>(
++    spec: &EdgeCurveSpec<T>,
++    start: Point3<T>,
++    end: Point3<T>,
++    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
++    reach: geom_core::Lever<T>,
++    lane: NurbsLane<T>,
++    stated: Option<&StatedImage<T>>,
++    band: Band,
++    kept: &[&LocusCertificate<T>],
+ ) -> Result<Checked<T>, CertifyError> {
+     // ---- Check 0: the session box, of the edge's region with its ends.
+     in_the_box(spec, (start, end), band)?;
