@@ -63,7 +63,7 @@ is from a run that completed.
 | `topo`, `--profile ci` | 1e-9 | 4020 pass | 4032 pass | the head's 12 rows, all passing; nothing else |
 | `topo`, `--profile ci` | 1e-12 | 4020 pass | 4032 pass | the same 12; nothing else |
 | `sweep` + `step-import`, the shell/offset/hollow/axial filter, slow rows included | 1e-9 | 616 pass | 617 pass | the new torax row; nothing else |
-| `topo`, whole suite, slow set included | 1e-9 | FULL_BASE | FULL_HEAD | FULL_DIFF |
+| `topo`, whole suite, slow set included | 1e-9 | 4325 run, 4321 pass, 4 fail | 4337 run, 4333 pass, 4 fail | the same 12 rows; the same four fail on both sides (`offer_rows`, two `a_corner_reads_only_its_own_sectors` rows, `recourse_roster`) with identical panic text but the roster's line number |
 
 Not run: the whole topo suite at 1e-12, the sweep filter at 1e-12, ε = 1e-6.
 
