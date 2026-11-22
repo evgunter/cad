@@ -1816,11 +1816,20 @@ impl<T: Decide> RigidMotion<T> {
     /// and arithmetic and its pole verdict over `arm`, with no
     /// conditioning. The rounding reach bands a quotient where its lever
     /// is consumed (the geom-core README, "Float rounding"); a turn whose
-    /// rounding no claim consumes owes it none. Its one caller is the path
-    /// sweep's station step (`crates/sweep/README.md` `[sweep.frame]`): the
-    /// step selects a station's roll as a reference vector (fork 266), and
-    /// each lane mints the station's frame from the tangent read there,
-    /// aimed verbatim, so nothing claims the step's landing.
+    /// rounding no claim consumes owes it none. Its two callers:
+    ///
+    /// - the path sweep's station step (`crates/sweep/README.md`
+    ///   `[sweep.frame]`): the step selects a station's roll as a reference
+    ///   vector (fork 266), and each lane mints the station's frame from
+    ///   the tangent read there, aimed verbatim, so nothing claims the
+    ///   step's landing;
+    /// - a face's chart read before the extent it is consumed over exists
+    ///   (`editor_core`'s `mate::value::Chart::selected`, DESIGN
+    ///   `[placement]`): a trace reads its faces through the turn before
+    ///   the profile's loops resolve, its pole decided over the session
+    ///   box, and each carriage that consumes the turn decides its
+    ///   conditioning over its own reach.
+    ///
     /// [`Self::least_turn`] is the door for a turn a claim consumes.
     ///
     /// # Errors

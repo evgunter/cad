@@ -1,7 +1,7 @@
 ---
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
-title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
+title: A conic is held about its centre or about a point of its arc, a family of two placements fixed by its construction
 status: dispatched
 opened: 2026-10-12
 priority: P1
@@ -142,3 +142,50 @@ Moved from HONEPAIR by `git mv`, id and body unchanged, and re-banded P2 → P1:
 - **What the phase-1 measurement adds** (the appended section above; tables on `analysis/oneround/conic-vertex-probes`): the anchor has to be allowed at a general point of the arc, since a cylinder's shallow cut has no principal vertex near its in-box arc; and the near-gap families, the chords of one carrier and the readings that compare a conic's point with an in-box point all recover once evaluators read a form anchored in the box.
 - **Unit:** `oneround/anchored-conic`, letter H, tier dual (a concurrent pair), as logged for `oneround/conic-vertex` on 2026-11-19, whose implementer keeps it. It is stacked on `onehome/carrier-frames` (PR 7131), which makes every carrier hold its frame as a `RigidMotion` (decided, fork 274) and still asks Ev how a stored frame is read at `Interval`.
 
+
+## The stored form (2026-11-21)
+
+The rule is `crates/geom-core/README.md`, "Float rounding". This
+replaces "Re-scoped" above and the one-stored-form text of PR 7194,
+which was built (step B, parked on `oneround/anchored-conic-one-form`)
+and measured before it was set aside; the measurements are in
+`work/oneround/log.md`, 2026-11-21.
+
+- **A family of two placements.** `Circle` and `Ellipse` each hold
+  their directions and sizes once, and a placement: `Centre(point)`, or
+  `OnArc(point)` with, for an ellipse, where on the ellipse the point
+  sits. Each holds only its own numbers. Only the conic's module
+  matches on it; `Curve3`'s conic kinds stay two. A centre-held
+  conic's parameter is the angle from its seam; an arc-held one's is
+  zero at its stored point.
+- **The construction fixes the placement, the same at every size.** A
+  construction handed a centre holds it. One that holds a point of the
+  arc holds that. One whose centre runs off at a pose it can reach (a
+  cylinder cut toward its axis, the equal-cylinder bisector) holds the
+  arc always, and holding a centre there is a kernel bug. Nothing
+  converts one placement to the other.
+- **A conic is the curve its stored numbers state**, and every
+  reading, and every measurement of one, is judged against that curve.
+  A centre-held conic is read from its centre at every scalar, as it
+  was before this unit; it fixes a point of its arc only to the
+  rounding of the centre's distance and directions, so a large one
+  refuses near-tangent decisions it cannot place. An arc-held conic
+  sums short chords from its stored point, which is exact. Reading a
+  centre-held conic by chords from a rounded seam vertex reads another
+  curve: measured, twelve roots 1.4 to 2.7 ε off at a 10 km radius.
+- **Readers go through the conic.** Covers, extents, chart images and
+  the inverse; none restates the curve as `centre + size·direction`. A
+  reader that needs only directions derives no position
+  (`a-conics-points-are-restated-in-centre-form-outside-its-evaluator`).
+- **A move, a mirror and a scaling map the stored point and keep the
+  placement.** A reversal flips the axis, and an arc-held ellipse's
+  phase with it. A re-seam turns a centre-held conic about its centre;
+  an arc-held one has none.
+
+This unit (PR 7203) holds the two placements as a private tag beside
+an unread field; the tag becomes the placement. What remains is on two
+rows that PR files:
+`one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
+readers) and
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc` (the
+constructions whose centre runs off).

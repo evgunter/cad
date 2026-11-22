@@ -12,7 +12,7 @@ crates/geom-brep/src/edge_wedge.rs	around_circle	2	angle
 crates/geom-brep/src/pair_section/ruling.rs	-	1	owed
 crates/geom-brep/src/pair_section/ruling.rs	coverage	2	owed
 crates/geom-brep/src/pair_section/ruling.rs	new	1	owed
-crates/geom-brep/src/pair_section/ruling.rs	run	2	owed
+crates/geom-brep/src/pair_section/ruling.rs	tiled	2	owed
 crates/geom-brep/src/pair_section/winds.rs	winding	2	owed
 crates/geom-brep/src/pcurve.rs	ellipse_pcurve_on_cylinder	1	owed
 crates/geom-brep/src/pcurve.rs	ellipse_pcurve_on_plane	1	owed
