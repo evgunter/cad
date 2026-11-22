@@ -140,3 +140,17 @@ a pick route checks its own seats against that doc.
   they name leaves green. Each review's mutations were the instrument
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
+
+## 2026-11-22 — subtract-by-family weighed
+
+(FORMWORDS orchestrator) Both designers agree, independently: the
+evaluator is right by D10's letter, and the defect is one level up, in
+the subtract's tool being a `Body` seat. Their recommendation is to
+make it `Bodies`, which reverses agent text approved in passing on
+FORK-DM4, in D10 and in REFERENCES DM4. Put to Ev on `[ev]` 7386. That
+branch also carries this branch's tracker state, so this branch will
+need no PR of its own if 7386 lands first. Off the question, both name
+the `ValuePayload::Instances` doc (`crates/editor-core/src/eval/mod.rs`)
+as stale: it says a body seat meeting a family whole refuses
+`WrongOperand`, while reach makes it map. It belongs with the build
+after Ev's answer.
