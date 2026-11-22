@@ -1512,3 +1512,17 @@ The second commit, after Ev answers: row 272's `Ev`, `match`, `tokens` (first re
 No reconciliation needed: the three agree on the final state and differ only in wording and in whether the question gets a function name in ratified text (it does not: the text names the question, not a function).
 
 **The PR, revised in place (22:05 UTC):** main merged into `boxfinish/ev-identity-question` (a conflict in `docs/DESIGN-FORK-LOG.md` was committed with its markers by the orchestrator's `git add -A` and removed in the next commit, b33d3960; the tree was grepped for markers afterwards); `[scalars]`' bullet and E12's bullet re-written to the narrower answer; the item gains "Revised on Ev's first answer"; fork-log row 272's "to Ev" cell gains the revision; `work/decide/is-exact-zero-reads-tags-copies-and-decisions-off-a-number.md` filed. Body replaced with a decision document leading with the revision and the three designers' sections of this round verbatim.
+
+## After Ev's second comment (2026-11-16, read 2026-11-22 after a usage outage)
+
+Ev: "re 'f64, Interval and Dual hold no expression and always answer no', is it possible to just make it sym only and a type error for these ones?"
+
+Each designer was asked alone (dispatched 2026-11-22 03:05 UTC), with Ev's comment in full and one statement of what needs deciding (whether a numeric scalar can ask at all, and what the code generic over the scalar then looks like), read on current main. A framing exposure: the message asked how "one generic body" takes the general spelling at a numeric scalar, which presumes one body.
+
+Replies (all 03:09 UTC), recorded before any of them saw another:
+
+- **A: yes, plainly the better final state (likely).** The question is a method of the expression, which only `Sym` holds; the scalar trait gains an associated type ("my expression": the node handle at `Sym`, an empty type at every numeric scalar) and an accessor; the mint stays one body whose proven-zero arm cannot be entered at a numeric scalar by type. Weighed and leaned away from: a per-scalar trait whose method is the spelling itself (the mint in several impls; a new method per site). Raised: `Real::register_equal` and `Decide::free_identity` have the shape Ev objects to; file, do not widen.
+- **B: yes (likely).** The question is an inherent method of `Sym`; the scalar trait gains one method that is not a question, `spelled(x, closed, general)`, whose default takes the general spelling and which `Sym` overrides. No bool leaves the scalar, so the licence (only choose between two spellings of one real) is held by the API's shape and not by review. Cost: a closure-taking method on the scalar trait; the closures could still differ. Raised: `register_equal` as the next candidate for the same principle.
+- **C: yes (likely); a small choice, leans to Ev's suggestion.** As A: `Real::Expression` (uninhabited at the numeric scalars, on the precedent of `Real::Carries`) and `expression()`; the question on the expression returns a proof token; the generic mint matches on `expression()` and the numeric arm is statically dead. New on main since the audit: `Real::is_exact_zero_in_every_channel` (`UnitVec3::is_exactly`, the least turn's shortcut), a second structural question read off numbers, which goes under this state.
+
+**Agreement:** on the answer to Ev (yes, a type error), all three. On the form, two shapes: an associated expression type with the question on the expression (A, C), or an inherent question with a spelling combinator on the scalar trait (B). A round follows on the form.
