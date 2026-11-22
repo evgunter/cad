@@ -333,6 +333,7 @@ not (
   (binary_id(editor-core::all) & test(=recourse_roster::every_decided_name_is_read_and_every_site_is_listed)) |
   (binary_id(sweep::all) & test(=recourse_roster::the_census_reads_the_decision_tables_as_the_types_do)) |
   (binary_id(profile::all) & test(=recourse_roster::the_census_reads_the_gate_table_as_the_type_does)) |
+  (binary_id(profile::all) & test(=recorded_directions::each_arc_verbs_stored_arc_is_exact_over_a_box)) |
   (binary_id(test-utils::all) & test(=predicate_name_coverage::every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided)) |
   (binary_id(test-utils::all) & test(=torus_verdict_matches::a_torus_verdict_is_named_only_in_its_home)) |
   (binary_id(topo::all) & (test(=a_corrupted_row_is_never_read_as_its_carrier_off_the_face::a_corrupted_row_is_never_read_as_its_carrier_off_the_face) | test(=narrow_needle_containment::narrow_needles_read_by_point_containment) | test(=a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_fall_in_a_plate_builds_or_refuses_typed) | test(=a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_stand_out_of_a_plate_builds_or_refuses_typed))) |

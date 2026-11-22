@@ -147,12 +147,16 @@
 //! (`sqrt(r²)` against `r`) holds only where a gate decided `r`
 //! positive, which is no function of the parameters to register.
 //!
-//! The sweep that places an arc states nothing: its carrier starts at
-//! the placed centre plus the stored radius along the placed radial,
-//! the placed vertex as a form. Nor do the revolve's latitude carriers
-//! (`sweep::revolve::surfaces` and `::full`): their `u_ref` is the
-//! revolve's seam direction, so a latitude through its point is an
-//! identity the plain form proves.
+//! The sweep that places an arc states only rigidity, at the carrier's
+//! far end (`sweep::swept::register_placed_carrier_end`): the placed
+//! carrier at its span is the placed sketch point the sweep turns the
+//! recorded radial to, which a frame's axes, atoms to the tier, do not
+//! let the algebra close. Its start it does not state: the placed
+//! centre plus the stored radius along the placed radial is the placed
+//! vertex as a form. The revolve's latitude carriers
+//! (`sweep::revolve::surfaces` and `::full`) state nothing: their
+//! `u_ref` is the revolve's seam direction, so a latitude through its
+//! point is an identity the plain form proves.
 //!
 //! **Where the door may be called is an ALLOWLIST**, not a
 //! convention: `scripts/gates/register-equal-allowlist.sh` names the
@@ -7210,7 +7214,8 @@ mod tests {
 
     /// The arc carrier's far-end identity, in miniature — the carrier at
     /// its span is the far vertex, `carrier.eval(θ) = q_to` (M10-9
-    /// amendment A1; stated today by the lowering's
+    /// amendment A1; stated today as a chain of
+    /// `sweep::swept::register_placed_carrier_end` and the lowering's
     /// `Arc2::register_endpoints`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
     /// residual carries `cos`/`sin` of the span `4·atan b`, which no

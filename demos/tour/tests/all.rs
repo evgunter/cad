@@ -73,5 +73,3 @@ mod verbs_torus_vessel;
 mod wall_jets;
 
 test_utils::every_suite_file_is_aggregated!();
-#[path = "probe_doors.rs"]
-mod probe_doors;

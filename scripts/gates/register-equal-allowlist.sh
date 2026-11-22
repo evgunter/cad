@@ -43,9 +43,9 @@
 #     (`crates/geom-core/src/real.rs`), exhaustive by hand, which every
 #     registrant calls on its answer;
 #
-# THE RATIFIED SITE (M10-9's unit of scope, the CONSTRUCTOR, as the
+# THE RATIFIED SITES (M10-9's unit of scope, the CONSTRUCTOR, as the
 # #3453 ruling reads it: the construction registers what the algebra
-# does not close):
+# does not close, and the sweep registers rigidity):
 #
 #   * `crates/geom-core/src/arc.rs` — `Arc2::register_endpoints`, the
 #     shared arc type's one spelling of an arc's endpoint facts: the
@@ -63,6 +63,17 @@
 #     (`profile/src/path.rs`, `register_incoming_tangency`, whose doc
 #     carries the proof). Each spells its identity here, so a
 #     registrant of another identity is a new function in this file.
+#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
+#     one fact: `register_placed_carrier_end`, the carrier at its span
+#     is the placed sketch point the sweep turns the arc's recorded
+#     radial to, per component. It is one function of the centre, the
+#     radius, the direction and the sweep at every value of them (no
+#     root, the radius's sign included), and it is stated because a
+#     frame's axes are atoms to the tier. That function is the only
+#     body in the sweep that calls the method. The revolve's latitude
+#     carriers register nothing: their `u_ref` is the revolve's seam
+#     direction, so a latitude through its point is an identity the
+#     plain form proves.
 #
 # WHAT IS NOT REGISTERED, and why no site states it: that an arc's rim
 # at a vertex is its radius, or that the centre plus the radius along a
@@ -72,9 +83,10 @@
 # against `r`, which holds only where `r` is positive: a fact about a
 # sign a gate decided, which is not one function of the parameters, and
 # which the witness cannot tell from one. Its readers ask the
-# rationalized gap instead (`Arc2::off_carrier`). The sweep registers
-# nothing: a placed arc's carrier starts at the placed centre plus the
-# stored radius along the placed radial, the placed vertex as a form.
+# rationalized gap instead (`Arc2::off_carrier`). Nor does the sweep
+# state where a placed arc's carrier STARTS: it is the placed centre
+# plus the stored radius along the placed radial, the placed vertex as
+# a form.
 #
 # WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
 # source text, so a call reached through a macro, a re-export under
@@ -98,6 +110,7 @@ CALLER_SUBJECT='the ratified constructor sites, the only files that may CALL Rea
 DEFINITION_SUBJECT='the files that DEFINE or re-export Real::register_equal, where a mention is a definition and not a call'
 CALLER_HOMES=(
   crates/geom-core/src/arc.rs
+  crates/sweep/src/swept.rs
 )
 DEFINITION_HOMES=(
   crates/geom-core/src/real.rs
@@ -191,19 +204,12 @@ plant_call_after_block_comment() {
     > "$1/crates/topo/src/carrier_eq.rs"
 }
 
-# A second call site inside `geom-core`, but not in the ratified file:
-# the allowlist is per FILE, and a new file is a new site.
-plant_call_in_another_geom_core_file() {
-  mkdir -p "$1/crates/geom-core/src"
-  printf 'fn f<T: Real>(a: T, b: T) { let _ = a.register_equal(b); }\n' \
-    > "$1/crates/geom-core/src/line2.rs"
-}
-
-# The sweep's door file: no file of the sweep is a site.
-plant_call_in_the_sweep_door() {
+# A second call site inside `sweep`, but not in the ratified file: the
+# allowlist is per FILE, and a new file is a new site.
+plant_call_in_another_sweep_file() {
   mkdir -p "$1/crates/sweep/src"
   printf 'fn f<T: Real>(a: T, b: T) { let _ = a.register_equal(b); }\n' \
-    > "$1/crates/sweep/src/swept.rs"
+    > "$1/crates/sweep/src/revolve.rs"
 }
 
 gate_selftest() {
@@ -214,8 +220,7 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_call_outside
   gate_selftest_case "$want" plant_call_after_block_comment
-  gate_selftest_case "$want" plant_call_in_another_geom_core_file
-  gate_selftest_case "$want" plant_call_in_the_sweep_door
+  gate_selftest_case "$want" plant_call_in_another_sweep_file
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "the trait default, a scalar impl, the ratified caller and prose" gate_plant_clean
   # ONE CALL PER SUBJECT, which is the shape `--subject` exists for: this
@@ -226,7 +231,7 @@ gate_selftest() {
   gate_selftest_homes \
     --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}" \
     --subject "$CALLER_SUBJECT" "${CALLER_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one hidden behind a block comment, on a second file inside geom-core, in the door file of the sweep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every definition and caller file it exempts, the trait default and prose that names the method; fires on a call from another crate, on one hidden behind a block comment, on a second file inside sweep, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

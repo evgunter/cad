@@ -1659,7 +1659,10 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
                 };
                 arcs += 1;
                 let ends = [lp.vertices()[k], lp.vertices()[(k + 1) % n]];
-                assert!(arc.radius.lo() > 0.0, "{verb} segment {k}: a positive radius");
+                assert!(
+                    arc.radius.lo() > 0.0,
+                    "{verb} segment {k}: a positive radius"
+                );
                 for (v, end) in ends.into_iter().zip(["start", "end"]) {
                     assert!(
                         zero(arc.off_carrier(v)),
