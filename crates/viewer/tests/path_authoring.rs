@@ -734,7 +734,7 @@ fn a_non_finite_field_refuses_at_the_lowering() {
 /// drawn at coordinates that are not numbers.**
 ///
 /// A bulge of `1e-320` is a finite literal — `Formula::literal` accepts
-/// it, and `widgets::named_scalar` is an ordinary field a person types
+/// it, and `widgets::named_field` is an ordinary field a person types
 /// it into — so nothing upstream of the flattener has a reason to
 /// refuse. What it makes is `theta = 4e-320`, `sin(theta/2)` of the
 /// same order, and a radius of `inf`; every point along such an arc is
@@ -1101,4 +1101,75 @@ fn a_far_millimetre_arc_refuses_at_the_door() {
         ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
+}
+
+/// **Recording the dimensionless row on a scalar argument changes
+/// nothing a document holds**: a path whose bulge `sketch::path_program` now records `""` on lowers to the
+/// program the old recording (lengths and angles only) lowered to,
+/// saves to the same bytes, loads back equal, and its scalar fields are
+/// written alike before and after the round trip.
+#[cfg(feature = "app")]
+#[test]
+fn a_scalar_arguments_recorded_row_leaves_the_lowering_the_save_and_the_field_alone() {
+    use pncad::document::{Dimension, RecordedNotation};
+    use viewer::app::FieldWriting;
+    let tol = Tol::witness();
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+    let path = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.01)),
+            b: 0.3,
+        }),
+        Step::LineTo(Target::Start),
+    ];
+    let now = sketch::path_program(&path, mm, &|_, _| None).expect("finite literals");
+    let lifted = LoopProgram::from_recorded(&path).expect("a program");
+    let mut old = RecordedNotation::new();
+    for (step, arg) in lifted.step_args() {
+        match arg.dimension() {
+            Dimension::Length => old.set(step, arg, mm.length.def()),
+            Dimension::Angle => old.set(step, arg, mm.angle.def()),
+            Dimension::Scalar | Dimension::Count => Ok(()),
+        }
+        .expect("a unit of the role's own quantity");
+    }
+    let was = LoopProgram::from_recorded_with_notation(&path, &old).expect("lowers");
+    assert_eq!(now, was, "the lowering is the old one");
+
+    let saved = |program: LoopProgram<pncad::document::Formula>| {
+        let mut session = session(tol);
+        session_insert(
+            &mut session,
+            SessionOp::AddProfile {
+                loops: vec![program],
+            },
+        );
+        let doc = session.committed_doc().clone();
+        (pncad::document::save(&doc, tol).expect("saves"), doc)
+    };
+    let (now_text, now_doc) = saved(now.clone());
+    let (was_text, _) = saved(was);
+    assert_eq!(now_text, was_text, "the saved bytes are the old ones");
+    let loaded = pncad::document::load(&now_text, tol).expect("loads");
+    assert!(loaded == now_doc, "and load back as written");
+
+    // The field a scalar argument is drawn in: from the editor's draft
+    // (no unit noted) and from the committed literal (its own unit),
+    // before and after the round trip.
+    let LoopProgram::Chain(steps) = &now else {
+        panic!("a chain")
+    };
+    let ProgramStep::ArcTo(ProgramArcData::Bulge { b: dx, .. }) = &steps[2] else {
+        panic!("a bulge step: {steps:?}")
+    };
+    let drafted = FieldWriting::of(Dimension::Scalar, None, mm);
+    let committed = FieldWriting::of(Dimension::Scalar, dx.display_unit(), mm);
+    assert_eq!(drafted, committed, "draft and literal are written alike");
+    assert_eq!(drafted.unit.map(|unit| unit.symbol()), Some(""));
+    assert_eq!(drafted.tick, 0.01, "a scalar's tick, unscaled");
 }
