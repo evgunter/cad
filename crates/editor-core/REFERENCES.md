@@ -203,10 +203,11 @@ member; new authoring writes `xs[i]`.*
 names each entity by the read it came through. `Node::Intersect { members }`
 keeps the material in every member, the same shape over the
 kernel's intersection verb. `Node::Subtract { from, tool }` cuts
-one body by another and is the one pair: difference neither commutes nor
-associates, and nothing is a unary "not", so its two seats are named, and
-several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
-way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
+one body by a list of tools and is the one pair: difference neither
+commutes nor associates, and nothing is a unary "not", so its two seats
+are named. Its tool is a `Bodies`, like a union's members, and the cut
+is the fold `a − t₁ − … − tₙ`, which is order-free in the tools and fuses
+none of them with another. There is no `Boolean { op, a, b }` and no `BooleanOp`.
 `Node::Assemble { members }` is the fourth operator, a list like a
 union's: it keeps its members as separate pieces, glues nothing,
 records each touch between two members and reports an overlap as an

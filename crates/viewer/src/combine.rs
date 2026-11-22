@@ -27,19 +27,20 @@ use pncad::document::{
     Said, Say, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
-use pncad::prelude::StableName;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::seats::{
-    FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
+    FaceRole, PlaneRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
 use crate::session::{
     AssertedClaim, AssertedSeat, BooleanSpec, FaceSelection, PartSelectSpec, PatternDirection,
-    PatternRuleSpec, SessionOp, SplitPlane,
+    PatternRuleSpec, Selection, SessionOp, ToolPlane,
 };
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
+use pncad::document::pose::{PoseRole, RoleRead};
+use pncad::document::{SpokenVar, VarId, VarKind};
 
 /// **The boolean tool**: one operation choice and the body picks it
 /// takes — any number for union and intersect, two seats for subtract —
@@ -341,15 +342,17 @@ impl BooleanTool {
 /// variable the document defines survives while the document holds it.
 ///
 /// **The first face pick fills both**: the body it is on and its own
-/// plane. A later face pick re-picks the plane alone; a tree pick
-/// re-picks the body.
+/// plane. A face pick fills only what is empty while no body is held,
+/// so a face picked after a variable seats the body and keeps the
+/// variable; once a body is held, a face pick re-picks the plane
+/// alone. A tree pick re-picks the body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaneSeats {
     seats: Seats,
     /// The body seat's role, which names it in the line.
     seat: Seat,
     /// The plane's role, which names it in the line and in a drop.
-    role: FaceRole,
+    role: PlaneRole,
     /// The plane, said as it was picked ([`HeldPick::new`]), its nodes
     /// as the document last spoke them ([`Self::respeak`]), so a drop
     /// says what the line said.
@@ -365,15 +368,15 @@ pub enum HeldPlane {
     /// frame's, read through its `xy`.
     Defined {
         /// The variable, by the name the document last gave it.
-        var: pncad::document::SpokenVar,
+        var: SpokenVar,
         /// The role it is read through: `xy` for a frame.
-        through: Option<pncad::document::pose::PoseRole>,
+        through: Option<PoseRole>,
     },
 }
 
 impl PlaneSeats {
     /// A body seat `seat` and no plane, the plane named `role`.
-    const fn new(seat: Seat, role: FaceRole) -> Self {
+    const fn new(seat: Seat, role: PlaneRole) -> Self {
         Self {
             seats: Seats::one(seat),
             seat,
@@ -390,29 +393,76 @@ impl PlaneSeats {
         }
     }
 
-    /// **Feed one face pick**: the plane, and the body it is on while
-    /// no body is held.
+    /// **Feed one face pick** ([`PlaneSeats`]' first-pick rule): the
+    /// body it is on while none is held, and the plane unless that same
+    /// pick seated the body beside a plane already held.
     fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        if self.seats.is_empty() {
+        let seated = self.seats.is_empty();
+        if seated {
             self.seats.pick_at(doc, face.node, Some(face.body));
         }
-        self.plane = Some(HeldPlane::Face(HeldPick::new(doc, face)));
+        if !(seated && self.plane.is_some()) {
+            self.plane = Some(HeldPlane::Face(HeldPick::new(doc, face)));
+        }
     }
 
     /// **Feed one variable pick**: the plane, where `var` is one — a
     /// `Plane` variable read as it is, a `Frame` read through its
-    /// `xy`. A variable of any other kind is no plane, and the pick is
-    /// not taken.
-    fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
+    /// `xy`. A variable of any other kind is no plane: the pick is not
+    /// taken, and the declining is said ([`PlaneEvent::NotAPlane`]).
+    fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: VarId) -> Option<PlaneEvent> {
         let through = match doc.var(var).map(pncad::document::Var::kind) {
-            Some(pncad::document::VarKind::Plane) => None,
-            Some(pncad::document::VarKind::Frame) => Some(pncad::document::pose::PoseRole::Xy),
-            _ => return,
+            Some(VarKind::Plane) => None,
+            Some(VarKind::Frame) => Some(PoseRole::Xy),
+            _ => {
+                return Some(PlaneEvent::NotAPlane {
+                    role: self.role,
+                    var: doc.spoken_var(var),
+                });
+            }
         };
         self.plane = Some(HeldPlane::Defined {
             var: doc.spoken_var(var),
             through,
         });
+        None
+    }
+
+    /// **Feed one selection**: a face is the plane ([`Self::pick_plane`]),
+    /// a variable the plane where it is one ([`Self::pick_defined`]), and
+    /// any other pick of a node ([`Selection::seat_node`]) the body.
+    fn feed(&mut self, doc: &Doc<ProfileProgram>, selection: &Selection) -> Option<PlaneEvent> {
+        match selection {
+            Selection::Face(face) => self.pick_plane(doc, face.clone()),
+            Selection::Variable(var) => return self.pick_defined(doc, *var),
+            _ => {
+                if let Some(node) = selection.seat_node() {
+                    self.seats.pick(doc, node);
+                }
+            }
+        }
+        None
+    }
+
+    /// **The plane the commit reads**: a held face as itself, a held
+    /// variable as its read (a frame's through its role).
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::NoPlane`], naming the plane's role, until one is
+    /// held.
+    fn tool_plane(&self) -> Result<ToolPlane, SeatError> {
+        match &self.plane {
+            Some(HeldPlane::Face(held)) => Ok(ToolPlane::Face(held.face().clone())),
+            Some(HeldPlane::Defined { var, through }) => {
+                let read = Operand::Var(var.id());
+                Ok(ToolPlane::Read(match through {
+                    Some(role) => RoleRead::through(read, *role),
+                    None => RoleRead::plain(read),
+                }))
+            }
+            None => Err(SeatError::NoPlane { role: self.role }),
+        }
     }
 
     /// Empty the seat and the plane.
@@ -494,27 +544,76 @@ impl PlaneSeats {
     }
 }
 
-/// **The split tool**: a target seat and the plane it is cut along
-/// ([`PlaneSeats`]), committing one [`SessionOp::AddSplit`]. A plane
-/// the document already defines, a `Plane` variable or a `Frame` read
-/// through its `xy`, is taken when the selection names the variable
-/// (`Selection::Variable`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SplitTool {
-    held: PlaneSeats,
+/// **What a plane tool commits**: the split's and the mirror's own
+/// facts — the body seat, the plane's role, and the one edit — beside
+/// the seats both hold ([`PlaneTool`]).
+pub trait PlaneEdit {
+    /// The body seat.
+    const SEAT: Seat;
+    /// The plane's role.
+    const ROLE: PlaneRole;
+    /// The one committed edit over the held body and plane.
+    fn op(body: Operand, plane: ToolPlane) -> SessionOp;
 }
 
-impl Default for SplitTool {
+/// The split's edit: the body cut along the plane
+/// ([`SessionOp::AddSplit`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cut;
+
+impl PlaneEdit for Cut {
+    const SEAT: Seat = Seat::SplitTarget;
+    const ROLE: PlaneRole = PlaneRole::Split;
+    fn op(target: Operand, plane: ToolPlane) -> SessionOp {
+        SessionOp::AddSplit { target, plane }
+    }
+}
+
+/// The mirror's edit: the body reflected across the plane
+/// ([`SessionOp::AddMirror`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reflect;
+
+impl PlaneEdit for Reflect {
+    const SEAT: Seat = Seat::MirrorBody;
+    const ROLE: PlaneRole = PlaneRole::Mirror;
+    fn op(body: Operand, plane: ToolPlane) -> SessionOp {
+        SessionOp::AddMirror { body, plane }
+    }
+}
+
+/// **A plane tool**: a body seat and the plane read beside it
+/// ([`PlaneSeats`]), committing `E`'s one edit. A plane the document
+/// already defines, a `Plane` variable or a `Frame` read through its
+/// `xy`, is taken when the selection names the variable
+/// (`Selection::Variable`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaneTool<E> {
+    held: PlaneSeats,
+    edit: core::marker::PhantomData<E>,
+}
+
+/// **The split tool**: a target and the plane it is cut along.
+pub type SplitTool = PlaneTool<Cut>;
+
+/// **The mirror tool**: a body and the plane it is reflected across.
+/// The first face pick fills both: a body mirrored across one of its
+/// own faces is the symmetric part's case, and a body is mirrored
+/// across another body's face by picking that face second.
+pub type MirrorTool = PlaneTool<Reflect>;
+
+impl<E: PlaneEdit> Default for PlaneTool<E> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SplitTool {
+impl<E: PlaneEdit> PlaneTool<E> {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            held: PlaneSeats::new(Seat::SplitTarget, FaceRole::SplitPlane),
+            held: PlaneSeats::new(E::SEAT, E::ROLE),
+            edit: core::marker::PhantomData,
         }
     }
 
@@ -524,8 +623,8 @@ impl SplitTool {
         &self.held.seats
     }
 
-    /// The held target body.
-    pub fn target(&self) -> Option<RecipeNodeId> {
+    /// The held body.
+    pub fn body(&self) -> Option<RecipeNodeId> {
         self.held.seats.held(0)
     }
 
@@ -539,7 +638,7 @@ impl SplitTool {
         self.held.face()
     }
 
-    /// Feed one node pick: it REPLACES the target. A pick on a copy
+    /// Feed one node pick: it REPLACES the body. A pick on a copy
     /// seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.held.seats.pick(doc, node);
@@ -550,127 +649,17 @@ impl SplitTool {
         self.held.pick_plane(doc, face);
     }
 
-    /// **Feed one variable pick** ([`PlaneSeats`]).
-    pub fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
-        self.held.pick_defined(doc, var);
+    /// **Feed one variable pick** ([`PlaneSeats`]): a variable that is
+    /// no plane is declined, said.
+    pub fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: VarId) -> Option<PlaneEvent> {
+        self.held.pick_defined(doc, var)
     }
 
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.held.seats.choose_half(i, half);
-    }
-
-    /// Empty the seat and the plane.
-    pub fn clear(&mut self) {
-        self.held.clear();
-    }
-
-    /// The target seat's survival step ([`crate::seats`]).
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.held.seats.reconcile(doc)
-    }
-
-    /// The plane's survival step ([`PlaneSeats`]).
-    pub fn reconcile_plane(
-        &mut self,
-        doc: &Doc<ProfileProgram>,
-        eval: &Evaluation<f64>,
-    ) -> Option<PlaneEvent> {
-        self.held.reconcile_plane(doc, eval)
-    }
-
-    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
-    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.held.respeak(doc);
-    }
-
-    /// **The face the tool holds** ([`crate::session::Holds`]).
-    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
-        self.held.held()
-    }
-
-    /// **The panel's held-picks line** ([`PlaneSeats`]).
-    pub fn line(&self, by: Speaker<'_>) -> String {
-        self.held.line(by)
-    }
-
-    /// **The one committed edit**: the target split along the held
-    /// plane.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a target is picked, and naming the
-    /// plane until one is.
-    pub fn op(&self) -> Result<SessionOp, SeatError> {
-        let target = self.held.seats.require_read(0)?;
-        let plane = match &self.held.plane {
-            Some(HeldPlane::Face(held)) => SplitPlane::Face(held.face().clone()),
-            Some(HeldPlane::Defined { var, through }) => {
-                let read = Operand::Var(var.id());
-                SplitPlane::Read(match through {
-                    Some(role) => pncad::document::pose::RoleRead::through(read, *role),
-                    None => pncad::document::pose::RoleRead::plain(read),
-                })
-            }
-            None => {
-                return Err(SeatError::NoFace {
-                    role: FaceRole::SplitPlane,
-                });
-            }
-        };
-        Ok(SessionOp::AddSplit { target, plane })
-    }
-}
-
-/// **The mirror tool**: a body seat and the face whose plane the body
-/// is reflected across ([`PlaneSeats`]), committing one
-/// [`SessionOp::AddMirror`]. The first face pick fills both: a body
-/// mirrored across one of its own faces is the symmetric part's case,
-/// and a body is mirrored across another body's face by picking that
-/// face second.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MirrorTool {
-    held: PlaneSeats,
-}
-
-impl Default for MirrorTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MirrorTool {
-    /// A tool holding nothing.
-    pub const fn new() -> Self {
-        Self {
-            held: PlaneSeats::new(Seat::MirrorBody, FaceRole::MirrorPlane),
-        }
-    }
-
-    /// The body seat.
-    pub fn seats(&self) -> &Seats {
-        &self.held.seats
-    }
-
-    /// The held body.
-    pub fn input(&self) -> Option<RecipeNodeId> {
-        self.held.seats.held(0)
-    }
-
-    /// The held plane face.
-    pub fn plane(&self) -> Option<&FaceSelection> {
-        self.held.face()
-    }
-
-    /// Feed one node pick: it REPLACES the body.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.held.seats.pick(doc, node);
-    }
-
-    /// **Feed one face pick** ([`PlaneSeats`]).
-    pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        self.held.pick_plane(doc, face);
+    /// **Feed one selection** ([`PlaneSeats`]): a face or a variable
+    /// the plane, a node the body; a variable that is no plane is
+    /// declined, said.
+    pub fn feed(&mut self, doc: &Doc<ProfileProgram>, selection: &Selection) -> Option<PlaneEvent> {
+        self.held.feed(doc, selection)
     }
 
     /// The half the body seat reads, when it holds a split picked
@@ -703,7 +692,7 @@ impl MirrorTool {
         self.held.respeak(doc);
     }
 
-    /// **The plane the tool holds** ([`crate::session::Holds`]).
+    /// **The face the tool holds** ([`crate::session::Holds`]).
     pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
         self.held.held()
     }
@@ -713,19 +702,17 @@ impl MirrorTool {
         self.held.line(by)
     }
 
-    /// **The one committed edit**: the body mirrored across the held
-    /// face's plane.
+    /// **The one committed edit**: `E`'s, over the held body and
+    /// plane.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] until a body is picked, and naming the
-    /// plane until a face is.
+    /// [`SeatError::Empty`] until a body is picked, and
+    /// [`SeatError::NoPlane`] until a plane is.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         let body = self.held.seats.require_read(0)?;
-        let plane = self.plane().cloned().ok_or(SeatError::NoFace {
-            role: FaceRole::MirrorPlane,
-        })?;
-        Ok(SessionOp::AddMirror { body, plane })
+        let plane = self.held.tool_plane()?;
+        Ok(E::op(body, plane))
     }
 }
 
@@ -737,7 +724,7 @@ pub enum PlaneEvent {
     /// evaluation; the tool dropped it.
     PlaneLost {
         /// The plane's role.
-        role: FaceRole,
+        role: PlaneRole,
         /// The plane that was held, said as the panel line said it.
         plane: HeldPick,
         /// The resolution machinery's own verdict.
@@ -747,9 +734,17 @@ pub enum PlaneEvent {
     /// dropped it.
     DefinedLost {
         /// The plane's role.
-        role: FaceRole,
+        role: PlaneRole,
         /// The variable, by the last name the document gave it.
-        var: pncad::document::SpokenVar,
+        var: SpokenVar,
+    },
+    /// A variable pick that is no plane — neither a `Plane` nor a
+    /// `Frame` — was declined; the held plane is unchanged.
+    NotAPlane {
+        /// The plane's role.
+        role: PlaneRole,
+        /// The variable picked.
+        var: SpokenVar,
     },
 }
 
@@ -765,6 +760,11 @@ impl Say for PlaneEvent {
                 "the {} pick ({var}) is no longer in the document; the tool dropped it",
                 role.name()
             ),
+            Self::NotAPlane { role, var } => write!(
+                f,
+                "{var} is neither a plane nor a frame, so it is not taken as the {}",
+                role.name()
+            ),
         }
     }
 }
@@ -775,7 +775,7 @@ impl core::fmt::Display for PlaneEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
-            Self::DefinedLost { .. } => self.say(f, Speaker::TAG),
+            Self::DefinedLost { .. } | Self::NotAPlane { .. } => self.say(f, Speaker::TAG),
         }
     }
 }
@@ -1157,23 +1157,6 @@ impl core::fmt::Display for AssertionEvent {
             }
         }
     }
-}
-
-/// **A mirror node**: `body` reflected across the plane of the face
-/// `face` of the body `on` reads, the face read as a plane mate's is
-/// ([`crate::matetool::plane_of`]).
-///
-/// Total: whether `face` names a face of `on`, and whether that face is
-/// planar, are the door's and the evaluation's to refuse.
-pub fn mirror_node(
-    body: Operand,
-    on: pncad::document::BodyRead<Formula>,
-    face: StableName,
-) -> AuthoredNode {
-    Node::mirror(
-        body,
-        crate::matetool::plane_of(Operand::select(on, vec![face])),
-    )
 }
 
 /// **The Transform tool before its door opens**: a pick opens the

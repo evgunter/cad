@@ -288,7 +288,7 @@ macro_rules! door_at {
                     (c(t0), c(t1)),
                     &surface.map_scalar(c),
                     band(),
-                    super::limb2_offset_sup,
+                    |c, w, s, b| super::limb2_offset_sup(c, w, s, super::Limb2Locus::Face, b),
                 )
             },
             certify_round: |round, miss| {

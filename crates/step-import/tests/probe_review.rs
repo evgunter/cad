@@ -372,10 +372,11 @@ fn a1_control_cylinder_sense_flip() {
 }
 
 /// A5, **resolved**: an edge whose carrier leaves the coincident plane
-/// does not adopt. Its two planes are parallel, so at the file's band
-/// they meet in no line, and the import refuses typed at interpretation,
-/// naming the edge, instead of returning a body only tier 3 would
-/// catch.
+/// does not adopt. The arc lifts its face off the plane its neighbour
+/// `#88` stands on, so one-record keeps the two `PLANE` entities two
+/// records; two records of one locus meet in no line at the file's band,
+/// and the import refuses typed at interpretation, naming the edge
+/// between them, instead of returning a body only tier 3 would catch.
 #[test]
 fn a5_off_locus_arc_between_coincident_planes() {
     let text = fixture("fuse_boxes").replace(
@@ -390,7 +391,7 @@ fn a5_off_locus_arc_between_coincident_planes() {
         .expect_err("an off-locus carrier must not adopt as a conventional curve");
     let s = err.render();
     assert!(
-        matches!(err, StepImportError::Interpretation { id: 206, .. }),
+        matches!(err, StepImportError::Interpretation { id: 110, .. }),
         "expected the typed interpretation refusal naming the edge: {s}"
     );
     println!("a5a refused: {}", &s[..s.len().min(200)]);
