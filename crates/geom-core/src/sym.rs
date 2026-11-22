@@ -6948,6 +6948,32 @@ mod tests {
         }
     }
 
+    /// **The structural question does not read the registry**
+    /// ([`crate::Expression::proves_zero`]): two values a constructor
+    /// registered equal decide Zero through the session's door, and the
+    /// question, asked of their difference, proves nothing. An answer
+    /// taken from the installed session's ladder is red here.
+    #[test]
+    fn the_structural_question_does_not_read_the_registry() {
+        use crate::real::Expression;
+        with_session(budget(), || {
+            let (n, r) = (p("n", 1.0), p("r", 1.0));
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
+            let residual = n - r;
+            let decided = residual.sign_within(band()).unwrap();
+            assert!(decided.margin.proven(), "the door proves the pair");
+            assert!(
+                residual
+                    .expression()
+                    .and_then(Expression::proves_zero)
+                    .is_none()
+            );
+        });
+    }
+
     /// **The door discharges the rim residual.** Without the
     /// registration every component is a numeric decision; with it
     /// every one is proven, and what the registration buys is exactly

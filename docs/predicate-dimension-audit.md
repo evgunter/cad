@@ -1935,7 +1935,8 @@ Flagged, NOT fixed here (dispositions):
   witness's vector cannot have. Its escalation therefore reaches the
   subdivision driver on the node's error and not on its log, where the
   driver's conservative arm bisects
-  (`editor-core/tests/m10_sym_profile_interval.rs`).
+  (`editor-core/tests/m10_3_driver_interval.rs`,
+  `an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect`).
   **The second:** a bulge's sign, read once per bulge leg into the
   literal ±1 that signs its lowering's radials (`k_stats::choose(..,
   "F43")`); a tie leaves them to validation's mint, which then reads

@@ -900,6 +900,135 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     assert!(mass > 0.0, "flip mass priced at {mass}");
 }
 
+/// **The step**: an L whose riser `(1, 0) → (1, height)` is a hop along
+/// `y`, its height a document parameter over a box that straddles zero.
+/// The hop's `x` is zero as an expression, so the profile's direction
+/// mint stores the axis `(0, ±1)` and signs it by one reading of
+/// `height`; below zero the riser points down and the step is a
+/// different, perfectly good outline.
+fn step(nominal: f64, half: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("height"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(uniform(half)),
+        }),
+    });
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(1.0), len(0.0)],
+            [len(1.0), param("height")],
+            [len(2.0), param("height")],
+            [len(2.0), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    r.doc
+}
+
+/// **An axis whose sign is undecided reaches the driver as a cue to
+/// bisect.** Over the whole box of [`step`] the riser's direction is
+/// along `y` and which way is undecided, so the mint's one sign reading
+/// escalates and the `line_to` verb refuses with it. The reading is
+/// taken outside the verdict log (the `f64` witness stores the quotient
+/// and never takes it), so the leaf's profile node fails with an EMPTY
+/// escalation log, in an eager and in a deferring session alike, and
+/// what speaks to the driver is the node's error: a lane replay that
+/// refused on no recorded decision, which the driver cannot prove
+/// definite and so bisects.
+///
+/// The drive then does what a bisect cue asks: the leaves where
+/// `height` is definitely positive certify, and the far side of zero,
+/// a different outline, is refused as a flip. A mint that fell back to
+/// the quotient where its sign escalates is red on the first half (the
+/// node fails on a logged `path_junction_turn` instead); a driver that
+/// took the unlogged refusal for a definite one certifies nothing.
+#[test]
+fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
+    let doc = step(0.25, 0.3);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let opts = EvalOptions {
+        param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
+        ..EvalOptions::default()
+    };
+    let dials = SymbolicDials::default();
+    let budget = geom_core::SymBudget {
+        max_terms: dials.max_terms,
+        max_degree: dials.max_degree,
+    };
+    let whole_box = || {
+        let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+            evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+        ev.order
+            .iter()
+            .filter_map(|id| match ev.result(*id) {
+                Some(NodeResult::Failed(e)) => Some((
+                    matches!(
+                        e.kind,
+                        NodeErrorKind::ProfileLaneReplay {
+                            structure: None,
+                            ..
+                        }
+                    ),
+                    e.escalations.len(),
+                    format!("{:?}", e.kind),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let eager = geom_core::sym::with_session(budget, whole_box).0;
+    let deferring = geom_core::sym::deferred::with_deferred_session(
+        budget,
+        geom_core::SymRules::shipped(),
+        geom_core::SymRetry::none(),
+        whole_box,
+    )
+    .0;
+    for (session, failed) in [("eager", &eager), ("deferring", &deferring)] {
+        assert!(
+            matches!(failed.as_slice(), [(true, 0, _)]),
+            "{session}: the profile's lane replay refuses, on no logged escalation: {failed:?}"
+        );
+    }
+
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4096),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
+    assert!(v.receipt().holds());
+    let height = doc.var_named("height").expect("declared");
+    assert!(!v.certified().is_empty(), "the witness side must certify");
+    for leaf in v.certified() {
+        let (lo, _) = leaf.box_.get(height).expect("the leaf varies it").span();
+        assert!(0.25 + lo > 0.0, "a leaf across zero certified: {lo:e}");
+    }
+    assert!(
+        v.refused()
+            .iter()
+            .any(|l| matches!(l.reason, RefusalReason::FlipCrossing { .. })),
+        "the far side of zero is a flip; classes were {:?}",
+        v.refused()
+            .iter()
+            .map(|l| l.reason.class())
+            .collect::<Vec<_>>()
+    );
+}
+
 /// A box wholly inside the witness chamber certifies whole — the
 /// near-flip control for the row above, and the reason the row above is
 /// about a flip rather than about a wide box.

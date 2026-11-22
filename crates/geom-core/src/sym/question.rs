@@ -105,13 +105,10 @@ impl Session {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::super::deferred::with_deferred_session;
-    use super::super::{
-        ParamSymbol, Sym, SymCounts, SymRegistration, session_counts, with_session_in,
-    };
+    use super::super::{ParamSymbol, Sym, SymCounts, session_counts, with_session_in};
     use super::*;
     use crate::predicate::{Band, Decide, Sign};
     use crate::real::{Expression, Real};
-    use crate::tolerance::Tol;
     use crate::{Interval, k_stats};
 
     fn shipped() -> SymBudget {
@@ -201,12 +198,11 @@ mod tests {
     }
 
     /// **A coincidence of values is not proved, and neither is anything
-    /// that rests on a value**: two parameters equal at the valuation;
-    /// a `max` on either side of its comparison, which the session's
-    /// certified read takes an arm of; two values a constructor
-    /// registered equal, which the session's door then decides Zero.
-    /// An answer taken from the installed session's ladder is red on
-    /// the registered pair.
+    /// that rests on a value**: two parameters equal at the valuation,
+    /// and a `max` or a `min` on either side of its comparison, which
+    /// the session's certified read takes an arm of. The registered
+    /// pair is `sym`'s
+    /// `the_structural_question_does_not_read_the_registry`.
     #[test]
     fn nothing_that_reads_a_value_is_proved() {
         for kind in KINDS {
@@ -219,27 +215,6 @@ mod tests {
                 }
             });
         }
-        let band = Band::linear(Tol::witness()).expect("the witness tolerance has a band");
-        with_session_in(
-            shipped(),
-            SymRules::shipped(),
-            SymRetry::none(),
-            None,
-            || {
-                let (n, r) = (boxed("n", 1.0, 0.0), boxed("r", 1.0, 0.0));
-                assert_eq!(
-                    n.register_equal(r, Tol::witness()),
-                    SymRegistration::Recorded
-                );
-                let residual = n - r;
-                let decided = residual.sign_within(band).expect("a point box decides");
-                assert!(
-                    decided.margin.proven(),
-                    "the session's door proves the registered pair"
-                );
-                assert!(!proved(residual), "the question does not read the registry");
-            },
-        );
     }
 
     /// What of the installed session an ask could move: its counts, its

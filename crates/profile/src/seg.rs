@@ -798,16 +798,14 @@ fn check_direction<T: Decide>(
 /// along an axis and which way is undecided over the box.
 fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Result<Vec2<T>, AxisUnsigned<T>> {
     let proved_zero = |c: T| c.expression().filter(|e| e.proves_zero().is_some());
-    let signed = |zero: T::Expression, other: T| match check_unlogged(
-        Gate::SegmentDirectionAxis,
-        other,
-        Band::least(),
-        "F43",
-    ) {
-        Ok(Sign::Positive) => Ok(Some(T::one())),
-        Ok(Sign::Negative) => Ok(Some(-T::one())),
-        Ok(Sign::Zero) => Ok(None),
-        Err(source) => Err(AxisUnsigned { zero, source }),
+    let signed = |zero: T::Expression, other: T| {
+        let read = geom_core::k_stats::unlogged("F43", || axis_sign(other, Band::least()));
+        match read {
+            Ok(Sign::Positive) => Ok(Some(T::one())),
+            Ok(Sign::Negative) => Ok(Some(-T::one())),
+            Ok(Sign::Zero) => Ok(None),
+            Err(source) => Err(AxisUnsigned { zero, source }),
+        }
     };
     let axis = match (proved_zero(w.x), proved_zero(w.y)) {
         (Some(zero), None) => signed(zero, w.y)?.map(|s| Vec2::new(T::zero(), s)),
@@ -815,6 +813,14 @@ fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Result<Vec2<T>, AxisUnsi
         (None, None) | (Some(_), Some(_)) => None,
     };
     Ok(axis.unwrap_or(quotient))
+}
+
+/// The sign of the component an axis points along
+/// (`segment_direction_axis`), read against `band`: the least band
+/// [`axis_or`] hands it, so a chord's length stays the question of the
+/// gates that own it.
+fn axis_sign<T: Decide>(other: T, band: Band) -> Result<Sign, Escalation> {
+    decide(Gate::SegmentDirectionAxis, Margin::of(other), band)
 }
 
 /// **A minted direction lies along an axis and its sign is undecided**

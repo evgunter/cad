@@ -1518,9 +1518,8 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
                     let drawn = if reversed { s.start - s.end } else { stored };
                     let minted = if reversed { -want(drawn) } else { want(drawn) };
                     assert_eq!(bits(d), bits(minted), "{what}: side {k}");
-                    let ends = want(stored);
                     assert!(
-                        d.x == ends.x && d.y == ends.y,
+                        d.equals_exactly(want(stored)),
                         "{what}: side {k}: value-equal to the stored ends' quotient"
                     );
                     let zero = |c: f64| if reversed { -c } else { c }.to_bits();
