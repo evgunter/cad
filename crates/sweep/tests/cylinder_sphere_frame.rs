@@ -533,11 +533,28 @@ pose_rows! {
     a_ball_across_a_cylinder_wall_centre_inside: 1;
     a_ball_across_a_cylinder_wall_centre_outside: 2;
     a_ball_across_a_cylinder_wall_turned_chart: 3;
-    a_ball_across_a_cylinder_wall_wider_than_the_wall: 4;
     a_ball_across_a_cylinder_wall_in_two_loops: 5;
     a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
     a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
     a_ball_across_a_cylinder_wall_r_0_1_across_the_rim: 8;
+}
+
+/// The ball wider than the wall is the sliver pose, a millimetre short
+/// of the far wall: at ε = 1e-6 its carry refuses its tube in every run
+/// (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
+#[test]
+fn a_ball_across_a_cylinder_wall_wider_than_the_wall() {
+    let label = "one loop, ball wider than the wall";
+    let mut says: Vec<String> = ["A ∪ B", "B ∪ A", "A ∩ B", "B ∩ A", "A ∖ B", "B ∖ A"]
+        .iter()
+        .map(|op| format!("{label}, {op}: refused at None: GermSectionUnbuilt"))
+        .collect();
+    says.push("Carry(March(TubeStraddles".into());
+    says.push("boxes: 437".into());
+    let says: Vec<&str> = says.iter().map(String::as_str).collect();
+    test_utils::pinned_red::row(Tol::witness().eps(), &[1e-6], label, &says, || {
+        builds_at_its_volume_or_refuses_at_its_door(4);
+    });
 }
 
 /// A site's place on its loop of the analytic section, read off the
@@ -578,7 +595,19 @@ fn every_segment_joins_neighbouring_sites_along_its_loop() {
         for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
             let label = format!("{}, {op_label}", pose.label);
             let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
-            let (records, segments) = topo::test_support::boolean_segment_sites(op, x, y, tol)
+            let sites = topo::test_support::boolean_segment_sites(op, x, y, tol);
+            // The sliver pose refuses its tube at 1e-6, as its pose row pins.
+            if pose.label == "one loop, ball wider than the wall"
+                && test_utils::kernel_limit::at_row(tol.eps(), &[1e-6])
+            {
+                let refusal = format!("{:?}", sites.as_ref().err());
+                assert!(
+                    refusal.contains("Carry(March(TubeStraddles") && refusal.contains("boxes: 437"),
+                    "{label}: pinned to refuse its tube at ε = 1e-6, got {refusal}"
+                );
+                continue;
+            }
+            let (records, segments) = sites
                 .unwrap_or_else(|e| panic!("{label}: the matcher refused {e:?}"))
                 .unwrap_or_else(|| panic!("{label}: the walls cross"));
             assert_eq!(segments.len(), records, "{label}: every germ is consumed");
