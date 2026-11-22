@@ -44,3 +44,19 @@ instrument.
 P1 because the nightly is the only reader of most of the suite
 (`docs/prompts/implementer-discipline.md`, Verification): while it
 dies, a green PR gate is the only evidence main has.
+
+## Measured (2026-11-22, PR 7365)
+
+Probe run 44976645461 ran the build step on three runners with a 30 s
+memory/disk sampler. In every run, two or three rustc processes at 5-6 GB
+each overlap: the editor-core and sweep `tests/all.rs` binaries and
+topo's unit-test harness. Available memory falls to 0.8-1.4 GB of 16 GB.
+Swap reaches 2.0-3.1 GB of 3 GB, and one run filled it. Disk never fell
+below 76 GB free. No kill was observed with the sampler running, so the
+link to the shutdowns is this correlation together with the 11-18
+annotation ("starves it for CPU/Memory"), not a kill caught in the act.
+
+PR 7365 adds 12 GB of swap before the build and builds viewer, pncad and
+pncad-py at opt-level 1, which takes their rustcs out of the contended
+window. The build step now runs `scripts/ci-resource-sampler.sh` into
+its own log, so a future kill records memory up to its last minute.

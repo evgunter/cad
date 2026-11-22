@@ -39,3 +39,23 @@ opt-level 2 compile itself, the archive's compression), from the
 step's own log on a run where the cache missed and one where it hit.
 Moving the scalpel and wasm32 into their own job would buy the archive
 those 11 minutes cheaply, but the build is the part that grows.
+
+## Measured (2026-11-22, PR 7365)
+
+The cache is not the variable. rust-cache restores only the 349 MB
+dependency cache, hit or partial, so every workspace crate compiles cold
+every night. Builds on the same image still range from 63 to 105 min.
+
+Cargo `--timings` on probe run 44976645461 (4 cores) shows where the
+time goes:
+
+- The critical path is `editor-core` lib (28-35 min at opt 2), then its
+  `tests/all.rs` (37-51 min).
+- Behind that path the build is CPU-bound. Viewer, pncad and pncad-py add
+  about 70 of the 410 unit-minutes and run about 1 min of tests.
+- At opt-level 1 for those three, the build took 73 min against 104 min
+  on the baseline runner (284 unit-minutes against 410), and their tests
+  ran 1.1 min against 1.0.
+
+PR 7365 makes that change and moves the topo scalpel (6-11 min) into its
+own job. The 120-minute limit is unchanged.
