@@ -523,6 +523,8 @@ fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 // - CarriedInterference and CarriedCoincidence end in the part's
 //   recourse, naming the part, since only the part can act on it.
+// And a quiet finding, interference or coincidence, carried or not,
+// offers nothing: an assertion already says it.
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "check {}: ", self.0.check)?;
@@ -548,8 +550,14 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 write!(f, "; quiet: {} says so", by.node_as(assertion, "assertion"))
             }
         }?;
-        // A part's finding is acted on in the part: its recourse, there.
+        // A part's finding is acted on in the part: its recourse, there,
+        // where it is loud.
+        if finding.quiet.is_some() {
+            return Ok(());
+        }
         match &finding.evidence {
+            // A carried finding holds no part document to speak its
+            // faces by, so they are said by their tags.
             CheckEvidence::CarriedInterference { finding } => write!(
                 f,
                 " — the overlap is the part's, so act in document {}: {}",
@@ -758,6 +766,13 @@ impl SaidFinding<'_> {
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components",
             ),
+            // A quiet finding is one an assertion already says: it
+            // offers nothing.
+            CheckEvidence::Interference { .. } | CheckEvidence::UnprovenCoincidence { .. }
+                if self.0.quiet.is_some() =>
+            {
+                told("")
+            }
             CheckEvidence::Interference { finding } => {
                 interference_recourse(finding.quieting.as_ref(), by)
             }
@@ -1966,7 +1981,7 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
                 continue;
             }
         };
-        let reading = at_rest::reading(product, tol);
+        let reading = at_rest::reading(doc, product, tol);
         for interference in reading.interference {
             let quiet = interference.quiet;
             let evidence = CheckEvidence::Interference {

@@ -683,7 +683,7 @@ quieted_by: NodeId | None = at_rest[0].quiet
 overlap: InterferenceFinding | None = at_rest[0].evidence.interference
 # What an assertion recourse determines, as data: the pair of faces a
 # quieting `gap` is written over, and the claim an unproven coincidence
-# carries, with the edits that author it.
+# carries, authored as one action.
 gap_over: tuple[FaceSite, FaceSite] | None = overlap.quieting if overlap is not None else None
 claim: Quieting | None = findings[0].evidence.quieting
 if claim is not None:
@@ -694,7 +694,8 @@ if claim is not None:
         claim_refs[0].name,
         claim_refs[0].pose,
     )
-    claim_edits: list[DocEdit] = claim.edits(doc)
+    claim_same: bool = claim == claim and hash(claim) == hash(claim)
+    claim_authored: NodeId = doc.assert_quieting(claim)
 carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
 carried_glue: CarriedCoincidence | None = at_rest[0].evidence.carried_coincidence
 could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest

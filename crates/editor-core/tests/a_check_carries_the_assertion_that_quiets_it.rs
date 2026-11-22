@@ -1,13 +1,15 @@
 //! **A finding carries the assertion that quiets it** (DESIGN
 //! `[one-way.places]`, "A refusal's recourse"; D10 `[assertions.quiet]`).
 //!
-//! The law: for every loud unproven-coincidence finding that carries an
-//! assertion ([`editor_core::Quieting`]), the edits that author it
-//! apply, and the checks run again report the same row quiet under the
-//! new assertion. A finding that carries none says no assertion in its
-//! recourse and never refuses. The law is held over the corpus and over
-//! each fixture of `atrest_operation_rows_quiet`, whose rows cover the
-//! kinds of row the rule says.
+//! The law, both ways. Every loud unproven-coincidence finding that
+//! carries an assertion ([`editor_core::Quieting`]) refuses at `Error`,
+//! its edits apply, every member of the assertion they author holds, and
+//! the checks run again report the same row quiet under it. And every
+//! loud finding that carries none says no assertion, never refuses, and
+//! is quieted by no assertion written in the rule's language that holds
+//! at every member. The law is held over the corpus and over each
+//! fixture of `atrest_operation_rows_quiet`, whose rows cover the kinds
+//! of row the rule says.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,15 +17,23 @@ use crate::blocks::{block, run};
 use crate::corpus;
 use crate::fixture::{self, insert};
 use editor_core::{
-    CheckEvidence, CheckFinding, CheckId, ChecksConfig, Coord, Formula, NamedCoincidence, Operand,
-    ProfileDoc, Quieting, Severity, Speaker, TargetAxis, enforce_checks,
+    AssertionRelation, AssertionVerdict, BodyRead, CheckEvidence, CheckFinding, CheckId,
+    ChecksConfig, Coord, Evaluation, Formula, MeasurePrimitive, MeasureVerb, NamedCell,
+    NamedCoincidence, Node, Operand, ProfileDoc, Quieting, RecipeNodeId, RoleSeg, Severity,
+    Speaker, StableName, TargetAxis, ValuePayload, VarKind, enforce_checks,
 };
 use geom_core::Tol;
 
-fn checks(doc: &ProfileDoc) -> editor_core::ChecksReport {
+/// `doc`'s checks at the default configuration.
+pub(crate) fn checks(doc: &ProfileDoc) -> editor_core::ChecksReport {
+    checks_of(doc, &run(doc))
+}
+
+/// `doc`'s checks at the default configuration, over `ev`.
+pub(crate) fn checks_of(doc: &ProfileDoc, ev: &Evaluation<f64>) -> editor_core::ChecksReport {
     editor_core::run_checks(
         doc,
-        &run(doc),
+        ev,
         &ChecksConfig::default(),
         &editor_core::Stop::default(),
         Tol::witness(),
@@ -31,9 +41,12 @@ fn checks(doc: &ProfileDoc) -> editor_core::ChecksReport {
     .unwrap_or_else(|e| panic!("the checks run: {e}"))
 }
 
-/// Whether [`enforce_checks`] refuses `finding` at `Error`, read alone
-/// under the at-rest check's knob, which spells one.
-fn refuses_at_error(report: &editor_core::ChecksReport, finding: &CheckFinding) -> bool {
+/// **Whether [`enforce_checks`] refuses `finding` at `Error`.** The
+/// lint's knob is an `Advisory` and spells no `Error`, so the finding is
+/// read alone under the knob of a check that does: what the refusing
+/// path reads of a finding is its `quiet` and its evidence, not which
+/// check it is.
+pub(crate) fn refuses_at_error(report: &editor_core::ChecksReport, finding: &CheckFinding) -> bool {
     let mut alone = report.clone();
     alone.findings = vec![CheckFinding {
         check: CheckId::AtRest,
@@ -69,7 +82,7 @@ pub(crate) fn authored(
     what: &str,
     doc: &ProfileDoc,
     quieting: &Quieting,
-) -> (ProfileDoc, editor_core::RecipeNodeId) {
+) -> (ProfileDoc, RecipeNodeId) {
     let edits = quieting
         .edits(doc, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: the offered edits apply: {e}\n{quieting:?}"));
@@ -83,40 +96,185 @@ pub(crate) fn authored(
         edits.doc.ids(),
         "{what}: the edits replay to the document they produced"
     );
+    let assertion = edits
+        .minted
+        .last()
+        .copied()
+        .flatten()
+        .unwrap_or_else(|| panic!("{what}: the last edit mints the assertion"));
     assert_eq!(
         replayed.ids().last(),
-        Some(&edits.assertion),
+        Some(&assertion),
         "{what}: the assertion is the last node authored"
     );
-    (replayed, edits.assertion)
+    (replayed, assertion)
 }
 
-/// **The law on `doc`**: every loud unproven-coincidence finding that
-/// carries an assertion refuses at `Error` and says the claim in its
-/// recourse; every one that carries none names no assertion and never
-/// refuses; and with each distinct claim authored, in finding order,
-/// every row that carried one is reported quiet under the assertion
-/// authored for its claim, named in its sentence. One claim can be two
-/// rows' (a family's members), and then one assertion quiets both.
-/// Answers how many rows it quieted.
+/// **Each member's verdict of `assertion` in `ev`**, whether it holds:
+/// one for an assertion reaching no index.
+pub(crate) fn verdicts(ev: &Evaluation<f64>, assertion: RecipeNodeId) -> Vec<bool> {
+    let holds = |payload: &ValuePayload<f64>| {
+        matches!(
+            payload,
+            ValuePayload::Assertion(AssertionVerdict::Holds { .. })
+        )
+    };
+    let Some(value) = ev.value(assertion) else {
+        return vec![false];
+    };
+    match &value.members {
+        Some(family) => family
+            .members
+            .iter()
+            .map(|(_, m)| holds(&m.payload))
+            .collect(),
+        None => vec![holds(&value.payload)],
+    }
+}
+
+/// **Every assertion over `row` written in the rule's language**
+/// ([`editor_core::test_support::saying`]): each measure that says the
+/// row, over its two cells in either order, each cell written as a
+/// selection of one of the names a person could read it by (its own, the
+/// arrival's without the `⊔`'s key, a family member's by the name it
+/// wraps), read as an axis or a centre where the row is one of poses; a
+/// tool as its read. What the completeness half of the law authors.
+fn written_in_the_rules_language(row: &NamedCoincidence) -> Vec<(MeasureVerb, [Operand; 2])> {
+    let Some((verbs, poses)) = editor_core::test_support::saying(row) else {
+        return Vec::new();
+    };
+    let [a, b] = row.cells.as_slice() else {
+        return Vec::new();
+    };
+    let operands = |cell: &NamedCell| -> Vec<Operand> {
+        let (input, name) = match cell {
+            NamedCell::Tool { input, .. } => return vec![Operand::Var(*input)],
+            NamedCell::Entity { input, name } => (*input, name),
+            _ => return Vec::new(),
+        };
+        let mut names: Vec<StableName> = vec![name.clone()];
+        if let [RoleSeg::From { read, of }] = name.path.as_slice()
+            && *read == input
+        {
+            names.push((**of).clone());
+        }
+        for held in names.clone() {
+            if let [RoleSeg::Member { of, .. }] = held.path.as_slice() {
+                names.push((**of).clone());
+            }
+        }
+        names.dedup();
+        let kinds: &[Option<VarKind>] = if poses {
+            &[Some(VarKind::Axis), Some(VarKind::Point)]
+        } else {
+            &[None]
+        };
+        names
+            .iter()
+            .flat_map(|name| {
+                kinds.iter().map(move |kind| {
+                    let of = Operand::Select {
+                        body: Box::new(BodyRead::plain(Operand::Var(input))),
+                        names: vec![name.clone()],
+                    };
+                    match kind {
+                        None => of,
+                        Some(VarKind::Axis) => {
+                            Operand::Pose(Box::new(editor_core::pose::PoseDef::Axis { of }))
+                        }
+                        Some(_) => {
+                            Operand::Pose(Box::new(editor_core::pose::PoseDef::Point { of }))
+                        }
+                    }
+                })
+            })
+            .collect()
+    };
+    let (xs, ys) = (operands(a), operands(b));
+    let mut out = Vec::new();
+    for &verb in verbs {
+        for x in &xs {
+            for y in &ys {
+                out.push((verb, [x.clone(), y.clone()]));
+                out.push((verb, [y.clone(), x.clone()]));
+            }
+        }
+    }
+    out
+}
+
+/// `verb(a, b) = 0` authored in `doc` as one action, a variable read as
+/// it is named first where it is unnamed; `None` where a door refuses
+/// it (a pose its cell does not have, a read the door does not take).
+fn author_written(
+    doc: &ProfileDoc,
+    verb: MeasureVerb,
+    [a, b]: [Operand; 2],
+) -> Option<(ProfileDoc, RecipeNodeId)> {
+    let mut action = editor_core::Recording::start(doc, Tol::witness());
+    for operand in [&a, &b] {
+        let Operand::Var(var) = operand else {
+            continue;
+        };
+        let unnamed = doc.var_name(*var).is_none()
+            && doc.var(*var).is_some_and(|v| v.def().output().is_none());
+        if unnamed {
+            let name = (1..)
+                .map(|n| format!("written_{n}"))
+                .find(|n| doc.var_named(n).is_none())?;
+            action
+                .apply(editor_core::DocEdit::RenameVar {
+                    var: (*var).into(),
+                    name: Some(editor_core::VarName::new(name).ok()?),
+                })
+                .ok()?;
+        }
+    }
+    let primitive = match verb {
+        MeasureVerb::Gap => MeasurePrimitive::Gap { outer: a, inner: b },
+        MeasureVerb::Distance => MeasurePrimitive::Distance { a, b },
+        MeasureVerb::Angle => MeasurePrimitive::Angle { a, b },
+    };
+    let measured = action.measure(&[primitive]).ok()?;
+    let assertion = action
+        .insert(Node::Assertion(editor_core::Claim::Value {
+            value: Formula::var(measured.outputs[0], editor_core::Dimension::Length),
+            bound: Formula::zero(editor_core::Dimension::Length),
+            relation: AssertionRelation::Equal,
+        }))
+        .ok()?;
+    Some((action.finish().ok()?.doc, assertion))
+}
+
+/// **The law on `doc`** (the module's head): with each distinct claim
+/// authored, in finding order, then every assertion in the rule's
+/// language over each loud row that carries none, the checks run once
+/// more. One claim can be several rows' (a family's members), and then
+/// one assertion quiets each. Answers how many rows it quieted.
 pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> usize {
     let report = checks(doc);
     let by = Speaker::of(doc);
     let mut after = doc.clone();
-    let mut assertions: Vec<(&Quieting, editor_core::RecipeNodeId)> = Vec::new();
+    let mut assertions: Vec<(&Quieting, RecipeNodeId)> = Vec::new();
     let mut offered = Vec::new();
+    let mut unoffered = Vec::new();
     for (found, row, quieting) in coincidences(&report) {
         let said = editor_core::Said(found, by).to_string();
+        if found.quiet.is_some() {
+            assert!(
+                !said.contains("Recourse"),
+                "{what}: a quiet finding offers nothing: {said}"
+            );
+            continue;
+        }
         let Some(quieting) = quieting else {
             assert!(
                 !said.contains("assert") && !refuses_at_error(&report, found),
                 "{what}: a finding carrying no assertion offers none and never refuses: {said}"
             );
+            unoffered.push((found.subject, row));
             continue;
         };
-        if found.quiet.is_some() {
-            continue;
-        }
         let claim = quieting.said(by);
         assert!(
             said.contains(&format!("assert {claim}")),
@@ -137,31 +295,64 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
         };
         offered.push((found.subject, row, claim, assertion));
     }
-    if offered.is_empty() {
+    let mut written = 0;
+    for (_, row) in &unoffered {
+        for (verb, operands) in written_in_the_rules_language(row) {
+            if let Some((next, _)) = author_written(&after, verb, operands) {
+                after = next;
+                written += 1;
+            }
+        }
+    }
+    if offered.is_empty() && written == 0 {
         return 0;
     }
-    let report = checks(&after);
+    let ev = run(&after);
+    let report = checks_of(&after, &ev);
     let by = Speaker::of(&after);
     let now = coincidences(&report);
-    for (subject, row, claim, assertion) in &offered {
-        let quieted: Vec<_> = now
+    let found_now = |subject, row: &NamedCoincidence| {
+        let rows: Vec<_> = now
             .iter()
-            .filter(|(f, r, _)| f.subject == *subject && r == row)
+            .filter(|(f, r, _)| f.subject == subject && *r == row)
             .collect();
-        let [(found, _, _)] = quieted.as_slice() else {
-            panic!("{what}: the row is still reported, once: {quieted:?}\n{report}")
+        let [(found, _, _)] = rows.as_slice() else {
+            panic!("{what}: the row is still reported, once: {rows:?}\n{report}")
         };
+        *found
+    };
+    for (quieting, assertion) in &assertions {
+        let held = verdicts(&ev, *assertion);
+        assert!(
+            held.iter().all(|&holds| holds),
+            "{what}: every member of an offered assertion holds, {}: {held:?}",
+            quieting.said(by)
+        );
+    }
+    for (subject, row, claim, assertion) in &offered {
+        let found = found_now(*subject, row);
         assert_eq!(
             found.quiet,
             Some(*assertion),
             "{what}: the row is quiet under the assertion authored for {claim}: {found}"
         );
         let named = by.node_as(*assertion, "assertion").to_string();
-        let said = editor_core::Said(*found, by).to_string();
+        let said = editor_core::Said(found, by).to_string();
         assert!(
             said.contains(&format!("quiet: {named} says so")),
             "{what}: the quiet row names the new assertion {named}: {said}"
         );
+    }
+    for (subject, row) in &unoffered {
+        let found = found_now(*subject, row);
+        if let Some(quiet) = found.quiet {
+            assert!(
+                !verdicts(&ev, quiet).iter().all(|&holds| holds),
+                "{what}: a row carrying no assertion is quieted by {}, which holds at every \
+                 member: {found}",
+                by.node_as(quiet, "assertion")
+            );
+        }
     }
     offered.len()
 }
@@ -261,30 +452,55 @@ fn the_laws_rosters_name_corpus_documents() {
     }
 }
 
-/// `n` fins standing on a base, one placement whose slide reads
-/// `k = index(n)`, `pitch` apart: each fin rests on the base's top, and
-/// at a pitch of the fin's width each rests against the next.
-fn fins(n: i64, pitch: f64) -> ProfileDoc {
+/// `body` placed `n` times by one placement whose slide reads
+/// `k = index(n)`: `pitch · k` along x, and `z + rise · k` up.
+fn family(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    k: editor_core::VarId,
+    pitch: f64,
+    (z, rise): (f64, f64),
+) -> (ProfileDoc, RecipeNodeId) {
+    let along = |by: f64| Formula::mul(fixture::scalar_of(k), fixture::len(by)).unwrap();
+    let up = Formula::add(fixture::len(z), along(rise)).unwrap();
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        vec![
+            (Coord::slide(TargetAxis::X), along(pitch)),
+            (Coord::slide(TargetAxis::Z), up),
+        ],
+    );
+    let node = fixture::place_node(
+        &doc,
+        editor_core::BodyRead::plain(Operand::Node(body)),
+        placed.bundle(),
+    );
+    insert(doc, node)
+}
+
+/// `n` fins standing over a unit-high base, one placement whose slide
+/// reads `k = index(n)`, `pitch` apart, the fin at `k` lifted
+/// `z + rise · k`: at `(1, 0)` each fin rests on the base's top, at a
+/// pitch of the fin's width each rests against the next, and under it
+/// they overlap. `(doc, k, fins)`, the fins' placement.
+pub(crate) fn fins_at(
+    n: i64,
+    pitch: f64,
+    (z, rise): (f64, f64),
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("offer-fins", Tol::witness());
     let (doc, k) = fixture::index(doc, "k", n);
     let (doc, base) = block(doc, (0.0, 13.0), (0.0, 2.0), 1.0);
     let (doc, fin) = block(doc, (0.25, 0.5), (0.5, 1.5), 1.25);
     let (doc, _) = fixture::place(doc, base);
-    let slide = Formula::mul(fixture::scalar_of(k), fixture::len(pitch)).unwrap();
-    let placed = editor_core::Placed::of(
-        &doc,
-        Vec::new(),
-        vec![
-            (Coord::slide(TargetAxis::X), slide),
-            (Coord::slide(TargetAxis::Z), fixture::len(1.0)),
-        ],
-    );
-    let node = fixture::place_node(
-        &doc,
-        editor_core::BodyRead::plain(Operand::Node(fin)),
-        placed.bundle(),
-    );
-    let (doc, _) = insert(doc, node);
+    let (doc, fins) = family(doc, fin, k, pitch, (z, rise));
+    (doc, k, fins)
+}
+
+/// [`fins_at`], at rest on the base and assembled.
+pub(crate) fn fins(n: i64, pitch: f64) -> ProfileDoc {
+    let (doc, _, _) = fins_at(n, pitch, (1.0, 0.0));
     editor_core::test_support::assemble_world_copies(doc, Tol::witness())
 }
 
@@ -316,6 +532,11 @@ fn a_family_members_row_carries_the_assertion_that_reaches_its_index() {
         "every member carries the one claim: {claims:#?}"
     );
     let (after, assertion) = authored("fins", &doc, claims[0]);
+    assert_eq!(
+        verdicts(&run(&after), assertion),
+        vec![true; 3],
+        "the claim holds at every member"
+    );
     let report = checks(&after);
     let quiet: Vec<_> = coincidences(&report)
         .iter()
@@ -327,6 +548,90 @@ fn a_family_members_row_carries_the_assertion_that_reaches_its_index() {
         "the one assertion quiets each member's row: {report}"
     );
     assert_eq!(every_offered_assertion_quiets("fins", &doc), 3);
+}
+
+/// **A family only some of whose members rest carries no assertion.**
+/// Fins climbing a stair, each lifted off the last, only the first
+/// resting on the base: the one assertion that would say the first's
+/// rest reaches the index, and it is violated at every other member, so
+/// it is no recourse. The row names the construction alone and never
+/// refuses; and no assertion holding at every member quiets it (the
+/// law's completeness half).
+///
+/// *Breaks if* the mint offers a family assertion it read only at the
+/// row's own member.
+#[test]
+fn a_partly_resting_family_carries_no_assertion() {
+    for (pitch, rise) in [(2.0, 0.5), (0.75, 0.1)] {
+        let (doc, _, _) = fins_at(3, pitch, (1.0, rise));
+        let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
+        let what = format!("fins rising {rise} a pitch of {pitch}");
+        let report = checks(&doc);
+        let rests = coincidences(&report);
+        assert_eq!(
+            rests.len(),
+            1,
+            "{what}: the first fin alone rests: {report}"
+        );
+        let (found, _, quieting) = rests[0];
+        assert!(
+            quieting.is_none() && !refuses_at_error(&report, found),
+            "{what}: a claim violated at other members is none, and never refuses: {found}"
+        );
+        assert_eq!(every_offered_assertion_quiets(&what, &doc), 0, "{what}");
+    }
+}
+
+/// **Two families on one index: a cap on each fin carries the one
+/// assertion over both family reads.** Caps stacked on fins, both
+/// placements reading `k`: the cap at `k` rests on the fin at `k`, and
+/// `Gap(the fin's top off the fins, the cap's foot off the caps) = 0`
+/// is one assertion per member, each saying its own pair. Each row
+/// carries it, refuses at `Error` while loud, and is quiet once it is
+/// authored. Held over the two families assembled as copies and over a
+/// plain union of the two family reads.
+///
+/// *Breaks if* the mint refuses a claim whose two reads both reach the
+/// index the rule reads them at.
+#[test]
+fn two_families_on_one_index_carry_the_assertion_over_both() {
+    for union in [false, true] {
+        let (doc, k, fins) = fins_at(3, 0.75, (1.0, 0.0));
+        let (doc, cap) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
+        let (doc, caps) = family(doc, cap, k, 0.75, (2.25, 0.0));
+        let (doc, what) = if union {
+            let (doc, _) = fixture::union_over(doc, &[fins, caps]);
+            (doc, "a union of two families")
+        } else {
+            (
+                editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
+                "two families assembled",
+            )
+        };
+        let report = checks(&doc);
+        let caps_rows: Vec<_> = coincidences(&report)
+            .into_iter()
+            .filter(|(_, row, _)| {
+                row.cells
+                    .iter()
+                    .all(|c| matches!(c, NamedCell::Entity { name, .. } if format!("{name:?}").contains("Member")))
+            })
+            .collect();
+        assert!(
+            caps_rows.len() >= 3,
+            "{what}: the premise, a cap resting on each fin: {report}"
+        );
+        for (found, _, quieting) in &caps_rows {
+            assert!(
+                quieting.is_some() && refuses_at_error(&report, found),
+                "{what}: a row between two families' members carries its claim: {found}"
+            );
+        }
+        assert!(
+            every_offered_assertion_quiets(what, &doc) >= 3,
+            "{what}: the caps' claims quiet their rows"
+        );
+    }
 }
 
 /// **A row between two members of one family carries no assertion**:
@@ -363,4 +668,16 @@ fn a_row_between_two_members_carries_no_assertion() {
         3,
         "each fin's rest on the base still carries its claim"
     );
+}
+
+/// **The construction recourse is one sentence, a word apart**, said
+/// with no claim and with one.
+///
+/// *Breaks if* the sentence's text drifts, a run of spaces among it.
+#[test]
+fn the_construction_recourse_reads_as_one_sentence() {
+    use editor_core::coincide::Recourse;
+    let alone = "Recourse: build the cells as one construction of the same variables, so the \
+                 coincidence holds whatever their values";
+    assert_eq!(Recourse::OneConstruction.words(None, Speaker::TAG), alone);
 }

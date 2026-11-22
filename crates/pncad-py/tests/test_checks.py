@@ -54,6 +54,7 @@ from pncad import (
     DocEdit,
     DocRef,
     Coord,
+    EditError,
     Formula,
     FreeValue,
     FreeVar,
@@ -658,12 +659,18 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         )
         self.assertIn(f"assert {claim}", str(finding))
 
-        minted = [doc.apply(edit) for edit in claim.edits(doc)]
-        self.assertEqual(len(minted), 2, "a measure, then the assertion")
+        self.assertEqual(claim, glue(run_checks(doc, evaluate(doc), cfg)).evidence.quieting)
+        self.assertEqual(len({claim, claim}), 1, "a claim hashes as it compares")
+        other = Doc()
+        with self.assertRaises(EditError) as foreign:
+            other.assert_quieting(claim)
+        self.assertEqual(foreign.exception.variant, "evaluation_of_another_document")
+        assertion = doc.assert_quieting(claim)
         quieted = glue(run_checks(doc, evaluate(doc), cfg))
         self.assertEqual(quieted.node, glued)
-        self.assertEqual(quieted.quiet, minted[-1])
+        self.assertEqual(quieted.quiet, assertion)
         self.assertIn("quiet:", str(quieted))
+        self.assertNotIn("Recourse", str(quieted), "a quiet finding offers nothing")
         # An arm with no claim answers `None`, as every payload does.
         unused = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Warn))
         self.assertTrue(

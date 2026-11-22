@@ -757,11 +757,22 @@ impl QuietingRef {
         self.name.clone()
     }
 
-    /// The pose read off the cell, `axis` or `point`; `None` for the
-    /// cell itself.
+    /// The kind of the pose read off the cell, `axis` or `point`; `None`
+    /// for the cell itself.
     #[getter]
     fn pose(&self) -> Option<&'static str> {
         self.pose
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        (self.read.0, &self.name, self.pose) == (other.read.0, &other.name, other.pose)
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.read.0, &self.name, self.pose).hash(&mut h);
+        h.finish()
     }
 
     fn __repr__(&self) -> String {
@@ -776,19 +787,27 @@ impl QuietingRef {
 
 /// The assertion that would quiet an unproven coincidence:
 /// `measure(references) = 0`, a `gap` or a `distance` over the row's
-/// two cells as that measure reads them. The kernel mints it by the
-/// rule that decides which holding assertion quiets the row, so the
-/// row is quiet once `edits` are applied.
+/// two cells as that measure reads them, in the document the checks ran
+/// over. The kernel mints it only where the rule that decides which
+/// holding assertion quiets the row takes it, so the row is quiet once
+/// `Doc.assert_quieting` has authored it.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Quieting(d::Quieting, Arc<d::ProfileDoc>);
+
+impl Quieting {
+    /// The claim, and the document the checks that minted it ran over.
+    pub(crate) fn minted(&self) -> (&d::Quieting, &d::ProfileDoc) {
+        (&self.0, &self.1)
+    }
+}
 
 #[pymethods]
 impl Quieting {
     /// The measure related to zero: `gap` or `distance`.
     #[getter]
     fn measure(&self) -> &'static str {
-        self.0.measure.verb().verb()
+        self.0.measure.verb()
     }
 
     /// The measure's two references, in its order: a `gap`'s outer then
@@ -802,13 +821,12 @@ impl Quieting {
                     name: None,
                     pose: None,
                 },
-                d::QuietingRef::Entity { read, name, pose } => QuietingRef {
+                d::QuietingRef::Entity {
+                    read, name, pose, ..
+                } => QuietingRef {
                     read: Var::of(&self.1, *read),
                     name: Some(super::doc::name_text(py, name)?),
-                    pose: pose.map(|pose| match pose {
-                        d::CellPose::Axis => "axis",
-                        d::CellPose::Point => "point",
-                    }),
+                    pose: pose.map(crate::errors::var_kind_tag),
                 },
             })
         };
@@ -816,30 +834,22 @@ impl Quieting {
         Ok((reference(a)?, reference(b)?))
     }
 
-    /// The edits that author it in `doc`, in order: the naming of a
-    /// split's unnamed tool (a variable two readers share is named),
-    /// the measure's insert, which mints each reference's selection
-    /// and pose, then the assertion's, `= 0` over the measure's output.
-    /// Apply each
-    /// with `Doc.apply`; the last one's node is the assertion the
-    /// quieted finding names. `doc` is untouched, and the edits are
-    /// spelled for `doc` as it stands.
-    fn edits(&self, py: Python<'_>, doc: &super::doc::Doc) -> PyResult<Vec<super::doc::DocEdit>> {
-        let authored = self
-            .0
-            .edits(&doc.inner, pncad::tolerance::Tol::witness())
-            .map_err(|err| super::doc::edit_err(py, &err))?;
-        Ok(authored
-            .edits
-            .into_iter()
-            .map(|inner| super::doc::DocEdit { inner })
-            .collect())
-    }
-
     /// The claim in words, each cell by its name as the document the
-    /// checks ran over speaks it.
+    /// checks ran over speaks it, a split's unnamed tool by the name
+    /// `Doc.assert_quieting` gives it.
     fn __str__(&self) -> String {
         self.0.said(d::Speaker::of(&*self.1))
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1.id() == other.1.id()
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (&self.0, self.1.id()).hash(&mut h);
+        h.finish()
     }
 
     fn __repr__(&self) -> String {

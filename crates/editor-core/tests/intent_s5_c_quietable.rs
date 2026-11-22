@@ -163,7 +163,73 @@ fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
         found.iter().any(|f| f.quieting.is_some() && f.is_loud()),
         "{label}: Error refuses exactly a loud finding that carries a pair"
     );
+    recourse_is_rendered_from_the_pair(label, doc);
     quietable
+}
+
+/// **An interference finding's recourse is rendered from the pair it
+/// carries**: a loud finding carrying a pair offers the negative `Gap`
+/// over it, by its two faces' names; one carrying none names moving and
+/// combining alone; a quiet one offers nothing.
+fn recourse_is_rendered_from_the_pair(label: &str, doc: &ProfileDoc) {
+    let by = editor_core::Speaker::of(doc);
+    for found in &report(doc).findings {
+        let editor_core::CheckEvidence::Interference { finding } = &found.evidence else {
+            continue;
+        };
+        let said = editor_core::Said(found, by).to_string();
+        let ending = match (&finding.quieting, found.quiet) {
+            (_, Some(_)) => {
+                assert!(
+                    !said.contains("Recourse"),
+                    "{label}: a quiet finding offers nothing: {said}"
+                );
+                continue;
+            }
+            (Some(pair), None) => format!(
+                " — Recourse: move the two apart, combine them with a boolean if they are one \
+                 body, or, for a fit meant to interfere, assert a negative Gap between {}",
+                pair.said(by)
+            ),
+            (None, None) => {
+                " — Recourse: move the two apart, or combine them with a boolean if they are one \
+                 body"
+                    .to_owned()
+            }
+        };
+        assert!(
+            said.ends_with(&ending),
+            "{label}: the recourse is {ending:?}: {said}"
+        );
+    }
+}
+
+/// **An overlap a family's copy bounds carries no pair, and never
+/// refuses**: a `Gap` over a copy that repeats reaches the index, and
+/// the rule names its faces as each member does, which no pair one
+/// member names spells. Fins closer than their width overlap each
+/// other, two members of one family, which no assertion the rule reads
+/// separates; fins sunk into their base overlap it, each member of the
+/// family against the one base.
+///
+/// *Breaks if* a finding offers a pair no assertion it spells quiets, so
+/// that it refuses at `Error` with a recourse nothing satisfies.
+#[test]
+fn an_overlap_a_familys_copy_bounds_carries_no_pair() {
+    use crate::a_check_carries_the_assertion_that_quiets_it::fins_at;
+    for (label, pitch, z) in [
+        ("fins overlapping each other", 0.2, 1.0),
+        ("fins sunk into their base", 0.75, 0.9),
+    ] {
+        let (doc, _, _) = fins_at(3, pitch, (z, 0.0));
+        let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
+        let quietable = holds_the_rule(label, &doc);
+        assert!(
+            quietable.iter().all(|&q| !q),
+            "{label}: no finding carries a pair: {quietable:?}"
+        );
+        assert!(!refused_at_error(&doc), "{label}: Error refuses none");
+    }
 }
 
 /// **A pin bottoming through a blind bore is quietable, and refuses at

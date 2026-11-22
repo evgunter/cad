@@ -1,6 +1,9 @@
 //! **The at-rest check** (D10, Assertions; ASSEMBLY A5): what the
 //! census at each `⊔` found between its arrivals, as the registry's
-//! `AtRest` resident reports it, and the quieting rule's one home.
+//! `AtRest` resident reports it, and the quieting rule's one home: the
+//! rule that matches a holding assertion, and the mint of the assertion
+//! a loud finding carries, which keeps only what that rule takes
+//! ([`quieting`], `could_quiet`).
 //!
 //! The census decides each pair of arrivals apart, in contact,
 //! overlapping or undecided, and nothing it finds refuses. A contact is
@@ -135,8 +138,13 @@ pub(crate) struct WholeReading {
     pub(crate) carried_at_rest: Vec<CarriedAtRestFinding>,
 }
 
-/// [`WholeReading`] over `product` and the gathers beside it.
-pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> WholeReading {
+/// [`WholeReading`] over `product`, a gather of `doc`, and the gathers
+/// beside it.
+pub(crate) fn whole_reading<P: crate::ProfilePayload, T: LocalizeLane>(
+    doc: &Doc<P>,
+    product: &Product<T>,
+    tol: Tol,
+) -> WholeReading {
     let mut whole = WholeReading {
         reading: Reading {
             interference: Vec::new(),
@@ -162,7 +170,7 @@ pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> 
         let Reading {
             interference,
             could_not_look,
-        } = reading(product, tol);
+        } = reading(doc, product, tol);
         whole.reading.interference.extend(interference);
         whole.reading.could_not_look.extend(could_not_look);
         once_per_part_row(
@@ -182,7 +190,18 @@ pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> 
 /// interference between arrivals ([`partition`]) and the rest, each of
 /// which is a could-not-look finding. A contact between arrivals
 /// is not among the verdicts: the gather recorded it as a row.
-pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Reading {
+///
+/// An interference finding carries its pair ([`OpposedPair`]) only
+/// where neither copy repeats: a `Gap` over a family's copy reads an
+/// index, and the rule names its faces as each member does
+/// ([`member_name`]), which a finding's pair, named as one member names
+/// it, does not spell. Such a finding is loud and refuses at no
+/// severity (CHECKS DS6).
+pub(crate) fn reading<P: crate::ProfilePayload, T: LocalizeLane>(
+    doc: &Doc<P>,
+    product: &Product<T>,
+    tol: Tol,
+) -> Reading {
     let errors = product.census.clone();
     if errors.is_empty() {
         return Reading {
@@ -190,7 +209,14 @@ pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Readin
             could_not_look: Vec::new(),
         };
     }
-    let (interference, rest) = partition(product, errors, tol);
+    let (mut interference, rest) = partition(product, errors, tol);
+    let once = |site: &FaceSite| doc.var_reach(site.copy.var).is_none();
+    for finding in &mut interference {
+        finding.quieting = finding
+            .quieting
+            .take()
+            .filter(|pair| once(&pair.outer) && once(&pair.inner));
+    }
     let groups = copy_groups(&product.copies);
     let could_not_look = rest
         .into_iter()
@@ -311,37 +337,36 @@ where
         {
             return None;
         }
-        let (Some(x), Some(y)) = (
-            said.reference(doc, held.a, &held.at),
-            said.reference(doc, held.b, &held.at),
-        ) else {
-            return None;
-        };
-        let reads = |r: &(RowCell, Option<crate::VarKind>), i: usize| {
-            r.0.reads(doc, &said.cells[i]) && r.1 == kinds[i]
+        let reads = |var: VarId, i: usize| {
+            reference(doc, var)
+                .iter()
+                .any(|r| said.reads_cell(doc, r, &held.at, i, kinds[i]))
         };
         said.orders()
-            .any(|(verb, [i, j])| verb == held.verb && reads(&x, i) && reads(&y, j))
+            .any(|(verb, [i, j])| verb == held.verb && reads(held.a, i) && reads(held.b, j))
             .then_some(held.id)
     })
 }
 
 /// **The assertion that would quiet `row`** (D10 `[assertions.quiet]`),
-/// in `evaluation`, minted by the rule [`quiet_row`] matches a holding
-/// assertion against: of the measures that say what the row decided
-/// ([`saying`]), over the row's two cells in each order
-/// ([`Saying::orders`]), the first that is decided zero at the site the
-/// rule decides a bound at, the cells resolved and read as the measure
-/// resolves and reads them ([`crate::eval::resolve_name`]): each as the
-/// pose its carrier has where the row is one of poses, a split's tool as
-/// its plane. Its references are written as an author writes them
-/// ([`Saying::authored`]).
+/// in `evaluation`, minted so that [`quiet_row`] takes it: of the
+/// measures that say what the row decided ([`saying`]), over the row's
+/// two cells in each order ([`Saying::orders`]), the first decided zero
+/// at the site the rule decides a bound at ([`Saying::zeros`]), written
+/// as an author writes it ([`Saying::minted`]): each cell a selection of
+/// its name in its read, a family member's by the name its member wraps.
+/// The mint keeps a writing only where the rule's own test
+/// ([`Saying::reads_cell`]) reads it as the row's two cells, and, for a
+/// writing whose reads reach an index, only where every member of the
+/// family it is reads zero: an assertion one of whose members is
+/// violated is no recourse.
 ///
-/// `None` where no assertion over the row holds or none can be written:
-/// a cell the measure has no form for, a name that does not resolve, a
-/// measure read non-zero, two members of families. Such a row's finding
-/// never refuses (CHECKS DS6), and its recourse names the construction
-/// alone.
+/// `None` where no such assertion exists: a cell the measure has no form
+/// for, a name that does not resolve, a measure read non-zero, two
+/// members of one family (an assertion reading both reads them by
+/// indexed reads, which the rule matches no cell by), a family some
+/// member of which does not read zero. Such a row's finding never
+/// refuses (CHECKS DS6), and its recourse names the construction alone.
 pub(crate) fn quieting<P, T>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -352,74 +377,48 @@ where
     P: crate::ProfilePayload,
     T: crate::mate::SolveScalar + topo::AtRestPolicy,
 {
-    use crate::eval::measure::{Carrier, Pose};
     let band = Band::linear(tol).ok()?;
     let said = saying(row)?;
-    let read = said.read(doc, evaluation)?;
-    let tool = said
-        .cells
-        .iter()
-        .position(|c| matches!(c, RowCell::Tool(_)));
-    let (kinds, carriers): (_, [Carrier<'_, T>; 2]) = if let Some(t) = tool {
-        // A split's ON row: its tool read as its plane, in its space's
-        // coordinates, against the vertex.
-        let RowCell::Tool(tool) = said.cells[t] else {
-            unreachable!("the position of a tool cell")
-        };
-        let [(seat, ent)] = read.cells.as_slice() else {
+    let (kinds, zeros) = said.zeros(doc, evaluation, band, tol)?;
+    zeros
+        .into_iter()
+        .find_map(|(verb, order)| said.minted(doc, evaluation, verb, order, kinds, band, tol))
+}
+
+/// **An assertion's reference, as the rule can read it**: the variable
+/// itself, which reads a split's tool where it is the tool's read,
+/// whatever pose that is; and, where it is a selection of one name in a
+/// body read plainly or a pose read directly off one
+/// (`eval::read_directly_off`), that selection and pose. An indexed read
+/// is no selection the rule reads.
+fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<QuietingRef> {
+    let selected = |var: VarId| {
+        let select = doc
+            .selection(var)
+            .filter(|select| !select.body.is_indexed())?;
+        let [name] = select.names.as_slice() else {
             return None;
         };
-        let Carrier::Point { at, .. } = crate::eval::measure::carrier_of(*seat, *ent, band) else {
-            return None;
-        };
-        let roled = crate::pose::RoleRead {
-            read: tool,
-            role: said.tool_role,
-        };
-        let plane = crate::eval::read_pose(
-            P::evaluable(doc)?,
-            &evaluation.nodes,
-            roled,
-            &evaluation.env,
-            tol,
-        )
-        .ok()?;
-        let plane = Carrier::Pose {
-            pose: Pose::of(&plane)?,
-            reach: None,
-        };
-        let vertex = Carrier::Pose {
-            pose: Pose::Point(read.computing.point_in_space(at)),
-            reach: None,
-        };
-        (
-            [None, None],
-            if t == 0 {
-                [plane, vertex]
-            } else {
-                [vertex, plane]
-            },
-        )
-    } else if said.poses {
-        let kinds = said.pose_kinds(&read, band)?;
-        let carrier = |i: usize| {
-            let (seat, ent) = &read.cells[i];
-            crate::eval::read_off_cell(*seat, *ent, kinds[i]?, band).ok()
-        };
-        (kinds, [carrier(0)?, carrier(1)?])
-    } else {
-        let carrier = |i: usize| {
-            let (seat, ent) = &read.cells[i];
-            crate::eval::measure::carrier_of(*seat, *ent, band)
-        };
-        ([None, None], [carrier(0), carrier(1)])
+        Some((select.body.read, name.clone()))
     };
-    said.orders().find_map(|(verb, order)| {
-        let [a, b] = order.map(|i| &carriers[i]);
-        (measure_sign_as(verb, a, b, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero))
-            .then(|| said.authored(doc, verb, order, kinds))
-            .flatten()
-    })
+    let entity = match selected(var) {
+        Some((read, name)) => Some(QuietingRef::Entity {
+            read,
+            name,
+            pose: None,
+        }),
+        None => crate::eval::read_directly_off(doc, var).and_then(|(cell, kind)| {
+            let (read, name) = selected(cell)?;
+            Some(QuietingRef::Entity {
+                read,
+                name,
+                pose: Some(kind),
+            })
+        }),
+    };
+    std::iter::once(QuietingRef::Read(var))
+        .chain(entity)
+        .collect()
 }
 
 /// **What says a row** ([`saying`]): the measures that say it and the
@@ -542,107 +541,244 @@ impl Saying {
         Some(kinds.map(Some))
     }
 
-    /// **An assertion's reference as the rule matches it**, as the
-    /// member at `at` of the assertion's family reads it: the row's
-    /// tool where it is the tool's read, whatever pose that is; else a
-    /// selection as its cell, named as that member names it
-    /// ([`member_name`]), a point, an axis or a plane read directly off
-    /// a selection as that cell with its kind
-    /// (`eval::read_directly_off`), and any other read as
-    /// a tool it is not.
-    fn reference<P: crate::ProfilePayload>(
+    /// **The one test both halves of the rule read**: whether the
+    /// reference `r`, as the member at `at` of its assertion's family
+    /// reads it, reads the row's cell `i`, read as a pose of `kind`
+    /// where the row is one of poses. A variable reads the row's tool
+    /// where it is the tool's read, whatever pose that is; an entity
+    /// reads a cell where its pose is `kind` and the selection, named as
+    /// that member names it ([`member_name`]), reads the cell
+    /// ([`RowCell::reads`]). [`quiet_row`] asks it of a holding
+    /// assertion's references, [`Self::minted`] of the references it
+    /// writes.
+    fn reads_cell<P: crate::ProfilePayload>(
         &self,
         doc: &Doc<P>,
-        var: VarId,
+        r: &QuietingRef,
         at: &crate::names::MemberAt,
-    ) -> Option<(RowCell, Option<crate::VarKind>)> {
-        if self.cells.contains(&RowCell::Tool(var)) {
-            return Some((RowCell::Tool(var), None));
-        }
-        // A member read's names are its member's, which no row's cell
-        // spells: the reference is no cell of a row.
-        let selected = |var: VarId| {
-            let select = doc
-                .selection(var)
-                .filter(|select| !select.body.is_indexed())?;
-            let [name] = select.names.as_slice() else {
+        i: usize,
+        kind: Option<crate::VarKind>,
+    ) -> bool {
+        let posed = match r {
+            QuietingRef::Read(_) => true,
+            QuietingRef::Entity { pose, .. } => *pose == kind,
+        };
+        posed && cell_of(doc, r, at).reads(doc, &self.cells[i])
+    }
+
+    /// **The poses the row's cells are read as, and the measures over
+    /// them, in each order, that read zero** at the site the rule
+    /// decides a bound at, the cells resolved and read as the measure
+    /// resolves and reads them ([`crate::eval::resolve_name`]): each as
+    /// the pose its carrier has where the row is one of poses, a split's
+    /// tool as its plane against the vertex. `None` where a cell does not
+    /// read.
+    #[allow(clippy::type_complexity)] // the two halves of one reading
+    fn zeros<P, T>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &Evaluation<T>,
+        band: Band,
+        tol: Tol,
+    ) -> Option<(
+        [Option<crate::VarKind>; 2],
+        Vec<(crate::measure::MeasureVerb, [usize; 2])>,
+    )>
+    where
+        P: crate::ProfilePayload,
+        T: crate::mate::SolveScalar + topo::AtRestPolicy,
+    {
+        use crate::eval::measure::{Carrier, Pose};
+        let read = self.read(doc, evaluation)?;
+        let tool = self.cells.iter().enumerate().find_map(|(i, c)| match c {
+            RowCell::Tool(tool) => Some((i, *tool)),
+            RowCell::Entity(..) => None,
+        });
+        let (kinds, carriers): (_, [Carrier<'_, T>; 2]) = if let Some((t, tool)) = tool {
+            let [(seat, ent)] = read.cells.as_slice() else {
                 return None;
             };
-            let read = select.body.read;
-            Some(RowCell::Entity(read, member_name(doc, read, name, at)))
+            let Carrier::Point { at, .. } = crate::eval::measure::carrier_of(*seat, *ent, band)
+            else {
+                return None;
+            };
+            let roled = crate::pose::RoleRead {
+                read: tool,
+                role: self.tool_role,
+            };
+            let plane = crate::eval::read_pose(
+                P::evaluable(doc)?,
+                &evaluation.nodes,
+                roled,
+                &evaluation.env,
+                tol,
+            )
+            .ok()?;
+            let plane = Carrier::Pose {
+                pose: Pose::of(&plane)?,
+                reach: None,
+            };
+            let vertex = Carrier::Pose {
+                pose: Pose::Point(read.computing.point_in_space(at)),
+                reach: None,
+            };
+            (
+                [None, None],
+                if t == 0 {
+                    [plane, vertex]
+                } else {
+                    [vertex, plane]
+                },
+            )
+        } else if self.poses {
+            let kinds = self.pose_kinds(&read, band)?;
+            let carrier = |i: usize| {
+                let (seat, ent) = &read.cells[i];
+                crate::eval::read_off_cell(*seat, *ent, kinds[i]?, band).ok()
+            };
+            (kinds, [carrier(0)?, carrier(1)?])
+        } else {
+            let carrier = |i: usize| {
+                let (seat, ent) = &read.cells[i];
+                crate::eval::measure::carrier_of(*seat, *ent, band)
+            };
+            ([None, None], [carrier(0), carrier(1)])
         };
-        if let Some(cell) = selected(var) {
-            return Some((cell, None));
-        }
-        match crate::eval::read_directly_off(doc, var) {
-            Some((cell, kind)) => Some((selected(cell)?, Some(kind))),
-            None => Some((RowCell::Tool(var), None)),
-        }
+        let zeros = self
+            .orders()
+            .filter(|&(verb, order)| {
+                let [a, b] = order.map(|i| &carriers[i]);
+                measure_sign_as(verb, a, b, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+            })
+            .collect();
+        Some((kinds, zeros))
     }
 
     /// **The assertion `verb` over the cells in `order`, as an author
-    /// writes it**: each cell as [`Self::reference`] reads it back. A
-    /// cell of a family's member is written as the selection of its name
-    /// in the family read plainly, whose assertion reaches the family's
-    /// index and so is one assertion per member (D10 `[assertions]`,
-    /// "Families"), each member quieting its own row. `None` where both
-    /// cells are members: one assertion reading two members reads them
-    /// by indexed reads, which the rule matches no cell by.
-    fn authored<P: crate::ProfilePayload>(
+    /// writes it**, where the rule takes it ([`quieting`]): each cell a
+    /// selection of its name in its read, or the tool's read; a cell
+    /// whose name is a member's of its read's family, by the name the
+    /// member wraps, which a selection of the family read plainly holds
+    /// and each member of the assertion reads as its own (D10
+    /// `[assertions]`, "Families"). Kept only where some member of the
+    /// assertion reads the row's two cells by [`Self::reads_cell`], and
+    /// every other member's two cells read zero by the same measure, as
+    /// the same poses.
+    #[allow(clippy::too_many_arguments)] // one reading, carried through
+    fn minted<P, T>(
         &self,
         doc: &Doc<P>,
+        evaluation: &Evaluation<T>,
         verb: crate::measure::MeasureVerb,
         order: [usize; 2],
         kinds: [Option<crate::VarKind>; 2],
-    ) -> Option<Quieting> {
-        let mut members = 0;
-        let mut reference = |i: usize| match &self.cells[i] {
-            RowCell::Tool(var) => Some(QuietingRef::Read(*var)),
-            RowCell::Entity(read, name) => {
-                let (name, member) = authored_name(doc, *read, name)?;
-                members += usize::from(member);
-                let pose = match kinds[i] {
-                    None => None,
-                    Some(kind) => Some(super::quieting::CellPose::of(kind)?),
-                };
-                Some(QuietingRef::Entity {
-                    read: *read,
-                    name,
-                    pose,
-                })
-            }
+        band: Band,
+        tol: Tol,
+    ) -> Option<Quieting>
+    where
+        P: crate::ProfilePayload,
+        T: crate::mate::SolveScalar + topo::AtRestPolicy,
+    {
+        let written = |i: usize| match &self.cells[i] {
+            RowCell::Tool(var) => QuietingRef::Read(*var),
+            RowCell::Entity(read, name) => QuietingRef::Entity {
+                read: *read,
+                name: match name.path.as_slice() {
+                    [crate::names::RoleSeg::Member { of, .. }]
+                        if doc.operation_of(*read) == Some(name.node) =>
+                    {
+                        let plain: &StableName = of;
+                        plain.clone()
+                    }
+                    _ => name.clone(),
+                },
+                pose: kinds[i],
+            },
         };
-        let references = [reference(order[0])?, reference(order[1])?];
-        (members <= 1).then_some(Quieting {
-            measure: super::quieting::QuietingMeasure::of(verb)?,
+        let references = order.map(written);
+        let members = members_of(doc, &references)?;
+        let reads_row = |at: &crate::names::MemberAt| {
+            (0..2).all(|k| self.reads_cell(doc, &references[k], at, order[k], kinds[order[k]]))
+        };
+        if !members.iter().any(reads_row) {
+            return None;
+        }
+        for at in members.iter().filter(|at| !reads_row(at)) {
+            let mut cells = self.cells.clone();
+            for k in 0..2 {
+                cells[order[k]] = cell_of(doc, &references[k], at);
+            }
+            let member = Saying { cells, ..*self };
+            let (held, zeros) = member.zeros(doc, evaluation, band, tol)?;
+            if held != kinds || !zeros.contains(&(verb, order)) {
+                return None;
+            }
+        }
+        Some(Quieting {
+            measure: verb,
             references,
         })
     }
 }
 
-/// **The name an author selects a row's cell by, off `read`**, and
-/// whether the cell is a family's member: the cell's own name where
-/// `read` reaches no index; else the name its member wraps
-/// ([`member_name`]'s inverse), which a selection of the family read
-/// plainly holds and each member reads as its own. `None` for a name of
-/// a family that is no member's.
-fn authored_name<P: crate::ProfilePayload>(
+/// **The cell a reference reads, as the member at `at` of its
+/// assertion's family reads it**: a variable as the tool it would be, an
+/// entity as its read's cell named as that member names it
+/// ([`member_name`]).
+fn cell_of<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    read: VarId,
-    name: &StableName,
-) -> Option<(StableName, bool)> {
-    let indexed = doc
-        .var_reach(read)
-        .chain()
-        .is_none_or(|chain| !chain.is_empty());
-    if !indexed {
-        return Some((name.clone(), false));
+    r: &QuietingRef,
+    at: &crate::names::MemberAt,
+) -> RowCell {
+    match r {
+        QuietingRef::Read(var) => RowCell::Tool(*var),
+        QuietingRef::Entity { read, name, .. } => {
+            RowCell::Entity(*read, member_name(doc, *read, name, at))
+        }
     }
-    let [crate::names::RoleSeg::Member { at, of }] = name.path.as_slice() else {
-        return None;
-    };
-    let plain: &StableName = of;
-    (member_name(doc, read, plain, at) == *name).then(|| (plain.clone(), true))
+}
+
+/// **The members of the assertion two references make**: one per
+/// member of the indices their reads reach together (D10
+/// `[repetition]`), each as its values for those indices; one, empty,
+/// where they reach none. `None` where two of the indices are unrelated,
+/// which no assertion reads, a count does not evaluate, or a variable
+/// read as it is reaches one (a split's tool repeated, whose plane the
+/// rule reads at the document's own values).
+fn members_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    references: &[QuietingRef; 2],
+) -> Option<Vec<crate::names::MemberAt>> {
+    let mut reached = BTreeSet::new();
+    for r in references {
+        match r {
+            QuietingRef::Read(var) => {
+                if !doc.var_reach(*var).is_none() {
+                    return None;
+                }
+            }
+            QuietingRef::Entity { read, .. } => {
+                reached.extend(doc.var_reach(*read).chain()?.iter().copied());
+            }
+        }
+    }
+    let chain = crate::repetition::Reach::new(doc)
+        .order(&reached)
+        .chain()?
+        .to_vec();
+    if chain.is_empty() {
+        return Some(vec![Vec::new()]);
+    }
+    doc.member_envs::<f64>(&chain)
+        .map(|member| {
+            let member = member.ok()?;
+            chain
+                .iter()
+                .zip(&member.at)
+                .map(|(&index, &value)| Some((index, u32::try_from(value).ok()?)))
+                .collect()
+        })
+        .collect()
 }
 
 /// **The pose a cell's carrier has**, as a coincidence of poses reads
@@ -787,6 +923,15 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
         coaxial,
         tool_role,
     })
+}
+
+/// [`saying`]'s measures and whether it reads poses, for a test that
+/// writes assertions in the rule's language.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn saying_of(
+    row: &crate::coincide::NamedCoincidence,
+) -> Option<(&'static [crate::measure::MeasureVerb], bool)> {
+    saying(row).map(|said| (said.verbs, said.poses))
 }
 
 /// **A holding assertion that reads a `Gap`'s or a `Distance`'s output

@@ -590,13 +590,9 @@ BOUND_AS = {
     "Unlocalized": "InterferenceFinding.unlocalized",
     # What a finding's assertion recourse determines. An interference's
     # pair of faces is a tuple of the finding's own `FaceSite`s; a
-    # coincidence's claim is `Quieting`, its measure and each
-    # reference's pose crossing as words, and its authored form as the
-    # edit list `Doc.apply` takes one by one.
+    # coincidence's claim is `Quieting`, authored as one action by
+    # `Doc.assert_quieting`.
     "OpposedPair": "InterferenceFinding.quieting",
-    "QuietingMeasure": "Quieting.measure",
-    "CellPose": "QuietingRef.pose",
-    "QuietingEdits": "Quieting.edits",
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.

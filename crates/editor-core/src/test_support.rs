@@ -1657,6 +1657,17 @@ pub fn quieting(
     crate::checks::at_rest::quieting(doc, evaluation, row, tol)
 }
 
+/// **The language an assertion quieting `row` is written in**
+/// (`checks::at_rest::saying`): the measures that say the row, and
+/// whether its cells are read as poses. `None` for a row no assertion
+/// says.
+#[must_use]
+pub fn saying(
+    row: &crate::coincide::NamedCoincidence,
+) -> Option<(&'static [crate::measure::MeasureVerb], bool)> {
+    crate::checks::at_rest::saying_of(row)
+}
+
 /// **A dual evaluation bound to a build of record built here**: the
 /// base-scalar evaluation of `doc` at [`crate::EvalOptions::of_record`],
 /// as `stackup`'s driver builds its record, then

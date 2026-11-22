@@ -4027,6 +4027,14 @@ class Doc:
 
         Exactly `insert(Node.measure(p))` per primitive, recorded as one
         action and answered with the outputs."""
+    def assert_quieting(self, quieting: Quieting) -> NodeId:
+        """Author the assertion a check carries (`CheckEvidence.quieting`)
+        as one action: a split's unnamed tool named first, the measure,
+        then the assertion, `= 0` over its output; all land or none does.
+        Answers the assertion's id, the node the quieted finding names.
+        A `quieting` the checks of another document found raises
+        `EditError` with variant `evaluation_of_another_document`; a
+        refusal of the insert door raises its own `EditError`."""
     def place(
         self,
         source: _BodyArg,
@@ -6526,7 +6534,8 @@ class QuietingRef:
     """One reference of a `Quieting`'s measure, as the measure reads it:
     the entity `name` names in the body `read` reads, read as that cell
     or as the pose `pose` read off it; or, with no `name`, the variable
-    `read` itself (the plane a split cuts with)."""
+    `read` itself (the plane a split cuts with). Equal where all three
+    are."""
 
     @property
     def read(self) -> Var:
@@ -6540,15 +6549,20 @@ class QuietingRef:
 
     @property
     def pose(self) -> Optional[str]:
-        """The pose read off the cell, `axis` or `point`; `None` for the
-        cell itself."""
+        """The kind of the pose read off the cell, `axis` or `point`;
+        `None` for the cell itself."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class Quieting:
     """The assertion that would quiet an unproven coincidence:
     `measure(references) = 0`, a `gap` or a `distance` over the row's
-    two cells as that measure reads them. The kernel mints it by the
-    rule that decides which holding assertion quiets the row, so the row
-    is quiet once `edits` are applied. `str()` is the claim in words."""
+    two cells as that measure reads them, in the document the checks ran
+    over. The kernel mints it only where the rule that decides which
+    holding assertion quiets the row takes it, so the row is quiet once
+    `Doc.assert_quieting` has authored it. `str()` is the claim in words.
+    Equal where the claim and the document are."""
 
     @property
     def measure(self) -> str:
@@ -6559,16 +6573,8 @@ class Quieting:
         """The measure's two references, in its order: a `gap`'s outer
         then inner."""
 
-    def edits(self, doc: Doc) -> list[DocEdit]:
-        """The edits that author it in `doc`, in order: the naming of a
-        split's unnamed tool (a variable two readers share is named),
-        the measure's insert, which mints each reference's selection
-        and pose, then the assertion's, `= 0` over the measure's output.
-        Apply each
-        with `Doc.apply`; the last one's node is the assertion the
-        quieted finding names. `doc` is untouched, and the edits are
-        spelled for `doc` as it stands. A refusal of the insert door
-        raises `EditError`."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the

@@ -622,7 +622,9 @@ impl Recourse {
         quieting: Option<&crate::checks::quieting::Quieting>,
         by: crate::spoken::Speaker<'_>,
     ) -> std::borrow::Cow<'static, str> {
-        const ONE_CONSTRUCTION: &str = "Recourse: build the cells as one construction of the              same variables, so the coincidence holds whatever their values";
+        const ONE_CONSTRUCTION: &str = "Recourse: build the cells as one construction of the \
+                                        same variables, so the coincidence holds whatever their \
+                                        values";
         let claim = quieting.map(|q| q.said(by));
         // Each reason once, behind the assertion where one says the row
         // and behind the construction where none does.
