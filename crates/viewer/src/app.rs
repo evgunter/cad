@@ -7520,6 +7520,18 @@ mod properties_pane_tests {
         );
     }
 
+    /// **Where the run reading `said` was painted on the line opened by
+    /// `seat`**: the tree names the same nodes, so a link is found by the
+    /// line it is on.
+    fn on_line(painted: &[(String, egui::Rect)], seat: &str, said: &str) -> egui::Pos2 {
+        let line = Driven::only(painted, seat);
+        painted
+            .iter()
+            .find(|(run, rect)| run == said && (rect.center().y - line.y).abs() < 1.0)
+            .map(|(_, rect)| rect.center())
+            .unwrap_or_else(|| panic!("the {seat:?} line names {said:?}: {painted:?}"))
+    }
+
     /// **A revolve's Properties name the profile it was made from, and a
     /// click on the name selects the profile.**
     ///
@@ -7535,20 +7547,61 @@ mod properties_pane_tests {
         };
         let said = crate::tree::node_label(doc, profile, driven.app.session.part_files());
         let painted = driven.quiet();
-        let seat = Driven::only(&painted, "profile:");
-        // The tree names the profile too; the link is the run on the
-        // seat's line.
-        let link = painted
-            .iter()
-            .find(|(run, rect)| *run == said && (rect.center().y - seat.y).abs() < 1.0)
-            .map(|(_, rect)| rect.center())
-            .unwrap_or_else(|| panic!("the seat's line names {said:?}: {painted:?}"));
-        driven.click_at(link);
+        driven.click_at(on_line(&painted, "profile:", &said));
         driven.quiet();
         assert_eq!(
             driven.app.session.selection(),
             &Selection::Node(profile),
             "the click selects the profile"
+        );
+    }
+
+    /// **A body's Properties list what reads it, and a click on a reader
+    /// selects it**: the startup plate's extrude is read by its world
+    /// placement at the source seat.
+    ///
+    /// *Breaks if* the read-by section is not drawn, the placement is
+    /// drawn as words, or its click selects anything else.
+    #[test]
+    fn a_bodys_read_by_names_its_placement_and_a_click_selects_it() {
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        let doc = driven.app.session.doc();
+        let said = crate::tree::node_label(doc, placement(), driven.app.session.part_files());
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "read by"),
+            "the section is headed: {painted:?}"
+        );
+        driven.click_at(on_line(&painted, "source of:", &said));
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(placement()),
+            "the click selects the placement"
+        );
+    }
+
+    /// **The placement editor's "copy of" names the body it copies, and
+    /// a click on it selects the body.**
+    ///
+    /// *Breaks if* the row draws the body as words, or its click selects
+    /// anything but the body.
+    #[test]
+    fn the_placement_editors_copy_of_links_the_body() {
+        use crate::pane::features::EDIT_PLACEMENT;
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(placement()))]);
+        driven.quiet();
+        driven.click(EDIT_PLACEMENT);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        let doc = driven.app.session.doc();
+        let said = crate::tree::node_label(doc, extrude(), driven.app.session.part_files());
+        let painted = driven.quiet();
+        driven.click_at(on_line(&painted, "copy of:", &said));
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(extrude()),
+            "the click selects the body copied"
         );
     }
 

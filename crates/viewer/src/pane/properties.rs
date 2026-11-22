@@ -76,11 +76,15 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 self.feature_rows_ui(ui, node, &groups);
-                // Under the node's own rows, which stay where they are.
                 let doc = self.session.doc();
-                let related = crate::relations::relations(doc, node, self.session.part_files());
-                relation_rows(ui, READS, &related.reads, self.ops);
-                relation_rows(ui, READ_BY, &related.read_by, self.ops);
+                let related = crate::relations::relations(
+                    doc,
+                    &doc.read_index(),
+                    node,
+                    self.session.part_files(),
+                );
+                relation_rows(ui, Direction::Reads, &related.reads, self.ops);
+                relation_rows(ui, Direction::ReadBy, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -1396,36 +1400,66 @@ fn selected_node_heading(
     }
 }
 
-/// The heading over what a node reads, seat by seat.
-pub(crate) const READS: &str = "reads";
+/// **Which way a relation row reads**: what the node reads, or what
+/// reads the node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Direction {
+    /// `profile: Profile 1`.
+    Reads,
+    /// `profile of: Revolve 3`.
+    ReadBy,
+}
 
-/// The heading over what reads a node.
-pub(crate) const READ_BY: &str = "read by";
+impl Direction {
+    /// The heading over the rows.
+    pub(crate) fn heading(self) -> &'static str {
+        match self {
+            Self::Reads => "reads",
+            Self::ReadBy => "read by",
+        }
+    }
 
-/// **A node's relation rows, drawn under `heading`**
-/// ([`crate::relations::Relations`]): each row its seat, then its
-/// entries, each one a link that selects what it names, or plain text
-/// where it names nothing this document holds. Nothing at all for no
-/// rows.
+    /// A row's seat, as its line opens.
+    pub(crate) fn seat(self, seat: crate::relations::Seat) -> String {
+        match self {
+            Self::Reads => format!("{}:", seat.label()),
+            Self::ReadBy => format!("{} of:", seat.label()),
+        }
+    }
+}
+
+/// **A node's relation rows, drawn** ([`crate::relations::Relations`]):
+/// under the direction's heading, each row its seat, then its entries,
+/// then `through` and the named variable read, where there is one. Each
+/// entry is a link that selects what it names, or words where it names
+/// nothing this document holds. Nothing at all for no rows.
 pub(crate) fn relation_rows(
     ui: &mut egui::Ui,
-    heading: &str,
+    direction: Direction,
     rows: &[crate::relations::RelationRow],
     ops: &mut Vec<SessionOp>,
 ) {
     if rows.is_empty() {
         return;
     }
-    ui.weak(heading);
+    ui.weak(direction.heading());
     for row in rows {
         ui.horizontal_wrapped(|ui| {
-            ui.label(format!("{}:", row.seat));
+            ui.label(direction.seat(row.seat));
             for entry in &row.entries {
                 related_entry(ui, entry, ops);
+            }
+            if let Some(through) = &row.through {
+                ui.label(THROUGH);
+                related_entry(ui, through, ops);
             }
         });
     }
 }
+
+/// The word between what a read reaches and the named variable it
+/// reads it through; the placement editor's "copy of" row says it too.
+pub(crate) const THROUGH: &str = "through";
 
 /// One [`crate::relations::Related`], drawn: a link pushing its
 /// selection, or its words.

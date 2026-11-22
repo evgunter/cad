@@ -521,7 +521,7 @@ pub struct Source {
 /// `[placement.placement]`: each placement is a copy of its own);
 /// `None` for any other node. A seat never reads through it: a pick on
 /// a copy seats the copy. It is the way from a copy to its original
-/// body, for the placed badge, the placement editor's `on` side and
+/// body, for the placement editor's `on` side and
 /// the re-point offer.
 pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> Option<Source> {
     let Some(Node::Place { source, .. }) = doc.node(node) else {

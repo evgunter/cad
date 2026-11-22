@@ -268,9 +268,10 @@ pub struct TreeRow {
     /// that came out empty.
     pub which: Option<String>,
     /// **The placements copying a body this node defines**, wherever
-    /// they stand ([`Doc::placements_of`]): the node's readers at the
-    /// source seat, which its Properties lists, and the placed badge
-    /// (A10) that counts them. A placement's own row is an ordinary row.
+    /// they stand ([`pncad::document::ReadIndex::placements_of`]): the
+    /// node's readers at the source seat, which its Properties lists,
+    /// and the placed badge (A10) that counts them. A placement is
+    /// badged too when another copies a piece of its own (a pick).
     pub placements: Vec<RecipeNodeId>,
     /// What the evaluation said about it.
     pub status: RowStatus,
@@ -1087,6 +1088,7 @@ pub fn rows(
         Some(ev) => ev.order.clone(),
         None => doc.ids().to_vec(),
     };
+    let index = doc.read_index();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
         // The world is no feature: it is in every document, is never
@@ -1115,7 +1117,7 @@ pub fn rows(
             id,
             spoken: doc.spoken(id),
             which: part_file(node, files),
-            placements: doc.placements_of(id),
+            placements: index.placements_of(id),
             status,
             repair_at,
             readout,

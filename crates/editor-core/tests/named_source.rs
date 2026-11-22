@@ -714,3 +714,69 @@ fn the_product_slot_refuses_one_member_of_a_family() {
     };
     assert!(held, "redefined under the slot: {:?}", got.map(|_| ()));
 }
+
+/// **What reads a body is the inverse of what each reader reads**: two
+/// copies of `B`, one through `spare = bracket`, `bracket = B`, and a
+/// third placed into `B`'s own space. `Doc::read_by(B)` lists the two
+/// copies at the source seat and the third at the space seat, each
+/// reading `B` in `Doc::operand_reads`; `Doc::placements_of(B)` is the
+/// two copies, and `Doc::placements_of_var` finds the one through
+/// `spare` from either source it passes through.
+///
+/// *Breaks if* a space seat stops reaching its definer, a read down a
+/// chain of sources stops reaching the body, or the two directions
+/// disagree.
+#[test]
+fn read_by_inverts_operand_reads_at_source_and_space_seats() {
+    let doc = ProfileDoc::empty_derived("read-by-inverts", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let doc = declared(doc, "bracket", VarDecl::source(Operand::Node(b)));
+    let doc = declared(
+        doc,
+        "spare",
+        VarDecl::source(Operand::Name(VarName::from_static("bracket"))),
+    );
+    let (doc, first) = insert(doc, placed(Operand::Node(b)));
+    let (doc, through) = insert(doc, placed(Operand::Name(VarName::from_static("spare"))));
+    let own = doc.space_of(out(&doc, b)).expect("B is in its own space");
+    let (doc, standing) = insert(
+        doc,
+        Node::place(
+            editor_core::BodyRead::plain(Operand::Node(first)),
+            Operand::Var(own),
+            editor_core::stand().bundle(),
+        ),
+    );
+    assert_eq!(
+        doc.read_by(b),
+        [
+            (first, OperandSlot::Source),
+            (through, OperandSlot::Source),
+            (standing, OperandSlot::Space),
+        ],
+        "both copies, and the placement standing in B's space"
+    );
+    for (reader, seat) in doc.read_by(b) {
+        assert!(
+            doc.operand_reads(reader)
+                .iter()
+                .any(|read| read.seat == seat && read.reaches.contains(&b)),
+            "{reader:?} reads B at {seat:?} in its own operand reads"
+        );
+    }
+    assert_eq!(doc.placements_of(b), [first, through], "the copies of B");
+    assert_eq!(doc.placements_of(first), [standing], "a copy of the copy");
+    for name in ["spare", "bracket"] {
+        let var = doc.var_named(name).expect("declared");
+        assert_eq!(
+            doc.placements_of_var(var),
+            [through],
+            "the copy reading spare reads {name}"
+        );
+    }
+    assert_eq!(
+        doc.placements_of_var(out(&doc, b)),
+        [first, through],
+        "B's body, directly and down both sources"
+    );
+}

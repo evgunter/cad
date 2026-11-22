@@ -497,7 +497,9 @@ not (
   (binary_id(sweep::all) & test(=a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk::a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk)) |
   (binary_id(sweep::all) & test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds)) |
   (binary_id(sweep::all) & test(=split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly)) |
-  (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column))
+  (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column)) |
+  (binary_id(viewer::all) & test(=tree_badges::read_by_is_the_inverse_of_reads_over_the_corpus)) |
+  (binary_id(viewer) & test(=app::properties_pane_tests::the_placement_editors_copy_of_links_the_body))
 )
 """
 

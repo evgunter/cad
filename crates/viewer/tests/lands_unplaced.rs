@@ -577,3 +577,35 @@ fn a_pick_through_a_copy_of_a_copy_is_guarded() {
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing recorded");
 }
+
+/// **A copy of one piece of a family is a reader along a seen path**
+/// (`world::is_seen`), so a seat keeps member reads off the family
+/// (`seats::Port::at_seat`): the pick copy covers its piece, and a
+/// member read of that piece would leave it drawn beside the result,
+/// as a whole copy would. Without the pick nothing else reads the
+/// `⊔`'s copy, so it is the pick alone that decides.
+///
+/// *Breaks if* a pick's copy stops counting as a reader of the copy it
+/// picks from, or anything else starts reading it.
+#[test]
+fn a_copy_of_one_piece_keeps_member_reads_off_its_family() {
+    let (mut session, _, assemble) = a_pick_through_a_union(Tol::witness());
+    let doc = session.committed_doc();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let [picked] = doc.placements_of(held)[..] else {
+        panic!("the pick copies a piece of the ⊔'s copy")
+    };
+    assert!(
+        viewer::world::is_seen(doc, held),
+        "the pick's copy reads it"
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: picked });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    assert!(
+        !viewer::world::is_seen(session.committed_doc(), held),
+        "with the pick gone nothing reads it"
+    );
+}

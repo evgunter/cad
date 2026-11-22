@@ -1015,7 +1015,7 @@ impl Readers {
 /// **One read of a variable, and the seat reading it** — the element of
 /// [`Doc::read_sites`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReadSite {
+pub(crate) enum ReadSite {
     /// A slot or an operand of a live node.
     Node {
         /// The node.
@@ -1039,22 +1039,58 @@ pub enum ReadSite {
     },
 }
 
-/// The readers at [`crate::OperandSlot::Source`], each once: the
-/// placements among `readers`.
-fn sources(readers: Vec<(RecipeNodeId, crate::OperandSlot)>) -> Vec<RecipeNodeId> {
-    let mut out: Vec<RecipeNodeId> = Vec::new();
-    for (reader, seat) in readers {
-        if seat == crate::OperandSlot::Source && !out.contains(&reader) {
-            out.push(reader);
-        }
+/// **One operand row of a node and what it reaches**
+/// ([`Doc::operand_reads`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperandRead {
+    /// The seat.
+    pub seat: crate::OperandSlot,
+    /// The variable read there.
+    pub read: VarId,
+    /// The nodes the read reaches, each once; empty for a read this
+    /// document does not resolve, or an instance's read of its own copy.
+    pub reaches: Vec<RecipeNodeId>,
+    /// Whether this is an instance's constraint reading its own copy,
+    /// which reaches no other node.
+    pub own_copy: bool,
+}
+
+/// **Who reads each node** ([`Doc::read_index`]): the inverse of every
+/// node's [`Doc::operand_reads`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReadIndex {
+    by_read: BTreeMap<RecipeNodeId, Vec<(RecipeNodeId, crate::OperandSlot)>>,
+}
+
+impl ReadIndex {
+    /// **What reads `node`**: each node with an operand seat reaching it,
+    /// with that seat, readers in id order and each reader's seats in
+    /// field order. A body's placements are its readers at
+    /// [`crate::OperandSlot::Source`], and the placements standing in a
+    /// construction's own space its readers at
+    /// [`crate::OperandSlot::Space`].
+    #[must_use]
+    pub fn read_by(&self, node: RecipeNodeId) -> &[(RecipeNodeId, crate::OperandSlot)] {
+        self.by_read.get(&node).map_or(&[], Vec::as_slice)
     }
-    out
+
+    /// **The placements copying a body of `node`**: its readers at the
+    /// source seat, each once, in document order.
+    #[must_use]
+    pub fn placements_of(&self, node: RecipeNodeId) -> Vec<RecipeNodeId> {
+        let mut out: Vec<RecipeNodeId> = Vec::new();
+        for &(reader, seat) in self.read_by(node) {
+            if seat == crate::OperandSlot::Source && !out.contains(&reader) {
+                out.push(reader);
+            }
+        }
+        out
+    }
 }
 
 impl ReadSite {
     /// The variable read.
-    #[must_use]
-    pub fn read(self) -> VarId {
+    pub(crate) fn read(self) -> VarId {
         match self {
             Self::Node { read, .. } | Self::Definition { read, .. } | Self::Product { read } => {
                 read
@@ -1563,7 +1599,7 @@ impl<P> Doc<P> {
     /// reading it**: the one enumeration of readers, in [`Readers::ALL`]'s
     /// order — the nodes in id order, then the definitions in
     /// declaration order, then the product slot.
-    pub fn read_sites(&self) -> impl Iterator<Item = ReadSite> + '_
+    pub(crate) fn read_sites(&self) -> impl Iterator<Item = ReadSite> + '_
     where
         P: crate::ProfilePayload,
     {
@@ -2547,76 +2583,146 @@ impl<P> Doc<P> {
         out
     }
 
-    /// **What reads `node`**: each live node with an operand seat whose
-    /// read reaches `node` ([`Self::read_ports`]), the seat beside it, in
-    /// [`Self::read_sites`]' order — the operand half of
-    /// [`Self::upstream`], inverted, so a node is read by exactly the
-    /// nodes whose upstream it is through an operand. A body's
-    /// placements are its readers at [`crate::OperandSlot::Source`].
+    /// **What `node` reads, seat by seat**: each operand row
+    /// ([`Node::operand_rows`], in field order) with the nodes its read
+    /// reaches ([`Self::operand_reaches`]). Empty for a node this
+    /// document does not hold.
+    pub fn operand_reads(&self, node: RecipeNodeId) -> Vec<OperandRead>
+    where
+        P: crate::ProfilePayload,
+    {
+        let Some(held) = self.nodes.get(&node) else {
+            return Vec::new();
+        };
+        held.operand_rows()
+            .into_iter()
+            .map(|(seat, read)| OperandRead {
+                seat,
+                read,
+                reaches: self.operand_reaches(node, seat, read),
+                own_copy: crate::mate::solve::own_copy_side(self, node, seat, read),
+            })
+            .collect()
+    }
+
+    /// **The nodes `reader`'s read of `var` at `seat` reaches**: the
+    /// operations [`Self::read_ports`] reaches (an output's operation, a
+    /// source's body, a selection's body, a pick's placement), then a
+    /// space's definer, which no read port reaches; each once. Nothing
+    /// for an instance's constraint reading its own copy
+    /// (`mate::solve::own_copy_side`), which is no read of another node
+    /// ([`Self::upstream_of`] says why). The one rule both directions of
+    /// a read are said by: [`Self::operand_reads`] and [`ReadIndex`].
+    fn operand_reaches(
+        &self,
+        reader: RecipeNodeId,
+        seat: crate::OperandSlot,
+        var: VarId,
+    ) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        if crate::mate::solve::own_copy_side(self, reader, seat, var) {
+            return Vec::new();
+        }
+        let space = self.vars.get(&var).and_then(space_definer);
+        let mut out: Vec<RecipeNodeId> = Vec::new();
+        for at in self
+            .read_ports(var)
+            .into_iter()
+            .map(|(at, _)| at)
+            .chain(space)
+        {
+            if !out.contains(&at) {
+                out.push(at);
+            }
+        }
+        out
+    }
+
+    /// **Who reads what, over the whole document, built once**: every
+    /// node's [`Self::operand_reads`] inverted, so a node is read by
+    /// exactly the nodes whose operand rows reach it. One walk of the
+    /// nodes; a reader of many nodes asks the index rather than the
+    /// document once per node.
+    pub fn read_index(&self) -> ReadIndex
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut by_read: BTreeMap<RecipeNodeId, Vec<(RecipeNodeId, crate::OperandSlot)>> =
+            BTreeMap::new();
+        for &reader in self.nodes.keys() {
+            for OperandRead { seat, reaches, .. } in self.operand_reads(reader) {
+                for at in reaches {
+                    by_read.entry(at).or_default().push((reader, seat));
+                }
+            }
+        }
+        ReadIndex { by_read }
+    }
+
+    /// **What reads `node`** ([`ReadIndex::read_by`]), for one question;
+    /// a caller asking of many nodes builds [`Self::read_index`] once.
     pub fn read_by(&self, node: RecipeNodeId) -> Vec<(RecipeNodeId, crate::OperandSlot)>
     where
         P: crate::ProfilePayload,
     {
-        self.node_reads()
-            .filter(|&(reader, seat, read)| {
-                !crate::mate::solve::own_copy_side(self, reader, seat, read)
-                    && self.read_ports(read).iter().any(|&(at, _)| at == node)
-            })
-            .map(|(reader, seat, _)| (reader, seat))
-            .collect()
+        self.read_index().read_by(node).to_vec()
     }
 
-    /// **What reads `var`**: each live node with an operand seat whose
-    /// read is `var` or passes through it down sources
-    /// ([`Self::source_steps`]: `spare = bracket`, `bracket = B`, so a
-    /// read of `spare` reads `bracket` and `B`), the seat beside it, in
-    /// [`Self::read_sites`]' order.
-    pub fn readers_of(&self, var: VarId) -> Vec<(RecipeNodeId, crate::OperandSlot)>
-    where
-        P: crate::ProfilePayload,
-    {
-        self.node_reads()
-            .filter(|&(_, _, read)| {
-                read == var
-                    || self.through_sources(read).read == var
-                    || self.source_steps(read).iter().any(|&(at, _)| at == var)
-            })
-            .map(|(reader, seat, _)| (reader, seat))
-            .collect()
-    }
-
-    /// **The placements copying a body of `node`**: its readers at the
-    /// source seat ([`Self::read_by`]), in document order.
+    /// **The placements copying a body of `node`**
+    /// ([`ReadIndex::placements_of`]), for one question.
     pub fn placements_of(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
     {
-        sources(self.read_by(node))
+        self.read_index().placements_of(node)
     }
 
-    /// **The placements copying `var`**: its readers at the source seat
-    /// ([`Self::readers_of`]), in document order.
-    pub fn placements_of_var(&self, var: VarId) -> Vec<RecipeNodeId>
-    where
-        P: crate::ProfilePayload,
-    {
-        sources(self.readers_of(var))
+    /// **The placements copying `var`**, in document order: each whose
+    /// source's read passes through `var` ([`Self::copy_chain`]). A
+    /// member read of a family reads the family, so a copy of `xs[k]`
+    /// is a copy of `xs`, as [`Self::read_ports`] reaches it; the
+    /// takeover's narrower question is [`Self::plain_copies_of`].
+    pub fn placements_of_var(&self, var: VarId) -> Vec<RecipeNodeId> {
+        self.placements()
+            .into_iter()
+            .filter(|&placement| {
+                self.copied_read(placement)
+                    .is_some_and(|read| self.copy_chain(read).contains(&var))
+            })
+            .collect()
     }
 
-    /// The operand reads of [`Self::read_sites`]: a scalar slot reads no
-    /// operation's output.
-    fn node_reads(&self) -> impl Iterator<Item = (RecipeNodeId, crate::OperandSlot, VarId)> + '_
-    where
-        P: crate::ProfilePayload,
-    {
-        self.read_sites().filter_map(|site| match site {
-            ReadSite::Node {
-                node,
-                seat: Some(seat),
-                read,
-            } => Some((node, seat, read)),
-            _ => None,
-        })
+    /// **The placements copying the source `source` down plain reads**:
+    /// [`Self::placements_of_var`] less the copies of a member of it. A
+    /// member source (`m = xs[k]`) is redefined with its family rather
+    /// than handed on, so what follows a redefinition of `source` stops
+    /// at one (`take_over::sources_reading`).
+    pub fn plain_copies_of(&self, source: VarId) -> Vec<RecipeNodeId> {
+        let plain = crate::take_over::sources_reading(self, source);
+        self.placements_of_var(source)
+            .into_iter()
+            .filter(|&placement| {
+                self.copied_read(placement)
+                    .is_some_and(|read| plain.contains_key(&read))
+            })
+            .collect()
+    }
+
+    /// **The variables a copy's source read passes through**, in read
+    /// order: each source down its definitions ([`Self::source_steps`],
+    /// `spare`, `bracket`), the body read at the end (`B`), and where that
+    /// is a pick, the placement it picks a piece of — the variables
+    /// [`Self::read_ports`] walks to reach the copied body's operation.
+    fn copy_chain(&self, read: VarId) -> Vec<VarId> {
+        let mut chain: Vec<VarId> = self.source_steps(read).iter().map(|&(at, _)| at).collect();
+        let root = self.through_sources(read).read;
+        chain.push(root);
+        if let Some(VarDef::Pick(pick)) = self.vars.get(&root).map(Var::def) {
+            chain.push(pick.placement);
+        }
+        chain
     }
 
     /// **What is wrong with reading `held` at a seat admitting

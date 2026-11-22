@@ -1235,3 +1235,83 @@ fn downstream_at(instance: pncad::document::RecipeNodeId) -> String {
         test_utils::refusal::tag(instance.0.digest())
     )
 }
+
+/// One relation as an edge: the reader, the seat, the node it reads.
+type Edge = (
+    pncad::document::RecipeNodeId,
+    viewer::relations::Seat,
+    pncad::document::RecipeNodeId,
+);
+
+/// Every node-to-node edge `doc`'s Properties draw, read off each node's
+/// reads (`reads`) or off each node's read-by rows, flipped (`read_by`).
+fn relation_edges(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> (Vec<Edge>, Vec<Edge>) {
+    use viewer::session::Selection;
+    let files = viewer::parts::PartFiles::default();
+    let index = doc.read_index();
+    let (mut reads, mut read_by) = (Vec::new(), Vec::new());
+    for node in doc.ids() {
+        let related = viewer::relations::relations(doc, &index, node, &files);
+        for row in related.reads {
+            for entry in &row.entries {
+                if let Some(Selection::Node(at)) = entry.selects {
+                    reads.push((node, row.seat, at));
+                }
+            }
+        }
+        for row in related.read_by {
+            for entry in &row.entries {
+                let Some(Selection::Node(reader)) = entry.selects else {
+                    panic!("a reader is a node: {entry:?}")
+                };
+                read_by.push((reader, row.seat, node));
+            }
+        }
+    }
+    for edges in [&mut reads, &mut read_by] {
+        edges.sort();
+        edges.dedup();
+    }
+    (reads, read_by)
+}
+
+/// **Every link the Properties draw has its way back**: over the
+/// corpus, a node read at a seat lists its reader at that seat, and a
+/// reader listed reads it — no exemption.
+///
+/// *Breaks if* either direction answers a read the other does not: a
+/// seat whose read reaches no node one way (a space's definer), or an
+/// exclusion (an instance's own copy) applied on one side only.
+#[test]
+fn read_by_is_the_inverse_of_reads_over_the_corpus() {
+    let mut bad = Vec::new();
+    let mut edges = 0;
+    for d in crate::corpus::documents()
+        .into_iter()
+        .chain(crate::corpus::stage6_beside_the_registry())
+    {
+        let (reads, read_by) = relation_edges(&d.doc);
+        edges += reads.len();
+        bad.extend(
+            reads
+                .iter()
+                .filter(|e| !read_by.contains(e))
+                .map(|e| format!("{}: reads only {e:?}", d.name)),
+        );
+        bad.extend(
+            read_by
+                .iter()
+                .filter(|e| !reads.contains(e))
+                .map(|e| format!("{}: read-by only {e:?}", d.name)),
+        );
+    }
+    assert!(edges > 0, "the corpus has reads to compare");
+    assert!(
+        bad.is_empty(),
+        "{} asymmetries:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}

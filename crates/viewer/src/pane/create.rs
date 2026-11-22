@@ -1012,7 +1012,7 @@ impl ViewerBehavior<'_> {
         let body = doc.through_sources(source).read;
         let files = self.session.part_files();
         let copied = doc.operation_of(body).map_or_else(
-            || crate::relations::Related::plain(doc.spoken_var(body).to_string()),
+            || crate::relations::Related::plain(crate::relations::DELETED),
             |node| crate::relations::Related::node(doc, node, files),
         );
         let through = crate::relations::Related::named(doc, source);
@@ -1023,7 +1023,7 @@ impl ViewerBehavior<'_> {
             ui.label("copy of:");
             crate::pane::properties::related_entry(ui, &copied, self.ops);
             if let Some(through) = &through {
-                ui.label("through");
+                ui.label(crate::pane::properties::THROUGH);
                 crate::pane::properties::related_entry(ui, through, self.ops);
             }
             crate::widgets::repoint_button(ui, button, self.ops);
