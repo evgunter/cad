@@ -2471,9 +2471,6 @@ NOT_BOUND = {
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
-    # What a stranded name's row says holds it: Python reads a stranded
-    # name in the maintenance row's own message and payload.
-    "NameCarrier": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
