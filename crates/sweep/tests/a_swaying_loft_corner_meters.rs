@@ -69,7 +69,7 @@ fn a_swaying_loft_builds_closed() {
         // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
         // Pinned, so the row goes red when that lands: once the loft
         // builds, read its corner meters as the v-degree 3 row does.
-        if v_degree == 2 {
+        let interval_meters = if v_degree == 2 {
             match lofted_i {
                 Err(sweep::LoftError::Skin(sweep::SkinError::Structure(e)))
                     if matches!(
@@ -82,14 +82,11 @@ fn a_swaying_loft_builds_closed() {
                     other.map(|_| ())
                 ),
             }
-        }
-        let interval_meters = match (v_degree, lofted_i) {
-            (2, _) => Vec::new(),
-            (_, lofted_i) => {
-                let lofted_i =
-                    lofted_i.unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
-                corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo())
-            }
+            Vec::new()
+        } else {
+            let lofted_i =
+                lofted_i.unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
+            corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo())
         };
         for (scalar, meters) in [("f64", f64_meters), ("interval", interval_meters)] {
             for (m, reference) in meters {

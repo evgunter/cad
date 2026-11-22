@@ -35,14 +35,14 @@ refuses typed"). Two cases hit this:
   document arc loft at `Interval` under the guided lift reaches it
   (`crates/editor-core/tests/e6_drive_over_a_loft_at_interval.rs`: the
   arc row still bisects to its leaf budget). Sections whose values are
-  all points still loft through the lifted `f64` skin.
-  (`work/scalar/f64-built-data-is-built-at-t.md`, 2026-11-21, builds a
-  family of one in `T` too, so point sections refuse here as wide ones
-  do. The rows that stood on the lifted skin are listed in that unit's
-  PR, 7292.)
+  all points refuse the same way: a family of one is built in `T` too
+  (`work/scalar/f64-built-data-is-built-at-t.md`, PR 7292, which
+  removed the lifted `f64` skin that had let it through).
   (S3 retired `ArcWeightNotAPoint`: the weight is held in `T` and
   stops at the carrier's door, `CarrierWeightNotAPoint`, until S4/S5.)
-- **More sections than `v_degree + 1`.** The interior averaged knots
+- **More sections than `v_degree + 1`, at v-degree 2 or more.** (At
+  v-degree 1 each slab's wall is its two sections' rows, and no wall
+  holds a section's parameter as a knot: PR 7292.) The interior averaged knots
   are chord-length parameters (Book Eq. 10.8, `skin_parameters`). Over
   a wide section they are wide, and `Knots::new` refuses them as
   `SkinError::Fit(FitError::Structure(KnotNotAPoint))`. Pinned in the
@@ -275,3 +275,7 @@ injectivity rows on their walls run at `f64` only.
 `demos/tour/tests/wall_jets.rs` pins both refusals, and its rows go red
 when this lands. The `Interval` twin there is the sweep crate's lens
 loft (`lens_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars`).
+
+## Rows waiting on the door (PR 7292, 2026-11-22)
+
+`work/scalar/the-point-carrier-fixture-goes-when-the-carriers-door-lifts.md` lists them: the certifier rows that read a fixture body (the `f64` body's carriers held as points) in place of the loft at `Interval`, and the loft rows that pin `CarrierWeightNotAPoint` or `CarrierKnotNotAPoint` and go red when the door lifts.
