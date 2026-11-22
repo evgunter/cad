@@ -140,6 +140,9 @@ const UNTITLED: &str = "untitled";
 /// apart from every other commit on screen.
 const NEW_DOCUMENT_COMMIT: &str = "Create document";
 
+/// The controls guide's toolbar button and its window's title.
+const CONTROLS: &str = "Controls";
+
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
 /// display settings.
@@ -479,6 +482,9 @@ pub struct ViewerApp {
     /// should still be open when the edit made to answer it lands, so
     /// the reader can see whether the finding went away.
     checks_shown: bool,
+    /// Whether the controls guide window is open. Chrome state, as
+    /// [`Self::checks_shown`] is.
+    controls_shown: bool,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
@@ -994,6 +1000,7 @@ impl ViewerApp {
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
             checks_shown: false,
+            controls_shown: false,
             camera,
             input,
             theme,
@@ -1864,6 +1871,37 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
+    /// The controls guide: every gesture the viewport honours and
+    /// what it does.
+    ///
+    /// **The rows are [`InputMap::bindings`]** — the table
+    /// [`InputMap::map`] and [`InputMap::pick`] read, of the map this
+    /// session resolved from its preferences — so the window lists
+    /// what the viewport in front of the reader does, and nothing
+    /// here words a binding.
+    fn controls_window(&mut self, ctx: &egui::Context) {
+        if !self.controls_shown {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(CONTROLS)
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("viewer_controls_guide")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for binding in self.input.bindings {
+                            ui.label(binding.gesture());
+                            ui.label(binding.action());
+                            ui.end_row();
+                        }
+                    });
+            });
+        self.controls_shown = open;
+    }
+
     /// The toolbar row: the document's controls, and the two gesture
     /// cancel doors while their gestures are in flight.
     ///
@@ -2072,6 +2110,13 @@ impl ViewerApp {
                 // for a fit rather than performing one; the
                 // viewport takes it at the real aspect.
                 self.pending_fit = true;
+            }
+            if ui
+                .button(CONTROLS)
+                .on_hover_text("what each pointer gesture does in the viewport")
+                .clicked()
+            {
+                self.controls_shown = !self.controls_shown;
             }
             // The indicator is a READ of session state, and the
             // buttons beside it are the shipped token and its pair.
@@ -2467,6 +2512,7 @@ impl eframe::App for ViewerApp {
             });
         ops.append(&mut toolbar_ops);
         self.checks_window(ui.ctx(), &mut ops);
+        self.controls_window(ui.ctx());
         if notation != self.session.notation() {
             self.session.set_notation(notation);
             self.remember_prefs();
@@ -7471,6 +7517,93 @@ mod properties_pane_tests {
             driven.app.session.product_fault().is_none(),
             "{:?}",
             driven.app.session.product_fault()
+        );
+    }
+
+    /// **The Controls button opens a guide whose rows are exactly the
+    /// bindings of the session's input map, and closes it again.** The
+    /// map installed is one no preset registers, so a window that
+    /// worded its own bindings would not show them; and everything
+    /// the opened window paints is accounted for, so a row written
+    /// beside the table is red too.
+    #[test]
+    fn the_controls_button_shows_exactly_the_bindings_of_the_sessions_input_map() {
+        use crate::app::CONTROLS;
+        use crate::input::{Binding, Held, InputMap, Navigation, PointerButton};
+        let mut driven = Driven::with(Vec::new());
+        driven.app.input = InputMap {
+            bindings: &[
+                Binding::Drag {
+                    button: PointerButton::Secondary,
+                    held: Held {
+                        shift: true,
+                        alt: true,
+                    },
+                    moves: Navigation::Orbit,
+                },
+                Binding::Drag {
+                    button: PointerButton::Primary,
+                    held: Held::NONE,
+                    moves: Navigation::Pan,
+                },
+                Binding::Pinch,
+                Binding::Click {
+                    button: PointerButton::Middle,
+                },
+            ],
+            ..InputMap::DEFAULT
+        };
+        // The window's title, then each row's gesture and its action.
+        let guide: Vec<String> = std::iter::once(CONTROLS.to_owned())
+            .chain(
+                driven
+                    .app
+                    .input
+                    .bindings
+                    .iter()
+                    .flat_map(|binding| [binding.gesture(), binding.action().to_owned()]),
+            )
+            .collect();
+        let before = driven.quiet();
+        // What a frame paints that the closed app did not, in reading
+        // order: down the lines, and along each.
+        let added = |painted: &[(String, egui::Rect)]| -> Vec<String> {
+            let mut new: Vec<&(String, egui::Rect)> =
+                painted.iter().filter(|run| !before.contains(run)).collect();
+            new.sort_by(|(_, a), (_, b)| {
+                a.center()
+                    .y
+                    .total_cmp(&b.center().y)
+                    .then(a.left().total_cmp(&b.left()))
+            });
+            new.into_iter().map(|(run, _)| run.clone()).collect()
+        };
+        driven.click(CONTROLS);
+        let open = driven.quiet();
+        assert_eq!(added(&open), guide, "the opened window, whole: {open:?}");
+        // The button and the window's title both read `Controls`;
+        // the button was there first.
+        let button = before
+            .iter()
+            .find(|(run, _)| run == CONTROLS)
+            .expect("the button")
+            .1;
+        driven.frame(vec![egui::Event::PointerMoved(button.center())]);
+        driven.frame(
+            [true, false]
+                .map(|pressed| egui::Event::PointerButton {
+                    pos: button.center(),
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .to_vec(),
+        );
+        let closed = driven.quiet();
+        assert_eq!(
+            added(&closed),
+            Vec::<String>::new(),
+            "the button closes it: {closed:?}"
         );
     }
 
