@@ -2,7 +2,7 @@
 id: a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line
 kind: unit
 title: A face bounded by chart iso lines alone that is no rectangle meshes at the density its δ allows; the cures are measured, then one is built
-status: spec
+status: dispatched
 opened: 2026-11-16
 priority: P1
 cost: H
