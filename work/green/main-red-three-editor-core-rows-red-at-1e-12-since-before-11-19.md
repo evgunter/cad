@@ -27,3 +27,18 @@ All three fail with these same numbers on `1360b9eb` (2026-11-19 19:50), `46e892
 ## Owed
 
 A bisect before 2026-11-19 to name the merge, then whether each new reading is right (the e2e row's verdict holds; the revalue rows read fewer moved margins than their floors).
+
+## Measured (GREEN U3, `green/editor-1e-12`, 2026-11-21)
+
+From the scheduled nightlies' junit artifacts (every leg, read whole). Run 44927630239 (`dbc608ff`) is a `workflow_dispatch` on PR 7264's branch (`profile/pen-rectangle-over-a-box`), not main, and its readings carry that PR's moves (`plate_param`'s floor reads 1989 there).
+
+| nightly | main | e2e slider | `boss_union` apart | `plate_param` apart |
+|---|---|---|---|---|
+| 44023697569 | `cdee7461` (11-17 05:22Z) | green at every ε | green at every ε | green at every ε |
+| 44243918484 | `db86602a` (11-18) | no junit | no junit | no junit |
+| 44680731754 | `8039ba06` (11-20) | red at 1e-6, 1e-12 | red at 1e-6, 1e-12 | red at 1e-6, 1e-12 |
+| 44870651337 | `f5ef8f2b` (11-21) | red at 1e-6, 1e-12 | red at 1e-6, 1e-12 | red at 1e-6, 1e-12 |
+
+So all three are red at 1e-6 too, and the move lands between `cdee7461` and `1360b9eb`. At 1e-6 the e2e row also reads `(10, 1264, 1254, 532)`, the default row's pin, against the 1e-6 pin `(10, 1282, 1272, 572)`: the receipt reads the same at every ε again.
+
+The revalue floors were last set by PR 7114 (`doctail/verdict-log-tells-no-validation-reading-from-a-building-decision`, merged `e7d1a14b` 11-18 12:56Z, inside that range): 2539 → 1993 and 1619 → 1462, when the floor came to count the choices' margins only. Its body lists the revalue rows run locally at the default ε only. To be confirmed at its first parent and its merge.

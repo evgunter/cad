@@ -25,3 +25,7 @@ The call counts and the frozen counts are the pin's; the form counts are up by 2
 ## Owed (GERM, the PR's program)
 
 Whether the plate's walks owe the extra forms (then the 1e-12 pin moves, with the reason) or the PR builds forms it should not. Not read here.
+
+## Measured (GREEN U3, `green/editor-1e-12`, 2026-11-21)
+
+The scheduled nightly 44870651337 (main `f5ef8f2b`) has this row red at every ε, not only 1e-12; at the default ε it is SCALAR's `main-red-the-plates-sym-walk-ledger-reads-2-to-8-more-forms` (P2), with the same five lines this row quotes. One pin serves every ε (`the_forms_the_plates_walks_build_are_pinned` reads no ε), so the two rows are one move. PR 7131 (`onehome/carrier-frames`, merged `9bc9d651` 11-21) re-pinned `PLATE_LEDGER` after that nightly, writing its move from 39703 (the old pin), not from the 39705 main then read.
