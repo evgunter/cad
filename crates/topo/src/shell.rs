@@ -318,7 +318,9 @@
 //!   re-anchored on the ring corner that stands for its boundary end
 //!   ([`seamed_band`]), so every face and seam of the operand's chart
 //!   survives under its key and no face carries a ring. Built through a
-//!   POLE (a cap of two branches), and between two boundaries (one face
+//!   POLE: one face whose seam ends there, its wrap tip (the cap a full
+//!   revolve mints), or two branches whose seams meet there (a cap cut
+//!   along a meridian). Built between two boundaries (one face
 //!   walking one seam, the band a full revolve mints): that chart's rim
 //!   is TWO bands, one at each boundary, the second a face of its own
 //!   recorded as the rim's [`HoleRim`] row ([`band_between_boundaries`]).
@@ -614,8 +616,9 @@ pub enum ShellError<T: Real> {
     /// cavity counterpart's boundary meets the designated face's own
     /// boundary rather than sitting strictly inside it; the two
     /// boundaries' holes do not correspond; or a wrapping chart is not
-    /// the band its surgery cuts (not two branches meeting at one pole,
-    /// not one face walking one seam, or the counterpart's corners not
+    /// the band its surgery cuts (neither one face whose seam ends at a
+    /// pole nor two branches whose seams meet at one, not one face
+    /// walking one seam, or the counterpart's corners not
     /// projecting onto the seam strictly inside it, in order). `what`
     /// names which.
     ///
@@ -2694,9 +2697,10 @@ fn undesignated(face: FaceKey) -> ! {
 /// 1. the chart's faces merge across the edges only they share
 ///    (`kef`), leaving the merged loop walking each killed edge's
 ///    surviving partner twice;
-/// 2. a SPUR — such a duplicate whose far vertex the merge left with
-///    one edge on it, the apex of two half-discs — dies with that
-///    vertex (`kev`);
+/// 2. a SPUR — such a duplicate whose loop walks it out and straight
+///    back ([`crate::surface_boundary::tips`]): the apex of two
+///    half-discs the merge left, or a wrap edge's tip — dies with its
+///    tip (`kev`);
 /// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
 ///    to the outer cycle — splits the loop in two (`kemr`), the
 ///    inner side becoming the ring it always was. On a chart that
@@ -2772,9 +2776,12 @@ fn canonicalize_chart<T: Decide>(
     // on.
     let mut band_seams: Vec<EdgeKey> = Vec::new();
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor, &band_seams) {
-        // Whether `he` ends at a valence-one tip, which `kev` kills; a
-        // far vertex whose valence cannot be read refuses.
-        let tip = |body: &Body<T>, he: HeKey| valence(body, body.proven_half_edge_end(he)) == 1;
+        // Whether `he` ends at a tip, which `kev` kills.
+        let tip = |body: &Body<T>, he: HeKey| {
+            !crate::surface_boundary::tips(body, &[he])
+                .unwrap_or_else(|| unreachable!("{he:?} was walked as a member of a live loop"))
+                .is_empty()
+        };
         if tip(body, he1) {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
@@ -3044,17 +3051,20 @@ struct SeamedRim {
 /// its outer boundary, its seams cut short, and the dying side's
 /// boundary.
 ///
-/// `host_faces` are the surviving chart's faces, unreduced: two
-/// branches, and `seams` the two edges they meet along. Both run from
-/// the host's boundary to one POLE, a vertex nothing else reaches, and
-/// the guest — reduced to one ring-free face — lies over the pole on the
-/// same surface.
+/// `host_faces` are the surviving chart's faces, unreduced, and `seams`
+/// the edges they lie on both sides of: one face whose one seam, a wrap
+/// edge, ends at its tip, read off the face's loop walk
+/// ([`crate::surface_boundary::tips`]); or two branches meeting along
+/// two seams at a vertex nothing else reaches. Either way the seams run
+/// from the host's boundary to that POLE, and the guest — reduced to one
+/// ring-free face — lies over the pole on the same surface.
 ///
 /// The surgery keeps every surviving edge: the glue (`kfmrh`) makes the
 /// guest's boundary a ring of the first host face, and each seam's pole
 /// end is then RE-ANCHORED on the ring vertex that corresponds to its
 /// boundary end, through a strut along the seam's own carrier that
-/// `kev` collapses. Two seams cannot both be re-anchored through one
+/// `kev` collapses. One seam's tip is collapsed so directly. Two seams
+/// cannot both be re-anchored through one
 /// pole, so the second is first moved off it onto a copy of it
 /// (`mev_null`), and the strut that would reach its ring vertex
 /// splits the first face (`mef`) along the first seam; the piece that
@@ -3088,33 +3098,45 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = crate::query::edge_ends::<T>;
-    // The pole: the one vertex every seam reaches and nothing else does.
-    let pole = {
-        let (a, b) = ends(body, seams[0]);
-        [a, b].into_iter().find(|&v| {
-            valence(body, v) == seams.len()
-                && seams.iter().all(|&e| {
-                    let (s, t) = ends(body, e);
-                    s == v || t == v
-                })
-        })
-    };
-    // Two seams, one per branch boundary. One seam ending at a pole
-    // would leave the pole a strut tip, which tier 2 refuses at rest,
-    // so no finished operand carries it.
-    let (Some(pole), 2) = (pole, seams.len()) else {
-        return Err(not_expressible(
-            "the designated chart wraps its period, but it is not two branches whose seams \
-             meet at one pole",
-        ));
-    };
     let host = host_faces[0];
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
-    // The host face's corner at the pole: `into` arrives along one seam,
-    // `out_of` leaves along the other (along the same seam, on a spur).
     let host_cycle = cycle_of(body, body.proven_face(host).outer().0);
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
+    // The pole. One seam is a wrap edge kept to its end: the pole is its
+    // tip, read off the face's loop walk. Two seams, one per branch,
+    // meet at a pole nothing else reaches.
+    let pole = match (host_faces, seams) {
+        (&[_], &[seam]) => crate::surface_boundary::tips(body, &host_cycle)
+            .and_then(|tips| match tips[..] {
+                [tip] => Some(tip),
+                _ => None,
+            })
+            .filter(|&tip| {
+                let (s, t) = crate::query::edge_ends::<T>(body, seam);
+                s == tip || t == tip
+            }),
+        (&[_, _], &[a, b]) => {
+            let ends = crate::query::edge_ends::<T>;
+            let (s, t) = ends(body, a);
+            [s, t].into_iter().find(|&v| {
+                valence(body, v) == 2
+                    && [a, b].iter().all(|&e| {
+                        let (s, t) = ends(body, e);
+                        s == v || t == v
+                    })
+            })
+        }
+        _ => None,
+    };
+    let Some(pole) = pole else {
+        return Err(not_expressible(
+            "the designated chart wraps its period, but it is neither one face whose seam ends \
+             at a pole nor two branches whose seams meet at one",
+        ));
+    };
+    let branches = seams.len() == 2;
+    // The host face's corner at the pole: `into` arrives along one seam,
+    // `out_of` leaves along the other (along the same seam, at a tip).
     let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
         return Err(not_expressible(
             "the designated chart wraps its period, but its first face does not reach the pole",
@@ -3139,7 +3161,10 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     // and the ring is then the designated face's own, and not a stretch
     // of its surface past the boundary (a junction the cavity's wall
     // meets below the designated face's own).
-    for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)] {
+    for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)]
+        .into_iter()
+        .take(seams.len())
+    {
         let p_boundary = point(body, boundary);
         let reach = along(
             body,
@@ -3159,26 +3184,30 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // The second seam leaves the pole for a copy of it (a null edge), so
-    // the pole can be collapsed onto one ring vertex and the copy onto
-    // the other.
-    let made = body
-        .mev_null(
-            crate::euler::MevSite::Fan {
-                he1: out_of,
-                he2: {
-                    let data = proven(&body.edges, ea, EntityId::Edge);
-                    if data.he_plus == into {
-                        data.he_minus
-                    } else {
-                        data.he_plus
-                    }
+    // Of two seams, the second leaves the pole for a copy of it (a null
+    // edge), so the pole can be collapsed onto one ring vertex and the
+    // copy onto the other. One seam's tip is collapsed itself.
+    let (station, off_pole) = if branches {
+        let made = body
+            .mev_null(
+                crate::euler::MevSite::Fan {
+                    he1: out_of,
+                    he2: {
+                        let data = proven(&body.edges, ea, EntityId::Edge);
+                        if data.he_plus == into {
+                            data.he_minus
+                        } else {
+                            data.he_plus
+                        }
+                    },
                 },
-            },
-            crate::null::NewVertexSide::Above,
-        )
-        .map_err(rim_error)?;
-    let (station, off_pole) = (made.vertex, made.he_plus);
+                crate::null::NewVertexSide::Above,
+            )
+            .map_err(rim_error)?;
+        (made.vertex, Some(made.he_plus))
+    } else {
+        (pole, None)
+    };
 
     // The glue: the guest's boundary becomes a ring of the host face.
     let fused = glue_ring(body, host, guest, designated, tol, dead)?;
@@ -3193,8 +3222,9 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     };
     let (ra, rb) = (leaving(ga), leaving(gb));
 
-    // The strut that re-anchors the first seam, and the half of it that
-    // runs from the ring vertex to the pole, which `kev` collapses.
+    // The strut that re-anchors the seam leaving `station`, and the half
+    // of it that runs from its ring vertex to `station`, which `kev`
+    // collapses.
     let collapse = |body: &Body<T>, plus: HeKey, minus: HeKey, tip: VertexKey| {
         if body.proven_half_edge_end(plus) == tip {
             plus
@@ -3213,29 +3243,38 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         )
         .map_err(rim_error)?;
     dead.loops.push(joined.killed_ring);
-    let split = body
-        .mef(
-            crate::euler::MefSite::Chords {
-                he1: off_pole,
-                he2: ra,
-            },
-            along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
-            crate::euler::FaceSurface::Inherit,
-            tol,
-        )
-        .map_err(rim_error)?;
-    // The new face holds the pole and the scaffold between the two
-    // seams; it dies into the second host face.
-    body.kef(off_pole).map_err(rim_error)?;
+    // Of two seams, the first is re-anchored by a strut that splits the
+    // first face along it; the new face holds the pole and the scaffold
+    // between the two seams, and dies into the second host face.
+    let to_pole = match off_pole {
+        Some(off_pole) => {
+            let split = body
+                .mef(
+                    crate::euler::MefSite::Chords {
+                        he1: off_pole,
+                        he2: ra,
+                    },
+                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+                    crate::euler::FaceSurface::Inherit,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            body.kef(off_pole).map_err(rim_error)?;
+            Some(collapse(body, split.he_plus, split.he_minus, pole))
+        }
+        None => None,
+    };
     let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
-    let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
     let moved = re_anchored(body, eb, station, p_gb, designated, band)?;
-    body.kev_describing(to_station, &[(eb, moved)], tol)
+    let mut killed = body
+        .kev_describing(to_station, &[(eb, moved)], tol)
         .map_err(rim_error)?;
-    let moved = re_anchored(body, ea, pole, p_ga, designated, band)?;
-    let killed = body
-        .kev_describing(to_pole, &[(ea, moved)], tol)
-        .map_err(rim_error)?;
+    if let Some(to_pole) = to_pole {
+        let moved = re_anchored(body, ea, pole, p_ga, designated, band)?;
+        killed = body
+            .kev_describing(to_pole, &[(ea, moved)], tol)
+            .map_err(rim_error)?;
+    }
     dead.vertices.push(killed.killed_vertex);
     Ok(SeamedRim {
         face: host,
@@ -6670,8 +6709,8 @@ mod tests {
 
     /// A vertex whose orbit does not walk has no valence to answer, so
     /// the read panics naming the walk rather than answer zero, which
-    /// the spur test reads as "not a tip" and sends to the slit's
-    /// `kemr`. A lone vertex meets no edge and answers zero.
+    /// the two-branch pole reading would take as "not the pole". A lone
+    /// vertex meets no edge and answers zero.
     #[test]
     fn valence_panics_on_a_vertex_whose_orbit_does_not_walk() {
         let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
