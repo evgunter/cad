@@ -1366,7 +1366,8 @@ pub(super) fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> 
 /// forward in the carrier parameter)?
 #[track_caller]
 pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
-    edge_record(body, half_edge).1.he_plus == half_edge
+    let (ek, data) = edge_record(body, half_edge);
+    crate::live::claimed(half_edge, ek, data).plus
 }
 
 /// The FIRST-CHANNEL arm of a chart — the metres a unit step of the

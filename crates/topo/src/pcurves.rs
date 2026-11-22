@@ -148,10 +148,9 @@
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
 //! deterministic pipeline rather than reading stored bytes, and no
-//! pcurve-shaped field enters the schema. [`crate::transform`] takes
-//! the same posture as it already does for carriers and witnesses:
-//! construction-fresh re-derivation against the mapped geometry, never
-//! a mapped stored cache.
+//! pcurve-shaped field enters the schema. [`crate::mirror_body`] takes
+//! the same posture: its rows are re-derived against the mapped
+//! geometry, never a mapped stored cache.
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
@@ -207,10 +206,12 @@
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, when the input carried rows — as an
-//! input at rest does on every face whose chart mints), and
-//! [`crate::transform`] (on the same terms), and
-//! [`crate::shell`](mod@crate::shell) (on the
-//! assembled thin solid). **Downstream crates hold the same posture and
+//! input at rest does on every face whose chart mints),
+//! [`crate::mirror_body`] (on the same terms;
+//! [`crate::transform_rigid`] carries rows unchanged instead),
+//! [`crate::shell`](mod@crate::shell) (on the assembled thin solid),
+//! and the staged offset behind `replace_faces_offset_staged` (on the
+//! whole staged body). **Downstream crates hold the same posture and
 //! are part of the list**: `sweep`'s extrude, revolve and tube, loft,
 //! fillet build and fillet surgery, and `step_import`'s assembly all
 //! re-mint on the body they return.

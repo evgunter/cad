@@ -10389,14 +10389,13 @@ enum RingNestingVerdict {
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
 /// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
-/// The ring's VERTICES are the queries, in cycle order, and the walk
-/// takes the first definite verdict it reaches — `Out` reports, `In`
-/// accepts. That is what keeps an escalation at one vertex from
-/// refusing a ring another vertex has already placed inside, and it
-/// is why the witness reported is the FIRST vertex in cycle order
-/// that read outside rather than a distinguished one. An `OnBoundary`
-/// is the disjointness half's question, not this one, so it settles
-/// nothing here and the walk moves to the next vertex.
+/// The ring's VERTICES are the queries, in cycle order, and every one
+/// is read ([`crate::loop_side::inside_at_every_vertex`]): a vertex
+/// placed `Out` reports, the first such in cycle order the witness;
+/// otherwise a vertex placed `In` accepts, so an escalation at one
+/// vertex does not refuse a ring another vertex placed inside. An
+/// `OnBoundary` is the disjointness half's question, not this one, so
+/// it places nothing here.
 ///
 /// **One instrument, every class**:
 /// [`crate::splitting::containment::point_in_loop`], which reads each outer

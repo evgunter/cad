@@ -5486,6 +5486,9 @@ pub(crate) fn run_edges<T: Decide>(
         let Some(end) = body.half_edge_end(he_key) else {
             return Err(corrupt("half-edge mate does not resolve"));
         };
+        let Some(claim) = edge.claim(he_key) else {
+            return Err(corrupt("edge does not claim the half-edge that names it"));
+        };
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
@@ -5500,7 +5503,7 @@ pub(crate) fn run_edges<T: Decide>(
                 .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
-            forward: he_key == edge.he_plus,
+            forward: claim.plus,
             start: tag_of(he.start),
             end: tag_of(end),
         });
