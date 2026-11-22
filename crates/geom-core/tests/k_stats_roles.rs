@@ -121,15 +121,18 @@ fn a_stolen_job_runs_in_its_spawners_role() {
     );
 }
 
+const T_SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("t_site", "the test's query");
+
 /// `answered` and `mark_candidates` take this thread's role.
 #[test]
 fn an_answer_and_a_mark_take_the_scopes_role() {
     let b = Bracket::open();
     answered("t_answer", Sign::Positive);
-    mark_candidates("t_site", [3]);
+    mark_candidates(T_SITE, [3]);
     checking(|| {
         answered("t_answer", Sign::Negative);
-        mark_candidates("t_site", [4]);
+        mark_candidates(T_SITE, [4]);
     });
     let r = b.finish();
     assert_eq!(
@@ -164,7 +167,7 @@ fn extend_places_marks_after_the_prefix() {
         verdicts: vec![v],
         marks: vec![Mark {
             before: 1,
-            site: "s",
+            site: T_SITE.site(),
             item: MarkItem::Candidate(0),
             role: Role::Choice,
         }],
