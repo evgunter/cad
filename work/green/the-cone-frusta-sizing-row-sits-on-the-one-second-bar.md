@@ -17,7 +17,7 @@ only.
 
 `test (app)` went red on `scripts/check-fast-set-times.py`'s backstop:
 `mesh::all sizing_theorem_rows::cone_frusta_mesh_within_delta took 1.050
-s (existing test: 1.0 s)`. The same head's previous run (45034104026)
+s (existing test: 1.0 s)`. The branch's previous run (45034104026, head `c1f4a5f9d3`)
 passed this check. It is the same class as
 `the-snowman-pole-cut-row-sits-on-the-one-second-bar` and
 `a-fast-set-germ-row-sits-on-the-one-second-bar-and-reds-a-docs-only-commit`:
