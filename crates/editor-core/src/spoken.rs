@@ -605,7 +605,15 @@ impl<P: ProfilePayload> Doc<P> {
             .filter(|node| node.id() != name.node && node.kind().is_some())
             .cloned()
             .collect();
-        SpokenName::new(name.clone(), self.spoken(name.node), held)
+        let minter = self.spoken(name.node);
+        if minter.kind().is_none()
+            && held.nodes.is_empty()
+            && held.vars.is_empty()
+            && held.facts.is_empty()
+        {
+            held.document = None;
+        }
+        SpokenName::new(name.clone(), minter, held)
     }
 }
 

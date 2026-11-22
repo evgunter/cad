@@ -377,7 +377,7 @@ class TestTheThreeRefusals(unittest.TestCase):
         self.assertEqual(refusal.node, prism)
         # The message speaks the node with its label; the payload keeps
         # the full id.
-        self.assertIn('(Extrude "plinth" ', str(refusal))
+        self.assertIn('("plinth" (', str(refusal))
         self.assertIsNone(refusal.param)
         self.assertTrue(refusal.cause)
         # The same refusal an ordinary evaluation of that document

@@ -45,9 +45,8 @@ pub(crate) fn nested_indent(ui: &egui::Ui, level: usize) -> f32 {
 }
 
 /// **What one feature-tree row reads as, drawn**: its headline
-/// ([`tree::headline`]) — a labelled node's label with its kind and tag
-/// muted beside it, an unlabelled node's kind, tag and which one of its
-/// kind it is — and the world badge.
+/// ([`tree::headline`]) — the node as every sentence spells it, with
+/// which one of its kind it is muted beside it — and the world badge.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Extrude`
 /// twice asks a person to tell two extrudes apart by clicking; the tag

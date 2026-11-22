@@ -358,7 +358,7 @@ class TestEvaluation(unittest.TestCase):
         # The standing speaks each node as the evaluated document holds
         # it: label and tag (kind and tag with no label).
         self.assertIn(
-            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
+            f'Union {tag(downstream)} is poisoned by the failure at "pocket" '
             f"({tag(cut)})",
             str(caught.exception),
         )

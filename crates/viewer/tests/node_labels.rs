@@ -137,10 +137,11 @@ fn only_a_creation_can_be_labelled() {
     );
 }
 
-/// A labelled row leads with its label and mutes its kind and tag; an
-/// unlabelled one reads as the spoken node and its pose.
+/// A row leads with its node as every sentence spells it — a labelled
+/// one by its label and tag, never its kind beside them, an unlabelled
+/// one by its kind and tag — and mutes which one of its kind it is.
 #[test]
-fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
+fn a_rows_headline_is_its_node_as_a_sentence_spells_it() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-headline", tol);
     let t = tag(extrude.0.digest());
@@ -155,8 +156,8 @@ fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
     assert_eq!(
         headline(&doc.spoken(extrude), Some("unused pose")),
         Headline {
-            lead: "base plate".to_owned(),
-            muted: Some(format!("Extrude {t}")),
+            lead: format!("\"base plate\" ({t})"),
+            muted: Some("— unused pose".to_owned()),
         }
     );
 }
@@ -1114,7 +1115,7 @@ fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
     assert_eq!(reopened.committed_doc().label(node), Some(&label(text)));
     assert_eq!(
         headline(&reopened.committed_doc().spoken(node), None).lead,
-        text,
+        format!("\"{text}\" ({})", tag(node.0.digest())),
         "the reopened row leads with the label"
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");

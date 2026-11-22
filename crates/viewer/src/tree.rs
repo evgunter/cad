@@ -762,12 +762,13 @@ pub struct Headline {
 /// **What a feature-tree row's headline says** (DESIGN.md Band 1,
 /// "Node labels"): the node as every sentence spells it ([`spelled`]),
 /// `"base plate" (3fa9c1d2a0b1)` or `Extrude 3fa9c1d2a0b1`, with which
-/// one of its kind it is (an instance's part file) muted beside it.
+/// one of its kind it is (an instance's part file) muted beside it, as
+/// [`named`] joins them (`— bracket.pncad`).
 #[must_use]
 pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
     Headline {
         lead: spelled(spoken),
-        muted: which.map(str::to_owned),
+        muted: which.map(|which| format!("— {which}")),
     }
 }
 
@@ -1522,7 +1523,7 @@ pub fn interrogation_as_drawn(
 /// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
 pub fn downstream_wording(through: &SpokenNode) -> String {
     format!(
-        "upstream failure at {through} — that rcrate::tree::spelled(&ow carrie)s the cause",
+        "upstream failure at {through} — that row carries the cause",
         through = crate::tree::spelled(through)
     )
 }
@@ -1534,7 +1535,7 @@ pub fn link_wording(at: &SpokenNode) -> String {
     format!("see {at}", at = crate::tree::spelled(at))
 }
 
-/// Anothecrate::tree::spelled(&r no)de whose own slot refused, when a `Failed` row's error
+/// Another node whose own slot refused, when a `Failed` row's error
 /// names one.
 fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
     repair_named(&ev.result(id)?.error()?.kind).filter(|at| *at != id)

@@ -1005,7 +1005,7 @@ const OVER_BUDGET: &[(&str, usize)] = &[
     // work/profile/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))",
-        84,
+        83,
     ),
 ];
 

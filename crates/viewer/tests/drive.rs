@@ -106,7 +106,7 @@ mod driven {
             let row = driver
                 .screen()
                 .iter()
-                .filter(|landed| landed.text.starts_with("Profile 1 "))
+                .filter(|landed| landed.text.starts_with("\"Profile 1\" ("))
                 .find_map(|landed| landed.visible().map(|rect| rect.center()))
                 .expect("the profile's tree row is on screen");
             driver

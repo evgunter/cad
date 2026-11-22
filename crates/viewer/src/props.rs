@@ -1534,7 +1534,7 @@ pub struct Offered {
     /// The variable accepting the offer makes the slot read.
     pub var: VarId,
     /// How the offer names it: its name, or for an anonymous variable
-    /// the slot that reads it (`the depth of Extrude "base"`), as VR2
+    /// the slot that reads it (`the depth of "base" (3fa9c1d2a0b1)`), as VR2
     /// says an unnamed variable reads; its tag where no slot reads it.
     pub label: String,
 }

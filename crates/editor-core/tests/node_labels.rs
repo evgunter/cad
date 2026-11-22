@@ -241,10 +241,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
                 unreachable!("matched above")
             };
             assert_eq!(node, &doc.spoken(extrude), "the refused node");
-            let said = format!(
-                "Extrude \"base \\\"plate\\\"\" ({})",
-                tag(extrude.0.digest())
-            );
+            let said = format!("\"base \\\"plate\\\"\" ({})", tag(extrude.0.digest()));
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
                 sentence.contains(&format!("{said}'s profile reads")),
@@ -308,7 +305,7 @@ fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
 /// kind, quoted label and tag; kind and tag once cleared; `node` and
 /// the tag once the node is gone.
 #[test]
-fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
+fn the_spoken_node_says_label_and_tag_as_the_document_holds_them() {
     let doc = ProfileDoc::empty_derived("node-labels-spoken", Tol::witness());
     let (doc, [_, extrude]) = block(doc, 0.0);
     let labelled = set_label(doc.clone(), extrude, Some("base plate"));
@@ -325,7 +322,7 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
     let quoted = set_label(doc.clone(), extrude, Some(r#"Bolt "M6" \ 2"#));
     assert_eq!(
         editor_core::test_support::node_text(&quoted.spoken(extrude)),
-        format!(r#"Extrude "Bolt \"M6\" \\ 2" ({t})"#),
+        format!(r#""Bolt \"M6\" \\ 2" ({t})"#),
         "a quote and a backslash in the label are escaped"
     );
     let (gone, _) = step(labelled, DocEdit::DeleteNode { id: extrude });
@@ -918,7 +915,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     assert!(interference.quiet.is_none(), "{interference:?}");
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.to_string().contains("Place \"base\"")
+        spoken.to_string().contains("\"base\" (")
             && !spoken.to_string().contains(&format!("placement {b}")),
         "no placement is left at its bare tag: {spoken}"
     );
@@ -1076,7 +1073,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert_eq!(
         poisoned.spoken(&doc),
         format!(
-            "\"base plate\" ({e}) is poisoned by the failure at Profile \"sketch \
+            "\"base plate\" ({e}) is poisoned by the failure at \"sketch \
              plane\" ({f}), so it has no value — the repair is upstream, at \
              \"sketch plane\" ({f})"
         )
