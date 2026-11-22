@@ -198,17 +198,17 @@ The two columns line up exactly: every straddle between faces that share a
 cell descends from a failed touching pair, and no straddle between faces
 that share nothing does.
 
-**The faces that share nothing do not come within the band.** On the
-dearest asks, 52 such face pairs straddle. The least upper end of any of
-their separations is 3.1e-3 m (median 0.14 m): about 3 mm apart at the
-very least, far outside K·ε. Their deepest straddling split is at depth 16
-to 40 (median 17.5), and there the separation's enclosure still has its
-lower end at exactly 0 in all 52 (upper end median 0.27 m; one pair at
-depth 40 reads [0, 4.4e-3]). So the cells' boxes still overlap where the
-surfaces are millimetres to decimetres apart: the enclosures do not
-shrink with the cells. This is neither near-tangency nor the
-neighbourhood of a failed local certificate; it is enclosure looseness on
-these torus, ball and rod bodies.
+**The faces that share nothing come within a cell of each other.** On the
+dearest asks, 52 such face pairs straddle. The least upper end of their
+separations is 3.1e-3 m: an upper bound, so they come at least that close.
+At their deepest straddling split (depth 16 to 40) the separation's lower
+end is exactly 0 in all 52. A box trace of three of them
+(`faces-sharing-nothing-within-a-cell-of-each-other-are-not-parted-by-the-depth-floor`)
+shows each cell's box equal to its sampled extent and halving with it,
+and the closest sampled points 0.14 to 0.54 mm apart, below the cell size
+the depth floor reaches. So it is not enclosure looseness; the faces are
+that close, and box distance cannot part them at any depth the floor
+allows.
 
 **Descendants of a failed touching pair, by its reason** (dearest; the
 nearest touching ancestor): one part `Local` in `unread` 77,915, in
@@ -226,5 +226,5 @@ certificate split, by its reason**
 
 So refusing a touching pair by its reason, descendants included, would
 save about a quarter on the dearest asks and most of the depth-floor
-sample's; the dearest asks' other three quarters are the loose
-enclosures between faces that share nothing.
+sample's; the dearest asks' other three quarters are faces that share
+nothing and come within a fraction of a millimetre of each other.
