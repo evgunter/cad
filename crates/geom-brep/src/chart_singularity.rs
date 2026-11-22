@@ -15,9 +15,12 @@
 //! a meridian spur that stops short of the pole has one and still holds
 //! it.
 //!
-//! **The singular points** are [`singular_points`]: a sphere's two poles
-//! ([`sphere_poles`]), a cone's apex and a spindle sheet's two apexes
-//! ([`sheet_apexes`]), from the chart's own frame.
+//! **The singular points** are [`singular_points`], the one home every
+//! reader asks: a sphere's two poles ([`sphere_poles`]), a cone's apex
+//! and a spindle sheet's two apexes ([`sheet_apexes`]), from the chart's
+//! own frame; and a spline net's collapsed sides ([`collapsed_sides`]),
+//! each boundary iso whose control points are all one stored point,
+//! decided on the stored values with no band (DESIGN `[extensibility]`).
 //!
 //! **On the boundary.** A point is at a vertex of the face where its
 //! distance to the vertex's stored point decides zero
@@ -129,6 +132,9 @@ pub enum Singularity {
     /// axis (`v = −v*`); on a horn, the same cusp as
     /// [`Self::SheetApexUp`].
     SheetApexDown,
+    /// A spline net's side whose control points are all one stored
+    /// point ([`collapsed_sides`]): the whole boundary iso is that point.
+    Side(crate::ssi::ChartSide),
 }
 
 /// **A spindle sheet's two apexes**, the one along its axis first: its
@@ -166,11 +172,33 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
     ]
 }
 
-/// **A chart's singular points**: a sphere's two poles, north first
-/// ([`sphere_poles`]), a cone's apex, and a spindle sheet's two apexes
-/// ([`sheet_apexes`]), from the chart's own frame; none for any other
-/// kind.
-pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
+/// **A surface's singular points, the one home**: a sphere's two poles,
+/// north first ([`sphere_poles`]), a cone's apex, and a spindle sheet's
+/// two apexes ([`sheet_apexes`]), from the chart's own frame; a spline
+/// net's collapsed sides ([`collapsed_sides`]), an `Approx` read through
+/// its fitted net; none for a plane, a cylinder or a ring torus.
+pub fn singular_points<T: Real>(surface: &Surface<T>) -> Vec<(Singularity, Point3<T>)> {
+    match surface {
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Torus { .. } => Vec::new(),
+        Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Spindle { .. } => {
+            ChartInverse::of(surface)
+                .map(|chart| analytic_points(&chart))
+                .unwrap_or_default()
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => surface
+            .spline_chart()
+            .map(|net| {
+                collapsed_sides(net)
+                    .into_iter()
+                    .map(|(side, p)| (Singularity::Side(side), p))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+/// The analytic arm of [`singular_points`], off the chart's frame.
+fn analytic_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
     let axis = chart.frame().axis_line();
     match chart.arm() {
         ChartArm::Sphere { radius } => sphere_poles(axis, radius).to_vec(),
@@ -178,6 +206,39 @@ pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Po
         ChartArm::Spindle { major, minor } => sheet_apexes(axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
+}
+
+/// **A spline net's collapsed sides**, in the order `u` low, `u` high,
+/// `v` low, `v` high: each side of the knot rectangle whose row of
+/// control points is all one stored point, with that point. Decided on
+/// the stored values, with no band (DESIGN `[extensibility]`): a side a
+/// constructor decides collapsed at its band it builds exactly one
+/// point, and a side that is tiny but not one point is a regular side of
+/// the chart, a short edge. With positive weights a clamped boundary iso
+/// is one point exactly when its control points are.
+#[must_use]
+pub fn collapsed_sides<T: Real>(
+    net: &geom::NurbsSurface<T>,
+) -> Vec<(crate::ssi::ChartSide, Point3<T>)> {
+    crate::ssi::boundary::SIDES
+        .into_iter()
+        .filter_map(|side| {
+            spline_collapsed_row(net, side)
+                .and_then(|row| row.first().and_then(|&i| net.control().get(i)).copied())
+                .map(|p| (side, p))
+        })
+        .collect()
+}
+
+/// **Whether `a` and `b` are one stored point**: every coordinate the
+/// same description, by the scalar's identity channel
+/// ([`geom_core::bit_identity::eq_bits`]). A scalar with no channel
+/// reads no point as another, so its nets have no collapsed side.
+fn one_stored_point<T: Real>(a: Point3<T>, b: Point3<T>) -> bool {
+    use geom_core::bit_identity::eq_bits;
+    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+        .iter()
+        .all(|(p, q)| eq_bits(p, q) == Some(true))
 }
 
 /// **One loop of a face**, as [`locate`] reads it: its edges in
@@ -452,13 +513,23 @@ pub fn locate<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Vec<Located<T>> {
-    let Ok(chart) = ChartInverse::of(surface) else {
-        return Vec::new();
-    };
-    let points = singular_points(&chart);
+    let points = singular_points(surface);
     if points.is_empty() {
         return Vec::new();
     }
+    let Ok(chart) = ChartInverse::of(surface) else {
+        // A spline net's collapsed side: no loop side is read through a
+        // spline chart, so one off the boundary is unread.
+        return points
+            .iter()
+            .map(|&(singularity, x)| Located {
+                singularity,
+                point: x,
+                lies: place_on_boundary(loops, x, band)
+                    .and_then(|on| on.ok_or(Unread::Loop { r#loop: 0 })),
+            })
+            .collect();
+    };
     let mut sides = Sides::new(surface, &chart, &points, images, band);
     points
         .iter()
@@ -1431,6 +1502,9 @@ pub fn loop_holds_on_left<T: Decide>(
             Singularity::North | Singularity::SheetApexUp => Ok(w == 1),
             Singularity::South | Singularity::SheetApexDown => Ok(w == -1),
             Singularity::Apex => Ok((w == 1) == (nappe(walk)? == NonzeroSign::Negative)),
+            // No walk runs through a spline chart, so none reads a side
+            // of one of its collapsed sides.
+            Singularity::Side(_) => Err(SideUnread::Straddle),
         },
     }
 }
@@ -1472,12 +1546,14 @@ pub fn holds<T: Decide>(
     singularity: Singularity,
     band: Band,
 ) -> Result<bool, Unread<T>> {
-    let Ok(chart) = ChartInverse::of(surface) else {
-        return Ok(false);
-    };
-    let points = singular_points(&chart);
+    let points = singular_points(surface);
     let Some(&(_, x)) = points.iter().find(|(s, _)| *s == singularity) else {
         return Ok(false);
+    };
+    let Ok(chart) = ChartInverse::of(surface) else {
+        // A spline net's collapsed side: no loop side is read through a
+        // spline chart.
+        return Err(Unread::Loop { r#loop: 0 });
     };
     Sides::new(surface, &chart, &points, loops, band).holds(singularity, x, sense)
 }
@@ -1485,30 +1561,20 @@ pub fn holds<T: Decide>(
 /// **Whether a side of a spline net's rectangle spans more than a
 /// point** ([`spline_collapsed_row`] answers none).
 #[must_use]
-pub fn spline_side_spans<T: Decide>(
+pub fn spline_side_spans<T: Real>(
     net: &geom::NurbsSurface<T>,
     side: crate::ssi::ChartSide,
-    band: Band,
 ) -> bool {
-    spline_collapsed_row(net, side, band).is_none()
+    spline_collapsed_row(net, side).is_none()
 }
 
-/// **A collapsed side of a spline net's rectangle**: the indices of its
-/// row's control points where no point of the row is decided apart from
-/// the row's first (`pcurve_chart_side_spans`), and `None` where some
-/// is. A row decided one point, or undecided, is a collapsed side, a
-/// pole a face may lie across with no edge on it. The one reading of a
-/// collapsed side: the section certificate's W1′ reads it, and the plane
-/// × spline pose's door reads it before its sweep.
+/// **The indices of a side's row of control points**, in the net's
+/// storage order (`iu · nv + iv`).
 #[must_use]
-pub fn spline_collapsed_row<T: Decide>(
-    net: &geom::NurbsSurface<T>,
-    side: crate::ssi::ChartSide,
-    band: Band,
-) -> Option<Vec<usize>> {
+pub fn side_row<T: Real>(net: &geom::NurbsSurface<T>, side: crate::ssi::ChartSide) -> Vec<usize> {
     use crate::ssi::{ChartAxis, ChartEnd};
     let (nu, nv) = net.control_counts();
-    let row: Vec<usize> = match (side.fixed, side.end) {
+    match (side.fixed, side.end) {
         (ChartAxis::U, ChartEnd::Low) => (0..nv).collect(),
         (ChartAxis::U, ChartEnd::High) => {
             (0..nv).map(|iv| (nu.saturating_sub(1)) * nv + iv).collect()
@@ -1517,22 +1583,26 @@ pub fn spline_collapsed_row<T: Decide>(
         (ChartAxis::V, ChartEnd::High) => {
             (0..nu).map(|iu| iu * nv + nv.saturating_sub(1)).collect()
         }
-    };
+    }
+}
+
+/// **A collapsed side of a spline net's rectangle**: the indices of its
+/// row's control points ([`side_row`]) where every one is the row's
+/// first stored point, and `None` where some is not. The one reading of
+/// a collapsed side ([`collapsed_sides`]): a pole a face may lie across
+/// with no edge on it, which the section certificate's W1′ and the plane
+/// × spline pose's door read before their sweeps.
+#[must_use]
+pub fn spline_collapsed_row<T: Real>(
+    net: &geom::NurbsSurface<T>,
+    side: crate::ssi::ChartSide,
+) -> Option<Vec<usize>> {
+    let row = side_row(net, side);
     let control = net.control();
-    let Some(&first) = row.first().and_then(|&i| control.get(i)) else {
-        return Some(row);
-    };
-    let spans = row.iter().filter_map(|&i| control.get(i)).any(|p| {
-        matches!(
-            decide(
-                "pcurve_chart_side_spans",
-                Margin::of(first.distance(*p)),
-                band
-            ),
-            Ok(Sign::Positive)
-        )
-    });
-    (!spans).then_some(row)
+    let first = *row.first().and_then(|&i| control.get(i))?;
+    row.iter()
+        .all(|&i| control.get(i).is_some_and(|&p| one_stored_point(p, first)))
+        .then_some(row)
 }
 
 /// [`Unread::refusal`], the one ranking of what [`place_on_boundary`]

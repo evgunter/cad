@@ -288,9 +288,10 @@ impl Ball {
 }
 
 /// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, and a torus's or spindle sheet's axis, which holds a sheet's
-/// apexes (a ring torus never comes near it). The other carriers have
-/// none.
+/// apex, a torus's or spindle sheet's axis, which holds a sheet's apexes
+/// (a ring torus never comes near it), and a spline net's collapsed
+/// sides. A plane and a cylinder have none, and a sphere's poles are
+/// not read here.
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
@@ -309,7 +310,14 @@ fn clear_of_singular(
             };
             clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
-        _ => true,
+        // A spline net's collapsed sides, from their one home, each a
+        // point the chart's normal vanishes at.
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            geom_brep::chart_singularity::singular_points(surface)
+                .into_iter()
+                .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()))
+        }
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. } => true,
     }
 }
 

@@ -418,7 +418,9 @@ enum Locus {
 }
 
 /// Whether `s`'s chart is singular at its point `p`: a cone's apex, a
-/// sphere's poles, a torus's points on its axis — where the `u`
+/// sphere's poles, a torus's points on its axis, a spline net's
+/// collapsed side ([`geom_brep::chart_singularity::singular_points`]) —
+/// where the `u`
 /// coordinate's lever arm (the distance from the apex or the axis)
 /// collapses. A pole is never joinable, whichever arm the edges are
 /// on: no chart image runs one branch through it.
@@ -443,7 +445,15 @@ pub(super) fn singular_at<T: Decide>(
             let (center, axis) = (frame.origin(), frame.axis());
             off_axis(center, axis)
         }
-        _ => return Ok(false),
+        // A spline net's collapsed sides, from their one home.
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            let mut points = geom_brep::chart_singularity::singular_points(s).into_iter();
+            let Some((_, first)) = points.next() else {
+                return Ok(false);
+            };
+            points.fold((p - first).norm(), |d, (_, x)| d.min((p - x).norm()))
+        }
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } => return Ok(false),
     };
     geom_core::k_stats::decide("join_regular_point", Margin::of(arm), band)
         .map(|sign| sign != Sign::Positive)

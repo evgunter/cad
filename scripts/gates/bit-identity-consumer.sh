@@ -25,6 +25,11 @@
 #    and decides nothing: a false "no" costs the certify (#6728);
 #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
 #    "values AS BITS"): scalar plumbing, never a comparison;
+#  - geom-brep chart_singularity.rs — one_stored_point: a spline
+#    net's singular set is a boundary iso whose control points are all
+#    one STORED point, read on the stored values with no band (DESIGN
+#    [extensibility], ratified on #7287). It reads which description
+#    the net holds, and decides no coincidence between two cells;
 # The tripwire stays ARMED: any NEW file using the channel fails
 # here — a new production consumer is a design regression against
 # the ratified retirement (add nothing without a DESIGN.md
@@ -47,6 +52,7 @@ NON_CONSUMER_HOMES=(
   crates/editor-core/src/eval/memo.rs
   crates/geom-core/src/spline/blossom.rs
   crates/geom-brep/src/certify.rs
+  crates/geom-brep/src/chart_singularity.rs
 )
 
 gate() {

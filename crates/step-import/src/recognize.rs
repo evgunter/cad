@@ -632,31 +632,6 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
     })
 }
 
-/// The side of the net that collapses to one point — every control point
-/// of a boundary row or column bitwise equal — as that point and whether
-/// it is a `u` side (a row of fixed `iu`), in the fixed order `u` start,
-/// `u` end, `v` start, `v` end.
-fn collapsed_side(patch: &NurbsSurface<f64>) -> Option<(Point3<f64>, bool)> {
-    let (nu, nv) = patch.control_counts();
-    let control = patch.control();
-    let at = |iu: usize, iv: usize| control[iu * nv + iv];
-    let bits = |p: Point3<f64>| p.to_array().map(f64::to_bits);
-    let side = |count: usize, point: &dyn Fn(usize) -> Point3<f64>| {
-        let first = point(0);
-        (1..count)
-            .all(|k| bits(point(k)) == bits(first))
-            .then_some(first)
-    };
-    [
-        (side(nv, &|iv| at(0, iv)), true),
-        (side(nv, &|iv| at(nu - 1, iv)), true),
-        (side(nu, &|iu| at(iu, 0)), false),
-        (side(nu, &|iu| at(iu, nv - 1)), false),
-    ]
-    .into_iter()
-    .find_map(|(p, u_side)| p.map(|p| (p, u_side)))
-}
-
 /// The sphere candidate (module docs): the midpoint's centre of mean
 /// curvature, the radius its distance from the midpoint. The axis runs
 /// through the patch's collapsed side where it has one (the NURBS chart's
@@ -688,7 +663,12 @@ fn estimate_sphere(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<
     }
     let (um, vm) = at_fraction(patch, 0.5, 0.5);
     let (u0, v0) = at_fraction(patch, 0.0, 0.0);
-    let (axis, seam) = match collapsed_side(patch) {
+    // The net's first collapsed side (`u` start, `u` end, `v` start,
+    // `v` end), from the singular set's one home.
+    let collapsed = geom_brep::chart_singularity::collapsed_sides(patch)
+        .first()
+        .map(|&(side, pole)| (pole, side.fixed == geom_brep::ChartAxis::U));
+    let (axis, seam) = match collapsed {
         Some((pole, u_side)) => {
             let (axis, _) = (pole - center).checked_direction().ok()?;
             (

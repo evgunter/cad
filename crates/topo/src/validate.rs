@@ -4583,6 +4583,9 @@ fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'stati
         geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
         geom_brep::chart_singularity::Singularity::SheetApexUp
         | geom_brep::chart_singularity::Singularity::SheetApexDown => "an apex of a spindle sheet",
+        geom_brep::chart_singularity::Singularity::Side(_) => {
+            "a collapsed side of a spline surface"
+        }
     }
 }
 
@@ -8472,15 +8475,14 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     let sheet_unshown = |face: FaceKey, errors: &mut Vec<ValidationError>| {
         use geom_brep::chart_singularity::{Singularity, singular_points};
-        let Some(chart) = body
+        let Some(surface) = body
             .faces
             .get(face)
             .and_then(|f| body.surfaces.get(f.surface))
-            .and_then(|s| geom::ChartInverse::of(s).ok())
         else {
             return;
         };
-        for (point, _) in singular_points(&chart) {
+        for (point, _) in singular_points(surface) {
             if matches!(point, Singularity::SheetApexUp | Singularity::SheetApexDown) {
                 errors.push(ValidationError::SheetApexReached { face, point });
             }
@@ -8500,9 +8502,10 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // unreachable: the curved arm read both
         };
-        let Ok(chart) = geom::ChartInverse::of(surface) else {
-            continue; // no chart, no singular point
-        };
+        let points = singular_points(surface);
+        if points.is_empty() {
+            continue;
+        }
         let Some(corners) = flat
             .iter()
             .map(|(_, hes)| {
@@ -8541,7 +8544,7 @@ pub(crate) fn tier3_local_checks_marked<
                 .collect()
         };
         let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
-        for (point, x) in singular_points(&chart) {
+        for (point, x) in points {
             let face = face_key;
             let sheet_apex = matches!(
                 point,

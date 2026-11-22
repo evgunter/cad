@@ -1720,7 +1720,7 @@ impl core::fmt::Display for OperandDatum {
 }
 
 /// A parameter axis of a NURBS operand's chart.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChartAxis {
     /// The first parameter.
     U,
