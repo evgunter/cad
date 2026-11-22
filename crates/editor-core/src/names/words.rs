@@ -94,7 +94,7 @@ use profile::PieceRole;
 /// sentence takes it as a noun phrase.
 ///
 /// Its `Display` says each node and profile step by its tag, in full;
-/// said by a [`Speaker`] ([`Said`]), as that speaker's document holds
+/// said by a [`Speaker`] ([`crate::Said`]), as that speaker's document holds
 /// them, at that speaker's detail. The name's own `Display` is this.
 #[derive(Clone, Copy)]
 pub struct LeafRole<'a>(pub &'a StableName);
