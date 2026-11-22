@@ -99,7 +99,7 @@ fn row1_bracketed(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 }
 
 fn tag(e: &PathError<f64>) -> String {
-    match e {
+    match e.refusal() {
         // The envelope reports EVERY refusing crossing, so the tag does
         // too: one entry per derived corner, in the reported order.
         // The enclosing payload names the TIGHTEST class bound (a `None`

@@ -572,7 +572,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::AddMirror {
             body: block.into(),
-            plane: FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
                     node: block,
@@ -580,7 +580,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
                 },
                 node: block,
                 body: 0,
-            },
+            }),
         },
         "image",
     );
