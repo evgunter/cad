@@ -2676,24 +2676,27 @@ fn present_plane<'a>(
                 _ => along(e1, Some(e2)),
             },
         },
-        // An edge `m` with a neighbour at each end, the neighbours apart:
-        // read at one of `m`'s corners, the other neighbour, not shared,
-        // capping it.
+        // An edge `m` with a neighbour at each end, the one of a sliver
+        // triangle's three whose ends the cell holds: read at one of
+        // `m`'s corners, the other neighbour, not shared, capping it.
         [e1, e2, e3] => {
-            for (m, n1, n2) in [(e1, e2, e3), (e2, e3, e1), (e3, e1, e2)] {
-                let (Some(v1), Some(v2)) = (meet(m, n1), meet(m, n2)) else {
-                    continue;
-                };
-                if meet(n1, n2).is_some() {
-                    return Err(Unpresented::Local);
-                }
-                return match (near_edges.contains(&n1), near_edges.contains(&n2)) {
-                    (_, false) => corner(n1, m, v1, Some((n2, v2))),
-                    (false, true) => corner(n2, m, v2, Some((n1, v1))),
-                    (true, true) => Err(Unpresented::Local),
-                };
+            let held = |v: VertexKey| piece.local.vertices.contains(&v);
+            let ends = [(e1, e2, e3), (e2, e3, e1), (e3, e1, e2)]
+                .into_iter()
+                .filter_map(|(m, n1, n2)| Some((m, (n1, meet(m, n1)?), (n2, meet(m, n2)?))));
+            let mut ends: Vec<_> = ends.collect();
+            ends.sort_by_key(|&(_, (_, v1), (_, v2))| !(held(v1) && held(v2)));
+            let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
+                return Err(Unpresented::Local);
+            };
+            if v1 == v2 {
+                return Err(Unpresented::Local);
             }
-            Err(Unpresented::Local)
+            match (near_edges.contains(&n1), near_edges.contains(&n2)) {
+                (_, false) => corner(n1, m, v1, Some((n2, v2))),
+                (false, true) => corner(n2, m, v2, Some((n1, v1))),
+                (true, true) => Err(Unpresented::Local),
+            }
         }
         _ => Err(Unpresented::Local),
     }
@@ -8115,11 +8118,20 @@ mod presentation_rows {
             ),
             "a vertex past the end's two in the cell: more than the end"
         );
+        // A sliver triangle: its sides meet at its apex, out of the cell
+        // at its short side, and in the cell holding it whole.
         let (plane, triangle) = segments(&[
             (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
             (2, (10.0, 0.0), (10.0, 1e-3), [2, 3]),
             (3, (10.0, 1e-3), (0.0, 0.0), [3, 1]),
         ]);
+        assert!(
+            matches!(
+                present_in(&plane, &triangle, cell, &end, &[1]),
+                Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
+            ),
+            "a sliver triangle's short side is a strip's end"
+        );
         assert!(
             matches!(
                 present_in(
@@ -8131,7 +8143,22 @@ mod presentation_rows {
                 ),
                 Err(Unpresented::Local)
             ),
-            "a whole triangle in the cell is no strip's end"
+            "a whole triangle in the cell is more than an end"
+        );
+        // An end whose sides splay apart: the shared short side is the
+        // zero side past its own end, the rectangle reaching the top's
+        // line, so it does not lie on its edge.
+        let (plane, splayed) = segments(&[
+            (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+            (2, (10.0, 0.0), (10.0, 1e-3), [2, 3]),
+            (3, (10.0, 1e-3), (0.0, 2e-3), [3, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &splayed, cell, &end, &[1]),
+                Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)] && !a.on_edges)
+            ),
+            "a short side read past its end is not on its edge"
         );
     }
 
@@ -8188,18 +8215,51 @@ mod presentation_rows {
             (2, (l, 0.0), (l, w), [2, 3]),
             (3, (l, w), (l + 1.0, 2.0 * w), [3, 4]),
         ]);
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let at_end = ((9.99, 10.5), (-1.0, 1.0));
+        for shared in [&[1][..], &[0]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &notched, at_end, &end, shared),
+                    Err(Unpresented::Local)
+                ),
+                "an end with a reflex corner, {shared:?} shared, is no strip's end"
+            );
+        }
+        // A thin face's end whose top side, past a convex corner, runs
+        // down across the bottom's line inside the cell.
+        let (plane, crossing) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l - 0.005, -w), [3, 4]),
+        ]);
+        for shared in [&[1][..], &[0]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &crossing, at_end, &end, shared),
+                    Err(Unpresented::Local)
+                ),
+                "an end whose sides cross in the cell, {shared:?} shared, is no strip's end"
+            );
+        }
+        // Three edges at one vertex.
+        let (plane, three) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (0.0, 0.0), (0.0, w), [1, 3]),
+            (3, (0.0, 0.0), (-l, w), [1, 4]),
+        ]);
         assert!(
             matches!(
                 present_in(
                     &plane,
-                    &notched,
-                    ((9.99, 10.5), (-1.0, 1.0)),
-                    &holding(&[0, 1, 2], &[2, 3]),
-                    &[1]
+                    &three,
+                    ((-1.0, 1.0), (-1.0, 1.0)),
+                    &holding(&[0, 1, 2], &[1]),
+                    &[0]
                 ),
                 Err(Unpresented::Local)
             ),
-            "an end with a reflex corner is no strip's end"
+            "three edges at one vertex are no strip's end"
         );
         // The face's rim along `y = 0` and a hole's side at `y = w`, its
         // hole above: the face between them.
