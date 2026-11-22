@@ -123,56 +123,48 @@ on the same side of the shared line, and every plane through that line
 sees both on one side. The row's "What is needed" assumed the
 contrary; corrected there.
 
-**What landed** (`crates/topo/src/injective.rs`): `departure` tries one
+**What landed** (`crates/topo/src/injective.rs`). `departure` tries one
 more separator after the graph's, where the pair is near shared edges
-and exactly one shared vertex (`at_end_vertex`): the plane through that
-vertex alone (`planes_through`'s vertex arm), each face presented
-against the vertex alone. The plane face is then its corner
-(`Zero::Point`), the cone its apex side (`Zero::Side`, `Along::at`), and
-the existing readings sign them: `departs` across the apex side is
-`n·Φ_v = n·r(u)`, the rate along each ruling. Soundness: for each `u`,
-`ψ∘Φ(u, ·)` is `v·n·r(u)` plus the apex's offset from the vertex (the
-apex reading's ε concession, `SELF_INTERSECTION_APEX`), linear in `v`,
-zero at `v = 0`; a one-signed `n·r(u)` over the rectangle signs it on
-the rectangle off the side. That is the side argument per ruling; it
-never reads `Φ_u`, which is what vanishes there. It needs the rectangle
-on one nappe and the apex side among its clips, which `present_chart`
-gives (the nappe clip at `v = 0`); it needs nothing of the shared
-ruling: a cell on it reads one sign on both faces along the ruling, so
-it does not certify, and the zero sets are the vertex, on the shared
-cell, so a pair that meets off it cannot be signed opposite.
+and exactly one shared vertex `v` (`one_shared_vertex`, also the reader
+of a vertex the pair shares alone): the plane through `v` alone
+(`planes_through`'s vertex arm), each face presented against `v`
+alone. Against `v` a plane face is its corner (`Zero::Point`), a cone
+its apex side and a sphere its pole side (`Zero::Side`, `Along::at`),
+and the existing readings sign them.
 
-**The 39 census tests, with the gate asking** (the census filter, run
-on the measuring branch before and after the diff, `f64`): before, 0
-pass; after, **19 pass**. The 20 that still refuse, by the last cell
-the trace prints (`CV_TRACE`), none at a cone cell on the apex side
-against a cell beside the shared ruling:
-- the cone's cell beside the shared ruling short of the apex
-  (`v ≈ −0.01` to `−0.018`), the plane by the ruling's side,
-  `planes = [(None, Some(Negative))]`: `r1_other_half_angles`,
-  `r1_partial_windows`, `r1_a_wedge_over_a_half_turn_splits_through_its_apex_without_panicking`,
-  `a_plane_through_a_30_degree_cones_apex_cuts_its_closed_forms`;
-- the plane by a `Corner` of two shared rulings against a cone cell with
-  no zero short of the apex, `planes = []`:
-  `a_plane_through_a_45_degree_cones_apex_cuts_its_closed_forms`,
-  `r1_a_cone_on_a_cylinder`, `r1_apex_down`;
-- a cone cell with no zero against the ruling's side, the plane signed
-  only: `an_edge_along_the_axis_holds_a_quarter_of_the_cones_top`
-  (`v ≈ −0.52`), `a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge`;
-- a part `Local` away from the apex (the cover or a corner):
-  `an_edge_ending_just_off_the_apex_refuses_box_first_and_builds_cone_first`
-  (`sides_are_the_faces`, the ruling's range short of the cell below a
-  corner at `6v1`), `an_edge_across_the_apex_holds_half_the_cones_top`,
-  `an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds`,
-  `a_small_box_whose_side_holds_the_wrap_seam_builds_every_op`,
-  `an_edge_through_the_apex_builds_box_first`,
-  `a_cap_moved_off_a_needle_apex_refuses_the_hyperbola`;
-- a part `Local` at the apex: `r3_seeded_random_apex_poses_never_panic_or_mislead`,
-  `r2_partial_cones` (now plane/plane, `3v1`/`6v3` at `5v1`),
-  `r2_partial_over_a_half_turn_never_panics` (now `Budget(Pairs)`; the
-  test itself passes);
-- a cone part `Structural` against a plane read by its curve, at a
-  shared conic edge with no vertex: the three below.
+**Why it is sound** (the argument the code relies on, stated at the
+arm). Each presentation against `{v}` is a superset of the face's part
+of its cell, and `apart` accepts only where the plane is strictly of
+one sign on each off its zero set, the signs opposite. Against `{v}`
+both zero sets lie at `v` (a zero carrying an edge reads nothing under
+a plane listing `v` alone). So a common point other than `v` would
+carry both signs, and none exists. A shared ruling's points in both
+cells, or a second ruling the plane face holds, are such common
+points, so `apart` never accepts there: tangency, a second meeting and
+a vertex that is no apex are refused by the same reading, not by
+premises of their own. **Why a collapsed side is read at all:**
+`sign_on` reads any side by the mean value theorem along the axis
+across it, at each value of the other; across a collapsed side the
+chart's derivative is a ruling's or a meridian's direction, and the
+one that vanishes is never read. The side's image is `v` within the
+collapse's own reading: `SELF_INTERSECTION_APEX` at an apex,
+`vertex_at_singular_point` (`chart_singularity_at_vertex`) at a pole,
+both existing concessions, now listed among the module's separator
+concessions.
+
+**Where it fires.** The reviewer's firing census over 8,105 topo and
+sweep tests: 3 (the wedge row and the unit positive, plane/cone at the
+apex; the snowman, sphere/sphere at a pole). On the tour only
+sphere/sphere at the dice's pips' poles (`8v3`/`39v3`, `10v3`/`40v3`,
+`12v3`/`41v3`, `14v3`/`42v3`, `36v3`/`75v1`, `37v3`/`73v1`,
+`38v3`/`71v1`); no cone fires there. In this row's census through the
+gate, the plane/cone wedges and box faces at the apex.
+
+**The census tests, with the gate asking** (measuring branch, main
+`7669fcfdd` with the gate, f64; one of the 39 has left main, 38
+remain): main's `injective.rs` 0 pass, this change's **18**. Named,
+with the 21 that do not hold, in
+`the-apex-census-rows-that-still-refuse-read-cells-short-of-or-off-the-apex`.
 
 **The four assigned unchecked.** `split_rulings::a_ruling_split_a_hair_from_its_end_folds_a_triangle`
 belongs here: it holds after. The other three do not: their payloads
@@ -186,19 +178,32 @@ the same shape), which is
 `curved-presentation-reads-plane-and-cylinder-images-only`; added
 there.
 
-**Elsewhere** (measured the same day): the tour walk on main
-`0cae9969f` holds 78 of 85 stops, this change 81: `diepips`,
-`diecomposed` and `diechamfer` move from `Departure` on the pair
-`8v3`/`39v3` to `Embedded`, every other stop identical. The snowman
-(`a_two_ball_union_holds_with_its_poles_read`) holds at `Interval`
-(579 pairs). Unchanged: the vertex-alone pairs of
+**The turned frame.** On main `0cae9969f` a wedge turned about a
+generic axis refused: its last pair was the plane's cell at the apex
+against two cone cells beside it, both spanning the face's whole `u`
+(`u ∈ (π, 7.864)` on its sheet). One stops short of the apex
+(`Err(Local)` against `v`); its sibling holds the apex, is presented by
+its apex side, and the plane through `v` reads the cone's rate across
+it `[−2.9e-4, 1.7e-4]`, signing the plane and not the cone. The cone
+face wraps 270°, so no plane through the apex has every ruling of it on
+one side; the cell was never halved in `u` (the case A of
+`two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`).
+After merging main `7669fcfdd` (PR 7120, a face's window from its
+edges' covers) the turned wedge holds at both scalars, θ = 1.5π + 0.01
+and 5.5: the cone's root window changed, and its cells are halved in
+`u`. Pinned holding in
+`self_intersection_proves_injectivity::a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex`
+with seven other poses. The same wedge revolved by `−θ` refuses off the
+plain frame:
+`a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame`.
+
+**Elsewhere.** The snowman (`a_two_ball_union_holds_with_its_poles_read`)
+holds at `Interval` (579 pairs). Unchanged: the vertex-alone pairs of
 `the-vertex-alone-plane-leans-…` (11 run, payloads identical; the arm
 needs a shared edge near), the pole lane's 90 delta cases on PR 7115's
-head (verdict classes identical, case B not closed), and a plane
-through a meridian to a sphere's pole (held before, identical
-receipts). A cone wedge past a half turn turned about a generic axis
-still refuses, at a cone cell short of the apex never halved in `u`
-(that row's case A), pinned refusing.
+head `ee1958ede` (verdict classes identical, case B not closed), and a
+plane through a meridian to a sphere's pole (held before, identical
+receipts). TOUR_WALK
 
 The residue is filed as
 `the-apex-census-rows-that-still-refuse-read-cells-short-of-or-off-the-apex`.
