@@ -1,5 +1,5 @@
 diff --git a/crates/geom-brep/src/dihedral.rs b/crates/geom-brep/src/dihedral.rs
-index 8f60664c..b5596f4f 100644
+index 8f60664c..8e4623dc 100644
 --- a/crates/geom-brep/src/dihedral.rs
 +++ b/crates/geom-brep/src/dihedral.rs
 @@ -914,6 +914,21 @@ pub fn classify_seam<T: Decide>(
@@ -24,7 +24,7 @@ index 8f60664c..b5596f4f 100644
  ) -> Result<DihedralClass, SeamEscalation> {
      let [a, b] = [
          seam_face_reading(faces[0], p, reach, &chart_arm, band)?,
-@@ -1534,6 +1549,34 @@ pub fn must_carry_over_edge<T: Decide>(
+@@ -1534,6 +1549,36 @@ pub fn must_carry_over_edge<T: Decide>(
      t1: T,
      reach: geom_core::Lever<T>,
      band: Band,
@@ -36,10 +36,12 @@ index 8f60664c..b5596f4f 100644
 +        crate::tl_shadow::action_of,
 +    );
 +    if crate::tl_shadow::path().is_some() {
++        let (x1, x2) = (format!("{s1:?}"), format!("{s2:?}"));
++        let (x1, x2) = if x1 <= x2 { (x1, x2) } else { (x2, x1) };
 +        let key = crate::tl_shadow::hash_of(&[
 +            "mc".into(),
-+            format!("{s1:?}"),
-+            format!("{s2:?}"),
++            x1,
++            x2,
 +            format!("{carrier:?}"),
 +            format!("{t0:?}{t1:?}"),
 +        ]);
@@ -396,7 +398,7 @@ index af5756d1..ef9efb3c 100644
          Ok(band) => band,
          Err(error) => return (vec![ValidationError::Band { error }], None),
 diff --git a/crates/topo/src/wedge_reach.rs b/crates/topo/src/wedge_reach.rs
-index ff643caa..5cbf77d6 100644
+index ff643caa..d6db946d 100644
 --- a/crates/topo/src/wedge_reach.rs
 +++ b/crates/topo/src/wedge_reach.rs
 @@ -64,6 +64,7 @@ use crate::live::BoundaryMember;
@@ -460,7 +462,7 @@ index ff643caa..5cbf77d6 100644
              ..Self::new(body, band)
          }
      }
-@@ -152,22 +164,124 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -152,22 +164,127 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let [a, b] = faces;
          let reads = [Some(self.face(a)), (b != a).then(|| self.face(b))];
          let reads = reads.iter().flatten();
@@ -534,6 +536,9 @@ index ff643caa..5cbf77d6 100644
 +                };
 +                geom_brep::tl_shadow::count(format!("RATIO\tvertices\t{}", bin(u / b)));
 +                geom_brep::tl_shadow::count(format!("RATIO\twith_edges\t{}", bin(u / d)));
++                if u / d < 0.999_999 {
++                    geom_brep::tl_shadow::count(format!("RATIO-LT1\t{loc}"));
++                }
 +            }
 +            geom_brep::tl_shadow::count(format!("MA-ALL\t{loc}\t{lane}"));
 +            if lane == "f64" && a != b {
@@ -591,7 +596,7 @@ index ff643caa..5cbf77d6 100644
      }
  
      /// [`edge_wedge_reach`], reading faces through this cache.
-@@ -182,6 +296,168 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -182,6 +299,196 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
      }
  
@@ -677,6 +682,13 @@ index ff643caa..5cbf77d6 100644
 +            if hf < tf - tol {
 +                c("above_BELOW_truth");
 +            }
++            if tf > 0.0 {
++                let r = hf / tf;
++                let bin = if !r.is_finite() { "poison" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else if r <= 100.0 { "(10,100]" } else { ">100" };
++                c(&format!("above_over_truth={bin}"));
++            } else {
++                c("truth_zero");
++            }
 +            let (vl, vh) = (verdict(lo), verdict(hi));
 +            c(&format!("verdict_below_vs_truth={}{}", vl, vt));
 +            c(&format!("verdict_above_vs_truth={}{}", vh, vt));
@@ -722,6 +734,21 @@ index ff643caa..5cbf77d6 100644
 +                geom_core::Vec3::new(m, i, i), geom_core::Vec3::new(i, m, m),
 +            ]
 +        };
++        let mut worst_pts = 0.0_f64;
++        let mut worst_pts_off = f64::NAN;
++        for &e in edges {
++            let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) else { continue };
++            let (s0, s1) = g.params();
++            for k in 0..=16 {
++                let t = s0 + (s1 - s0) * T::from_f64(f64::from(k) / 16.0);
++                let x = g.carrier().eval(t);
++                let d = tl_f64(c.distance_range(&Site::Point(x)).0).unwrap_or(f64::NAN);
++                if d > worst_pts || d.is_nan() {
++                    worst_pts = d;
++                    worst_pts_off = tl_f64(geom_brep::implicit_residual(surface, x).abs()).unwrap_or(f64::NAN);
++                }
++            }
++        }
 +        let mut worst_e = 0.0_f64;
 +        for &e in edges {
 +            let Ok(ec) = crate::cover::edge_cover(body, e) else { continue };
@@ -747,12 +774,18 @@ index ff643caa..5cbf77d6 100644
 +                "inside"
 +            }
 +        };
-+        let key = format!("MC\t{kind}\tvertex={}\tedge={}", class(worst_v), class(worst_e));
++        let on = |off: f64| if off.is_nan() { "off?" } else if off < 1e-9 { "ON" } else { "OFF" };
++        let key = format!(
++            "MC\t{kind}\tvertex={}/{}\tedge_points={}/{}\tedge_cover={}\tdoor={loc}",
++            class(worst_v), if worst_v > 1e-9 { on(worst_v_off) } else { "-" },
++            class(worst_pts), if worst_pts > 1e-9 { on(worst_pts_off) } else { "-" },
++            class(worst_e)
++        );
 +        geom_brep::tl_shadow::count(key.clone());
-+        if worst_v > 1e-9 || worst_e > 1e-9 {
++        if worst_v > 1e-9 || worst_pts > 1e-9 {
 +            geom_brep::tl_shadow::detail(
 +                &key,
-+                format!("{key}\tdoor={loc}\tvertex_out={worst_v:e}\tvertex_off_surface={worst_v_off:e}\tedge_out={worst_e:e}"),
++                format!("{key}\tvertex_out={worst_v:e}\tvertex_off_surface={worst_v_off:e}\tedge_point_out={worst_pts:e}\tedge_point_off_surface={worst_pts_off:e}\tedge_cover_out={worst_e:e}"),
 +            );
 +        }
 +    }
@@ -760,7 +793,7 @@ index ff643caa..5cbf77d6 100644
      /// `face`'s read (module docs): every loop's vertices, a lone vertex
      /// included, and its cover. Read on first ask.
      fn face(&self, face: FaceKey) -> Rc<FaceRead<T>> {
-@@ -191,11 +467,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -191,11 +498,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let body = self.body;
          let view = body.proven_face(face);
          let mut points = Vec::new();
@@ -774,7 +807,7 @@ index ff643caa..5cbf77d6 100644
                          points.push(body.linked_vertex_point(
                              half.start,
                              EntityId::HalfEdge(he),
-@@ -205,13 +483,18 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -205,13 +514,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
                  }
              }
          }
@@ -783,7 +816,12 @@ index ff643caa..5cbf77d6 100644
 +        } else {
 +            crate::cover::face_cover_unlifted(body, face, self.band)
 +        };
-+        if geom_brep::tl_shadow::active() && std::any::type_name::<T>() == "f64" {
++        thread_local! {
++            static TL_SEEN: RefCell<std::collections::HashSet<(usize, FaceKey)>> =
++                RefCell::new(std::collections::HashSet::new());
++        }
++        let fresh = TL_SEEN.with(|s| s.borrow_mut().insert((std::ptr::from_ref(body) as usize, face)));
++        if fresh && geom_brep::tl_shadow::active() && std::any::type_name::<T>() == "f64" {
 +            self.tl_mc(face, &points, &edges, &cover);
 +        }
          let read = Rc::new(FaceRead {
@@ -810,3 +848,15 @@ index ff1ec2cc..d64cfaaa 100644
   "rayon",
   "strum",
  ]
+diff --git a/demos/wild/Cargo.lock b/demos/wild/Cargo.lock
+index 0dd2e1e6..ae9ab790 100644
+--- a/demos/wild/Cargo.lock
++++ b/demos/wild/Cargo.lock
+@@ -166,6 +166,7 @@ dependencies = [
+  "num-bigint",
+  "num-integer",
+  "num-traits",
++ "quantity",
+  "rayon",
+ ]
+ 
