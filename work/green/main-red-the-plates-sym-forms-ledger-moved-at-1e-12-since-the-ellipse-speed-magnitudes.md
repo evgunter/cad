@@ -2,11 +2,13 @@
 id: main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes
 kind: issue
 title: Main red (ε = 1e-12): editor-core m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned reads a moved ledger since PR 7183 (germ/ellipse-speed-magnitudes)
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
-rides_with: main-red-three-editor-core-rows-red-at-1e-12-since-before-11-19
+closed: 2026-11-22
+pr: 7389
+branch: green/editor-1e-12
 ---
 
 
