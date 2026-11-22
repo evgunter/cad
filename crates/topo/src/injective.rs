@@ -27,7 +27,7 @@
 //!   positive definite at every point of `H` makes `L∘S` strongly
 //!   monotone, `⟨L∘S(p) − L∘S(q), p − q⟩ > 0` for `p ≠ q`, so `S` is
 //!   injective on `H`.
-//! - **Departure** ([`certify_pair`]), across a shared edge or vertex:
+//! - **Departure** ([`certify_pair_in`]), across a shared edge or vertex:
 //!   a separator `ψ`, vanishing on the shared cell, takes one strict sign
 //!   on one face's part of the pair and the other strict sign on the
 //!   other's, so a coincidence can only happen on the shared cell, where
@@ -8733,7 +8733,7 @@ mod presentation_rows {
     }
 
     /// **A rim folded on itself is a cusp; across it, an annulus
-    /// certifies.** [`certify_pair`] on the cell `(0.69, 0.71) × (0.1,
+    /// certifies.** [`certify_pair_in`] on the cell `(0.69, 0.71) × (0.1,
     /// 0.11)` beside the rim of a [`disk`], paired with the same cell of
     /// a twin sharing the rim: the twin run backward with its sense
     /// flipped lies on the same side, its normal opposed (wedge 0), and
@@ -9839,7 +9839,7 @@ mod presentation_rows {
         );
     }
 
-    /// **A curved corner folded on itself is a cusp**: [`certify_pair`]
+    /// **A curved corner folded on itself is a cusp**: [`certify_pair_in`]
     /// on the quarter disc's corner cell and the same cell of a twin
     /// lying on the same side of the arc, its loop reversed and its
     /// sense flipped — wedge 0 along the arc. Both are presented through
@@ -10222,7 +10222,7 @@ mod presentation_rows {
     }
 
     /// **Two cylinder corners at a vertex they share alone**
-    /// ([`certify_pair`]): the face above the parallel and left of the
+    /// ([`certify_pair_in`]): the face above the parallel and left of the
     /// ruling against the one below it and right, diagonally opposite
     /// quadrants of one tangent plane, certify through the plane across
     /// their headings. Against the face below the parallel and LEFT of the
@@ -10725,7 +10725,7 @@ mod presentation_rows {
         }
     }
 
-    /// [`certify_pair`] of a face on [`floor`] in the cell `disc` and
+    /// [`certify_pair_in`] of a face on [`floor`] in the cell `disc` and
     /// [`wall_past_the_corner`] in the cell `wall`, sharing the arc
     /// (edge 0 of each) and the vertex at `(1, 0, 0)`.
     fn across_the_fold(disc: &Boundary, cells: [((f64, f64), (f64, f64)); 2]) -> Outcome {
@@ -12261,7 +12261,7 @@ mod presentation_rows {
         (plane, b)
     }
 
-    /// [`certify_pair`] of a cap cell and a torus cell `cell` of
+    /// [`certify_pair_in`] of a cap cell and a torus cell `cell` of
     /// [`spiric_face`], across the rim.
     fn across_the_wall(cell: ((f64, f64), (f64, f64))) -> Outcome {
         let ((plane, cap), (torus, wall_face)) = (cap(), (ring(2.0), spiric_face(true, true)));
