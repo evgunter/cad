@@ -6,10 +6,11 @@
 //! A trace is the carrier cut by the sketch's plane, in closed form; a
 //! piece of the sketch lies in that plane, so where the piece meets the
 //! trace is where it meets the carrier. This door reads the piece
-//! against the carrier itself, through the boolean's certified root
-//! doors (a line against a wall, a sphere, a cone or a torus; a circle
-//! against a sphere, a wall, a cone or a torus), and a plane in closed
-//! form. It reads no face boundary: the trace is the carrier's.
+//! against the carrier itself, through the curve × face crossing
+//! reading ([`geom_brep::curve_face::cross()`]): the pose first (the piece
+//! lies on the carrier, passes through a cone's apex, or grazes it), then
+//! its meetings, each read for its sense. It reads no face boundary: the
+//! trace is the carrier's.
 //!
 //! The sense of a crossing is the face's: a piece ENTERS the face's
 //! material where it runs against the face's outward normal, and LEAVES
@@ -18,32 +19,20 @@
 //! and refuse.
 
 use geom::{Curve3, Surface, SurfaceKind};
-use geom_brep::roots::{Roots, Unsettled};
-use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
+use geom_brep::curve_face::{CrossRefusal, CrossWhy, OnSpan, Pose, PoseRefusal, cross};
+use geom_brep::curve_pair::{MeetKind, Span, SpanEnd};
+use geom_brep::roots::Unsettled;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use super::BooleanError;
 use crate::validate::decide;
-use geom_brep::curve_face::circle_roots::CircleRoots;
-use geom_brep::curve_face::line_quadric::{LineRoots, line_quadric_roots};
 
 /// The funnel row a crossing's sense is decided on: the cosine between
 /// the piece's direction and the outward normal, levered by the piece's
 /// reach.
 pub const TRACE_CROSSING_SENSE: &str = "trace_crossing_sense";
-/// The funnel row a crossing's place ahead of the pen is decided on: its
-/// distance along the piece.
-pub const TRACE_CROSSING_AHEAD: &str = "trace_crossing_ahead";
-/// The funnel row two crossings are ordered on: their distance apart
-/// along the piece.
-pub const TRACE_CROSSING_ORDER: &str = "trace_crossing_order";
-/// The funnel row a plane carrier's lead is decided on: how far the
-/// piece turns off parallel to the plane over its reach.
+/// The funnel row a plane's lead is decided on ([`plane_misses`]): how
+/// far it turns off parallel to a plane or a cylinder's axis.
 pub const TRACE_PLANE_LEAD: &str = "trace_plane_lead";
-/// The funnel row a circle's depth past a plane carrier is decided on.
-pub const TRACE_PLANE_DEPTH: &str = "trace_plane_depth";
-/// The funnel row a piece lying on the carrier is decided on: the
-/// carrier's residual at the pen.
-pub const TRACE_ON_CARRIER: &str = "trace_on_carrier";
 
 /// Which way a piece passes a face's carrier at a crossing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -145,32 +134,90 @@ impl core::fmt::Display for TraceFault {
 
 impl core::error::Error for TraceFault {}
 
-fn door(error: BooleanError) -> TraceFault {
-    match error {
-        BooleanError::Escalated { diag, .. } => TraceFault::Escalated(diag),
-        other => unreachable!("the trace dispatches each root door on its own kinds: {other:?}"),
+/// **A crossing reading's refusal, as the trace's**: its first window's.
+/// A pose in band escalates, a torus outside the ring convention is the
+/// convention's, an unbuilt or a spline arm has no closed-form trace, a
+/// meeting reading in band grazes, and a limit is the door's own
+/// (a tangency grazes, a root at a cone's apex is the apex's).
+///
+/// # Panics
+///
+/// On a kernel fault: the pose's or the method's readings contradict.
+fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFault {
+    use geom_brep::curve_pair::MeetFault;
+    let Some(window) = refusal.windows.first() else {
+        unreachable!("a crossing refusal holds a window");
+    };
+    match window.why {
+        CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => TraceFault::Escalated(diag),
+        CrossWhy::Pose(PoseRefusal::Torus(torus)) => TraceFault::Torus(torus),
+        CrossWhy::Pose(PoseRefusal::Unbuilt(_) | PoseRefusal::Enclosed) => {
+            TraceFault::Unsupported {
+                carrier: surface.kind(),
+            }
+        }
+        CrossWhy::Pose(PoseRefusal::Meter { row, .. }) => {
+            TraceFault::Unsettled(Unsettled::Meter { row })
+        }
+        CrossWhy::Pose(PoseRefusal::Fault(what)) => {
+            unreachable!("the curve × face pose faulted: {what}")
+        }
+        CrossWhy::Method { fault, .. } => match (fault, fault.kind()) {
+            (_, MeetKind::Escalated(diag)) => TraceFault::Escalated(diag),
+            (_, MeetKind::Touch(_)) | (MeetFault::Unsettled(Unsettled::Tangency), _) => {
+                TraceFault::Grazing
+            }
+            (MeetFault::Unsettled(Unsettled::AtApex), _) => TraceFault::Apex,
+            (MeetFault::Unsettled(why), _) => TraceFault::Unsettled(why),
+            (_, MeetKind::Unread(_)) => unreachable!("an unread meeting reading of no limit"),
+            (_, MeetKind::Fault { what }) => {
+                unreachable!("a curve × face method faulted: {what}")
+            }
+        },
     }
 }
 
-/// A curve × face door's refusal, as the trace's: its escalation is the
-/// trace's own, carrying no decision of the Boolean's.
-fn door_refusal(
-    refusal: geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>,
-) -> TraceFault {
-    use geom_brep::curve_face::circle_roots::DoorRefusal;
-    match refusal {
-        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
-        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
-        DoorRefusal::Torus(refusal) => TraceFault::Torus(refusal),
+/// **The piece's meetings with the carrier, by the pose first**: one
+/// lying on it, through a cone's apex or grazing it refuses; apart, none;
+/// otherwise each meeting's parameter and point, ascending, past the
+/// ends `skip` names.
+fn meetings<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &Surface<T>,
+    skip: &[SpanEnd],
+    band: Band,
+) -> Result<Vec<(T, Point3<T>)>, TraceFault> {
+    let found = cross(span, surface, band).map_err(|refusal| refused(surface, &refusal))?;
+    // A touch is no crossing: it grazes the piece where it is on the
+    // span read, and is no meeting there where it is not (at an end the
+    // read skips).
+    let touches = |m: &&geom_brep::curve_face::Meeting<T>| {
+        matches!(m.kind, geom_brep::curve_face::MeetingKind::Touch { .. })
+            && !matches!(m.on_span, OnSpan::End(end) if skip.contains(&end))
+    };
+    match found.pose {
+        Pose::Lies => return Err(TraceFault::OnCarrier),
+        Pose::Through(_) => return Err(TraceFault::Apex),
+        Pose::Tangent(_) if found.meetings.iter().any(|m| touches(&m)) => {
+            return Err(TraceFault::Grazing);
+        }
+        // A `Tangent` holds its one touch and no other meeting (C5's
+        // curve × face pose, `curve_face::cross::Crossings`): a touch at an
+        // end the read skips, which the filter below drops, and anything
+        // else the reading held is kept, not dropped here.
+        Pose::Tangent(_) | Pose::Apart | Pose::Isolated(_) => {}
     }
-}
-
-fn unsettled(why: Unsettled) -> TraceFault {
-    match why {
-        Unsettled::Tangency => TraceFault::Grazing,
-        Unsettled::AtApex => TraceFault::Apex,
-        other => TraceFault::Unsettled(other),
-    }
+    let (t0, t1) = span.params();
+    Ok(found
+        .meetings
+        .into_iter()
+        .filter_map(|m| match m.on_span {
+            OnSpan::Inside { t } => Some((t, m.point)),
+            OnSpan::End(end) if skip.contains(&end) => None,
+            OnSpan::End(SpanEnd::Stop) => Some((t1, m.point)),
+            OnSpan::End(SpanEnd::Start) => Some((t0, m.point)),
+        })
+        .collect())
 }
 
 fn sign_as(
@@ -182,9 +229,10 @@ fn sign_as(
 }
 
 /// **The crossings of `ray` with `surface`**, nearest first, each ahead of
-/// its start ([`geom::Ray::ahead`]). Its `dir` is unit; `reach` is a length the
-/// size of the scene the piece runs through, the lever its lead and
-/// its senses are read over. `sense` is the face's orientation sense.
+/// its start. Its `dir` is unit; `reach` is a length the size of the
+/// scene the piece runs through, the run the crossing reading reads and
+/// the lever its senses are read over. `sense` is the face's orientation
+/// sense.
 ///
 /// # Errors
 ///
@@ -196,66 +244,176 @@ pub fn ray_crossings<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let geom::Line { origin, dir } = ray.line();
+    let dir = ray.line().dir;
     // Unsourced lever: the ray's length, a scene size the caller hands
     // rather than geometry the extent home reads.
     let arm = geom_core::Lever::unsourced(reach);
-    let on_carrier = || -> Result<Vec<Crossing<T>>, TraceFault> {
-        let residual = geom_brep::implicit_residual(surface, ray.start_point());
-        match sign_as(TRACE_ON_CARRIER, Margin::of(residual), band)? {
-            Sign::Zero => Err(TraceFault::OnCarrier),
-            Sign::Positive | Sign::Negative => Ok(Vec::new()),
-        }
-    };
-    let roots: Vec<T> = match *surface {
-        Surface::Plane { frame, .. } => {
-            let (o, normal) = (frame.origin(), frame.axis());
-            let lead = normal.dot(dir);
-            match sign_as(TRACE_PLANE_LEAD, Margin::levered(lead, arm), band)? {
-                Sign::Zero => return on_carrier(),
-                Sign::Positive | Sign::Negative => {}
-            }
-            vec![geom::plane_offset(origin, normal, o) / lead]
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(TraceFault::Unsupported {
-                carrier: surface.kind(),
-            });
-        }
-        _ => {
-            let run = (ray.start(), ray.from_start(reach));
-            match line_quadric_roots(ray.line(), run, surface, band)
-                .map_err(|refusal| door_refusal(refusal.door_refusal()))?
-            {
-                None => {
-                    return Err(TraceFault::Unsupported {
-                        carrier: surface.kind(),
-                    });
+    let carrier = Curve3::Line(ray.line());
+    let span = Span::new(&carrier, (ray.start(), ray.from_start(reach)));
+    meetings(&span, surface, &[SpanEnd::Start], band)?
+        .into_iter()
+        .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+        .collect()
+}
+
+/// The halvings of a run a piece's taken crossing is searched past a
+/// refusal over ([`taken_over`]): enough to close a run of the session
+/// box to well under the band.
+const TAKEN_HALVINGS: u32 = 64;
+
+/// **The crossings a piece reads up to the one it takes, and no
+/// further** (DESIGN `[placement]`: a trace decides nothing past the
+/// crossing a piece takes): `read(run, whole)` reads the piece's
+/// crossings over its first `run`, `whole` where that is all of it, and
+/// `taken` names the one the piece takes among them.
+///
+/// The run is read whole first, for where the crossings are. Where it
+/// refuses, the longest prefix of it found to read is: a refusal past the
+/// crossing the piece takes refuses nothing. Where the piece takes one,
+/// the answer is the read over the run to halfway to the next crossing
+/// (or to the run's end): every decision it makes is one the piece takes,
+/// plus the one order decision separating it from the next, levered over
+/// the run drawn plus that gap. Where it takes none, the whole run's
+/// crossings, for their count.
+///
+/// Two known limits; neither moves the crossing a piece takes:
+///
+/// - **The halving assumes the readable prefixes are nested**: that a
+///   prefix reads wherever a longer one does. A short prefix whose stop
+///   end falls in band of a crossing can refuse where a longer one reads,
+///   and the halving then settles on a shorter prefix than the longest,
+///   or none, and refuses the whole run's fault where a longer prefix
+///   held the crossing taken.
+/// - **The separating read skips its stop end**, as every prefix read
+///   does: a crossing exactly at the midpoint between the taken one and
+///   the next is not a meeting of that read. The two reads place their
+///   crossings on the same carrier with the same method, so the midpoint
+///   stands half a decided gap from each; a crossing there would be one
+///   the whole read did not place between them.
+///
+/// # Errors
+///
+/// The whole run's refusal, where no prefix holds the crossing the piece
+/// takes; the final read's own.
+fn taken_over<T: Decide>(
+    run: T,
+    read: impl Fn(T, bool) -> Result<Vec<Crossing<T>>, TraceFault>,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let two = T::one() + T::one();
+    let (found, read_to, whole) = match read(run, true) {
+        Ok(all) => (all, run, true),
+        Err(fault) => {
+            let (mut lo, mut hi, mut best) = (T::zero(), run, None);
+            for _ in 0..TAKEN_HALVINGS {
+                let mid = (lo + hi) / two;
+                match read(mid, false) {
+                    Ok(found) => {
+                        best = Some((found, mid));
+                        lo = mid;
+                    }
+                    Err(_) => hi = mid,
                 }
-                Some(LineRoots::Constant) => return on_carrier(),
-                Some(LineRoots::Roots(found)) => roots_of(found)?,
+            }
+            match best {
+                Some((found, at)) if taken(&found).is_some() => (found, at, false),
+                _ => return Err(fault),
             }
         }
     };
-    let mut out = Vec::new();
-    for t in roots {
-        match ray
-            .ahead(t, TRACE_CROSSING_AHEAD, band)
-            .map_err(TraceFault::Escalated)?
-        {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => continue,
-        }
-        let point = origin + dir * t;
-        out.push(crossing(surface, sense, t, point, dir, arm, band)?);
+    let Some(k) = taken(&found) else {
+        return Ok(found);
+    };
+    match found.get(k + 1) {
+        Some(next) => read((found[k].along + next.along) / two, false),
+        None => read(read_to, whole),
     }
-    order(out, |a, b| Margin::of(b - a), band)
+}
+
+/// **[`ray_crossings`] up to the crossing the piece takes**
+/// ([`taken_over`]): `reach` the run it reads for where its crossings
+/// are, and each read levered over its own run.
+///
+/// # Errors
+///
+/// [`TraceFault`], past no crossing the piece takes.
+pub fn ray_crossings_to<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+    ray: &geom::Ray<T>,
+    reach: T,
+    band: Band,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let dir = ray.line().dir;
+    let carrier = Curve3::Line(ray.line());
+    let read = |run: T, whole: bool| {
+        // The run read as the segment it covers, levered from the ray's
+        // start: the run itself, the extent the crossings are decided
+        // over.
+        let arm = geom_brep::ExtentBall::of_covered(
+            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run).as_ref(),
+        )
+        .lever_from(ray.start_point());
+        let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
+        let skip: &[SpanEnd] = if whole {
+            &[SpanEnd::Start]
+        } else {
+            &[SpanEnd::Start, SpanEnd::Stop]
+        };
+        meetings(&span, surface, skip, band)?
+            .into_iter()
+            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+            .collect()
+    };
+    taken_over(reach, read, taken)
+}
+
+/// **[`circle_crossings`] up to the crossing the piece takes**
+/// ([`taken_over`]): the whole turn read for where its crossings are,
+/// and each read levered over the arc it runs.
+///
+/// # Errors
+///
+/// [`TraceFault`], past no crossing the piece takes.
+pub fn circle_crossings_to<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+    (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
+    band: Band,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let frame = geom::Frame::new(center, axis, u_ref);
+    let (u_ref, v_ref) = (frame.u_ref(), frame.v_ref());
+    let tau = geom::conic_period::<T>().length();
+    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
+    let read = |run: T, _whole: bool| {
+        let reach = geom_brep::ExtentBall::of_covered(
+            geom::cover::Cover::arc(
+                &frame,
+                (radius, radius),
+                geom::cover::ParamWindow::new(T::zero(), run),
+            )
+            .as_ref(),
+        )
+        .lever();
+        let span = Span::new(&carrier, (T::zero(), run));
+        meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
+            .into_iter()
+            .map(|(theta, point)| {
+                let (s, c) = theta.sin_cos();
+                let velocity = v_ref * c - u_ref * s;
+                crossing(surface, sense, theta, point, velocity, reach, band)
+            })
+            .collect()
+    };
+    taken_over(tau, read, taken)
 }
 
 /// **The crossings of the circle about `center` in the plane normal to
 /// `axis`, of `radius`, starting at `center + radius·u_ref` and turning
 /// right-handed about `axis`, with `surface`**: each strictly past the
-/// start and at most a whole turn on, nearest first. `axis` and `u_ref`
+/// start and short of a whole turn on, nearest first. `axis` and `u_ref`
 /// are unit and orthogonal.
 ///
 /// # Errors
@@ -267,80 +425,13 @@ pub fn circle_crossings<T: Decide>(
     (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let v_ref = axis.cross(u_ref);
+    // The circle on the frame its stated directions square to; the
+    // crossings' velocity reads that same frame, so it is the carrier's.
+    let frame = geom::Frame::new(center, axis, u_ref);
+    let (axis, u_ref, v_ref) = (frame.axis(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
-    let points: Vec<Point3<T>> = match *surface {
-        Surface::Plane { frame, .. } => {
-            let (origin, normal) = (frame.origin(), frame.axis());
-            // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.
-            let a = normal.dot(u_ref) * radius;
-            let b = normal.dot(v_ref) * radius;
-            let k = geom::plane_offset(origin, normal, center);
-            let r2 = a.powi(2) + b.powi(2);
-            let r = r2.sqrt();
-            match sign_as(TRACE_PLANE_LEAD, Margin::of(r), band)? {
-                Sign::Zero => {
-                    return match sign_as(TRACE_ON_CARRIER, Margin::of(k), band)? {
-                        Sign::Zero => Err(TraceFault::OnCarrier),
-                        Sign::Positive | Sign::Negative => Ok(Vec::new()),
-                    };
-                }
-                Sign::Positive | Sign::Negative => {}
-            }
-            match sign_as(TRACE_PLANE_DEPTH, Margin::of(r - k.abs()), band)? {
-                Sign::Zero => return Err(TraceFault::Grazing),
-                Sign::Negative => return Ok(Vec::new()),
-                Sign::Positive => {}
-            }
-            let half = (r2 - k.powi(2)).sqrt();
-            [T::one(), T::zero() - T::one()]
-                .into_iter()
-                .map(|s| {
-                    let c = (T::zero() - k * a + s * half * b) / r2;
-                    let sn = (T::zero() - k * b - s * half * a) / r2;
-                    center + u_ref * (radius * c) + v_ref * (radius * sn)
-                })
-                .collect()
-        }
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(TraceFault::Unsupported {
-                carrier: surface.kind(),
-            });
-        }
-        _ => {
-            let circle = Curve3::Circle(geom::Circle::new(
-                geom::Frame::new(center, axis, u_ref),
-                radius,
-            ));
-            let found = match surface {
-                Surface::Torus { .. } => geom_brep::curve_face::circle_torus::circle_torus_roots(
-                    &circle,
-                    T::zero(),
-                    tau,
-                    surface,
-                    band,
-                )
-                .map_err(door_refusal)?,
-                _ => super::conic_quadric::conic_quadric_roots(
-                    &circle,
-                    T::zero(),
-                    tau,
-                    surface,
-                    band,
-                )
-                .map_err(door)?,
-            };
-            roots_of(found)?
-                .into_iter()
-                .map(|theta| {
-                    let (s, c) = theta.sin_cos();
-                    center + u_ref * (radius * c) + v_ref * (radius * s)
-                })
-                .collect()
-        }
-    };
-    let rate = InfSpeed::new(radius);
+    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
     let reach = geom_brep::ExtentBall::of_covered(
         geom::cover::Cover::circle(geom::cover::Core {
             axis: geom::Line {
@@ -352,51 +443,16 @@ pub fn circle_crossings<T: Decide>(
         .as_ref(),
     )
     .lever();
-    let mut out = Vec::new();
-    for point in points {
-        let w = point - center;
-        let (c, s) = (w.dot(u_ref) / radius, w.dot(v_ref) / radius);
-        // The turn from the start, in `(0, 2π]`: a sine at or below zero
-        // is the far half.
-        let half_turn = c.max(T::zero() - T::one()).min(T::one()).acos();
-        let theta = s.select_le_zero(tau - half_turn, half_turn);
-        // A crossing a whole turn on is the pen itself.
-        match sign_as(
-            TRACE_CROSSING_AHEAD,
-            Margin::metered(tau - theta, rate),
-            band,
-        )? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => continue,
-        }
-        match sign_as(TRACE_CROSSING_AHEAD, Margin::metered(theta, rate), band)? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => continue,
-        }
-        let velocity = v_ref * c - u_ref * s;
-        out.push(crossing(
-            surface, sense, theta, point, velocity, reach, band,
-        )?);
-    }
-    order(
-        out,
-        |a, b| Margin::metered(b - a, InfSpeed::new(radius)),
-        band,
-    )
+    let span = Span::new(&carrier, (T::zero(), tau));
+    meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
+        .into_iter()
+        .map(|(theta, point)| {
+            let (s, c) = theta.sin_cos();
+            let velocity = v_ref * c - u_ref * s;
+            crossing(surface, sense, theta, point, velocity, reach, band)
+        })
+        .collect()
 }
-
-/// The roots a certified answer holds; one on the carrier refuses.
-fn roots_of<T: Real>(found: Result<CircleRoots<T>, Unsettled>) -> Result<Vec<T>, TraceFault> {
-    match found.map_err(unsettled)? {
-        Roots::Miss => Ok(Vec::new()),
-        Roots::On(_) => Err(TraceFault::OnCarrier),
-        Roots::Certified(found) => Ok(found.roots().to_vec()),
-    }
-}
-
-/// The funnel row a crossing's distance from a cone's apex is decided
-/// on ([`crossing`]).
-const TRACE_CROSSING_APEX: &str = "trace_crossing_apex";
 
 /// One crossing at `point`, `along` the piece, its sense read off the
 /// piece's unit `velocity` against the outward normal: the cosine
@@ -411,19 +467,6 @@ fn crossing<T: Decide>(
     lever: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
-    // A root at a cone's apex, which the root doors now answer as the
-    // carrier's double root there (`curve_face::line_quadric`,
-    // `conic_quadric`'s "Through the apex"), has no outward normal and
-    // no sense to read: the piece crosses at the apex.
-    if let Surface::Cone { frame, .. } = *surface
-        && sign_as(
-            TRACE_CROSSING_APEX,
-            Margin::norm3(point - frame.origin()),
-            band,
-        )? != Sign::Positive
-    {
-        return Err(TraceFault::Apex);
-    }
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign_as(
         TRACE_CROSSING_SENSE,
@@ -440,32 +483,6 @@ fn crossing<T: Decide>(
         passage,
         outward,
     })
-}
-
-/// The crossings nearest first, each pair ordered under
-/// [`TRACE_CROSSING_ORDER`] on `gap(a, b)`, the length from `a` on to
-/// `b`; two the band cannot part graze.
-fn order<T: Decide>(
-    mut crossings: Vec<Crossing<T>>,
-    gap: impl Fn(T, T) -> Margin<T>,
-    band: Band,
-) -> Result<Vec<Crossing<T>>, TraceFault> {
-    for i in 1..crossings.len() {
-        let mut j = i;
-        while j > 0 {
-            match sign_as(
-                TRACE_CROSSING_ORDER,
-                gap(crossings[j - 1].along, crossings[j].along),
-                band,
-            )? {
-                Sign::Positive => break,
-                Sign::Zero => return Err(TraceFault::Grazing),
-                Sign::Negative => crossings.swap(j - 1, j),
-            }
-            j -= 1;
-        }
-    }
-    Ok(crossings)
 }
 
 /// The funnel row a plane's miss of a carrier is decided on: how far the
@@ -537,7 +554,7 @@ pub fn plane_misses<T: Decide>(
             let (origin, axis) = (frame.origin(), frame.axis());
             match sign_as(
                 TRACE_PLANE_LEAD,
-                Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
+                Margin::levered(axis.dot(normal), geom_brep::uniform_curvature_arm(surface)),
                 band,
             )? {
                 Sign::Zero => off(origin, radius),

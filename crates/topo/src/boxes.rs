@@ -451,7 +451,7 @@ pub(crate) mod tests {
     /// and the shape whose locus leaves its boundary-vertex hull.
     ///
     /// Returns the body and the sector face.
-    fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
+    pub(crate) fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
         arc_sector_from(r, span, 0.0)
     }
 
@@ -482,7 +482,7 @@ pub(crate) mod tests {
     /// (mutation A) every one of these builds, which turns this pin red.
     /// At ε 1e-9 and 1e-6 every sector builds.
     fn sector_at_its_band(r: f64, span: f64, phi_deg: f64) -> Option<(Body<f64>, FaceKey)> {
-        let pinned = Tol::witness().eps() <= 1e-12
+        let pinned = geom_core::test_support::at_the_frame_cost_band(Tol::witness())
             && r >= 250.0
             && phi_deg != 0.0
             && span >= 90.0_f64.to_radians();
@@ -593,7 +593,7 @@ pub(crate) mod tests {
     /// one conic edge `a → b` described as the plane×cylinder
     /// intersection with the given carrier and parameter run, closed
     /// by the chords `b → c → a` on the plane.
-    fn conic_sector(
+    pub(crate) fn conic_sector(
         plane_surface: Surface<f64>,
         cyl_surface: Surface<f64>,
         carrier: Curve3<f64>,

@@ -39,7 +39,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
@@ -629,8 +629,8 @@ pub(super) fn rim_trim_circles<T: Real>(
 
 /// A rim edge's stored circle carrier, read once.
 pub(super) struct RimCarrier<T: Real> {
-    pub(super) axis: Vec3<T>,
-    pub(super) u_ref: Vec3<T>,
+    /// The stored circle's frame, which the band's arcs carry.
+    pub(super) frame: geom::Frame<T>,
     pub(super) t0: T,
     pub(super) t1: T,
     /// Whether the host-side half is the edge's `he_plus`.
@@ -660,12 +660,9 @@ pub(super) fn rim_carrier<T: Decide>(
              for",
         ));
     };
-    let carrier_frame = circle_3.frame();
-    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let (t0, t1) = c.params();
     Ok(RimCarrier {
-        axis,
-        u_ref,
+        frame: circle_3.frame(),
         t0,
         t1,
         plus_on_host: ed.he_plus == host_half,
@@ -682,7 +679,7 @@ pub(super) fn scaled<T: Real>(
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
-    let circle = Curve3::circle(center, rc.axis, radius, rc.u_ref);
+    let circle = Curve3::Circle(geom::Circle::new(rc.frame.with_origin(center), radius));
     if forward {
         (circle, rc.t0, rc.t1)
     } else {

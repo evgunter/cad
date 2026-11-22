@@ -213,9 +213,10 @@
 //!   decided on instead of `()`.
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
 //!   through the closed form, and at tier 3′ no chart-region door in the
-//!   census. Check 2 is the scalar's at every door: each edge re-derived
-//!   through [`crate::AtRestPolicy::reattach_edge`], the certificate in
-//!   full at a certifying scalar and the mint at a dual. Every door without it
+//!   census. Check 2 is the scalar's at every door: each edge certified
+//!   again through [`crate::AtRestPolicy::reattach_edge`], every check at
+//!   a certifying scalar (its locus read by its support) and the mint at
+//!   a dual. Every door without it
 //!   has a twin with it. At tier 3 the twin also GATES check 7
 //!   differently: it runs the battery in one call, so check 7 waits on
 //!   checks 1–6 only, where the composed door's `?` makes it wait on the
@@ -447,9 +448,9 @@ pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
 /// whose margin is kept (a contact's, recorded as a coincidence) goes
 /// to the same funnel's `decide_reported` or `decide_magnitude_reported`,
 /// which classify and record exactly as this does.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -465,9 +466,9 @@ pub(crate) fn definitely_positive<T: Decide>(name: &'static str, margin: T, band
 /// [`decide`] gated on a definitely positive margin
 /// ([`geom_core::k_stats::decide_positive`]): the rejection is the
 /// funnel's escalation, on the frame's log.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
@@ -1171,9 +1172,10 @@ pub enum ValidationError {
     /// Tier 3: a face's **approximating** surface failed to
     /// re-certify against its own stored description at rest.
     ///
-    /// The stored certificate is never read (O5's never-trust
-    /// posture): the two-limb bound is re-derived per validation call
-    /// from the description and the fit, and classified against the
+    /// The stored certificate holds no record of the support it was
+    /// derived over, so it is not read (O5): the two-limb bound is
+    /// derived again per validation call from the description and the
+    /// fit, and classified against the
     /// **run's** ε_precision (O3's ratified claim is what tier 3
     /// verifies; the surface stores no tolerance). A fit that has
     /// drifted from what it claims to approximate — coarsened, edited,
@@ -6425,9 +6427,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// be failing on is the bound — `E0277`, *required by a bound in
 /// `validate_geometric`*, `CertifiedEnclosure` not implemented for
 /// `Dual<f64>`.
-pub fn validate_geometric<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
+pub fn validate_geometric<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -6489,7 +6489,7 @@ pub fn validate_geometric<
 ///
 /// As [`validate_geometric`].
 pub fn validate_geometric_certificate<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
@@ -6542,8 +6542,9 @@ pub fn validate_geometric_certificate<
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
 /// unbounded. **Check 2 is the scalar's**, as at every door: each edge
-/// re-derived through [`crate::AtRestPolicy::reattach_edge`], its
-/// certificate in full at a certifying scalar and its mint at a dual.
+/// certified again through [`crate::AtRestPolicy::reattach_edge`], every
+/// check at a certifying scalar (its locus read by its support) and its
+/// mint at a dual.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -6661,9 +6662,7 @@ macro_rules! outward_volume {
 /// blessed by a volume claim while its geometry went unchecked. The
 /// composed entry is the only way in, and its `?` is what puts the two
 /// in the right order.
-fn validate_geometric_certified<
-    T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::CertifiedBounds,
->(
+fn validate_geometric_certified<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
@@ -6723,11 +6722,11 @@ fn validate_geometric_certified<
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
 /// back clean without a certificate to hand on.
-fn plus_v_by_sign<'b, T: geom_core::Decide>(
+fn plus_v_by_sign<'b, T: crate::props::AtRestPolicy>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     bracket: Bracket<'_, 'b, T>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let subjects = check7_subjects(body);
@@ -6930,7 +6929,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
+    quad: Option<T::QuadLane>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
     use crate::stands::{EveryInside, ShellRead, witness_insides_everywhere};
@@ -7023,7 +7022,7 @@ pub(crate) fn tier3_local_checks<
 >(
     body: &'b Body<T>,
     tol: Tol,
-    quad_lane: Option<crate::props::QuadLane<T>>,
+    quad_lane: Option<T::QuadLane>,
 ) -> (
     Vec<ValidationError>,
     Option<crate::props::SignCertificate<'b, T>>,
@@ -7280,9 +7279,7 @@ pub(crate) fn wedge_reading(
 ///
 /// The tier-1/2 report, else the tier-3 battery's vector — the same
 /// [`ValidationError`]s in the same documented order.
-pub fn contact_marks<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
+pub fn contact_marks<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
@@ -7312,7 +7309,7 @@ pub fn contact_marks_structural<
 fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     tol: Tol,
-    quad_lane: Option<crate::props::QuadLane<T>>,
+    quad_lane: Option<T::QuadLane>,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
     let mut marks = slotmap::SecondaryMap::new();
@@ -7348,13 +7345,13 @@ fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::At
 /// same question the same way and differ only in which lane they could
 /// name.
 #[derive(Clone, Copy)]
-pub(crate) enum PlusVCheck<T: geom_core::Decide> {
+pub(crate) enum PlusVCheck<T: crate::props::AtRestPolicy> {
     /// Check 7 is not made.
     NotMade,
     /// Check 7 is made at SIGN level through this lane — `None` being
     /// the closed form, which refuses typed on a face that needed the
     /// quadrature.
-    Through(Option<crate::props::QuadLane<T>>),
+    Through(Option<T::QuadLane>),
 }
 
 /// **Check 1's DATUM verdict on one analytic surface or edge carrier**,
@@ -7691,9 +7688,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// `None` when the check was not made or a subject could not be derived
 /// at all, which the vector then says.
 ///
-/// Check 2 re-derives every edge through the scalar's edge door
-/// ([`crate::AtRestPolicy::reattach_edge`]): the certificate in full at
-/// a certifying scalar, at every door alike, and the mint at a dual.
+/// Check 2 certifies every edge again through the scalar's edge door
+/// ([`crate::AtRestPolicy::reattach_edge`]): every check at a certifying
+/// scalar (its locus read by its support), at every door alike, and the
+/// mint at a dual.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -7719,7 +7717,7 @@ pub(crate) fn tier3_local_checks_marked<
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<T>,
-    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+    offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
 ) -> (
     Vec<ValidationError>,
     Option<crate::props::SignCertificate<'b, T>>,
@@ -7919,11 +7917,11 @@ pub(crate) fn tier3_local_checks_marked<
             continue;
         };
         // Re-certification runs through the scalar's edge door
-        // (`AtRestPolicy::reattach_edge`): the certificate in full at a
-        // certifying scalar, at every door alike, and the mint at a dual.
-        // It re-derives, the wedge levered at
-        // the edge's two faces' reach; it never trusts the stored
-        // certificate. It meters the chart image the body stores where
+        // (`AtRestPolicy::reattach_edge`): every check at a certifying
+        // scalar, at every door alike, and the mint at a dual, the wedge
+        // levered at the edge's two faces' reach. The edge's locus
+        // certificate is read only where the door compares its support
+        // with the edge as it stands, and derived again elsewhere. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
         // `OnPair` rim's wall image), so rest and op read one image. The
         // body is this door's input, so a span refusal is reported.
@@ -8698,8 +8696,9 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     // Tier 3, check 8 (M5 PR 6, C4): the stored pcurve caches — the
     // certificate must be PRESENT on every half-edge of a minting
-    // chart's face, the certification must REPLAY at rest (re-derived,
-    // never trusted), and domain validity (trim containment + the
+    // chart's face, the certification must REPLAY at rest (a row's own
+    // certificate read only where its support compares the same, derived
+    // everywhere else), and domain validity (trim containment + the
     // loop's one-branch continuity) must hold. Bodies carrying no
     // stored pcurves — every all-planar body — contribute nothing.
     // The gating runs ONE way, and both directions are worth saying.
@@ -9015,6 +9014,12 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
         .collect()
 }
 
+/// [`ring_pairs`]' query.
+const RING_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "validate_ring_pairs",
+    "the rings whose boxes meet a ring's",
+);
+
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
 /// boxes meet, ascending in `i` and then `j`: the order a loop over
 /// every pair reads them in, less the pairs the boxes clear (D9).
@@ -9059,7 +9064,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     let tree = bvh::Bvh::build(&boxes);
     let mut pairs = Vec::new();
     for (k, ring_box) in boxes.iter().enumerate() {
-        for m in tree.overlapping(ring_box) {
+        for m in tree.overlapping(RING_PAIRS, ring_box) {
             if m < k {
                 pairs.push((index[k], index[m]));
             }
@@ -9114,11 +9119,12 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 ///   two sides do: first order cannot order them, and two coincident
 ///   lines there are the census's overlap.
 ///
-/// Corners are grouped by point key, so a loop passing one place at two
-/// keys within band is not read here either. Where that loop's two
-/// surface cycles cross, on a face tier 3's one-region reading takes, a
-/// vertex of one placed off the face's side of the other is
-/// `CycleOffFaceSide` ([`crate::one_region`], which reads every vertex).
+/// Corners are grouped by point key ([`crate::loop_points`]), so a loop
+/// passing one place at two keys within band is not read here either.
+/// Where that loop's two surface cycles cross, on a face tier 3's
+/// one-region reading takes, a vertex of one placed off the face's side
+/// of the other is `CycleOffFaceSide` ([`crate::one_region`], which reads
+/// every vertex).
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -9129,41 +9135,32 @@ fn pinch_corner_errors<T: Decide>(
     if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
-    for (cycle, group) in loop_point_groups(body, face) {
-        if let Err(error) = pinch_corners_at(body, face_key, &cycle, &group, band) {
-            errors.push(error);
-        }
-    }
-}
-
-/// **Check 9's grouping**: each loop of `face`, and each point key it
-/// passes at two or more corners, as the loop's cycle and the indices
-/// of its corners there. An empty loop has no corner.
-pub(crate) fn loop_point_groups<T: Real>(
-    body: &Body<T>,
-    face: &crate::entity::Face,
-) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
-    let mut out = Vec::new();
     for l in face.loop_keys() {
-        let Some(cycle) = loop_cycle_of(body, l) else {
-            continue;
+        // The battery runs behind the tier-1 gate, so a loop that does
+        // not resolve is that gate's finding, reported here rather than
+        // read past.
+        let corners = match crate::loop_points::loop_corners(body, l) {
+            Ok(corners) => corners,
+            Err(crate::Unresolved::Walk(_)) => {
+                errors.push(ValidationError::LoopCycleOverrun { loop_: l });
+                continue;
+            }
+            Err(unresolved) => {
+                errors.push(ValidationError::DanglingTopology {
+                    from: EntityId::Face(face_key),
+                    to: unresolved.entity(),
+                });
+                continue;
+            }
         };
-        let mut keyed: Vec<(crate::geometry::PointKey, usize)> = cycle
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &he)| {
-                let v = body.half_edges.get(he)?.start;
-                Some((body.vertices.get(v)?.point, i))
-            })
-            .collect();
-        keyed.sort_unstable();
-        for group in keyed.chunk_by(|x, y| x.0 == y.0) {
-            if group.len() >= 2 {
-                out.push((cycle.clone(), group.iter().map(|&(_, i)| i).collect()));
+        for group in corners.groups() {
+            if let Err(error) =
+                pinch_corners_at(body, face_key, corners.cycle(), group.corners(), band)
+            {
+                errors.push(error);
             }
         }
     }
-    out
 }
 
 /// One corner side: the half-edge leaving the point, its edge, and
@@ -10630,9 +10627,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// neither of the two lanes this door holds (the quadrature lane and the
 /// chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
-pub fn validate_pseudomanifold<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
+pub fn validate_pseudomanifold<T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -10715,7 +10710,7 @@ pub fn validate_pseudomanifold_structural<
 /// As [`validate_pseudomanifold`].
 pub fn validate_pseudomanifold_certificate<
     'b,
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 >(
     body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
@@ -10796,13 +10791,13 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// alone and its taker runs tier 3 there, logged, so both lanes log the
 /// finish at the taker (`docs/predicate-dimension-audit.md` F34).
 #[derive(Clone)]
-pub struct AtRestBody<T: geom_core::Decide> {
+pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     body: Body<T>,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: geom_core::Decide> AtRestBody<T> {
+impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`]. Every decision
     /// it takes is a check ([`geom_core::k_stats::checking`]): it reads a
@@ -10814,7 +10809,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     /// refusal.
     pub(crate) fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
     where
-        T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         crate::finish::count_finish();
         let sign = std::sync::Arc::new(
@@ -10922,7 +10917,7 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         tol: Tol,
     ) -> Result<(), Vec<ValidationError>>
     where
-        T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         census_verdict(
             &self.body,
@@ -10948,7 +10943,7 @@ pub const INSIDE_OUT_REFUSAL: &str = concat!(
     crate::solid_contain::inside_out_recourse!()
 );
 
-impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
+impl<T: crate::props::AtRestPolicy> fmt::Debug for AtRestBody<T> {
     /// The body, its certificate as [`crate::SignCertificate`]'s render
     /// reads it over this body, and whether it holds a finish record.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -10961,7 +10956,7 @@ impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
     }
 }
 
-impl<T: geom_core::Decide> core::ops::Deref for AtRestBody<T> {
+impl<T: crate::props::AtRestPolicy> core::ops::Deref for AtRestBody<T> {
     type Target = Body<T>;
 
     fn deref(&self) -> &Body<T> {
@@ -10983,8 +10978,8 @@ fn pseudomanifold_certificate_via<
     body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-    quad_lane: Option<crate::props::QuadLane<T>>,
-    region: Option<crate::chart_region::RegionLane<T>>,
+    quad_lane: Option<T::QuadLane>,
+    region: Option<T::RegionLane>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = linear_band(tol)?;
@@ -11012,7 +11007,7 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
     contacts: &crate::boolean::ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<crate::chart_region::RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> Result<(), Vec<ValidationError>> {
     let errors = crate::census::census_and_certify(body, contacts, band, tol, region);
     if errors.is_empty() {
@@ -11034,12 +11029,12 @@ fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
 /// certified doors read their lanes here, so the tier-3 verdict
 /// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
 /// lanes by construction.
-struct CertifiedLanes<T: geom_core::Decide> {
+struct CertifiedLanes<T: geom_core::Certifies> {
     quad: crate::props::QuadLane<T>,
     region: crate::chart_region::RegionLane<T>,
 }
 
-impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> CertifiedLanes<T> {
     fn held() -> Self {
         Self {
             quad: crate::props::QuadLane::certified(),
@@ -18152,7 +18147,7 @@ mod offset_fit_door_rows {
     /// The battery over the one-`Approx`-face seed body, with whatever
     /// door the caller names.
     fn check1<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
-        door: Option<OffsetFitLane<T>>,
+        door: Option<impl geom_brep::OffsetFitLaneOf<T>>,
     ) -> (Vec<ValidationError>, FaceKey) {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<T>();
@@ -18167,7 +18162,7 @@ mod offset_fit_door_rows {
     /// scalar, handed none.
     #[test]
     fn no_door_refuses_the_approx_face_by_name() {
-        let (errors, face) = check1::<f64>(None);
+        let (errors, face) = check1::<f64>(None::<geom_core::NoLane>);
         assert!(
             errors.iter().any(|e| matches!(
                 e,

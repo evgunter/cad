@@ -228,7 +228,7 @@ fn mint_band(
 ) -> Result<(), StepImportError> {
     let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
-    let surface = solid.faces[fi].surface.clone();
+    let surface = solid.surface(fi).clone();
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
     let (s_axis, s_u_ref, axis_point, torus) = match surface {
@@ -422,6 +422,7 @@ fn mint_band(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     // The mint's whole point is D1's statement that this edge is the
@@ -616,7 +617,9 @@ fn wall_inversion(
     chart_band: Option<geom_core::Band>,
 ) -> Result<(), StepImportError> {
     for face in &solid.faces {
-        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) = face.surface else {
+        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) =
+            *solid.surface_of(face)
+        else {
             continue;
         };
         let axis = frame.axis();
@@ -637,15 +640,21 @@ fn wall_inversion(
             if n_c.dot(axis).abs() <= 0.5 {
                 continue;
             }
-            let Some(p) =
-                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, chart_band)
-            else {
+            let Some(p) = chart_direction(
+                solid.surface_of(face),
+                &spec.carrier,
+                spec.t0,
+                spec.t1,
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
-            let Some(uv) =
-                crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0), chart_band)
-            else {
+            let Some(uv) = crate::chart::uv_of(
+                solid.surface_of(face),
+                spec.carrier.eval(spec.t0),
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
@@ -710,6 +719,7 @@ mod tests {
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
+                curve: None,
             },
         );
         edges.insert(
@@ -726,6 +736,7 @@ mod tests {
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,
+                curve: None,
             },
         );
         let mut vertices = BTreeMap::new();
@@ -739,14 +750,7 @@ mod tests {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Cone {
-                    frame: geom::Frame::new(
-                        apex,
-                        Vec3::new(0.0, 0.0, -1.0),
-                        Vec3::new(1.0, 0.0, 0.0),
-                    ),
-                    half_angle: std::f64::consts::FRAC_PI_4,
-                },
+                record: 900,
                 sense: true,
                 loops: vec![LoopSpec {
                     outer: true,
@@ -756,6 +760,17 @@ mod tests {
             }],
             edges,
             vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Cone {
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                },
+            )]),
             band_seams: Default::default(),
         };
         let mut minted = 0_u64;

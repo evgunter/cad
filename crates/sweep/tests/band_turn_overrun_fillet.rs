@@ -686,10 +686,9 @@ type IntervalCase = (String, Body<f64>, Body<Interval>, [EdgeKey; 2]);
 /// escalates `pcurve_envelope`, margin in `(1.15e-12, 1.3e-12]`
 /// (measured 1.234e-12). Cause: a frame built at Interval from bracket
 /// inputs, a rigid-motion claim (fork 274): the fillet's frames are
-/// squared over the bracketed corner, where main stored them raw. With
-/// the bracket squaring storing the stated vectors raw (mutation F1 on
-/// the bracket path) it builds, and this pin goes red. It builds at
-/// ε 1e-9 and 1e-6.
+/// squared over the bracketed corner, where main stored them raw. Mutant
+/// F1X (that squaring stores the stated vectors raw) builds it and turns
+/// this pin red; mutant A does not. It builds at ε 1e-9 and 1e-6.
 #[test]
 fn the_overrun_carves_at_the_certified_scalar() {
     use crate::common::interval::iv;

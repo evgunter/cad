@@ -1265,7 +1265,7 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
         // convex and cuts an ear of it, and the sphere face used to cut
         // the same one, so the mesh came back `Ok` with an edge of four
         // triangles (`NonManifoldEdge { count: 4 }` at δ 4e-3 and others).
-        // The sphere arm keeps no ear now, so the cap meshes manifold
+        // The sphere arm keeps no side its neighbour may make, so the cap meshes manifold
         // and encloses its volume at every δ the review swept.
         let cap = run(
             BooleanOp::Intersect,

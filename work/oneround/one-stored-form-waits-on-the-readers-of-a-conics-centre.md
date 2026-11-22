@@ -82,11 +82,12 @@ be held on its arc.
   (`torus_circle_arc`), the `Rim` round trip
   (`crates/topo/src/rim_wedge.rs`, `crates/topo/src/boolean/mod.rs`, two
   sites), `MeetSegment::Arc` in `crates/topo/src/validate.rs`,
-  `crates/topo/src/on_surface.rs`, and `crates/sweep/src/swept.rs`
+  `crates/geom-brep/src/curve_pair/on_surface.rs`, and `crates/sweep/src/swept.rs`
   (`circle_at`, to evaluate).
 - Moved, or another curve: `crates/geom/src/pole_form.rs`
   (`half_turn_curve`, which also re-squares the frame),
-  `crates/topo/src/junction.rs`, `crates/topo/src/end_face.rs`.
+  `crates/sweep/src/blend/junction.rs`,
+  `crates/sweep/src/blend/open/end_face.rs`.
 - From an ellipse's derived centre frame, a different conic:
   `crates/topo/src/ring_path.rs` (`ConicArc::distance_floor`),
   `crates/sweep/src/blend/surgery.rs` (`piece_along`).

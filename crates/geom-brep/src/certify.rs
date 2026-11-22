@@ -7,8 +7,10 @@
 //! either returns a certified [`EdgeCurve`] — whose fields are private,
 //! so **an uncertified carrier is unrepresentable** — or fails with a
 //! typed [`CertifyError`] (operation-time enforcement, D4 ¶3). The
-//! tier-3 validator re-runs the same checks at rest
-//! ([`EdgeCurve::recertify`]).
+//! tier-3 validator runs the same checks at rest
+//! ([`EdgeCurve::recertify`]), reading check 6's locus certificate where
+//! its support is the edge's as it stands
+//! ([`crate::LocusCertificate`]).
 //!
 //! # The deterministic sampling schedule (D9)
 //!
@@ -73,6 +75,7 @@ use crate::dihedral::{
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
+use crate::locus_certificate::LocusCertificate;
 use crate::pcurve_cache::IncidenceDoor as _;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, StatedDoor, chart_pcurve_over};
 use crate::recourse::{
@@ -816,7 +819,7 @@ fn row_crossing_verdict<T: Decide>(
     };
     let least = match crossing {
         crate::ssi::RowCrossing::Turns => {
-            let zero = Margin::levered(T::from_computed(0.0), extent);
+            let zero = Margin::bound_levered(0.0, extent);
             let decided = crate::dihedral::decide_reported("shared_row_turn", zero, band)
                 .map_err(escalated)?;
             return Err(CertifyError::NotTransverse {
@@ -831,7 +834,7 @@ fn row_crossing_verdict<T: Decide>(
         crate::ssi::RowCrossing::Clear(least) => least,
         crate::ssi::RowCrossing::Unread => f64::NAN,
     };
-    let margin = Margin::levered(T::from_computed(least), extent);
+    let margin = Margin::bound_levered(least, extent);
     crate::dihedral::decide_positive("shared_row_crossing", margin, band).map_err(escalated)
 }
 
@@ -1856,7 +1859,7 @@ impl DoorCheck for CertCheck {
 fn tube_separation<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
     let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
@@ -2270,6 +2273,10 @@ pub struct EdgeCurve<T: Real> {
     /// Check 2's turn: the interval's extent against one period.
     turn: Option<CertifiedTurn<T>>,
     certificate: T::Carries<Certificate<T>>,
+    /// The locus part of the certificate with its support
+    /// ([`LocusCertificate`]), where check 6 ran: `None` on every other
+    /// description and at a scalar that does not certify.
+    locus: Option<LocusCertificate<T>>,
 }
 
 /// The edge as it is stored. The reading is a function of the carrier
@@ -2285,6 +2292,7 @@ impl<T: Real> core::fmt::Debug for EdgeCurve<T> {
             param_end,
             turn,
             certificate,
+            locus: _,
         } = self;
         f.debug_struct("EdgeCurve")
             .field("description", description)
@@ -2360,11 +2368,12 @@ impl<T: geom_core::TangentTransport> EdgeCurve<T> {
             param_end: minted.param_end,
             turn: minted.turn,
             certificate: T::uncertified(),
+            locus: None,
         }
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier: the
     /// mint ([`EdgeCurve::mint`]'s steps, in its order) and every check
@@ -2373,10 +2382,17 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// name this door:
     ///
     /// ```compile_fail,E0599
-    /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
-    /// use geom_core::{Band, Dual64, Point3, Real};
-    /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
+    /// use geom_brep::EdgeCurve;
+    /// use geom_core::Dual64;
+    /// let _ = EdgeCurve::<Dual64>::certify;
+    /// ```
+    ///
+    /// nor can a caller generic in a scalar that only decides:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_brep::EdgeCurve;
+    /// fn at<T: geom_core::Decide>() {
+    ///     let _ = EdgeCurve::<T>::certify;
     /// }
     /// ```
     ///
@@ -2387,7 +2403,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// ```
     /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
     /// use geom_core::{Band, Point3, Real};
-    /// fn at<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    /// fn at<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     ///     spec: EdgeCurveSpec<T>,
     ///     p: Point3<T>,
     ///     band: Band,
@@ -2521,9 +2537,40 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical, turn, reading) =
-            run_checks(&spec, start, end, &surfaces, reach, lane, stated, band)
-                .map_err(StatedSpan::at_a_door)?;
+        Self::certify_carrying(spec, start, end, surfaces, reach, band, lane, stated, &[])
+    }
+
+    /// [`EdgeCurve::certify_stated`] for a door that keeps an edge's
+    /// locus: `kept` are the locus certificates the door holds for it
+    /// ([`EdgeCurve::locus_certificate`]), of which check 6 reads one
+    /// whose support is this spec's carrier, interval, surface pair and
+    /// band, and derives again where none is. Every other check runs.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify`].
+    #[allow(clippy::too_many_arguments)] // `certify_stated`'s, plus the kept locus
+    pub fn certify_carrying(
+        spec: EdgeCurveSpec<T>,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        reach: geom_core::Lever<T>,
+        band: Band,
+        lane: NurbsLane<T>,
+        stated: Option<&StatedImage<T>>,
+        kept: &[&LocusCertificate<T>],
+    ) -> Result<Self, CertifyError> {
+        let Checked {
+            certificate,
+            canonical,
+            turn,
+            reading,
+            locus,
+        } = run_checks(
+            &spec, start, end, &surfaces, reach, lane, stated, band, kept,
+        )
+        .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
@@ -2533,6 +2580,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             param_end: spec.param_end,
             turn,
             certificate: T::carried(certificate),
+            locus,
         })
     }
 
@@ -2542,8 +2590,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// certainly on its refused side refuses as
     /// [`CertifyError::StatedInterval`] — an arc minted at a coarser band,
     /// whose headroom to a full turn that band read as zero, reads past
-    /// one at a finer band. The stored certificate is not consulted
-    /// (re-certification re-derives, it does not trust).
+    /// one at a finer band. Check 6 reads the edge's own
+    /// [`EdgeCurve::locus_certificate`] where its support is the edge's as it stands
+    /// at `band`, and derives it again otherwise; every other check runs.
     ///
     /// # Errors
     ///
@@ -2591,8 +2640,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             lane,
             stated,
             band,
+            self.locus.as_ref().as_slice(),
         )
-        .map(|(cert, _, _, _)| cert)
+        .map(|checked| checked.certificate)
         .map_err(StatedSpan::at_a_door)
     }
 }
@@ -2627,12 +2677,21 @@ pub struct StatedImage<T: Real> {
 /// [`crate::curved_nurbs_limbs`], [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
 /// (an `OnPair`'s incidence alone), with [`crate::analytic_edge_limbs`]'s
 /// verdict. Its fields are private and no other constructor exists. A
-/// scalar that may not certify cannot write the value:
+/// scalar that does not certify has no such type: the lane is declared
+/// over [`geom_core::Certifies`], so a function that names it carries
+/// the bound, and a pass that runs at every scalar holds a
+/// [`NurbsLaneOf`], which at a dual is [`geom_core::NoLane`].
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_brep::NurbsLane;
 /// use geom_core::Dual64;
 /// let _ = NurbsLane::<Dual64>::certified();
+/// ```
+///
+/// ```compile_fail,E0277
+/// use geom_brep::NurbsLane;
+/// use geom_core::Dual64;
+/// fn names_it(_lane: Option<NurbsLane<Dual64>>) {}
 /// ```
 ///
 /// and a caller at any scalar cannot hand a door limbs it made up — a
@@ -2701,7 +2760,7 @@ pub struct StatedImage<T: Real> {
 /// ```
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct NurbsLane<T: Real> {
+pub struct NurbsLane<T: geom_core::Certifies> {
     /// The residual × NURBS lanes' one door at `T`
     /// (`edge_nurbs::residual_nurbs_limbs`): [`crate::plane_nurbs_limbs`]
     /// for a plane, [`crate::curved_nurbs_limbs`] for a sphere, cylinder
@@ -2775,7 +2834,7 @@ pub struct NurbsLane<T: Real> {
     chart_arm: fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Result<f64, crate::ChartArmRefusal>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certification lane, and the only constructor there is: the
     /// limbs' free functions instantiated at `T`.
     #[must_use]
@@ -2854,7 +2913,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 /// holds none.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct SplineFoot<T: Real> {
+pub struct SplineFoot<T: geom_core::Certifies> {
     foot: fn(
         &geom::NurbsCurve3<T>,
         Point3<T>,
@@ -2862,7 +2921,7 @@ pub struct SplineFoot<T: Real> {
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
 }
 
-impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> SplineFoot<T> {
     /// The foot, instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
@@ -2883,7 +2942,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
     }
 }
 
-impl<T: Real> NurbsLane<T> {
+impl<T: geom_core::Certifies> NurbsLane<T> {
     /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
     /// the projection carries its own distance and certifies nothing;
     /// the caller decides that distance.
@@ -3024,7 +3083,7 @@ impl<T: Real> NurbsLane<T> {
     }
 }
 
-impl<T: Real> SplineFoot<T> {
+impl<T: geom_core::Certifies> SplineFoot<T> {
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
     /// the parameter of a point moved along the carrier, read on the
     /// branch it was moved from. The foot carries its own residuals and
@@ -3042,6 +3101,112 @@ impl<T: Real> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+}
+
+/// **A [`NurbsLane`] as a pass that runs at every scalar holds it**: the
+/// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Dual64, Point3};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::NurbsLaneOf<Dual64> for Mine {
+///     fn surface_foot(
+///         self,
+///         _s: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`NurbsLane::surface_foot`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
+    fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
+    }
+}
+
+impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
+    fn surface_foot(
+        self,
+        _surface: &geom::NurbsSurface<T>,
+        _point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+}
+
+/// **A [`SplineFoot`] as a pass that runs at every scalar holds it**
+/// ([`NurbsLaneOf`]'s shape and seal).
+///
+/// ```compile_fail,E0277
+/// use geom_core::Point3;
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl geom_brep::SplineFootOf<f64> for Mine {
+///     fn carrier_foot(
+///         self,
+///         _c: &geom::NurbsCurve3<f64>,
+///         _p: Point3<f64>,
+///         _seed: f64,
+///     ) -> Result<geom::Projection3<f64>, geom::ProjectionInconclusive> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait SplineFootOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`SplineFoot::carrier_foot`].
+    ///
+    /// # Errors
+    /// The door's own.
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>;
+}
+
+impl<T: geom_core::Certifies> SplineFootOf<T> for SplineFoot<T> {
+    fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        (self.foot)(carrier, point, seed)
+    }
+}
+
+impl<T: Real> SplineFootOf<T> for geom_core::NoLane {
+    fn carrier_foot(
+        self,
+        _carrier: &geom::NurbsCurve3<T>,
+        _point: Point3<T>,
+        _seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        match self {}
     }
 }
 
@@ -3122,6 +3287,14 @@ impl<T: Real> EdgeCurve<T> {
     /// a certifying scalar, nothing at a tangent-transport one.
     pub fn certificate(&self) -> &T::Carries<Certificate<T>> {
         &self.certificate
+    }
+
+    /// The locus part of the certificate with the support it was
+    /// derived over ([`LocusCertificate`]), where check 6 ran. A door
+    /// that keeps this edge's carrier, interval and surfaces hands it to
+    /// [`EdgeCurve::certify_carrying`].
+    pub fn locus_certificate(&self) -> Option<&LocusCertificate<T>> {
+        self.locus.as_ref()
     }
 
     /// Where the edge's extent stands against one period of its
@@ -3213,6 +3386,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: self.locus.clone(),
         })
     }
 
@@ -3269,6 +3443,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: self.locus.clone(),
         })
     }
 
@@ -3281,9 +3456,11 @@ impl<T: Real> EdgeCurve<T> {
     /// the turn is the interval against one period. An isometry keeps
     /// both, and a map keeps the carrier's parameter, so both are the
     /// image's. That holds only where the three arguments are this
-    /// edge's data under one isometry, exact apart from rounding: the
-    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
-    /// one caller.
+    /// edge's data under one isometry, or under the family of isometries
+    /// a boxed motion encloses: then the data encloses the edge's image
+    /// under each member, every member keeps the distance and the turn,
+    /// and the carried certificate is each image's. Keeping that is the
+    /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
     #[must_use]
     pub fn carried(
         &self,
@@ -3309,6 +3486,7 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             turn: self.turn,
             certificate: self.certificate,
+            locus: None,
         }
     }
 
@@ -4555,7 +4733,7 @@ impl<'a, T: Real> StatedChart<'a, T> {
 /// has the one constructor, so it is the door the mint takes through the
 /// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
 /// alike. `outer` is the span's outer ends, `f64` structure (C6).
-fn stated_bound<T: Decide>(
+fn stated_bound<T: geom_core::Certifies>(
     spec: &EdgeCurveSpec<T>,
     (surface, door): (&Surface<T>, StatedDoor<'_, T>),
     outer: (f64, f64),
@@ -4888,14 +5066,15 @@ type Minted<T> = (
 );
 
 /// What the certification engine derives: the certificate, the
-/// canonical description, check 2's turn and a periodic carrier's
-/// reading.
-type Checked<T> = (
-    Certificate<T>,
-    EdgeDescription<T>,
-    Option<CertifiedTurn<T>>,
-    Option<Curve3<T>>,
-);
+/// canonical description, check 2's turn, a periodic carrier's reading,
+/// and check 6's locus certificate where it ran.
+struct Checked<T: Real> {
+    certificate: Certificate<T>,
+    canonical: EdgeDescription<T>,
+    turn: Option<CertifiedTurn<T>>,
+    reading: Option<Curve3<T>>,
+    locus: Option<LocusCertificate<T>>,
+}
 
 /// **A periodic carrier's clamped view over `span`**, as the carrier a
 /// reader reads ([`geom::PeriodicNurbs3::clamped_view`]); `None` for
@@ -4983,7 +5162,7 @@ impl<T: Real> ReadSpec<T> {
 /// between check 2 and the canonical description, then the sampled
 /// checks and C2's limbs through `lane`.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-fn run_checks<T: Decide + geom_core::CertifiedBounds>(
+fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
@@ -4992,7 +5171,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
     band: Band,
+    kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
+    let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
     let resolved = resolve_spec(spec, surfaces)?;
@@ -5024,7 +5205,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let resolved = &resolved;
     let chart_stated = StatedChart::of(resolved);
     if let Some(surface) = chart_stated.analytic() {
-        stated_analytic_bound(spec, surface, band, crate::pcurve_cache::limb2_offset_sup)?;
+        stated_analytic_bound(spec, surface, band, |c, w, s, b| {
+            crate::pcurve_cache::limb2_offset_sup(c, w, s, crate::pcurve_cache::Limb2Locus::Face, b)
+        })?;
     }
     if let StatedChart::Bounded { surface, door } = chart_stated {
         let outer = crate::carrier_net::outer_ends((t0, t1));
@@ -5047,7 +5230,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let mut tangent_gap_max = T::zero();
     let mut tangent_prev: Option<(T, T, T)> = None;
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
-    let mut tangent_arm_min = T::from_f64(f64::MAX);
+    let mut tangent_arm_min: Option<geom_core::Lever<T>> = None;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         // Each arm takes the point through the door it needs: the
@@ -5244,7 +5427,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                         }
                     }
                     tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
-                    tangent_arm_min = tangent_arm_min.min(arm.length());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                     check_residual(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,
@@ -5399,13 +5582,25 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             band,
             &mut max_residual,
         )?;
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
+        // Every interior sample of a tangent edge folded its arm in the
+        // loop above or returned its refusal, and there is one. Each
+        // arm is `folded_lever_arm`'s, never past a carrier's own
+        // curvature arm, which no kind states above `f64::MAX`.
+        const _: () = assert!(CERT_SAMPLES >= 3);
+        let Some(arm) = tangent_arm_min else {
+            unreachable!(
+                "a tangent edge folded no arm over its {} interior samples, each of which \
+                 folds one or returns its refusal",
+                CERT_SAMPLES - 2
+            );
+        };
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1);
     // ---- Intersection, a residual × NURBS pair (a plane, sphere,
     // cylinder or torus beside a spline chart), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
@@ -5565,14 +5760,58 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // kind, and the uniqueness tube over it for a spline. A spline
     // operand's pair is the NURBS pairs' lane above, whose limbs are
     // its own. ----
-    if let Resolved::Intersection {
-        surfs: [(_, surf1), (_, surf2)],
-        ..
-    } = &resolved
-    {
-        lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+    let locus = match &resolved {
+        Resolved::Intersection {
+            surfs: [(_, surf1), (_, surf2)],
+            ..
+        } => {
+            // The limbs read the pair in one order whatever order a door
+            // names it in, so that every door asks one question and a
+            // certificate's support (its order included: the limbs
+            // decide operand by operand) is the same at each: by kind,
+            // and as named between two of one kind. That last order is
+            // the edge's `SurfacePair`'s, so a partner copy naming a
+            // same-kind pair the other way misses and derives (time,
+            // never a wrong read): SECT's row
+            // `a-same-kind-pairs-canonical-order-reads-arena-keys`.
+            let (surf1, surf2) = if surf2.kind() < surf1.kind() {
+                (surf2, surf1)
+            } else {
+                (surf1, surf2)
+            };
+            let pair = [surf1, surf2];
+            let held = kept
+                .iter()
+                .find(|c| c.reads(stored, (t0, t1), pair, band))
+                .map(|&c| (c.clone(), c.recorded()));
+            let derive = || {
+                lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+                    .map(|()| {
+                        LocusCertificate::derived(stored, (t0, t1), pair, band, Default::default())
+                    })
+            };
+            // The limbs return no number: a certificate derived again
+            // agrees by holding on the same support (and, the pin's other
+            // half, by recording the same decisions).
+            let agree = |_: &LocusCertificate<T>, again: &LocusCertificate<T>| {
+                again.reads(stored, (t0, t1), pair, band)
+            };
+            let got = crate::locus_certificate::read_or_derive(
+                crate::locus_certificate::Certified::Locus,
+                held,
+                derive,
+                agree,
+            )
             .map_err(CertifyError::AnalyticRung3)?;
-    }
+            Some(match got {
+                crate::locus_certificate::Got::Read(held) => held,
+                crate::locus_certificate::Got::Derived(_, recorded) => {
+                    LocusCertificate::derived(stored, (t0, t1), pair, band, recorded)
+                }
+            })
+        }
+        _ => None,
+    };
 
     // ---- Check 5: witness residuals + mid-parameter pin
     // (Intersection and TangentIntersection; see the check-sequence
@@ -5663,15 +5902,16 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         )?;
     }
 
-    Ok((
-        Certificate {
+    Ok(Checked {
+        certificate: Certificate {
             samples: CERT_SAMPLES,
             max_residual,
         },
         canonical,
         turn,
         reading,
-    ))
+        locus,
+    })
 }
 
 // The pair's two surfaces resolved, in key order: the checks run
@@ -5888,7 +6128,7 @@ mod wiring_rows {
 
     /// `Ok(())` when the fields hold the lane's certified functions;
     /// otherwise the first wrong field's name.
-    fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_nurbs_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -5982,8 +6222,8 @@ mod wiring_rows {
     }
 
     /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
-    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
-    {
+    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds + geom_core::Certifies>()
+    -> Result<(), &'static str> {
         let foot = SplineFoot::<T>::certified();
         if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `SplineFoot::seeded_foot`");
@@ -8207,12 +8447,22 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(kappa_min, drift, 1.0, band),
+                tube_separation(
+                    kappa_min,
+                    drift,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band
+                ),
                 at_f64,
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(point(kappa_min), point(drift), point(1.0), band),
+                tube_separation(
+                    point(kappa_min),
+                    point(drift),
+                    geom_core::test_support::fixture_lever(point(1.0)),
+                    band
+                ),
                 at_interval,
                 "Interval: {why}"
             );

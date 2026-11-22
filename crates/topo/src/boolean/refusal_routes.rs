@@ -181,12 +181,12 @@ pub enum BooleanDecision {
     BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`curve_face::line_quadric::line_sphere_roots`,
-    /// `line_quadric_sphere_disc`).
+    /// `curve_face_pose_disc`).
     SphereRoots,
     /// Where an arc crosses a sphere: the conic × quadric door's rows
     /// (`conic_quadric`) — on a circle, or an ellipse whose second
     /// harmonic is in the zero band, its first-harmonic arm's extremes
-    /// (`bool_conic_quadric_first_extreme`), read for a constant
+    /// (`curve_face_pose_extreme`), read for a constant
     /// residual and for either end of the range; otherwise the
     /// half-angle quartic's rows.
     ArcSphereRoots,
@@ -364,7 +364,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question
@@ -1618,6 +1618,8 @@ pub(in crate::boolean) mod tests {
     use crate::entity::{EdgeKey, VertexKey};
     use crate::euler::EulerOpError;
     use crate::splitting::SplitReduceError;
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
+    use geom_brep::curve_pair::MeetFault;
     use geom_brep::recourse::Classified;
     use geom_brep::sector_shape::SectorRungKind;
     use geom_core::{
@@ -2828,28 +2830,39 @@ pub(in crate::boolean) mod tests {
     fn the_conic_root_lane_ends_alike_at_the_split_and_the_boolean() {
         let b = band();
         let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
+        let (pose, method) = (
+            |rung| CrossWhy::Pose(PoseRefusal::InBand { rung, diag }),
+            |fault| CrossWhy::Method {
+                door: geom_brep::curve_face::Door::PlaneCrossing,
+                fault,
+            },
+        );
         let faults = [
             (
                 ConicRootFault::PlaneParallel(diag),
+                pose(PoseRung::PlaneParallel),
                 "whether a curved edge's plane is parallel to the plane that cuts it",
             ),
             (
                 ConicRootFault::BellyGraze(diag),
+                pose(PoseRung::BellyGraze),
                 "whether a plane cuts a curved edge, grazes it or misses it",
             ),
             (
                 ConicRootFault::CrossingInterior(diag),
+                method(MeetFault::Escalated(diag)),
                 "whether a crossing lands strictly inside its edge",
             ),
             (
                 ConicRootFault::RootOrder(diag),
+                method(MeetFault::Touch(diag)),
                 "which of two crossings on an edge comes first",
             ),
         ];
-        for (fault, subject) in faults {
+        for (fault, why, subject) in faults {
             let split = SplitReduceError::CrossingEscalated {
                 edge: EdgeKey::default(),
-                fault,
+                fault: why,
             }
             .render(geom_brep::recourse::Reading::Build);
             let boolean = BooleanError::Escalated {

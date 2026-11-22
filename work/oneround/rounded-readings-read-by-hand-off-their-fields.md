@@ -2,12 +2,13 @@
 id: rounded-readings-read-by-hand-off-their-fields
 kind: issue
 title: Three sites read a Rounded's room or magnitude by hand off its fields
-status: dispatched
+status: review
 opened: 2026-11-19
 priority: P1
 cost: E
 branch: oneround/rounded-pairs
 rides_with: value-error-pairs-are-carried-beside-rounded-in-four-modules
+pr: 7221
 ---
 
 
@@ -18,7 +19,7 @@ or `.abs() + <error>` read off a value/error pair), which routed
 `geom_core::running::Rounded` already and restates one of its doors on
 its fields:
 
-- `topo::boolean::conic_quadric` (`mod.rs`, the cone arm's `side`
+- `geom_brep::curve_face::conic_quadric` (`conic_quadric.rs`, the cone arm's `side`
   closure, row `CONE_DEFLATED_SIDE`): `Margin::of(res.value.abs() -
   res.error)` is `res.room()`, less its clamp at zero. It is decided at
   the caller's `band`, not at `Band::enclosure_sign()` as

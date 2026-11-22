@@ -119,7 +119,7 @@ pub(crate) fn edges_at<T: Decide + Bounds>(
 }
 
 /// A body's volume and the half-width of its certified enclosure.
-pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -173,7 +173,7 @@ pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError)
 /// at ε = 1e-12 the row refuses as `tightest` says instead
 /// ([`tightest_interval`]).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -228,7 +228,7 @@ pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>
 
 /// The L-plate's run: the two lines' prisms, `2 − R` and `1 − R` long,
 /// and the quarter arc's piece at centroid radius `R − d`.
-fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -262,7 +262,7 @@ fn an_l_plates_rounded_corner_run_fillets_whole_at_interval() {
 
 /// The teardrop's rim: each line's centroid runs `√3 − d·cot 30°` from
 /// its junction to the mitre plane, and the arc's `240°` at `1 − d`.
-fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -364,7 +364,7 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
 /// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
 /// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
-pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),
@@ -435,7 +435,7 @@ pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPol
 /// The L-plate's run ends square at both walls; the teardrop's lines
 /// meet in its 60° point's mitre, each centroid line `√3 − (s/3)·cot 30°`
 /// long; the notch's floor adds what the others remove.
-fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(scalar: &str) {
     let tri = |s: f64| 0.5 * s * s;
     let l = l_plate::<T>();
     let run = edges_at(&l, 0.5, |x, y| y.abs() < 1e-9 || (x > 1.5 && y < 0.9));

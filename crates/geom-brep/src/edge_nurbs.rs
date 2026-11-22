@@ -933,9 +933,9 @@ enum Partner<'a, T: Real> {
 
 impl<'a, T: Real> Partner<'a, T> {
     /// `s` as a lane's partner: a plane, or a sphere, cylinder or ring
-    /// torus, whose implicit residual the rung-3 door reads in metres.
-    /// A cone's has no metres conversion there, a spindle has no arm,
-    /// and a spline is a wall.
+    /// torus, whose implicit form the chart tube reads
+    /// (`ssi::certify::chart_partner_form`). A cone has no such form, a
+    /// spindle has no arm, and a spline is a wall.
     fn of(s: &'a Surface<T>) -> Option<Self> {
         match s {
             Surface::Plane { frame, .. } => {
@@ -1029,9 +1029,9 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal`], whose vocabulary this lane shares:
-/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone's
-/// residual has no metres conversion at the rung-3 door, and a plane has
-/// its own lane), and otherwise as [`plane_nurbs_limbs`].
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone has no
+/// form the chart tube reads, and a plane has its own lane), and
+/// otherwise as [`plane_nurbs_limbs`].
 ///
 /// The bound is [`plane_nurbs_limbs`]'s, and a dual fails it the same
 /// way:
@@ -2111,7 +2111,13 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             &curve,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                &curve,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             None,
             band,
         )?;
@@ -2143,7 +2149,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The tube's extent, from the object being certified, as limb 3
         // reads it everywhere: from below, since its transversality is
         // the definite verdict it acts on.
-        crate::edge_extent_inf(&carrier, p0, p1, (piece.eval(p0), piece.eval(p1))).length(),
+        crate::edge_extent_inf(&carrier, p0, p1).length(),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -2191,7 +2197,13 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             carrier,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                carrier,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             line_plane_ends(carrier, params, operand),
             band,
         )?;
@@ -2250,6 +2262,7 @@ pub(crate) fn limb2<T: Decide>(
         size,
         upper,
         floor,
+        ..
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {

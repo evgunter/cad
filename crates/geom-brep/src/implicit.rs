@@ -84,6 +84,7 @@ use geom::{Conic, Surface};
 use geom_core::rounding_charge;
 use geom_core::{Mat3, Point3, Real, Rounded, Vec3};
 
+use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
@@ -105,6 +106,8 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// its siblings) repeat this order term for term to stay bit-identical
 /// to it, so it is not [`geom::Line::param_and_offset`], whose division
 /// by `|axis|²` the twins do not carry.
+/// `ssi::enclose`'s `axial_split` repeats the order over a box, in
+/// certification arithmetic, not bit-identical to it.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
@@ -162,6 +165,17 @@ pub fn cone_elevation<T: Real>(
 /// height, or a unit direction's two components).
 pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
     rho * cos_a - s * sin_a
+}
+
+/// **A cone's half-angle's sine and cosine at the scalar it is crossed
+/// into**: the stored angle crossed by `cross` first, and the pair taken
+/// at the crossed scalar. At an enclosure scalar they then enclose the
+/// stored angle's, where crossing the lane's own `sin_cos` would read
+/// its rounded values (libm's, at `f64`) as exact points. The one
+/// spelling for every reader that carries a cone into certification
+/// arithmetic.
+pub fn cone_sin_cos<U, S: Real>(half_angle: U, cross: impl FnOnce(U) -> S) -> (S, S) {
+    cross(half_angle).sin_cos()
 }
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
@@ -319,48 +333,6 @@ pub fn implicit_outward_normal<T: Real>(
     p: Point3<T>,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense)
-}
-
-/// The local curvature lever arm of `s` at `p` (module docs): the
-/// chart's own length scale, `f64::MAX` for a plane (the practical
-/// `min` identity — see the module docs for why not `+∞`), poison for
-/// [`Surface::Nurbs`].
-///
-/// Per kind: sphere/cylinder — the radius; cone — the radial distance
-/// ρ of `p` from the axis; torus — the tube radius `r`. It is the scale
-/// the implicit forms are normalized by (`|∇F| − 1` is the elevation
-/// over it for all four), which is how its readers use it: to meter a
-/// dimensionless residual or a relative curvature as a length at the
-/// chart's own scale (`face_normal`'s on-chart certificate, the
-/// dihedral fold, the contact and SSI jet checks). Each value is a
-/// principal radius of curvature at `p` (the torus's along its
-/// meridian), so it is minted as a curvature arm
-/// ([`geom_core::Lever::curvature_radius`]).
-///
-/// **It is NOT a bound on the curvature on a fat torus.** On a ring
-/// with `R < 2r` the inner equator bends at `1/(R − r)`, harder than
-/// the tube's `1/r`. A reader that charges a SAGITTA against the
-/// tightest bend wants [`min_radius_of_curvature`] instead, and the two
-/// must not be swapped: a smaller value here LOOSENS the readers above
-/// (their margins shrink toward Zero), while a smaller radius of
-/// curvature tightens a sagitta charge.
-pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> geom_core::Lever<T> {
-    geom_core::Lever::curvature_radius(match *s {
-        Surface::Plane { .. } => T::from_f64(f64::MAX),
-        Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
-        Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
-            let (_, w) = axial_radial(p, apex, axis);
-            w.norm()
-        }
-        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
-        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
-        // carrier has no implicit form — foot-point machinery (C2.1,
-        // M5 PR 4) owns that story, not this module.
-        // As `Nurbs`: the stand-in is a spline, so no implicit form —
-        // and the offset description has no closed lever arm to lend.
-        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
-    })
 }
 
 /// **The smallest radius of curvature of `s`**, for a reader that
@@ -3379,6 +3351,14 @@ mod conic_tests {
             toward,
             1.6,
             0.7,
+        )));
+        // And one of equal semi-axes, the round case of that chain.
+        conics.push(Box::new(geom::Ellipse::anchored(
+            Point3::new(-0.6, 0.2, 0.5),
+            n,
+            toward,
+            1.1,
+            1.1,
         )));
         // The axis the surfaces' frames hold, so the running and plain
         // forms read one vector.

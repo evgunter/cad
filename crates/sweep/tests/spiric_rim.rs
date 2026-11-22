@@ -128,12 +128,8 @@ fn the_edge_extent_brackets_the_sampled_diameter() {
         let step = (t1 - t0) / n as f64;
         for k in 0..n {
             let (a, b) = (t0 + step * k as f64, t0 + step * (k + 1) as f64);
-            let extent =
-                geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
-                    .length();
-            let sup =
-                geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
-                    .length();
+            let extent = geom_brep::edge_extent_inf(&carrier, a, b).length();
+            let sup = geom_brep::edge_extent_sup(&carrier, a, b).length();
             let samples: Vec<Point3<f64>> = (0..=200)
                 .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 200.0))
                 .collect();
@@ -185,10 +181,8 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
         (0.7, 2.9),
         (2.0, 5.5),
     ] {
-        let extent =
-            geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
-        let sup =
-            geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
+        let extent = geom_brep::edge_extent_inf(&carrier, a, b).length();
+        let sup = geom_brep::edge_extent_sup(&carrier, a, b).length();
         let samples: Vec<Point3<f64>> = (0..=400)
             .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
             .collect();
@@ -465,41 +459,6 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
             what: "torus boundary edge is not a circle"
         }
     );
-}
-
-/// **`classify_kind` opens no iso side for a spiric rim**: the vessel
-/// cavity's torus chart, asked about each of its spiric rims through
-/// the public `topo::classify_kind`, answers `None` — the coherence
-/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
-/// meridian `Meridian`.
-#[test]
-fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
-    let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let rims = spiric_edges(&cavity);
-    assert_eq!(rims.len(), 2);
-    for (edge, _, _) in rims {
-        let e = cavity.get_edge(edge).expect("edge");
-        let curve = cavity
-            .get_curve_geom(e.curve)
-            .and_then(|g| g.certified())
-            .expect("certified");
-        let face_of = |he| {
-            cavity
-                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
-                .expect("loop")
-                .face
-        };
-        let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
-            .into_iter()
-            .map(|f| cavity.face_surface(f).expect("surface"))
-            .find(|s| matches!(s, Surface::Torus { .. }))
-            .expect("a spiric rim bounds a torus face");
-        let chart = topo::Chart::of(chart_surface).expect("the torus charts");
-        assert!(
-            topo::classify_kind(&chart, curve).is_none(),
-            "a spiric opens no iso side"
-        );
-    }
 }
 
 /// **`split_edge` meters a spiric's interiority at its minor radius**:

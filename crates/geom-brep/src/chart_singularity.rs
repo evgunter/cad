@@ -787,7 +787,14 @@ impl<'a, T: Decide> Sides<'a, T> {
         let side = |why| Unread::Side { r#loop: l, why };
         if let Surface::Sphere { frame, radius, .. } = *self.surface {
             let center = frame.origin();
-            match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
+            match sphere_pole_left(
+                center,
+                radius,
+                crate::uniform_curvature_arm(self.surface),
+                x,
+                self.loops[l],
+                self.band,
+            ) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
                 PoleLeft::Banded(cause) => return Err(side(SideUnread::Banded(cause))),

@@ -78,7 +78,10 @@ impl<T: Real> AxisFrame<T> {
         } else {
             carried
         };
-        geom::Curve3::circle_on(geom::Frame::of_motion(&signed.with_origin(center)), radius)
+        geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::of_motion(&signed.with_origin(center)),
+            radius,
+        ))
     }
 }
 

@@ -123,8 +123,8 @@
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_component`: an arc's offset from a leg's plane
 //!   it is parallel to: on the leg's circle, or apart from it.
-//! - `plane_crossing_*`: where an arc crosses a leg's plane, the plane
-//!   door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: where an arc crosses
+//!   a leg's plane, the curve × face pose's and crossing's rows.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
@@ -290,7 +290,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                     let raw = toward - a * a.dot(toward);
                     let arm = Margin::levered(
                         raw.norm() / toward.norm(),
-                        geom_core::Lever::curvature_radius(self.radius),
+                        geom_brep::uniform_curvature_arm(self.charted.surface()),
                     );
                     match decide("bool_sphere_region_arm", arm, band) {
                         Ok(Sign::Positive) => {
@@ -439,7 +439,10 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let (side, sin) = across.direction_and_length();
         match decide(
             "bool_sphere_region_parallel",
-            Margin::levered(sin, geom_core::Lever::curvature_radius(self.radius)),
+            Margin::levered(
+                sin,
+                geom_brep::uniform_curvature_arm(self.charted.surface()),
+            ),
             band,
         ) {
             Ok(Sign::Positive) => {}

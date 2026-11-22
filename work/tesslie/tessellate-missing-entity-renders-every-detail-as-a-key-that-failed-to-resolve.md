@@ -20,3 +20,5 @@ Same shape as band's `BodyNotIntact` (fixed by PR 5021 with a typed `Breach`): g
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 Moved from TESSWORD to TESSLIE on 2026-11-20, by `git mv`, when TESSWORD merged into TESSLIE: TESSWORD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+2026-11-20 (`tesslie/empty-patch`, PR 7196): `trimmed.rs`'s two "degenerate trimmed boundary" sites are gone. A loop of fewer than three points cannot occur any more: the chord pass's short-loop floor raises a short loop's edges until it has three. A loop of no signed area is decided by the constraint pass's parities: `BoundaryBoundsNoRegion` if the loops bound nothing, else `TrimLoopOrientation`.

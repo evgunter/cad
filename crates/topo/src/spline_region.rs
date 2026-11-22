@@ -249,7 +249,7 @@ fn carrier_walk<T: Decide>(
     let mut visits = 0usize;
     let mut pending: Option<Indeterminate> = None;
     while let Some((cell, known, depth)) = queue.pop_front() {
-        match decide(SPLINE_REGION_CARRIER, Margin::of(cell.floor(q)), band) {
+        match cell.floor(q).decide(SPLINE_REGION_CARRIER, band) {
             Ok(Sign::Positive) => continue,
             Ok(_) => {}
             Err(diag) => keep(&mut pending, Some(diag)),

@@ -191,7 +191,7 @@ fn stated<T: geom_core::Decide>(row: &Row<T>) -> Option<CurveSelector<T>> {
 }
 
 /// `row`'s edge certified under `selector`.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
     selector: CurveSelector<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
@@ -217,7 +217,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 /// `row` certified under its stated shared row, with the contact class
 /// read by the certificate's own reading at the certificate's own lever
 /// (`edge_extent_inf` over the edge), over each wall's certified image.
-fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certified<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
 ) -> Result<RowContact, CertifyError> {
     let selector = stated(row).expect("both walls state the row and certify it");
@@ -240,10 +240,9 @@ fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     };
     let [ka, kb] = pair.keys();
     let (ca, cb) = (cache(ka), cache(kb));
-    let ends = (row.carrier.eval(t0), row.carrier.eval(t1));
     geom_brep::analytic_row_contact(
         [(ka, &surfaces[ka], &ca), (kb, &surfaces[kb], &cb)],
-        geom_brep::edge_extent_inf(&row.carrier, t0, t1, ends),
+        geom_brep::edge_extent_inf(&row.carrier, t0, t1),
         band(),
     )
 }

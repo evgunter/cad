@@ -215,7 +215,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   precondition read the two walls' angle at the 1.6e-6 m edge's own
 ///   length, where they read as one ("tangent planes coincide"); at the
 ///   walls' extent they cross clearly.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 39] = [
     // -- tests/fixtures/wild/stepcode/TAIL_TURBINE.stp -----------------
     // Its cylinder × sphere section, at its own ε_in: the edge across the
     // marched loop's start at the default and fine bands, its sibling's
@@ -266,6 +266,19 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         Refused(NEARPOLAR_RIM_IN_BAND),
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    // -- tests/fixtures/declined/cyl_declined_loose.step --------------
+    // The declined rim nudged 8e-11 m: at the fine band the circle
+    // composite reads its stand-off about 2.7 times over and refuses
+    // in band, where three samples read it Zero
+    // (`work/exch/the-printed-on-built-certificate-reads-curved-pairs-loosely.md`).
+    (CYL_DECLINED_LOOSE, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (CYL_DECLINED_LOOSE, 1e-6, "file", Pass(1, 1, 3, 3, 2)),
+    (
+        CYL_DECLINED_LOOSE,
+        1e-12,
+        "file",
+        Refused(CYL_DECLINED_LOOSE_IN_BAND),
+    ),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
     // Read at an ε_in of 1e-6, a rim vertex 1.6e-6 m from the seam
@@ -355,6 +368,8 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const CYL_DECLINED_LOOSE: &str = "tests/fixtures/declined/cyl_declined_loose.step";
+const CYL_DECLINED_LOOSE_IN_BAND: &str = "(step_edge_on_description), in the band it is read at";
 /// FTC11's rim vertex beside the seam azimuth, read in the file's band.
 const FTC11_SEAM_VERTEX_IN_BAND: &str = "(step_band_seam_vertex) lies in the";
 pub(crate) const TAIL_TURBINE: &str = "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp";
@@ -452,16 +467,60 @@ const CORPUS: &[(&str, Disposition)] = &[
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // A quarter-cylinder wedge whose bottom rim's spline promotes to its
+    // circle (`an_open_arc_trims_inside_what_its_spline_covers`): on the
+    // half circle the spline covers, and refused where the edge names
+    // the arc it does not.
+    ("tests/fixtures/arc-trim/w_semi.step", Pass(1, 1, 5, 9, 6)),
+    (
+        "tests/fixtures/arc-trim/w_comp.step",
+        Refused("outside the piece the file's spline covers"),
+    ),
+    // The kernel's cylinder with its rims restated as splines
+    // (`a_closed_rim_promotes_whatever_its_spline_form`): each imports
+    // as the cylinder it is.
+    (
+        "tests/fixtures/closed-rim/cyl_cubic.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_quad.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/closed-rim/cyl_single.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    // -- tests/fixtures/declined/ -------------------------------------
+    // Edges curve recognition declines, read on their descriptions
+    // (`an_edge_is_read_on_its_description_whatever_recognition_says`).
+    (
+        "tests/fixtures/declined/cyl_declined.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/declined/cyl_declined_loose.step",
+        EpsSensitive,
+    ),
+    (
+        "tests/fixtures/declined/side_column_declined.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
     // The C⁰-knot split: each wall is two sub-patches, each ridge edge
-    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
-    // is a vertex the closing join keeps; the C prism's top is three
-    // pieces, and the half ridge's top stays whole along its knot line
-    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    // two sub-arcs and each elliptic cone rim two arcs, and a knot on an
+    // edge alone is a vertex the closing join keeps; the C prism's top is
+    // three pieces, and the half ridge's top stays whole along its knot
+    // line; the circular half cone is promoted to a cone first, so it
+    // keeps the file's census (`a_foreign_carrier_splits_at_each_c0_knot`).
     (
         "tests/fixtures/c0-knot/c_prism.step",
         Pass(1, 1, 12, 30, 20),
     ),
-    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 4, 6, 4)),
+    (
+        "tests/fixtures/c0-knot/half_elliptic_cone.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
     (
         "tests/fixtures/c0-knot/half_ridge.step",
         Pass(1, 1, 6, 12, 8),
@@ -471,6 +530,26 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/c0-knot/seam_edge.step",
         Pass(1, 1, 6, 13, 9),
+    ),
+    // A half cylinder and a half cone frustum on rational walls, each
+    // also stated with its parameters swapped: each wall promotes whole to
+    // its own kind either way round, so each keeps the file's census
+    // (`a_promoted_kind_is_the_same_whichever_way_the_net_runs`).
+    (
+        "tests/fixtures/promotion/a_half_cone.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cone_T.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/promotion/a_half_cyl_T.step",
+        Pass(1, 1, 4, 6, 4),
     ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
@@ -577,6 +656,29 @@ const CORPUS: &[(&str, Disposition)] = &[
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
+    ),
+    // The C⁰-knot half cone with its bottom rim restated as the wall's
+    // own row (`a_promotion_no_edge_carries_is_not_reported`).
+    (
+        "tests/fixtures/promoted-rim/half_cone_spline_rim.step",
+        Pass(1, 1, 5, 9, 6),
+    ),
+    // The M7-8 cube with its straight columns re-timed
+    // (`a_retimed_straight_rim_imports_on_its_wall`).
+    (
+        "tests/fixtures/retimed-rim/side_column.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    // -- tests/fixtures/retimed-seam/ --------------------------------
+    // The nonuniform loft with one seam straight on a re-timed column
+    // (`a_straight_seam_on_a_retimed_column_imports`).
+    (
+        "tests/fixtures/retimed-seam/seam_line.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/retimed-seam/seam_spline.step",
+        Pass(1, 1, 6, 12, 8),
     ),
     // -- tests/fixtures/m7-8-cube/ -----------------------------------
     // The unit cube with one bowed NURBS wall whose rims are M7-8
@@ -1073,10 +1175,7 @@ fn every_corpus_import_passes_the_shared_gate() {
         let text = std::fs::read_to_string(root.join(rel))
             .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
         for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
-            let options = ImportOptions {
-                eps_in,
-                ..ImportOptions::default()
-            };
+            let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
             let Some(want) = expected(rel, row, eps_tag) else {
                 // Off the pinned ambient matrix. The disposition of an

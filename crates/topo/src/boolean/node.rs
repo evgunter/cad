@@ -191,7 +191,7 @@ pub(super) type Bisector<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
 /// two planes' distances (`reduce::factored_crossing`). `None` where the
 /// pair's section, held by the operation's table, is not the bisector
 /// pose, or refused.
-pub(super) fn bisectors<T: Decide>(
+pub(super) fn bisectors<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
@@ -349,11 +349,11 @@ pub(super) fn bisector_datum<T: Decide>(
     let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
-    let (radial_hat, r) = radial.direction_and_length();
+    let (radial_hat, _) = radial.direction_and_length();
     let outward = wall_sense(
         n_pierced.vec(),
         radial_hat,
-        geom_core::Lever::curvature_radius(r),
+        geom_brep::uniform_curvature_arm(pierced),
         band,
     )?;
     let grows = (other == Sign::Positive) == (piercing == Operand::A);
@@ -495,7 +495,13 @@ mod tests {
             for (label, x, y) in [("a, b", &wa, &wb), ("b, a", &wb, &wa)] {
                 let label = format!("{angle} rad, {label}");
                 let region = geom_brep::ExtentBall::fixture(o, 3.0);
-                let section = match geom_brep::pair_section(x, y, Some(region), None, band()) {
+                let section = match geom_brep::pair_section(
+                    x,
+                    y,
+                    Some(region),
+                    None::<geom_core::NoLane>,
+                    band(),
+                ) {
                     Ok(geom_brep::SectionRead::Built(section)) => section,
                     other => panic!("{label}: {other:?}"),
                 };

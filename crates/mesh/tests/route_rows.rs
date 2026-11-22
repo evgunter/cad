@@ -210,10 +210,10 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
     const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x0bdb_95bd_c65c_bb63),
-        (0.3, 3e-9, 0x4456_183e_d2b3_23c3),
-        (0.3, 5e-9, 0xf66a_af34_e45a_96bc),
-        (0.3, 8e-9, 0xad72_9e9f_97e5_2bde),
+        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
+        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
+        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
+        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
         (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
         (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
         (0.6, 5e-9, 0x02eb_fa12_532b_212e),
@@ -257,56 +257,70 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// each of its dispatch's calls (the chord pass's sides and lattices,
 /// each face's target, the face's turn), nine a face on the prism, on a
 /// run and on a memo hit alike: the reading this route makes once.
+///
+/// **One removal, on every curved-lane body.** The chord rule reads each
+/// curved-lane edge's iso family from the shape door's answer
+/// (`curved::Rectangle`), where it used to classify the carrier by its
+/// axis (a nearest fit, retired since) and keep only the family: the row or
+/// column coordinate that call also read (`Chart::rim_v`,
+/// `chart_iso::mid_azimuth`, each recording `pcurve_chart_cut_side` and
+/// `chart_point_on_axis`, and `chart_point_on_tube_circle` on the donut
+/// (16) and `chart_point_cone_nappe` on the cone (4)) was thrown away. Those reads are gone from the
+/// run of the rounded prism, the washer, the ball, the cone and the
+/// donut — 16 decisions on the prism, at the head of its run, every
+/// other decision the same in order and sign — and they were all a memo
+/// hit recorded, so a hit on those five now records nothing. The mesh is
+/// byte-identical on all nine bodies.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
         (
             "rounded prism",
-            0x044b_53af_fca7_a0cd,
-            0xde76_e44f_a8f7_6685,
+            0x8253_f6a4_2039_78ed,
+            0xcbf2_9ce4_8422_2325,
             0x6760_9721_f7b4_9e2f,
         ),
         (
             "washer",
-            0xbef8_a160_c1f1_4d1d,
-            0x2949_ec2c_247d_ebf5,
+            0x1cc4_b5fe_4e83_728d,
+            0xcbf2_9ce4_8422_2325,
             0x83a3_9809_1983_f94c,
         ),
         (
             "ball",
-            0x5172_8b12_4ed0_a3c1,
-            0x6958_59e5_b31e_fdcd,
-            0x5812_1400_df62_e576,
+            0x5aaf_8fe2_c8bd_5999,
+            0xcbf2_9ce4_8422_2325,
+            0x8403_8e18_2870_7107,
         ),
         (
             "cone",
-            0x50ab_de99_0198_e8ed,
-            0x2212_a44a_a3dd_7fcd,
+            0x84b3_064b_95c6_8ad5,
+            0xcbf2_9ce4_8422_2325,
             0xee15_493c_99b8_730d,
         ),
         (
             "donut",
-            0x9ff4_f3d7_e4f0_9c13,
-            0x9f64_3853_64cd_16f5,
+            0x8e3d_031d_bf7e_b783,
+            0xcbf2_9ce4_8422_2325,
             0x10e7_f0a2_46fd_3c81,
         ),
         (
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0xf469_5056_90db_252a,
+            0xc7c8_23ba_ac8c_455f,
         ),
         (
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0x4299_0881_b1b2_3fb5,
+            0x3f32_81cc_55e5_8d9a,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x0bdb_95bd_c65c_bb63,
+            0x8f44_f884_2b54_c898,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
@@ -317,6 +331,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
     ];
     let corpus = k_corpus();
     assert_eq!(corpus.len(), MAIN.len(), "one row per body");
+    let mut moved = Vec::new();
     for ((name, body), (want_name, run, hit, bytes)) in corpus.iter().zip(MAIN) {
         assert_eq!(name, want_name, "the corpus and the table agree on order");
         let got = k_digest(|| {
@@ -329,8 +344,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
             let _ = mesh::tessellate_with(body, 5e-2, Tol::witness(), &mut memo);
         });
         assert_eq!(got, hit, "{name}: a memo hit's K stream is main's");
-        assert_eq!(mesh_digest(body, 5e-2), bytes, "{name}: main's bytes");
+        let got = mesh_digest(body, 5e-2);
+        if got != bytes {
+            moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "main's bytes, every row that moved: {moved:#?}"
+    );
 }
 
 /// The cylinder wider by [`in_band`]: the poison of

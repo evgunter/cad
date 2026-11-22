@@ -806,7 +806,7 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
@@ -1068,7 +1068,7 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
@@ -1317,8 +1317,8 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(r1.r)
-            .min(geom_core::Lever::curvature_radius(r2.r)),
+        lever: crate::uniform_curvature_arm(&pose.first)
+            .min(crate::uniform_curvature_arm(&pose.second)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,

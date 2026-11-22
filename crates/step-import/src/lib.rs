@@ -54,10 +54,12 @@
 //!    the description fixes it (built carriers crossing a surface, a
 //!    pole or an apex), else, where the description leaves it free along
 //!    one built carrier, at the foot of its printed point on that
-//!    carrier, each interval by the carrier's own inverse. No curve or
-//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
-//!    share one kernel surface key, restoring the writer-side key
-//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    carrier, each interval by the carrier's own inverse; each printed
+//!    carrier is read on its built one over its trim, certified by locus
+//!    where [`on_built`] has an arm for the pair and at its ends and
+//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (one
+//!    kernel surface key per surface record: the faces citing one entity
+//!    share it), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the
 //!    kernel's own gates at ε; a smooth join the must-carry rule answers
 //!    with the pair alone refuses not-yet-supported. Pcurve
@@ -136,33 +138,6 @@
 //! What interpretation moves is on the result's move ledger
 //! ([`StepImport::normalizations`]), never in the body. Certification
 //! of everything built runs at the run's ε like native geometry.
-//!
-//! # Chart coherence: a measurement, not a gate
-//!
-//! [`ImportOptions::examine_chart_coherence`] asks
-//! [`topo::examine_chart_coherence`] about the body that ships and
-//! carries its report at [`StepImport::Solid::coherence`]. The
-//! examination measures how far two of the FILE's own statements
-//! about one chart coordinate disagree — a carrier's midpoint azimuth
-//! against its own endpoint vertex's, two edges of one rim row, two
-//! edges of one meridian column — each as a gap times a lever arm, in
-//! metres, against the band. This is the door where defective source
-//! coordinates actually arrive. Its recorded witness was a
-//! pole-crossing meridian arc (`tests/fixtures/halfcap/`), whose carrier
-//! midpoint sat a half-turn from its own endpoint; import now makes the
-//! pole a vertex ([`NormalizationKind::ChartSingularityVertex`]), so no
-//! committed file ships a finding.
-//!
-//! **Three things this channel is not.** It is not a gate: the at-rest
-//! validator above has already run and passed by the time the
-//! examination is asked, and a body with findings ships exactly as one
-//! without them does — nothing in the import acceptance decision reads
-//! it. It is not the ε_in lane: the band is the run's ambient ε, the
-//! same tolerance everything else built here certifies at, and each
-//! finding carries the band it was judged against. And it is not on by
-//! default, because the examination has no shape door and would report
-//! a lane boundary (a trimmed curved face's loops) to callers who
-//! asked no question.
 //!
 //! # Fail loud (D4 ¶5)
 //!
@@ -271,6 +246,7 @@ mod geometry;
 mod interpret;
 mod knot_split;
 mod normalize;
+mod on_built;
 mod one_record;
 mod parse;
 mod reach;
@@ -361,14 +337,19 @@ pub struct PlacedInstance {
 }
 
 /// The analytic kinds D7 stage-1 surface recognition can promote a
-/// NURBS patch to. Cone, sphere, and torus recognition are banked
-/// (unimplemented; such patches stay NURBS).
+/// NURBS patch to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedKind {
     /// A plane.
     Plane,
     /// A cylinder.
     Cylinder,
+    /// A cone.
+    Cone,
+    /// A sphere.
+    Sphere,
+    /// A ring torus.
+    Torus,
 }
 
 impl core::fmt::Display for PromotedKind {
@@ -377,6 +358,9 @@ impl core::fmt::Display for PromotedKind {
             match self {
                 Self::Plane => geom::SurfaceKind::Plane,
                 Self::Cylinder => geom::SurfaceKind::Cylinder,
+                Self::Cone => geom::SurfaceKind::Cone,
+                Self::Sphere => geom::SurfaceKind::Sphere,
+                Self::Torus => geom::SurfaceKind::Torus,
             }
             .name(),
         )
@@ -455,10 +439,10 @@ pub enum NormalizationKind {
     SurfacePromotion {
         /// The kind that certified.
         to: PromotedKind,
-        /// The certified residual sup (meters): the patch's worst
-        /// deviation from the promoted surface over the certification
-        /// domain (control-net bound or fixed sampled grid — the
-        /// recognizer's dual track).
+        /// The certified residual sup (meters): an upper bound on the
+        /// patch's worst deviation from the promoted surface over its whole
+        /// domain (`geom_brep::patch_distance_sup`, every kind's one
+        /// certificate).
         residual: f64,
     },
     /// **Two edges the file states on one carrier, joined** (Ev's PR
@@ -569,9 +553,18 @@ pub enum NormalizationKind {
         moved_by: f64,
     },
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
-    /// #327): the carrier's residual against the analytic curve read
-    /// Zero at the file's band, so every edge on it adopts the analytic
-    /// carrier ([`CurvePromotion`] is this record read off the ledger).
+    /// #327): the carrier's locus residual against the analytic curve
+    /// read Zero at the file's band, and it covers that curve's arc,
+    /// segment or full turn between its ends in the curve's sense
+    /// ([`CurvePromotion`] is this record read off the ledger). On a
+    /// solid it is evidence: each edge on it is built from its own
+    /// description and the promoted curve certified on that carrier, as
+    /// any printed carrier is. The promotion is the CURVE's:
+    /// it is recorded unless every edge that reads the curve is carried on
+    /// a spline the body holds instead (a wall's own column), each such
+    /// edge reporting that through its own `CarrierBuilt`. An edge built
+    /// with any analytic carrier keeps the record, and so does a curve no
+    /// edge reads (a wireframe's, which hands back the promoted curve).
     /// Keyed by the curve entity, not a face; its census pair is empty,
     /// since nothing is re-tessellated.
     CurvePromoted {
@@ -692,12 +685,12 @@ pub struct StructureNormalization {
 }
 
 /// The analytic kinds D7 CURVE recognition can promote a NURBS
-/// carrier to (#327 stage 1; the line #388). Ellipse, helix, and open
-/// (partial) circular arcs are named exclusions with filed follow-ups;
-/// such carriers stay NURBS.
+/// carrier to (#327 stage 1; the line #388). Ellipse and helix are
+/// named exclusions with a filed follow-up; such carriers stay NURBS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedCurveKind {
-    /// A full, closed circle.
+    /// A circle: a closed carrier's full period, or an open carrier's
+    /// arc, which its edge trims at its vertices.
     Circle,
     /// A chord segment (a certified degree-agnostic polyline leg —
     /// the carrier lies on the chord between its end control points
@@ -743,12 +736,28 @@ pub struct CurvePromotion {
     pub curve: u64,
     /// The kind that certified.
     pub kind: PromotedCurveKind,
-    /// The certified residual sup (METERS): the carrier's worst
-    /// deviation from the promoted curve over its whole domain. Read
-    /// off ring-coefficient hulls — exact, whole-domain, no sampling
-    /// (`recognize_curve`'s module docs carry the derivation and the
-    /// meters² → meters conversions).
+    /// The certified residual sup (METERS): a LOCUS distance — the
+    /// farthest any point of the carrier lies from the piece of the
+    /// promoted curve it covers (the whole circle, an arc, a segment).
+    /// Read off coefficient hulls and the controls — whole-domain, no
+    /// sampling (`recognize_curve`'s module docs carry the derivation).
     pub residual: f64,
+}
+
+/// **One curve of a wireframe** ([`StepImport::Wireframe`]): a carrier
+/// and the piece of it the file states.
+#[derive(Clone, Debug)]
+pub struct WireframeCurve {
+    /// The carrier: as stated, or the analytic curve a stated spline
+    /// promoted to.
+    pub carrier: geom::Curve3<f64>,
+    /// The parameter range of `carrier` the file's curve covers, where
+    /// it is not the whole carrier: a spline promoted to a circle it
+    /// covers part of (an open arc, from its seam), or to the line its
+    /// chord lies on. `None` is the whole carrier — a spline's own
+    /// domain, a closed circle's period, a stated `LINE` or `CIRCLE` as
+    /// the file states it.
+    pub span: Option<(f64, f64)>,
 }
 
 /// Per-call import options (D7's ε_in override door).
@@ -759,27 +768,6 @@ pub struct ImportOptions {
     /// the file's declaration. Must be finite and strictly positive
     /// when given ([`StepImportError::InvalidEpsOverride`]).
     pub eps_in: Option<f64>,
-    /// **Ask for the chart-coherence examination** of the shipped body
-    /// ([`topo::examine_chart_coherence`]), reported at
-    /// [`StepImport::Solid::coherence`]. Default `false`.
-    ///
-    /// **Off by default, which is the examination's own posture rather
-    /// than timidity about its cost.** It has no shape door in front
-    /// of it: a curved face whose outer loop carries a conic or spline
-    /// trim carrier states none of the three conditions, so its loops
-    /// land in [`topo::CoherenceReport::unexamined`] as a LANE
-    /// BOUNDARY rather than a defect. A channel that is on for every
-    /// caller reports that lane boundary to callers who asked no
-    /// question, and a report that fires everywhere is not a report.
-    /// The registry resident on this same kernel door
-    /// (`editor_core`'s `CheckId::ChartCoherence`) ships `Off` for the
-    /// same reason.
-    ///
-    /// **It decides nothing.** A finding is a MEASUREMENT of how far
-    /// two of the file's own statements about one chart coordinate
-    /// disagree; no file imports or refuses differently for this flag,
-    /// and the at-rest gate never reads it.
-    pub examine_chart_coherence: bool,
 }
 
 /// A successful import: what the file's shape representation supports.
@@ -847,50 +835,6 @@ pub enum StepImport {
         /// here and expensive to retrofit, so it is kept whether or
         /// not the file states an assembly at all.
         instances: Vec<PlacedInstance>,
-        /// **The chart-coherence examination of `body`**, when
-        /// [`ImportOptions::examine_chart_coherence`] asked for one:
-        /// [`topo::examine_chart_coherence`]'s report, whole and
-        /// unfiltered, run on the body that ships at the import's
-        /// `tol`.
-        ///
-        /// This is the door where defective source COORDINATES
-        /// arrive. Every condition it states is a gap between two of
-        /// the FILE's own statements about one chart coordinate,
-        /// measured in metres against the band — a meridian arc whose
-        /// carrier midpoint sat a half-turn from its own endpoint was
-        /// the recorded witness, before import made the pole it crossed
-        /// a vertex.
-        ///
-        /// **`None` is CONFIGURATION and `unexamined` is DATA, and
-        /// they are two different facts.** `None` says the caller did
-        /// not ask, which nothing about the file changes and which
-        /// setting the option reverses; `Some(report)` whose
-        /// `unexamined` is non-empty says the examination RAN and the
-        /// body put a loop out of its reach, which no option changes.
-        /// Spelling the unasked state as an empty report would fold
-        /// the two — a caller who never asked would read identically
-        /// to a body with nothing to report, which is the one thing
-        /// this channel may not say. The kernel door draws the same
-        /// line about its own two lists at
-        /// [`topo::CoherenceReport::unexamined`], and the `Option` is
-        /// how it survives the crossing.
-        ///
-        /// **There is deliberately no `StepImport::coherence()`
-        /// accessor** beside [`StepImport::normalizations`] and its
-        /// neighbours. Those fold a wireframe into an empty slice
-        /// honestly — a wireframe really did apply no normalizations —
-        /// but this crate can be in THREE states about chart
-        /// coherence: not asked, examined, and no body to examine at
-        /// all. An accessor returning `Option<&CoherenceReport>` would
-        /// spell the first and the third the same way. The variant is
-        /// where the third one lives, so a caller matches the variant.
-        ///
-        /// **Nothing gates on it.** The at-rest gate above has already
-        /// run and passed by the time this is measured; a body with
-        /// findings ships exactly as a body without them does. A
-        /// finding is a measurement, and reading it as a verdict is
-        /// reading intent into a number.
-        coherence: Option<topo::CoherenceReport>,
         /// **The contacts between the body's solids**: one record per
         /// touch the at-rest census found between two of `body`'s
         /// solids, each citing its row in `coincidences` and confirmed
@@ -912,17 +856,19 @@ pub enum StepImport {
     /// adopt, so there is nothing a `Body` could honestly represent; a
     /// disposition, not a skip.
     Wireframe {
-        /// The curve-set's carriers in file order. Exact (control
-        /// points / knots / weights bitwise) for every carrier that
-        /// stays as stated — and D7 stage-1 CURVE recognition runs on
-        /// this lane too, so a carrier that CERTIFIES is handed back
-        /// as its analytic kind, with the promotion recorded in
-        /// `normalizations` below
-        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a property of the
-        /// carrier, not of what a body later does with it; a wireframe
-        /// whose promotions were silent would be the one place in this
-        /// crate where a description changed without being reported.
-        curves: Vec<geom::Curve3<f64>>,
+        /// The curve-set's curves in file order. A carrier that stays as
+        /// stated is exact (control points / knots / weights bitwise).
+        /// D7 stage-1 CURVE recognition runs on this lane too, so a
+        /// carrier that CERTIFIES is handed back as its analytic kind,
+        /// with the parameter range of it the file's carrier covers
+        /// ([`WireframeCurve::span`]: an open arc, a chord) and the
+        /// promotion recorded in `normalizations` below
+        /// ([`NormalizationKind::CurvePromoted`]). Recognition is a
+        /// property of the carrier, not of what a body later does with
+        /// it; a wireframe whose promotions were silent would be the one
+        /// place in this crate where a description changed without being
+        /// reported.
+        curves: Vec<WireframeCurve>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
         /// The move ledger: the curve promotions applied to `curves`
@@ -1017,9 +963,10 @@ pub fn import_step(
             // one component representation are N entries over the same
             // solid index, and each is a body of its OWN — fresh
             // topology, fresh arena keys, no structure shared between
-            // copies. Sharing was never on the table: a `SolidSpec`'s
-            // maps are keyed by the file's entity ids, so two copies
-            // assembled into one arena would collide id for id.
+            // copies. Nothing is shared between them because nothing is
+            // shared between any two shells: each solid and each void is
+            // built alone, in a body of its own, and grafted under fresh
+            // keys.
             //
             // Each placement is the motion its placement pair minted
             // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is
@@ -1038,6 +985,9 @@ pub fn import_step(
             // The joins each solid's build ended with, reported once per
             // solid: each is built once.
             let mut normalizations = ledger(&model);
+            // What the edges on each printed curve hold, which decides
+            // its promotion record (below).
+            let mut holders = build::CurveHolders::default();
             // Each distinct solid is built once. Where the per-solid
             // subject is owed, it is finished once, on its first placed
             // instance (so it is asked in the box where it stands), and
@@ -1094,8 +1044,9 @@ pub fn import_step(
                             .into_body()
                         }
                         None => {
-                            let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
+                            let (built, joins, held) = assemble::build_one_solid(spec, tol, file)?;
                             normalizations.extend(joins);
+                            holders.extend(held);
                             let one =
                                 match &motion {
                                     Some((m, transform)) => topo::transform_rigid(&built, m)
@@ -1185,24 +1136,12 @@ pub fn import_step(
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
             let (body, contacts, coincidences) = gate3(body, tol)?;
-            // **The chart-coherence channel** — after the gate, on the
-            // body that ships, and consuming nothing. The door is a
-            // pure function of (body, ε) that refuses nothing and
-            // returns a measurement; running it here rather than on
-            // some intermediate is what makes the report a statement
-            // about the value the caller receives. It is called
-            // directly, with no lane trait in front of it: every door
-            // in this crate is monomorphic at `f64`, so there is no
-            // scalar for which the examination could be absent.
-            let coherence = options
-                .examine_chart_coherence
-                .then(|| topo::examine_chart_coherence(&body, tol));
+            normalizations.retain(|n| promotion_carried(n, &holders));
             Ok(StepImport::Solid {
                 body,
                 eps_in,
                 normalizations,
                 instances: record,
-                coherence,
                 contacts,
                 coincidences,
             })
@@ -1213,6 +1152,25 @@ pub fn import_step(
             normalizations: ledger(&model),
         }),
     }
+}
+
+/// **Whether a ledger record stands, given what the edges hold**: every
+/// record but a [`NormalizationKind::CurvePromoted`] whose curve some
+/// edge holds as a spline and NO edge holds analytic — every edge on it
+/// holds a spline the body built instead (a wall's column), the
+/// promotion reached nothing, and each of those edges reports what it
+/// holds through its own `CarrierBuilt`. "Analytic" counts any analytic
+/// carrier an edge on the curve is built with (the promoted one, or one
+/// the build constructed in its place, which its own `CarrierBuilt`
+/// reports). A curve shared by an edge holding the spline and one
+/// holding an analytic carrier keeps its record, and the first edge's
+/// `CarrierBuilt` says what it holds instead. A curve no edge reads (a
+/// wireframe's) keeps its record: the wireframe hands back the promoted
+/// curve. Per edge, the ledger is never silent and never false.
+fn promotion_carried(record: &StructureNormalization, holders: &build::CurveHolders) -> bool {
+    !(matches!(record.kind, NormalizationKind::CurvePromoted { .. })
+        && holders.spline.contains(&record.face)
+        && !holders.analytic.contains(&record.face))
 }
 
 /// The move ledger as the model's resolution left it: each curve
@@ -1338,5 +1296,59 @@ fn gate3_findings(
             solid: None,
             errors: findings,
         })
+    }
+}
+
+#[cfg(test)]
+mod promotion_ledger_rows {
+    use super::*;
+
+    /// **The promotion record per what each edge holds**: a curve whose
+    /// every edge holds a wall's spline loses its `CurvePromoted` record;
+    /// one shared by an edge holding the spline and an edge holding the
+    /// analytic curve keeps it (the second edge's carrier IS the
+    /// promotion, and nothing else would report it); one only analytic
+    /// edges hold keeps it; and every other record stands.
+    #[test]
+    fn a_promotion_stands_where_an_edge_carries_it() {
+        let record = |face, kind| StructureNormalization {
+            face,
+            kind,
+            file_census: FaceCensus::EMPTY,
+            kernel_census: FaceCensus::EMPTY,
+        };
+        let promoted = |face| {
+            record(
+                face,
+                NormalizationKind::CurvePromoted {
+                    kind: PromotedCurveKind::Circle,
+                    residual: 0.0,
+                },
+            )
+        };
+        let holders = build::CurveHolders {
+            spline: [1, 2].into_iter().collect(),
+            analytic: [2, 3].into_iter().collect(),
+        };
+        assert!(
+            !promotion_carried(&promoted(1), &holders),
+            "spline only: dropped"
+        );
+        assert!(promotion_carried(&promoted(2), &holders), "shared: kept");
+        assert!(
+            promotion_carried(&promoted(3), &holders),
+            "analytic only: kept"
+        );
+        assert!(
+            promotion_carried(&promoted(4), &holders),
+            "no edge read: kept"
+        );
+        assert!(
+            promotion_carried(
+                &record(1, NormalizationKind::CarrierBuilt { moved_by: 0.0 }),
+                &holders
+            ),
+            "an edge's own record stands"
+        );
     }
 }

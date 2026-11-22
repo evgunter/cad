@@ -2,11 +2,13 @@
 id: a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles
 kind: issue
 title: a ringless cone face near its apex meshes Ok with an edge four triangles use: tessellate returns a mesh check_mesh refuses
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: M
 branch: tesslie/four-use-edge
+closed: 2026-11-21
+pr: 7198
 ---
 
 
@@ -108,3 +110,17 @@ join the same two points. No body in the grids above has one.
   is left" names the backstop that would turn every such mesh into a typed
   refusal on every lane: a census of triangle uses across patches where
   `tessellate` joins them.
+
+## Closed (TESSLIE, PR 7198, 2026-11-21)
+
+The class is closed at two layers:
+- **The shared-side rule on every trimmed arm** (cylinder, sphere, torus, spline), from one home in `trimmed.rs`. A kept triangle side that joins two non-neighbouring polygon points which the face across their edge also holds gets a point inserted inside it; where the retry budget leaves it, the face refuses `UnclearedSharedSide`. The separate ear test retired, since the rule covers every ear a neighbour can cut.
+- **The census at the fold** (`tessellate::joined`, every profile, ids and counts only). A side used more than twice per chord carrying it refuses `OverusedSide`. So no lane, curved, planar, memo replay or a future arm, returns such a mesh as Ok.
+
+Measured over two independent main-vs-branch grids in review: every change is NonManifold or Folded → Meshed, and nothing that meshed now refuses. Pinned by the cone, rod-sliver, ball and crossing-rod rows in `reach_probes`, and by `side_census::*` (the wiring row included).
+
+Follow-ups:
+- `the-patch-memo-key-misses-the-faces-across-a-trimmed-face` (P1): two designers agreed on the fix.
+- `the-shared-side-rule-on-the-spline-arm-has-no-witness` (P3).
+
+Tour frames were not re-rendered on this PR, because the render lane is red on main for nist_ftc_09. The nightly re-baselines them.

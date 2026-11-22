@@ -64,8 +64,10 @@
 //! the parameter itself carries that turn, and a point near the anchor
 //! holds to the semi-axis's rounding, not its own. The derived centre is
 //! read from the same anchor at every seam, but not to the same bits: at
-//! `f64` a quarter turn re-squares the frame, and the centre read through
-//! the turned frame moves by about a rounding of the semi-axis.
+//! `f64` a quarter turn takes the turned seam renormalized
+//! ([`Frame::quarter_turned_renormalized`]), a rounding apart from the
+//! frame's own `v`, and the centre read through the turned frame moves
+//! by about a rounding of the semi-axis.
 //!
 //! The placement is private to this module, and nothing outside it asks
 //! which point a conic holds: a position is read as the centre
@@ -259,7 +261,10 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// bound on its rounding** ([`Rounded`]): [`Self::point_at`]
     /// operation for operation, so its value is that point bit for bit.
     /// `theta`, the frame, the sizes and the stored centre or anchor are
-    /// taken as exact; each sine and cosine read is charged an ulp.
+    /// taken as exact. Every operation is charged its rounding: each sine
+    /// or cosine read an ulp, and on an ellipse held on its arc the
+    /// half-angle square and the two differences with the anchor's phase
+    /// their own.
     fn running_point(&self, theta: T) -> [Rounded<T>; 3];
 
     /// **The centre**: the frame's origin. Stored where the conic is
@@ -287,9 +292,32 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
     /// so `(P(θ) − center)·n = first·cos θ + second·sin θ`. `n` need not
     /// be unit: the pair is linear in it.
+    ///
+    /// Read off `n`'s part across the conic's plane, `(â × n) × â`, which
+    /// the frame's directions see as `n` itself, formed with no
+    /// cancellation: as the conic turns parallel to `n`'s plane, `n·û` and
+    /// `n·v̂` are differences of nearly equal terms, each off by `u`, so
+    /// the harmonic's phase would be `u/sin` off and a graze's point
+    /// `r·u/sin` along the conic. `â × n = â × (n ∓ |n|·â)`, and
+    /// `n − |n|·â` (or `n + |n|·â`, the conic facing away) is formed to `u`
+    /// of its own size, so its cross with `â` cancels nothing. Away from parallel both
+    /// forms are as good, so the choice at `â·n = 0` is free.
     fn along(&self, n: Vec3<T>) -> (T, T) {
         let (f, (a, b)) = (self.frame(), self.semi_axes());
-        (a * f.u_ref().dot(n), b * f.v_ref().dot(n))
+        let axis = f.axis();
+        let across = |m: Vec3<T>| axis.cross(m).cross(axis);
+        // `|n|·â`, so the difference rounds at `n`'s own scale.
+        let scaled = axis * n.norm();
+        let (facing, away) = (across(n - scaled), across(n + scaled));
+        let key = axis.dot(n);
+        let d = Vec3::new(
+            key.select_le_zero(away.x, facing.x),
+            key.select_le_zero(away.y, facing.y),
+            key.select_le_zero(away.z, facing.z),
+        );
+        // `(â × m) × â` is `m`'s part across the plane only for a unit
+        // `â`; the frame's axis is unit by the conic's convention.
+        (a * f.u_ref().dot(d), b * f.v_ref().dot(d))
     }
 
     /// **The parameter of `p` within half a turn of `span`'s middle**:
@@ -512,8 +540,16 @@ impl<T: Real> Circle<T> {
     }
 
     /// **This circle with its placement mapped by `map`**: its image
-    /// under a map of space that keeps its radius (a motion), or the
-    /// same circle run back ([`Frame::reversed`]).
+    /// under a map of space that keeps its radius (a motion).
+    ///
+    /// [`Frame::reversed`] handed here is the half turn about the line
+    /// through the frame's origin along the seam. A circle's frame
+    /// stands at its centre, so that line is a diameter and the half
+    /// turn carries the circle onto itself with `θ ↦ −θ`: the same
+    /// circle run back, which is how [`Curve3::reversed`] spells it. An
+    /// ellipse's frame may stand on its arc, where that is another
+    /// ellipse, so an ellipse is run back by its own door
+    /// ([`Ellipse::reversed`]).
     #[must_use]
     pub fn placed(&self, map: impl FnOnce(&Frame<T>) -> Frame<T>) -> Self {
         Self {
@@ -890,11 +926,11 @@ impl<T: Real> Ellipse<T> {
     /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the turn
     /// adds no length to the frame, and the semi-axes swap. The turned
     /// frame keeps its axis bit for bit. At an `Inexact` witness kind
-    /// (`f64`, `Probe` and the duals and forms over them) it takes that
-    /// renormalized seam squared to the axis ([`Frame::turned_to`], which
-    /// decides nothing): the merge base's bits, a rounding apart from the
-    /// frame's own `v`
-    /// (`a_quarter_turned_seam_is_the_renormalized_v_ref_bit_for_bit`). At
+    /// (`f64`, `Probe` and the duals and forms over them) its seam is
+    /// `v_ref().normalize()` as given, not re-squared to the axis
+    /// ([`Frame::quarter_turned_renormalized`], which decides nothing):
+    /// the merge base's bits, a rounding apart from the frame's own `v`
+    /// (`a_quarter_turned_seam_is_the_base_formula_bit_for_bit`). At
     /// an `Exact` kind (`Interval` and the duals and forms over it) it
     /// takes the exact turn ([`Frame::quarter_turned`], a permutation of
     /// the frame's axes), which encloses the same turned rotation and adds
@@ -915,7 +951,7 @@ impl<T: Real> Ellipse<T> {
         // held there stores, so its bits are the stored frame's.
         let f = Conic::frame(self);
         let turned = if T::WITNESS == geom_core::Witness::Inexact {
-            f.turned_to(f.v_ref().normalize())
+            f.quarter_turned_renormalized()
         } else {
             f.quarter_turned()
         };
@@ -1097,15 +1133,6 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn circle(center: Point3<T>, axis: Vec3<T>, radius: T, u_ref: Vec3<T>) -> Self {
         Self::Circle(Circle::new(Frame::new(center, axis, u_ref), radius))
-    }
-
-    /// The circle of `radius` on `frame`: centred at its origin, normal
-    /// along its axis, seam along its `u_ref`, the frame kept as it is
-    /// handed, so a caller holding a rigid frame by construction stores
-    /// it without the re-squaring [`Curve3::circle`]'s three vectors take.
-    #[must_use]
-    pub fn circle_on(frame: Frame<T>, radius: T) -> Self {
-        Self::Circle(Circle::new(frame, radius))
     }
 
     /// **The carrier read as a conic**: a circle or an ellipse as the

@@ -254,10 +254,7 @@ fn a_semi_axis_the_band_cannot_tell_from_zero_is_no_invalid_root() {
         "#24 = CIRCLE('',#25,0.5);",
         "#24 = ELLIPSE('',#25,0.5,5.E-04);",
     );
-    let options = ImportOptions {
-        eps_in: Some(1e-6),
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in: Some(1e-6) };
     match import_step(&text, &options, Tol::witness()) {
         Err(
             ref e @ StepImportError::Interpretation {
@@ -303,7 +300,6 @@ fn ftc11s_ambiguity_names_what_decides_it_and_following_it_imports() {
     let at = |eps_in: f64| {
         let options = ImportOptions {
             eps_in: Some(eps_in),
-            ..ImportOptions::default()
         };
         import_step(&text, &options, Tol::witness())
     };
@@ -353,10 +349,7 @@ fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
         "#18 = DIRECTION('',(1.,0.,0.));",
         "#18 = DIRECTION('',(1.,0.,1.E-12));",
     );
-    let options = ImportOptions {
-        eps_in: Some(2e-5),
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in: Some(2e-5) };
     let imported = import_step(&text, &options, Tol::witness())
         .unwrap_or_else(|e| panic!("imports: {}", e.render()));
     let entries: Vec<f64> = imported
@@ -388,7 +381,6 @@ fn a_placement_pairs_entry_bounds_its_snap_and_its_frames() {
 fn an_eps_in_that_makes_no_band_refuses_naming_whose_it_is() {
     let options = ImportOptions {
         eps_in: Some(1e308),
-        ..ImportOptions::default()
     };
     match import_step(&freecad_fixture("box"), &options, Tol::witness()) {
         Err(ref e @ StepImportError::UnbandedUncertainty { eps_in, overridden }) => {

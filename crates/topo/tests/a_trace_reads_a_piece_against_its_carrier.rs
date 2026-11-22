@@ -197,9 +197,8 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
 /// outward normal, so no sense to read: a line through the apex (its one
 /// double root there) and a circle through it in a meridian plane (the
 /// apex's double root among its crossings) refuse
-/// [`TraceFault::Apex`]. The root doors answer that double root
-/// (`line_quadric::line_cone_roots`, `conic_quadric`'s "Through the apex");
-/// the trace's own apex row (`trace_crossing_apex`) refuses it.
+/// [`TraceFault::Apex`]: the curve × face pose reads each `Through` the
+/// apex, its datum and no meeting, and the trace refuses it.
 #[test]
 fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let cone = Surface::Cone {
@@ -242,11 +241,12 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
 }
 
 /// A circle along the torus's top parallel, 5e-9 m below it, is in the
-/// circle × torus door's escalation gap at a band of `[1e-9, 1e-8]`: the trace refuses with the door's own
-/// escalation (`TraceFault::Escalated`, named by the door's K name),
+/// curve × face pose's escalation gap at a band of `[1e-9, 1e-8]` (a
+/// coaxial circle's constant residual): the trace refuses with the
+/// pose's own escalation (`TraceFault::Escalated`, named by its K name),
 /// which states its own recourse, and with no decision of the Boolean's.
 #[test]
-fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
+fn a_circle_in_the_torus_poses_band_refuses_with_the_poses_escalation() {
     let got = circle_crossings(
         &torus(),
         true,
@@ -264,7 +264,56 @@ fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
     assert!(
         diag.predicate
             .is_some_and(|p| geom_brep::curve_face::decided_by_curve_face(p)
-                && p.starts_with("circle_torus_")),
-        "named by the circle × torus door: {diag:?}"
+                && p.starts_with("curve_face_pose_torus_")),
+        "named by the pose's torus rung: {diag:?}"
+    );
+}
+
+/// **A graze past the crossing a piece takes refuses nothing** (DESIGN
+/// `[placement]`: a trace decides nothing past the crossing a piece
+/// takes). A line along `x` at `y = 1.5`, in the torus's middle plane,
+/// enters its tube at `x = −2` and runs on to touch the tube's inner
+/// equator at `x = 0`. Read whole, the line grazes the carrier and
+/// refuses. A piece that takes its first entry reads that entry: the
+/// graze stands past it, and no turn is involved.
+///
+/// *Breaks if* the step reads the run whole and refuses on the graze.
+#[test]
+fn a_graze_past_the_taken_crossing_refuses_nothing() {
+    // Pinned red: the curve × face pose classes the line's whole carrier
+    // tangent, so every prefix of the run refuses
+    // (`work/germ/the-curve-face-pose-classes-the-carrier-not-the-span-a-trace-reads.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the graze past the taken entry",
+        &["the piece takes its first entry: Grazing"],
+        a_graze_past_the_taken_crossing_reads_the_entry,
+    );
+}
+
+/// The row [`a_graze_past_the_taken_crossing_refuses_nothing`] pins.
+fn a_graze_past_the_taken_crossing_reads_the_entry() {
+    use topo::boolean::trace::ray_crossings_to;
+    let ray = geom::Ray::new(Point3::new(-4.0, 1.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let whole = ray_crossings(&torus(), true, &ray, 8.0, band());
+    assert!(
+        matches!(whole, Err(TraceFault::Grazing)),
+        "read whole, the line grazes the inner equator: {whole:?}"
+    );
+    let first_entry = |crossings: &[topo::boolean::trace::Crossing<f64>]| {
+        crossings.iter().position(|c| c.passage == Passage::Enter)
+    };
+    let taken = ray_crossings_to(&torus(), true, &ray, 8.0, band(), first_entry)
+        .expect("the piece takes its first entry");
+    let entry = taken[first_entry(&taken).expect("the entry")];
+    near(
+        entry.along,
+        4.0 - (2.5f64 * 2.5 - 1.5 * 1.5).sqrt(),
+        "the entry along the line",
+    );
+    assert!(
+        taken.iter().all(|c| c.along < 4.0),
+        "nothing past the entry and its gap is read: {taken:?}"
     );
 }

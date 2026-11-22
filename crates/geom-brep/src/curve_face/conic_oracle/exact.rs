@@ -1,9 +1,12 @@
 //! **The conic rows' exact oracle**: a conic carrier's true crossings with
-//! a sphere, a cylinder wall or a torus, and how deep its shallowest
+//! a sphere, a cylinder wall, a cone or a torus, and how deep its shallowest
 //! extreme sits, in double-double arithmetic on the carrier and surface
-//! AS STORED (`v̂ = n̂ × û` taken exactly, the surface's axis normalized
-//! exactly), so a crossing whose `f64` residual cannot place it is placed
-//! here to about `1e-30` of the carrier's scale.
+//! each read on its stored frame's POLAR FACTOR, the one carrier decision
+//! 1 of PR 7131 names and every certified read takes ([`polar`]): the
+//! conic's `û`, `v̂` and the surface's axis are the polar factor's
+//! columns, its `O(G²)` remainder about `u²` (some `1e-32`). A crossing
+//! whose `f64` residual cannot place it is placed here to about `1e-30`
+//! of the carrier's scale.
 //!
 //! Along `C(θ) = C₀ + A cos θ + B sin θ` (`A = a·û`, `B = b·v̂`), with
 //! `θ = φ₀ + 2·atan t`, the offset from the surface's anchor is
@@ -133,21 +136,27 @@ fn dot(a: V3, b: V3) -> Dd {
     a[0].mul(b[0]).add(a[1].mul(b[1])).add(a[2].mul(b[2]))
 }
 
-fn cross(a: V3, b: V3) -> V3 {
-    [
-        a[1].mul(b[2]).sub(a[2].mul(b[1])),
-        a[2].mul(b[0]).sub(a[0].mul(b[2])),
-        a[0].mul(b[1]).sub(a[1].mul(b[0])),
-    ]
-}
-
 fn scaled(v: V3, k: Dd) -> V3 {
     [v[0].mul(k), v[1].mul(k), v[2].mul(k)]
 }
 
-fn unit(v: V3) -> V3 {
-    let n = dot(v, v).sqrt();
-    [v[0].div(n), v[1].div(n), v[2].div(n)]
+/// **A stored frame's polar factor, in double-double**: its columns `û`,
+/// `v̂`, `n̂` as `R = M(I − ½G)`, `G = MᵀM − I` over the stored motion's
+/// columns, so the oracle reads the rotation the `Interval` lift encloses
+/// (decision 1, PR 7131), not the stored entries as reals. The dropped
+/// `⅜MG²` is about `u²` of a frame a rounding off rigid.
+fn polar(frame: &geom::Frame<f64>) -> [V3; 3] {
+    let m = frame.motion();
+    let c = [dd3(m.u().get()), dd3(m.v().get()), dd3(m.w().get())];
+    let g = |a: usize, b: usize| {
+        let d = dot(c[a], c[b]);
+        if a == b { d.sub(Dd::of(1.0)) } else { d }
+    };
+    core::array::from_fn(|j| {
+        core::array::from_fn(|k| {
+            (0..3).fold(c[j][k], |acc, i| acc.sub(c[i][k].mul(g(i, j)).scale(0.5)))
+        })
+    })
 }
 
 /// A polynomial in `t`, lowest coefficient first.
@@ -246,9 +255,25 @@ fn roots_and_turns(p: &[Dd]) -> (Vec<Dd>, Vec<Dd>) {
 
 /// The surfaces the oracle reads, each from its stored anchor.
 enum Form {
-    Sphere { r: Dd },
-    Wall { axis: V3, r: Dd },
-    Torus { axis: V3, big: Dd, small: Dd },
+    Sphere {
+        r: Dd,
+    },
+    Wall {
+        axis: V3,
+        r: Dd,
+    },
+    Torus {
+        axis: V3,
+        big: Dd,
+        small: Dd,
+    },
+    /// The double cone about its apex, `cos²α`, `sin²α` and their
+    /// `cos α`, `sin α`.
+    Cone {
+        axis: V3,
+        cos: Dd,
+        sin: Dd,
+    },
 }
 
 /// A conic's true crossings with a surface ([`truth`]).
@@ -269,32 +294,19 @@ pub struct Truth {
 }
 
 /// The true crossings of `carrier`, a circle or an ellipse, with `surface`,
-/// a sphere, a cylinder wall or a torus, over the whole turn (module docs).
+/// a sphere, a cylinder wall, a cone or a torus, over the whole turn
+/// (module docs). On a cone the crossings are the double cone's, as the
+/// conic × quadric door reads them, and the depths are read at the
+/// extremes of its quadric form, not of the residual `ρ cos α − |h| sin α`.
 ///
 /// # Panics
 ///
 /// On any other carrier or surface: the oracle reads these kinds only.
 #[allow(clippy::panic)]
 pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth {
-    let (center, axis, (a, b), u_ref) = match *carrier {
-        geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
-            let radius = circle.radius();
-            (center, axis, (radius, radius), u_ref)
-        }
-        geom::Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
-            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
-            (center, axis, (semi_u, semi_v), u_ref)
-        }
+    let (carrier_frame, (a, b)) = match *carrier {
+        geom::Curve3::Circle(circle) => (circle.frame(), (circle.radius(), circle.radius())),
+        geom::Curve3::Ellipse(ellipse) => (ellipse.frame(), (ellipse.semi_u(), ellipse.semi_v())),
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {
@@ -302,37 +314,41 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
             let center = frame.origin();
             (center, Form::Sphere { r: Dd::of(radius) })
         }
-        geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
-            (
-                origin,
-                Form::Wall {
-                    axis: unit(dd3(axis)),
-                    r: Dd::of(radius),
-                },
-            )
-        }
+        geom::Surface::Cylinder { frame, radius, .. } => (
+            frame.origin(),
+            Form::Wall {
+                axis: polar(&frame)[2],
+                r: Dd::of(radius),
+            },
+        ),
         geom::Surface::Torus {
             frame,
             major_radius,
             minor_radius,
             ..
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            (
-                center,
-                Form::Torus {
-                    axis: unit(dd3(axis)),
-                    big: Dd::of(major_radius),
-                    small: Dd::of(minor_radius),
-                },
-            )
-        }
-        _ => panic!("the exact oracle reads spheres, walls and tori"),
+        } => (
+            frame.origin(),
+            Form::Torus {
+                axis: polar(&frame)[2],
+                big: Dd::of(major_radius),
+                small: Dd::of(minor_radius),
+            },
+        ),
+        geom::Surface::Cone {
+            frame, half_angle, ..
+        } => (
+            frame.origin(),
+            Form::Cone {
+                axis: polar(&frame)[2],
+                cos: Dd::of(half_angle.cos()),
+                sin: Dd::of(half_angle.sin()),
+            },
+        ),
+        _ => panic!("the exact oracle reads spheres, walls, cones and tori"),
     };
-    let u = dd3(u_ref);
+    let [u, v, _] = polar(&carrier_frame);
     let big_a = scaled(u, Dd::of(a));
-    let big_b = scaled(cross(dd3(axis), u), Dd::of(b));
+    let big_b = scaled(v, Dd::of(b));
     // An ellipse held on its arc is its anchor less
     // `A·cos θ₀ + B·sin θ₀`, exactly: the centre its frame holds is that
     // difference rounded.
@@ -342,7 +358,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
         _ => None,
     };
     let w = match stored {
-        None => offset(center, anchor),
+        None => offset(carrier_frame.origin(), anchor),
         Some(stored) => {
             let from = offset(stored, anchor);
             let (c0, s0) = match carrier.data().named(CurveDatum::Phase) {
@@ -402,6 +418,14 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
                 );
                 (g, 4)
             }
+            Form::Cone { axis, cos, sin } => {
+                let h = along(axis);
+                let hh = p_mul(&h, &h);
+                let perp = p_add(&s, &p_scale(&hh, Dd::of(-1.0)));
+                let c2 = cos.mul(cos);
+                let s2 = sin.mul(sin);
+                (p_add(&p_scale(&perp, c2), &p_scale(&hh, s2.neg())), 2)
+            }
         }
     };
     // The anchor whose pole `φ₀ + π` (the leading coefficient) reads
@@ -433,6 +457,14 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
                 let rho = s.sub(h.mul(h)).sqrt().sub(big);
                 (rho.mul(rho).add(h.mul(h)).sqrt().sub(small), small)
             }
+            Form::Cone { axis, cos, sin } => {
+                let h = dot(p, axis);
+                let rho = s.sub(h.mul(h)).sqrt();
+                let up = if h.to_f64() < 0.0 { h.neg() } else { h };
+                // The residual `ρ cos α − |h| sin α` is the distance off
+                // the apex's neighbourhood, and the band reads it as is.
+                (rho.mul(cos).sub(up.mul(sin)), Dd::of(1e300))
+            }
         };
         (d.to_f64(), d.add(d.mul(d).div(r.scale(2.0))).to_f64())
     };
@@ -457,7 +489,7 @@ pub fn truth(carrier: &geom::Curve3<f64>, surface: &geom::Surface<f64>) -> Truth
         .flat_map(|k| {
             let q = q_tilde(k);
             let at = match form {
-                Form::Sphere { .. } | Form::Wall { .. } => {
+                Form::Sphere { .. } | Form::Wall { .. } | Form::Cone { .. } => {
                     let (g, half) = g_of(&q);
                     sign_change_roots(&turn(&g, half))
                 }

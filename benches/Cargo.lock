@@ -295,7 +295,6 @@ dependencies = [
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
- "bvh",
  "geom",
  "geom-core",
  "slotmap",
@@ -310,6 +309,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "quantity",
  "rayon",
 ]
 

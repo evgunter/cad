@@ -129,7 +129,8 @@ use geom_core::NonzeroSign;
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::curvature_arm::curvature_lever_arm;
+use crate::implicit::implicit_gradient;
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
@@ -242,9 +243,9 @@ pub enum DihedralClass {
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of
 /// `docs/predicate-dimension-audit.md`.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -255,9 +256,9 @@ pub(crate) fn decide<T: Decide>(
 /// refusal whose words read it — a sized decision's quoting the
 /// tolerance that would decide it, and a residual's definite miss read
 /// against the file's ε_in at the import door.
-pub(crate) fn decide_reported<T: Decide>(
+pub(crate) fn decide_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     geom_core::k_stats::decide_reported(name, margin, band)
@@ -266,9 +267,9 @@ pub(crate) fn decide_reported<T: Decide>(
 /// The crate's **magnitude door**
 /// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
 /// nonnegative by construction, whose two signs are both verdicts.
-pub(crate) fn decide_magnitude<T: Decide>(
+pub(crate) fn decide_magnitude<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     geom_core::k_stats::decide_magnitude(name, margin, band)
@@ -276,9 +277,9 @@ pub(crate) fn decide_magnitude<T: Decide>(
 
 /// [`decide_magnitude`], keeping the reporting margin it decided on
 /// ([`geom_core::k_stats::decide_magnitude_reported`]).
-pub(crate) fn decide_magnitude_reported<T: Decide>(
+pub(crate) fn decide_magnitude_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_magnitude_reported(name, margin, band)
@@ -291,9 +292,9 @@ pub(crate) fn decide_magnitude_reported<T: Decide>(
 /// definite non-positive sign is the funnel's escalation, recorded on
 /// the open frame, so no caller here mints an [`Indeterminate`] the
 /// verdict log cannot see.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
@@ -303,9 +304,9 @@ pub(crate) fn decide_positive<T: Decide>(
 /// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
 /// a side off the margin's sign and has none to read at a definite
 /// zero.
-pub(crate) fn decide_nonzero<T: Decide>(
+pub(crate) fn decide_nonzero<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
@@ -313,9 +314,9 @@ pub(crate) fn decide_nonzero<T: Decide>(
 
 /// [`decide_nonzero`], keeping the reporting margin the passing sign was
 /// decided on ([`geom_core::k_stats::decide_nonzero_reported`]).
-pub(crate) fn decide_nonzero_reported<T: Decide>(
+pub(crate) fn decide_nonzero_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_nonzero_reported(name, margin, band)
@@ -1261,7 +1262,7 @@ fn second_order_verdict<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         TANGENT_SECOND_ORDER,
-        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     )
 }

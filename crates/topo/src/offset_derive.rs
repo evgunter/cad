@@ -177,7 +177,7 @@ pub enum SplineRoot {
 /// refuses by name rather than transporting.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct SectionLane<T: Real> {
+pub struct SectionLane<T: geom_core::Certifies> {
     section: for<'w, 's> fn(
         &'s Surface<T>,
         Wall<'w, 's, T>,
@@ -292,7 +292,7 @@ fn chart_of<'w, 's>(
     }
 }
 
-impl<T: Real> core::fmt::Debug for SectionLane<T> {
+impl<T: geom_core::Certifies> core::fmt::Debug for SectionLane<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("SectionLane")
     }
@@ -311,11 +311,50 @@ impl SectionLane<f64> {
     }
 }
 
-impl<T: Real> SectionLane<T> {
-    /// The section of `plane` with the spline `wall` nearest `old` on
-    /// `[t0, t1]`, running with it: the wall's exact row where the
-    /// section is one, the march's branch otherwise.
-    pub(crate) fn section<'w, 's>(
+/// **A [`SectionLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3).
+pub trait SectionLaneOf<T: Real>:
+    crate::lane_seal::Sealed + Copy + Send + Sync + core::fmt::Debug
+{
+    /// The plane × spline-wall section (`plane_wall_section`).
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
+        self,
+        plane: &'s Surface<T>,
+        wall: Wall<'w, 's, T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
+
+    /// The two-wall section (`pair_section`).
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
+        self,
+        a: Wall<'w, 's, T>,
+        b: Wall<'w, 's, T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
+
+    /// A corner's root along a spline carrier (`plane_spline_root`).
+    fn root(
+        self,
+        plane: &Surface<T>,
+        carrier: &NurbsCurve3<T>,
+        seed: T,
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<SplineRoot, CornerVerdict<T>>;
+}
+
+impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
         self,
         plane: &'s Surface<T>,
         wall: Wall<'w, 's, T>,
@@ -327,9 +366,8 @@ impl<T: Real> SectionLane<T> {
         (self.section)(plane, wall, old, span, extent, band)
     }
 
-    /// The section of two spline charts through `old`'s middle, running
-    /// with it.
-    pub(crate) fn pair<'w, 's>(
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
         self,
         a: Wall<'w, 's, T>,
         b: Wall<'w, 's, T>,
@@ -341,8 +379,7 @@ impl<T: Real> SectionLane<T> {
         (self.pair)(a, b, old, span, extent, band)
     }
 
-    /// The root of `plane` along the spline `carrier` nearest `seed`.
-    pub(crate) fn root(
+    fn root(
         self,
         plane: &Surface<T>,
         carrier: &NurbsCurve3<T>,
@@ -351,6 +388,45 @@ impl<T: Real> SectionLane<T> {
         band: Band,
     ) -> Result<SplineRoot, CornerVerdict<T>> {
         (self.root)(plane, carrier, seed, extent, band)
+    }
+}
+
+impl<T: Real> SectionLaneOf<T> for geom_core::NoLane {
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
+        self,
+        _plane: &'s Surface<T>,
+        _wall: Wall<'w, 's, T>,
+        _old: &Curve3<T>,
+        _span: (T, T),
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        match self {}
+    }
+
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
+        self,
+        _a: Wall<'w, 's, T>,
+        _b: Wall<'w, 's, T>,
+        _old: &Curve3<T>,
+        _span: (T, T),
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        match self {}
+    }
+
+    fn root(
+        self,
+        _plane: &Surface<T>,
+        _carrier: &NurbsCurve3<T>,
+        _seed: T,
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<SplineRoot, CornerVerdict<T>> {
+        match self {}
     }
 }
 
@@ -713,7 +789,7 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, (old.eval(span.0), old.eval(span.1)));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -837,8 +913,8 @@ pub(crate) fn section_closed<T: Decide>(
 /// section's own. `lane` is asked only for a spline pair, so a scalar
 /// that holds none refuses only there, in the caller's words.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn section_of<'w, 's, T: Decide, E>(
-    lane: impl FnOnce() -> Result<SectionLane<T>, E>,
+pub(crate) fn section_of<'w, 's, T: Decide, E, L: SectionLaneOf<T>>(
+    lane: impl FnOnce() -> Result<L, E>,
     (a, slot_a): (&'s Surface<T>, WallSlot<'w, 's>),
     (b, slot_b): (&'s Surface<T>, WallSlot<'w, 's>),
     (old, span): (&Curve3<T>, (T, T)),
@@ -898,7 +974,7 @@ pub(crate) fn section_of<'w, 's, T: Decide, E>(
 ///
 /// An escalated reading at `band`.
 pub fn section_near<T: Decide>(
-    lane: Option<SectionLane<T>>,
+    lane: Option<impl crate::SectionLaneOf<T>>,
     (a, b): (&Surface<T>, &Surface<T>),
     seed: (&Curve3<T>, (T, T)),
     region: &geom_brep::Reach<T>,
@@ -1135,10 +1211,10 @@ fn plane_wall_section<'w, 's>(
     let Surface::Plane { frame, .. } = *plane else {
         unreachable!("the spline lane is handed a plane")
     };
-    let (origin, normal) = (frame.origin(), frame.axis());
+    let origin = frame.origin();
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
-    let carrier = match level_row(wall, origin, normal, extent, band)? {
+    let carrier = match level_row(wall, frame, extent, band)? {
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
         None => {
@@ -1298,11 +1374,11 @@ fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
 /// row at the plane's one root along a column, extracted exactly.
 fn level_row(
     wall: &NurbsSurface<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
+    frame: geom::Frame<f64>,
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
+    let (origin, normal) = (frame.origin(), frame.axis());
     // A net whose height depends on its `v` alone holds the plane along
     // a row of fixed `v`: the wall's own rows first, then its columns.
     for (net, fixed) in [
@@ -1341,8 +1417,7 @@ fn level_row(
         let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
-            origin,
-            normal,
+            &frame,
             SupSpeed::new(speed),
             band.zero(),
             extent.length(),
@@ -1449,8 +1524,7 @@ fn plane_spline_root(
     let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
-        origin,
-        normal,
+        &frame,
         SupSpeed::new(speed),
         band.zero(),
         extent.length(),

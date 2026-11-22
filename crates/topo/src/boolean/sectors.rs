@@ -995,7 +995,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     match geom_brep::parting_side(
         n_ref * (graph_accel(sector_surface) - graph_accel(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
-        arm.length(),
+        arm,
         band,
     ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
@@ -1434,7 +1434,7 @@ pub(super) fn germ_locus<T: Decide>(
 /// where an open edge's far end is read from the records. Two closed
 /// edges both on the partner's boundary are one segment
 /// ([`one_segment`]).
-pub(super) fn germ_loci<T: Decide>(
+pub(super) fn germ_loci<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
     contacts: &super::ReductionContacts,
@@ -1543,7 +1543,7 @@ fn germ_curve<T: Decide>(
 /// Two closed edges (each one vertex, both its ends) pair their far
 /// ends, the site, always: [`germ_loci`] asks [`closed_reach`] first,
 /// and comes here where both run along the partner's boundary.
-fn one_segment<T: Decide>(
+fn one_segment<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
@@ -1584,7 +1584,7 @@ fn one_segment<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where a germ edge's half
 /// has no mate or no face, or a face's carrier does not read.
-fn same_construction<T: Decide>(
+fn same_construction<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
@@ -2012,7 +2012,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = geom_brep::parting(k - kb, u, l.min(lb).length());
+        let entered = geom_brep::parting(k - kb, u, l.min(lb));
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2231,7 +2231,7 @@ fn crescent<T: Decide>(
         let along = || parallel_same_as(da, db, l, BOUNDS_PARALLEL, band);
         let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
         let opened = || {
-            let opened = geom_brep::parting(kb - ka, u, l.length());
+            let opened = geom_brep::parting(kb - ka, u, l);
             decide("bool_sector_crescent", opened, band)
                 .map_err(escalate)
                 .map(|s| s == Sign::Positive)
@@ -3659,12 +3659,7 @@ mod tests {
             1.0,
             -bend,
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(0.0), carrier.eval(span)),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -3900,8 +3895,7 @@ mod tests {
                         assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
-                        let extent_lever =
-                            geom_brep::edge_extent_inf(&flat, 0.0, span, (flat.eval(span), base));
+                        let extent_lever = geom_brep::edge_extent_inf(&flat, 0.0, span);
                         let extent = extent_lever.length();
                         // The witness the derivation names, found
                         // independently: the sample at arc length
@@ -4042,12 +4036,7 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent_inf(
-            &carrier,
-            0.0,
-            span,
-            (carrier.eval(span), geom_core::Point3::origin()),
-        );
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span);
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent.length();
         assert_eq!(

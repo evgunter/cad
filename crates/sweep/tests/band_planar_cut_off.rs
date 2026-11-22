@@ -18,7 +18,7 @@ use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
 use geom_core::RigidMotion;
-use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real, Tol};
 use profile::SketchPlane;
 use sweep::blend::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
@@ -123,7 +123,10 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
 pub(crate) fn volume_enclosure<
-    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+    T: topo::CertifiedPolicy
+        + Bounds
+        + CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 >(
     body: &Body<T>,
 ) -> (f64, f64) {

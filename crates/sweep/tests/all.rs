@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_ball_and_rod_boolean_reads_what_its_doors_keep.rs"]
+mod a_ball_and_rod_boolean_reads_what_its_doors_keep;
 #[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
 mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
@@ -1115,6 +1117,8 @@ mod r1_probes_m9_3;
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
 
+#[path = "a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta.rs"]
+mod a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta;
 #[path = "curved_coincident_fates.rs"]
 mod curved_coincident_fates;
 #[path = "curved_copies_filling_one_volume.rs"]

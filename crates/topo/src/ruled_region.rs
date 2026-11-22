@@ -93,7 +93,9 @@
 //! - `bool_ruled_region_component`: which of a ruling leg's plane's
 //!   curves a root lies on, and an edge's offset from a leg's plane it is
 //!   parallel to.
-//! - `plane_crossing_*`: the roots, the plane door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: the roots, the
+//!   plane door's class and their places (the curve × face pose's and
+//!   crossing's rows).
 //! - `bool_ruled_region_arc_*` and `bool_ruled_region_edge{,_length}`:
 //!   the boundary readings' rows.
 //!
@@ -264,10 +266,10 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn span(&self, end: Option<T>, edge: &Edge<T>) -> ((T, T), bool) {
+    fn span(&self, end: Option<T>) -> ((T, T), bool) {
         match self {
-            Self::Parallel(round) => round.span(end, edge),
-            Self::Ruling(line) => line.span(end, edge),
+            Self::Parallel(round) => round.span(end),
+            Self::Ruling(line) => line.span(end),
         }
     }
 }

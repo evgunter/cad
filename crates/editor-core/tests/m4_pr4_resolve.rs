@@ -428,14 +428,16 @@ fn a_vanished_join_diagnoses_honestly_with_tombstone() {
     assert_eq!(*name, probe);
     // The union's two runs part where its pruning queries hand on other
     // candidates (the slid block leaves the other's boxes), before any
-    // choice turns: no flip is on the record, so the diagnosis is the
-    // evidence-free fallback at the minting node, and never a flip read
-    // off decisions about different pairs (N5's first turn).
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::RecipeEdit {
-            edit: editor_core::RecipeEditRef::NodeChanged { node: s.union }
-        }
+    // choice turns: no flip is on the record, so the diagnosis names
+    // the union's face-pair query where the runs parted, and never a
+    // flip read off decisions about different pairs (N5's first turn).
+    assert!(
+        matches!(
+            diagnosis,
+            Diagnosis::Parted { node, site, step: 0 }
+                if *node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{diagnosis:?}"
     );
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
@@ -686,8 +688,8 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
         },
         "the upstream vanish carries the root cause"
     );
-    // And the through-name's own resolution is the union's honest
-    // fallback (`a_vanished_join_diagnoses_honestly_with_tombstone`).
+    // And the through-name's own resolution names where the union's
+    // runs part (`a_vanished_join_diagnoses_honestly_with_tombstone`).
     let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
@@ -702,13 +704,17 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
     let Resolution::Failed(fm) = res_master else {
         panic!("expected Failed, got {res_master:?}");
     };
-    assert!(matches!(
-        fm.error,
-        ResolveError::Vanished {
-            diagnosis: Diagnosis::RecipeEdit { .. },
-            ..
-        }
-    ));
+    assert!(
+        matches!(
+            fm.error,
+            ResolveError::Vanished {
+                diagnosis: Diagnosis::Parted { node, site, .. },
+                ..
+            } if node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{:?}",
+        fm.error
+    );
 }
 
 // ---- Indeterminate: failed and poisoned targets ----

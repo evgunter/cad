@@ -58,6 +58,8 @@ use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalizat
 enum Chart {
     /// A sphere: two poles, `[north, south]`.
     Sphere {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
         axis: Vec3<f64>,
@@ -65,6 +67,8 @@ enum Chart {
     },
     /// A cone: the apex.
     Cone {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         apex: Point3<f64>,
         axis: Vec3<f64>,
         half_angle: f64,
@@ -78,6 +82,7 @@ impl Chart {
             Surface::Sphere { frame, radius } => {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Some(Self::Sphere {
+                    frame,
                     center,
                     radius,
                     axis,
@@ -87,6 +92,7 @@ impl Chart {
             Surface::Cone { frame, half_angle } => {
                 let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 Some(Self::Cone {
+                    frame,
                     apex,
                     axis,
                     half_angle,
@@ -117,27 +123,14 @@ impl Chart {
         }
     }
 
-    /// The surface the chart reads.
+    /// The surface the chart reads: its stored frame carried, not
+    /// squared again.
     fn surface(self) -> Surface<f64> {
         match self {
-            Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                frame: geom::Frame::new(center, axis, u_ref),
-                radius,
-            },
+            Self::Sphere { frame, radius, .. } => Surface::Sphere { frame, radius },
             Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                frame: geom::Frame::new(apex, axis, u_ref),
-                half_angle,
-            },
+                frame, half_angle, ..
+            } => Surface::Cone { frame, half_angle },
         }
     }
 
@@ -325,7 +318,7 @@ fn inverted(id: u64) -> StepImportError {
 /// the face uses as a strut tip.
 fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, StepImportError> {
     let face = &solid.faces[fi];
-    if Chart::of(&face.surface).is_none() {
+    if Chart::of(solid.surface_of(face)).is_none() {
         return Ok(None);
     }
     let valence = valences(solid);
@@ -348,9 +341,15 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         .collect();
     let images = image_edges(solid, fi);
     let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.band())
-        .into_iter()
-        .enumerate()
+    for (k, located) in home::locate(
+        solid.surface_of(face),
+        &views,
+        &images,
+        face.sense,
+        read.band(),
+    )
+    .into_iter()
+    .enumerate()
     {
         match located.lies.map_err(|why| read.unread(why, face.id))? {
             Lies::AtVertex { r#loop, edge } => {
@@ -909,6 +908,7 @@ fn mint_spoke(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     Ok((id, forward))
@@ -926,7 +926,7 @@ fn interior(
 ) -> Result<usize, StepImportError> {
     require_read_carriers(solid, fi)?;
     let face_id = solid.faces[fi].id;
-    let Some(chart) = Chart::of(&solid.faces[fi].surface) else {
+    let Some(chart) = Chart::of(solid.surface(fi)) else {
         unreachable!("the scan reads only sphere and cone faces")
     };
     let singular = chart.singular();
@@ -1007,7 +1007,7 @@ fn strut_tip(
     mint: &mut dyn FnMut() -> u64,
 ) -> Result<usize, StepImportError> {
     let face_id = solid.faces[fi].id;
-    let Some(chart) = Chart::of(&solid.faces[fi].surface) else {
+    let Some(chart) = Chart::of(solid.surface(fi)) else {
         unreachable!("the scan reads only sphere and cone faces")
     };
     let singular = chart.singular();
@@ -1139,12 +1139,12 @@ fn cut(
         ));
     }
     let template = &solid.faces[fi];
-    let (surface, sense) = (template.surface.clone(), template.sense);
+    let (record, sense) = (template.record, template.sense);
     let faces: Vec<FaceSpec> = cycles
         .into_iter()
         .map(|uses| FaceSpec {
             id: face_id,
-            surface: surface.clone(),
+            record,
             sense,
             loops: vec![LoopSpec { outer: true, uses }],
             band: false,
@@ -1259,6 +1259,7 @@ mod side_through_a_pole {
             t0,
             t1,
             reversed: false,
+            curve: None,
         };
         let pi = core::f64::consts::PI;
         let edges = || {
@@ -1285,7 +1286,7 @@ mod side_through_a_pole {
                 id: 100,
                 faces: vec![FaceSpec {
                     id: 101,
-                    surface: surface.clone(),
+                    record: 900,
                     sense,
                     loops: vec![LoopSpec {
                         outer: true,
@@ -1295,6 +1296,7 @@ mod side_through_a_pole {
                 }],
                 edges: edges(),
                 vertices: vertices.clone(),
+                surfaces: crate::entities::records_of([(900, surface.clone())]),
                 band_seams: Default::default(),
             };
             assert_eq!(
@@ -1359,6 +1361,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: 0.0,
                     t1: core::f64::consts::TAU,
                     reversed: false,
+                    curve: None,
                 },
             ),
             (
@@ -1370,6 +1373,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: -0.5,
                     t1: 0.5,
                     reversed: false,
+                    curve: None,
                 },
             ),
         ]);
@@ -1394,7 +1398,16 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Sphere {
+                record: 900,
+                sense: true,
+                loops,
+                band: false,
+            }],
+            edges,
+            vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Sphere {
                     frame: geom::Frame::new(
                         Point3::new(0.0, 0.0, 0.0),
                         Vec3::new(0.0, 0.0, 1.0),
@@ -1402,12 +1415,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     ),
                     radius: 1.0,
                 },
-                sense: true,
-                loops,
-                band: false,
-            }],
-            edges,
-            vertices,
+            )]),
             band_seams: Default::default(),
         }
     }
@@ -1487,13 +1495,14 @@ mod meetings_are_the_kernels {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface,
+                record: 900,
                 sense: true,
                 loops,
                 band: false,
             }],
             edges: edges.into_iter().collect(),
             vertices: vertices.into_iter().collect(),
+            surfaces: crate::entities::records_of([(900, surface)]),
             band_seams: Default::default(),
         }
     }
@@ -1508,6 +1517,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         ((id, spec), (v, at))
     }
@@ -1637,6 +1647,7 @@ mod meetings_are_the_kernels {
                         t0: 0.0,
                         t1: 1.0,
                         reversed: false,
+                        curve: None,
                     },
                 ),
                 rim,
@@ -1767,6 +1778,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::PI,
             reversed: false,
+            curve: None,
         };
         let south = Point3::new(0.0, 0.0, -1.0);
         let across = |offset: f64| {
@@ -1831,6 +1843,7 @@ mod meetings_are_the_kernels {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 },
             )],
             vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
@@ -1893,6 +1906,7 @@ mod meetings_are_the_kernels {
                         t0: 1.0,
                         t1: stop,
                         reversed: false,
+                        curve: None,
                     },
                 )],
                 vec![(1, meridian.eval(1.0)), (2, meridian.eval(stop))],

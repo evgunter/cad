@@ -78,8 +78,10 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
         frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
     };
-    // One loop (centre on the wall), one wider than the wall, two loops.
-    let poses = [(0.5, 0.3), (0.2, 0.699), (0.1, 0.7)];
+    // One loop (centre on the wall), one wider than the wall (the sliver
+    // pose, a millimetre short of the far wall), two loops.
+    let sliver = (0.2, 0.699);
+    let poses = [(0.5, 0.3), sliver, (0.1, 0.7)];
     let (mut asked, mut decided) = (0usize, 0usize);
     for (d, big) in poses {
         let centre = Point3::new(d, 0.0, 0.0);
@@ -88,13 +90,25 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
             radius: big,
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&cylinder, &sphere, None, None, band()).unwrap()
+            geom_brep::pair_section(&cylinder, &sphere, None, None::<geom_core::NoLane>, band())
+                .unwrap()
         else {
             panic!("the value builds cylinder × sphere");
         };
-        let carried = section
-            .carry(Some(geom_brep::SsiLane::marched()), band())
-            .unwrap();
+        // The sliver pose refuses its tube at ε = 1e-6
+        // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
+        let coarse_sliver = (d, big) == sliver
+            && test_utils::kernel_limit::at_row(geom_core::Tol::witness().eps(), &[1e-6]);
+        let carried = match section.carry(Some(geom_brep::SsiLane::marched()), band()) {
+            Ok(carried) => {
+                assert!(!coarse_sliver, "d {d}, R {big}: the coarse sliver carries");
+                carried
+            }
+            Err(geom_brep::CarryError::Refused(geom_brep::CarryRefusal::March(
+                geom_brep::ssi::SsiError::TubeStraddles { boxes: 437, .. },
+            ))) if coarse_sliver => continue,
+            Err(e) => panic!("d {d}, R {big}: the section carries, got {e:?}"),
+        };
         for _ in 0..fuzz::scaled(2) {
             // The loop's arcs, each component cut at up to two places.
             let mut arcs = Vec::new();
@@ -188,7 +202,8 @@ fn a_path_across_a_carried_torus_oval_reads_the_membership_parity() {
             radius: big,
         };
         let geom_brep::SectionRead::Built(section) =
-            geom_brep::pair_section(&torus, &sphere, None, None, band()).unwrap()
+            geom_brep::pair_section(&torus, &sphere, None, None::<geom_core::NoLane>, band())
+                .unwrap()
         else {
             panic!("the value builds sphere × torus");
         };
@@ -384,7 +399,7 @@ fn random_torus_sections() {
         };
         let other = partner.surface();
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&torus, &other, None, None, band())
+            geom_brep::pair_section(&torus, &other, None, None::<geom_core::NoLane>, band())
         else {
             continue;
         };
@@ -723,7 +738,7 @@ fn a_ball_path_reads_a_crossing_near_its_end() {
     ));
     let other = partner.surface();
     let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&torus, &other, None, None, band()).unwrap()
+        geom_brep::pair_section(&torus, &other, None, None::<geom_core::NoLane>, band()).unwrap()
     else {
         panic!("the value builds sphere × torus");
     };

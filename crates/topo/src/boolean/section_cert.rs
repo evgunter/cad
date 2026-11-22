@@ -323,11 +323,11 @@
 //!   (lines). Equal radii with meeting axes (`δ₀` and `r₁ − r₂` both
 //!   `Zero`) give the two bisector-plane ellipses, which cross at two
 //!   nodes: one component, essential on both walls, witnessed at a node.
-//! - **Cylinder × plane**: an ellipse encircling the wall, or rulings.
-//!   Either way the section cannot lie in a wall that describes. The
-//!   count is not certified (two rulings, or one ellipse), so W4 is
-//!   never read here and the pair clears by W2 or refuses.
-//! - **Sphere × {plane, sphere}**: one circle. **Sphere × cylinder**
+//! - **Cylinder × plane** (the section value's, over the region): one
+//!   ellipse or rim circle encircling the wall, certified single, or two
+//!   rulings the region cuts, each unbounded. Either way the section
+//!   cannot lie in a wall that describes.
+//! - **Sphere × {plane, sphere}** (the section value's): one circle. **Sphere × cylinder**
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   two loops encircling the cylinder when `e + ρc < ρs`, each loop
 //!   witnessed by the ruling sweep.
@@ -432,7 +432,7 @@ pub(crate) struct Component<T: Real> {
     /// a box of its uniqueness tube holds both the witness and a piece of
     /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
-    /// (`certify`): a face's placement margins are lengths read at a
+    /// (`certify_section_pair`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
     /// component nearest `w`, which lies on the surface (its own foot),
     /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
@@ -507,7 +507,7 @@ pub(crate) struct Touch<T: Real> {
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
-    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
     pub apex: bool,
 }
 
@@ -719,12 +719,12 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 /// region, which the section value reads a pair with no bounded side
 /// over (two cylinders), and the band.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn classify<T: Decide>(
+pub(crate) fn classify<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     classify_known(
@@ -740,23 +740,20 @@ pub(crate) fn classify<T: Decide>(
 
 /// [`classify`] with what the boolean knows of a spline pair handed in
 /// (`known`, read by the spline pair's arm alone).
-pub(crate) fn classify_known<T: Decide>(
+pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
     known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
-        (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
-        | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
-        | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
-        | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, region, None, band) {
+        _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
+            match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
                     of_pair_section(&Ok(section), band, marched)
                 }
@@ -774,52 +771,6 @@ pub(crate) fn classify_known<T: Decide>(
         ) => cone_pair(f, g, reach, band),
         (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
             swapped(cone_pair(g, f, reach, band))
-        }
-        (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
-        (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
-        (
-            &S::Sphere {
-                frame: sphere_frame,
-                radius,
-                ..
-            },
-            &S::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let center = sphere_frame.origin();
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            sphere_plane(center, radius, origin, normal.normalize(), band)
-        }
-        (
-            &S::Plane {
-                frame: plane_frame, ..
-            },
-            &S::Sphere {
-                frame: sphere_frame,
-                radius,
-                ..
-            },
-        ) => {
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let center = sphere_frame.origin();
-            sphere_plane(center, radius, origin, normal.normalize(), band)
-        }
-        (
-            &S::Sphere {
-                frame: sphere_frame_2,
-                radius: r1,
-                ..
-            },
-            &S::Sphere {
-                frame: sphere_frame,
-                radius: r2,
-                ..
-            },
-        ) => {
-            let c1 = sphere_frame_2.origin();
-            let c2 = sphere_frame.origin();
-            sphere_sphere(c1, r1, c2, r2, band)
         }
         (
             S::Nurbs(_) | S::Approx(_),
@@ -843,11 +794,11 @@ pub(crate) fn classify_known<T: Decide>(
 /// `Corner` region reaching the sides they end on, cleared by W1′ where
 /// one bounds its face), its refusals mapped by name. With no lane it is
 /// R-lane.
-fn spline_pair<T: Decide>(
+fn spline_pair<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     known: geom_brep::KnownPair<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let read = geom_brep::spline_pair_section(f, g, known, lane, band);
@@ -864,10 +815,10 @@ fn spline_pair<T: Decide>(
 /// whole; any other pose is C3's whole reading, which a curved partner
 /// does not have (intractable). With no lane a plane's pose the hull
 /// does not decide, and every curved partner's, is R-lane.
-fn spline_implicit<T: Decide>(
+fn spline_implicit<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let whole = |s: &geom_brep::PairSection<T>| Some(s.read_whole(lane, band));
@@ -1739,73 +1690,6 @@ fn cone_parallel_cylinder<T: Decide>(
     }
 }
 
-/// **Cylinder × plane**: an ellipse encircling the wall, or rulings.
-/// Neither lies inside a wall that describes, and the count is not
-/// certified, so W4 is never read.
-fn cylinder_plane<T: Real>() -> Section<T> {
-    Section::Components {
-        parts: vec![Component::closed_form(false, [true, false], None)],
-        single: false,
-    }
-}
-
-/// **Sphere × plane**: one circle.
-fn sphere_plane<T: Decide>(
-    cs: Point3<T>,
-    rho: T,
-    p0: Point3<T>,
-    n: Vec3<T>,
-    band: Band,
-) -> Section<T> {
-    let d = (cs - p0).dot(n);
-    const REACH: &str = "section_sphere_plane_reach";
-    match signs_as([(REACH, rho - d.abs())], band) {
-        Ok([true]) => {
-            let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
-            // A witness picked off the axes. No output keeps it, but W3
-            // and the no-event decision read it, so which point decides
-            // can follow the computing frame
-            // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
-            let (b1, _) = n.orthonormal_basis();
-            lone(cs - n * d + b1 * rad)
-        }
-        Ok([false]) => none(),
-        // The foot of the centre: the circle's centre.
-        Err(tan) => touch(tan, &[REACH], || cs - n * d),
-    }
-}
-
-/// **Sphere × sphere**: one circle.
-fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
-    let (k, dd) = (c2 - c1).direction_and_length();
-    const REACH: &str = "section_sphere_pair_reach";
-    const NEST: &str = "section_sphere_pair_nest";
-    match signs_as([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
-        Ok([true, true]) => {
-            let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
-            let rad = ((r1 - x) * (r1 + x)).sqrt();
-            // Picked off the axes, as `sphere_plane`'s witness is.
-            let (b1, _) = k.orthonormal_basis();
-            lone(c1 + k * x + b1 * rad)
-        }
-        Ok(_) => none(),
-        // Touching outside or inside, the circle's centre on the line of
-        // centres. Inside, the touch is the extreme of the distance from
-        // one centre over the other sphere only while the centres stand
-        // apart: the next critical value is `2·dd` away.
-        Err(tan)
-            if tan.name == NEST
-                && sign_as("section_sphere_pair_apart", Margin::of(dd), band)
-                    != Some(Sign::Positive) =>
-        {
-            tan.into()
-        }
-        Err(tan) => touch(tan, &[REACH, NEST], || {
-            c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
-        }),
-    }
-}
-
 /// **A pair the section value builds** ([`geom_brep::pair_section()`]),
 /// classified from it, its first surface `F`: a tangency it decided is a
 /// [`Touch`] at the point where the section is one point and R-tan
@@ -2052,7 +1936,7 @@ pub(super) fn of_carried<T: Decide>(
 /// # Errors
 ///
 /// The pair's [`Refusal`].
-pub(crate) fn certify<T: Decide>(
+pub(crate) fn certify_section_pair<T: Decide>(
     section: &Section<T>,
     evented: bool,
     band: Band,

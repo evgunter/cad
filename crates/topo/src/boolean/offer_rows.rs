@@ -1273,7 +1273,7 @@ fn section_site(
     let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
         super::super::join::section_unbuilt(why, kinds.0, kinds.1)
     };
-    let section = match geom_brep::pair_section(c, s, None, None, band()) {
+    let section = match geom_brep::pair_section(c, s, None, None::<geom_core::NoLane>, band()) {
         Ok(geom_brep::SectionRead::Built(section)) => section,
         Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
         Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
@@ -1468,7 +1468,12 @@ fn recut(lean: f64) -> Result<(), BooleanError> {
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
     );
-    super::super::ops::recut_lean(axis, align, 1.0, band())
+    super::super::ops::recut_lean(
+        axis,
+        align,
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+    )
 }
 
 /// A point on a unit wall sheet's carrier well outside its trim, `D`
@@ -2536,30 +2541,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "conic_quadric/mod.rs",
-        "cone_roots",
-        "BooleanDecision::ArcConeRoots",
-        2,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "conic_quadric_roots",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "quadric_ladder",
-        "BooleanDecision::ArcCylinderRoots",
-        1,
-    ),
-    (
-        "conic_quadric/mod.rs",
-        "quadric_ladder",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::VertexOnVertex",
@@ -2608,7 +2589,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
-    ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
         "join.rs",
         "section_unbuilt",
@@ -2648,6 +2628,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
     ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "mod.rs",
+        "of_conic_quadric_refusal",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
     (
         "mod.rs",
         "of_line_quadric_refusal",
@@ -2848,7 +2846,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::of_conic_root",
         1,
     ),
-    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
+    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 1),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",

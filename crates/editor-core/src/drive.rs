@@ -1595,7 +1595,7 @@ fn classify(
 }
 
 /// The classification itself, over an already-replayed leaf — generic
-/// in the lane scalar at `Decide`, the weakest bound its reads need,
+/// in the lane scalar (any scalar an evaluation is held at),
 /// because the two lanes above differ only in which scalar produced the
 /// evaluation and in nothing this function looks at.
 fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(

@@ -852,7 +852,8 @@ fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
 /// edge at 60 stations (480 queries). A query counts where any frame
 /// answers otherwise than the first. With the legs started at
 /// `surface.eval(uv)`, the chart's round trip of the foot, 141 do; started
-/// at the foot, 35. What is left is the rulings, whose origin is their
+/// at the foot, 35; with the curve × face pose reading a graze past a leg's
+/// span by its reach (PR 7226), 24. What is left is the rulings, whose origin is their
 /// locus, and the frame a curve carries in its section
 /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
 #[test]
@@ -904,4 +905,4 @@ fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64
 }
 
 /// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
-const KEPT_CONE: usize = 35;
+const KEPT_CONE: usize = 24;

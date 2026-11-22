@@ -141,7 +141,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, FaceSurface, MefSite};
+use crate::euler::{EulerOpError, FaceSurface, MefSite, NewCurve};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
@@ -1089,7 +1089,7 @@ pub(crate) fn corrupt_face(face: FaceKey) -> JoinError {
 /// reaches from there, measured from the base vertex `at`'s point off
 /// the face's cover: on a cone the [`geom_brep::Reach::Face`] the cone
 /// lane reads ([`crate::cover::cone_face_reach`]), on a cylinder the
-/// [`WallReach`] [`wall_face_section`] reads, on a torus its farthest
+/// [`WallReach`] the plane×cylinder arm reads, on a torus its farthest
 /// distance. A sphere's lane reads none. `within` is a second face's
 /// cover the consumed region also lies in: the partner wall face's,
 /// where `face` is the plane the boolean cuts it with.
@@ -1648,7 +1648,7 @@ fn section_loop<T: Decide>(
 pub(crate) enum SectionReach<T: Real> {
     /// A cone wall's face, as the plane×cone arm reads it.
     Cone(geom_brep::Reach<T>),
-    /// A cylinder wall's face, as [`wall_face_section`] reads it.
+    /// A cylinder wall's face, as the plane×cylinder arm reads it.
     Cylinder(WallReach<T>),
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
@@ -1673,20 +1673,6 @@ pub(crate) struct WallReach<T: geom_core::Real> {
     pub(crate) above: T,
     /// The face's farthest distance from `at`.
     pub(crate) across: geom_core::Lever<T>,
-}
-
-/// **A plane×cylinder section over a wall face's reach**
-/// ([`WallReach`], read as a [`geom_brep::Reach::Face`]): the chord lane
-/// ([`section_case`]) and the germ frame
-/// (`boolean::join::pair_section_frame_at`) read it.
-pub(crate) fn wall_face_section<T: Decide>(
-    plane: &impl geom_brep::SectionPlane<T>,
-    wall: &geom::Surface<T>,
-    reach: WallReach<T>,
-    band: Band,
-) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
-    let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), reach.across);
-    geom_brep::plane_cylinder_section(plane, wall, &face, band)
 }
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
@@ -1737,8 +1723,7 @@ fn section_case<T: Decide>(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder, plane×cone, plane×sphere and plane×torus, and a curved×curved pair has no conic \
                  to take an arc of; refused typed rather than defaulted to a straight chord. A \
-                 sphere pair never arrives here: its section lies in the pair's radical \
-                 plane, which the boolean's join hands each side as a plane×sphere pair",
+                 sphere pair never arrives here: the operation's section table carries it",
             ));
         }
     };
@@ -1927,7 +1912,8 @@ fn plane_wall_case<T: Decide>(
             };
         }
     };
-    let sec = wall_face_section(plane_s, wall, reach, band).map_err(table)?;
+    let face_reach = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), reach.across);
+    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &face_reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => conic(c, false),
         geom_brep::PlaneCylinderSection::Rim(c) => conic(c, true),
@@ -2681,7 +2667,7 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
 /// plane, and nothing here knows which lane asks; a cylinder wall is
-/// read over its face's cover ([`wall_face_section`]).
+/// read over its face's cover ([`section_reach`]).
 ///
 /// # Errors
 ///
@@ -3337,6 +3323,10 @@ pub(crate) struct SegmentCurve<T: Real> {
     /// ([`SplineArc::of_section`]): the closing a ring-lane island on the
     /// carried lane reads.
     arc: Option<SplineArc<T>>,
+    /// The locus certificate of a chord the partner operand already
+    /// minted on this curve ([`Self::keep`]), which the edge door reads
+    /// where its support is a chord's here.
+    kept: Option<geom_brep::LocusCertificate<T>>,
 }
 
 #[cfg(test)]
@@ -3349,6 +3339,7 @@ impl<T: Real> SegmentCurve<T> {
             spec,
             ends: None,
             arc: None,
+            kept: None,
         }
     }
 }
@@ -3364,6 +3355,12 @@ impl<T: Real> SegmentCurve<T> {
     /// where the curve is one.
     pub(crate) fn carried_arc(&self) -> Option<&SplineArc<T>> {
         self.arc.as_ref()
+    }
+
+    /// Hands the curve the locus certificate of a chord the partner
+    /// operand minted on the same section, for this operand's chords.
+    pub(crate) fn keep(&mut self, locus: Option<geom_brep::LocusCertificate<T>>) {
+        self.kept = locus;
     }
 }
 
@@ -3844,7 +3841,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, geom_core::Lever::curvature_radius(radius)),
+        Margin::levered(n_a, geom_brep::uniform_curvature_arm(&surface)),
         band,
     )
     .map_err(|diag| JoinError::Escalated { face, diag })?
@@ -4188,6 +4185,8 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
 /// run's loop arcs closed by the chord, the chord's midpoint `q` the
 /// paths arrive at, and its left normal there.
 pub(crate) struct IslandReading<T: Real> {
+    /// The face's surface, which `carrier` is of.
+    surface: geom::Surface<T>,
     carrier: Carrier<T>,
     arcs: Vec<LoopArc<T>>,
     q: Point3<T>,
@@ -4306,6 +4305,7 @@ impl<T: Decide> IslandReading<T> {
             Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
         Ok(Ok(Self {
+            surface: view.surface().clone(),
             carrier,
             arcs,
             q,
@@ -4438,7 +4438,7 @@ impl<T: Decide> IslandReading<T> {
     /// (**`split_ring_path_lean`**) and its parity across the closed
     /// curve; `None` where either is in the zero band.
     pub(crate) fn read(&self, path: Path<T>, band: Band) -> Result<Option<Sign>, Indeterminate> {
-        let Some(lever) = self.carrier.lean_lever(self.q, &path) else {
+        let Some(lever) = self.carrier.lean_lever(&self.surface, self.q, &path) else {
             return Ok(None);
         };
         let lean = decide(
@@ -5228,6 +5228,17 @@ pub(crate) fn reads_loop_side<T: Decide>(surface: &geom::Surface<T>) -> bool {
 /// lies on the loop's left, so it holds `outer` exactly when the island
 /// winds clockwise, `outer` on its left.
 ///
+/// No path here takes a detour, and a sphere needs none while its faces
+/// keep their reference sets. A path from a reference reads in band where
+/// it runs through the loop's vertex: on a sphere, where the reference
+/// lies on the great circle through the vertex and the loop's midpoint,
+/// that is, on the plane through the centre, the vertex and the midpoint.
+/// A ball face's references are its two poles and its two seam midpoints,
+/// and a one-face zone's lie in its seam meridian's plane: all in one
+/// plane through the centre, which the loop's plane meets in one line, so
+/// at most two references are on it and another decides. A face whose
+/// references all lie on one line through the centre would break this.
+///
 /// # Errors
 ///
 /// [`JoinError::RingIslandUnread`] on a face [`reads_loop_side`] does not
@@ -5349,6 +5360,7 @@ impl ChordJoiner {
             halves: (chord.from, to),
             spec,
             ends,
+            kept: None,
         }))
     }
 
@@ -5394,7 +5406,12 @@ impl ChordJoiner {
                     let created = match spec {
                         None => body.mef_chord(site, tol)?,
                         Some(spec) => body
-                            .mef(site, spec, FaceSurface::Inherit, tol)
+                            .mef(
+                                site,
+                                NewCurve::keeping(spec, curve.kept.clone()),
+                                FaceSurface::Inherit,
+                                tol,
+                            )
                             .map_err(refused)?,
                     };
                     self.slivers.insert(created.face, ());
@@ -5407,7 +5424,9 @@ impl ChordJoiner {
                 ChordSite::Mekr(site) => {
                     let made = match spec {
                         None => body.mekr_chord(site, tol)?,
-                        Some(spec) => body.mekr(site, spec, tol).map_err(refused)?,
+                        Some(spec) => body
+                            .mekr(site, NewCurve::keeping(spec, curve.kept.clone()), tol)
+                            .map_err(refused)?,
                     };
                     minted.push(made.edge);
                 }
@@ -5430,7 +5449,12 @@ impl ChordJoiner {
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
                 Some(spec) => body
-                    .mef(site, spec, FaceSurface::Inherit, tol)
+                    .mef(
+                        site,
+                        NewCurve::keeping(spec, curve.kept.clone()),
+                        FaceSurface::Inherit,
+                        tol,
+                    )
                     .map_err(refused)?,
             };
             self.slivers.insert(created.face, ());

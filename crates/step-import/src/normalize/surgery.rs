@@ -139,6 +139,8 @@ pub(crate) fn split_edge(
                     // increasing parameter, so there is no sense to
                     // compose.
                     reversed: false,
+                    // A piece of the split edge: its carrier is the file's.
+                    curve: spec.curve,
                 },
             );
             e
@@ -369,6 +371,7 @@ mod tests {
             t0: 0.0,
             t1: 1.0,
             reversed: false,
+            curve: None,
         };
         let mut edges: BTreeMap<u64, EdgeSpec> = [(10, 1, 2), (11, 2, 3), (12, 3, 4), (13, 4, 1)]
             .into_iter()
@@ -385,6 +388,7 @@ mod tests {
             faces: Vec::new(),
             edges,
             vertices,
+            surfaces: BTreeMap::new(),
             band_seams: BTreeSet::new(),
         };
         (solid, vec![vec![fwd(10), fwd(11), fwd(12), fwd(13)]])
@@ -471,13 +475,7 @@ mod tests {
         let (t0, t1) = (1.5 * PI, 2.5 * PI);
         let face = |id, forward| FaceSpec {
             id,
-            surface: geom::Surface::Plane {
-                frame: geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-            },
+            record: 900,
             sense: true,
             loops: vec![LoopSpec {
                 outer: true,
@@ -497,9 +495,20 @@ mod tests {
                     t0,
                     t1,
                     reversed: false,
+                    curve: None,
                 },
             )]),
             vertices: BTreeMap::from([(1, circle.eval(t0)), (2, circle.eval(t1))]),
+            surfaces: crate::entities::records_of([(
+                900,
+                geom::Surface::Plane {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                },
+            )]),
             band_seams: BTreeSet::new(),
         };
         let q = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);

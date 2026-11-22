@@ -352,12 +352,11 @@ mod certified {
     /// At ε 1e-12 the windowed tube at major 3.7 does not build: its
     /// rim's rung-3 certificate stalls against the torus,
     /// `ssi_hull_sup` in `(1.15e-12, 1.3e-12]` (measured 1.210e-12).
-    /// It has both causes: a stored frame read as its polar enclosure
-    /// (decision 1, #7131), and a frame built at Interval from bracket
-    /// inputs, a rigid-motion claim (fork 274), the window's turned
-    /// frames squared over their brackets where main stored them raw.
-    /// Neither mutation alone builds it; mutation A with F1 on the
-    /// bracket path does, and turns this pin red. Every case builds at
+    /// Cause: a frame built at Interval from bracket inputs, a
+    /// rigid-motion claim (fork 274): the window's turned frames are
+    /// squared over their brackets where main stored them raw. Mutant
+    /// F1X (that squaring stores the stated vectors raw) builds it and
+    /// turns this pin red; mutant A does not. Every case builds at
     /// ε 1e-9 and 1e-6.
     #[test]
     fn enclosures_contain_and_stay_tight() {
@@ -383,7 +382,7 @@ mod certified {
                 Tol::witness(),
             );
             if major > 1.0 && window.is_some() && crate::common::frame_cost::at_the_least_band() {
-                // Both causes of the frame cost at ε 1e-12 (PR 7131).
+                // Frames built at Interval from bracket inputs (fork 274).
                 let pinned = matches!(
                     &built,
                     Err(sweep::TubeError::Revolve(sweep::RevolveError::Op {

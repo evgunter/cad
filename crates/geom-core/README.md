@@ -406,14 +406,33 @@ An enclosure reads `[lo, hi]` with each end rounded outward, a scalar
 that is not an `f64` reads as its value or its enclosure, and a zero of
 either sign reads `0`. Text that must be exact (an editable field, a
 serialized form a content key hashes, a dump) is not told text and is
-spelled exactly.
+spelled exactly. An editable field over a written value shows that
+value's exact spelling in the unit it was written in, positionally and
+never in exponent form, because it is edited one character at a time;
+a driven value is a readout and is told text.
 
-**A refusal is said in the notation of whoever reads it.** Its
-rendering takes a notation, and `Display` is that rendering in metres
-and radians; the GUI passes the working notation, so a person working
+Two told quantities are equal when their role, dimension and reading
+are equal, and a dump shows the reading exactly. A test that means "the
+person reads this" compares the telling in a named notation.
+
+**A refusal is said in the notation of whoever reads it.** A sentence
+is written through a teller that carries the notation, and a told
+quantity has no `Display` of its own, so a number cannot be said
+without its notation; a refusal's `Display` is its telling in metres
+and radians. The GUI passes the working notation, so a person working
 in millimetres reads a refusal in millimetres beside fields that show
-millimetres. The tolerance is set in metres, and a recourse that names
-it says it in metres.
+millimetres.
+
+**A unit says every quantity.** The number written in a unit is a
+decimal, and it reads back as the exact decimal times the unit's exact
+factor (1/1000 for mm, 254/10000 for in, π/180 for deg, with true π),
+rounded once. That is the reading of every door that takes a number in
+a unit: the text door, and the Rust and Python doors, which read a
+float by its shortest decimal. So the unit a number is told in depends
+only on the reader's notation and the number's dimension, never on its
+value. The tolerance is the one quantity told in metres whatever the
+notation: it is set in metres, and a recourse that names it says it in
+metres.
 
 ## Float rounding
 
@@ -443,11 +462,15 @@ This section is where that rule's parts live.
   admission rule read as a length, the longest lever over which a short
   chain's rounding still fits the headroom (a run is admitted exactly
   where `R` is at least the box). `R` is read through one `Tolerance`
-  door, never a site's own constant. A formula that loses digits where its
+  door, never a site's own constant. A read made before the extent it is
+consumed over exists (a trace read through a face chart's turn before
+the profile's loops resolve) is a selection: its pose is decided over the
+session box, and its conditioning by the carriage that consumes it. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
-  (as a distance). A stored form that loses digits (a conic whose centre
-  lies far from the arc it serves) is re-minted in a well-conditioned
-  form. No `Margin` door takes hand-written slack. The backstop is a
+  (as a distance). A stored form that loses digits is re-minted in a
+  well-conditioned form: a conic is stored anchored on the arc it
+  serves, its parameter zero at the anchor and its centre derived,
+  never stored. No `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
   site is a listed entry with its reason: in production, a formula or a

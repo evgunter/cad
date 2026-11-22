@@ -387,7 +387,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         };
         assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&donut(), &partner, None, None, band())
+            geom_brep::pair_section(&donut(), &partner, None, None::<geom_core::NoLane>, band())
         else {
             panic!("{what}: the value builds the pair");
         };
@@ -432,7 +432,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         "no march: {unmarched:?}"
     );
     assert_eq!(
-        certify(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
+        certify_section_pair(&unmarched, false, band(), |_| Sheet::Not, at(None, None)),
         Err(Refusal::NoLane("f64"))
     );
     // About `(1, 0, 0)` the second core passes `(3, 0, 0)` and
@@ -490,7 +490,7 @@ fn a_marched_witness_is_placed_padded() {
             single: true,
         };
         let mut seen = Vec::new();
-        let got = certify(
+        let got = certify_section_pair(
             &s,
             false,
             band(),
@@ -766,15 +766,29 @@ fn a_tangent_ruling_reads_as_an_unbounded_component() {
     }
 }
 
-/// A plane section of a wall is essential or unbounded on the wall, and
-/// its count is never certified single (two rulings or one ellipse).
+/// **A plane cuts a wall in one loop essential on the wall, certified
+/// single, or in two rulings the region cuts, each unbounded.**
 #[test]
-fn a_wall_and_a_plane_are_essential_on_the_wall_and_never_single() {
+fn a_plane_cuts_a_wall_in_one_essential_loop_or_unbounded_rulings() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
-    for n in [v(0.2, 0.1, 1.0), v(1.0, 0.0, 0.0)] {
-        let s = classify(&a, &plane(p(0.0, 0.0, 0.5), n));
-        assert_eq!(shape(&s), (1, false, vec![true], vec![false], vec![false]));
-    }
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(0.2, 0.1, 1.0)));
+    assert_eq!(
+        shape(&s),
+        (1, true, vec![true], vec![false], vec![false]),
+        "the tilted ellipse: {s:?}"
+    );
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0)));
+    assert_eq!(
+        shape(&s),
+        (
+            2,
+            false,
+            vec![false, false],
+            vec![false, false],
+            vec![true, true]
+        ),
+        "the rulings: {s:?}"
+    );
 }
 
 // -------------------------------------------------------------------
@@ -928,17 +942,13 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let origin = p(0.0, 0.0, 0.0);
     let ball = sphere(origin, 1.0);
     // Sphere × plane.
-    let t = touch_both_ways(&ball, &plane(origin + k, k), "section_sphere_plane_reach");
+    let t = touch_both_ways(&ball, &plane(origin + k, k), "ps_center_gap");
     assert!(
         (t.at - (origin + k)).norm() < 1e-12,
         "tangent at {:?}",
         t.at
     );
-    let t = touch_both_ways(
-        &ball,
-        &plane(origin + k * (1.0 - push), k),
-        "section_sphere_plane_reach",
-    );
+    let t = touch_both_ways(&ball, &plane(origin + k * (1.0 - push), k), "ps_center_gap");
     let rad = (1.0 - (1.0 - push).powi(2)).sqrt();
     centres(
         "sphere × plane",
@@ -948,8 +958,8 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     // Sphere × sphere, outside and inside, the ball as F and as the
     // larger or the smaller.
     for (label, r2, d, name) in [
-        ("outside", 0.3, 1.3, "section_sphere_pair_reach"),
-        ("inside", 0.4, 0.6, "section_sphere_pair_nest"),
+        ("outside", 0.3, 1.3, "ss_carrier_external"),
+        ("inside", 0.4, 0.6, "ss_carrier_internal"),
     ] {
         let t = touch_both_ways(&ball, &sphere(origin + k * d, r2), name);
         assert!(
@@ -957,7 +967,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
             "{label}: tangent at {:?}",
             t.at
         );
-        let d = if name.ends_with("reach") {
+        let d = if name.ends_with("external") {
             d - push
         } else {
             d + push
@@ -1017,7 +1027,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
 fn pinches_and_undecided_tangencies_are_not_touches() {
     let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
-    assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
+    assert_eq!(tangent(&classify(&ball, &pl)), "ps_center_gap");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
     assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
@@ -1036,7 +1046,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
-        "section_sphere_pair_nest"
+        "pair_section_coincident"
     );
 }
 
@@ -1236,13 +1246,13 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
 #[test]
 fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
-        name: "section_sphere_plane_reach",
+        name: "ps_center_gap",
         at: p(0.0, 0.0, 1.0),
         apex: false,
     });
-    let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
+    let tan = Err(Refusal::Tangent("ps_center_gap"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, band(), |_| Sheet::Not, |_, _| place)
+        certify_section_pair(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1268,7 +1278,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
             apex: true,
         });
         let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+            certify_section_pair(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
         };
         for evented in [false, true] {
             assert_eq!(
@@ -1310,7 +1320,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, band(), |_| Sheet::Not, r);
+    let ok = |r| certify_section_pair(&s, false, band(), |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1334,7 +1344,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component::closed_form(false, [false, false], Some(p(0.0, 0.0, 0.0)));
@@ -1343,7 +1353,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&two, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1351,7 +1361,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&uncounted, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
@@ -1367,15 +1377,15 @@ fn w2_clears_only_where_the_face_describes() {
     );
     let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
+        certify_section_pair(&s, false, band(), only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
+        certify_section_pair(&s, false, band(), only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
     );
     assert_eq!(
-        certify(
+        certify_section_pair(
             &s,
             false,
             band(),
@@ -1393,7 +1403,7 @@ fn w2_clears_only_where_the_face_describes() {
         single: false,
     };
     assert_eq!(
-        certify(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
+        certify_section_pair(&witnessed, false, band(), |_| Sheet::Unread, at(None, OUT)),
         Ok(vec![Cleared::Out(Side::G)]),
         "an unread face leaves W3 to clear the component"
     );
@@ -1486,6 +1496,18 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     (body, seed.face)
 }
 
+/// **A table that holds no pair, over a region holding the rows'
+/// bodies**: the region a pair with no bounded side (a plane and a
+/// cylinder) is read over, as the glue door's table hands it.
+fn regioned() -> crate::boolean::section_table::SectionTable<f64> {
+    crate::boolean::section_table::SectionTable::reader(
+        None,
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), LEVER)),
+        band(),
+    )
+    .finish()
+}
+
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
 pub(super) fn scan(
@@ -1496,7 +1518,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1694,7 +1716,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,

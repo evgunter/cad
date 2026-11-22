@@ -166,6 +166,12 @@ pub enum TessellateError {
     /// stores no lift, or a ringed spline face's trim is not read in its
     /// chart. This is the lane's one refusal of a loop that does not
     /// close: the door's cause, carried whole.
+    ///
+    /// The curved lane reads the same door for a rimless loop, a wrap
+    /// strip or a pole-to-pole band, whose columns are its lift's
+    /// (`walk::wrap_strip`, `walk::band_columns`): such a face on a body
+    /// whose rows were never minted (built through the Euler doors and
+    /// not passed through `topo::mint_pcurves`) refuses here too.
     DomainUnread {
         /// The offending face.
         face: FaceKey,
@@ -276,6 +282,17 @@ pub enum TessellateError {
     /// chord points of two coincident edges).
     PinchWedge {
         /// The face whose boundary meets the point.
+        face: FaceKey,
+    },
+    /// A planar or trimmed face's loops bound no region of its chart:
+    /// realised as its triangulation's boundary sides, they traverse no
+    /// side an odd number of times, so the even-odd reading marks
+    /// nothing inside. The refusal is decided on those parities
+    /// (`region::require_a_region`, which says where the sides two
+    /// traversals share come from). `tessellate` does not re-validate
+    /// tier 3, so a body tier 3 refuses can reach it.
+    BoundaryBoundsNoRegion {
+        /// The face whose loops bound nothing.
         face: FaceKey,
     },
     /// A curved face's boundary walk does not trace its own UV
@@ -402,12 +419,10 @@ pub enum TessellateError {
     /// in every profile.
     ///
     /// **Decided on the traversal kinds.** No coordinate, area, triangle
-    /// count or ε is read. The kinds themselves are
-    /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
-    /// on `|axis · chart.axis| > 0.5`; that split is structural only
-    /// because the shape door (`curved::iso_rectangle_shape`) has
-    /// certified every carrier as a rim or a meridian carrier before the
-    /// route hands the face to the walk.
+    /// count or ε is read. The kinds themselves are the shape door's
+    /// (`curved::iso_rectangle_shape`): it certifies each carrier a rim
+    /// or a meridian, at the band, before the route hands the face to
+    /// the walk, and the walk reads that answer.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
     /// singularity inside a face is a vertex of it: a loop of rims only
@@ -570,8 +585,12 @@ pub enum TessellateError {
     /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
     /// complement; or, on any chart, a ring is wound with its outer
     /// loop, against the rule that a ring bounds its face from inside and
-    /// winds the other way, so the face's loops contradict each other.
-    /// Meshing it
+    /// winds the other way, so the face's loops contradict each other;
+    /// or, on any chart, a loop whose signed area reads neither way while
+    /// the loops bound a region, so it has no orientation to wind the
+    /// face by: decided on the polygon's shoelace sum being exactly zero
+    /// or NaN, after the boundary's parities have found a side of odd
+    /// count (`trimmed`'s `attempt`). Meshing it
     /// would ship the complement, or the face wound inward, as a closed
     /// manifold mesh, so it refuses. A valid body does not reach it; a
     /// face whose `sense` disagrees with its loops does.
@@ -620,16 +639,29 @@ pub enum TessellateError {
         /// and the refusal rides in every caller's `Result`.
         unresolved: Box<crate::validate::Unresolved>,
     },
-    /// A trimmed face on an analytic chart keeps, after the retry budget,
-    /// a triangle a neighbouring face may make a side of too: an ear of
-    /// its boundary polygon (a triangle on three consecutive chord
-    /// points), or on a cone a side joining two boundary points that are
-    /// not neighbours and that one neighbour holds both of. The neighbour
-    /// may join the same two points, which would make that side an edge
-    /// of four triangles, so it refuses.
-    BoundaryEar {
-        /// The face whose patch keeps the ear.
+    /// A trimmed face keeps, after the retry budget, a triangle with a
+    /// side a neighbouring face may make too: a side joining two boundary
+    /// points that are not neighbours on their loop and that one
+    /// neighbour holds both of (an ear's third side is the nearest case).
+    /// The neighbour may join the same two points, which would make that
+    /// side an edge of four triangles, so it refuses.
+    UnclearedSharedSide {
+        /// The face whose patch keeps the triangle.
         face: FaceKey,
+    },
+    /// The faces' patches, joined, use one side between two boundary
+    /// points more often than two triangles per chord carrying it (two
+    /// for a side no chord carries): an edge of the mesh that is not
+    /// manifold, which [`crate::validate::check_mesh`] would refuse
+    /// `NonManifoldEdge`. Raised where the patches join, on every lane;
+    /// two faces across one chord chain that both use one chord between
+    /// two of its points as an interior edge reach it. A different δ may
+    /// clear it.
+    OverusedSide {
+        /// The faces whose patches use the side, in arena order.
+        faces: Vec<FaceKey>,
+        /// The triangles using it.
+        uses: usize,
     },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
@@ -643,6 +675,32 @@ pub enum TessellateError {
         edge: EdgeKey,
         /// What the arm cannot mesh.
         cause: SphereTrimCause,
+    },
+    /// A loop shaped as the wrap strip, one edge's two halves pole to
+    /// pole and back (an empty chart image whose two tips lie on two
+    /// distinct singular points), whose stored lift does not move its far
+    /// half exactly one whole turn of the azimuth from its near half
+    /// (`walk::wrap_strip`). The turn round a singular point is the
+    /// joint's stored element there, so a lift that disagrees with the
+    /// loop's shape is a defect of the body's rows. No door mints one.
+    WrapStripTurn {
+        /// The refused face.
+        face: FaceKey,
+        /// The far half's lift relative to the near half's, or `None`
+        /// where the face's lift holds no row for one of the two.
+        turn: Option<topo::Deck>,
+    },
+    /// A meridian of a pole-to-pole band whose own azimuth stands more than
+    /// a quarter turn from the column its lifted image is at
+    /// (`walk::band_columns`). The image and the azimuth read one meridian
+    /// down two float paths, so they differ by rounding and whole turns
+    /// alone; a gross residual is the body's chart rows contradicting the
+    /// edge (a wrong twin flag, an image of another edge). No door mints one.
+    LiftedColumnOff {
+        /// The refused face.
+        face: FaceKey,
+        /// The meridian edge whose image stands off it.
+        edge: EdgeKey,
     },
 }
 
@@ -877,6 +935,11 @@ impl TessellateError {
                  faces would disagree about that vertex — a 3-D T-junction no \
                  grid retry repairs",
             ),
+            Self::BoundaryBoundsNoRegion { .. } => f.write_str(
+                "tessellate: a face's loops bound no region of its chart — no side of \
+                 its boundary, as triangulated, is traversed an odd number of times, \
+                 so the even-odd reading marks nothing inside to mesh",
+            ),
             Self::PinchWedge { .. } => f.write_str(
                 "tessellate: a face's boundary passes several vertices at one \
                  point, and a triangle there lies in a sector no single pass of \
@@ -975,8 +1038,9 @@ impl TessellateError {
                  face — its outer loop winds against the face's orientation, so it \
                  would bound the face's complement, or a ring winds the same way as \
                  its outer loop, where a ring bounds the face from inside and winds \
-                 the other way; a body whose loops agree with their faces does not \
-                 reach this, so it is a defect of the body's loops",
+                 the other way, or a loop's signed area reads neither way, so it has \
+                 no orientation at all; a body whose loops agree with their faces \
+                 does not reach this, so it is a defect of the body's loops",
             ),
             Self::FoldedTriangle { .. } => f.write_str(
                 "tessellate: a trimmed face's triangle folds over the chord beside \
@@ -1004,11 +1068,18 @@ impl TessellateError {
                     ulps = crate::cert::ROUNDING_ULPS,
                 )
             }
-            Self::BoundaryEar { .. } => f.write_str(
-                "tessellate: a trimmed face's patch keeps a triangle on three \
-                 consecutive boundary chord points after its retries — the face \
-                 across that chain may cut the same one, leaving an edge of four \
-                 triangles; a different δ may clear it",
+            Self::UnclearedSharedSide { .. } => f.write_str(
+                "tessellate: a trimmed face's patch keeps, after its retries, a \
+                 triangle with a side between two boundary chord points the face \
+                 across them may join too, leaving an edge of four triangles; a \
+                 different δ may clear it",
+            ),
+            Self::OverusedSide { faces, uses } => write!(
+                f,
+                "tessellate: the faces' patches use one side between two boundary \
+                 points as an edge of {uses} triangles, across {} faces, so the mesh \
+                 is not a closed manifold; a different δ may clear it",
+                faces.len()
             ),
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
@@ -1053,6 +1124,40 @@ impl TessellateError {
                      meshes about its chart's poles and apexes — {what}",
                 )
             }
+            Self::WrapStripTurn { turn, .. } => {
+                write!(
+                    f,
+                    "tessellate: a face's loop walks one edge from pole to pole and \
+                     back, but its stored lift does not turn the face one whole turn \
+                     round the far pole: "
+                )?;
+                match turn {
+                    Some(deck) => write!(
+                        f,
+                        "it moves the far half {} whole turns of the azimuth and {} of \
+                         the second channel{}",
+                        deck.u,
+                        deck.v,
+                        if deck.twin {
+                            ", onto the chart's twin"
+                        } else {
+                            ""
+                        }
+                    )?,
+                    None => write!(f, "it holds no row for one of the edge's two halves")?,
+                }
+                write!(
+                    f,
+                    ". The body's chart rows contradict its loop; re-mint them \
+                     (`topo::mint_pcurves`)"
+                )
+            }
+            Self::LiftedColumnOff { .. } => write!(
+                f,
+                "tessellate: a meridian of a face's pole-to-pole band stands more than a \
+                 quarter turn from where the face's stored chart image of it lies, so the \
+                 body's chart rows contradict the edge; re-mint them (`topo::mint_pcurves`)"
+            ),
         }
     }
 }

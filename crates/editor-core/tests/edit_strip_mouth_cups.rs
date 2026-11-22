@@ -154,12 +154,14 @@ struct Side {
 /// of the cup (its two half-walls and its floor or top) resolved at the
 /// blend node before the edit and resolves `Vanished` after it.
 ///
-/// The two runs part before any clearance turns: the reach's cell prune
-/// (`sweep::blend::reach::sure`, marked) reads one cell surely clear in
-/// one run and not in the other, so the clearance readings that follow
-/// are of other cells. That is a parting, not a flip
-/// ([`editor_core::resolve::FirstTurn::Parted`]), so no clearance verdict is named,
-/// and the diagnosis is the evidence-free fallback at the blend node.
+/// The two runs part before any clearance turns: the surgery's strip
+/// reading (`sweep::blend::surgery::strip_reading`, its depth test
+/// marked) reads the cup's pieces surely within the strip in one run and
+/// not in the other, so the readings that follow differ in kind. That is
+/// a parting at a mark, not a flip
+/// ([`editor_core::resolve::Parting::Mark`]), so no clearance verdict is
+/// named, and the diagnosis names the test and the step at the blend
+/// node.
 #[test]
 fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_reach_parts() {
     let (dimpled, sub) = dimpled_block();
@@ -304,19 +306,25 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_
                 (v.verdicts.clone(), v.marks.clone())
             };
             let ((v1, m1), (v2, m2)) = (path(&ev1), path(&ev2));
+            let turn = editor_core::first_turn(
+                editor_core::resolve::Path {
+                    verdicts: &v1,
+                    marks: &m1,
+                },
+                editor_core::resolve::Path {
+                    verdicts: &v2,
+                    marks: &m2,
+                },
+            );
+            let Some((site, step)) = turn.mark() else {
+                panic!(
+                    "{what} ({verb}): the blend's two runs part at a mark before any choice \
+                     turns, got {turn:?}"
+                );
+            };
             assert_eq!(
-                editor_core::first_turn(
-                    editor_core::resolve::Path {
-                        verdicts: &v1,
-                        marks: &m1,
-                    },
-                    editor_core::resolve::Path {
-                        verdicts: &v2,
-                        marks: &m2,
-                    },
-                ),
-                editor_core::resolve::FirstTurn::Parted,
-                "{what} ({verb}): the blend's two runs part before any choice turns"
+                site.name, "blend_surgery_strip_depth",
+                "{what} ({verb}): at the strip reading's depth test"
             );
             for n in &carried {
                 assert!(
@@ -347,10 +355,12 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_
                 };
                 assert_eq!(
                     diagnosis,
-                    editor_core::Diagnosis::RecipeEdit {
-                        edit: editor_core::RecipeEditRef::NodeChanged { node: blend }
+                    editor_core::Diagnosis::Parted {
+                        node: blend,
+                        site,
+                        step,
                     },
-                    "{what} ({verb}): the blend's runs part, so no flip is named"
+                    "{what} ({verb}): the blend's runs part, so the parting is named"
                 );
             }
         }

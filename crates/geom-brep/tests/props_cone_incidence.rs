@@ -378,19 +378,9 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let Curve3::Ellipse(conic_k) = section(c) else {
         unreachable!()
     };
-    let (center, axis, u_ref) = (
-        conic_k.frame().origin(),
-        conic_k.frame().axis(),
-        conic_k.frame().u_ref(),
-    );
+    let frame = conic_k.frame();
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
-    let stretched = |k: f64| {
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(center, axis, u_ref),
-            semi_u * (1.0 + k),
-            semi_v,
-        ))
-    };
+    let stretched = |k: f64| Curve3::Ellipse(geom::Ellipse::new(frame, semi_u * (1.0 + k), semi_v));
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;
     let k = k0 * d / max_elevation(c, &stretched(k0), 0.0, TAU);

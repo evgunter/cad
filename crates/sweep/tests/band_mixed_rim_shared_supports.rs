@@ -124,7 +124,7 @@ const Z: Point3<f64> = Point3::new(0.0, 0.0, 1.0);
 /// rings on two planes of normal `±rings_on` one each, and the volume
 /// removed at `truth`. Returns the result's volume, or `None` where the
 /// tightest Interval row refuses with the section's touch escalation.
-fn carve<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn carve<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -174,7 +174,9 @@ fn carve<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 /// drilling after.
 #[test]
 fn a_cross_drilled_plates_top_rim_fillets_with_the_bore_on_its_mates() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str) -> Option<f64> {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
+        what: &str,
+    ) -> Option<f64> {
         let body = cross_drilled::<T>(0.2);
         let rim = outer_rim(&body, 0.5);
         assert_eq!(rim.len(), 8, "{what}: the top rim");
@@ -280,7 +282,7 @@ fn the_holed_plate_intersected_carves_its_ladders_first_at_the_closed_form() {
 /// outer rims first and the hole's in a second call.
 #[test]
 fn a_rounded_plate_with_a_round_hole_fillets_every_edge_in_one_call() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
         what: &str,
         truth: f64,
     ) -> Option<f64> {
@@ -491,7 +493,7 @@ fn ring_margin(what: &str, e: &BlendError) -> f64 {
 /// past `x = 0.85`. Each side of that boundary, at each scalar.
 #[test]
 fn a_hole_beside_a_corner_reaching_a_links_strip_refuses_at_its_depth() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
         x: f64,
         clear: bool,
         scalar: &str,
@@ -559,7 +561,7 @@ fn slotted_plate<T: Decide + topo::AtRestPolicy>(
 /// line reads its end point.
 #[test]
 fn rectangular_holes_ending_at_a_corners_window_build_at_pappus() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
         x: (f64, f64),
         y: (f64, f64),
         scalar: &str,
@@ -627,7 +629,7 @@ fn disc<T: Decide + Bounds + topo::AtRestPolicy>(arcs: u32) -> Body<T> {
 /// rims remove Pappus's volume, at each scalar.
 #[test]
 fn an_outline_through_a_disc_of_a_few_arcs_fillets_at_pappus() {
-    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(arcs: u32, scalar: &str) {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(arcs: u32, scalar: &str) {
         let body = disc::<T>(arcs);
         let inner: Vec<EdgeKey> = outer_rim(&body, 0.0)
             .into_iter()

@@ -81,7 +81,10 @@ fn torus<T: Decide>(major: f64, minor: f64) -> Surface<T> {
 /// azimuth from `u0` to `u1`.
 fn rim<T: Decide>(r: f64, h: f64, u0: f64, u1: f64) -> LoopEdge<T> {
     edge(
-        Curve3::circle_on(placed::<T>().with_origin(at(0.0, 0.0, h)), T::from_f64(r)),
+        Curve3::Circle(geom::Circle::new(
+            placed::<T>().with_origin(at(0.0, 0.0, h)),
+            T::from_f64(r),
+        )),
         u0,
         u1,
         0,
@@ -108,10 +111,10 @@ fn meridian<T: Decide>(major: f64, minor: f64, u: f64, v0: f64, v1: f64) -> Loop
     let (out, normal) = (x * c + y * s, x * s - y * c);
     let lifted = geom::Frame::new(Point3::origin(), normal, out).map_scalar(T::from_f64);
     edge(
-        Curve3::circle_on(
+        Curve3::Circle(geom::Circle::new(
             lifted.with_origin(at(major * c, major * s, 0.0)),
             T::from_f64(minor),
-        ),
+        )),
         v0,
         v1,
         0,
@@ -492,10 +495,10 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
         };
         let flipped = |t0: f64, t1: f64| {
             edge(
-                Curve3::circle_on(
+                Curve3::Circle(geom::Circle::new(
                     placed::<T>().reversed().with_origin(at(0.0, 0.0, 0.0)),
                     T::from_f64(r),
-                ),
+                )),
                 t0,
                 t1,
                 0,

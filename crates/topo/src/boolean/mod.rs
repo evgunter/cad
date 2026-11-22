@@ -133,7 +133,6 @@ fn pierces_refused(
 
 #[cfg(test)]
 mod cone_frame_rows;
-mod conic_quadric;
 pub mod contact_verify;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
@@ -238,13 +237,15 @@ pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep, NaryTaken, nary_boolean,
+    nary_boolean_apart, nary_placed,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ops::refused_face_kind;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
-    SettleError, Settler, boolean_op_with, intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
+    PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
+    subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -325,7 +326,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_held_carrier_datum" => {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
-        "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
+        "curve_face_pose_plane_offset" | "curve_face_pose_plane_parallel" => {
+            Coincide::EdgeOnPlane.subject()
+        }
         "bool_line_cylinder_clearance"
         | "bool_line_face_carrier_offset"
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
@@ -405,8 +408,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "plane_crossing_root_order"
-        | "plane_crossing_roots_apart"
+        "curve_face_cross_order"
+        | "curve_face_cross_apart"
         | "spline_composite_roots_apart"
         | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"
@@ -494,7 +497,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_conic_span"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_advance"
-        | "point_in_arc_loop_conic_in_plane"
         | "point_in_arc_loop_spiric_end"
         | "point_in_arc_loop_spiric_clear"
         | "point_in_arc_loop_spiric_on"
@@ -1525,7 +1527,7 @@ impl<T: Real> GluedPair<T> {
 /// become silent last-write-wins the day the op grew a second class
 /// arm.)
 #[derive(Debug)]
-pub(crate) struct GluedPairs<T: Real> {
+pub(crate) struct GluedPairs<T: crate::props::AtRestPolicy> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), GlueClass>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
     verified: VerifiedGlue<T>,
@@ -1543,7 +1545,7 @@ pub(crate) struct GluedPairs<T: Real> {
     pub(crate) sections: section_table::SectionTable<T>,
 }
 
-impl<T: Real> Default for GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> Default for GluedPairs<T> {
     fn default() -> Self {
         Self {
             map: std::collections::BTreeMap::new(),
@@ -1897,7 +1899,7 @@ pub(crate) struct GluedTouch {
     pub(crate) row: usize,
 }
 
-impl<T: Decide> GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
     /// The index over `decls`, with the door's certificates, the
     /// one-sided cover they and the operands' structural tangencies
     /// derive ([`Self::one_sided`]), and each declared pair's consumed
@@ -1981,7 +1983,7 @@ impl<T: Decide> GluedPairs<T> {
     }
 }
 
-impl<T: Real> GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
     /// [`Self::build`] over a one-carrier certificate set alone: no
     /// verified `Tangent` and no operand struts.
     #[cfg(test)]
@@ -2394,7 +2396,7 @@ pub(crate) struct RingTie {
     pub margin: geom_core::MarginDiag,
 }
 
-impl<T: Real> BooleanReduction<T> {
+impl<T: crate::props::AtRestPolicy> BooleanReduction<T> {
     /// The ring serving `vertex`'s pierce of the `pierced` operand's
     /// face, as an index into [`Self::pierce_rings`].
     fn ring_of(&self, pierced: Operand, vertex: VertexKey) -> Option<usize> {
@@ -2426,7 +2428,7 @@ pub(crate) fn vertex_at<T: Decide>(
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]
-pub struct BooleanReduction<T: Real> {
+pub struct BooleanReduction<T: crate::props::AtRestPolicy> {
     /// The op the classification was performed for.
     pub op: BooleanOp,
     /// Each operand's slit and ring tips, A's then B's, read at rest
@@ -2513,7 +2515,7 @@ pub(crate) struct SettledPair {
     pub(crate) relation: CarrierRelation,
 }
 
-impl<T: Real> BooleanReduction<T> {
+impl<T: crate::props::AtRestPolicy> BooleanReduction<T> {
     /// Opens a surgery scope on each operand body — the join's
     /// declaration that tier 1 is paid once per operand at its end
     /// rather than once per Euler operator inside it
@@ -3840,10 +3842,10 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, and a sphere
-    ///   pair (on its radical plane); a pair the section table carries
-    ///   (two cylinders, a cylinder and a sphere) rides its carried
-    ///   components. Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone; a pair the
+    ///   section table carries (two cylinders, a cylinder or a plane
+    ///   and a sphere, two spheres, a plane and a cylinder) rides its
+    ///   carried components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
     ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
@@ -3851,11 +3853,9 @@ pub enum BooleanError {
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
-    ///   SECTION-FRAME dispatch — additionally names
-    ///   `(Sphere, Sphere)` and `(Cylinder, Cylinder)` (as a proven
-    ///   STRAIGHT locus, or its own pinch door); `(Cylinder, Sphere)` is
-    ///   matched on its section (`boolean::section_table`), not on a
-    ///   frame. But neither a frame nor a section is a join arm: they
+    ///   SECTION-FRAME dispatch — names the plane×torus and plane×cone
+    ///   frames; every pair the section value builds is matched on its
+    ///   section (`boolean::section_table`), not on a frame. But neither a frame nor a section is a join arm: they
     ///   place the germs for the matcher, which is a strictly smaller
     ///   thing than a seam lane, and do not move this refusal.
     ///
@@ -3987,8 +3987,8 @@ pub enum BooleanError {
     /// crossing a face: their spheres touch within the tolerance, the
     /// smaller inside the larger (a decided zero), at a touch the section
     /// certificate does not certify off either face. Whatever the faces
-    /// share lies off every edge, so the join's sphere-pair arm (the
-    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// share lies off every edge, so the join's carried lane
+    /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
     /// faces (its R-loop), are not refused: each sphere is re-cut so an
     /// edge of it reaches the circle (a closed ball re-charted with its
@@ -4838,6 +4838,31 @@ impl BooleanError {
                 decision: BooleanDecision::ConeRoots,
                 diag,
             },
+        }
+    }
+
+    /// The conic × quadric door's refusal
+    /// ([`geom_brep::curve_face::conic_quadric::ConicQuadricRefusal`]),
+    /// its in-band sign an escalation as the refusing arm's decision: an
+    /// arc's roots on a sphere, a cylinder wall or a cone.
+    pub(in crate::boolean) fn of_conic_quadric_refusal(
+        refusal: geom_brep::curve_face::conic_quadric::ConicQuadricRefusal,
+    ) -> Self {
+        use geom_brep::curve_face::conic_quadric::ConicQuadricRefusal;
+        match refusal {
+            ConicQuadricRefusal::Sphere(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcSphereRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cylinder(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcCylinderRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Cone(diag) => Self::Escalated {
+                decision: BooleanDecision::ArcConeRoots,
+                diag,
+            },
+            ConicQuadricRefusal::Invariant(what) => Self::ClassificationInvariant { what },
         }
     }
 
@@ -6706,6 +6731,12 @@ const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
     what: "a wall's second face is read before its first",
 };
 
+/// [`boolean_reduce_declared_strategy`]'s equal cylinder wall pairs.
+const WALL_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_wall_pairs",
+    "the cylinder wall pairs whose boxes meet, read for their nodes",
+);
+
 /// [`boolean_reduce`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -7052,7 +7083,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     // The nodes of the equal cylinder pairs' sections, each a ring in
     // both walls (`node::mint_nodes`).
-    let walls = glue::overlapping_pairs(a_operand, b_operand, node::is_wall, band)?;
+    let walls = glue::overlapping_pairs(WALL_PAIRS, a_operand, b_operand, node::is_wall, band)?;
     for ring in node::mint_nodes(
         &declared.sections,
         (&mut a, &mut b),

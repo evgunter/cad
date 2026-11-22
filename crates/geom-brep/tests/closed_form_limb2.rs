@@ -284,17 +284,9 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let Curve3::Ellipse(conic_k) = ellipse else {
         unreachable!("built as an ellipse")
     };
-    let (center, axis, u_ref) = (
-        conic_k.frame().origin(),
-        conic_k.frame().axis(),
-        conic_k.frame().u_ref(),
-    );
+    let frame = conic_k.frame();
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
-    let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(center, axis, u_ref),
-        semi_u + 1e-4,
-        semi_v,
-    ));
+    let moved = Curve3::Ellipse(geom::Ellipse::new(frame, semi_u + 1e-4, semi_v));
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
     let got = certify(&cylinder, &plane, &moved, SPAN, teeth_band(sampled, peak));
@@ -427,8 +419,10 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
 
 /// **A long edge's own rounding is the limit**: a 12 km ruling of a
 /// skew cylinder, where a plane through its axis cuts it, at the gate's
-/// finest band, rounds at about `ulp(12000)` in the cylinder's frame, so
-/// limb 2's bound cannot clear `1e-12` m. It refuses as the kernel's
+/// finest band, rounds at about `ulp(12000)` in each operand's frame, so
+/// limb 2's bound cannot clear `1e-12` m against either; the limbs read
+/// the pair by kind, the plane first, so the refusal names the plane. It
+/// refuses as the kernel's
 /// approximation limit, never as a miss, with a bound within
 /// [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`] of the net's own width,
 /// and its story names shorter edges.
@@ -450,7 +444,7 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
     let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");
     };
-    assert_eq!(operand, geom::SurfaceKind::Cylinder);
+    assert_eq!(operand, geom::SurfaceKind::Plane);
     assert!(
         bound > 1e-12,
         "the bound does not clear the band: {bound:e}"

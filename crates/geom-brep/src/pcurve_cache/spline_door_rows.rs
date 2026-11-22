@@ -44,7 +44,7 @@ use crate::{
 /// concrete row.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-struct Lanes<T: geom_core::Real> {
+struct Lanes<T: geom_core::Certifies> {
     fitted: FittedLane<T>,
     edge: fn(
         EdgeCurveSpec<T>,
@@ -145,7 +145,7 @@ fn column_curve<T: Decide>() -> Arc<NurbsCurve2<T>> {
 }
 
 /// The doors' readings for the ruling at `place`, each named.
-fn doors<T: Decide>(
+fn doors<T: geom_core::Certifies>(
     place: Place,
     lanes: Lanes<T>,
 ) -> Vec<(&'static str, Result<(), PcurveCertifyError>)> {
@@ -194,7 +194,7 @@ fn doors<T: Decide>(
 
 /// The edge certificate of the ruling at `place`, described by its
 /// stated column on the wall.
-fn stated<T: Decide>(place: Place, lanes: Lanes<T>) -> Result<(), CertifyError> {
+fn stated<T: geom_core::Certifies>(place: Place, lanes: Lanes<T>) -> Result<(), CertifyError> {
     let c = T::from_f64;
     let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
     let key = table.insert(ring::<T>());
@@ -235,7 +235,7 @@ edge_at!(edge_interval, Interval);
 
 /// Every door's reading at every place, the misreads gathered so each
 /// door that misreads is named.
-fn every_door_reads_the_wall<T: Decide>(lanes: Lanes<T>) {
+fn every_door_reads_the_wall<T: geom_core::Certifies>(lanes: Lanes<T>) {
     let mut misread = Vec::new();
     let mut check = |door: &str, place: Place, ok: bool, got: String| {
         if !ok {
@@ -310,7 +310,7 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
             &ruling::<T>(place),
             &ring::<T>(),
             b,
-            None,
+            None::<geom_core::NoLane>,
         )
         .map(|_| ())
     };
@@ -328,11 +328,78 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
     );
 }
 
+/// A general row certified with no fitted lane, its ends on the carrier.
+fn general_without_a_lane<T: Decide>(
+    image: Arc<NurbsCurve2<T>>,
+    (t0, t1): (f64, f64),
+    chart: &Surface<T>,
+) -> Result<(), PcurveCertifyError> {
+    PcurveCache::certify_general(
+        image,
+        T::from_f64(t0),
+        T::from_f64(t1),
+        &ruling::<T>(Place::On),
+        chart,
+        band(),
+        None::<geom_core::NoLane>,
+    )
+    .map(|_| ())
+}
+
+/// The column's image bowed off it between its ends: on the ruling at
+/// `v = 0` and `v = 1`, a tenth of the chart's `u` away at the middle.
+fn bowed_curve<T: Decide>() -> Arc<NurbsCurve2<T>> {
+    let image = NurbsCurve2::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point2::new(0.5, 0.0),
+            Point2::new(0.7, 0.5),
+            Point2::new(0.5, 1.0),
+        ],
+        vec![1.0, 1.0, 1.0],
+    )
+    .unwrap();
+    Arc::new(image.map_scalar(T::from_f64))
+}
+
+/// **A defective general image refuses as its defect where no fitted
+/// lane is held**, and only a sound one refuses for want of the lane:
+/// the mint excuses exactly the second (`topo`'s `not_owed`), so a
+/// defect that took the lane's refusal would be carried silently.
+fn a_defective_general_row_refuses_as_its_defect_without_a_lane<T: Decide>() {
+    let name = T::NAME;
+    let sound = general_without_a_lane(column_curve::<T>(), (0.0, 1.0), &ring::<T>());
+    assert!(
+        matches!(sound, Err(PcurveCertifyError::FittedLaneUnsupported { .. })),
+        "{name}: a sound row is refused for want of the lane: {sound:?}"
+    );
+    let backward = general_without_a_lane(column_curve::<T>(), (1.0, 0.0), &ring::<T>());
+    assert!(
+        matches!(backward, Err(PcurveCertifyError::IntervalNotForward)),
+        "{name}: a backward span is refused as backward: {backward:?}"
+    );
+    let bowed = general_without_a_lane(bowed_curve::<T>(), (0.0, 1.0), &ring::<T>());
+    assert!(
+        matches!(bowed, Err(PcurveCertifyError::ResidualExceeded { .. })),
+        "{name}: an image off its carrier between its ends is refused at a sample: {bowed:?}"
+    );
+}
+
+#[test]
+fn a_defective_general_row_refuses_as_its_defect_at_a_dual() {
+    a_defective_general_row_refuses_as_its_defect_without_a_lane::<geom_core::Dual64>();
+}
+
+#[test]
+fn a_defective_general_row_refuses_as_its_defect_at_f64_with_the_lane_withheld() {
+    a_defective_general_row_refuses_as_its_defect_without_a_lane::<f64>();
+}
+
 /// **A row re-certified for an edge longer than the row is read over the
 /// edge** (`recertify`): the row certified over `t ∈ [0, 1]` holds, but
 /// the edge runs to `t = 1.5`, off the bounded patch past `z = 1`, which
 /// the row's certificate says nothing about.
-fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane<T>) {
+fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let (c, b) = (T::from_f64, band());
     let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
     let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)
@@ -358,7 +425,7 @@ fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane
 /// (`covers`): the row certified over `t ∈ [0, 1]` holds no span that runs
 /// backwards, so `recertify` over `(1.5, 0)` or `(1, −0.5)`, each reaching
 /// past the patch, reads the carrier there and ends it off the chart.
-fn a_reversed_edge_span_is_read<T: Decide>(lane: FittedLane<T>) {
+fn a_reversed_edge_span_is_read<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let (c, b) = (T::from_f64, band());
     let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
     let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)

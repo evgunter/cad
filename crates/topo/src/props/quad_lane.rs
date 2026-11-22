@@ -241,90 +241,48 @@ pub(super) fn translated_surface<T: Decide>(
     Some(match surface.clone() {
         Surface::Plane {
             frame: carrier_frame,
-        } => {
-            let (origin, normal, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Plane {
-                frame: geom::Frame::new(shift(origin), normal, u_ref),
-            }
-        }
+        } => Surface::Plane {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+        },
         Surface::Cylinder {
             frame: carrier_frame,
             radius,
-        } => {
-            let (origin, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Cylinder {
-                frame: geom::Frame::new(shift(origin), axis, u_ref),
-                radius,
-            }
-        }
+        } => Surface::Cylinder {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            radius,
+        },
         Surface::Cone {
             frame: carrier_frame,
             half_angle,
-        } => {
-            let (apex, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Cone {
-                frame: geom::Frame::new(shift(apex), axis, u_ref),
-                half_angle,
-            }
-        }
+        } => Surface::Cone {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            half_angle,
+        },
         Surface::Sphere {
             frame: carrier_frame,
             radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Sphere {
-                frame: geom::Frame::new(shift(center), axis, u_ref),
-                radius,
-            }
-        }
+        } => Surface::Sphere {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            radius,
+        },
         Surface::Torus {
             frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Torus {
-                frame: geom::Frame::new(shift(center), axis, u_ref),
-                major_radius,
-                minor_radius,
-            }
-        }
+        } => Surface::Torus {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            major_radius,
+            minor_radius,
+        },
         Surface::Spindle {
             frame: carrier_frame,
             major_radius,
             minor_radius,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Surface::Spindle {
-                frame: geom::Frame::new(shift(center), axis, u_ref),
-                major_radius,
-                minor_radius,
-            }
-        }
+        } => Surface::Spindle {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            major_radius,
+            minor_radius,
+        },
         _ => return None,
     })
 }
@@ -344,19 +302,12 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
             major_radius,
             minor_radius,
             offset,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            Curve3::Spiric {
-                frame: geom::Frame::new(shift(center), axis, u_ref),
-                major_radius,
-                minor_radius,
-                offset,
-            }
-        }
+        } => Curve3::Spiric {
+            frame: carrier_frame.with_origin(shift(carrier_frame.origin())),
+            major_radius,
+            minor_radius,
+            offset,
+        },
         Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_points(shift))),
         Curve3::Periodic(n) => Curve3::Periodic(std::sync::Arc::new(n.map_points(shift))),
     })
@@ -971,8 +922,8 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             let apex = Point3::new(iv(apex.x), iv(apex.y), iv(apex.z));
             let axis = geom_core::Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z));
             let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
-            // Lane evaluation at `T`, crossed in through its bracket.
-            let sin_a = iv(half_angle.sin());
+            let (sin_a, _) =
+                geom_brep::implicit::cone_sin_cos(*half_angle, Interval::from_certified);
             let face = cap_about(&loops, apex, apex - centre)?;
             return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
         }

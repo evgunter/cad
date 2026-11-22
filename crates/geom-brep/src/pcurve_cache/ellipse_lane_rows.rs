@@ -217,11 +217,10 @@ fn takes_the_general_lane(
 /// At ε 1e-12 the needle certifies at `f64` and its `Interval`
 /// certificate escalates `pcurve_envelope`, margin in `(1.0e-12,
 /// 1.05e-12]` (measured 1.023e-12 and 1.029e-12, on either nappe and
-/// span). It has both causes: a stored frame read as its polar enclosure
-/// (decision 1, #7131), and a frame built at Interval from bracket
-/// inputs, a rigid-motion claim (fork 274). Neither mutation alone
-/// certifies it; mutation A with F1 on the bracket path does, and turns
-/// this pin red. It certifies at ε 1e-9 and 1e-6.
+/// span). Its cause is a bracket one: a frame built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274). Mutant F1X alone
+/// turns this pin red (nappe −1 certifies), and mutant A alone does not;
+/// nappe 1 certifies only under both. It certifies at ε 1e-9 and 1e-6.
 #[test]
 fn an_in_band_cone_section_certifies_through_the_projected_lane() {
     let cone = cone(0.5);
@@ -815,11 +814,19 @@ fn the_search_as_rows() {
         else {
             continue;
         };
-        let nappe = image.projected().and_then(|p| p.chart().nappe());
+        let nappe = image.projected().and_then(|p| nappe_of(p.chart().locus()));
         println!(
             "{}",
             oracle_row(&surface, &carrier, nappe, (t0, t1), (envelope, hi))
         );
+    }
+}
+
+/// A cone chart's nappe, `None` on a chart read against its carrier.
+fn nappe_of(locus: crate::pcurve_cache::projected::Locus) -> Option<crate::offset::Nappe> {
+    match locus {
+        crate::pcurve_cache::projected::Locus::Nappe(nappe) => Some(nappe),
+        crate::pcurve_cache::projected::Locus::Carrier => None,
     }
 }
 
@@ -976,7 +983,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &carrier,
             &surface,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads: {e:?}"));
@@ -991,7 +998,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &ci,
             &si,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));
@@ -1000,7 +1007,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             oracle_row(
                 &surface,
                 &carrier,
-                p.chart().nappe(),
+                nappe_of(p.chart().locus()),
                 (t0, t1),
                 (t.total(), ti.total().hi())
             )
