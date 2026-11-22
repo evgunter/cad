@@ -8354,7 +8354,8 @@ pub(crate) fn tier3_local_checks_marked<
     // exempt there, as here); a spindle face as soon as its loops
     // flatten, since its apex must be shown clear whatever this arm
     // reads, and one whose loops do not flatten is kept in `unflattened`
-    // and refused there unshown.
+    // and refused there unshown, as a spline face with a collapsed side
+    // whose loops do not flatten is.
     let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     let mut unflattened: Vec<FaceKey> = Vec::new();
     for region in &regions {
@@ -8372,13 +8373,19 @@ pub(crate) fn tier3_local_checks_marked<
             // module docs) — recorded residual, out of this arm's
             // scope. A spline face with a collapsed side is kept for the
             // chart-singularity arm below, which reads its loops alone.
-            if !geom_brep::chart_singularity::singular_points(surface).is_empty()
-                && let Ok(full) = face
+            // One whose loops do not flatten is kept in `unflattened`, as
+            // a spindle face is, and its sides refused there unshown.
+            if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
+                match face
                     .loop_keys()
                     .map(|l| crate::props::loop_edges(body, l))
                     .collect::<Result<FlatLoops<T>, _>>()
-            {
-                flattened.insert(face_key, full);
+                {
+                    Ok(full) => {
+                        flattened.insert(face_key, full);
+                    }
+                    Err(_) => unflattened.push(face_key),
+                }
             }
             continue;
         }
@@ -8499,8 +8506,18 @@ pub(crate) fn tier3_local_checks_marked<
             return;
         };
         for (point, _) in singular_points(surface) {
-            if matches!(point, Singularity::SheetApexUp | Singularity::SheetApexDown) {
-                errors.push(ValidationError::SheetApexReached { face, point });
+            match point {
+                Singularity::SheetApexUp | Singularity::SheetApexDown => {
+                    errors.push(ValidationError::SheetApexReached { face, point });
+                }
+                // A spline face's side, unplaced: no side is read through
+                // a spline chart, and its loops gave nothing to place it on.
+                Singularity::Side(_) => errors.push(ValidationError::ChartSingularityUndecided {
+                    face,
+                    point,
+                    reading: geom_brep::chart_singularity::Undecided::SplineSide,
+                }),
+                Singularity::North | Singularity::South | Singularity::Apex => {}
             }
         }
     };

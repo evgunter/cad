@@ -333,9 +333,10 @@ pub enum SingularMiss {
     NoLever,
     /// The joint is on a spline net's collapsed side that runs along a
     /// channel the net closes (a NURBS cone's apex, a revolved cap's
-    /// pole), and its marks decide no integer: the turn about that point
-    /// and the face's side of it have no reading on a spline chart yet,
-    /// so the case refuses as unbuilt
+    /// pole), and its marks leave the gap undecided (a decided refusal
+    /// stays itself): the turn about that point and the face's side of it
+    /// have no reading on a spline chart yet, so the case refuses as
+    /// unbuilt
     /// (`work/charttail/a-closed-collapsed-side-has-no-turn-or-side-reading.md`).
     ClosedSide,
 }
@@ -1564,7 +1565,12 @@ pub(super) fn decide_joint<T: Decide>(
         return by(ordinary);
     }
     if (free[0] && u_period.is_some()) || (free[1] && periods.v.is_some()) {
-        return by(ordinary).map_err(|_| PinMiss::Singular(SingularMiss::ClosedSide));
+        // A decided refusal stays itself; only a reading the marks leave
+        // undecided is the side's unbuilt turn.
+        return by(ordinary).map_err(|miss| match miss {
+            PinMiss::Escalated(_) => PinMiss::Singular(SingularMiss::ClosedSide),
+            decided => decided,
+        });
     }
     by(AzimuthRule::OnCollapsedSides { free })
 }

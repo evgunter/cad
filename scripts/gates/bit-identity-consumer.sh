@@ -35,6 +35,13 @@
 #    stored point with itself as that point, so the knot algebra
 #    keeps a collapsed side one stored point (the same clause): it
 #    picks between two sound values of one blend, and decides nothing;
+#  - sweep skin.rs — one_stored_row: a skin's lane whose sections all
+#    hold one stored point (a loft's pinned corner) passes through as
+#    that point, so the wall's side is collapsed (the same clause). It
+#    reads which description the sections hold, and decides nothing.
+# The wrappers one_stored_point and one_stored_row are the channel
+# under another name, as same_enclosure is, so their callers are
+# scanned like any other use.
 # The tripwire stays ARMED: any NEW file using the channel fails
 # here — a new production consumer is a design regression against
 # the ratified retirement (add nothing without a DESIGN.md
@@ -59,6 +66,7 @@ NON_CONSUMER_HOMES=(
   crates/geom-brep/src/certify.rs
   crates/geom-brep/src/chart_singularity.rs
   crates/geom/src/surfaces/nurbs.rs
+  crates/sweep/src/skin.rs
 )
 
 gate() {
@@ -66,7 +74,7 @@ gate() {
   gate_require_homes "$NON_CONSUMER_SUBJECT" "${NON_CONSUMER_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | gate_grep -E 'bit_identity::|repr_bits|eq_bits|same_enclosure' \
+    | gate_grep -E 'bit_identity::|repr_bits|eq_bits|same_enclosure|one_stored_(row|point)' \
     | gate_grep -vE "$(gate_record_anchor_any "${NON_CONSUMER_HOMES[@]}")")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
@@ -118,6 +126,15 @@ plant_same_enclosure() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+# A caller of the stored-point wrappers: `one_stored_row` wraps
+# `bit_identity::one_stored_point` inside chart_singularity.rs's exempt
+# home, so a gate that matched only the inner names could not see it.
+plant_one_stored_row() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn same(r: &[P]) -> bool { geom_brep::chart_singularity::one_stored_row(r) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 # A use hidden behind a block comment on one line: the leading-`//`
 # filter read the whole line as code and the matcher fired on the prose
 # beside it. Both halves of that are wrong and this case pins the fix.
@@ -152,10 +169,11 @@ gate_selftest() {
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_same_enclosure
+  gate_selftest_case "$want" plant_one_stored_row
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments and a string literal naming the channel" plant_prose_only
   gate_selftest_homes --subject "$NON_CONSUMER_SUBJECT" "${NON_CONSUMER_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every non-consumer row, and prose/doc/string mentions of the channel; fires on a use, on a `same_enclosure` caller, on a use hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every non-consumer row, and prose/doc/string mentions of the channel; fires on a use, on a `same_enclosure` caller, on a `one_stored_row` caller, on a use hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

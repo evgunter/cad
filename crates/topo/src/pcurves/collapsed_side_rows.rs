@@ -204,11 +204,13 @@ fn a_joint_along_or_across_two_adjacent_collapsed_sides_is_the_identity() {
 }
 
 /// **A collapsed side along a channel the net closes**: at a NURBS cone's
-/// apex a joint whose chart gap the marks decide across the seam keeps
-/// that decision (a period over), and one whose gap no mark decides
-/// (half a period) refuses as unbuilt,
-/// [`super::SingularMiss::ClosedSide`]: the turn about the point and the
-/// face's side of it have no spline reading yet
+/// apex the marks' decision stands. A joint whose chart gap is a period
+/// across the seam is a period over; one whose gap is half a period is
+/// the marks' decided [`PinMiss::Discontinuity`], kept as itself; and one
+/// whose gap lies within the band of a period, which the marks leave
+/// undecided, refuses as unbuilt, [`super::SingularMiss::ClosedSide`]:
+/// the turn about the point and the face's side of it have no spline
+/// reading yet
 /// (`work/charttail/a-closed-collapsed-side-has-no-turn-or-side-reading.md`).
 #[test]
 fn a_collapsed_side_along_a_closed_channel_keeps_what_its_gap_decides() {
@@ -234,11 +236,17 @@ fn a_collapsed_side_along_a_closed_channel_keeps_what_its_gap_decides() {
     );
     let half = joint_at(&cone, (0.75, 0.0), (0.25, 0.0), apex);
     assert!(
+        matches!(half, Err(PinMiss::Discontinuity)),
+        "half a turn: the marks' decided refusal, read {:?}",
+        half.ok()
+    );
+    let in_band = joint_at(&cone, (1.0, 0.0), (1e-9, 0.0), apex);
+    assert!(
         matches!(
-            half,
+            in_band,
             Err(PinMiss::Singular(super::SingularMiss::ClosedSide))
         ),
-        "half a turn: unbuilt, read {:?}",
-        half.ok()
+        "a period off by the band: unbuilt, read {:?}",
+        in_band.ok()
     );
 }

@@ -1,7 +1,7 @@
 ---
 id: a-closed-collapsed-side-has-no-turn-or-side-reading
 kind: issue
-title: a spline net's collapsed side along a channel the net closes (a NURBS cone's apex) has no turn or side reading, so a joint its marks do not decide refuses ClosedSide
+title: a spline net's collapsed side along a channel the net closes (a NURBS cone's apex) has no turn or side reading, so a half turn refuses Discontinuity and a gap the marks leave undecided refuses ClosedSide
 status: open
 opened: 2026-11-22
 priority: P2
@@ -20,12 +20,12 @@ point is a turn about it, as at an analytic cone's apex. On a spline
 chart no reading states that turn, or the face's side of the point.
 
 `crates/topo/src/pcurves/decision.rs` `decide_joint` keeps the chart-gap
-decision wherever the marks decide it. Across the seam, the
-`spline_cone()` apex joint (1, 0) → (0, 0) reads a period over, as on
-main. A joint whose gap no mark decides, such as half a turn
-(0.75, 0) → (0.25, 0), refuses `SingularMiss::ClosedSide`. On main it
-read `Discontinuity`, a decided refusal of a face corner that may be
-legal. Pinned by
+decision of the marks there, as main does. Across the seam, the
+`spline_cone()` apex joint (1, 0) → (0, 0) reads a period over. Half a
+turn, (0.75, 0) → (0.25, 0), reads `Discontinuity`: a decided refusal of
+a face corner that may be legal, since the point is a turn, not a cut.
+A gap within the band of a period, (1, 0) → (1e-9, 0), which the marks
+leave undecided, refuses `SingularMiss::ClosedSide`. Pinned by
 `pcurves/collapsed_side_rows.rs`
 `a_collapsed_side_along_a_closed_channel_keeps_what_its_gap_decides`.
 
