@@ -448,3 +448,61 @@ fn an_edge_along_a_side_one_ulp_wide_refuses_at_the_attach_gate() {
     );
     assert!(out.is_err(), "an edge one ulp long is refused, got {out:?}");
 }
+
+/// **Tier 3 reads a spline face's collapsed side as it reads a pole**: a
+/// side's point in the face's closure is a vertex of it. The wedge's
+/// wall 0, a triangle collapsed at corner 0, has its collapsed column
+/// moved to the midpoint of its bottom rim, inside that edge: tier 3
+/// refuses the face `ChartSingularityNotAVertex` inside the rim, where
+/// the wedge as built passes.
+#[test]
+fn a_collapsed_side_inside_an_edge_is_refused_at_rest() {
+    use topo::construction::{Construct, FaceSurface};
+    let tol = Tol::witness();
+    let ms = [Affine3::identity(), hinge(0.5)];
+    let mut lofted = sweep::test_support::loft_body_construction::<f64>(
+        &vec![square(); 2],
+        &places(&ms, tol),
+        1,
+        tol,
+    )
+    .unwrap();
+    assert_eq!(
+        topo::validate_geometric(&lofted.body, tol),
+        Ok(()),
+        "the wedge as built"
+    );
+    let wall = lofted.side_faces[0][0][0].unwrap();
+    let surface = lofted
+        .body
+        .get_surface(lofted.body.get_face(wall).unwrap().surface);
+    let Some(geom::Surface::Nurbs(net)) = surface.cloned() else {
+        panic!("wall 0 is a spline wall")
+    };
+    let (_, nv) = net.control_counts();
+    let (p0, a) = (net.control()[0], net.control()[nv]);
+    let mid = p0 + (a - p0) * 0.5;
+    let moved = net.map_points_indexed(|i, p| if i < nv { mid } else { p });
+    lofted
+        .body
+        .set_face_surface_unvouched_for_tests(
+            wall,
+            FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(moved)),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let findings = topo::validate_geometric(&lofted.body, tol).unwrap_err();
+    assert!(
+        findings.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::ChartSingularityNotAVertex {
+                face,
+                point: Singularity::Side(_),
+                lies: topo::SingularityLies::InsideEdge { .. },
+            } if *face == wall
+        )),
+        "the side's point inside the rim is refused, read {findings:?}"
+    );
+}

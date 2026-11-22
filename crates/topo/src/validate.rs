@@ -5030,6 +5030,12 @@ impl ValidationError {
                          be read: the reading lies within its own error bound{}",
                         ended(ending)
                     ),
+                    Undecided::SplineSide => write!(
+                        f,
+                        "whether {what} lies in a face on that surface cannot be read: it is off \
+                         the face's boundary, and no side is read through a spline chart yet{}",
+                        ended(ending)
+                    ),
                 }
             }
             Self::NegativeVolume { .. } => write!(
@@ -8342,7 +8348,8 @@ pub(crate) fn tier3_local_checks_marked<
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere, cone and spindle face's loops as this arm flattens
-    // them, kept for the chart-singularity arm below. A sphere or cone
+    // them, and each spline face's with a collapsed side, kept for the
+    // chart-singularity arm below. A sphere or cone
     // face is kept once its side is read (a face whose images refuse is
     // exempt there, as here); a spindle face as soon as its loops
     // flatten, since its apex must be shown clear whatever this arm
@@ -8363,7 +8370,16 @@ pub(crate) fn tier3_local_checks_marked<
             // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
-            // scope.
+            // scope. A spline face with a collapsed side is kept for the
+            // chart-singularity arm below, which reads its loops alone.
+            if !geom_brep::chart_singularity::singular_points(surface).is_empty()
+                && let Ok(full) = face
+                    .loop_keys()
+                    .map(|l| crate::props::loop_edges(body, l))
+                    .collect::<Result<FlatLoops<T>, _>>()
+            {
+                flattened.insert(face_key, full);
+            }
             continue;
         }
         // Every loop's chart image: a cylinder face reads its side off
@@ -8607,6 +8623,21 @@ pub(crate) fn tier3_local_checks_marked<
                                 errors.push(ValidationError::SheetApexReached { face, point });
                             }
                         }
+                    }
+                    // A spline net's collapsed side the face's door does
+                    // not place: no reading through a spline chart states
+                    // its side yet.
+                    Ok(None)
+                        if matches!(
+                            point,
+                            geom_brep::chart_singularity::Singularity::Side(_)
+                        ) =>
+                    {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading: Undecided::SplineSide,
+                        });
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same

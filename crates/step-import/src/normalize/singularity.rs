@@ -265,7 +265,7 @@ impl Read {
                 file: self.coincidence(),
             },
             Unread::Carrier { .. } => foreign_carrier(id),
-            Unread::Loop { .. } => unreadable(id),
+            Unread::Loop { .. } | Unread::SplineSide => unreadable(id),
         }
     }
 }

@@ -116,6 +116,12 @@ pub const LOOP_SIDE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// The one ending of [`Undecided::SplineSide`]: the kernel reads no
+/// side of a face through a spline chart, so the point must be placed on
+/// the boundary.
+pub const SPLINE_SIDE_RECOURSE: &str = "Recourse: make the collapsed side's point a vertex of \
+    the face, or trim the face clear of it";
+
 /// Which singular point of its chart a point is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Singularity {
@@ -357,6 +363,10 @@ pub enum Unread<T> {
         /// The loop.
         r#loop: usize,
     },
+    /// A spline net's collapsed side off the face's boundary: no loop's
+    /// side is read through a spline chart yet, so where the point lies
+    /// is not read. A limit.
+    SplineSide,
 }
 
 impl<T> Unread<T> {
@@ -377,7 +387,8 @@ impl<T> Unread<T> {
                 why: SideUnread::Straddle,
                 ..
             }
-            | Self::Loop { .. } => Refusal::Limit,
+            | Self::Loop { .. }
+            | Self::SplineSide => Refusal::Limit,
             Self::Carrier { .. } => Refusal::Unsettled,
         }
     }
@@ -400,6 +411,9 @@ pub enum Undecided {
     Boundary(Indeterminate),
     /// The side of one of its loops is undecided ([`LOOP_SIDE`]).
     Side(SideUnread),
+    /// A spline net's collapsed side off the face's boundary, whose side
+    /// no reading through a spline chart states yet ([`Unread::SplineSide`]).
+    SplineSide,
 }
 
 impl Undecided {
@@ -409,6 +423,7 @@ impl Undecided {
         match why {
             Unread::Boundary { cause, .. } => Some(Self::Boundary(*cause)),
             Unread::Side { why, .. } => Some(Self::Side(*why)),
+            Unread::SplineSide => Some(Self::SplineSide),
             Unread::Carrier { .. } | Unread::Loop { .. } => None,
         }
     }
@@ -419,7 +434,7 @@ impl Undecided {
     pub fn cause(&self) -> Option<&Indeterminate> {
         match self {
             Self::Boundary(cause) | Self::Side(SideUnread::Banded(cause)) => Some(cause),
-            Self::Side(SideUnread::Straddle) => None,
+            Self::Side(SideUnread::Straddle) | Self::SplineSide => None,
         }
     }
 
@@ -435,6 +450,10 @@ impl Undecided {
                 LOOP_SIDE.recourse(RefusedArm::Undecided(cause), at)
             }
             Self::Side(SideUnread::Straddle) => LOOP_SIDE.recourse(RefusedArm::Straddle, at),
+            Self::SplineSide => {
+                let _: ReadAt = at.into();
+                SPLINE_SIDE_RECOURSE.to_owned()
+            }
         }
     }
 }
@@ -516,15 +535,14 @@ pub fn locate<T: Decide>(
         return Vec::new();
     }
     let Ok(chart) = ChartInverse::of(surface) else {
-        // A spline net's collapsed side: no loop side is read through a
-        // spline chart, so one off the boundary is unread.
+        // A spline net's collapsed side: one off the boundary is unread.
         return points
             .iter()
             .map(|&(singularity, x)| Located {
                 singularity,
                 point: x,
                 lies: place_on_boundary(loops, x, band)
-                    .and_then(|on| on.ok_or(Unread::Loop { r#loop: 0 })),
+                    .and_then(|on| on.ok_or(Unread::SplineSide)),
             })
             .collect();
     };
@@ -1549,9 +1567,7 @@ pub fn holds<T: Decide>(
         return Ok(false);
     };
     let Ok(chart) = ChartInverse::of(surface) else {
-        // A spline net's collapsed side: no loop side is read through a
-        // spline chart.
-        return Err(Unread::Loop { r#loop: 0 });
+        return Err(Unread::SplineSide);
     };
     Sides::new(surface, &chart, &points, loops, band).holds(singularity, x, sense)
 }
