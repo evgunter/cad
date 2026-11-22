@@ -286,7 +286,7 @@ of them is a defect.
 | The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
-| A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
+| A refusal's recourse | one per decision, written in the decision's levers; a failure carries as data what its recourse determines (the value or the cells, and the edit where its layer can name one), and its words are rendered from that | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
@@ -1230,6 +1230,13 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    document's variables — are `unproven-coincidence` findings ([coincidence]),
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
+
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face of one shell that cites it; two
+entities are two records unless healing's reported one-record act joins
+them (step 3); each face is certified against its record; and the writer
+emits one surface entity per surface record. No comparison of printed
+values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
