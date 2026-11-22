@@ -2,10 +2,13 @@
 id: a-fifth-spelling-of-this-seat-is-empty
 kind: issue
 title: A fifth spelling of 'this seat is empty', in a file whose own doc says the sentence is composed centrally
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7374
+branch: formwords/seat-vocab
+closed: 2026-11-22
 ---
 
 
@@ -60,3 +63,7 @@ apart because their subjects are.
 are built on it — *"two implementations of one underlying logic"*. Each
 new form adds a spelling, and AUTH-1 adding one while closing a
 different instance of the same class is the demonstration.
+
+## Closed (2026-11-22)
+
+PR 7374: `seats::SeatError` is the one home of "what a commit is waiting for". `tool_commit_row` takes the formed work and derives the withheld reason through `CommitFault::withholds`, and the reason is drawn in plain view. Stragglers that gate their own controls are filed as `work/chrome/disabled-reasons-still-pass-as-strings-through-gated-button.md`.

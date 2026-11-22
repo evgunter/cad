@@ -914,13 +914,15 @@ tiers".
   with, K·ε ([tolerance.recourse]). Pieces of a solid's boundary that
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
-  itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. That
-  reading is the edge's wedge as tier 3 reads it, one reading for
-  both: an angle metered at the reach of the faces it governs
+  itself, the question reads from the verdict what tier 3 decided
+  there (an edge's class and turn, an end, a pole or apex vertex) and
+  decides none of it. Over each cell it reads the rate at which the
+  two faces part, the faces' rates summed, levered at how far the
+  narrower of them runs from what they share, measured across it
   ([tolerance.epsilon]), never at a cell of the question's own
-  subdivision. A cell holds none of a face only where it lies off
-  the face. A
+  subdivision, and that passes by more than the band. Where tier 3
+  holds no fact, that reading is the only one. A cell holds none of a
+  face only where it lies off the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1949,10 +1951,10 @@ crossings lie in band of each other, a pair, and a ray that meets a
 corner or a wedge reads nothing. The volume's sign is certified by its
 enclosure alone, never held against the band, so how thin a result is
 gets judged by its pairs alone. The door's
-finished-body gate decides this on the result alone and refuses it as
-the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
-the geometry), never silently; a definite finding there is a kernel
-defect (`ResultInvalid`).
+finished-body gate decides this on the result alone and refuses it,
+never silently, with the list of what it found (`ResultInvalid`): each
+finding carries its own family's text and recourse
+([topology.tiers]).
 
 ### Assertions `[assertions]`
 
