@@ -10935,6 +10935,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
             measure_secs.as_secs_f64(),
         );
         crate::gate_measure::log(body, &side.faces, &measure_report, measure_secs);
+        crate::gate_measure::cross(body, &measure_report);
         crate::gate_measure::decompose(
             body,
             &side.faces,

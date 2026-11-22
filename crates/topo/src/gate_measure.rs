@@ -781,3 +781,63 @@ pub fn continue_cost<T: geom_core::Decide + geom_core::CertifiedBounds>(
         r.receipt.violated
     ));
 }
+
+/// Measuring only: where a `Crosses` verdict's two stations lie.
+pub fn cross<T: geom_core::Bounds + geom_core::spline::SpanLocate>(body: &Body<T>, r: &EmbeddingReport) {
+    let Ok(dir) = std::env::var("CAD_GATE_LOG") else {
+        return;
+    };
+    let Embedding::Crosses(c) = &r.verdict else {
+        return;
+    };
+    let m = |x: T| 0.5 * (x.lo() + x.hi());
+    let p3 = |p: &geom_core::Point3<T>| [m(p.x), m(p.y), m(p.z)];
+    let face_vs = |f: FaceKey| -> std::collections::BTreeSet<crate::VertexKey> {
+        body.half_edges()
+            .filter(|(_, h)| body.get_loop(h.parent_loop).is_some_and(|l| l.face == f))
+            .map(|(_, h)| h.start)
+            .collect()
+    };
+    let (fa, fb) = c.faces;
+    let (va, vb) = (face_vs(fa), face_vs(fb));
+    let shared: Vec<_> = va.intersection(&vb).collect();
+    let mut out = format!(
+        "CROSS\t{}\t{fa:?}/{fb:?}\tdist {:e}\tshared_vertices {:?}",
+        test_name(),
+        c.distance,
+        shared
+    );
+    for (f, (u, v), own) in [(fa, c.stations[0], &va), (fb, c.stations[1], &vb)] {
+        let Some(s) = body.face_surface(f) else { continue };
+        let p = p3(&s.eval(T::from_f64(u), T::from_f64(v)));
+        let mut near: Vec<(f64, crate::VertexKey, [f64; 3])> = body
+            .vertices()
+            .filter_map(|(k, vx)| {
+                let q = p3(body.get_point(vx.point)?);
+                let d = ((q[0] - p[0]).powi(2) + (q[1] - p[1]).powi(2) + (q[2] - p[2]).powi(2)).sqrt();
+                Some((d, k, q))
+            })
+            .collect();
+        near.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let n: Vec<String> = near
+            .iter()
+            .take(3)
+            .map(|(d, k, _)| format!("{k:?}@{d:.2e}{}", if own.contains(k) { "(own)" } else { "" }))
+            .collect();
+        out += &format!(
+            "\t{f:?} {:?} uv=({u:.6},{v:.6}) p=({:.6},{:.6},{:.6}) nearest={n:?}",
+            s.kind(),
+            p[0],
+            p[1],
+            p[2]
+        );
+    }
+    out.push('\n');
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{dir}/{}.log", std::process::id()))
+    {
+        let _ = f.write_all(out.as_bytes());
+    }
+}
