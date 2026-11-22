@@ -228,15 +228,6 @@ pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "move the profile near
      where the scene resolves this size, an arc the path built should not miss by it, so report \
      it as a possible kernel defect";
 
-/// The lever at a junction whose turn is undecided, and at one that is
-/// definitely tangent ([`crate::PathError::JunctionTangent`]):
-/// declare the tangency, or spell the continuation, or move the
-/// geometry.
-pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
-     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
-     move the geometry";
-
 use crate::seg::{
     self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
 };
