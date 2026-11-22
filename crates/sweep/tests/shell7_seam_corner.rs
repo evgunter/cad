@@ -849,6 +849,7 @@ fn a_three_quarter_turn_cone_frustum_hollows() {
     let side = topo::clearance::Side {
         body: &hollow,
         faces: hollow.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
     };
     if let Err(e) = side.windows(topo::clearance::Which::First) {
         panic!("the three-quarter frustum: every face has a window, got {e:?}");
