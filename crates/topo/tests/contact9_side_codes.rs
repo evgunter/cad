@@ -341,6 +341,57 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     );
 }
 
+/// What the embedding question reads on the `∩` of
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]:
+/// a sliver 10 m long and 1 mm wide whose top (a piece of the block's
+/// `z = 0`) and bottom (the wedge's tilted face) share its 1 mm tip
+/// edge and part at 5e-8 rad, so they are within ε of each other for
+/// about 20 mm from it and 500ε apart at the far end.
+///
+/// **Pinned at its refusal**: the ask runs out of its pairs, on faces
+/// 1 mm wide that no presentation reads at this depth (EMBED's
+/// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`).
+/// No departure is read across the tip edge, so the margin is not what
+/// refuses. Once those faces are presented the departure there is the
+/// faces' 5e-8 rad levered at their reach from the edge, about 10 m:
+/// 500ε, outside the band, where a cell 20 mm across read at its own
+/// reach would be inside it. Red the day the ask answers.
+#[test]
+fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
+    let tol = Tol::witness();
+    let dip = DIP * tol.eps();
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    let e = [[10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+    let meet = body_of(intersect(&block, &wedge, tol), "tilted wedge: ∩");
+    let side = topo::clearance::Side {
+        body: &meet,
+        faces: meet.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
+    };
+    let report = topo::clearance::embedded(
+        &side,
+        Band::linear(tol).unwrap(),
+        topo::clearance::Budgets {
+            max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
+    );
+    assert!(
+        matches!(
+            report.verdict,
+            topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget(_))
+        ),
+        "the sector's sliver runs out of its budget: {report:?}"
+    );
+}
+
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a
 /// block's top (20 m square), its bottom tilted so the far end stands
 /// `5·K·ε` below: `0.5·Kε` at a one-metre arm, in band there, and

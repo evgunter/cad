@@ -140,6 +140,9 @@ const UNTITLED: &str = "untitled";
 /// apart from every other commit on screen.
 const NEW_DOCUMENT_COMMIT: &str = "Create document";
 
+/// The controls guide's toolbar button and its window's title.
+const CONTROLS: &str = "Controls";
+
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
 /// display settings.
@@ -479,6 +482,9 @@ pub struct ViewerApp {
     /// should still be open when the edit made to answer it lands, so
     /// the reader can see whether the finding went away.
     checks_shown: bool,
+    /// Whether the controls guide window is open. Chrome state, as
+    /// [`Self::checks_shown`] is.
+    controls_shown: bool,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
@@ -994,6 +1000,7 @@ impl ViewerApp {
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
             checks_shown: false,
+            controls_shown: false,
             camera,
             input,
             theme,
@@ -1864,6 +1871,37 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
+    /// The controls guide: every gesture the viewport honours and
+    /// what it does.
+    ///
+    /// **The rows are [`InputMap::bindings`]** — the table
+    /// [`InputMap::map`] and [`InputMap::pick`] read, of the map this
+    /// session resolved from its preferences — so the window lists
+    /// what the viewport in front of the reader does, and nothing
+    /// here words a binding.
+    fn controls_window(&mut self, ctx: &egui::Context) {
+        if !self.controls_shown {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(CONTROLS)
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("viewer_controls_guide")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for binding in self.input.bindings {
+                            ui.label(binding.gesture());
+                            ui.label(binding.action());
+                            ui.end_row();
+                        }
+                    });
+            });
+        self.controls_shown = open;
+    }
+
     /// The toolbar row: the document's controls, and the two gesture
     /// cancel doors while their gestures are in flight.
     ///
@@ -2072,6 +2110,13 @@ impl ViewerApp {
                 // for a fit rather than performing one; the
                 // viewport takes it at the real aspect.
                 self.pending_fit = true;
+            }
+            if ui
+                .button(CONTROLS)
+                .on_hover_text("what each pointer gesture does in the viewport")
+                .clicked()
+            {
+                self.controls_shown = !self.controls_shown;
             }
             // The indicator is a READ of session state, and the
             // buttons beside it are the shipped token and its pair.
@@ -2467,6 +2512,7 @@ impl eframe::App for ViewerApp {
             });
         ops.append(&mut toolbar_ops);
         self.checks_window(ui.ctx(), &mut ops);
+        self.controls_window(ui.ctx());
         if notation != self.session.notation() {
             self.session.set_notation(notation);
             self.remember_prefs();
@@ -4394,7 +4440,7 @@ mod properties_pane_tests {
             | ToolKind::Part
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
-            ToolKind::Clearance => REQUIREMENTS,
+            ToolKind::Assertion => REQUIREMENTS,
         }
     }
 
@@ -6958,6 +7004,33 @@ mod properties_pane_tests {
         assert_eq!(said, 1, "the reason is said once: {painted:?}");
     }
 
+    /// **A non-finite draft in the add-variable form stays a field to
+    /// type over**, with no dimension picked and with a bare scalar:
+    /// the draft is the same non-number in every notation, so no
+    /// notation's no-reading marker stands where the field was.
+    #[test]
+    fn a_non_finite_add_variable_draft_stays_a_field() {
+        use crate::pane::properties::NEW_VARIABLE;
+        use pncad::document::Dimension;
+        use pncad::quantity::{M, ONE};
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_value = f64::INFINITY;
+        for (dimension, unit) in [(None, M.def()), (Some(Dimension::Scalar), ONE.def())] {
+            driven.app.drafts.new_variable_dimension = dimension;
+            let painted = driven.quiet();
+            let marker = crate::props::no_reading(unit);
+            assert!(
+                !painted.iter().any(|(run, _)| run.contains(&marker)),
+                "{dimension:?}: no {marker:?} where the field is: {painted:?}"
+            );
+            assert!(
+                painted.iter().any(|(run, _)| run.contains("inf")),
+                "{dimension:?}: the field shows the draft: {painted:?}"
+            );
+        }
+    }
+
     /// **The add-variable form's commit is live exactly when a click
     /// declares**: a `Count` over a field holding `NaN` is refused by
     /// `SlotValue::of`, so the commit is disabled and the refusal is
@@ -7471,6 +7544,93 @@ mod properties_pane_tests {
             driven.app.session.product_fault().is_none(),
             "{:?}",
             driven.app.session.product_fault()
+        );
+    }
+
+    /// **The Controls button opens a guide whose rows are exactly the
+    /// bindings of the session's input map, and closes it again.** The
+    /// map installed is one no preset registers, so a window that
+    /// worded its own bindings would not show them; and everything
+    /// the opened window paints is accounted for, so a row written
+    /// beside the table is red too.
+    #[test]
+    fn the_controls_button_shows_exactly_the_bindings_of_the_sessions_input_map() {
+        use crate::app::CONTROLS;
+        use crate::input::{Binding, Held, InputMap, Navigation, PointerButton};
+        let mut driven = Driven::with(Vec::new());
+        driven.app.input = InputMap {
+            bindings: &[
+                Binding::Drag {
+                    button: PointerButton::Secondary,
+                    held: Held {
+                        shift: true,
+                        alt: true,
+                    },
+                    moves: Navigation::Orbit,
+                },
+                Binding::Drag {
+                    button: PointerButton::Primary,
+                    held: Held::NONE,
+                    moves: Navigation::Pan,
+                },
+                Binding::Pinch,
+                Binding::Click {
+                    button: PointerButton::Middle,
+                },
+            ],
+            ..InputMap::DEFAULT
+        };
+        // The window's title, then each row's gesture and its action.
+        let guide: Vec<String> = std::iter::once(CONTROLS.to_owned())
+            .chain(
+                driven
+                    .app
+                    .input
+                    .bindings
+                    .iter()
+                    .flat_map(|binding| [binding.gesture(), binding.action().to_owned()]),
+            )
+            .collect();
+        let before = driven.quiet();
+        // What a frame paints that the closed app did not, in reading
+        // order: down the lines, and along each.
+        let added = |painted: &[(String, egui::Rect)]| -> Vec<String> {
+            let mut new: Vec<&(String, egui::Rect)> =
+                painted.iter().filter(|run| !before.contains(run)).collect();
+            new.sort_by(|(_, a), (_, b)| {
+                a.center()
+                    .y
+                    .total_cmp(&b.center().y)
+                    .then(a.left().total_cmp(&b.left()))
+            });
+            new.into_iter().map(|(run, _)| run.clone()).collect()
+        };
+        driven.click(CONTROLS);
+        let open = driven.quiet();
+        assert_eq!(added(&open), guide, "the opened window, whole: {open:?}");
+        // The button and the window's title both read `Controls`;
+        // the button was there first.
+        let button = before
+            .iter()
+            .find(|(run, _)| run == CONTROLS)
+            .expect("the button")
+            .1;
+        driven.frame(vec![egui::Event::PointerMoved(button.center())]);
+        driven.frame(
+            [true, false]
+                .map(|pressed| egui::Event::PointerButton {
+                    pos: button.center(),
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .to_vec(),
+        );
+        let closed = driven.quiet();
+        assert_eq!(
+            added(&closed),
+            Vec::<String>::new(),
+            "the button closes it: {closed:?}"
         );
     }
 
@@ -10443,6 +10603,25 @@ mod properties_pane_tests {
                 Err(SketchTraceFault::Unevaluated)
             ));
         }
+
+        /// **The trace's crossing field steps by one by key and by drag.**
+        #[test]
+        fn the_trace_crossing_steps_by_one_by_key_and_by_drag() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            let nth = |pane: &Driven| pane.app.drafts.trace_gesture.crossing.nth;
+            assert_eq!(nth(&pane), 1, "the premise");
+            let at = super::count_drive::beside(&mut pane, "to crossing");
+            super::count_drive::bump(&mut pane, at);
+            assert_eq!(nth(&pane), 2, "one key is the next crossing");
+            pane.app.drafts.trace_gesture.crossing.nth = 1;
+            pane.quiet();
+            // Ten points: a tick of one runs into the cap of four, a
+            // tenth-of-one tick moves it by one at most.
+            super::count_drive::drag(&mut pane, at, 10);
+            assert_eq!(nth(&pane), 4, "a ten-point drag reaches the last crossing");
+        }
     }
 
     /// **Edits held over a profile whose arguments a variable drives**:
@@ -12341,6 +12520,139 @@ mod properties_pane_tests {
             assert_eq!(members(&driven, row), 4, "the family follows");
         }
 
+        /// **Every tool's commit waits on its picks, and names the one it
+        /// waits for** in the seats' vocabulary (`SeatError`): each
+        /// seated tool and the blend tool, opened with nothing picked,
+        /// draws its commit withheld with the empty pick under it and on
+        /// its hover, and a click inserts nothing. The profile-on-a-face form's, closed
+        /// over its latch, says its face.
+        ///
+        /// Red if a tool's commit is live with a seat empty, or says why
+        /// in words of its own.
+        #[test]
+        fn every_tool_commit_waiting_on_a_pick_is_withheld_and_names_the_pick() {
+            use crate::pane::create::{BLEND_EDGES, COMBINE_BODIES, REQUIREMENTS};
+            use crate::tools::ToolKind;
+            for (kind, section, waiting) in [
+                (ToolKind::Boolean, COMBINE_BODIES, "no member picked yet"),
+                (
+                    ToolKind::Split,
+                    COMBINE_BODIES,
+                    "no split target picked yet",
+                ),
+                (
+                    ToolKind::Mirror,
+                    COMBINE_BODIES,
+                    "no mirrored body picked yet",
+                ),
+                (
+                    ToolKind::Pattern,
+                    COMBINE_BODIES,
+                    "no patterned body picked yet",
+                ),
+                (
+                    ToolKind::Part,
+                    COMBINE_BODIES,
+                    "no pattern to project picked yet",
+                ),
+                (ToolKind::Blend, BLEND_EDGES, "no edges to blend picked yet"),
+                (
+                    ToolKind::Assertion,
+                    REQUIREMENTS,
+                    "no first seat picked yet",
+                ),
+            ] {
+                let mut driven = Driven::with(Vec::new());
+                driven.settle();
+                driven.app.tools.open(kind);
+                driven.click(section);
+                let commit = kind.commit();
+                withheld_says(&mut driven, &commit, waiting, &format!("{kind:?}"));
+                let before = driven.app.session.committed_doc().ids().len();
+                driven.click(&commit);
+                driven.settle();
+                assert_eq!(
+                    driven.app.session.committed_doc().ids().len(),
+                    before,
+                    "{kind:?}: a withheld click inserts nothing"
+                );
+            }
+
+            let mut driven = Driven::with_seams(Vec::new(), |app| app.drafts.on_face_open = true);
+            driven.settle();
+            driven.click(crate::pane::create::ADD_FEATURE);
+            withheld_says(
+                &mut driven,
+                crate::pane::create::NEW_PROFILE_ON_FACE,
+                "no face to draw on picked yet",
+                "profile on a face",
+            );
+        }
+
+        /// **A withheld commit says why in plain view and on its hover**:
+        /// `waiting` painted once with the pointer away, and once more
+        /// with it on `commit`.
+        fn withheld_says(driven: &mut Driven, commit: &str, waiting: &str, form: &str) {
+            let says = |painted: &[(String, egui::Rect)]| {
+                painted.iter().filter(|(run, _)| run == waiting).count()
+            };
+            let quiet = driven.quiet();
+            assert_eq!(
+                says(&quiet),
+                1,
+                "{form}: {waiting:?} said under the commit: {quiet:?}"
+            );
+            let at = Driven::only(&quiet, commit);
+            let hovered = driven.hovered(at);
+            assert_eq!(
+                says(&hovered),
+                2,
+                "{form}: and on the commit's hover: {hovered:?}"
+            );
+        }
+
+        /// **A two-pick tool holding its first pick still waits on its
+        /// second, and names it**: the mirror holding a body and the
+        /// clearance holding its first seat each draw the commit withheld,
+        /// its hover the pick still open, and a click inserts nothing.
+        ///
+        /// Red if a tool's gate reads fewer picks than its op does — a gate
+        /// derived beside the op rather than read off it, which the
+        /// all-empty row above cannot tell from the op's own fault.
+        #[test]
+        fn a_two_pick_tool_with_one_pick_held_waits_on_the_other() {
+            use crate::pane::create::{COMBINE_BODIES, REQUIREMENTS};
+            use crate::tools::ToolKind;
+            for (kind, section, waiting) in [
+                (
+                    ToolKind::Mirror,
+                    COMBINE_BODIES,
+                    "no mirror plane picked yet: pick a face",
+                ),
+                (
+                    ToolKind::Assertion,
+                    REQUIREMENTS,
+                    "no second seat picked yet",
+                ),
+            ] {
+                let mut driven = Driven::with(Vec::new());
+                driven.settle();
+                driven.app.tools.open(kind);
+                driven.click_through(vec![Selection::Node(placement())]);
+                driven.click(section);
+                let commit = kind.commit();
+                withheld_says(&mut driven, &commit, waiting, &format!("{kind:?}"));
+                let before = driven.app.session.committed_doc().ids().len();
+                driven.click(&commit);
+                driven.settle();
+                assert_eq!(
+                    driven.app.session.committed_doc().ids().len(),
+                    before,
+                    "{kind:?}: a withheld click inserts nothing"
+                );
+            }
+        }
+
         /// **The split's button waits for its plane, and names it**: with
         /// a target (the plate's copy) and no plane the commit is withheld, its hover the
         /// missing pick, and a click inserts nothing. Picking the plate's
@@ -12358,10 +12670,11 @@ mod properties_pane_tests {
             driven.click_through(vec![Selection::Node(placement())]);
             driven.click(crate::pane::create::COMBINE_BODIES);
             let commit = ToolKind::Split.commit();
-            let gained = driven.gained_hovering(&commit);
-            assert!(
-                gained.iter().any(|run| run == "no split plane picked yet"),
-                "the withheld button names the missing pick: {gained:?}"
+            withheld_says(
+                &mut driven,
+                &commit,
+                "no split plane picked yet: pick a face",
+                "split",
             );
             let splits = |driven: &Driven| -> Vec<RecipeNodeId> {
                 let doc = driven.app.session.committed_doc();
@@ -12397,6 +12710,67 @@ mod properties_pane_tests {
                 driven.app.session.selection(),
                 &Selection::Node(split),
                 "the split is selected"
+            );
+        }
+
+        /// **The mirror's button waits for its plane, and names it**, as
+        /// the split's does: with a body (the plate's copy) and no plane
+        /// the commit is withheld, its hover the missing pick, and a
+        /// click inserts nothing. Picking the plate's cap as the plane
+        /// lets it commit, and the insert selects the mirror.
+        ///
+        /// Red if the mirror's button commits without a plane, does not
+        /// say what is missing, or the insert leaves the selection off
+        /// the mirror.
+        #[test]
+        fn the_mirror_button_waits_for_its_plane_and_the_insert_selects_the_mirror() {
+            use crate::tools::ToolKind;
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            driven.app.tools.open(ToolKind::Mirror);
+            driven.click_through(vec![Selection::Node(placement())]);
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            let commit = ToolKind::Mirror.commit();
+            withheld_says(
+                &mut driven,
+                &commit,
+                "no mirror plane picked yet: pick a face",
+                "mirror",
+            );
+            let mirrors = |driven: &Driven| -> Vec<RecipeNodeId> {
+                let doc = driven.app.session.committed_doc();
+                doc.ids()
+                    .iter()
+                    .copied()
+                    .filter(|&id| matches!(doc.node(id), Some(Node::Mirror { .. })))
+                    .collect()
+            };
+            driven.click(&commit);
+            driven.settle();
+            assert!(
+                mirrors(&driven).is_empty(),
+                "a withheld click inserts nothing"
+            );
+
+            let cap = crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: extrude(),
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                },
+                node: placement(),
+                body: 0,
+            };
+            driven.click_through(vec![Selection::Face(cap)]);
+            driven.click(&commit);
+            driven.settle();
+            let [mirror] = mirrors(&driven)[..] else {
+                panic!("the commit inserts one mirror: {:?}", mirrors(&driven))
+            };
+            assert_eq!(
+                driven.app.session.selection(),
+                &Selection::Node(mirror),
+                "the mirror is selected"
             );
         }
 
@@ -12677,6 +13051,201 @@ mod properties_pane_tests {
                 &Selection::Node(image),
                 "the mirror is selected"
             );
+        }
+
+        /// **The pattern's count field steps by one under a pointer
+        /// drag, and an arrow key leaves it alone** (`index_count_ui`,
+        /// through `FieldWriting::of(Count, ..)`). The keyboard half is
+        /// `value_field_ops`'s fixed-text rule — a defined variable's
+        /// field shows its formula, and ArrowUp/ArrowDown there are put
+        /// back rather than stepped — so it is pinned here as what the
+        /// field does, not as a tick.
+        #[test]
+        fn the_index_count_field_steps_by_one_under_a_drag() {
+            let mut driven = Driven::with(vec![SessionOp::AddPattern {
+                input: extrude().into(),
+                count: 3,
+                rule: crate::session::PatternRuleSpec::Linear {
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
+                    spacing: crate::test_support::len(0.2),
+                },
+            }]);
+            driven.settle();
+            let (index, row) = pattern(&driven);
+            driven.select(Selection::Variable(index));
+            let count = |driven: &Driven| {
+                crate::props::index_count_row(driven.app.session.committed_doc(), index)
+                    .expect("an index")
+                    .formula
+            };
+            let label = driven
+                .quiet()
+                .into_iter()
+                .find(|(run, _)| run.starts_with("count of "))
+                .map(|(run, _)| run)
+                .expect("a count row");
+            let at = super::count_drive::beside(&mut driven, &label);
+            super::count_drive::bump(&mut driven, at);
+            assert_eq!(
+                count(&driven),
+                "3",
+                "an arrow key does not step a formula's field"
+            );
+            assert_eq!(members(&driven, row), 3);
+            let at = super::count_drive::beside(&mut driven, &label);
+            super::count_drive::drag(&mut driven, at, 20);
+            let dragged: i64 = count(&driven).parse().expect("a whole count");
+            assert!(
+                (14..=34).contains(&dragged),
+                "twenty points is about twenty: {dragged}"
+            );
+        }
+    }
+
+    /// **Driving one count field the way a person does**: the field
+    /// is the first non-empty run painted right of its label on the
+    /// label's row; a bump is a click into it and one ArrowUp; a drag
+    /// is a press on it and twenty points to the right.
+    mod count_drive {
+        use super::Driven;
+        use eframe::egui;
+
+        /// Where the field beside the run reading `label` was painted.
+        pub(super) fn beside(driven: &mut Driven, label: &str) -> egui::Pos2 {
+            let painted = driven.quiet();
+            let label_rect = painted
+                .iter()
+                .find(|(run, _)| run == label)
+                .map(|(_, rect)| *rect)
+                .unwrap_or_else(|| panic!("a run reads {label:?}: {painted:?}"));
+            painted
+                .iter()
+                .filter(|(run, rect)| {
+                    !run.is_empty()
+                        && (rect.center().y - label_rect.center().y).abs() < 2.0
+                        && rect.min.x > label_rect.max.x
+                })
+                .map(|(_, rect)| rect.center())
+                .min_by(|a, b| a.x.total_cmp(&b.x))
+                .unwrap_or_else(|| panic!("a field is beside {label:?}: {painted:?}"))
+        }
+
+        /// Click into the field at `at`, press ArrowUp once, leave it.
+        pub(super) fn bump(driven: &mut Driven, at: egui::Pos2) {
+            driven.click_at(at);
+            let key = |key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            };
+            driven.frame(vec![key(egui::Key::ArrowUp)]);
+            driven.frame(vec![key(egui::Key::Enter)]);
+            driven.settle();
+        }
+
+        /// Press on the field at `at` and drag it `points` right, in
+        /// steps of five.
+        pub(super) fn drag(driven: &mut Driven, at: egui::Pos2, points: u8) {
+            let press = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![press(at, true)]);
+            for step in 1..=points / 5 {
+                driven.frame(vec![egui::Event::PointerMoved(
+                    at + egui::vec2(5.0 * f32::from(step), 0.0),
+                )]);
+            }
+            driven.frame(vec![press(at + egui::vec2(f32::from(points), 0.0), false)]);
+            driven.settle();
+        }
+    }
+
+    /// **The add-variable form's count field steps by one and lands on
+    /// integers**, from a draft that a length entry left fractional.
+    #[test]
+    fn the_add_variable_count_field_steps_by_one_and_lands_on_integers() {
+        use crate::pane::properties::NEW_VARIABLE;
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Count);
+        driven.app.drafts.new_variable_value = 3.0;
+        let at = count_drive::beside(&mut driven, "scalar");
+        count_drive::bump(&mut driven, at);
+        assert_eq!(driven.app.drafts.new_variable_value, 4.0, "one key is one");
+        count_drive::drag(&mut driven, at, 20);
+        let dragged = driven.app.drafts.new_variable_value;
+        assert_eq!(
+            dragged.fract(),
+            0.0,
+            "a drag lands on an integer: {dragged}"
+        );
+        assert!(
+            (14.0..=34.0).contains(&dragged),
+            "twenty points is about twenty: {dragged}"
+        );
+        // A length entry's leftover, then the dimension switched.
+        driven.app.drafts.new_variable_value = 0.25;
+        driven.quiet();
+        let at = count_drive::beside(&mut driven, "scalar");
+        count_drive::bump(&mut driven, at);
+        let bumped = driven.app.drafts.new_variable_value;
+        assert_eq!(bumped.fract(), 0.0, "a key lands on an integer: {bumped}");
+    }
+
+    /// **Switching the add-variable form's dimension keeps the draft's
+    /// canonical value**, and the commit declares it in the new
+    /// dimension in the working notation's unit for it.
+    #[test]
+    fn the_add_variable_draft_keeps_its_canonical_value_across_a_dimension_switch() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::{Dimension, FreeVar};
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        let notation = driven.app.session.notation();
+        driven.app.session.set_notation(pncad::quantity::Notation {
+            length: pncad::quantity::MM,
+            ..notation
+        });
+        driven.app.drafts.new_variable_name = "g".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Length);
+        driven.app.drafts.new_variable_value = 0.005;
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "5.0"),
+            "5 mm: {painted:?}"
+        );
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Scalar);
+        driven.quiet();
+        assert_eq!(driven.app.drafts.new_variable_value, 0.005);
+        driven.click(NEW_VARIABLE_COMMIT);
+        driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        let var = doc.var_named("g").expect("declared");
+        let (_, held) = doc
+            .free_vars()
+            .find(|(free, _)| *free == var)
+            .expect("a free variable");
+        match held {
+            FreeVar::Continuous {
+                dim,
+                value,
+                display_unit,
+                ..
+            } => {
+                assert_eq!(*dim, Dimension::Scalar);
+                assert_eq!(*value, 0.005);
+                assert_eq!(display_unit.def().symbol(), "");
+            }
+            other => panic!("a scalar: {other:?}"),
         }
     }
 }

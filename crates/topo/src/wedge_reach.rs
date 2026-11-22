@@ -1,8 +1,10 @@
 //! **The faces' extent an edge's wedge is levered at** — the one home
-//! of the `reach` every reader of the dihedral between an edge's two
-//! faces passes to [`geom_brep::folded_lever_arm`]: tier 3's check 4,
-//! certification of an `Intersection` or `TangentIntersection`, and the
-//! must-carry rule wherever a door decides what a join stores.
+//! of the `reach` of the dihedral between an edge's two faces. Tier 3's
+//! check 4, certification of an `Intersection` or `TangentIntersection`,
+//! and the must-carry rule wherever a door decides what a join stores
+//! pass it to [`geom_brep::folded_lever_arm`]. The embedding question
+//! (`crate::injective`'s `arm_of`) levers at it alone, with no fold
+//! (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
 //!
 //! A dihedral is how far the two faces separate as they leave the edge,
 //! so it is levered at how far they run (D4 ¶1's face extent) and how
@@ -26,9 +28,10 @@
 //! lune of a large sphere its own extent, not the sphere's diameter.
 //! That falls short of the boundary by at most a curved edge's bulge
 //! past its ends, and of a curved face that stands farther inside its
-//! boundary than on it, both the safe direction; the curvature arm
-//! ([`geom_brep::folded_lever_arm`]) caps the lever at the face's
-//! radius in any case. The edge's own ends are read too, for a door
+//! boundary than on it, both the safe direction; for the readers that
+//! fold, the curvature arm ([`geom_brep::folded_lever_arm`]) caps the
+//! lever at the face's radius in any case. The embedding question does
+//! not fold, so nothing caps its lever there. The edge's own ends are read too, for a door
 //! minting it into a face it does not bound yet. A face's vertices do
 //! not depend on the edge being read, so [`WedgeReach`] collects them
 //! once per face and a pass over many edges (tier 3) reads each face's
