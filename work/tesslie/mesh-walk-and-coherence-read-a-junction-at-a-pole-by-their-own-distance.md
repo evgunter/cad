@@ -1,7 +1,7 @@
 ---
 id: mesh-walk-and-coherence-read-a-junction-at-a-pole-by-their-own-distance
 kind: issue
-title: The mesh walk's pole_index and coherence's pole exemption each decide a vertex at a pole by their own distance, kept equal by hand, apart from the kernel's one incidence reading
+title: The mesh walk's pole_index decides a vertex at a pole by its own distance, apart from the kernel's one incidence reading
 status: open
 opened: 2026-10-31
 priority: P2
@@ -50,3 +50,5 @@ fixing it: `walk.rs` is TESS's and TESSWALK's ground, and the walk's
 Signed: (RESTCURVE implementer)
 
 Moved from TESSWALK to TESSLIE on 2026-11-20, by `git mv`, when TESSWALK merged into TESSLIE: TESSWALK held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. So the second reader this row names, coherence's pole exemption, is gone; the first, `mesh::walk::loop_polygon`'s `pole_index`, still decides a vertex at a pole by its own distance, and the row stands on it alone.

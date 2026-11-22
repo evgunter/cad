@@ -103,3 +103,45 @@ half-line; where the other edge is curved, the corner presentation
 - Three slow tests (`spline_spiric_operands`, `pocket_wall_crossing_a_side_face`,
   one `m10_p_fence` row) reach the same exit, traced without the clip
   print.
+
+## For the unit's brief: what each shape's cell holds (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+Second pass, `embed/trace-cylinder-measure` (`CVF`, `CVC` rows).
+
+- **Reflex corner (63).** The face excludes one quadrant at the vertex
+  `V`: the one bounded by the two edges' half-lines. A cell at depth 40
+  lies in the face's three quadrants, straddling one line's extension
+  past `V`. In the measured example (`names::emit_shell`, ruling
+  `u = 0.100167` for `v ≥ 0.05`, circle `v = 0.05` for `u ≥ 0.100167`,
+  cell `v ∈ (0.049219, 0.05)`) the cell is wholly below the circle, so
+  it holds the **whole rectangle**. Its zero is the point `V` on its top
+  side, because the shared ruling leaves `V` upward, out of the cell. A
+  cell straddling `V` on both axes holds the cell less the excluded
+  quadrant, an L of two rectangles. So a presentation can read this
+  shape: the rectangle unclipped by a line past its edge's end, with a
+  point zero on a side. That is the zero `a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero`
+  asks for; the L is two such rectangles, each read alone.
+- **Lone clip (17).** The cell lies along an iso edge's line just past
+  its end `V`. The edge leaving `V` the other way is no clip in the
+  cell.
+  - In the tangent-boss family (`intent_s6_*`, `coincidence_door`'s
+    boss, 10 of the 17), the iso edge is the shared arc itself (`7v1`,
+    the circle `v = 0` over `u ∈ [π/2, π]`). The cell is at
+    `u ∈ (1.5677, π/2)`, `v ∈ (0, 0.00098)`.
+  - In `parallel_cylinder_join` (4) it is a ruling `4v1` ending at
+    `12v1`, which the partner wall continues by a collinear ruling
+    (`9v5`) on its own clip.
+
+  What the cell holds is a corner of the iso edge and the vertex's other
+  edge, which is curved or not on a coordinate line. The reading is the
+  line corner (`present_line_corner`) with the iso edge as its line;
+  `present_chart` never offers it, since the curved wall is not in the
+  cell's local edges.
+- **The ten whose plane partner is unpresented too.** In the
+  tangent-boss family the plane exits at `present_curved` (no column's
+  `graph` reads), not at `leaves_line`. So these are not the exit of
+  `a-plane-corner-where-a-line-runs-on-tangent-into-an-arc-reads-no-leaving`.
+  The fixtures build the boss tangent to the wall ("tangent by
+  construction"). That the plane's curve meets its other edge tangent at
+  `V`, the same G1 ground read in another function, is likely but
+  unchecked. A fix to the cylinder side alone will not close these ten.

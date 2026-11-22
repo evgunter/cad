@@ -158,7 +158,6 @@ pub mod chart_region;
 pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
-pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
@@ -294,6 +293,8 @@ mod test_support_impl;
 // gated on the test arms alone and its file-level `#![allow]` stays
 // exactly as wide as the code that earns it. Its own docs state what
 // separates it from `fixtures`.
+#[doc(hidden)]
+pub mod gate_measure;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_fixtures;
@@ -1540,16 +1541,12 @@ pub use sweep_trace::SweepPairs;
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
+pub use chart_iso::{TravKind, iso_side_starts, mid_azimuth, traversal_kind};
 pub use chart_region::{
     CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, RegionLaneOf, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::{ClearanceLane, ClearanceLaneOf};
-pub use coherence::{
-    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
-    examine_chart_coherence, gap_is_noise,
-};
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
 };

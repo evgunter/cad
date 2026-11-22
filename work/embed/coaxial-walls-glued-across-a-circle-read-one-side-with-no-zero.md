@@ -58,3 +58,50 @@ its test builds as an ordinary result.
   `CVG` rows): every one of the 20 traced tests prints the same two
   cells and the same `(Some(Positive), None)` under both the plane and
   the graph separator.
+
+## Trace: why `3v1` has no zero, and what follows it (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+On `embed/trace-cylinder-measure` with `CV_CLIPS=1` (each chart
+presentation's clips and `zero_of`'s answer, `CVC` rows).
+
+- **The circle is two arcs, both shared.** The walls meet on the circle
+  `v = 1`, split at `u = 0.3` into `18v5` (`u ∈ [0.3, 2π]`) and `20v5`
+  (`u ∈ [0, 0.3]`). Both arcs are in the boundary of both `1v19` and
+  `3v1`. At the refusing pair the near edges are `20v5` alone
+  (`near.edges = [(3, 3)]`, no vertex): `1v19`'s cell, left of
+  `u = 0.2945`, is decided clear of `18v5`.
+- **The missing zero.** `3v1`'s cell, `u ∈ (0.2945, 0.3007)`, holds
+  both arcs (`local = [2, 3]`), so its clip `YHi` at `v = 1` lists both.
+  `zero_of` takes a clip as a zero side only when every edge on it is in
+  `near_edges`, and `18v5` is not: `Zero::None`. The clip's edges are
+  all shared by the pair, and the circle's own plane vanishes on both
+  arcs, but `On` (from `planes_through`, built over the near rims only)
+  lists `20v5` alone, so membership fails at `sign_on` too.
+- **Not the wedge-π seam.** Both walls lie on one carrier, so the
+  carrier arm reads no departure (`across` straddles 0). The circle's
+  plane does read the seam: it signs `1v19` with `across = 9.77e-4`
+  over a span of `9.77e-4`, a clean first-order departure. The departure
+  arm has a reading for a smooth seam of one carrier. The missing zero
+  is the defect, not a symptom of an unread seam.
+- **Checked by a diagnostic flip, and a second defect behind it.** With
+  `CV_HACK_ZERO=1` (a measuring-branch edit, not a fix: a clip is a zero
+  side when ANY of its edges is near, and `On::holds` takes any listed
+  edge), the pairs split on `20v5` fall from 40 to 19 and on `18v5`
+  from 132 to 92. The body still refuses on `20v5`, now at the mirror
+  cell: `1v19` at `u ∈ (0.2945, 0.3007)`, `v ∈ (1.0, 1.00098)` fails
+  `sides_are_the_faces`. Its clip `YLo` at `v = 1` holds both arcs,
+  with ranges `[0.3, 2π]` and `[2π, 2π + 0.3]`: `20v5`'s range sits on
+  the copy past the join, not on the cell's sheet `[0, 0.3]`, so the
+  side `(0.2945, 0.3007)` is not covered. That exit is independent of
+  the edit.
+
+**The unit this calls for (cost M):**
+- (a) `zero_of` and `planes_through` read a coordinate line whose edges
+  are all edges of both faces, on one conic, as one zero side. The
+  conic's plane lists every arc of that conic in the face's boundary,
+  not only the near ones.
+- (b) `edge_ranges` (or `covered`) places a periodic edge's range on the
+  cell's own sheet, as `sheets` places lines.
+
+Whether (a) and (b) together certify the bushing is unchecked. The 10
+corpus tests that timed out under the trace are still not traced.

@@ -131,7 +131,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // the placement it ran on, by its tag.
     ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
-    ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
     // The mate solve names the constraint it refused (`constraint #9 of
     // node 7: …`).
@@ -317,12 +316,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
-    "Check/ChartCoherence(meridian closure)",
-    "Check/ChartCoherence(rim)",
-    "Check/ChartCoherenceUnexamined(corrupt)",
-    "Check/ChartCoherenceUnexamined(non-iso)",
-    "Check/ChartCoherenceUnexamined(scaffold)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -866,7 +859,7 @@ mod kernel {
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
-            StackingEscalated, NotFinished,
+            StackingEscalated, NotFinished, SelfIntersecting,
         ];
     }
 
@@ -3696,6 +3689,36 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
                 ]),
             },
         ),
+        (
+            "SelfIntersecting",
+            E::SelfIntersecting {
+                meeting: Box::new([
+                    sweep::LoftedMeeting {
+                        face: sweep::LoftedFace::Top,
+                        sections: 8..=8,
+                        station: (0.0, 0.0),
+                    },
+                    sweep::LoftedMeeting {
+                        face: sweep::LoftedFace::Wall {
+                            loop_index: 0,
+                            segment: 3,
+                            slab: 0,
+                        },
+                        sections: 0..=8,
+                        station: (0.5, 0.25),
+                    },
+                ]),
+                witness: "(3.0, 0.0, 0.0) and (3.0, 0.0, 0.0), at most 0 m apart".to_owned(),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::BoundaryMeetsItself {
+                        faces: [topo::FaceKey::default(); 2],
+                        stations: [(0.0, 0.0), (0.5, 0.25)],
+                        witness: "(3.0, 0.0, 0.0) and (3.0, 0.0, 0.0), at most 0 m apart"
+                            .to_owned(),
+                    },
+                ]),
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Loft/{n}"), NodeErrorKind::Loft(e)))
@@ -6429,10 +6452,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
     use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
-    use topo::{
-        CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey, ShellClassifyError,
-        ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
-    };
+    use topo::{FaceKey, ShellClassifyError, ShellKey};
     let shell = ShellKey::default();
     let copy = |n| editor_core::CopyRef {
         var: editor_core::VarId::new(0, tagged(n)),
@@ -6455,21 +6475,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         },
         evidence,
         quiet: None,
-    };
-    let coherence = |condition| CoherenceFinding {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        edge: EdgeKey::default(),
-        condition,
-        gap: 1.0e-10,
-        lever: 100.0,
-        metres: 1.0e-8,
-        eps: 1.0e-9,
-    };
-    let unexamined = |why| Unexamined {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        why,
     };
     vec![
         (
@@ -6577,65 +6582,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     ))),
                 },
             ),
-        ),
-        (
-            "ChartCoherence(meridian closure)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::MeridianClosure {
-                        vertex: VertexKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherence(rim)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::RimContinuation {
-                        opens: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(corrupt)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::Corrupt {
-                        at: StructureRead::Cycle,
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(scaffold)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NullScaffoldEdge {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(non-iso)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NonIsoCarrier {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnavailable",
-            finding(CheckId::ChartCoherence, E::ChartCoherenceUnavailable),
         ),
     ]
     .into_iter()
