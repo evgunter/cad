@@ -481,3 +481,11 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
     - four CI env blocks must stay equal by hand, and a drift is silently slow (the fix minted another copy of the defect it measured);
     - the job-minute share is quoted two ways.
   - Fix pass sent: all taken but Q6 (timings in a PR body) and the scope note (state-sync rows from the orchestrator branch). The env-block equality gets one source or a gate; a sibling cancellation row and the GIL-release row go to BIND.
+- 2026-11-22 — U3 reported: PR 7389, head `60c1d63e88`, gate green. The four editor-core reds are bisected and re-blessed; none is pinned red.
+  - Plate ledger: PR 7183's ratified conic speed readers add 14 forms; one digest move is left untraced.
+  - e2e slider: PR 7088. The receipt is now ε-independent; before, it varied non-monotonically.
+  - The revalue rows: PR 7114, whose floors were set from a default-ε run only; the floors are now per ε.
+  - The drive-memo row is SCALAR's at every ε.
+  - Verified on CI: a throwaway branch with a one-job workflow at all three ε. The bisect pushed 18 branches at once, before the 3-4 rule.
+  - STYLE review (Opus) dispatched, with claims on the untraced digest and the folded ε pins. A re-bless that blesses an unexplained move is what the 11-14 reviews kept catching.
+  - Found: `isolation: remote` agents run in a harness worktree under `/home/evan/projects/cad/.claude/worktrees/`, and the harness refuses their git elsewhere.
