@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-22
 priority: P1
 cost: E
+rides_with: a-placement-and-its-part-do-not-link-to-each-other
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "you should be able to go from a revolve to the profile it was made from".
