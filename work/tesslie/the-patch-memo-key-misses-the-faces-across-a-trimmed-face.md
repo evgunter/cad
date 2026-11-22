@@ -2,10 +2,12 @@
 id: the-patch-memo-key-misses-the-faces-across-a-trimmed-face
 kind: issue
 title: a trimmed face's patch reads which faces lie across its edges, and the memo key does not
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
+closed: 2026-11-21
+pr: 7241
 ---
 
 
@@ -45,3 +47,7 @@ Unmeasured: no edit is known that keeps A's key and moves its neighbours.
 Either fold the neighbour structure the lane reads into the key (and the
 invariant's list, which is a ratified text), or argue it is fixed by
 what the key already holds. The orchestrator weighs the fix.
+
+## Closed (TESSLIE, PR 7241, 2026-11-21)
+
+The neighbour pattern is a declared input of the face, as both designers recommended (`work/tesslie/log.md`). The chord pass owns `holders` (per edge, the faces on its two sides), and `ChordPass::across` is its one reader. `trimmed::faces_across` is a view over it. The memo key folds `EdgeInputs.across`, renumbered by first appearance along the face's walk, on the trimmed lane. The review found a second instance of the class on the same lane: the trimmed lane reads `face.sense`, and the key folded it on the curved lane only, so a sense flip replayed a stored Ok where a fresh run refuses. Sense is now folded too. Both instances are pinned (`patch_memo`: the face across changes; the sense flips), and each goes red with its fold disabled. lib.rs's invariant states the principle and defers to memo.rs's per-lane lists, the one census. The sweep of `Route::ready`, `FaceBounds` and `SizingTols` found nothing else unfolded. Fresh bytes are unchanged; the hit rate is unchanged on the existing suites. Follow-up: `memo-per-lane-input-lists-are-held-by-prose` (P3).

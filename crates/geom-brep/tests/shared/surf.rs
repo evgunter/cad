@@ -25,10 +25,8 @@ use crate::shared::point::{p3, v3};
 /// `+z`, `u_ref = +x`.
 pub(crate) fn sphere<T: Real>(radius: f64) -> Surface<T> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: T::from_f64(radius),
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -36,10 +34,8 @@ pub(crate) fn sphere<T: Real>(radius: f64) -> Surface<T> {
 /// `u_ref = +x`.
 pub(crate) fn cylinder<T: Real>(radius: f64) -> Surface<T> {
     Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: T::from_f64(radius),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -47,11 +43,9 @@ pub(crate) fn cylinder<T: Real>(radius: f64) -> Surface<T> {
 /// origin about `+z`, `u_ref = +x`.
 pub(crate) fn torus<T: Real>(major: f64, minor: f64) -> Surface<T> {
     Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: T::from_f64(major),
         minor_radius: T::from_f64(minor),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -59,21 +53,17 @@ pub(crate) fn torus<T: Real>(major: f64, minor: f64) -> Surface<T> {
 /// `u_ref = +x`.
 pub(crate) fn sphere_at<T: Real>(c: [f64; 3], radius: f64) -> Surface<T> {
     Surface::Sphere {
-        center: p3(c[0], c[1], c[2]),
+        frame: geom::Frame::new(p3(c[0], c[1], c[2]), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: T::from_f64(radius),
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
 /// [`torus`] centred at `c`.
 pub(crate) fn torus_at<T: Real>(c: [f64; 3], major: f64, minor: f64) -> Surface<T> {
     Surface::Torus {
-        center: p3(c[0], c[1], c[2]),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(c[0], c[1], c[2]), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: T::from_f64(major),
         minor_radius: T::from_f64(minor),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -111,9 +101,14 @@ pub(crate) fn arena2<T: Real>(
 /// either way along its axis from its apex, levered at `lever`. Its
 /// window holds the apex, so the arm bounds an apex outcome there.
 pub(crate) fn at_apex<T: Real>(cone: &Surface<T>, lever: T) -> geom_brep::Reach<T> {
-    let Surface::Cone { apex, .. } = *cone else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = *cone
+    else {
         unreachable!("the plane×cone arm's reach is read at a cone's apex")
     };
+    let apex = carrier_frame.origin();
     geom_brep::Reach::fixture(apex, lever)
 }
 
@@ -123,14 +118,12 @@ pub(crate) fn at_apex<T: Real>(cone: &Surface<T>, lever: T) -> geom_brep::Reach<
 /// apex.
 pub(crate) fn off_cone(carrier: &geom::Curve3<f64>, cone: &Surface<f64>) -> f64 {
     let &Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = cone
     else {
         unreachable!("off_cone measures against a cone chart")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     (0..4096)
         .map(|i| {
             let w = carrier.eval(core::f64::consts::TAU * f64::from(i) / 4096.0) - apex;

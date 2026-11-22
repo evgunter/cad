@@ -107,10 +107,8 @@ pub(crate) fn frames() -> [Frame; 3] {
 /// [`on_nappe`] lie on the carrier's negative nappe.
 pub(crate) fn cone(f: Frame, mirror: bool) -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: f.o,
-        axis: if mirror { -f.z } else { f.z },
+        frame: geom::Frame::new(f.o, if mirror { -f.z } else { f.z }, f.x),
         half_angle: FRAC_PI_6,
-        u_ref: f.x,
     }
 }
 
@@ -123,9 +121,7 @@ pub(crate) fn on_nappe(f: Frame, h: f64, t: f64) -> Point3<f64> {
 /// The plane through `o` with normal `n`.
 pub(crate) fn plane(o: Point3<f64>, n: Vec3<f64>) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: o,
-        normal: n,
-        u_ref: n.orthonormal_basis().0,
+        frame: geom::Frame::new(o, n, n.orthonormal_basis().0),
     }
 }
 
@@ -136,9 +132,10 @@ pub(crate) fn section(
     (o, n): (Point3<f64>, Vec3<f64>),
     s: f64,
 ) -> geom::Curve3<f64> {
-    let &geom::Surface::Cone { apex, .. } = cone else {
+    let &geom::Surface::Cone { frame, .. } = cone else {
         panic!("the fixture sections a cone")
     };
+    let apex = frame.origin();
     let reach = {
         let lever = 4.0 * s;
         geom_brep::Reach::fixture(apex, lever)

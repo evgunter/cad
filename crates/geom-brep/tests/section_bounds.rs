@@ -51,9 +51,7 @@ fn plane(q: Point3<f64>, n: Vec3<f64>) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin: q,
-        normal: n,
-        u_ref: (u - n * u.dot(n)).normalize(),
+        frame: geom::Frame::new(q, n, (u - n * u.dot(n)).normalize()),
     }
 }
 
@@ -64,29 +62,23 @@ fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, (u - axis * u.dot(axis)).normalize()),
         radius,
-        u_ref: (u - axis * u.dot(axis)).normalize(),
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The cone of half-angle `alpha` about `z` with its apex at `(0, 0, 1)`.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: p(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -94,27 +86,25 @@ fn cone(alpha: f64) -> Surface<f64> {
 /// there (for the cone, the normal of the nearer generator's plane).
 fn measure(s: &Surface<f64>, y: Point3<f64>) -> (f64, Vec3<f64>) {
     match *s {
-        Surface::Plane { origin, normal, .. } => ((y - origin).dot(normal).abs(), normal),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            ((y - origin).dot(normal).abs(), normal)
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let v = y - origin;
             let r = v - axis * v.dot(axis);
             ((r.norm() - radius).abs(), r.normalize())
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let v = y - center;
             ((v.norm() - radius).abs(), v.normalize())
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let v = y - apex;
             let z = v.dot(axis);
             let radial = v - axis * z;
@@ -720,11 +710,9 @@ fn a_coarse_carriers_extremum_mid_span_is_read_tightly() {
 #[test]
 fn a_torus_section_states_nothing() {
     let torus = Surface::Torus {
-        center: p(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.25,
         minor_radius: 0.25,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = mapped_arc((0.0, 1.0), |x, y| Vec3::new(x, y, 0.0), p(0.0, 0.0, 0.0));
     let got = tube_bounds(
@@ -785,8 +773,9 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
 /// sweep near the apex where limb 2 still holds and the section is still
 /// minted past the escalation), the arc's vertex stands `d/tan α ≈ 9e-6`
 /// above the apex, under the stretch's pad: the padded stretch straddles
-/// the apex's height, so the section states nothing, and the edge
-/// refuses naming the cone, which no tube encloses.
+/// the apex's height, so the section states nothing. The edge owes the
+/// tube, and every box of its chain straddles the apex's height, off
+/// the cone arm's gate: the ladder answers nothing (`ProbeSilent`).
 #[test]
 fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let wide = Band::new(1e-6, 1e-5).unwrap();
@@ -815,10 +804,13 @@ fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let got = geom_brep::analytic_rung3(&arc, arc.domain(), &plane(q, n), &cone(alpha), wide);
     assert_eq!(
         got,
-        Err(AnalyticRung3Refusal::NoTubeEnclosure {
-            operand: geom::SurfaceKind::Cone
-        }),
-        "the edge owes the tube and refuses naming the cone"
+        Err(AnalyticRung3Refusal::Tube(
+            geom_brep::edge_nurbs::TubeRefusal::ProbeSilent {
+                rungs: 1,
+                refused: 1
+            }
+        )),
+        "the edge owes the tube and its every box is off the cone's gate"
     );
 }
 
@@ -894,20 +886,22 @@ fn over_a_box_the_bounds_hold_for_every_member_or_are_not_stated() {
     let wall = cone(alpha).map_scalar(geom_core::Real::from_f64);
     for (width, states) in [(1e-13, true), (1e-3, false)] {
         let cut = Surface::Plane {
-            origin: Point3::new(
-                Interval::from_bounds(d - width, d + width),
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(0.0, 0.0),
-            ),
-            normal: Vec3::new(
-                Interval::from_bounds(1.0, 1.0),
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(0.0, 0.0),
-            ),
-            u_ref: Vec3::new(
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(1.0, 1.0),
-                Interval::from_bounds(0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(
+                    Interval::from_bounds(d - width, d + width),
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
+                Vec3::new(
+                    Interval::from_bounds(1.0, 1.0),
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
+                Vec3::new(
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(1.0, 1.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
             ),
         };
         let got = tube_bounds(&lifted, params, &cut, &wall, band);

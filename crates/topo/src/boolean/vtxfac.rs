@@ -869,7 +869,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 })?;
             let arm = T::nurbs_lane()
                 .ok_or(geom_brep::ChartArmRefusal::NoLane)
-                .and_then(|lane| lane.chart_arm(chart, p, reach.length()))
+                .and_then(|lane| geom_brep::NurbsLaneOf::chart_arm(lane, chart, p, reach.length()))
                 .map_err(|cause| BooleanError::PierceLeverUnread {
                     operand: pierced_op,
                     face: contact.face,
@@ -1314,7 +1314,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
                         .frame
-                        .axis
+                        .axis()
                         .normalize()
                         .cross(datum.vec().normalize())
                         .norm()
@@ -3008,7 +3008,7 @@ type Germ<T> = (
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
 /// pierce point `p` along the germ's direction `dir`, with the piercing
 /// and pierced bodies in that order.
-fn germ_branch<T: Decide>(
+fn germ_branch<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
     piercing: Operand,

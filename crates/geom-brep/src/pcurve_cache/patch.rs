@@ -394,11 +394,14 @@ fn enclosed(
     };
     let (ku, kv, controls) = match *chart {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (ka, a) = Angle::over(u, mag(radius), target)?;
             let (kv, vs) = linear(v)?;
             let rad = radial(&a, frame(axis, u_ref));
@@ -409,11 +412,14 @@ fn enclosed(
             (ka, kv, controls)
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (kv, vs) = linear(v)?;
             let (sa, ca) = half_angle.sin_cos();
             let reach = vs[0].abs().max(vs[1].abs());
@@ -431,11 +437,14 @@ fn enclosed(
             (ka, kv, controls)
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let r = mag(radius);
             let ((ka, a), (kb, b)) = (
                 Angle::over(u, r, target)?,
@@ -455,19 +464,20 @@ fn enclosed(
             (ka, kb, controls)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (big, small) = (mag(major_radius), mag(minor_radius));
             let ((ka, a), (kb, b)) = (
                 Angle::over(u, big + small, target)?,

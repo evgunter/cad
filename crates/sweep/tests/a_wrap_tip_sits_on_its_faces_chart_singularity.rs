@@ -514,8 +514,15 @@ fn side_about(
     let f = body.get_face(face).unwrap();
     let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
     let mut surface = body.face_surface(face).unwrap().clone();
-    if let (Some(turned), geom::Surface::Sphere { axis, .. }) = (axis, &mut surface) {
-        *axis = turned;
+    if let (
+        Some(turned),
+        geom::Surface::Sphere {
+            frame: sphere_frame,
+            ..
+        },
+    ) = (axis, &mut surface)
+    {
+        *sphere_frame = geom::Frame::new(sphere_frame.origin(), turned, sphere_frame.u_ref());
     }
     let band = Band::linear(tol()).unwrap();
     geom_brep::props::boundary_material_sign_holding(&surface, &[&image], held, band).unwrap()

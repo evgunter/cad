@@ -429,7 +429,8 @@ fn only_line_walls_carry_the_admitted_tilt() {
     for &face in built.side_faces().iter().flatten() {
         let surface = built.body.face_surface(face).unwrap();
         match surface {
-            geom::Surface::Cylinder { axis, .. } => {
+            geom::Surface::Cylinder { frame, .. } => {
+                let axis = frame.axis();
                 cylinders += 1;
                 assert!(
                     axis.cross(n).norm() == 0.0,
@@ -437,7 +438,8 @@ fn only_line_walls_carry_the_admitted_tilt() {
                      axis {axis:?}",
                 );
             }
-            geom::Surface::Plane { normal, .. } => {
+            geom::Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
                 tilted_planes += usize::from(normal.dot(n) != 0.0);
             }
             other => panic!("unexpected side-wall surface {other:?}"),

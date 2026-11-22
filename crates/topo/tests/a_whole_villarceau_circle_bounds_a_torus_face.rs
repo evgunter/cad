@@ -31,11 +31,9 @@ fn a_whole_villarceau_circle_closes_one_edge_on_a_torus_face() {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Torus {
-                    center: Point3::origin(),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     major_radius: big,
                     minor_radius: r,
-                    u_ref: x,
                 },
                 sense: true,
             },

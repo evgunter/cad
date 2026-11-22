@@ -107,7 +107,7 @@ impl Reach {
                 }
             }
             let region = boundary
-                .and_then(|b| face.surface.face_region(b).ok())
+                .and_then(|b| solid.surface_of(face).face_region(b).ok())
                 .ok_or(NoRegion::Face(face.id))?;
             all = Some(match all {
                 Some(c) => c.hull(region),
@@ -192,12 +192,7 @@ mod tests {
             id: 1,
             faces: vec![crate::entities::FaceSpec {
                 id: 2,
-                surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
-                    radius: 1.0,
-                    axis: z,
-                    u_ref: x,
-                },
+                record: 900,
                 sense: true,
                 loops: vec![crate::entities::LoopSpec {
                     outer: true,
@@ -212,6 +207,13 @@ mod tests {
             vertices: [(1, Point3::new(0.19_f64.sqrt(), 0.0, 0.9))]
                 .into_iter()
                 .collect(),
+            surfaces: crate::entities::records_of([(
+                900,
+                geom::Surface::Sphere {
+                    frame: geom::Frame::new(Point3::origin(), z, x),
+                    radius: 1.0,
+                },
+            )]),
             band_seams: std::collections::BTreeSet::new(),
         };
         let reach = Reach::of(&solid, [0]).expect("the cap has a region");

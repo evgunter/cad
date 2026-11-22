@@ -913,7 +913,7 @@ pub fn classify_seam<T: Decide>(
     faces: [SeamFace<'_, T>; 2],
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    lane: Option<crate::NurbsLane<T>>,
+    lane: Option<impl crate::NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<DihedralClass, SeamEscalation> {
     let [a, b] = [
@@ -948,7 +948,7 @@ fn seam_face_reading<T: Decide>(
     face: SeamFace<'_, T>,
     p: Point3<T>,
     reach: geom_core::Lever<T>,
-    lane: Option<crate::NurbsLane<T>>,
+    lane: Option<impl crate::NurbsLaneOf<T>>,
     band: Band,
 ) -> Result<SeamFaceReading<T>, SeamEscalation> {
     let (chart, uv) = match face {
@@ -2690,15 +2690,15 @@ mod tests {
             |v: Vec3<f64>| v * a.cos() + k.cross(v) * a.sin() + k * (k.dot(v) * (1.0 - a.cos()));
         let c0 = Point3::new(0.4, -1.3, 2.2);
         let cyl = Surface::Cylinder {
-            origin: c0 + r(Vec3::new(0.0, 1.0, 0.0)),
-            axis: r(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                c0 + r(Vec3::new(0.0, 1.0, 0.0)),
+                r(Vec3::unit_z()),
+                r(Vec3::unit_x()),
+            ),
             radius: 1.0,
-            u_ref: r(Vec3::unit_x()),
         };
         let pl = Surface::Plane {
-            origin: c0,
-            normal: r(Vec3::new(0.0, -1.0, 0.0)),
-            u_ref: r(Vec3::unit_x()),
+            frame: geom::Frame::new(c0, r(Vec3::new(0.0, -1.0, 0.0)), r(Vec3::unit_x())),
         };
         let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
         assert_eq!(quoted(&cyl, &pl, p), (Some("dihedral_arm"), extent));
@@ -2908,10 +2908,8 @@ mod tests {
         );
 
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 2.0,
-            u_ref: Vec3::unit_x(),
         };
         let pair = crate::SurfacePair::new(a, b);
         assert!(
@@ -2930,10 +2928,8 @@ mod tests {
 
         let (sin, cos) = std::f64::consts::FRAC_PI_4.sin_cos();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = Vec3::new(sin, 0.0, cos);
         let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
@@ -2954,23 +2950,15 @@ mod tests {
         let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
         let (center, radius) = (Point3::new(0.37, -1.21, 2.9), 1.7);
         let sleeve = Surface::Cylinder {
-            origin: center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            u_ref,
         };
         let ball = Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         };
         let equator = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
@@ -3008,10 +2996,8 @@ mod tests {
         let b = band();
         let (s, c) = std::f64::consts::FRAC_PI_4.sin_cos();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
@@ -3093,10 +3079,12 @@ mod tests {
     fn walk<T: Decide>(r2: f64, script: &mut Script) -> SecondOrderWalk<usize> {
         let f = T::from_f64;
         let cylinder = |radius: f64| Surface::Cylinder {
-            origin: Point3::new(f(0.0), f(0.0), f(radius)),
-            axis: Vec3::new(f(0.0), f(1.0), f(0.0)),
+            frame: geom::Frame::new(
+                Point3::new(f(0.0), f(0.0), f(radius)),
+                Vec3::new(f(0.0), f(1.0), f(0.0)),
+                Vec3::new(f(1.0), f(0.0), f(0.0)),
+            ),
             radius: f(radius),
-            u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
         };
         let axis = geom::Curve3::line(
             Point3::new(f(0.0), f(0.0), f(0.0)),
@@ -3201,9 +3189,7 @@ mod tests {
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal,
-            u_ref,
+            frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         }
     }
 
@@ -3372,10 +3358,8 @@ mod tests {
     fn plane_cylinder_tangency_and_corner() {
         let r = 2.0;
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, r),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, r), Vec3::unit_y(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         };
         // The plane z = 0 touches the cylinder along the x…no: along
         // the line through the origin parallel to y (lowest generator).
@@ -3401,10 +3385,8 @@ mod tests {
     #[test]
     fn cone_apex_escalates_at_the_arm_gate() {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
@@ -3440,10 +3422,8 @@ mod tests {
         use crate::recourse::{Reading, RefusedArm};
 
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
@@ -3540,16 +3520,12 @@ mod tests {
     #[test]
     fn kissing_cylinders_discriminate_cusp_from_slit() {
         let inner = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let outer = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 2.0,
-            u_ref: Vec3::unit_x(),
         };
         let p = Point3::origin();
         assert_eq!(
@@ -3655,15 +3631,19 @@ mod tests {
         };
         let r = 1.0;
         let cap = Surface::Plane {
-            origin: pt(0.0, Interval::zero()),
-            normal: unit(0.0, 0.0, -1.0),
-            u_ref: unit(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                pt(0.0, Interval::zero()),
+                unit(0.0, 0.0, -1.0),
+                unit(1.0, 0.0, 0.0),
+            ),
         };
         let cyl = |delta: f64| Surface::Cylinder {
-            origin: pt(0.0, i(-delta, delta)),
-            axis: unit(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                pt(0.0, i(-delta, delta)),
+                unit(0.0, 0.0, 1.0),
+                unit(1.0, 0.0, 0.0),
+            ),
             radius: Interval::from_f64(r),
-            u_ref: unit(1.0, 0.0, 0.0),
         };
         let p = |delta: f64| pt(0.0, i(r - delta, r + delta));
         let extent = Interval::from_f64(2.0 * r);
@@ -3700,10 +3680,8 @@ mod tests {
         let off_locus = wedge_decided(
             &plane(Vec3::unit_z(), Vec3::unit_x()),
             &Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Point3::new(f64::NAN, 1.0, 0.0),
             fixture_lever(1.0),
@@ -3729,14 +3707,10 @@ mod tests {
         let mut keys: slotmap::SlotMap<crate::SurfaceKey, ()> = slotmap::SlotMap::with_key();
         let (ka, kb) = (keys.insert(()), keys.insert(()));
         let floor = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let wall = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         };
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let spline_wall = Surface::Nurbs(std::sync::Arc::new(
@@ -3868,9 +3842,7 @@ mod seam_rows {
     /// A plane through the seam point with normal `n`.
     fn plane(n: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin: ORIGIN,
-            normal: n.normalize(),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(ORIGIN, n.normalize(), Vec3::new(1.0, 0.0, 0.0)),
         }
     }
 
@@ -4078,7 +4050,7 @@ mod seam_rows {
         );
         let wall = bent(0.05, 1.0, 0.0);
         assert!(
-            crate::chart_curvature_arm(None, &wall, ORIGIN, reach_of(1.0))
+            crate::chart_curvature_arm(None::<geom_core::NoLane>, &wall, ORIGIN, reach_of(1.0))
                 .length()
                 .is_nan(),
             "no lane, no bound"
@@ -4088,7 +4060,7 @@ mod seam_rows {
             [at(&steep, 0.0), at(&ground, 0.0)],
             ORIGIN,
             reach_of(1.0),
-            None,
+            None::<geom_core::NoLane>,
             band(),
         );
         assert!(
@@ -4303,10 +4275,12 @@ mod seam_rows {
         let cylinder = |rho: f64, sin: f64| {
             let n = Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt());
             Surface::Cylinder {
-                origin: ORIGIN - n * rho,
-                axis: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    ORIGIN - n * rho,
+                    Vec3::new(1.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
                 radius: rho,
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
             }
         };
         let rho = 0.01;

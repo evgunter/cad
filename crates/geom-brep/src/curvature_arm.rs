@@ -91,12 +91,12 @@ pub fn parallel_curvature_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T>
 
 /// **A spline chart's curvature arm at `p` over `reach`, from below**:
 /// the certified lower bound `lane` reads on the chart's length scale
-/// there ([`crate::NurbsLane::chart_arm`]). Poison where the scalar has
+/// there ([`crate::NurbsLaneOf::chart_arm`]). Poison where the scalar has
 /// no lane (`None`) or the lane reads no bound, which a reading levered
 /// at it escalates.
 #[must_use]
 pub fn chart_curvature_arm<T: Real>(
-    lane: Option<crate::NurbsLane<T>>,
+    lane: Option<impl crate::NurbsLaneOf<T>>,
     chart: &NurbsSurface<T>,
     p: Point3<T>,
     reach: Lever<T>,

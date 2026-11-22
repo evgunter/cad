@@ -76,7 +76,10 @@
 // that rule has one spelling. `Recording` and `Recorded` are that
 // action whole — the edits applied in order, their rows netted, the
 // ids they minted — so a consumer composing one does not re-write the
-// loop.
+// loop. `NameCarrier` is what `Maintenance::stranded_name` answers in
+// — which rows are a stranded name, and what holds each — so a consumer
+// counting the names an action stranded reads that classing and keeps
+// no copy of it.
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
@@ -91,8 +94,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
-    Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    Maintenance, MaintenanceNet, MetaVersionError, NameCarrier, ProductReadFault, ProgramRefusal,
+    Recorded, Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
 pub use editor_core::{
@@ -549,18 +552,12 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `run_checks_on` is the registry over a `Subject` the caller gathered
 // — the door `run_checks` wraps, for a caller that already holds the
 // document's product.
-// `ChartCoherenceLane` is a BOUND on both registry doors, so it is
-// nameable by necessity: a caller writing its own function generic
-// over the decision lane has to spell it. The trait says which lanes
-// carry a chart-coherence examination — `f64` does, and a lane that
-// does not reports that as a finding rather than as a clean body.
 // `Unused` is what `Doc::unused` answers: the tips the `unused` check
 // reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
-    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
-    subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject, Unused,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of
