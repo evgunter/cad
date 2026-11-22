@@ -350,9 +350,12 @@ fn sym11_the_bare_lifts_answer_typed_at_every_placement() {
 /// expects no dispute the documents BUILD (or refuse for a reason of
 /// their own), and where it expects one the numeric answer is what
 /// comes back: before SYM-11 the four disputing cells aborted here and
-/// this row had to be `#[ignore]`d.
+/// this row had to be `#[ignore]`d. Every placement off the origin now
+/// stands past the session box and refuses there, at its first edge's
+/// certification, with no dispute counted (`BOXED`); the mechanism's
+/// loss is `work/sym/the-far-placement-mechanism-is-reached-only-past-the-session-box.md`.
 #[test]
-fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
+fn sym11_the_far_placement_answers_its_table_at_sym_f64() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<f64>(d, |d| {
             (
@@ -382,7 +385,7 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
 /// inexact column is its column too.
 #[cfg(feature = "probe")]
 #[test]
-fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
+fn sym11_the_far_placement_answers_its_table_at_sym_probe() {
     use geom_core::Probe;
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<Probe>(d, |d| {

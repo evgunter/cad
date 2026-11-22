@@ -4575,10 +4575,15 @@ pub(crate) mod sphere_rect_rows {
         );
         let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         let (mut faces, mut worst) = (0usize, 0.0f64);
+        let mut at_scale = [0usize; 3];
         let wanted = test_utils::fuzz::scaled(300).max(250);
+        let scales = [1e-3, 1.0, 1e3];
         while faces < wanted {
-            let s = [1e-3, 1.0, 1e3][rng.below(3)];
-            let r = s * rng.range(0.5, 2.0);
+            let i = rng.below(3);
+            let s = scales[i];
+            // At `1e3` the ball and its centre are drawn inside the box:
+            // a radius to 900 m and a centre within the room it leaves.
+            let r = s * rng.range(0.5, 2.0f64.min(900.0 / s));
             // A body the run's ε cannot resolve is not built: one under
             // `10⁴ ε`, or one whose coordinates' rounding (64 ulps of the
             // farthest point) reaches ε, which the pcurve envelopes then
@@ -4586,10 +4591,11 @@ pub(crate) mod sphere_rect_rows {
             if r < 1e4 * tol.eps() || (4.0 * s + r) * 64.0 * f64::EPSILON > tol.eps() {
                 continue;
             }
+            let half = (2.0 * s).min(950.0 - r);
             let c = Point3::new(
-                s * rng.range(-2.0, 2.0),
-                s * rng.range(-2.0, 2.0),
-                s * rng.range(-2.0, 2.0),
+                rng.range(-half, half),
+                rng.range(-half, half),
+                rng.range(-half, half),
             );
             // Nor is one past the session box, which certification refuses.
             if (c - Point3::origin()).norm_inf() + r >= geom_core::tolerance::SESSION_BOX_EXTENT {
@@ -4644,8 +4650,20 @@ pub(crate) mod sphere_rect_rows {
                 }
             }
             faces += 1;
+            at_scale[i] += 1;
         }
         eprintln!("{faces} faces: the support falls short by at most {worst:.2} ulps of |c| + r");
+        // Each scale the run's ε resolves is read, a tenth of the faces at
+        // least, so none is carried by the others.
+        for (i, s) in scales.into_iter().enumerate() {
+            let resolved = (4.0 * s + 0.5 * s) * 64.0 * f64::EPSILON <= tol.eps();
+            assert!(
+                !resolved || at_scale[i] * 10 >= wanted,
+                "scale {s:e}: {} of {wanted} faces read; {}",
+                at_scale[i],
+                test_utils::fuzz::replay()
+            );
+        }
     }
 
     #[test]

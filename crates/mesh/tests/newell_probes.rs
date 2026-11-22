@@ -168,7 +168,7 @@ fn probe_c_needle_extent_ratio() {
 /// made (D4 ¶4). No door builds a body at that offset any more, so the fold's
 /// cancellation there is not reached through one: the huge-offset row of
 /// `issue303_signed_volume_recentring.rs` meets the same refusal and
-/// stands down typed.
+/// pins it.
 #[test]
 fn probe_d_huge_offset_tiny_face() {
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));

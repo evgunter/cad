@@ -394,7 +394,7 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 /// **A curved edge clears the span only past its reach**: a half-disc
 /// of radius 0.5 about `(990, 0)`, its plane's stored origin 42 m off,
 /// crossed by a millimetre span whose middle stands `L/2 + Kε + reach/2`
-/// under the arc's top, at ε = 1e-12 (K = 10). A kilometre from the
+/// under the arc's top, at ε = 1e-12 (K = 10). Near a kilometre from the
 /// origin the span's rounding charge `c` passes ε, so the reach is a few
 /// ε (near the origin it is about 1.2ε), and the arc's bound from the
 /// middle passes `L/2` by more than `Kε` but

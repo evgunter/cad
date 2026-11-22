@@ -201,14 +201,16 @@ fn r1_e2e_l_prism_near_far() {
     };
     let near = read(SketchPlane::xy(), "near");
     let far = read(plane_at(9.0e2), "far(900)");
-    if let Some(near) = near {
-        assert!((near - 1.2).abs() < 1e-12, "near volume {near}");
-        if let Some(far) = far {
-            let rel = ((far - near) / near).abs();
-            println!("L prism: near = {near}, far(900) = {far}, rel drift = {rel:e}");
-            assert!(rel < 1e-9, "far drift {rel:e}");
-        }
-    }
+    // A metre prism every band resolves, at the origin and 900 m out
+    // inside the box: both are read.
+    let (near, far) = (
+        near.expect("the L prism at the origin meshes"),
+        far.expect("the L prism 900 m out meshes"),
+    );
+    assert!((near - 1.2).abs() < 1e-12, "near volume {near}");
+    let rel = ((far - near) / near).abs();
+    println!("L prism: near = {near}, far(900) = {far}, rel drift = {rel:e}");
+    assert!(rel < 1e-9, "far drift {rel:e}");
     // At 1e5 and 2e7 the prism is past the session box, and the extrude
     // refuses it at its first edge's certification, by the box, never by
     // a residual. Not [`prism_on`]: the refusal is the measurement, and a
