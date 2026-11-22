@@ -73,8 +73,7 @@ fn main() {
                 bodies += 1;
                 let side = Side {
                     body: &sb.body,
-                    faces: sb.body.faces().map(|(k, _)| k).collect(),
-                };
+                    faces: sb.body.faces().map(|(k, _)| k).collect(), excluded: Default::default() };
                 let started = std::time::Instant::now();
                 let report = embedded(&side, band, BUDGETS);
                 let verdict = match &report.verdict {

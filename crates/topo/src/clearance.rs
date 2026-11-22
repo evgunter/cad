@@ -6346,8 +6346,7 @@ mod seated_windows {
         .unwrap();
         let brick_side = Side {
             body: &brick,
-            faces: brick.faces().map(|(k, _)| k).collect(),
-        };
+            faces: brick.faces().map(|(k, _)| k).collect(), excluded: Default::default() };
         let wb = brick_side.windows(Which::Second).unwrap();
         let sweep = Sweep {
             bound: ClearanceBound::at_least(0.3),
@@ -6363,8 +6362,7 @@ mod seated_windows {
         ) -> super::Windows<'b, f64> {
             Side {
                 body,
-                faces: vec![face],
-            }
+                faces: vec![face], excluded: Default::default() }
             .windows_at(Which::First, at)
             .unwrap()
         }
@@ -6408,8 +6406,7 @@ mod seated_windows {
         .unwrap();
         let wn = Side {
             body: &near,
-            faces: near.faces().map(|(k, _)| k).collect(),
-        }
+            faces: near.faces().map(|(k, _)| k).collect(), excluded: Default::default() }
         .windows(Which::Second)
         .unwrap();
         // One cell straddling the patch's `u = 1.9` edge reads its region
