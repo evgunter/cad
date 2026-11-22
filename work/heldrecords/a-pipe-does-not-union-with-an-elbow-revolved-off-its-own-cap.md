@@ -2,10 +2,11 @@
 id: a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap
 kind: issue
 title: A pipe does not union with an elbow revolved off its own end cap: the union refuses a recorded contact as undecided at a margin of -7.07
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: H
+branch: heldrecords/elbow
 ---
 
 
