@@ -268,3 +268,52 @@ fn a_circle_in_the_torus_poses_band_refuses_with_the_poses_escalation() {
         "named by the pose's torus rung: {diag:?}"
     );
 }
+
+/// **A graze past the crossing a piece takes refuses nothing** (DESIGN
+/// `[placement]`: a trace decides nothing past the crossing a piece
+/// takes). A line along `x` at `y = 1.5`, in the torus's middle plane,
+/// enters its tube at `x = −2` and runs on to touch the tube's inner
+/// equator at `x = 0`. Read whole, the line grazes the carrier and
+/// refuses. A piece that takes its first entry reads that entry: the
+/// graze stands past it, and no turn is involved.
+///
+/// *Breaks if* the step reads the run whole and refuses on the graze.
+#[test]
+fn a_graze_past_the_taken_crossing_refuses_nothing() {
+    // Pinned red: the curve × face pose classes the line's whole carrier
+    // tangent, so every prefix of the run refuses
+    // (`work/germ/the-curve-face-pose-classes-the-carrier-not-the-span-a-trace-reads.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the graze past the taken entry",
+        &["the piece takes its first entry: Grazing"],
+        a_graze_past_the_taken_crossing_reads_the_entry,
+    );
+}
+
+/// The row [`a_graze_past_the_taken_crossing_refuses_nothing`] pins.
+fn a_graze_past_the_taken_crossing_reads_the_entry() {
+    use topo::boolean::trace::ray_crossings_to;
+    let ray = geom::Ray::new(Point3::new(-4.0, 1.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let whole = ray_crossings(&torus(), true, &ray, 8.0, band());
+    assert!(
+        matches!(whole, Err(TraceFault::Grazing)),
+        "read whole, the line grazes the inner equator: {whole:?}"
+    );
+    let first_entry = |crossings: &[topo::boolean::trace::Crossing<f64>]| {
+        crossings.iter().position(|c| c.passage == Passage::Enter)
+    };
+    let taken = ray_crossings_to(&torus(), true, &ray, 8.0, band(), first_entry)
+        .expect("the piece takes its first entry");
+    let entry = taken[first_entry(&taken).expect("the entry")];
+    near(
+        entry.along,
+        4.0 - (2.5f64 * 2.5 - 1.5 * 1.5).sqrt(),
+        "the entry along the line",
+    );
+    assert!(
+        taken.iter().all(|c| c.along < 4.0),
+        "nothing past the entry and its gap is read: {taken:?}"
+    );
+}

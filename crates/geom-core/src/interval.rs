@@ -523,6 +523,19 @@ impl Real for Interval {
         None
     }
 
+    /// The enclosure itself: it carries no tangent.
+    type Value = Self;
+
+    fn without_tangent(self) -> Self {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
