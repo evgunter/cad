@@ -386,3 +386,16 @@ body has the reasons):
 - 2026-11-22 04:08 — **7330 merged** (`3f3c0a4`). The bounds roster
   now admits `sure_below` as a `Selection`. `crossing` stays BAND's.
   Its lane is archived.
+- 2026-11-22 04:20 — **Fork `tracecarry`.** The 7151 lane found that
+  MAJOR 2 can't be built as ratified.
+  - The traced faces' reach about the frame origin needs the least
+    turn S. Re-posing mints S only on a decided pose, the pole verdict
+    needs the arm, and the arm needs that reach.
+  - The lane's options: (a) amend Re-posing, (b) read about the foot
+    plus the slides, (c) no traced carriage of its own.
+
+  Checked against Re-posing: the premise holds. Two Opus designers
+  were dispatched (local, read-only). Filed
+  `a-traced-faces-carriage-reads-its-reach-about-the-space-origin-not-the-frames`
+  (P1 M), parked on the fork. 7151 goes ahead with everything else,
+  leaving the traced reach as-is with an "Open" section in its body.
