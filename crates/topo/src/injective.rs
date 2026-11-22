@@ -6002,6 +6002,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         let axes = |p: &Presented<'_>| { let Zero::Point(s, t, _) = p.zero else { return None }; let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) }; let (xx, yy) = (p.bound(su), p.bound(sv)); let (fx, fy, _) = p.jet_on((xx, xx), (yy, yy)); Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?]) };
         eprintln!("CVW {}/{} {:?}/{:?} v={:?} wedge={:?} oks={:?} ax={:?} bx={:?} sx={:?}x{:?} sy={:?}x{:?}", kind(x.surface), kind(y.surface), x.face, y.face, near.vertices, w, oks, axes(qx), axes(qy), qx.x, qx.y, qy.x, qy.y);
     }
+    if std::env::var_os("CV_HEADONLY").is_some() && near.edges.is_empty() && !near.vertices.is_empty() {
+        let zk = |z: &Zero| match z { Zero::None=>"None", Zero::Side(..)=>"Side", Zero::Past(..)=>"Past", Zero::Corner(..)=>"Corner", Zero::Curve(_, c) => if c.past.is_some() {"CurvePast"} else {"Curve"}, Zero::Point(..)=>"Point" };
+        let w = wedges_apart(qx, qy);
+        let all = planes_through(x, near, qx, qy);
+        let oks: Vec<bool> = all.iter().cloned().map(opposite).collect();
+        let wedge_ok = w.is_some() && oks.first() == Some(&true);
+        let any = oks.iter().any(|b| *b);
+        eprintln!("CVH zeros={}/{} wedge={} wedge_ok={wedge_ok} any={any} planes={}", zk(&qx.zero), zk(&qy.zero), w.is_some(), all.len());
+    }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
