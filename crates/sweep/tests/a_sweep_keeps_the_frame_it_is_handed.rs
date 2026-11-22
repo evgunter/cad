@@ -601,9 +601,9 @@ type Component = (&'static str, S, fn(&Vec3<f64>) -> f64);
 ///   1.22 half-widths on the turned plane, 0.44 on the tilted loft;
 /// - a profile edge or arc whose direction a boxed vertex sets divides
 ///   that vertex's difference by its own length in the sketch, once
-///   (`swept::sketch_direction`, which the doors' unit replaces with the
-///   profile's recorded direction): 4.0 half-widths on the edge, 10.7 on
-///   the arc.
+///   (`swept::sketch_vector` and `sketch_chord`, which read the
+///   segment's points, not the direction its kind records): 4.0
+///   half-widths on the edge, 10.7 on the arc.
 ///
 /// Each row's factor is that measurement rounded up by a few percent.
 fn assert_tight(what: &str, held: Vec3<S>, members: &[Vec3<f64>], width_over_truth: (f64, f64)) {
