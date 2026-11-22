@@ -43,10 +43,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
-    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
-    TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
+    DimensionError, Doc, Evaluation, Formula, LoopProgram, Node, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    SpokenNode, StepArg, StepId, StepShape, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
+    ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tell, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
@@ -59,7 +59,7 @@ use pncad::profile::{
 use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
-use crate::props::Notation;
+use crate::props::{Notation, WorkingNotation as _};
 use crate::session::refuse::{NodeKindWanted, admits};
 
 /// **A step of `verb` with the editor's starting numbers** — what
@@ -192,10 +192,8 @@ fn recorded_notation(
             recorded.set(step, arg, unit)?;
             continue;
         }
-        match arg.dimension() {
-            Dimension::Length => recorded.set(step, arg, notation.length.def())?,
-            Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
-            Dimension::Scalar | Dimension::Count => {}
+        if let Some(unit) = notation.unit(arg.dimension()) {
+            recorded.set(step, arg, unit)?;
         }
     }
     Ok(recorded)

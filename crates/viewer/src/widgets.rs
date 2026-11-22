@@ -46,8 +46,8 @@ use pncad::profile::{
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
-    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+    DimensionField, FieldWriting, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT, arc_mode_label,
+    target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -272,7 +272,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// from its DRAG SPEED and the display scaling, and from nothing about
 /// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
 /// the range handed to a formatter is `auto_decimals ..= auto_decimals
-/// + 2`. A length field at [`FIELD_DRAG_SPEED`] shown in millimetres is
+/// + 2`. A length field at a length's tick ([`DimensionField`]) shown in millimetres is
 /// handed `1..=3` at one point per pixel, so its coarsest spelling is
 /// `{:.3}` over millimetres.
 ///
@@ -328,7 +328,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// **It is still invisible to a drag**, and that is a measurement
 /// rather than a hope. The widest spelling a millimetre field's range
 /// offers is `{:.1}`, which passes ten characters only at `1e8`
-/// (`1e7` once a sign is spent) — and a drag moves `FIELD_DRAG_SPEED`
+/// (`1e7` once a sign is spent) — and a drag moves a length's tick
 /// per pixel, so reaching either would take twenty million pixels of
 /// dragging. The substituted band is out of a drag's reach at the top
 /// exactly as it is at the bottom. Millimetres are the worst case
@@ -1186,38 +1186,20 @@ pub(crate) fn vec3_row_ops(
     drag_ops(&row, *components, gesture, typed, ops);
 }
 
-/// **One dimensioned field of a creation form.**
+/// **One dimensioned field of a creation form**, with the quantity's
+/// NAME written into the field itself (none where `name` is empty).
 ///
 /// The draft behind it is CANONICAL (metres, radians) and the field
-/// is what that value looks like written in `unit` — the property
-/// panel's own rule ([`crate::props::in_written`] / [`crate::props::from_written`], the
-/// text door's one multiply), applied to the forms so a number typed
-/// into a form and the same number typed into a panel field mean the
-/// same thing.
+/// is what that value looks like written as `writing` says — the
+/// property panel's own rule ([`FieldWriting`], the text door's one
+/// multiply), applied to the forms so a number typed into a form and
+/// the same number typed into a panel field mean the same thing, at
+/// the same tick.
 ///
 /// Held canonical rather than as-typed for the reason the panel holds
 /// it that way: switching the unit is a change of NOTATION, and a
 /// draft that stored what was typed would silently become a different
 /// length when the picker moved.
-///
-/// **The drag speed travels through the same conversion**, which is
-/// the half of this that is easy to leave out: a tick in metres
-/// applied to a field showing millimetres is the same gesture made a
-/// thousand times finer by a change of notation.
-///
-/// Answers whether the person edited the value this frame
-/// ([`named_field`]).
-pub(crate) fn unit_field(
-    ui: &mut egui::Ui,
-    unit: UnitDef,
-    speed: f64,
-    canonical: &mut f64,
-) -> bool {
-    named_field(ui, "", unit, speed, canonical)
-}
-
-/// [`unit_field`] with the quantity's NAME written into the field
-/// itself.
 ///
 /// A prefix rather than a `Label` beside it, and that is the point: a
 /// path step's row is a horizontal strip of controls, and the labels
@@ -1239,7 +1221,8 @@ pub(crate) fn unit_field(
 /// ([`crate::props::written`]). Forming it anyway puts `inf` in a
 /// `DragValue`, and that text is what an edit would start from.
 ///
-/// So the refusal is asked AT the conversion and the row draws
+/// So the refusal is asked AT the conversion
+/// ([`crate::props::shown_value`]) and the row draws
 /// [`crate::props::no_reading`] where the field would be. A disabled
 /// field is not the alternative it sounds like: a `DragValue` is
 /// handed the `f64` it holds and the only `f64` here is the `inf`
@@ -1254,20 +1237,22 @@ pub(crate) fn unit_field(
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
-    unit: UnitDef,
-    speed: f64,
+    writing: FieldWriting,
     canonical: &mut f64,
 ) -> bool {
-    let Some(mut written) = props::written(*canonical, unit) else {
-        let marker = props::no_reading(unit);
-        ui.weak(if name.is_empty() {
-            marker
-        } else {
-            format!("{name} {marker}")
-        });
-        return false;
+    let mut written = match props::shown_value(writing.unit, *canonical) {
+        Ok(written) => written,
+        Err(unit) => {
+            let marker = props::no_reading(unit);
+            ui.weak(if name.is_empty() {
+                marker
+            } else {
+                format!("{name} {marker}")
+            });
+            return false;
+        }
     };
-    let mut field = number_field(&mut written, props::in_written(speed, unit));
+    let mut field = number_field(&mut written, writing.tick);
     if !name.is_empty() {
         field = field.prefix(format!("{name} "));
     }
@@ -1276,16 +1261,16 @@ pub(crate) fn named_field(
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = props::from_written(written, unit);
+        *canonical = writing.authored(written);
     }
     response.changed()
 }
 
-/// A dimensionless field with its own name written in — the scalar
-/// twin of [`named_field`], for the components and bulges that carry
-/// no unit at all.
-pub(crate) fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
-    ui.add(number_field(value, speed).prefix(format!("{name} ")));
+/// **A whole-number field** — an index, an instance, a subdivision
+/// count — at a count's tick ([`DimensionField`]), so a form's count
+/// steps the way the panel's does.
+pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
+    number_field(value, DimensionField::of(Dimension::Count).tick)
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1309,38 +1294,20 @@ pub(crate) trait ArgDoors {
 }
 
 /// **Plain numbers in one notation**: the profile editor's arguments
-/// where a field is no committed slot yet. Each field is written in the
-/// unit its role's dimension is noted in, and the editor's notation row
-/// says the units ([`length_picker`]).
+/// where a field is no committed slot yet. Each field is written as
+/// its role's dimension is in that notation ([`FieldWriting`]), and
+/// the editor's notation row says the units ([`length_picker`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct WrittenIn {
-    /// Every length field's unit.
-    pub(crate) length: UnitDef,
-    /// Every angle field's unit.
-    pub(crate) angle: UnitDef,
-}
-
-impl WrittenIn {
-    /// The units `notation` writes lengths and angles in.
-    pub(crate) fn of(notation: props::Notation) -> Self {
-        Self {
-            length: notation.length.def(),
-            angle: notation.angle.def(),
-        }
-    }
-}
+pub(crate) struct WrittenIn(pub(crate) props::Notation);
 
 impl ArgDoors for WrittenIn {
     fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
-        match arg.dimension() {
-            Dimension::Length => {
-                named_field(ui, name, self.length, FIELD_DRAG_SPEED, value);
-            }
-            Dimension::Angle => {
-                named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value);
-            }
-            Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
-        }
+        named_field(
+            ui,
+            name,
+            FieldWriting::of(arg.dimension(), None, self.0),
+            value,
+        );
     }
 
     fn unit(&mut self, _: &mut egui::Ui, _: usize, _: &[StepArg]) {}
@@ -1715,7 +1682,7 @@ pub(crate) fn path_step_fields(
             // The count is the step's shape, not an argument: no slot
             // addresses it.
             ui.add(
-                number_field(n, COUNT_DRAG_SPEED)
+                count_field(n)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
                     .clamp_existing_to_range(false)
                     .prefix("n "),
@@ -1779,6 +1746,28 @@ pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit
         && let Some(unit) = row.as_angle()
     {
         *chosen = unit;
+    }
+}
+
+/// The picker for a field of `dimension` over a whole working
+/// `notation` — for a form whose dimension is itself a choice, where
+/// [`length_picker`] and [`angle_picker`] are for one whose dimension
+/// is fixed. It draws nothing for a dimension with no units to offer
+/// ([`crate::props::unit_options`]), and a pick lands in the one
+/// component of `notation` its unit measures (`Notation::with`), so the
+/// typed pairing holds here too.
+pub(crate) fn notation_picker(
+    ui: &mut egui::Ui,
+    salt: &str,
+    dimension: Dimension,
+    notation: &mut props::Notation,
+) {
+    use props::WorkingNotation as _;
+    let Some(shown) = notation.unit(dimension) else {
+        return;
+    };
+    if let Some(row) = pick_unit(ui, "creation_unit", salt, dimension, shown) {
+        *notation = notation.with(row);
     }
 }
 
@@ -2513,6 +2502,43 @@ mod tests {
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
+    /// **A count field steps by one**: `egui` moves a focused field by
+    /// one tick per arrow key and then rounds an integer field to a
+    /// whole number, so the count tick is what the keyboard can reach.
+    /// Red at any tick below one half, which rounds the step away and
+    /// leaves the field where it was.
+    #[test]
+    fn a_count_field_steps_by_one_at_the_keyboard() {
+        let ctx = egui::Context::default();
+        let mut count: i64 = 3;
+        let mut frame = |events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                ui.add(super::count_field(&mut count));
+            });
+            output.textures_delta.clear();
+        };
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(Vec::new());
+        frame(vec![key(egui::Key::Tab)]);
+        frame(vec![key(egui::Key::ArrowUp)]);
+        frame(Vec::new());
+        assert_eq!(count, 4, "one arrow key is one more instance");
+    }
+
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus
     /// reaches a second component on is egui's Tab order, not this
@@ -2997,7 +3023,7 @@ mod field_tests {
     }
 
     /// The decimal range a length field shown in millimetres is handed:
-    /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
+    /// a length's tick written in millimetres is 0.5, one point per
     /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
     /// adds two. Derived here rather than asserted off the widget
     /// because these rows are about the RULE over a range, and the
@@ -3327,8 +3353,12 @@ mod field_tests {
                             super::named_field(
                                 ui,
                                 "",
-                                pncad::quantity::MM.def(),
-                                crate::forms::FIELD_DRAG_SPEED,
+                                crate::forms::FieldWriting::of(
+                                    pncad::document::Dimension::Length,
+                                    None,
+                                    crate::props::Notation::CANONICAL
+                                        .with(pncad::quantity::MM.def()),
+                                ),
                                 value,
                             );
                         })

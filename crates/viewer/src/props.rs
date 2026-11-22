@@ -260,16 +260,19 @@ impl SlotValue {
 /// Every unit a value of `dimension` may be written in — the picker's
 /// options, read off the closed table so a unit added to `quantity`
 /// appears here the day it lands.
+///
+/// Empty where there is no choice to offer: a count has no unit, and a
+/// bare scalar has exactly one row, which is not a choice
+/// (`UnitQuantity::Scalar`).
 pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
-    let wanted = match dimension {
-        Dimension::Length => UnitQuantity::Length,
-        Dimension::Angle => UnitQuantity::Angle,
-        Dimension::Scalar | Dimension::Count => return Vec::new(),
+    let Some(wanted) = crate::forms::DimensionField::of(dimension).quantity else {
+        return Vec::new();
     };
-    UNITS
+    let rows: Vec<UnitDef> = UNITS
         .into_iter()
         .filter(|row| row.quantity() == wanted)
-        .collect()
+        .collect();
+    if rows.len() < 2 { Vec::new() } else { rows }
 }
 
 pub use pncad::quantity::Notation;
@@ -336,12 +339,12 @@ pub trait WorkingNotation: Copy {
 
 impl WorkingNotation for Notation {
     fn unit(self, dimension: Dimension) -> Option<UnitDef> {
-        match dimension {
-            Dimension::Length => Some(self.length.def()),
-            Dimension::Angle => Some(self.angle.def()),
-            Dimension::Scalar => Some(quantity::ONE.def()),
-            Dimension::Count => None,
-        }
+        let measured = crate::forms::DimensionField::of(dimension).quantity?;
+        Some(match measured {
+            UnitQuantity::Length => self.length.def(),
+            UnitQuantity::Angle => self.angle.def(),
+            UnitQuantity::Scalar => quantity::ONE.def(),
+        })
     }
 
     fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
@@ -471,7 +474,7 @@ pub fn from_written(written: f64, unit: UnitDef) -> f64 {
 /// value as such a field shows it.
 ///
 /// `None` is not a missing answer here: it is the field that is a
-/// number rather than a quantity (a count, a bare scalar), whose shown
+/// number rather than a quantity (a count), whose shown
 /// number is its canonical one. Spelled once because both panel fields
 /// need it and a hand-written `map_or` at each is the same identity
 /// written twice, free to become two.
@@ -1652,63 +1655,41 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
 /// [`slot_edit`] already has, for its reason: the two are independent
 /// facts about the thing being authored, and deriving one from the
 /// other is how a form comes to author a value it did not mean.
-/// `None` is the field that names no notation (a `Count`, a bare
-/// `Scalar`), and the canonical declaration is right for it.
-///
-/// **Minted through `FreeVar::written_length` /
-/// `written_angle`, which are TOTAL**: each takes a typed view that is
-/// an index into a row of its own quantity, so the unit measures the
-/// dimension by construction and there is no pairing left for the
-/// declaration to get wrong.
+/// `None` is the field that names no notation (a `Count`), and the
+/// canonical declaration is right for it.
 ///
 /// **A unit that does not measure `dimension` is a caller's mistake
-/// and says so.** `UnitDef::as_length`/`as_angle` answer `None` for
-/// it, and the two readings of that `None` — "there is no notation to
-/// name here" and "a notation was offered that this dimension cannot
-/// be written in" — are not the same fact. Quietly minting the
-/// canonical declaration for the second would store a notation nobody
-/// asked for and report success, which is the confident wrong answer
-/// this codebase refuses; the pairing has no run-time recourse at this
-/// seat, so it is `unreachable!` rather than a `Result` nobody could
-/// act on. The one caller reaches it through
-/// `ViewerBehavior::new_variable_unit`, which answers off the same
-/// dimension.
+/// and says so.** The pairing is judged by the declaration's own
+/// notation door (`FreeVar::with_display_unit`), and its refusal here
+/// is not a fact about the document: quietly minting the canonical
+/// declaration would store a notation nobody asked for and report
+/// success, and the pairing has no run-time recourse at this seat, so
+/// it is `unreachable!` rather than a `Result` nobody could act on. The
+/// one caller hands over the unit `crate::forms::FieldWriting::of`
+/// wrote the field in, which is read off the same dimension.
 ///
-/// **No multiply.** `WrittenLength::canonical_in` attaches the
-/// notation to an already-canonical value, which is the form's shape:
-/// the draft behind a form field is canonical whatever the picker
-/// says (`crate::widgets::unit_field`), so applying the factor here
-/// would apply it twice.
+/// **No multiply.** The declaration attaches the notation to an
+/// already-canonical value, which is the form's shape: the draft behind
+/// a form field is canonical whatever the picker says
+/// (`crate::widgets::named_field`), so applying the factor here would
+/// apply it twice.
 pub fn doc_variable(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> FreeVar {
     let value = match value {
         SlotValue::Count(value) => return FreeVar::Count { value },
         SlotValue::Continuous(value) => value,
     };
-    // No notation offered at all: the canonical declaration is the
-    // whole of what there is to mint.
+    let canonical = FreeVar::continuous(dimension, value);
     let Some(unit) = unit else {
-        return FreeVar::continuous(dimension, value);
+        return canonical;
     };
-    let written = match dimension {
-        Dimension::Length => unit
-            .as_length()
-            .map(|unit| FreeVar::written_length(WrittenLength::canonical_in(value, unit))),
-        Dimension::Angle => unit
-            .as_angle()
-            .map(|unit| FreeVar::written_angle(WrittenAngle::canonical_in(value, unit))),
-        // A dimension with no written door — a bare `Scalar` — has one
-        // unit and the canonical declaration already names it, so
-        // being handed it is no mistake and nothing to refuse.
-        Dimension::Scalar | Dimension::Count => {
-            return FreeVar::continuous(dimension, value);
-        }
-    };
-    written.unwrap_or_else(|| {
-        unreachable!(
-            "a {dimension} variable was offered {}, which does not measure it",
-            unit.symbol()
-        )
-    })
+    canonical
+        .with_display_unit(UnitSym::from_def(&unit))
+        .unwrap_or_else(|refusal| {
+            unreachable!(
+                "a {dimension} variable was offered {}: {refusal}",
+                unit.symbol()
+            )
+        })
 }
 
 /// The edit that changes how a standing variable's value is WRITTEN,
