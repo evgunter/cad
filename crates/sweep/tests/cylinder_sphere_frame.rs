@@ -18,9 +18,11 @@
 //! certificate, the volume; [`at_its_volume`]) or
 //! refuses at its pinned door past the join ([`Door`]): the join cuts
 //! both sides' chords from the section's carried loop, and the chorded
-//! faces measure through the rotational lane, the sphere's included. Two chords meeting end to end on the loop both crease
-//! there (each is a clamped spline piece), so the edge join leaves that
-//! vertex standing rather than refusing. [`door`] is the one reading
+//! faces measure through the rotational lane, the sphere's included. Two
+//! chords meeting end to end on a closed loop are two spans of its one
+//! periodic carrier, which holds no crease there
+//! (`topo::boolean::edge_join`'s `crease_at` reads the stored carrier),
+//! so the edge join can take that vertex back. [`door`] is the one reading
 //! of those doors the other cylinder × sphere rows share. The turned-chart
 //! pose's ops close a carried chord's ring-lane island on the drum's wall,
 //! and the two-loop poses' on the ball (`IslandClosing::Carried`), so the
@@ -543,7 +545,13 @@ pose_rows! {
 /// unread carrier, while its fix row is open
 /// (`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`):
 /// the other five runs still build at their volumes, and any other stop
-/// is red.
+/// is red. The pin is the whole `{off:#?}` list, keys included, so a
+/// second off run, another edge or face, or another gap is red
+/// (`work/green/a-pinned-red-row-passes-a-stop-that-says-more-than-main.md`).
+/// It reads the list's `{:#?}` layout (one element between the
+/// brackets), so a change of that format reds the pin too; the order of
+/// [`runs`] does not matter, since any second element sits inside the
+/// brackets.
 #[test]
 fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
     test_utils::pinned_red::row(
@@ -551,8 +559,8 @@ fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
         &test_utils::pinned_red::EVERY_ROW,
         "the r 0.1 rim pose",
         &[
-            "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: EdgeInFace {",
-            "gap: CarrierUnread }\",\n]",
+            "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: \
+           EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }\",\n]",
         ],
         || builds_at_its_volume_or_refuses_at_its_door(8),
     );

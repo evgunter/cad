@@ -74,22 +74,32 @@ another lane holds them.
 
 ## 2026-11-22: the verdict, and the pin (U2)
 
-**The refusal is wrong.** A print at the slit's unread arm on the row's
-own pose (CI run 44997911372, main `1d14b92ca6`, throwaway branch) shows
-face 4 is the drum's cut plane and edge 16 is the sphere × cylinder
-section edge, a clamped spline view with both ends on the rim
-(`Names { ends: true }`). Its height over the plane is `3.5e-13` and
-`5.1e-13` at its two ends and `0.010 … 0.126` m between them, and all
-its control points but the two end ones are strictly on that side. The
-slit's `clears_plane` needs every control point strictly off, so it can
-never clear a carrier that ends on the plane. Six neighbouring poses
+**The refusal is correct and conservative under the slit's contract,
+but it comes from a certificate too weak for this edge.** The row's
+expectation stays right and the band stays P0. A print at the slit's
+unread arm on the row's own pose (CI run 44997911372, main `1d14b92ca6`,
+throwaway branch) shows that face 4 is the drum's cut plane and edge 16
+is the sphere × cylinder section edge, a clamped spline view with both
+ends on the rim (`Names { ends: true }`).
+- Its 33 sampled heights over the plane are `3.5e-13` and `5.1e-13` at
+  the two ends and `0.010 … 0.126` m between them.
+- All its control points but the two end ones are beyond the band on
+  that side (`1.35e-4 … 0.126`).
+
+`holding` takes a spline carrier that no certificate clears as lying in
+the face, and `CarrierUnread` says only that the reading is missing. The
+certificate, `clears_plane`, needs every control point decided beyond
+the band (`RIDER_HULL_OFF`). A clamped carrier's end control points are
+its endpoints, so it can never clear a carrier that ends on the plane.
+The body still exists at the oracle's volume. Six neighbouring poses
 (±0.01 in `c.x` and `c.z`, ±0.001 in r) refuse the same way at all three
 ε, so this is not a knife edge.
 
 The fix is not in PR 7052's hunk (the reading is `slit.rs`'s), so the
 row is pinned at every ε to its one stop
-(`test_utils::pinned_red::row`: the panic must be exactly one off run,
-B ∖ A at `EdgeInFace { .. CarrierUnread }`, so a second off run or any
+(`test_utils::pinned_red::row`: the panic must be the whole one-element
+list, B ∖ A at `EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5),
+gap: CarrierUnread }`, so a second off run, another edge or face, or any
 other stop is red). Fix row, P0:
 `work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`.
 SECTARMS was told on its log.
