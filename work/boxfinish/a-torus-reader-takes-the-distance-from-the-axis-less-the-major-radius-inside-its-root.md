@@ -27,12 +27,13 @@ function and usually one caller):
   (`d = rho − major_radius`), read as an identity by
   `circle_torus_coaxial_residual` and as a margin by the contour
   search; `conic_torus_implicit`.
-- `geom-brep/src/props/curved.rs`: `torus_classify`
+- `geom-brep/src/props/curved.rs`: `IsoChart::distance`'s torus arm
+  (`props_carrier_on_surface`); `torus_classify`
   (`props_meridian_fit`); `torus_ends` and `torus_chart_loop` read
   `ρ − R` as a tube-angle coordinate, with no Zero asked.
 - `geom-brep/src/curve_face/circle_torus.rs`: `meridian_deviation`
   (`circle_torus_meridian`).
-- `topo/src/boolean/solid_contain.rs`: `torus_elevation`.
+- `topo/src/solid_contain.rs`: `torus_elevation`.
 - `topo/src/boolean/slit.rs`: `torus_between` (the factored
   `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)`, which may fold where the
   tier expands the product; not measured).

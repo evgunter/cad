@@ -391,6 +391,18 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",
+        subject: "sure_below",
+        why: Selection(
+            "`sure`'s other side, whether a depth is certainly below `-escalate`. Its one \
+             reader, `screened`, takes it to choose which support vertices' depths it hands \
+             to `face_clearance_margin`, and that door, not this read, decides whether the \
+             request refuses, classifying the margin at the funnel. A vertex it does not \
+             certify is not read as a feature, the branch the f64 lane takes at the same \
+             value channel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
         subject: "inside_bound",
         why: Selection(
             "the reach's inside reading of a face, a cell walk through `sure`. Each read \
