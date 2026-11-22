@@ -77,7 +77,8 @@ fn no_wild_face_sits_on_the_frame_seam() {
         };
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }
@@ -140,7 +141,8 @@ fn axis_tie_census_over_the_wild_corpus() {
         };
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }

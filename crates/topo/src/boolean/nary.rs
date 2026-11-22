@@ -983,6 +983,10 @@ fn lift<T: Decide + crate::AtRestPolicy>(
     Holdings::from_parts(faces, lost, uncut)
 }
 
+/// [`judged_pairs`]' hull test.
+const HULLS_MEET: geom_core::k_stats::TestSite =
+    geom_core::k_stats::TestSite::new("nary_hulls_meet", "two members' hulls meet");
+
 /// **The member pairs judged, as (operand A, operand B), in the order
 /// judged**: each pair whose boxes `hulls` meet, in list order, its
 /// operand A the member of the lesser rank, the earlier listed on a
@@ -999,7 +1003,7 @@ fn judged_pairs<'h>(
             // pruning differs part there rather than at a pair's
             // decisions about another pair.
             .filter(move |&q| {
-                geom_core::k_stats::mark_outcome("nary_hulls_meet", hulls[p].overlaps(&hulls[q]))
+                geom_core::k_stats::mark_outcome(HULLS_MEET, hulls[p].overlaps(&hulls[q]))
             })
             .map(move |q| if ranks[q] < ranks[p] { (q, p) } else { (p, q) })
     })

@@ -75,10 +75,8 @@ impl Ball {
 
     fn surface(self) -> Surface<f64> {
         Surface::Sphere {
-            center: self.c,
+            frame: geom::Frame::new(self.c, self.axis, self.u_ref),
             radius: self.r,
-            axis: self.axis,
-            u_ref: self.u_ref,
         }
     }
 

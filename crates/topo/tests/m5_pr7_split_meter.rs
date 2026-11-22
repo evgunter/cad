@@ -79,16 +79,20 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
 /// cylinder threading the unit sphere).
 fn ssi_branch() -> ssi::SsiBranch {
     let sph = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.03, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.03, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.08,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -143,10 +147,12 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
             seed.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -158,10 +164,12 @@ fn body_with_rung3_edge() -> Rung3Scaffold {
             anchor.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Cylinder {
-                    origin: Point3::new(0.03, 0.0, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.03, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 0.08,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -332,10 +340,12 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             seed.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -347,9 +357,11 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             anchor.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 sense: true,
             },
@@ -435,10 +447,12 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             seed2.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
             },
@@ -450,9 +464,11 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             anchor2.face,
             topo::construction::FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 sense: true,
             },

@@ -106,9 +106,7 @@ pub(crate) fn plane_surface(
     u_ref: geom_core::Vec3<f64>,
 ) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(origin, normal, u_ref),
     }
 }
 

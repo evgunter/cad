@@ -42,8 +42,8 @@ fn top_cap<T: geom_core::Real + geom_core::Bounds>(body: &Body<T>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.lo() > 0.5 && origin.z.lo() > 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().z.lo() > 0.5 && frame.origin().z.lo() > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -488,7 +488,8 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     let (cap, d) = body
         .faces()
         .find_map(|(k, _)| match body.face_surface(k) {
-            Some(geom::Surface::Plane { origin, normal, .. }) if origin.z < 0.5 => {
+            Some(geom::Surface::Plane { frame, .. }) if frame.origin().z < 0.5 => {
+                let normal = frame.axis();
                 Some((k, THICKNESS * normal.z.signum()))
             }
             _ => None,
@@ -499,9 +500,10 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         .expect("the vase's cap moves alone");
     let z = -d;
     let cap_surface = alone.get_face(cap).expect("the moved cap resolves").surface;
-    let Some(geom::Surface::Plane { origin, normal, .. }) = alone.get_surface(cap_surface) else {
+    let Some(geom::Surface::Plane { frame, .. }) = alone.get_surface(cap_surface) else {
         panic!("the moved cap is a plane");
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     assert!(
         (origin.z - z).abs() < 1e-12 && normal.z < -0.5,
         "the moved cap is the plane z = {z}, facing out of the body: {origin:?} {normal:?}"
@@ -717,7 +719,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
+                Some(geom::Surface::Plane { frame, .. }) if frame.origin().z > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -853,8 +855,8 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal, origin, .. })
-                    if normal.x.abs() > 0.5 && origin.x > 1.0
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() > 0.5 && frame.origin().x > 1.0
             )
         })
         .map(|(k, _)| k)
@@ -948,8 +950,8 @@ fn a_moved_planes_section_with_a_held_fit_follows_the_plane() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal, origin, .. })
-                    if normal.x.abs() > 0.5 && origin.x > 1.0
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() > 0.5 && frame.origin().x > 1.0
             )
         })
         .map(|(k, _)| k)
@@ -1427,8 +1429,8 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { normal, origin, .. })
-                    if normal.x.abs() > 0.5 && origin.x > 1.0
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() > 0.5 && frame.origin().x > 1.0
             )
         })
         .map(|(k, _)| k)
@@ -1442,9 +1444,11 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
             side,
             topo::construction::FaceSurface::New {
                 surface: geom::Surface::Plane {
-                    origin: geom_core::Point3::new(2.0, 0.0, 1.0),
-                    normal,
-                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                    frame: geom::Frame::new(
+                        geom_core::Point3::new(2.0, 0.0, 1.0),
+                        normal,
+                        Vec3::new(0.0, 1.0, 0.0),
+                    ),
                 },
                 sense: true,
             },
