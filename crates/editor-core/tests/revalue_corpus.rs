@@ -552,12 +552,14 @@ fn holds_until_parting(
 }
 
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
-/// zero it parts at.
+/// zero it parts at. Its parting came later when the least turn lost its
+/// identity shortcut: an identity chart decides its pole verdict and
+/// conditioning, in step at both builds.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3246, 7228),
+        (3255, 7228),
         PerRow {
             at_1e6: 1955,
             at_1e9: 1993,
@@ -574,12 +576,13 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// mate, not the identity bundle, so it runs its map at `p0` as at `p1`
 /// (FORK-REST), and the two builds visit the separating axes in one
 /// order where `p0`'s exactly axis-aligned faces used to merge them
-/// (the owed item's `bool_pair_gap` swap).
+/// (the owed item's `bool_pair_gap` swap). Its parting came later, as
+/// `plate_param`'s did, when the least turn lost its identity shortcut.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2360, 3857),
+        (2399, 3856),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,
@@ -1107,7 +1110,10 @@ fn reader_ties_at_the_nominal() {
 /// least turn as the identity off that value would be constant in `a`:
 /// its margins, re-valued at a moved `a`, would stay where `p0` put them
 /// while the `p1` build's moved. Under the apart move every variable at
-/// zero moves by the step, so the row sees it.
+/// zero moves by the step, so the row sees it: with the identity read off
+/// the value, `p0` takes the identity branch and `p1` the general one, the
+/// builds part, and the row falls back to the in-step move, which its
+/// pinned mode refuses.
 #[test]
 fn revalue_a_chart_on_a_cap_tilted_at_zero() {
     use crate::fixture::{self, len};
