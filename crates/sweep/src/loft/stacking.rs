@@ -101,7 +101,7 @@ const LOFT_RIM_PINNED: &str = "loft_rim_pinned";
 ///
 /// What passes is each corner's class per slab ([`Pinned`]): a corner
 /// pinned throughout the span its wall covers is one vertex there, and
-/// the skin writes it as one point ([`crate::skin`]'s `pin_strips`), so
+/// the skin writes it as one point ([`mod@crate::skin`]'s `pin_strips`), so
 /// each wall beside it has a collapsed side. Then, once every slab has
 /// passed, **a one-segment loop's pinned vertex**
 /// ([`LoftError::PinnedCornerUnsupported`]), which the assembly does not
