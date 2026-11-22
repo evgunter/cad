@@ -41,3 +41,5 @@ Both designers, each in its own session, shown both first reports verbatim by la
 ## Round 2 (dispatched 2026-11-22 03:25 UTC)
 
 Both designers, each in its own session, shown both round-1 replies verbatim by label (`boxfinish/fork-contradiction-reports` at `fa9e5723`, `probe/fork-contradiction/round1/`). The message was identical but for the label. Put to both: B's `free_identity` exception and how to state which zeros the assertion covers; the assertion's reach and what to claim for it; where the instrument's lanes run and how its hook is installed; A's correction on `frozen` and the two unread soundness conditions (`Hull` nodes; the decision read's certified sign); and the recommendation against current main (DOCTAIL's roles and checks, `READS_BY_SUPPORT`, `read-pins-testing`). Each asked for a final `For Ev` section complete in itself.
+
+Correction: round 2 went out at about 03:10 UTC on 2026-11-22 by the server's clock, not 03:25 as written above.
