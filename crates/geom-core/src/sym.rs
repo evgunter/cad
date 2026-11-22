@@ -749,7 +749,7 @@
 //! a form only where the numeric channel cannot answer, and the shape
 //! report, when installed, renders blocked residuals through the walks.
 //! A definite numeric sign asks the tier nothing. The test instrument
-//! ([`contradiction`]) walks the margins a build decided definite, after
+//! (`sym::contradiction`, test-only) walks the margins a build decided definite, after
 //! the build, and no shipped build contains it. On the slab at its
 //! nominal the decision path builds 9,686 plain forms in 980 calls and
 //! 36 early forms in 16. The figures below were taken while every
@@ -4335,7 +4335,7 @@ fn walk(
 /// ([`rungs`]). Recorded per decision by the cost profile
 /// (`profile::DecisionRecord`) so that "where the refusals are" is a
 /// count and not a reading of the code, and named by the test
-/// instrument's report ([`contradiction`]). **Nameable outside this
+/// instrument's report (`sym::contradiction`, test-only). **Nameable outside this
 /// crate only under `sym-profile-testing` or `sym-revalue-testing`**,
 /// the test-only features those two live behind: no shipped build can
 /// read which rung answered, and no decision type carries it.
@@ -4386,7 +4386,7 @@ enum Path {
     Decision,
     /// Whether the tier's own algebra proves the margin zero, for the
     /// test instrument that checks it against a definite numeric sign
-    /// ([`contradiction`]): every attempt, and no door, because a
+    /// (`sym::contradiction`, test-only): every attempt, and no door, because a
     /// registered zero under a definite sign is the instrument's own
     /// event.
     #[cfg_attr(
@@ -5314,7 +5314,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// form, no registry walk, no count. Whether the algebra or a
 /// registration WOULD have claimed `Zero` on a margin the numbers
 /// decided is a question about the kernel, asked by the test
-/// instrument ([`contradiction`]) and by no shipped build (ERROR-DESIGN
+/// instrument (`sym::contradiction`, test-only) and by no shipped build (ERROR-DESIGN
 /// E12, "the two channels are checked where an answer is returned").
 ///
 /// **Where the tier answers `Zero` at an EXACT witness, the certified
