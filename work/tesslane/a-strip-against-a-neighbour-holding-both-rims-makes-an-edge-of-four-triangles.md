@@ -43,21 +43,43 @@ whose four uses come from two topological edges between one vertex pair.
 
 ## What cures the walked face, and not this one
 
-With a ruling split, the bore is the chart lane's walk, which cuts every
-walked side whose two ends one neighbouring face holds at its midpoint
-(`trimmed::walk_face`, reading `trimmed::faces_across`, the fact the cone
-arm's shared-side rule reads), and those cells mesh manifold
-(`split_rulings::a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`).
+With a ruling split, the bore is the chart lane's walk. It cuts a walked
+side whose two ends one face across holds (`TrimPolygon::faces_holding_side`,
+the CDT arms' one test) wherever that face may make it (`trimmed::may_make`:
+the side's midpoint is not decided, on the run's band, to lie farther than
+`δ·(1 + cert::ALLOWANCE_SHARE)` from its surface), and those cells mesh
+manifold (`split_rulings::a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`).
 The unsplit bore is the rectangle lane's, which reads no such fact.
 
-**The candidate cure here** is the walk's rule as it reads now
-(`trimmed::may_make`): cut a side whose two ends one neighbouring face
-holds unless its midpoint is decided, on the run's band
-(`geom_core::k_stats::decide`), to lie farther than
-`δ·(1 + cert::ALLOWANCE_SHARE)` from that face's surface
-(`geom::Surface::foot`), so that the face's certificate could pass a triangle on it. On
-the bored ball that is δ 0.04 and coarser (the shell is 0.05 thick); the
-cut adds two triangles per side cut, so the bore's strip of `2n`
-triangles becomes `6n` there, and nothing moves at a finer δ. Each cut
-point lies between the same two rulings, so the rectangle lane's theorem
-(every triangle within one column) still covers the cut strip.
+**The candidate cure here** is the walk's rule: on the bored ball it cuts
+at δ 0.04 and coarser (the shell is 0.05 thick), 15 to 69 sides a cell,
+two triangles each, and nothing at a finer δ. Each cut point lies between
+the same two rulings, so the rectangle lane's theorem (every triangle
+within one column) still covers the cut strip. It over-cuts: on the
+bored ball the census refuses only at sign +1 δ 3 to 0.3 and sign −1 δ 3
+to 0.1, and the rule cuts at sign +1 δ 0.1 and 0.04 and sign −1 δ 0.04
+too.
+
+## 2026-11-22 — on merged main (`54e6a5c5b8`), unit 4c
+
+PR 7198 (TESSLIE, `tesslie/four-use-edge`) put one shared-side rule on
+every trimmed arm and a census where the patches join
+(`tessellate::joined`, `overused_side`), and closed
+`work/tesslie/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`
+and `work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`.
+The unsplit bored ball now refuses typed instead of answering a
+non-manifold `Ok`: `TessellateError::OverusedSide { uses: 4 }` at sign +1
+δ 3, 1, 0.3 and sign −1 δ 3, 1, 0.3, 0.1 (the torus neighbour is sign −1
+here, the sphere sign +1), placed obliquely at the default ε; it meshes at
+the finer δ (sign +1 from 0.1, sign −1 from 0.05). Split, it meshes on
+main at every cell (the chart lane's CDT and the rule), and on this
+branch's walk.
+
+So the defect is a refusal now, not a wrong mesh, and the finding stays:
+the rectangle lane has no rule. PR 7198 says it needs none, because its
+iso-rectangle domain puts one chain's points on one iso line, exactly
+collinear, so no triangle side joins two non-neighbours of ONE chain.
+That argument does not cover TWO chains held by one neighbour: the
+bore's two rims, each an iso line, which the bore's strip joins by
+construction and the neighbour's triangles join too where it lays no
+point between them. The census is what catches it.

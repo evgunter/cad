@@ -1597,3 +1597,83 @@ fn a_split_beside_the_apex_of_a_needle_cone_refuses_undecided() {
         }
     }
 }
+
+/// **A thin D-prism split on every line edge refuses as the same prism
+/// split on its caps' chords alone does.** The D-shaped prism of 0.5 rad
+/// ([`d_prism`]) at δ 0.1, where its arc is two chords: each cap is a
+/// sliver of four points, the arc's two chords and its chord's two halves
+/// once the chord is split, which the planar lane cannot wind
+/// (`UnresolvedWinding`). Split on its caps' chords alone (no ruled face
+/// has a split side, so nothing here is walked) it refuses so on this
+/// tree and on main's. Split on every line edge, the cylinder face's
+/// rulings too, it refuses the same way here: the walk chords the arc at
+/// the face's own step, as the unsplit face is chorded. Main's chart lane
+/// chorded the arc finer (its headroom), which let the caps mesh, so this
+/// cell meshed there; a split changes this refusal, and only by giving the
+/// caps the arc the unsplit prism has.
+#[test]
+fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
+    use geom::SurfaceKind;
+    let body = d_prism(0.5);
+    let lines = rulings(&body);
+    let caps: Vec<topo::EdgeKey> = lines
+        .iter()
+        .copied()
+        .filter(|&ek| {
+            let c = body
+                .get_curve_geom(body.get_edge(ek).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap();
+            let (t0, t1) = c.params();
+            (c.carrier().eval(t0).z - c.carrier().eval(t1).z).abs() < 1e-9
+        })
+        .collect();
+    assert_eq!(caps.len(), 2, "the prism's two cap chords");
+    let solid = split_and_placed(&body, &[], &[]);
+    for (what, edges) in [("its caps' chords", &caps), ("every line edge", &lines)] {
+        let split = split_and_placed(&body, edges, &[0.5]);
+        assert_eq!(
+            got_enclosing(&split, &solid, 0.1),
+            Got::Unresolved(SurfaceKind::Plane),
+            "the prism split on {what}, δ 0.1"
+        );
+    }
+}
+
+/// **A side whose reach the band cannot decide is cut.** The bored ball
+/// of sign +1 ([`bored_ball`]), its seam split at its middle, placed
+/// obliquely. As δ grows, the walk starts to cut the bore's rim-to-rim
+/// sides (`trimmed::may_make`) where `d − δ·(1 + ALLOWANCE_SHARE)`, `d` a
+/// side's midpoint's distance from the neighbour's surface, drops below
+/// the band's escalation width (`10ε`, `geom_core::k_stats::decide`); it
+/// is undecided down to the zero width (`ε`), and decided not greater past
+/// it. Measured, the first cut falls at δ 0.036 955 750 473 at the
+/// default ε, 0.036 947 758 473 at `10⁻⁶` and 0.036 955 758 465 at
+/// `10⁻¹²`, the undecided window `9ε/(1 + ALLOWANCE_SHARE)` wide above
+/// each. This row's cell is inside the window at each ε: all 36 of the
+/// bore's sides there are undecided, and the walk cuts each, as it must
+/// where the neighbour may make the side. Reading undecided as "beyond
+/// reach" cuts none of them, which this cell reds at every ε.
+#[test]
+fn a_side_whose_reach_the_band_cannot_decide_is_cut() {
+    let body = bored_ball(1.0);
+    let [seam] = rulings(&body)[..] else {
+        panic!("the bore has one seam");
+    };
+    let split = split_and_placed(&body, &[seam], &[0.5]);
+    let solid = split_and_placed(&body, &[], &[]);
+    // Inside each ε's undecided window, past the first cut.
+    let delta = match eps_row() {
+        EpsRow::Coarse => 0.036_951_758_469_4,
+        EpsRow::Default => 0.036_955_754_469_4,
+        EpsRow::Fine => 0.036_955_758_469_0,
+    };
+    holds_the_relation(
+        "the ball bored with sign 1, its seam split at [0.5], in the band",
+        &split,
+        &solid,
+        delta,
+        36,
+    );
+}
