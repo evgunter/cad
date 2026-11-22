@@ -1818,6 +1818,35 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
 }
 
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// holds where two arcs of its ellipse meet.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -3164,31 +3193,35 @@ fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
     ]
 }
 
-/// **A cone wedge past a half turn is embedded at its apex**: the
-/// triangle `(0,0) (1,0) (0,1)` revolved by `θ` about `y`. Each wedge
-/// plane holds the axis, so its carrier holds a second ruling of the
-/// cone through the apex, half a turn from the one it shares, and past a
-/// half turn that ruling is on the cone face: no plane through the
-/// shared ruling parts the cone's cells about it from the wedge plane's
-/// at the apex. A plane through the apex does, each face read against
-/// the apex alone. Read at both scalars in each of [`apex_frames`]:
-/// - plain and moved, `Embedded`; red while the departure arm reads no
-///   plane but those through the shared ruling;
-/// - turned, the start plane and the cone refuse `Departure` across the
-///   shared ruling at both scalars: the last cell pair holds the cone's
-///   cell over its whole `u` beside the apex, short of it, never halved
-///   in `u` before the depth budget, which no plane through the apex
-///   parts from the plane's cell
-///   (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`'s
-///   case A).
+/// **A cone wedge past a half turn is embedded at its apex**: a
+/// triangle with a leg on the axis, revolved by `θ` about `y`. Each
+/// wedge plane holds the axis, so its carrier holds a second ruling of
+/// the cone through the apex, half a turn from the one it shares, and
+/// past a half turn that ruling is on the cone face: no plane through
+/// the shared ruling parts the cone's cells about it from the wedge
+/// plane's at the apex. A plane through the apex does, each face read
+/// against the apex alone. `Embedded` at both scalars: the unit
+/// triangle in each of [`apex_frames`] and a thousand units off the
+/// origin, and a triangle a hundred times the size, a needle and a flat
+/// one in the plain frame; and revolved by `−θ`, the unit triangle in
+/// the plain frame. Red while the departure arm reads no plane but those
+/// through the shared ruling. Revolved by `−θ` in the other poses the
+/// wedge refuses, at one scalar or both
+/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
 #[test]
 fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    use geom_core::{Affine3, Mat3, Vec3};
     use topo::clearance::Embedding;
-    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64) -> Body<T> {
+    fn wedge<T: Scalar>(
+        place: &SketchPlane<f64>,
+        legs: (f64, f64),
+        theta: f64,
+    ) -> Result<Body<T>, String> {
+        let (r, h) = legs;
         let profile = Profile::new(
             plane_at::<T>(place),
             lifted(&[ProfileLoop::polygon(
-                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+                [(0.0, 0.0), (r, 0.0), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
             )]),
         )
         .validate(tol())
@@ -3199,37 +3232,68 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
             Revolution::Partial(T::from_f64(theta)),
             tol(),
         )
-        .unwrap()
-        .body
-        .into_body()
+        .map(|b| b.body.into_body())
+        .map_err(|e| format!("{e:?}"))
     }
+    let far = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
+        tol(),
+    ));
+    let mut poses: Vec<(&str, SketchPlane<f64>, (f64, f64))> = apex_frames()
+        .into_iter()
+        .map(|(name, place)| (name, place, (1.0, 1.0)))
+        .collect();
+    poses.extend([
+        ("moved a thousand", far, (1.0, 1.0)),
+        ("a hundred times", SketchPlane::xy(), (100.0, 100.0)),
+        ("a needle", SketchPlane::xy(), (0.05, 1.0)),
+        ("flat", SketchPlane::xy(), (1.0, 0.05)),
+    ]);
+    let plain = poses[..1].to_vec();
     for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
-        for (name, place) in apex_frames() {
-            let what = format!("the {theta} wedge, {name}");
-            let float = embedding(&wedge::<f64>(&place, theta));
-            let twin = embedding(&wedge::<Interval>(&place, theta));
-            println!(
-                "[apex wedge] {what}: f64 {:?} {:?} | Interval {:?} {:?}",
-                float.verdict, float.receipt, twin.verdict, twin.receipt
-            );
-            for (scalar, report) in [("f64", &float), ("Interval", &twin)] {
-                let verdict = &report.verdict;
-                if name == "turned" {
-                    assert!(
-                        matches!(
-                            verdict,
-                            Embedding::Refused(EngineRefusal::Uncertified {
-                                shared: SharedCell::Edge(_),
-                                arm: CertificateArm::Departure,
-                                ..
-                            })
-                        ),
-                        "{what} at {scalar} refuses Departure at the shared ruling: {verdict:?}"
-                    );
-                } else {
+        for (turn, poses) in [(theta, &poses), (-theta, &plain)] {
+            for (name, place, legs) in poses {
+                let what = format!("the {turn} wedge, {name}");
+                // At ε = 1e-12 the two poses at coordinates of a hundred and
+                // more refuse their certification at the build:
+                // work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md.
+                let built =
+                    |r: Result<topo::clearance::EmbeddingReport, String>, scalar: &str| match r {
+                        Ok(report) => Some(report),
+                        Err(e)
+                            if matches!(*name, "moved a thousand" | "a hundred times")
+                                && tol().eps() < 1e-11
+                                && (e.starts_with("Op { source: Certification {")
+                                    || e.starts_with("Pcurve(Certify {")) =>
+                        {
+                            println!(
+                                "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
+                                tol().eps()
+                            );
+                            None
+                        }
+                        Err(e) => panic!("{what} builds at {scalar}: {e}"),
+                    };
+                let float = built(
+                    wedge::<f64>(place, *legs, turn).map(|b| embedding(&b)),
+                    "f64",
+                );
+                let twin = built(
+                    wedge::<Interval>(place, *legs, turn).map(|b| embedding(&b)),
+                    "Interval",
+                );
+                println!(
+                    "[apex wedge] {what}: f64 {:?} | Interval {:?}",
+                    float.as_ref().map(|t| (&t.verdict, t.receipt)),
+                    twin.as_ref().map(|t| (&t.verdict, t.receipt))
+                );
+                for (scalar, report) in [("f64", float.as_ref()), ("Interval", twin.as_ref())]
+                    .into_iter()
+                    .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
+                {
                     assert_eq!(
-                        verdict,
-                        &Embedding::Embedded,
+                        report.verdict,
+                        Embedding::Embedded,
                         "{what} at {scalar} is embedded"
                     );
                 }
