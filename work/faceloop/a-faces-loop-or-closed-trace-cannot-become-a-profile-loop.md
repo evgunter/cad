@@ -2,10 +2,11 @@
 id: a-faces-loop-or-closed-trace-cannot-become-a-profile-loop
 kind: issue
 title: A picked edge loop, or a face's whole closed trace, cannot become a profile loop: an elbow off a hollow cylinder's end is re-typed by hand
-status: open
+status: parked
 opened: 2026-11-20
 priority: P1
 cost: M
+blocked_on: [a-profile-on-a-face-holds-that-faces-outline-or-a-hole, a-click-on-an-edge-of-the-sketched-face-writes-its-loop]
 ---
 
 
@@ -115,3 +116,38 @@ about a line in the cap's plane 3 from the axis:
 
 So the elbow is not only an authoring gap: a picked loop makes the
 elbow a body, and joining it to its pipe waits on the union.
+
+## Moved (2026-11-22)
+
+From `work/profile/` to `work/faceloop/` by `git mv`, id kept, with the
+cut below: PROFILE stood at 35/30 and this build is not the lattice's
+(`work/faceloop/program.md`).
+
+## Cut (2026-11-22)
+
+Ruled by Ev on PR 7284 (2026-11-21: "this sounds good!"). Parked on the
+two units that make it true; the plan is `work/faceloop/plan.md`.
+
+1. **U1** `a-faces-loop-reads-each-joint-off-the-body` (M, open): the
+   joint at each vertex of a face's loop, read off the edge between its
+   two walls, at every lane. Inert; it settles the spec's first check
+   above.
+2. **U2** `a-profile-on-a-face-holds-that-faces-outline-or-a-hole` (H,
+   parked on U1): the form, its lowering at each lane, its typed
+   refusals and the names of the walls it sweeps.
+3. **U3** `a-click-on-an-edge-of-the-sketched-face-writes-its-loop` (M,
+   on VSEAM, parked on U2): the click.
+
+Off the slate: the Python spelling (PYDOOR,
+`a-faces-loop-has-no-python-spelling`, P2), and the second read
+(PROFILE, `part-of-an-outline-or-a-section-where-no-edge-exists-has-no-profile-form`,
+`design`).
+
+**Where the elbow stands after each.** After U1, nothing a person sees.
+After U2, by the Rust API: the profile holding both loops evaluates and
+follows the pipe's radii; a revolve builds for one heading of its axis
+and refuses for the other (`work/lathe/a-revolve-refuses-a-profile-on-one-side-of-its-axis-as-across-it.md`);
+the union with the pipe refuses
+(`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`,
+P0). After U3, the same by two clicks and Revolve. The elbow joins its
+pipe only when the HELDRECORDS row closes.

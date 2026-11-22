@@ -2,11 +2,12 @@
 id: point-in-carrier-loop-is-a-second-copy-of-seg-ray-crossings
 kind: issue
 title: point_in_carrier_loop's ray x arc crossing is a second copy of profile::seg's ray_crossings (planar ray parity with arcs, two spellings)
-status: open
+status: parked
 opened: 2026-09-25
 priority: P2
 cost: H
 refs: [3204]
+blocked_on: [both-planar-ray-walks-share-one-driver-beside-the-reader]
 ---
 
 Found by the ATREST-9 dual review (PR #3204). Filed on PATHS because it
@@ -85,3 +86,11 @@ readers and check 9's arms 4 and 5 are deleted once a differential of
 `seg`, kept as the test oracle, agrees over profile's rejection rows,
 pair-contact rows and reach fuzz. Not part of it: profile's joint pass;
 the two fillet constructions' placement (LB4 and their own rows).
+
+## Cut (2026-11-22)
+
+Ev approved the plane clause (PR 7290). The build is PLANAR's
+(`work/planar/plan.md`); this row moved there and is parked on
+`both-planar-ray-walks-share-one-driver-beside-the-reader`, which
+deletes `seg::ray_crossings` after the differential agrees and moves the
+driver beside the reader.

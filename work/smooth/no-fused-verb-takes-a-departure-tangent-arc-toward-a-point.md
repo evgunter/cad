@@ -2,11 +2,12 @@
 id: no-fused-verb-takes-a-departure-tangent-arc-toward-a-point
 kind: issue
 title: paths: tangent_arc_to is a verb outside ArcData, so no fused verb takes a departure-tangent arc toward an authored point (sharp→filleted is not an edit at the same call site)
-status: open
+status: parked
 opened: 2026-10-19
 priority: P2
 cost: M
-design: true
+blocked_on: [the-fused-verbs-take-end-and-radius-at-every-directed-tip]
+parent: the-fused-verbs-take-end-and-radius-at-every-directed-tip
 ---
 
 
@@ -23,3 +24,17 @@ Found while weighing the arrival-constructed arc (`arc-closer-constructed-from-a
 Moved from `work/paths/` to PROFILEREST (`work/profilerest/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 Moved from PROFILEREST to PROFILE on 2026-11-20, by `git mv`, when PROFILEREST merged into PROFILE: PROFILEREST held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one PROFILE carries.
+
+## Ruled (2026-11-22)
+
+Answered by Ev's ruling on PR 7251 (2026-11-21). The tangent-departing
+endpoint-full arc becomes the `ArcData` mode `End{p}`, legal at every
+Directed tip, and its fused form `arc_fillet(End { p }, r)` exists
+(`docs/PATHS-DESIGN.md` §2 Fillet and §2a item 6, as that PR leaves
+them). So converting sharp to filleted is an edit at the same call site
+again. The `design` flag is off.
+
+Moved from `work/profile/` to SMOOTH by `git mv` on 2026-11-22. It is
+closed by `the-fused-verbs-take-end-and-radius-at-every-directed-tip`,
+and parked on it until then. The `arc_onto` half stays as the ruled page
+says it: an `arc_onto` arc filleted at its own end has no spelling.

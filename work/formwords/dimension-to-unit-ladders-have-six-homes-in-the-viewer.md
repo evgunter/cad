@@ -2,10 +2,13 @@
 id: dimension-to-unit-ladders-have-six-homes-in-the-viewer
 kind: issue
 title: Six Dimension-to-unit ladders in the viewer, each answering which dimensions have a notation
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7372
+branch: formwords/dimension-ladders
+closed: 2026-11-22
 ---
 
 
@@ -69,3 +72,7 @@ on this slate are the same SHAPE with different subjects —
 `a-fifth-spelling-of-this-seat-is-empty` and
 `four-spellings-of-one-finiteness-predicate-in-datums-rs` — and whether
 any of them want one unit is CHROME's call.
+
+## Closed (2026-11-22)
+
+PR 7372. The Dimension→quantity relation has one home in the kernel: `Dimension::quantity`, with `UnitSym::measures` and `canonical_for` reading it, and `Notation::unit_of` as the read half of `with`. The viewer keeps only `props::drag_tick` (the tick and the whole-number rule). The `*_DRAG_SPEED` constants are gone, a count steps by 1, and `probe_seed` is `props::authored_in(unit, 1.0)`.

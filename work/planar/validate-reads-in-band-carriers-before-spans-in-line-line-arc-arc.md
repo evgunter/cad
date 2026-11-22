@@ -1,11 +1,12 @@
 ---
 id: validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc
 kind: issue
-title: "The simplicity pair pass escalates two arcs on nearly one circle on carrier_circles_identity, however far apart their spans lie"
+title: The simplicity pair pass escalates two arcs on nearly one circle on carrier_circles_identity, however far apart their spans lie
 status: open
 opened: 2026-10-07
 priority: P2
 cost: M
+parent: profile-validation-reads-its-pairs-through-the-plane-instance
 ---
 
 
@@ -130,3 +131,9 @@ disagreement.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Claimed by PLANAR (2026-11-22)
+
+Moved from PROFILE by `git mv` when PROFILE cut Ev's plane ruling (PR 7290)
+into PLANAR's units (`work/planar/plan.md`). Its fix is part of
+`profile-validation-reads-its-pairs-through-the-plane-instance` (`parent:`), which closes it; build nothing for it on its own.
