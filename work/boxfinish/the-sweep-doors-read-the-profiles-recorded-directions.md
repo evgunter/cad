@@ -119,3 +119,19 @@ a wrong side or a wrong containment answer under the old rule
 `reaches_root_in_band` opened, on such a body. The searches PR 6979
 adopts from its review are the tripwires to run first.
 
+
+## Ruled (2026-11-22): this unit ships the type move only
+
+On the lane's measurement (with the line arm reading the recorded
+director the slow sets go about 20 rows red against a green base, by
+two mechanisms: a minted axis beside a quotient-minted partner, and a
+projection span that folds only under rule A), no door reads a
+recorded direction in this unit. What ships is the validated type: a
+segment holds its directions in its kind's arm, and the sweep's
+traversal carries them. The "tests that say it is closed" above are
+not met by it and move with the work: the line half to
+`a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`,
+the arc half to
+`a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
+This row closes when PR 7384 merges; `delete-the-box-scalar-sweep-leaf-switch`
+is re-parked on those two at that merge.
