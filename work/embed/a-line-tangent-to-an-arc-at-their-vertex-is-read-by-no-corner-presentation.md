@@ -183,7 +183,21 @@ the gate; 35 tests: this row's 24, `lamina_annulus`'s four and
 - **The `lamina_annulus` and `a_split…` rows are not this cause**: no
   payload of theirs moves.
 
-TOUR_AND_SUITE
+- **The injectivity suite** (`self_intersection_proves_injectivity`,
+  no gate): 52 pass at the default ε, 1e−6 and 1e−12, main's 49 and
+  three new rows. No existing row's pin moves.
+- **The tour walk**, 85 stops (main's `injective.rs` against this one
+  in one checkout, release): identical. 82 hold, the three bench
+  assemblies cross at their recorded contacts, and no body's
+  candidates, discharged, refused or splits move.
+- **The endpoint census**: `injective.rs` 177 → 194 reads, blessed
+  with their disposition. Three other files' counts were already off
+  on main (`pcurve_cache/speed.rs`, `step-import`'s `on_built.rs` and
+  `recognize_curve.rs`), left for their owners.
+
+The measurements above the tour were taken at `165a534b1` on main
+`0c1eb97ad`; what landed after is rows, docs and one comparison that
+reads a parameter that is no number as past the vertex.
 
 **Pinned** (`crates/topo/src/injective.rs`, `presentation_rows`; the
 body rows in `crates/sweep/tests/self_intersection_proves_injectivity.rs`):
@@ -199,7 +213,11 @@ circle, inside it, and an arc into an arc), and a crossing copy.
   read only where one of its edges is shared);
 - a run whose curved other edge lies on a cylinder's chart
   (`curve_onward` reads a chart with no periodic axis);
-- a spiric wall's corner (`present_wall` keeps `leaves_graph`).
+- a spiric wall's corner (`present_wall` keeps `leaves_graph`);
+- a coordinate line of a cylinder's or a torus's chart whose curve
+  leaves it tangentially, read from the line's side
+  (`present_line_corner`; the run is read from a plane's line only).
 
-None has a measured body.
+None has a measured body. Two lines collinear at a vertex are
+`present_plane`'s, not a curve reading's.
 
