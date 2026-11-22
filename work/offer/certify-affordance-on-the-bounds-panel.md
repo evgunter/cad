@@ -1,12 +1,13 @@
 ---
 id: certify-affordance-on-the-bounds-panel
-kind: issue
+kind: unit
 title: The bounds panel has no on-demand certify affordance for the certified range query
-status: open
+status: parked
 opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
+blocked_on: [the-certified-range-refines-away-from-the-current-value]
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
