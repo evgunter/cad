@@ -150,6 +150,8 @@ pub(crate) mod boxes;
 pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
+#[doc(hidden)]
+pub mod census_meter;
 pub(crate) mod chain_parity;
 pub mod chart;
 pub(crate) mod chart_groups;

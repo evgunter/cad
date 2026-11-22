@@ -903,16 +903,18 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     tol: Tol,
     region: Option<T::RegionLane>,
 ) -> Vec<ValidationError> {
-    census_with(
-        body,
-        contacts,
-        band,
-        tol,
-        region,
-        CensusStrategy::Realized,
-        None,
-        None,
-    )
+    crate::census_meter::timed(|| {
+        census_with(
+            body,
+            contacts,
+            band,
+            tol,
+            region,
+            CensusStrategy::Realized,
+            None,
+            None,
+        )
+    })
 }
 
 /// The differential door: the census under `strategy`, with every

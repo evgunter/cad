@@ -10951,13 +10951,17 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         } else {
             Bar::Tier3
         };
-        let recorded = crate::census::record_at_rest(
-            &body,
-            &carried,
-            |records| crate::census::census_and_certify(&body, records, band, tol, Some(region)),
-            &|solid| arrivals.get(&solid).copied(),
-            first_row,
-        );
+        let recorded = crate::census_meter::at("join-gate", || {
+            crate::census::record_at_rest(
+                &body,
+                &carried,
+                |records| {
+                    crate::census::census_and_certify(&body, records, band, tol, Some(region))
+                },
+                &|solid| arrivals.get(&solid).copied(),
+                first_row,
+            )
+        });
         let mut records = carried;
         records.extend(recorded.records.rows().iter().cloned());
         Ok(crate::finish::Censused {

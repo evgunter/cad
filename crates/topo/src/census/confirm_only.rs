@@ -42,14 +42,19 @@ pub(crate) fn confirm_only<T: crate::props::AtRestPolicy>(
 ) -> Confirmation {
     let mut errors = Vec::new();
     if !contacts.is_empty() {
-        super::confirm_records(
-            body,
-            &super::snapshot(body),
-            contacts,
-            band,
-            region,
-            &mut errors,
-        );
+        crate::census_meter::at("confirm", || {
+            crate::census_meter::timed(|| {
+                super::confirm_records(
+                    body,
+                    &super::snapshot(body),
+                    contacts,
+                    band,
+                    region,
+                    &mut errors,
+                )
+            })
+        });
+        crate::census_meter::read(contacts.len(), &errors);
     }
     let mut out = Confirmation::default();
     for finding in errors {
