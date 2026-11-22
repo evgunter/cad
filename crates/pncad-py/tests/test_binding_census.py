@@ -2450,6 +2450,7 @@ NOT_BOUND = {
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
+    "NameCarrier": f"{GAP}: B-MAINT-NET what holds each name an action's maintenance rows strand",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.

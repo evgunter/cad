@@ -583,7 +583,7 @@ fn frame_of<T: SolveScalar>(
 
 /// **Where a pose's frame stands** ([`frame_of`]'s origin), read with no
 /// frame built.
-fn pose_origin<T: SolveScalar>(pose: &PoseValue<T>) -> geom_core::linalg::Point3<T> {
+pub(crate) fn pose_origin<T: SolveScalar>(pose: &PoseValue<T>) -> geom_core::linalg::Point3<T> {
     match *pose {
         PoseValue::Point { position } => position,
         PoseValue::Direction { .. } => geom_core::linalg::Point3::origin(),

@@ -116,17 +116,15 @@ pub(crate) struct Drawn<T: geom_core::Real> {
 }
 
 /// **`program`'s frame and traced faces, read at the lane scalar**;
-/// `None` for a free profile. The traced faces stand in the frame (their
-/// maps into the sketch's coordinates are its), so the frame carries
-/// them, over the farthest any of them reaches from its space's origin:
-/// the frame's own origin stands within its slides and the face's
-/// distance from there, which the arm adds.
+/// `None` for a free profile. A traced face is read, not carried: the
+/// turn never moves it, and the trace reads it through the turn once
+/// that turn's pole is decided ([`crate::mate::value::FaceChart::select`]).
 ///
 /// # Errors
 ///
 /// The frame's or a face's read refusing, as any pose or selection read
-/// refuses; a carrier the face's body cannot read back; the frame's
-/// refusal to carry the traced faces.
+/// refuses; a carrier the face's body cannot read back; the chart's
+/// pole refused over the session box.
 pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -139,7 +137,23 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     };
     let frame = super::pose::on_frame(doc, results, on.frame, env, tol)?;
     let band = super::band(tol)?;
-    let read = on
+    if on.faces.is_empty() {
+        return Ok(Some(Drawn {
+            on: frame,
+            faces: Vec::new(),
+        }));
+    }
+    // The trace reads the faces through the frame's turn before the
+    // loops it is consumed over resolve: a face's chart is selected here,
+    // its pole decided over the session box, and the profile's carriage
+    // decides the rest over the loops.
+    let drawn = match frame {
+        OnFrame::Chart(chart) => DrawnFrame::Charted(chart.select(band)?),
+        OnFrame::Drawn(drawn) => drawn,
+    };
+    let sketch = drawn.frame();
+    let identity = RigidMotion::identity;
+    let faces = on
         .faces
         .iter()
         .enumerate()
@@ -157,25 +171,6 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                     pose: VarKind::Face,
                     fault: PoseReadFault::Readback { error },
                 })?;
-            let reach = reach(&framed, face, node, band);
-            Ok((framed, face, surface, sense, reach))
-        })
-        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    if read.is_empty() {
-        return Ok(Some(Drawn {
-            on: frame,
-            faces: Vec::new(),
-        }));
-    }
-    let farthest = read
-        .iter()
-        .try_fold(0.0_f64, |held, (.., r)| r.clone().map(|r| held.max(r)));
-    let drawn = frame.carrying(farthest, tol)?;
-    let sketch = drawn.frame();
-    let identity = RigidMotion::identity;
-    let faces = read
-        .into_iter()
-        .map(|(framed, face, surface, sense, _)| {
             let body = framed.frame();
             Ok(TracedFace {
                 surface: closed(surface),
@@ -196,31 +191,6 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         on: OnFrame::Drawn(drawn),
         faces,
     }))
-}
-
-/// **How far a traced face reaches from its space's origin**: its cover
-/// from where its body's frame puts that origin, as a placed copy's
-/// faces are read ([`crate::mate::reach`]).
-fn reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
-    framed: &crate::eval::Framed<T>,
-    face: topo::entity::FaceKey,
-    node: crate::RecipeNodeId,
-    band: geom_core::Band,
-) -> Result<f64, crate::mate::LeverRefusal> {
-    use crate::mate::ReachRefusal;
-    framed
-        .space_origin()
-        .map_err(|_| ReachRefusal::NoFiniteBound)
-        .and_then(|origin| {
-            crate::mate::reach::lever_reach(
-                crate::mate::reach::faces_reach_from(framed.body(), [face], origin, band)
-                    .and_then(|r| r.ok_or(ReachRefusal::NoExtent)),
-            )
-        })
-        .map_err(|refusal| crate::mate::LeverRefusal::Shape {
-            shape: node,
-            refusal,
-        })
 }
 
 /// A carrier with a closed form, or the kind of one without.
