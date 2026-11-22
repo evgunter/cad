@@ -368,9 +368,13 @@ class TestCancelingARunUnderWay(unittest.TestCase):
         """
         doc, _ = stack(WIDE)
         outcome = []
+        launched = threading.Event()
 
+        # The helper wakes needing the GIL, which this thread holds until
+        # `evaluate` has taken the borrow and released it: the edit lands
+        # inside the call at any build profile, with no sleep to outlast.
         def edit():
-            time.sleep(0.02)
+            launched.wait()
             try:
                 doc.insert(
                     Node.polygon(
@@ -387,6 +391,7 @@ class TestCancelingARunUnderWay(unittest.TestCase):
 
         helper = threading.Thread(target=edit, daemon=True)
         helper.start()
+        launched.set()
         run = evaluate(doc)
         helper.join()
 
