@@ -160,38 +160,48 @@ The `Declare` node is gone: declared pairs are a boolean's or union's own payloa
 
 **The count is the delete's own rehearsal, not the formula above.**
 The affordance reads `editor_core::continuation::splice` now, and a
-splice is hand-over edits followed by deletes. Two things follow that
-the `doomed`-set formula gets wrong:
+splice is hand-over edits followed by deletes. What follows is what
+the `doomed`-set formula gets wrong, three ways:
 
 - a reader handed to the body the target continues is outside `doomed`
   and may hold a name whose `name.node` is inside it that the target
   only CARRIED IN from that body; the splice rebinds it back
   (`continuation::carried_back`), so it strands nothing and the formula
   counts it;
-- a hand-over can strand by reach (`Took::Reach`) as well as by delete.
+- a hand-over can strand by reach (`Took::Reach`) as well as by
+  delete, and the two report one name twice;
+- a hand-over strands a name whose minting node the delete does not
+  remove: a shell of a cut, handed to the cut's target when the tool
+  goes, holds a name minted upstream of the tool only. Nothing in
+  `doomed` minted it, so the formula says 0.
 
-So `DeleteAffordance::of` applies the planned splice to a scratch
-`Recording` of the committed document and counts what its net
-(`MaintenanceNet`, through `Recording::finish`) says the end document
-holds: the distinct `(holder, name)` references of the `Strand`,
-`StrandedSelection` and `StrandedAppearance` rows. Those are the rows
-the click's `OpOutcome::maintenance` carries, so the button and the
-click cannot disagree about which names. Distinct references rather
-than rows, because the net reports one name twice where a hand-over
-and the delete each strand it
-(`work/doctail/maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it.md`).
-The label says `, stranding N name(s)` and the hover gains a sentence;
-both are omitted at zero. The affordance is kept per generation and
-node (`DocSession::priced`), since composing it now rehearses the whole
-delete.
+So the session rehearses the delete (`DocSession::priced_delete`):
+`delete_node`'s own action — the planned splice, or the single edit —
+staged through `stage_run` and dropped. `DeleteAffordance::of` words
+the result: the nodes removed, and the count of distinct answers of
+`Maintenance::stranded_name` over the action's net
+(`MaintenanceNet`, through `Recording::finish`). Those are the rows the
+click's `OpOutcome::maintenance` carries, so the button and the click
+cannot disagree about which names. Which rows are a stranded name, and
+what holds each, is the kernel's answer (`NameCarrier`); the viewer
+counts distinct answers rather than rows, because the net reports one
+name twice where a hand-over and the delete each strand it
+(`work/doctail/maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it.md`)
+and a record can hold one name at two sites. The label says
+`, stranding N name(s)` and the hover gains a sentence; both are
+omitted at zero.
+
+The same rehearsal answers `DocSession::delete_refusal`, so a delete a
+door would refuse is drawn disabled with that refusal and prices
+nothing. It is kept per history state and node (`DocSession::priced`):
+the committed document is all it reads, and a gesture's previews do
+not move it.
 
 **After the click** the rows already reach the status line, one notice
 each in the row's own sentence (`frame::outcome_notices`, PR #3196);
 nothing was added there. The viewer has no `Rebind` door, so none is
 linked: `a-stranded-name-row-offers-no-rebind-in-the-viewer`.
 
-Rows: `edit_maintenance::the_delete_button_counts_the_names_its_click_strands`,
-`…_does_not_count_a_strand_on_a_carrier_it_deletes`,
-`…_does_not_count_a_name_the_delete_hands_back`
+Rows: the `edit_maintenance::the_delete_button_…` rows
 (`crates/viewer/tests/edit_maintenance.rs`), and the die's inner fillet
 in `cascade_delete::the_delete_affordance_names_the_count_and_the_kinds`.

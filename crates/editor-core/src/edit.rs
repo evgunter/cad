@@ -5413,6 +5413,37 @@ pub enum Maintenance {
 }
 
 impl Maintenance {
+    /// **The name this row reports stranded, with what holds it**, or
+    /// `None` for a row about anything else: the one answer to which
+    /// rows are a name the document keeps whose referent an edit took
+    /// (DM7), one variant of [`NameCarrier`] per arm that is.
+    ///
+    /// Two rows of one action can answer the same carrier and name — a
+    /// re-point that takes the minting node out of reach and a delete
+    /// of that node each report it — so a caller counting the names an
+    /// action stranded counts the distinct answers.
+    pub fn stranded_name(&self) -> Option<NameCarrier<'_>> {
+        match self {
+            Self::Strand { node, name, .. } => Some(NameCarrier::Payload {
+                node: node.id(),
+                name: name.name(),
+            }),
+            Self::StrandedSelection { var, name, .. } => Some(NameCarrier::Select {
+                var: var.id(),
+                name: name.name(),
+            }),
+            Self::StrandedAppearance { body, name, .. } => Some(NameCarrier::Store {
+                body: body.id(),
+                name: name.name(),
+            }),
+            Self::StrandedRead { .. }
+            | Self::StrandedSpace { .. }
+            | Self::ProductOutsideWorld { .. }
+            | Self::ValueDropped { .. }
+            | Self::AnonymousVarRemoved { .. } => None,
+        }
+    }
+
     /// **A retirement nothing a reader of the document is shown went
     /// with**: an anonymous variable that carried no tolerance. Its
     /// removal is what rewriting or deleting the slot it was written at

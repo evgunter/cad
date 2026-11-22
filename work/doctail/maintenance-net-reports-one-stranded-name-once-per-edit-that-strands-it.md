@@ -52,10 +52,19 @@ minted name in two rows).
 - The viewer's status line says the strand twice
   (`frame::maintenance_notices` words one notice per row).
 - The delete button's pre-click count cannot be the row count. It
-  counts the distinct `(holder, name)` references the rows are about
-  (`session::delete::stranded_reference`,
-  `crates/viewer/src/session/delete.rs`); that de-duplication goes
-  once the net answers one row per reference.
+  counts the distinct answers of `Maintenance::stranded_name` (added
+  by the PR that filed this row: the carrier and name a row reports
+  stranded, as a `NameCarrier`), in `session::delete::stranded_names`
+  (`crates/viewer/src/session/delete.rs`).
+
+A second way one action holds two rows with one answer, which is not
+this finding: an instance's interface record that names one `outer` on
+two crossings holds the name at two sites, and a delete of its minting
+node reports a row per site
+(`edit_maintenance::the_delete_button_counts_a_name_an_instances_record_holds`).
+The button says one name there too, because one `Rebind` repairs every
+site. Whatever the net decides for the doubled report, the count of
+distinct `(carrier, name)` answers is what the button keeps.
 
 ## What is asked
 

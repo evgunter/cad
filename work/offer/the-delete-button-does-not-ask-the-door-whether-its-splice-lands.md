@@ -2,10 +2,12 @@
 id: the-delete-button-does-not-ask-the-door-whether-its-splice-lands
 kind: issue
 title: viewer: the delete button is drawn live without asking the door whether the planned splice lands
-status: open
+status: closed
 opened: 2026-11-22
 priority: P4
 cost: E
+closed: 2026-11-22
+pr: 7346
 ---
 
 
@@ -34,3 +36,15 @@ the button already (`Refusal::Unspliced`). The row is the discarded
 What closes it: `delete_refusal` and the affordance read one rehearsal,
 so a refused plan disables the button with the door's refusal — or a
 statement, with its reason, that a planned splice cannot be refused.
+
+## Closed (2026-11-22, PR 7346)
+
+`DocSession::delete_refusal` and `DocSession::delete_affordance` read
+one rehearsal (`DocSession::priced_delete`): `delete_node`'s own
+action staged through `stage_run` and dropped, kept per history state
+and node. A plan a door refuses now answers that door's refusal, the
+button is drawn disabled with it, and its affordance prices nothing
+(no dependents, no stranded names), as a splice fault's already did.
+No `Err` is discarded. Still no witness document for a planned splice
+a door refuses, so the new arm is reached by no row.
+

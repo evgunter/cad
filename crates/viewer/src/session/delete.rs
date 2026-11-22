@@ -8,11 +8,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use editor_core::continuation::{Splice, splice};
-use pncad::document::{Doc, Maintenance, ProfileProgram, RecipeNodeId, Recording, VarId};
-use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
-use std::collections::BTreeSet;
+use pncad::document::{Doc, Maintenance, ProfileProgram, RecipeNodeId};
 
 /// **What the delete button says, and the list it says it about.**
 ///
@@ -43,124 +39,86 @@ pub struct DeleteAffordance {
     ///
     /// The END state's count: a name a hand-over rebinds to the body the
     /// target continues, and one whose carrier the cascade goes on to
-    /// delete, are not in it.
+    /// delete, are not in it. A name one carrier holds twice is one
+    /// name: a rebind repairs every site of it at once.
     pub stranded: usize,
 }
 
 impl DeleteAffordance {
-    /// Compose the sentences for deleting `node` out of `doc`, each
-    /// edit of the delete rehearsed at `tol`.
+    /// Compose the sentences for deleting `node` out of `doc`, from the
+    /// delete rehearsed: `cascade`, the nodes it removes in the
+    /// operation's order, and `report`, the maintenance rows its
+    /// accepted action carries. A delete that would be refused removes
+    /// nothing and reports nothing; its button is drawn disabled with
+    /// the refusal (`DocSession::delete_refusal`).
     ///
     /// The node is named as the document speaks it, kind noun and tag
     /// (first-light finding #1097: reached from a face selection, a
     /// bare "Delete feature" read as deleting the *face* — an entity
     /// this vocabulary can never delete). A node the document does not
     /// hold reads `node <tag>`, which a face or edge selection can
-    /// still name while the landed run holds its feature: that button
-    /// is drawn disabled, with the op's refusal on its hover
-    /// (`DocSession::delete_refusal`).
+    /// still name while the landed run holds its feature.
     ///
     /// Neither sentence mentions the features that merely FED the
     /// target, or the readers handed to what it continues: the delete
     /// does not remove them.
-    pub(super) fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, tol: Tol) -> Self {
-        // A delete that cannot splice deletes nothing: its button is drawn
-        // disabled with the refusal (`DocSession::delete_refusal`).
-        let (cascade, stranded) = match splice(doc, node) {
-            Ok(Some(plan)) => (plan.deleted.clone(), stranded_names(doc, plan, tol)),
-            Ok(None) | Err(_) => (Vec::new(), 0),
-        };
-        let spoken = doc.spoken(node);
+    pub(super) fn of(
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+        cascade: Vec<RecipeNodeId>,
+        report: &[Maintenance],
+    ) -> Self {
+        let stranded = stranded_names(report);
+        let mut label = format!("Delete {}", doc.spoken(node));
+        let mut hover = Vec::new();
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.
         let dependents = cascade.len().saturating_sub(1);
-        let also = (dependents > 0).then(|| {
+        if dependents > 0 {
             let (plural, depend) = if dependents == 1 {
                 ("", "depends")
             } else {
                 ("s", "depend")
             };
             let census = kind_census(doc, &cascade[..dependents]);
-            (
-                format!(" and {dependents} dependent feature{plural}"),
-                format!("Also deletes {dependents} feature{plural} that {depend} on it: {census}"),
-            )
-        });
-        let strands = (stranded > 0).then(|| {
+            label.push_str(&format!(" and {dependents} dependent feature{plural}"));
+            hover.push(format!(
+                "Also deletes {dependents} feature{plural} that {depend} on it: {census}"
+            ));
+        }
+        if stranded > 0 {
             let (plural, resolve) = if stranded == 1 {
                 ("", "resolves")
             } else {
                 ("s", "resolve")
             };
-            (
-                format!(", stranding {stranded} name{plural}"),
-                format!(
-                    "Strands {stranded} name{plural} that the document keeps and that \
-                     {resolve} to nothing until rebound"
-                ),
-            )
-        });
-        let (labels, hovers): (Vec<_>, Vec<_>) = also.into_iter().chain(strands).unzip();
+            label.push_str(&format!(", stranding {stranded} name{plural}"));
+            hover.push(format!(
+                "Strands {stranded} name{plural} that the document keeps and that {resolve} to \
+                 nothing until rebound"
+            ));
+        }
         Self {
-            label: format!("Delete {spoken}{}", labels.concat()),
-            hover: (!hovers.is_empty()).then(|| hovers.join("\n")),
+            label,
+            hover: (!hover.is_empty()).then(|| hover.join("\n")),
             cascade,
             stranded,
         }
     }
 }
 
-/// **How many names the planned delete leaves resolving to nothing**:
-/// `plan` applied to a scratch recording of `doc`, whose net
-/// (`editor_core::MaintenanceNet`) is the rows the click's outcome
-/// carries, and the references those rows are about counted.
-///
-/// References, not rows: a hand-over that re-points a reader past the
-/// target and the delete of the target each report the one name the
-/// reader holds, and the document holds it once.
-///
-/// A plan a door refuses deletes nothing, so it strands nothing.
-fn stranded_names(doc: &Doc<ProfileProgram>, plan: Splice<ProfileProgram>, tol: Tol) -> usize {
-    let mut run = Recording::start(doc, tol);
-    let rows = match plan.apply(&mut run).and_then(|()| run.finish()) {
-        Ok(recorded) => recorded.maintenance,
-        Err(_) => Vec::new(),
-    };
-    rows.iter()
-        .filter_map(stranded_reference)
-        .collect::<BTreeSet<_>>()
-        .len()
-}
-
-/// Where the document holds a stranded name.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Holder {
-    /// A node's payload.
-    Payload(RecipeNodeId),
-    /// A selection.
-    Selection(VarId),
-    /// The appearance store, keyed under a body read.
-    Appearance(VarId),
-}
-
-/// **The reference `row` reports stranded**: the name the document
-/// still holds whose referent the action removed, and where it holds
-/// it. `None` for a row about anything else.
-fn stranded_reference(row: &Maintenance) -> Option<(Holder, &StableName)> {
-    match row {
-        Maintenance::Strand { node, name, .. } => Some((Holder::Payload(node.id()), name.name())),
-        Maintenance::StrandedSelection { var, name, .. } => {
-            Some((Holder::Selection(var.id()), name.name()))
+/// **How many names `report` says the document keeps with their
+/// referent gone**: the distinct answers of
+/// [`Maintenance::stranded_name`], because two rows of one action can
+/// report one name of one carrier.
+fn stranded_names(report: &[Maintenance]) -> usize {
+    let mut held = Vec::new();
+    for name in report.iter().filter_map(Maintenance::stranded_name) {
+        if !held.contains(&name) {
+            held.push(name);
         }
-        Maintenance::StrandedAppearance { body, name, .. } => {
-            Some((Holder::Appearance(body.id()), name.name()))
-        }
-        Maintenance::StrandedRead { .. }
-        | Maintenance::StrandedSpace { .. }
-        | Maintenance::ProductOutsideWorld { .. }
-        | Maintenance::ValueDropped { .. }
-        | Maintenance::AnonymousVarRemoved { .. } => None,
     }
+    held.len()
 }
 
 /// A census of node kinds, most numerous first and ties broken by

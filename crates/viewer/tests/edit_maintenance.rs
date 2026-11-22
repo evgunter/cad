@@ -679,29 +679,22 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     );
 }
 
-/// How many names `rows` report the document keeping with their
-/// referent gone — in a payload, in a selection, or as an appearance
-/// key — each counted once however many rows say it.
-fn stranded_names(rows: &[Maintenance]) -> usize {
-    stranded(rows).len()
+/// The names `rows` report the document keeping with their referent
+/// gone, each with what holds it and each once
+/// (`Maintenance::stranded_name`, the kernel's classing).
+fn stranded(rows: &[Maintenance]) -> Vec<pncad::document::NameCarrier<'_>> {
+    let mut held = Vec::new();
+    for name in rows.iter().filter_map(Maintenance::stranded_name) {
+        if !held.contains(&name) {
+            held.push(name);
+        }
+    }
+    held
 }
 
-/// The names [`stranded_names`] counts, each with where it is held.
-fn stranded(rows: &[Maintenance]) -> std::collections::BTreeSet<(String, StableName)> {
-    rows.iter()
-        .filter_map(|row| match row {
-            Maintenance::Strand { node, name, .. } => {
-                Some((format!("payload {:?}", node.id()), name.name().clone()))
-            }
-            Maintenance::StrandedSelection { var, name, .. } => {
-                Some((format!("selection {:?}", var.id()), name.name().clone()))
-            }
-            Maintenance::StrandedAppearance { body, name, .. } => {
-                Some((format!("appearance {:?}", body.id()), name.name().clone()))
-            }
-            _ => None,
-        })
-        .collect()
+/// How many names [`stranded`] answers.
+fn stranded_names(rows: &[Maintenance]) -> usize {
+    stranded(rows).len()
 }
 
 /// The names the selection `shell` reads holds.
@@ -895,7 +888,7 @@ fn the_delete_button_does_not_count_a_name_the_delete_hands_back() {
     assert_eq!(
         stranded(&outcome.maintenance)
             .into_iter()
-            .map(|(_, name)| name)
+            .map(|held| held.name().clone())
             .collect::<Vec<_>>(),
         std::slice::from_ref(&minted),
         "the click reports the minted name and not the carried one"
@@ -905,4 +898,216 @@ fn the_delete_button_does_not_count_a_name_the_delete_hands_back() {
     let mut want = vec![of_base, minted];
     want.sort();
     assert_eq!(held, want, "the carried name returned to the block's");
+}
+
+/// **A name in a node's payload is counted**: an instance's interface
+/// record names a cap of a block of this document, on two crossings,
+/// and the block is deleted. The record is the one payload that holds
+/// names; every other carrier here is a selection or the store.
+///
+/// The record holds the name twice and the click reports it twice.
+/// The button says one name: `Rebind` rewrites every site that names
+/// it, so it is one thing to repair.
+#[test]
+fn the_delete_button_counts_a_name_an_instances_record_holds() {
+    use crate::fixture::resolver::{PartStore, in_world};
+    use pncad::document::{FaceName, InterfaceCrossing, InterfaceRecord, NameCarrier};
+    use pncad::prelude::CapEnd;
+
+    let tol = Tol::witness();
+    let part: Doc<ProfileProgram> = Doc::empty_derived("button-record-part", tol);
+    let (doc_ref, body) = PartStore::new().insert_part(block(&part, 0.0), tol);
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-record", tol);
+    let (doc, target) = block(&doc, 0.0);
+    let outer = StableName {
+        kind: EntityKind::Face,
+        node: target,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    let face = |name: StableName| FaceName::new(name).expect("a face name");
+    let crossing = |cap| InterfaceCrossing::Mate {
+        outer: face(outer.clone()),
+        inner: face(in_world(body, cap)),
+    };
+    let (doc, instance) = common::inserted(
+        &doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            InterfaceRecord {
+                crossings: vec![crossing(CapEnd::Start), crossing(CapEnd::End)],
+            },
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+        tol,
+    );
+
+    let mut session = DocSession::inline(doc, tol);
+    let affordance = session.delete_affordance(target);
+    assert_eq!(affordance.cascade, [target], "a name is not a read");
+    assert_eq!(affordance.stranded, 1, "the record's one name");
+
+    let outcome = session.perform(SessionOp::DeleteNode { node: target });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        outcome
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, Maintenance::Strand { .. }))
+            .count(),
+        2,
+        "the premise: the record holds the name on two crossings, a row each"
+    );
+    assert_eq!(
+        stranded(&outcome.maintenance),
+        [NameCarrier::Payload {
+            node: instance,
+            name: &outer
+        }],
+        "the click reports the instance's payload name, and nothing else stranded"
+    );
+}
+
+/// **A name a hand-over takes out of reach is counted, though no node
+/// the delete removes minted it.** Two blocks are slid into a third's
+/// space and fused, the fusion is cut from the third, and a shell of
+/// the cut names a wall of the first block. Deleting the fusion takes
+/// the cut with it and hands the shell to the third block, which the
+/// first block is not upstream of.
+#[test]
+fn the_delete_button_counts_a_name_its_hand_over_takes_out_of_reach() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-reach", tol);
+    let (doc, target) = block(&doc, 0.0);
+    let (doc, first) = block(&doc, 4.0);
+    let (doc, second) = block(&doc, 8.0);
+    let (doc, placed_first) = crate::fixture::slid(doc, target, first, [0.25, 0.0, 0.0]);
+    let (doc, placed_second) = crate::fixture::slid(doc, target, second, [0.5, 0.0, 0.0]);
+    let (doc, fused) = common::inserted(
+        &doc,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![
+                placed_first.into(),
+                placed_second.into(),
+            ]),
+        },
+        tol,
+    );
+    let (doc, cut) = common::inserted(
+        &doc,
+        Node::Subtract {
+            from: target.into(),
+            tool: fused.into(),
+        },
+        tol,
+    );
+    let named = wall(&doc, first, 0, 0);
+    let (doc, carrier) = shell_on(&doc, cut, named.clone());
+
+    let mut session = DocSession::inline(doc, tol);
+    let affordance = session.delete_affordance(fused);
+    assert_eq!(
+        affordance.cascade,
+        [cut, fused],
+        "the cut goes with its tool"
+    );
+    assert!(
+        !affordance.cascade.contains(&first),
+        "the name's minting node is not deleted"
+    );
+    assert_eq!(affordance.stranded, 1);
+
+    let outcome = session.perform(SessionOp::DeleteNode { node: fused });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let strands: Vec<_> = outcome
+        .maintenance
+        .iter()
+        .filter(|row| row.stranded_name().is_some())
+        .collect();
+    assert!(
+        matches!(
+            strands.as_slice(),
+            [Maintenance::StrandedSelection {
+                took: pncad::document::Took::Reach,
+                ..
+            }]
+        ),
+        "one strand, by reach: {strands:?}"
+    );
+    assert_eq!(
+        stranded(&outcome.maintenance),
+        [pncad::document::NameCarrier::Select {
+            var: face_of(session.committed_doc(), carrier),
+            name: &named
+        }]
+    );
+}
+
+/// **The button answers for the committed document it is asked of**,
+/// across every way that document changes or is replaced: at each step
+/// it says what a session opened fresh on the same document says.
+#[test]
+fn the_delete_button_is_never_a_document_behind() {
+    use pncad::document::Label;
+
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-current", tol);
+    let (doc, kept) = block(&doc, 0.0);
+    let (doc, victim) = block(&doc, 4.0);
+    let (doc, carrier) = shell_on(&doc, kept, wall(&doc, victim, 0, 0));
+    let mut session = DocSession::inline(doc, tol);
+
+    let check = |session: &DocSession, stranded: usize, step: &str| {
+        let asked = session.delete_affordance(victim);
+        let fresh =
+            DocSession::inline(session.committed_doc().clone(), tol).delete_affordance(victim);
+        assert_eq!(asked.stranded, stranded, "after {step}");
+        assert_eq!(
+            (asked.label, asked.hover, asked.cascade),
+            (fresh.label, fresh.hover, fresh.cascade),
+            "after {step}: what a fresh session says of the same document"
+        );
+    };
+    let perform = |session: &mut DocSession, op: SessionOp| {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    };
+
+    check(&session, 1, "opening");
+    perform(&mut session, SessionOp::DeleteNode { node: carrier });
+    check(&session, 0, "deleting the carrier");
+    perform(&mut session, SessionOp::Undo);
+    check(&session, 1, "undo");
+    perform(&mut session, SessionOp::Redo);
+    check(&session, 0, "redo");
+    perform(&mut session, SessionOp::Undo);
+    perform(
+        &mut session,
+        SessionOp::SetLabel {
+            node: victim,
+            label: Some(Label::new("the victim").expect("a label")),
+        },
+    );
+    check(&session, 1, "a label");
+    perform(&mut session, SessionOp::Reevaluate);
+    check(&session, 1, "a re-evaluation");
+
+    let dir = common::tempdir("button-current");
+    let file = dir.join("with-carrier.pncad");
+    perform(&mut session, SessionOp::Save(file.clone()));
+    check(&session, 1, "a save");
+    // The other document: the same nodes without the carrier, opened
+    // over a history whose root state is the one just asked.
+    perform(&mut session, SessionOp::DeleteNode { node: carrier });
+    let bare = dir.join("bare.pncad");
+    perform(&mut session, SessionOp::SaveAsNewDocument(bare));
+    check(&session, 0, "a fork");
+
+    // An open replaces the history, whose root state has the id the
+    // outgoing root had: a session asked at its root of the bare
+    // document, then opened on the one with the carrier.
+    let mut other = DocSession::inline(session.committed_doc().clone(), tol);
+    check(&other, 0, "opening the bare document");
+    perform(&mut other, SessionOp::Open(file));
+    check(&other, 1, "an open");
 }
