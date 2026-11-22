@@ -111,6 +111,65 @@ fn edge_with_kind(body: &Body<f64>, want: &str) -> (EdgeKey, (f64, f64)) {
     panic!("this fixture stores no {want} row");
 }
 
+/// The chart image an edge's description states, where it states one.
+fn described_image(body: &Body<f64>, edge: EdgeKey) -> Option<String> {
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap();
+    curve
+        .description()
+        .chart()
+        .map(|c| format!("{:?}", c.pcurve))
+}
+
+/// **A split edge's description carries the parent's image too.** Every
+/// edge of the two prisms whose description is an iso image on a spline
+/// wall (a wall–wall seam), split at a third: both children describe
+/// themselves by the parent's image, the same `Debug` bytes.
+///
+/// Red under `EdgeCurve::split_specs` handing a child an image that
+/// differs from the parent's in any bit.
+#[test]
+fn a_split_edges_description_carries_the_parents_image() {
+    let mut read = 0;
+    for which in ["IsoLine", "IsoArc"] {
+        let edges: Vec<EdgeKey> = {
+            let body = body_of(which);
+            let mut edges: Vec<EdgeKey> = body
+                .pcurves()
+                .map(|(he, _)| body.get_half_edge(he).unwrap().edge)
+                .filter(|&e| described_image(&body, e).is_some_and(|d| d.starts_with("Iso")))
+                .collect();
+            edges.sort();
+            edges.dedup();
+            edges
+        };
+        for edge in edges {
+            let mut body = body_of(which);
+            let parent = described_image(&body, edge);
+            let (t0, t1) = body
+                .get_curve_geom(body.get_edge(edge).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap()
+                .params();
+            let created = body.split_edge(edge, t0 + (t1 - t0) / 3.0, tol()).unwrap();
+            for child in [edge, created.new_edge] {
+                assert_eq!(
+                    described_image(&body, child),
+                    parent,
+                    "{which} {edge:?}: {child:?} describes itself by the parent's image"
+                );
+                read += 1;
+            }
+        }
+    }
+    assert!(
+        read >= 2,
+        "the fixtures hold an edge described by an iso image: {read}"
+    );
+}
+
 /// **The carry is exact on a spline chart too.** Splitting a wall edge
 /// whose row is `IsoLine` or `IsoArc` leaves each child half-edge the
 /// PARENT's chart map, with only the interval moved, and the body tier-3
