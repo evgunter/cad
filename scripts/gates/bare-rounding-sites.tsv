@@ -79,7 +79,7 @@ crates/geom-brep/src/ssi/certify.rs	prod	1	pose
 crates/geom-brep/src/ssi/certify.rs	test	2	oracle
 crates/geom-brep/src/ssi/compensated.rs	prod	1	exact-arith
 crates/geom-brep/src/ssi/compensated.rs	test	3	oracle
-crates/geom-brep/src/ssi/enclose.rs	test	5	oracle
+crates/geom-brep/src/ssi/enclose.rs	test	6	oracle
 crates/geom-brep/src/ssi/one_arc.rs	test	1	oracle
 crates/geom-brep/tests/coplanar_ellipses_one_locus.rs	test	1	oracle
 crates/geom-brep/tests/edge_extent_bounds.rs	test	1	oracle
