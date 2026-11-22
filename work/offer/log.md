@@ -79,3 +79,5 @@ and the model comparison apply.
   `a-check-…`), a node named to a person (`a-node-name-…` with VNEWS'
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
+
+**Dispatched 2026-11-22.** Implementers: `cascade-delete-shows-the-strand-count` on `offer/cascade-delete-shows-the-strand-count`, `the-viewer-has-no-guide-to-its-controls` on `offer/the-viewer-has-no-guide-to-its-controls` (draws on `analysis/model-compare/offer-2026-11-22`). Designers, two per fork, concurrently and blind to each other, with problem statements only: `offer-an-actionable-recourse`, `offer-a-node-named-to-a-person`, `offer-the-certify-control` (draws on `analysis/design-fork/<fork>`). Coupling notes left on VNEWS' and CHROME's logs.
