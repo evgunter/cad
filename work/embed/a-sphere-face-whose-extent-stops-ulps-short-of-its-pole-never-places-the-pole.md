@@ -246,3 +246,15 @@ without PR 7115's `injective.rs`:
   the sixteen turned ice-creams); this lane's sweep 1,464 of 1,464 at
   the first fix pass's receipts;
 - 25 mutants, each over the 118 unit rows and the 64 body rows: all die.
+
+**Final pass, on main `ae076e050`** (PR 7120's boundary boxes and the
+carrier frames both in), with and without PR 7115's `injective.rs`:
+- f64 cavity rows failing: 15 of 221 without, 9 with; only the six pole
+  rows differ. PR 7120 itself moved 17 other cavities' receipts, the
+  same with and without this PR.
+- tour walk: 78 of 85 on both, identical line for line;
+- with the PR: the injectivity suite 64 of 64 at the default ε, 1e-6
+  and 1e-12; the review's 120 plain-frame cone cases 120 of 120; its
+  turned-frame sweep 46 holding and 22 refusing (six turned cone cases
+  on the P0 row, sixteen turned ice-creams on the seam-meridians row);
+  its far-body probe 23 of 24 against main's 17.

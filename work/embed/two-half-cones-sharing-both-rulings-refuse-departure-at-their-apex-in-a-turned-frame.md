@@ -108,9 +108,17 @@ holds at 367 / 0 / 361. Its trace shows B's reading 34 times, resolved
 by a smaller cell, and C never.
 
 **A fifth exit, the same on main: `Budget(Depth { 40 })`.** The
-slender cone's cavity on a plane turned and moved a hundred units
-(the review's `review_probe_far_witnesses`) runs out of depth, which is
-none of A to D. Its receipts are in the section below.
+review's `review_probe_far_witnesses` puts four cone tips a hundred
+units off the origin, along the axis, across it, and on a plane turned
+and moved (100, -70, 30), each as a body and a cavity: 24 cases at
+f64. On main `ae076e050` with PR 7115, 23 hold. The slender cone's
+(`r = 0.37`, `h = 2.3`, apex up) cavity on the turned and moved plane
+refuses `Budget(Depth { max_cell_depth: 40 })` at 3,095 / 486 / 3,575,
+which is none of A to D, and it refuses identically with main's own
+`injective.rs`. Its exit is not traced. (With main's own code 17 of
+the 24 hold; the other six refuse on the unplaced apex.) At ten
+thousand units the revolve itself refuses every case,
+`OutsideSessionBox`.
 
 **Not traced:** why a turn, or a change elsewhere in main, moves a cone
 between holding and refusing. The two rulings' stored frames are
