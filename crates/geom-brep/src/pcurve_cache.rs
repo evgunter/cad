@@ -6964,7 +6964,7 @@ fn wall_distance<T: Real>(radius: T, w: Vec3<T>) -> T {
         return (w.norm() - radius).abs();
     }
     match crate::review_mut() {
-        "wall-raw" | "pcurve-raw" => return (w.norm() - radius).abs(),
+        "wall-raw" | "pcurve-raw" | "all-raw" => return (w.norm() - radius).abs(),
         "wall-rsq" => return geom_core::radius_gap(w.dot(w), w.norm(), radius * radius).abs(),
         "wall-num-abs" => return (w.dot(w) - radius * radius).abs() / (w.norm() + radius),
         "wall-num-only" => return (w.dot(w) - radius * radius).abs(),
@@ -6986,7 +6986,7 @@ fn ruling_direction<T: Real>(w_r: Vec3<T>, radius: T, cv: Vec3<T>, u_ref: Vec3<T
         return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref));
     }
     match crate::review_mut() {
-        "ruling-raw" | "pcurve-raw" => return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
+        "ruling-raw" | "pcurve-raw" | "all-raw" => return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
         "ruling-one" => return Azimuth::of(w_r.dot(cv) / radius, w_r.dot(u_ref)),
         "ruling-norm" => return Azimuth::of(w_r.dot(cv) / w_r.norm(), w_r.dot(u_ref) / w_r.norm()),
         _ => {}

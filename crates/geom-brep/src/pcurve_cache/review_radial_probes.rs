@@ -341,3 +341,60 @@ fn review_ruling_on_negative_radius() {
     }
     let _ = Sign::Zero;
 }
+
+/// P9: the readers' cost, head against the base spelling, at `f64` and
+/// `Interval`, `chart_distance` on a tilted cylinder and a sphere.
+#[test]
+fn review_cost_of_the_readers() {
+    use std::hint::black_box;
+    use std::time::Instant;
+    let axis = Vec3::new(0.1, -0.2, 1.0).normalize();
+    let raw = Vec3::new(1.0, 0.0, -0.1);
+    let u_ref = (raw - axis * raw.dot(axis)).normalize();
+    let c = Point3::new(0.4, 0.1, -0.3);
+    let n = 400_000;
+    let pts: Vec<Point3<f64>> = (0..n)
+        .map(|k| {
+            let a = f64::from(k) * 0.001;
+            c + (u_ref * a.cos() + axis.cross(u_ref) * a.sin()) * (0.7 + 1e-9 * f64::from(k % 7)) + axis * 0.3
+        })
+        .collect();
+    let iv = Interval::from_f64;
+    let ivp = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+    let ipts: Vec<Point3<Interval>> = pts.iter().map(|&p| ivp(p)).collect();
+    for kind in ["cylinder", "sphere"] {
+        let mk = |sph: bool| {
+            if sph {
+                Surface::Sphere { frame: geom::Frame::new(c, axis, u_ref), radius: 0.7 }
+            } else {
+                Surface::Cylinder { frame: geom::Frame::new(c, axis, u_ref), radius: 0.7 }
+            }
+        };
+        let s = mk(kind == "sphere");
+        let si = if kind == "sphere" {
+            Surface::Sphere { frame: geom::Frame::new(ivp(c), Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)), Vec3::new(iv(u_ref.x), iv(u_ref.y), iv(u_ref.z))), radius: iv(0.7) }
+        } else {
+            Surface::Cylinder { frame: geom::Frame::new(ivp(c), Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)), Vec3::new(iv(u_ref.x), iv(u_ref.y), iv(u_ref.z))), radius: iv(0.7) }
+        };
+        for round in 0..3 {
+            let t = Instant::now();
+            let mut acc = 0.0;
+            for &p in &pts {
+                acc += black_box(chart_distance(black_box(&s), p));
+            }
+            let f = t.elapsed();
+            let t = Instant::now();
+            let mut acci = 0.0;
+            for &p in &ipts {
+                acci += black_box(chart_distance(black_box(&si), p)).hi();
+            }
+            let fi = t.elapsed();
+            eprintln!(
+                "PROBE P9 {kind} mode={} round {round}: f64 {:.1} ns/call, Interval {:.1} ns/call ({acc:.3e} {acci:.3e})",
+                crate::review_mut(),
+                f.as_nanos() as f64 / f64::from(n),
+                fi.as_nanos() as f64 / f64::from(n)
+            );
+        }
+    }
+}

@@ -599,7 +599,7 @@ impl<T: Real> IsoChart<T> {
         };
         let wall = |w: Vec3<T>, radius: T| {
             match crate::review_mut() {
-                "iso-raw" | "props-raw" => return (w.norm() - radius).abs(),
+                "iso-raw" | "props-raw" | "all-raw" => return (w.norm() - radius).abs(),
                 "iso-rsq" => return geom_core::radius_gap(w.dot(w), w.norm(), radius * radius).abs(),
                 "iso-num-only" => return (w.dot(w) - radius * radius).abs(),
                 "iso-2r" => return ((w.dot(w) - radius * radius) / (radius + radius)).abs(),
@@ -2166,7 +2166,7 @@ pub fn closed_surface<T: Real>(
 fn segment_off_cylinder<T: Real>(q0: Vec3<T>, q1: Vec3<T>, radius: T) -> T {
     let residual = |q: Vec3<T>| {
         match crate::review_mut() {
-            "seg-raw" | "props-raw" => return q.norm() - radius,
+            "seg-raw" | "props-raw" | "all-raw" => return q.norm() - radius,
             "seg-rsq" => return geom_core::radius_gap(q.dot(q), q.norm(), radius * radius),
             "seg-num-only" => return q.dot(q) - radius * radius,
             "seg-2r" => return (q.dot(q) - radius * radius) / (radius + radius),
