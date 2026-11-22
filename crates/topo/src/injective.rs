@@ -2571,6 +2571,20 @@ fn present_plane<'a>(
                     (false, false) => Zero::None,
                 });
             }
+            if std::env::var_os("CV_CORNER").is_some() {
+                let k = |x: Interval| match decide(SELF_INTERSECTION_CORNER, Margin::of(x), band) {
+                    Ok(Sign::Positive) => "P",
+                    Ok(Sign::Negative) => "N",
+                    Ok(Sign::Zero) => if exactly(x, 0.0) { "E" } else { "Z" },
+                    Err(_) => "B",
+                };
+                let (k1, k2) = (k(lean(n1, bv)), k(lean(n2, a)));
+                if (k1, k2) != ("P", "P") {
+                    let mut ks = [k1, k2];
+                    ks.sort_unstable();
+                    eprintln!("CVC {} {}{} w={:.1e}", std::thread::current().name().unwrap_or("?"), ks[0], ks[1], lean(n1, bv).hi() - lean(n1, bv).lo());
+                }
+            }
             if interval_sign_as(lean(n1, bv), SELF_INTERSECTION_CORNER, band)
                 != Some(Sign::Positive)
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
