@@ -55,7 +55,7 @@ fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::M
             return None;
         }
     };
-    let at_rest = topo::finish(topo::Body::clone(&t.body), Tol::witness());
+    let at_rest = topo::finish(topo::Built::of(topo::Body::clone(&t.body)), Tol::witness());
     let tiers = (
         topo::validate(&t.body),
         topo::validate_closed(&t.body),

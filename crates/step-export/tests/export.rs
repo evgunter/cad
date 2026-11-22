@@ -426,7 +426,7 @@ fn voided_body_exports_brep_with_voids() {
 #[test]
 fn an_inside_out_body_refuses_at_the_gate_not_the_writer() {
     let tol = Tol::witness();
-    let gate = |body: topo::Body<f64>| match topo::finish(body, tol) {
+    let gate = |body: topo::Body<f64>| match topo::finish(topo::Built::of(body), tol) {
         Ok(_) => panic!("an inside-out body passed the at-rest gate"),
         Err(findings) => findings,
     };
@@ -482,7 +482,7 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
     body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
     assert!(
-        topo::finish(body, Tol::witness()).is_err(),
+        topo::finish(topo::Built::of(body), Tol::witness()).is_err(),
         "a skeleton is not at rest"
     );
 }

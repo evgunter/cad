@@ -119,7 +119,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
 /// volume and the overlap volume. A tool the at-rest gate refuses is
 /// one `ERR` line.
 fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
-    let t = match topo::finish(t, tol()) {
+    let t = match topo::finish(topo::Built::of(t), tol()) {
         Ok(t) => t,
         Err(e) => {
             let s: String = format!("{e:?}").chars().take(120).collect();

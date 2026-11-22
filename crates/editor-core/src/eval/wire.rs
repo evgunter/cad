@@ -29,7 +29,7 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::{Body, BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
+use topo::{BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -4735,7 +4735,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
+    let mut fused = topo::Assembled::new();
     // Each operand's bodies, read once: every seat of an assemble takes
     // a family whole, so a member is its family's every body, and an
     // empty one refuses.
@@ -4765,12 +4765,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
-    let mut bridges_seen = 0usize;
-    // What the graft holds: each member body's own records, re-keyed
-    // through its graft, and which arrival each solid came by.
-    let mut held = topo::ContactRecords::default();
-    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
-        std::collections::BTreeMap::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::with_capacity(members.len());
     let mut parts = 0;
     for (read, value, bodies, family) in operands {
@@ -4779,17 +4773,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         for body in &bodies {
             let keys = super::Framed::graft_into(&frame, &mut fused, body, tol)
                 .map_err(NodeErrorKind::from)?;
-            let arrival = names::narrow(bridges_seen, names::Numbered::InputPosition)
-                .map_err(NodeErrorKind::Naming)?;
-            crate::product::carry_contacts(
-                &fused,
-                &mut held,
-                &body.holding().records().carried_from(arrival),
-                &keys,
-            )
-            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
-            arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
-            bridges_seen += 1;
             bridges.push(keys);
         }
         // Each body it grafts is one arrival, cited by the member's read.
@@ -4808,7 +4791,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         });
         named.push((read, table, bridges));
     }
-    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_assemble(id, &named, fused.body()).map_err(NodeErrorKind::Naming)?;
     // The graft of its members is its scalar's leaf
     // (`topo::AtRestPolicy::leaf_assembled`), as they are: finished at
     // `f64`, its census recording each touch between two members; tier
@@ -4817,15 +4800,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         leaf: fused,
         rows,
         findings,
-    } = T::leaf_assembled(
-        topo::Assembled::new(
-            fused,
-            held,
-            Arc::new(move |solid| arrivals.get(&solid).copied()),
-        ),
-        tol,
-    )
-    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    } = T::leaf_assembled(fused, tol)
+        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let fused = Arc::new(fused);
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(

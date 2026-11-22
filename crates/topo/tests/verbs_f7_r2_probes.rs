@@ -54,7 +54,7 @@ fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
         .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
         .collect();
     assert_eq!(want.len(), seams, "{what}: seam-edge census");
-    let errors = topo::finish(b.clone(), Tol::witness())
+    let errors = topo::finish(topo::Built::of(b.clone()), Tol::witness())
         .expect_err(&format!("{what}: a split body does not finish"));
     println!("{what} => {errors:?}");
     assert_eq!(

@@ -756,7 +756,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-            let moved = topo::finish(moved, tol)
+            let moved = topo::finish(topo::Built::of(moved), tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));

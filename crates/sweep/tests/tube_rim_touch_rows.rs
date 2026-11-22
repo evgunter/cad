@@ -78,10 +78,10 @@ fn cylinder_pairs_refused(body: &Body<f64>, errors: &[ValidationError]) -> usize
 /// census cannot clear a contact nothing recorded.
 #[test]
 fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
-    let t = topo::finish(tube(), tol()).unwrap();
+    let t = topo::finish(topo::Built::of(tube()), tol()).unwrap();
     let exact = SIDE.powi(3) + std::f64::consts::PI * (1.0 - 0.25);
     for (rim, yv, k) in POSES {
-        let c = topo::finish(cube(yv, k, 0.0), tol()).unwrap();
+        let c = topo::finish(topo::Built::of(cube(yv, k, 0.0)), tol()).unwrap();
         for (order, p, q) in [("tube ∪ cube", &t, &c), ("cube ∪ tube", &c, &t)] {
             let tag = format!("{rim} rim, k = {k}, {order}");
             let r = topo::union(p, q, tol()).unwrap();
@@ -118,9 +118,9 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
 /// from the tube.
 #[test]
 fn a_turned_face_clear_of_a_tube_rim_passes_tier_3_prime() {
-    let t = topo::finish(tube(), tol()).unwrap();
+    let t = topo::finish(topo::Built::of(tube()), tol()).unwrap();
     for (rim, yv, k) in POSES {
-        let c = topo::finish(cube(yv, k, 0.05), tol()).unwrap();
+        let c = topo::finish(topo::Built::of(cube(yv, k, 0.05)), tol()).unwrap();
         let tag = format!("{rim} rim, k = {k}, 0.05 off");
         let r = topo::union(&t, &c, tol()).unwrap();
         let bb = r

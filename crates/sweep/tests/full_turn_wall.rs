@@ -109,7 +109,7 @@ fn both_doors_answer_the_bead_by_its_height_window() {
             assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
             // The bored sphere's volume: a napkin ring of half-height
             // `√(R² − r²)`, `(4/3)π·h³` whatever the sphere's radius.
-            let at_rest = topo::finish(body.clone(), Tol::witness()).unwrap();
+            let at_rest = topo::finish(topo::Built::of(body.clone()), Tol::witness()).unwrap();
             let got =
                 topo::test_support::pinned_volume("the bead", &at_rest, Tol::witness()).volume;
             let want = 4.0 / 3.0 * core::f64::consts::PI * hr.powi(3);

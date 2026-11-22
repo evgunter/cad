@@ -1189,7 +1189,7 @@ mod placed_rows {
         use crate::FinishedBody as _;
         let tol = Tol::witness();
         let (source, motion) = placed_source(tol);
-        let finished = crate::finish(source.clone(), tol).unwrap();
+        let finished = crate::finish(crate::Built::of(source.clone()), tol).unwrap();
         let mut today = cube(tol);
         let scope = geom_core::k_stats::Bracket::open();
         let moved = finished.moved(&motion, tol).unwrap();

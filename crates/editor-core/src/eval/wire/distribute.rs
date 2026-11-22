@@ -24,7 +24,6 @@
 use std::sync::Arc;
 
 use geom_core::{Decide, Tol};
-use topo::Body;
 
 use super::{BooleanValue, NodeErrorKind, OpOut, OpResult, ValuePayload};
 use crate::eval::{Piece, Pieces};
@@ -198,7 +197,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     outs: Vec<(crate::VarId, OpOut<T>)>,
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
+    let mut fused = topo::Assembled::new();
     // Computed in its first result's frame
     // ([`crate::eval::Framed::computing_among`]), each grafted into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
@@ -209,11 +208,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
-    // What the graft holds: each piece result's own records, re-keyed
-    // through its graft, and which arrival each solid came by.
-    let mut held = topo::ContactRecords::default();
-    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
-        std::collections::BTreeMap::new();
     let mut coincidences: Vec<crate::coincide::NamedCoincidence> = Vec::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut kinds = Vec::new();
@@ -227,16 +221,6 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         };
         let keys = crate::eval::Framed::graft_into(&frame, &mut fused, &body, tol)
             .map_err(NodeErrorKind::from)?;
-        let arrival = names::narrow(named.len(), names::Numbered::InputPosition)
-            .map_err(NodeErrorKind::Naming)?;
-        crate::product::carry_contacts(
-            &fused,
-            &mut held,
-            &body.holding().records().carried_from(arrival),
-            &keys,
-        )
-        .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
-        arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
         // Each piece's result is one arrival, cited by the piece's read.
         citing.push(crate::coincide::CitedInput::Read(read));
         coincidences.extend(out.coincidences.iter().cloned());
@@ -265,16 +249,9 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         [one] => *one,
         _ => topo::BooleanResultKind::Assembly,
     };
-    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let fused = T::finish_assembled(
-        topo::Assembled::new(
-            fused,
-            held,
-            Arc::new(move |solid| arrivals.get(&solid).copied()),
-        ),
-        tol,
-    )
-    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let table = names::name_assemble(id, &named, fused.body()).map_err(NodeErrorKind::Naming)?;
+    let fused = T::finish_assembled(fused, tol)
+        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let topo::Censused {
         body: fused,
         rows,

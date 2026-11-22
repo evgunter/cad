@@ -1200,7 +1200,7 @@ fn gate(
     solid: Option<u64>,
     tol: Tol,
 ) -> Result<topo::AtRestBody<f64>, StepImportError> {
-    topo::finish(body, tol).map_err(|findings| StepImportError::TierInvalid {
+    topo::finish(topo::Built::of(body), tol).map_err(|findings| StepImportError::TierInvalid {
         solid,
         errors: findings.into_findings(),
     })
@@ -1234,22 +1234,15 @@ fn gate3(
 ) -> Result<(topo::AtRestBody<f64>, Vec<topo::Coincidence>), StepImportError> {
     let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
         body.solids().map(|(solid, _)| solid).zip(0..).collect();
-    let arrivals = instance.clone();
     let topo::Censused {
         body: finished,
         rows,
         findings,
-    } = topo::finish_assembled(
-        topo::Assembled::new(
-            body,
-            topo::ContactRecords::default(),
-            std::sync::Arc::new(move |solid| arrivals.get(&solid).copied()),
-        ),
-        tol,
-    )
-    .map_err(|findings| StepImportError::TierInvalid {
-        solid: None,
-        errors: findings.into_findings(),
+    } = topo::finish_assembled(topo::Assembled::of_solids(body), tol).map_err(|findings| {
+        StepImportError::TierInvalid {
+            solid: None,
+            errors: findings.into_findings(),
+        }
     })?;
     let rows = gate3_findings(&finished, tol, &instance, rows, findings)?;
     Ok((finished, rows))

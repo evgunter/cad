@@ -6720,7 +6720,8 @@ mod tests {
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
-        let errors = crate::finish(body, tol).expect_err("a torn body is not finished");
+        let errors =
+            crate::finish(crate::Built::of(body), tol).expect_err("a torn body is not finished");
         assert!(
             errors.contains(&crate::ValidationError::DanglingGeometry {
                 from: EntityId::Face(face),

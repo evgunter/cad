@@ -9155,8 +9155,8 @@ mod tests {
         let tol = Tol::witness();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let raw = quad_prism(&square, 1.0, tol);
-        let errors =
-            crate::finish(raw.clone(), tol).expect_err("the box's chords are scaffolds at rest");
+        let errors = crate::finish(crate::Built::of(raw.clone()), tol)
+            .expect_err("the box's chords are scaffolds at rest");
         let mut named: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -9226,7 +9226,7 @@ mod tests {
         // gate that would hand it to the boolean refuses each of its
         // faces as uncertifiable, so no NURBS placeholder reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
-            let errors = crate::finish(body.clone(), Tol::witness())
+            let errors = crate::finish(crate::Built::of(body.clone()), Tol::witness())
                 .expect_err("a NURBS placeholder is not a finished body");
             let mut uncertifiable: Vec<_> = errors
                 .iter()

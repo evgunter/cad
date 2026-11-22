@@ -33,7 +33,7 @@ fn an_inside_out_thin_tube_refuses_at_rest() {
         let rev = tube(r, t).revert().unwrap();
         let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
-            topo::finish(rev, tol())
+            topo::finish(topo::Built::of(rev), tol())
                 .map(|_| ())
                 .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),

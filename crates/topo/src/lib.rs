@@ -1596,8 +1596,9 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    Arrivals, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, HeldKind,
-    LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at, take,
+    AssembleError, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, HeldKind,
+    KernelOnly, LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at,
+    take,
 };
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
@@ -1632,7 +1633,7 @@ pub use splitting::{
 pub use transform::{Isometry, TransformError, transform_rigid};
 pub use unresolved::Unresolved;
 pub use validate::{
-    AtRestBody, Bar, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
     SCAFFOLDING_RECOURSE, SingularityLies, StaleDeclaration, Undecidable, ValidationError,
     WedgeCheck, contact_marks, contact_marks_structural, validate, validate_closed,

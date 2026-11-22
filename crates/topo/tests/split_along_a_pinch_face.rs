@@ -47,7 +47,8 @@ fn a_plane_through_a_pinch_puts_each_brick_on_its_side() {
     );
     // The same bits with the record given up split as the plane parts
     // them.
-    let bare = topo::finish(pinch.body.into_body(), tol).expect("the pinch finishes bare");
+    let bare = topo::finish(topo::Built::of(pinch.body.into_body()), tol)
+        .expect("the pinch finishes bare");
     let r = split(&bare, &plane, tol).unwrap();
     for (what, side, x) in [
         ("above", r.above, (1.0, 2.0)),

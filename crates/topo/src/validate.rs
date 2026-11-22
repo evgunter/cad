@@ -10744,22 +10744,6 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
-/// **The bar a finished body's gate paid past tier 3**
-/// ([`AtRestBody::bar`]): what its census read. Neither is tier 3′ in
-/// both directions; the type names which half was paid rather than let
-/// one verdict mean both.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Bar {
-    /// A deciding door's: every record the body holds is confirmed
-    /// where it lies. A meeting no record backs was not asked.
-    RecordsConfirmed,
-    /// A `⊔`'s: the census decided every meeting between two arrivals,
-    /// recorded or reported, and confirmed the records it holds. Inside
-    /// one arrival nothing was read: the arrival's verdict is its own
-    /// door's.
-    ArrivalsDecided,
-}
-
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10840,7 +10824,6 @@ pub enum Bar {
 pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     body: Body<T>,
     records: crate::boolean::ContactRecords,
-    bar: Bar,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
@@ -10867,19 +10850,20 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
-        if !records.is_empty() {
-            records_certified(census_verdict(
-                &body,
-                &records,
-                linear_band(tol)?,
-                tol,
-                Some(CertifiedLanes::<T>::held().region),
-            ))?;
+        // The records, each confirmed where it lies; any reading of one
+        // that is not its confirmation refuses.
+        let unconfirmed = crate::census::confirm_only(
+            &body,
+            &records,
+            linear_band(tol)?,
+            Some(CertifiedLanes::<T>::held().region),
+        );
+        if !unconfirmed.is_empty() {
+            return Err(unconfirmed);
         }
         Ok(Self {
             body,
             records,
-            bar: Bar::RecordsConfirmed,
             sign,
             held: None,
         })
@@ -10912,11 +10896,18 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         );
         let band = linear_band(tol)?;
         let region = CertifiedLanes::<T>::held().region;
+        // What the arrivals carried in, confirmed where the graft put it
+        // as a deciding door's gate confirms its own: a record that does
+        // not confirm here is the graft's defect, and refuses.
+        let unconfirmed = crate::census::confirm_only(&body, &carried, band, Some(region));
+        if !unconfirmed.is_empty() {
+            return Err(unconfirmed);
+        }
         let recorded = crate::census::record_at_rest(
             &body,
             &carried,
             |records| crate::census::census_and_certify(&body, records, band, tol, Some(region)),
-            &|solid| arrivals(solid),
+            &|solid| arrivals.get(&solid).copied(),
             first_row,
         );
         let mut records = carried;
@@ -10925,7 +10916,6 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             body: Self {
                 body,
                 records,
-                bar: Bar::ArrivalsDecided,
                 sign,
                 held: None,
             },
@@ -10943,19 +10933,12 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         &self.records
     }
 
-    /// **The bar its gate paid past tier 3** ([`Bar`]); an isometry
-    /// keeps it.
-    #[must_use]
-    pub const fn bar(&self) -> Bar {
-        self.bar
-    }
-
     /// **Maps its records' citations**
     /// ([`crate::ContactRecords::try_recited`]): each record keeps its
     /// two cells, which are what the gate confirmed, and cites what `f`
     /// makes of each citation. A citation names a row or a record of the
     /// op that holds the body, so a holder that renumbers those re-cites
-    /// here. A refusal leaves it with no record.
+    /// here. A refusal leaves it as it was.
     ///
     /// # Errors
     ///
@@ -10965,7 +10948,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
         uncited: impl FnOnce(usize) -> E,
     ) -> Result<(), E> {
-        self.records = core::mem::take(&mut self.records).try_recited(f, uncited)?;
+        self.records = self.records.clone().try_recited(f, uncited)?;
         Ok(())
     }
 
@@ -11002,7 +10985,6 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         Ok(Self {
             body,
             records: self.records.clone(),
-            bar: self.bar,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
             held: self.held.clone(),
         })
@@ -11098,14 +11080,12 @@ impl<T: crate::props::AtRestPolicy> fmt::Debug for AtRestBody<T> {
         let Self {
             body,
             records,
-            bar,
             sign,
             held,
         } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
             .field("records", records)
-            .field("bar", bar)
             .field("sign", &sign.of(body))
             .field("held", &held.is_some())
             .finish()
@@ -11170,40 +11150,6 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
         Ok(())
     } else {
         Err(errors)
-    }
-}
-
-/// **Tier 3′'s record certification, as a deciding door's gate runs
-/// it** (`[topology.tiers]`): the census over `body` against the
-/// records the door decided, each record confirmed where it lies, and
-/// one the census does not confirm, or reads otherwise, refused. No
-/// record, no census: there is nothing to confirm.
-///
-/// A meeting the census finds that no record backs is not raised here.
-/// The census has no lane yet for several shapes valid doors build (two
-/// curved solids within reach of each other, a curved edge pair whose
-/// count it cannot settle, a reading in the band), and it reads the
-/// split's own unrecorded touches, so raising them would refuse those
-/// results (`work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`,
-/// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-fn records_certified(census: Result<(), Vec<ValidationError>>) -> Result<(), Vec<ValidationError>> {
-    let Err(findings) = census else {
-        return Ok(());
-    };
-    let about_a_record: Vec<ValidationError> = findings
-        .into_iter()
-        .filter(|finding| {
-            matches!(
-                finding,
-                ValidationError::StaleContactDeclaration { .. }
-                    | ValidationError::ContactContradicted { .. }
-            )
-        })
-        .collect();
-    if about_a_record.is_empty() {
-        Ok(())
-    } else {
-        Err(about_a_record)
     }
 }
 
@@ -19483,8 +19429,18 @@ pub(crate) mod unconfirmed {
     /// face, which do not meet.
     pub(crate) fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
         let at_rest = |b| crate::finish(b, tol).unwrap();
-        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
-        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol));
+        let a = at_rest(crate::Built::of(brick::<f64>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        )));
+        let b = at_rest(crate::Built::of(brick::<f64>(
+            (1.0, 2.0),
+            (1.0, 2.0),
+            (1.0, 2.0),
+            tol,
+        )));
         let BooleanResult::Body(kiss) = union(&a, &b, tol).unwrap() else {
             panic!("the kiss is empty");
         };

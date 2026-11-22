@@ -748,7 +748,7 @@ impl NtPrism {
     /// The prism as an operand.
     pub fn body(&self, tol: Tol) -> AtRestBody<f64> {
         topo::finish(
-            topo::test_support::prism::<f64>(&self.profile, self.h, tol).body,
+            topo::Built::of(topo::test_support::prism::<f64>(&self.profile, self.h, tol).body),
             tol,
         )
         .expect("a near-tangent prism is a valid operand")
@@ -816,7 +816,7 @@ pub fn nt_cube(v: V3, m: V3, tol: Tol) -> AtRestBody<f64> {
         },
         tol,
     );
-    topo::finish(cube, tol).expect("a mapped cube is a valid operand")
+    topo::finish(topo::Built::of(cube), tol).expect("a mapped cube is a valid operand")
 }
 
 /// The near-tangent census's prisms, by name.

@@ -74,7 +74,7 @@ fn params(body: &Body<f64>, edge: EdgeKey) -> (f64, f64) {
 
 /// The body's volume through the at-rest door.
 fn volume(body: &Body<f64>) -> Result<f64, topo::Stop> {
-    let at = topo::finish(body.clone(), tol()).expect("the body is at rest");
+    let at = topo::finish(topo::Built::of(body.clone()), tol()).expect("the body is at rest");
     let measured = topo::mass_properties(&at, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap_or_else(|e| panic!("the body measures: {e:?}"));
     match measured.stop {

@@ -4119,13 +4119,13 @@ fn tier_three_and_tier_two_record_every_decision_as_a_check() {
     let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 3.0), tol);
     let bracket = Bracket::open();
     assert!(
-        crate::AtRestBody::validate(body.clone().into(), tol).is_ok(),
+        crate::AtRestBody::validate(crate::Built::of(body.clone()), tol).is_ok(),
         "tier 3 passes the brick"
     );
     let tier3 = bracket.finish();
     let bracket = Bracket::open();
     assert!(
-        crate::Replay::of(body.into()).is_ok(),
+        crate::Replay::of(crate::Built::of(body)).is_ok(),
         "tier 2 passes the brick"
     );
     let tier2 = bracket.finish();

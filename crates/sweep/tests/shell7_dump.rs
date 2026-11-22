@@ -82,7 +82,7 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     // A body tier 3 refuses prints its refusal and is not measured.
-    match topo::finish(topo::Body::clone(body), tol()) {
+    match topo::finish(topo::Built::of(topo::Body::clone(body)), tol()) {
         Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
         Ok(finished) => match topo::mass_properties(
             &finished,
@@ -106,7 +106,7 @@ fn dump(label: &str, body: &Body<f64>) {
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
     // A hand-split operand is construction state (tier 3's check 11):
     // the gate's refusal is the dump's line for it.
-    let operand = match topo::finish(body.clone(), tol()) {
+    let operand = match topo::finish(topo::Built::of(body.clone()), tol()) {
         Ok(operand) => operand,
         Err(e) => {
             println!("[dump] {label}: not at rest {e:?}");

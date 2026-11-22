@@ -106,7 +106,7 @@ fn findings<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>(
         .expect("the row's face");
     let surface = moved(body.get_surface(key).unwrap().clone());
     let body = body.with_surface_moved_for_tests(key, surface).unwrap();
-    match topo::finish(body, Tol::witness()) {
+    match topo::finish(topo::Built::of(body), Tol::witness()) {
         Ok(_) => panic!("{}: a moved face validates", T::NAME),
         Err(errors) => errors.into_findings(),
     }

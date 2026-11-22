@@ -155,7 +155,7 @@ impl Shape {
             tol(),
         );
         fixtures::describe_as_intersections(&mut b, tol());
-        topo::finish(b, tol()).unwrap_or_else(|e| panic!("{}: {e:?}", self.name))
+        topo::finish(topo::Built::of(b), tol()).unwrap_or_else(|e| panic!("{}: {e:?}", self.name))
     }
     /// Convex pieces: triangles fanned from the corner (each profile here
     /// is star-shaped from it), posed.
@@ -335,7 +335,7 @@ fn cube_parts(v: V3, f: [V3; 3], edge: bool) -> (AtRestBody<f64>, Vec<Half>) {
         planes.push((dir.map(|c| -c), -(base + lo[axis])));
         planes.push((dir, base + lo[axis] + SIDE));
     }
-    (topo::finish(body, tol()).unwrap(), planes)
+    (topo::finish(topo::Built::of(body), tol()).unwrap(), planes)
 }
 
 const IDENT: [V3; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];

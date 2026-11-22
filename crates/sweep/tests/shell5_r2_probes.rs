@@ -306,8 +306,8 @@ fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells()
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let solid = body.solids().next().unwrap().0;
-    let errors =
-        topo::finish(body, tol).expect_err("two pieces under one solid is not a finished body");
+    let errors = topo::finish(topo::Built::of(body), tol)
+        .expect_err("two pieces under one solid is not a finished body");
     assert_eq!(
         errors,
         vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],

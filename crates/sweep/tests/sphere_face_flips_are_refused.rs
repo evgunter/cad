@@ -190,7 +190,7 @@ fn every_sphere_face_flip_is_refused_and_named() {
         split_faces_at_equator(&mut cover, tol);
         for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
             total += flips(name, body, &mut failures) + 1;
-            let at_rest = topo::finish(topo::Body::clone(body), tol);
+            let at_rest = topo::finish(topo::Built::of(topo::Body::clone(body)), tol);
             let tier3 = at_rest.is_ok();
             let door = match &at_rest {
                 Ok(finished) => {

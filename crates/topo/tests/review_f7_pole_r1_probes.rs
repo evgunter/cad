@@ -128,7 +128,7 @@ fn assert_refused_on_its_seams(b: Body<f64>, seams: usize, what: &str) -> Vec<to
             "{what}, {door}: the gate refuses on a seam: {err:?}"
         );
     }
-    let errors = topo::finish(b, Tol::witness()).expect_err(&format!(
+    let errors = topo::finish(topo::Built::of(b), Tol::witness()).expect_err(&format!(
         "{what} is an ordinary non-maximal pair and does not finish as the split leaves it"
     ));
     println!("{what} => {errors:?}");

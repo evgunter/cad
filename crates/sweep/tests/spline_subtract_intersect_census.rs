@@ -561,7 +561,8 @@ fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true
             .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
             .unwrap();
     }
-    let admitted = topo::finish(wrong, t).expect("the gate admits the wrong-sense cavity");
+    let admitted =
+        topo::finish(topo::Built::of(wrong), t).expect("the gate admits the wrong-sense cavity");
     let v_wrong =
         topo::test_support::volume_at("the wrong-sense cavity", &admitted, t, 1e-6).volume;
     assert!((v_right - 135.0).abs() < 1e-6, "the cavity: {v_right}");

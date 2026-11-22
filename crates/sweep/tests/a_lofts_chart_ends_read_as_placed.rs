@@ -187,7 +187,7 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
         let interval = T::NAME == geom_core::Interval::NAME;
         read(&body, "minted again", !interval);
         for (when, body) in [("as split", split), ("minted again", body)] {
-            let finished = topo::finish(body, tol())
+            let finished = topo::finish(topo::Built::of(body), tol())
                 .unwrap_or_else(|e| panic!("{scalar}, {when}: the split body finishes: {e:?}"));
             let m = topo::mass_properties(
                 &finished,

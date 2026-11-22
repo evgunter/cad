@@ -851,6 +851,25 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     )
 }
 
+/// **The confirmation direction alone**: each of `contacts` read where
+/// it lies ([`confirm_records`]), and every finding is one record's that
+/// did not confirm: stale, contradicted, in the band, outside a lane.
+/// A deciding door's gate runs this over the records it is handed
+/// (`[topology.tiers]`); it searches for no meeting, so it pays nothing
+/// for the body's other cells.
+pub(crate) fn confirm_only<T: Decide + crate::props::AtRestPolicy + Bounds>(
+    body: &Body<T>,
+    contacts: &ContactRecords,
+    band: Band,
+    region: Option<T::RegionLane>,
+) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    if !contacts.is_empty() {
+        confirm_records(body, &snapshot(body), contacts, band, region, &mut errors);
+    }
+    errors
+}
+
 /// The differential door: the census under `strategy`, with every
 /// sweep's examined and accepted pairs recorded. Reference surface
 /// (`sweep-testing`), exactly like [`crate::boolean::sweep_traces`].
@@ -22168,14 +22187,24 @@ mod split_wedge_tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let at_rest = |b| crate::finish(b, tol).unwrap();
-        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
-        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), tol));
+        let a = at_rest(crate::Built::of(brick::<f64>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        )));
+        let b = at_rest(crate::Built::of(brick::<f64>(
+            (1.0, 2.0),
+            (1.0, 2.0),
+            (0.0, 1.0),
+            tol,
+        )));
         let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {
             panic!("the pinch is empty");
         };
         // Read with its record given up: the plane along a face parts it
         // (`split_along_a_pinch_face`), and this row reads wedges.
-        let pinch = at_rest(crate::FinishedBody::into_body(pinch.body));
+        let pinch = at_rest(crate::Built::of(crate::FinishedBody::into_body(pinch.body)));
         let mut read = 0;
         for (what, origin, normal) in [
             ("across the line", [1.0, 1.0, 0.5], [0.0, 0.0, 1.0]),

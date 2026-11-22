@@ -98,7 +98,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
             );
             // A body tier 3 refuses prints its refusal (and its tier-3 line
             // below) and is not measured.
-            match topo::finish(topo::Body::clone(b), Tol::witness()) {
+            match topo::finish(topo::Built::of(topo::Body::clone(b)), Tol::witness()) {
                 Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
                 Ok(finished) => match topo::mass_properties(
                     &finished,
