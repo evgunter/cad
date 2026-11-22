@@ -9328,6 +9328,43 @@ mod presentation_rows {
         );
     }
 
+    /// **A meridian whose image ends off the pole does not run on to the
+    /// pole's side, though the face's extent moved there** (review of
+    /// PR 7115): the octant with one meridian's image ending an ulp
+    /// under `π/2` and the other's 0.01 under, both ending at the pole's
+    /// vertex. The stored extent ends an ulp under, so it moves to the
+    /// latitude; the short meridian still covers only its own range, so
+    /// the cell across both meridians at the pole is `Local`. Red where
+    /// the run-on is granted by the key, or by the moved extent, alone.
+    #[test]
+    fn a_meridian_ending_off_the_pole_does_not_run_on_where_the_extent_moved() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, mut b) = octant_ending_at(q.next_down());
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, q - 0.01));
+        assert_eq!(v_of(&s, &b), Ok((0.0, line.hi())), "the extent moves");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.0, q),
+            v: (1.5, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            matches!(got, Err(Unpresented::Local)),
+            "the short meridian does not cover its side: {:?}",
+            got.map(|p| matches!(p, Presentation::Vacuous))
+        );
+    }
+
     /// **An edge runs on to the pole's side only where its image ends at
     /// the pole by the band**: a polar cap whose loop wraps the sphere
     /// (its extent says nothing, so nothing has checked its rows), with a

@@ -3651,3 +3651,124 @@ fn review_probe_delta_refusers() {
         );
     }
 }
+
+/// Review probe (second delta of PR 7115): cone tips far from the
+/// origin, along the axis, across it and in a turned frame moved far,
+/// each as a body and as its axial-door cavity. Prints one line per
+/// case and asserts nothing; run at each ε through `CAD_TOLERANCE_EPS`.
+#[test]
+#[ignore = "review probe: prints, asserts nothing"]
+fn review_probe_far_witnesses() {
+    use crate::common::latitude_seam::door_cavity;
+    use geom_core::{Affine3, Mat3, Vec2, Vec3};
+    let far_turned = |off: (f64, f64, f64)| -> SketchPlane<f64> {
+        let a = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+        let (c, s) = (0.7_f64.cos(), 0.7_f64.sin());
+        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+        let m = Mat3::from_cols(
+            col(Vec3::new(1.0, 0.0, 0.0)),
+            col(Vec3::new(0.0, 1.0, 0.0)),
+            col(Vec3::new(0.0, 0.0, 1.0)),
+        );
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+            tol(),
+        ))
+    };
+    let shapes = [
+        (1.0, 1.0, true),
+        (1.0, 1.0, false),
+        (20.0, 50.0, true),
+        (0.37, 2.3, true),
+    ];
+    for far in [100.0, 1e4] {
+        for (place, plane, x0, y0) in [
+            ("along", SketchPlane::xy(), 0.0, far),
+            ("across", SketchPlane::xy(), far, 0.0),
+            ("turned", far_turned((far, -0.7 * far, 0.3 * far)), 0.0, 0.0),
+        ] {
+            for &(r, h, up) in &shapes {
+                let pts = if up {
+                    [(x0, y0), (x0 + r, y0), (x0, y0 + h)]
+                } else {
+                    [(x0, y0 + h), (x0, y0), (x0 + r, y0 + h)]
+                };
+                let what = format!("{place} {far:e} r={r} h={h} up={up}");
+                let profile = Profile::new(
+                    plane.clone(),
+                    vec![ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))],
+                )
+                .validate(tol());
+                let Ok(profile) = profile else {
+                    println!("FAR {what}: profile refused");
+                    continue;
+                };
+                let axis = RevolveAxis {
+                    origin: Point2::new(x0, 0.0),
+                    dir: Vec2::new(0.0, 1.0),
+                };
+                let body = match revolve(&profile, axis, Revolution::Full, tol()) {
+                    Ok(b) => b.body.into_body(),
+                    Err(e) => {
+                        println!("FAR {what}: revolve refused {e:?}");
+                        continue;
+                    }
+                };
+                let rep = injective(&body, None, BUDGET);
+                let rc = rep.receipt;
+                println!(
+                    "FAR {what} body: {:?} {}/{}/{}",
+                    rep.verdict, rc.discharged, rc.refused, rc.splits
+                );
+                match std::panic::catch_unwind(|| door_cavity(&body, 0.05 * r.min(h))) {
+                    Ok(c) => {
+                        let rep = injective(&c, None, BUDGET);
+                        let rc = rep.receipt;
+                        println!(
+                            "FAR {what} cavity: {:?} {}/{}/{}",
+                            rep.verdict, rc.discharged, rc.refused, rc.splits
+                        );
+                    }
+                    Err(_) => println!("FAR {what} cavity: door panicked"),
+                }
+            }
+        }
+    }
+}
+
+/// Review probe: one ice-cream cone (a cone under a sphere cap with its
+/// pole a vertex) on the first two turned planes, and a plain ball on
+/// them, one line each.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_turned_icecream() {
+    for k in 1..3 {
+        let (a, b, c) = (
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 2.0),
+            Point2::new(0.0, 1.0),
+        );
+        let cone = revolved_on(
+            turned_plane(k),
+            vec![(Point2::new(0.0, 0.0), 0.0), (a, bulge(a, b, c)), (b, 0.0)],
+        );
+        let rep = injective(&cone, None, BUDGET);
+        let rc = rep.receipt;
+        println!(
+            "ICE k={k}: {:?} {}/{}/{}",
+            rep.verdict, rc.discharged, rc.refused, rc.splits
+        );
+        let (a, b, c) = (
+            Point2::new(0.0, -1.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+        );
+        let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
+        let rep = injective(&ball, None, BUDGET);
+        let rc = rep.receipt;
+        println!(
+            "BALL k={k}: {:?} {}/{}/{}",
+            rep.verdict, rc.discharged, rc.refused, rc.splits
+        );
+    }
+}
