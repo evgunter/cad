@@ -6634,9 +6634,9 @@ mod first_finding_rows {
     use std::ops::ControlFlow;
 
     use super::{
-        AtRefusal, Bound, BoundVerdict, Bucket, Budgets, Candidate, Cell, ClearanceBound,
-        DischargeWidths, EngineRefusal, LocalMemo, Offer, Reading, Readings, RegionMemo, Side,
-        Sweep, Which, WindowFaces, Windows,
+        AtRefusal, Bound, BoundVerdict, Bucket, Budgets, Candidate, Cell, CellPair, CellReceipt,
+        ClearanceBound, DischargeWidths, EngineRefusal, LocalMemo, Offer, Open, Question, Reading,
+        Readings, RegionMemo, Shared, Side, Sweep, Task, Walk, Which, WindowFaces, Windows,
     };
     use crate::Body;
     use geom::Surface;
@@ -6774,5 +6774,84 @@ mod first_finding_rows {
                 "{at_refusal:?}"
             );
         }
+    }
+
+    /// **A pair the walk ends on for a declined witness is counted
+    /// refused, once.** Two faces of a brick that share nothing, their
+    /// cells' enclosures set to one point, so the interval pass classes
+    /// the pair at zero and offers it; the verifier declines. Through the
+    /// question's own `pair`: the walk breaks, and the receipt reads one
+    /// refused and none violated. Red where the pair is counted among
+    /// the violated.
+    #[test]
+    fn a_pair_ended_on_for_a_declined_witness_is_counted_refused() {
+        let body = brick();
+        let w = windows(&body);
+        let (i, j) = (0..w.of.len())
+            .flat_map(|i| (i + 1..w.of.len()).map(move |j| (i, j)))
+            .find(|&(i, j)| Shared::of(&w.of[i].boundary, &w.of[j].boundary, false).is_empty())
+            .expect("a brick has opposite faces");
+        let (x, y) = (&w.of[i], &w.of[j]);
+        let at = Interval::from_bounds(0.5, 0.5);
+        let point = |mut c: Cell| {
+            c.enc = Point3::new(at, at, at);
+            c
+        };
+        let sweep = strict();
+        let shared = [Shared::default()];
+        let mut q = Bound {
+            sweep: &sweep,
+            injective: true,
+            shared: &shared,
+            at_refusal: AtRefusal::End,
+            faces: WindowFaces::of(&w.of, &w.of),
+            region: RegionMemo::at(band()),
+            locals: LocalMemo::default(),
+            across: BTreeMap::new(),
+            cornered: 0,
+            widths: DischargeWidths::empty(),
+            lower_refusal: None,
+            upper_refusal: None,
+            violation: None,
+            within: None,
+            box_dependent: core::cell::Cell::new(None),
+            verify: |_: Candidate<'_, '_, Interval>| Err::<(), _>("declined".to_owned()),
+        };
+        let mut walk = Walk {
+            budgets: sweep.budgets,
+            receipt: CellReceipt {
+                candidates: 1,
+                ..CellReceipt::default()
+            },
+            left: 0,
+            next: Vec::new(),
+        };
+        let task = Task {
+            k: 0,
+            i,
+            j,
+            pair: CellPair {
+                a: point(Cell::of(x)),
+                b: point(Cell::of(y)),
+                depth: 0,
+                fresh: true,
+            },
+            open: Open {
+                below: true,
+                above: false,
+            },
+        };
+        assert!(q.pair(&mut walk, task, x, y).is_break(), "the walk ends");
+        assert!(
+            matches!(
+                q.lower_refusal,
+                Some(EngineRefusal::WitnessUnverified { a, b, .. }) if a == x.face && b == y.face
+            ),
+            "{:?}",
+            q.lower_refusal
+        );
+        let r = walk.receipt;
+        assert_eq!((r.refused, r.violated), (1, 0), "{r:?}");
+        assert!(r.holds(), "{r:?}");
     }
 }

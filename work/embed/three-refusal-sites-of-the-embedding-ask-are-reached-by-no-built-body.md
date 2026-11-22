@@ -37,6 +37,11 @@ body:
   arm) is reached by nothing: `window_of` refuses a face whose lifted
   values do not certify before the walk.
 
+`injective::by_kind`'s free-form, approximated and spindle arms are
+dead behind `window_of`, which refuses those faces before the walk, so
+only its torus arm can reach the site. The engine row is a pin of the
+site and of no body.
+
 ## What is owed
 
 A built body for the by-kind refusal and for the declined witness, or

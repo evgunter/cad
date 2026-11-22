@@ -1,10 +1,10 @@
 ---
 id: a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics
 kind: issue
-title: At eps 1e-12 and Interval a station of a face's own chart 100 off the origin reads indeterminate against its carrier, and the region door panics where the embedding ask should refuse
+title: At eps 1e-12 and Interval a station of a face's own chart 30 or more off the origin reads indeterminate against its carrier, and the region door panics where the embedding ask should refuse
 status: open
 opened: 2026-11-22
-priority: P2
+priority: P1
 ---
 
 
@@ -30,15 +30,27 @@ enclosure there is about 2.6e-12 wide either side, wider than ε at
 that row, so `Held::constructed(..).check` cannot decide it on the
 carrier and fails loud.
 
-Measured beside it:
-- the `f64` body at the same placement and ε is asked without it;
-- at `Interval` and ε = 1e-12 the placements at the origin and 0.1 off
-  are asked without it, in both face orders, mirrored or not;
-- at ε = 1e-9 and 1e-6 every placement is asked without it at both
-  scalars, `(900, −900, 900)` included.
+Measured, by this lane and by PR 7319's reviewer, the same plate built
+at each offset and asked the embedding question:
 
-Not measured: the placement 900 off at ε = 1e-12 (the row stops at
-the first panic), and which face's station it is.
+| offset | `f64`, ε = 1e-12 | `Interval`, ε = 1e-12 | both scalars, ε = 1e-9 and 1e-6 |
+|---|---|---|---|
+| origin, `(0.1, 0, 0)` | reads | reads | reads |
+| `(1,1,1)`, `(3,3,3)`, `(10,10,10)`, `(10,0,0)` | reads | reads | reads at 1e-6 |
+| `(30,30,30)` | reads | **panics** in `cell_region::place` (`Held::check`) | reads at 1e-6 |
+| `(100,0,0)`, `(100,100,100)` | reads | **panics**, the same site | reads |
+| `(900,−900,900)` | reads | does not build: `newell_plane` escalates in the fixture | reads |
+
+Which face's station it is was not measured.
+
+## Band
+
+P1, and a blocker of `embed/gate`'s landing (the reviewer's reading,
+which this lane shares). Today no ordinary verb asks the embedding
+question at `Interval`, so the panic is reached only by a test that
+asks it directly. Once the at-rest gate lands every finish asks it,
+and a body 30 units off the origin at the 1e-12 row would panic
+inside the gate instead of being refused.
 
 ## What is owed
 
@@ -47,7 +59,7 @@ the subtract both built) is not measured either. A width the scalar
 cannot hold is a refusal of the question (`[tolerance.recourse]`),
 typed, not a panic in the region door. The row
 `a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds`
-does not ask a placement 100 or more off the origin below ε = 1e-9,
-printing that it did not, until this is read. That line is the
-measurement above (100 off fails at 1e-12; 900 off is read at 1e-9),
-not a model of the rounding.
+does not ask, at `Interval` below ε = 1e-9, the two placements of its
+list measured unread there (100 off: the panic; 900 off: the fixture
+does not build), printing that it did not; `f64` asks every placement
+at every ε.

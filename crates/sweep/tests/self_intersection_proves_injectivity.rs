@@ -3341,15 +3341,17 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             [900.0, -900.0, 900.0],
             [0.1, 0.0, 0.0],
         ] {
-            // At `Interval` and ε = 1e-12 a station 100 off the origin
-            // reads indeterminate against its own carrier, and the region
-            // door panics on it
-            // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`).
-            // The far placements are asked at the ε measured to read them.
-            let far = o.iter().any(|x| x.abs() >= 100.0);
-            if far && tol().eps() < 1e-9 {
+            // Measured at ε = 1e-12: `f64` asks every placement. At
+            // `Interval` the body 100 off the origin panics in the region
+            // door, a station of a face's own chart reading indeterminate
+            // against its carrier, and the body 900 off does not build
+            // (`newell_plane` escalates in the fixture). At ε = 1e-9 and
+            // 1e-6 both scalars ask every placement.
+            // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`)
+            let unread_at_interval = o == [100.0; 3] || o == [900.0, -900.0, 900.0];
+            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unread_at_interval {
                 println!(
-                    "SKIPPED at eps {}: the placement {o:?} off the origin is not asked",
+                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin is not asked",
                     tol().eps()
                 );
                 continue;
@@ -3478,8 +3480,9 @@ fn a_budget_refusal_names_its_two_faces_and_ends_the_ask() {
 /// plate's top against the four faces of its void, asked `≥ 0.2` at a
 /// depth floor of 10: a cell pair runs out of depth before the pair at
 /// the apex is confirmed closer than the bound, and the verdict is the
-/// violation. The walk ends at a verified violation, leaving pairs
-/// abandoned, so a pair counted refused was refused before it. Red,
+/// violation. The walk ends at the verified violation, which is why
+/// pairs are left abandoned, so a pair counted refused was refused
+/// before it. Red,
 /// refused for the depth, where the metric question ends at its first
 /// refusal as the embedding question does.
 #[test]
