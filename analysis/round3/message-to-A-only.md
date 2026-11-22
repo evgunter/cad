@@ -1,0 +1,1 @@
+Round 3 went to designer A only, on the README clause: A was shown B's round-2 report (four sentences, a reason for each) and asked to check its three factual claims; A signed the four-sentence clause. Agreed, no split. The Band::new pin both call an agent's decision; the orchestrator files it as a row.
