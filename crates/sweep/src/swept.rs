@@ -2298,3 +2298,99 @@ pub(crate) mod undecided_fixtures {
         [0, 1, 2].map(|k| format!("{subject} is undecided: {}{}", PAYLOADS[k], endings[k]))
     }
 }
+
+/// Reviewer rows (PR 7384): the directions a traversal carries agree with
+/// the ends it carries, through every relabelling — forward, backward and
+/// a collapsed run — so a mutant on `Traversed::backward` or
+/// `Traversed::continued` reds here even while no door reads them.
+#[cfg(test)]
+mod review_doors_read_carried_directions {
+    use super::*;
+    use geom_core::Tol;
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
+
+    /// Every carried direction against the ends it is carried with: a
+    /// line's director is the chord's unit, an arc's radials are the
+    /// centre-to-end units over its radius, at `f64` to 1e-12.
+    fn agree(what: &str, seg: &SweptSeg<f64>) {
+        let close = |u: Vec2<f64>, v: Vec2<f64>| (u - v).norm() < 1e-12;
+        match seg.kind.get() {
+            SegmentKind::Line { director } => {
+                let chord = seg.b - seg.a;
+                assert!(
+                    close(director, chord / chord.norm()),
+                    "{what}: the director {director:?} is not {:?}→{:?}'s unit",
+                    seg.a,
+                    seg.b
+                );
+            }
+            SegmentKind::Arc {
+                arc,
+                radials: [rs, re],
+                ..
+            } => {
+                let at = |p: Point2<f64>| (p - arc.centre) / arc.radius;
+                assert!(
+                    close(rs, at(seg.a)),
+                    "{what}: the start radial {rs:?} is not at the start {:?}",
+                    seg.a
+                );
+                assert!(
+                    close(re, at(seg.b)),
+                    "{what}: the end radial {re:?} is not at the end {:?}",
+                    seg.b
+                );
+            }
+        }
+    }
+
+    /// A "D": two collinear lines along the bottom, then the upper half
+    /// of the unit circle about (1, 0) as two quarter arcs, so each kind
+    /// has a two-member run, with a corner between the runs.
+    fn d_loop() -> profile::ValidatedLoop<f64> {
+        let q = (std::f64::consts::PI / 8.0).tan();
+        Profile::new(
+            SketchPlane::<f64>::xy(),
+            vec![bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), q),
+                (Point2::new(1.0, 1.0), q),
+            ])],
+        )
+        .validate(Tol::witness())
+        .expect("the D validates")
+        .loops()[0]
+            .clone()
+    }
+
+    #[test]
+    fn a_traversal_carries_directions_that_agree_with_its_ends_forward_backward_and_collapsed() {
+        let lp = d_loop();
+        assert_eq!(lp.segments().len(), 4, "the D keeps its four segments");
+        for reverse in [false, true] {
+            let segs = swept_segments(&lp, reverse);
+            for (j, s) in segs.iter().enumerate() {
+                agree(&format!("reverse {reverse}, segment {j}"), s);
+            }
+            // The two runs: a segment continues the one before it where
+            // both are of one kind (the D's runs are exact, so no
+            // cosurface verdict is needed to say so).
+            let n = segs.len();
+            let pair: Vec<bool> = (0..n)
+                .map(|j| {
+                    matches!(
+                        (segs[(j + n - 1) % n].kind.get(), segs[j].kind.get()),
+                        (SegmentKind::Line { .. }, SegmentKind::Line { .. })
+                            | (SegmentKind::Arc { .. }, SegmentKind::Arc { .. })
+                    )
+                })
+                .collect();
+            let collapsed = collapse_runs(&segs, &joins(&segs, &pair), |s, next| s.continued(next));
+            assert_eq!(collapsed.segs.len(), 2, "reverse {reverse}: two runs");
+            for (j, s) in collapsed.segs.iter().enumerate() {
+                agree(&format!("reverse {reverse}, run {j}"), s);
+            }
+        }
+    }
+}

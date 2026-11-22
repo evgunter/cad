@@ -701,6 +701,30 @@ mod tests {
     /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
     /// arc's span (its sweep signed by its turn) is `π`, bit for bit. A
     /// sweep minted against another reading of `Zero` gives `−π` here.
+    /// Reviewer row (PR 7384): each half turn's carried radials are the
+    /// directions from the centre to the vertices it is carried with, bit
+    /// for bit, at every turn and orientation the tube uses.
+    #[test]
+    fn review_doors_read_a_half_turns_radials_point_at_its_own_ends() {
+        for turn in [Sign::Positive, Sign::Negative] {
+            for reversed in [false, true] {
+                let (c, r) = (Point2::new(2.0_f64, 0.0), 0.75);
+                for (k, seg) in circle_traversal(c, r, turn, reversed).iter().enumerate() {
+                    let SegmentKind::Arc {
+                        radials: [rs, re], ..
+                    } = seg.kind.get()
+                    else {
+                        panic!("a circle traversal is arcs");
+                    };
+                    let what = format!("turn {turn:?}, reversed {reversed}, half {k}");
+                    let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+                    assert_eq!(bits(c + rs * r), bits(seg.a), "{what}: the start radial");
+                    assert_eq!(bits(c + re * r), bits(seg.b), "{what}: the end radial");
+                }
+            }
+        }
+    }
+
     #[test]
     fn the_traversals_sweep_reads_its_turn_as_the_carrier_does() {
         for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
