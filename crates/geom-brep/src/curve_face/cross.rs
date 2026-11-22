@@ -195,6 +195,7 @@ pub fn cross<T: Decide>(
             Door::LineRoots => Vec::new(),
             Door::PlaneCrossing
             | Door::ConicTorus
+            | Door::SpiricPlane
             | Door::SplineComposite
             | Door::SplineFace
             | Door::Spiric
@@ -228,6 +229,12 @@ pub fn cross<T: Decide>(
                     },
                 }
             }
+            Door::SpiricPlane => match form.0 {
+                Formed::SpiricPlane { line } => {
+                    super::spiric_plane::spiric_plane_method(span, line, band).map_err(method)?
+                }
+                _ => return Err(method(MeetFault::Desync)),
+            },
             Door::SplineComposite | Door::SplineFace | Door::Spiric | Door::Sheet => {
                 return Err(method(MeetFault::Desync));
             }
@@ -361,16 +368,12 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
     let carrier = span.carrier();
     let (t0, t1) = span.params();
     let mid = geom::mid_param(t0, t1);
-    let periodic = carrier.conic().is_some();
+    let period = carrier.period();
     let reach = T::from_f64(band.escalate()) / span.speeds().0.get();
     let mut inside: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::new();
     let mut refused = Vec::new();
     for &root in roots {
-        let t = if periodic {
-            geom_core::period::Period::angle().near(root, mid)
-        } else {
-            root
-        };
+        let t = period.map_or(root, |period| period.near(root, mid));
         match span.place_param(t, band) {
             Ok(Place::Inside) => inside.push((t, OnSpan::Inside { t }, carrier.eval(t))),
             Ok(Place::End(end)) => inside.push((t, OnSpan::End(end), carrier.eval(t))),

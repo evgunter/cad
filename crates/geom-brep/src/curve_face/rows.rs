@@ -68,6 +68,7 @@ fn every_kind_pair_routes_to_its_door() {
                 (_, Spindle) => (Door::Sheet, false),
                 (Spiric, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, true),
+                (Spiric, Plane) => (Door::SpiricPlane, true),
                 (Spiric, _) => (Door::Spiric, false),
                 (Nurbs, _) => (Door::SplineComposite, true),
                 (_, Plane) => (Door::PlaneCrossing, true),

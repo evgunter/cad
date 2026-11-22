@@ -125,6 +125,10 @@ pub(super) enum Formed<T: Real> {
     /// A conic against a torus on the general walk, `Lies` excluded, and
     /// the ring's floor on `|F|` per metre.
     TorusWalk { floor: T },
+    /// A spiric across a plane not parallel to its own: the line where
+    /// the two planes meet, a unit direction from its point nearest the
+    /// torus's centre ([`super::spiric_plane`]).
+    SpiricPlane { line: geom::Line<T> },
 }
 
 /// **Which pose rung read in the band** ([`PoseRefusal`]).
@@ -162,6 +166,9 @@ pub enum PoseRung {
     Contour,
     /// One carrier point's residual decided past the band.
     NotLies,
+    /// Whether a spiric span is in its two-oval convention,
+    /// `0 < |offset| < R − r`.
+    SpiricRegime,
 }
 
 /// **Why [`super::pose()`] gave no class.** Each is one window over the
@@ -274,6 +281,7 @@ pub fn pose<T: Decide>(
         Door::LineRoots => line(span, surface, band),
         Door::ConicQuadric => conic_quadric(span, surface, band),
         Door::ConicTorus => conic_torus(span, surface, band),
+        Door::SpiricPlane => spiric_plane(span, surface, band),
         Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed),
         Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way)),
     }
@@ -678,6 +686,104 @@ pub(super) fn plane_conic<T: Decide>(
             kappa(span, graze, band)
         }
     }
+}
+
+// ------------------------------------------------------------ spiric
+
+/// **The spiric × plane arm** ([`Door::SpiricPlane`]). The span's
+/// convention first: a spiric outside its two-oval regime is no carrier
+/// the mint makes, a fault (`curve_face_pose_spiric_*`, read at no swing:
+/// the spiric's own data). Then whether the two planes are parallel, by
+/// their tilt `|û × n̂|` levered by the oval's reach `R + r`
+/// (`curve_face_pose_plane_parallel`): parallel, the spiric's plane's
+/// height off the plane to within that levered tilt decides `Lies` or
+/// `Apart` (`curve_face_pose_plane_offset`); a tilt in its gap is `Apart`
+/// where that height clears the reach, and escalates otherwise. Past the
+/// band, the planes meet in a line, and the span meets the plane where
+/// that line meets the oval: `Lies` is excluded, and the line is the
+/// method's ([`super::spiric_plane`]).
+fn spiric_plane<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    let (
+        &geom::Curve3::Spiric {
+            frame: spiric_frame,
+            major_radius,
+            minor_radius,
+            offset,
+        },
+        &geom::Surface::Plane {
+            frame: plane_frame, ..
+        },
+    ) = (span.carrier(), surface)
+    else {
+        return Err(PoseRefusal::Fault(
+            "the spiric × plane arm was handed a pair that is not a spiric and a plane",
+        ));
+    };
+    let Some(ring) = span.carrier().spiric_torus() else {
+        unreachable!("a spiric carrier names its torus")
+    };
+    match geom::spiric_regime(
+        ring,
+        offset,
+        T::zero(),
+        geom::SpiricReader::CurveFace.sites(),
+        band,
+    )
+    .map_err(PoseRefusal::in_band(PoseRung::SpiricRegime))?
+    {
+        geom::SpiricRegime::TwoOvals => {}
+        geom::SpiricRegime::ThroughAxis | geom::SpiricRegime::PastInnerEquator => {
+            return Err(PoseRefusal::Fault(
+                "a spiric span outside its two-oval convention, 0 < |offset| < R − r",
+            ));
+        }
+    }
+    let (center, u) = (spiric_frame.origin(), spiric_frame.u_ref());
+    let (origin, n) = (plane_frame.origin(), plane_frame.axis());
+    let reach = major_radius + minor_radius;
+    let tilt = u.cross(n).norm() * reach;
+    // The spiric's plane's height off the plane at the torus's centre's
+    // foot on it: every point of the oval lies within `tilt` of it.
+    let height = (center + u * offset - origin).dot(n);
+    let parallel = match decide("curve_face_pose_plane_parallel", Margin::of(tilt), band) {
+        Ok(sign) => sign == Sign::Zero,
+        Err(diag) => {
+            return match constant_residual_as(
+                "curve_face_pose_plane_offset",
+                PoseRung::PlaneParallel,
+                (height, tilt),
+                band,
+            ) {
+                Ok(Constant::Apart) => Ok(Pose::Apart),
+                _ => Err(PoseRefusal::in_band(PoseRung::PlaneParallel)(diag)),
+            };
+        }
+    };
+    if parallel {
+        return constant_residual_as(
+            "curve_face_pose_plane_offset",
+            PoseRung::PlaneParallel,
+            (height, tilt),
+            band,
+        )?
+        .pose(PoseRung::PlaneParallel);
+    }
+    // The line `P ∩ Q`, from its point nearest the centre: with `k = û·n̂`
+    // and the planes' heights `o` and `h` above the centre along their
+    // normals, `w = ((o − h·k)·û + (h − o·k)·n̂) / (1 − k²)`.
+    let k = u.dot(n);
+    let h = (origin - center).dot(n);
+    let w = (u * (offset - h * k) + n * (h - offset * k)) / (T::one() - k.powi(2));
+    Ok(Pose::Isolated(Form(Formed::SpiricPlane {
+        line: geom::Line {
+            origin: center + w,
+            dir: u.cross(n).normalize(),
+        },
+    })))
 }
 
 // -------------------------------------------------------------- line

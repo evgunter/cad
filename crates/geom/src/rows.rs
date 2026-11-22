@@ -173,6 +173,9 @@ pub enum SpiricReader {
     BooleanRider,
     /// The plane×torus section, choosing the spiric it mints.
     PlaneTorus,
+    /// The curve × face table's spiric × plane arm, reading a spiric
+    /// span's convention before its pose.
+    CurveFace,
 }
 
 impl SpiricReader {
@@ -194,6 +197,11 @@ impl SpiricReader {
                 "pt_spiric_off_axis",
                 "pt_spiric_two_ovals",
                 "pt_spiric_two_ovals_floor",
+            ),
+            Self::CurveFace => SpiricRegimeSites::rows_as(
+                "curve_face_pose_spiric_off_axis",
+                "curve_face_pose_spiric_two_ovals",
+                "curve_face_pose_spiric_two_ovals_floor",
             ),
         }
     }
