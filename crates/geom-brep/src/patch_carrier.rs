@@ -77,11 +77,7 @@ pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> 
 
 /// [`patch_distance_sup`] with a cone's metres read against `nappe`
 /// (`None`: the double cone).
-fn distance_sup_on(
-    patch: &NurbsSurface<f64>,
-    surface: &Surface<f64>,
-    nappe: Option<Nappe>,
-) -> f64 {
+fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, nappe: Option<Nappe>) -> f64 {
     let point = |x: f64| Interval::from_bounds(x, x);
     let Ok((coords, form, meters)) = framed_form(surface, patch.control(), &point) else {
         return f64::NAN;

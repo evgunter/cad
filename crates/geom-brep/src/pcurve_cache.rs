@@ -4109,9 +4109,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
 /// # Errors
 ///
 /// As [`limb2_offset_sup`].
-pub(crate) fn limb2_carrier_read<
-    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
->(
+pub(crate) fn limb2_carrier_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     window: (T, T),
     surface: &Surface<T>,

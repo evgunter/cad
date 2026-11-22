@@ -2080,15 +2080,25 @@ pub(crate) enum Lever {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Meters<S> {
     Plane,
-    Cylinder { radius: S },
-    Sphere { radius: S },
+    Cylinder {
+        radius: S,
+    },
+    Sphere {
+        radius: S,
+    },
     Cone {
         sin: S,
         cos: S,
         nappe: Option<Nappe>,
     },
-    Torus { major: S, minor: S },
-    Spindle { major: S, minor: S },
+    Torus {
+        major: S,
+        minor: S,
+    },
+    Spindle {
+        major: S,
+        minor: S,
+    },
 }
 
 impl<S: Real> Meters<S> {
