@@ -6,13 +6,15 @@
 //! later version of its document ([`SpokenNode::respoken`]) says a
 //! node that version does not hold as it first said it.
 //!
-//! **A sentence is a value** ([`Sentence`]): words, and the nodes and
-//! variables it names as [`Mention`]s, each with the document its id is
-//! spelled in, so a reader can find what it names. A [`Say`] value
-//! writes its sentence into one; only a whole sentence becomes text,
-//! and [`spell`] is the one spelling of a mention as text.
+//! **A sentence is a value** ([`Sentence`], in [`sentence`]): words,
+//! and the nodes and variables it names as [`Mention`]s, each with the
+//! document its id is spelled in, so a reader can find what it names. A
+//! [`Say`] value writes its sentence into one; only a whole sentence
+//! becomes text, [`spell`] is the one spelling of a mention as text,
+//! and no sentence becomes text while another is being said
+//! ([`display_said`]).
 //!
-//! Four spellings, one home each:
+//! What a sentence is made of, one home each:
 //!
 //! - [`SpokenNode`] — the node as a person reads it, read off the
 //!   document that holds it ([`crate::Doc::spoken`]). No label a
@@ -25,9 +27,9 @@
 //!   part carries up, hold the part's nodes as the pinned part says
 //!   them ([`crate::PartFault::held`], [`crate::checks::at_rest::CarriedAtRestFinding::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
-//!   for a sentence made where no document is at hand (a refusal's own
-//!   `Display`, a stored reference). The edit, load and save doors all
-//!   hold a document, so each speaks.
+//!   the words of a node no document at hand holds, and of a stored
+//!   reference. The edit, load and save doors all hold a document, so
+//!   each speaks.
 //! - [`Speaker`] — a sentence written once over the speaker, for a
 //!   refusal that holds bare ids (one the evaluation memo reuses, or
 //!   one a door raised from an evaluation alone): its `Display` says
@@ -39,6 +41,9 @@
 //!   at hand ([`Speaker::held`]). Inside a line that already names a
 //!   node ([`Speaker::about`]), that node reads `this <noun>`, so no
 //!   sentence names it twice.
+//!   A speaker stamps each mention with its document; a value whose ids
+//!   are another document's (a part's fault, a route's hop) is said by
+//!   that document's speaker, or carries that document.
 //! - [`FullId`] — the whole id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
@@ -53,7 +58,7 @@
 
 use core::fmt;
 
-mod sentence;
+pub mod sentence;
 
 use sentence::Readers;
 pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence, spell};
@@ -601,24 +606,17 @@ impl<P: ProfilePayload> Doc<P> {
         let _ = Sentence::new().name(by.name(name));
         let mut held = recording.held();
         // The minter is held apart, and a node the document does not
-        // hold is said by its tag whether held or not: kept out, so a
-        // name spoken from a document that holds none of its nodes is
-        // the name [`SpokenName::absent`] builds.
+        // hold is said by its tag whether held or not, so it is kept
+        // out: such a name says what [`SpokenName::absent`]'s says, and
+        // differs from it only in knowing the document it was spoken
+        // from.
         held.nodes = held
             .nodes
             .iter()
             .filter(|node| node.id() != name.node && node.kind().is_some())
             .cloned()
             .collect();
-        let minter = self.spoken(name.node);
-        if minter.kind().is_none()
-            && held.nodes.is_empty()
-            && held.vars.is_empty()
-            && held.facts.is_empty()
-        {
-            held.document = None;
-        }
-        SpokenName::new(name.clone(), minter, held)
+        SpokenName::new(name.clone(), self.spoken(name.node), held)
     }
 }
 
@@ -884,15 +882,17 @@ impl fmt::Display for StepAt {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes {
     /// The document they were held from, whose ids these are; `None`
-    /// for none (an empty hold). Boxed, so that a refusal carrying a
-    /// hold stays under clippy's 128-byte large-`Err` line.
+    /// where none is known (an empty hold, or one said by tag). Boxed,
+    /// so that a refusal carrying a hold stays under clippy's 128-byte
+    /// large-`Err` line.
     document: Option<Box<DocumentId>>,
     nodes: Box<[SpokenNode]>,
     vars: Box<[SpokenVar]>,
     /// What the words read beyond a node's name — where a profile step
     /// sits, a feature's sole profile, what a node makes of what it
-    /// carries in, a read's operation: one
-    /// slice, so a refusal carrying these stays three pointers wide.
+    /// carries in, a read's operation: one slice for every kind of
+    /// fact rather than one per kind, so a refusal carrying a hold stays
+    /// narrow.
     facts: Box<[NodeFact]>,
 }
 
@@ -1002,7 +1002,8 @@ impl HeldNodes {
         }
     }
 
-    /// The document these were held from, `None` for an empty hold.
+    /// The document these were held from, `None` where none is known:
+    /// an empty hold, or one said by tag.
     #[must_use]
     pub fn document(&self) -> Option<DocumentId> {
         self.document.as_deref().copied()
@@ -1610,6 +1611,21 @@ impl<T: Say + ?Sized> Said<'_, T> {
         let _ = sentence::saying(|| self.0.say(&mut out, self.1));
         out
     }
+}
+
+/// **A node alone as text**: a sentence of its one mention, by tag,
+/// spelled ([`spell`]) — for a surface that draws a node outside any
+/// sentence (a button, a heading, a test's expected text). Refused
+/// inside a sentence being said, like every spelling.
+#[must_use]
+pub fn node_text(node: &SpokenNode) -> String {
+    crate::sentence!(Speaker::TAG.mention(node)).to_string()
+}
+
+/// **A variable alone as text**, as [`node_text`] spells a node.
+#[must_use]
+pub fn var_text(var: &SpokenVar) -> String {
+    crate::sentence!(Speaker::TAG.var(var)).to_string()
 }
 
 /// **The one `Display` of a [`Say`] value**: its sentence, each node

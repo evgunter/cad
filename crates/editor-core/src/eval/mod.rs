@@ -2143,7 +2143,7 @@ impl NodeErrorKind {
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
-// and then FORWARDS its payload's own `Display` — the kernel refusal
+// and then FORWARDS its payload's own sentence — the kernel refusal
 // still rides the variant unaltered (D2) for callers who match, but
 // this string is the only channel a caller who cannot match has, and
 // the bindings' `kind` tag carries the discriminant alone. An arm that
@@ -2153,7 +2153,9 @@ impl NodeErrorKind {
 // Owning a recourse the payload cannot spell buys an arm PROSE, never
 // the right to drop the payload.
 //
-// Every payload-holding arm forwards its payload's own `Display` —
+// Every payload-holding arm forwards its payload's own sentence (its
+// `Say` written as a piece, or the `Display` of a payload that names no
+// node) —
 // `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
 // `PlacementRuleFault` (D54's four) all carry one, and
 // `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the

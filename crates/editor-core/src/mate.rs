@@ -875,7 +875,8 @@ pub enum LeverRefusal {
 }
 
 // The part's own refusal is numbered in the part, so it is said by its
-// own `Display`; the instance and the node are this document's.
+// own speaker (the part's hold), written as a piece; the instance and the
+// node are this document's.
 impl crate::spoken::Say for LeverRefusal {
     fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
@@ -1183,7 +1184,7 @@ pub(crate) const MATE_SLIDES_INDEPENDENT: &str = "mate_slides_independent";
 
 // Every node the fault names is in the mate's own document; a part's
 // face and refusal are numbered in the part and said by their own
-// `Display`. The mate is said by what it is, so a frame that has already
+// speaker, written as pieces. The mate is said by what it is, so a frame that has already
 // named it ([`crate::spoken::Speaker::about`]) reads `this mate`.
 impl crate::spoken::Say for MateFault {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short

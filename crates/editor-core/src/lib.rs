@@ -156,7 +156,7 @@ pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, R
 pub use spoken::{
     FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
     Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
-    node_kind_noun, spell, spoken_by, spoken_within,
+    node_kind_noun, node_text, spell, spoken_by, spoken_within, var_text,
 };
 
 pub use expr::{

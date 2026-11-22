@@ -718,21 +718,10 @@ pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles
     named(&doc.spoken(id), which.as_deref())
 }
 
-/// **A spoken node as text**: the kernel's one spelling of a mention
-/// ([`pncad::document::spell`]), `"base plate" (3fa9c1d2a0b1)` or
-/// `Extrude 3fa9c1d2a0b1`. A site that draws a node alone, outside a
-/// sentence, takes its text here.
-#[must_use]
-pub fn spelled(spoken: &SpokenNode) -> String {
-    pncad::document::sentence!(Speaker::TAG.mention(spoken)).to_string()
-}
-
-/// **A spoken variable as text**: its name, or its id with none, as a
-/// sentence spells it ([`spelled`]).
-#[must_use]
-pub fn spelled_var(var: &pncad::document::SpokenVar) -> String {
-    pncad::document::sentence!(Speaker::TAG.var(var)).to_string()
-}
+/// **A spoken node as text**, and a variable: the kernel's own
+/// ([`pncad::document::node_text`]), under the names the chrome reads
+/// them by.
+pub use pncad::document::{node_text as spelled, var_text as spelled_var};
 
 /// A spoken node and which one of its kind it is, as [`node_label`]
 /// draws them: `InstantiatePart 000000000002 — bracket.pncad`, or

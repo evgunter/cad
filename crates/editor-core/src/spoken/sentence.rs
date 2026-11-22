@@ -57,10 +57,14 @@ pub struct SaidName<'a>(pub(super) &'a StableName, pub(super) Speaker<'a>);
 
 /// **A node as a sentence says it** ([`Speaker::node`],
 /// [`Speaker::node_as`], [`Speaker::mention`]), for [`Sentence::node`]:
-/// `this <noun>` for the sentence's subject, `<noun> <tag>` for a node
-/// the document did not hold where the sentence knows what it is, and
-/// otherwise a [`Mention`]. It has no `Display`: only a whole sentence
-/// becomes text.
+/// `this <noun>` for the sentence's subject, words — `<noun> <tag>` —
+/// for a node no document the speaker had held, and otherwise a
+/// [`Mention`]. An absent node is never a mention, since it has nothing
+/// to link to. A mention's node was held by the document that said it,
+/// or by the hold a speaker fell back to ([`Speaker::or_held`]), so a
+/// reader that links one still checks that the document on screen is
+/// the mention's and holds the node. It has no `Display`: only a whole
+/// sentence becomes text.
 #[must_use]
 pub struct SaidNode(SaidNodeIs);
 
@@ -79,9 +83,7 @@ impl SaidNode {
     ) -> Self {
         Self(match said {
             None => SaidNodeIs::This(noun),
-            Some(node) if node.kind().is_none() && noun != "node" => {
-                SaidNodeIs::Absent(noun, node.id())
-            }
+            Some(node) if node.kind().is_none() => SaidNodeIs::Absent(noun, node.id()),
             Some(node) => SaidNodeIs::Mention(Mention {
                 of: Mentioned::Node(node),
                 document,

@@ -34,7 +34,7 @@ impl SaidKey for crate::node::RecipeNodeId {
         write!(
             f,
             "{}",
-            crate::sentence!(crate::Speaker::TAG.mention(&crate::SpokenNode::absent(*self)))
+            crate::spoken::node_text(&crate::SpokenNode::absent(*self))
         )
     }
 }

@@ -164,7 +164,8 @@ class TestTheDialsAreRecorded(unittest.TestCase):
         for line in numbered:
             self.assertIn("ADVISORY", line)
             self.assertIn("32 samples", line)
-            self.assertIn('"height" (', line)
+            # The label and tag open the line: no kind word before them.
+            self.assertRegex(line, r'^  "height" \([0-9a-f]{12}\): mean')
         self.assertIn("ADVISORY", repr(monte_carlo(doc, box, config)))
 
 

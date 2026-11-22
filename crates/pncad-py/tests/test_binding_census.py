@@ -2406,6 +2406,9 @@ NOT_BOUND = {
     "say": SHAPE,
     "sentence": SHAPE,
     "spell": SHAPE,
+    "display_said": SHAPE,
+    "node_text": SHAPE,
+    "var_text": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
