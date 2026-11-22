@@ -60,3 +60,24 @@ is `boundary_of`'s, shared ground with the rational-window lane
 (PR 7120); the second needs a home for a vertex's chart point per face.
 Neither is needed by the joint reading, which is why this is a row and
 not a blocker.
+
+## The held value is the same reading (PR 7322's review, 2026-11-22)
+
+A row's held value (`Iso::at`, `iso_of` on the row's pcurve) is read
+per row exactly as its ends are, so two rows of ONE coordinate line
+can hold it a rounding apart. Measured: the three-arc filleted disc
+mirrored across a generic plane (`topo::mirror_body`, point
+`(0.3, −0.2, 0.1)`, normal `(0.48, −0.6, 0.64)`), torus band `9v1`,
+foot-parallel rows `20v1` and `21v1`, joined at vertex `8v1`: they hold
+`v = 0.0` and `v = 4.014566457044562e-16`. `present_chart`'s merge read
+them as two lines on one side (`Local` at every depth, at both
+scalars), and `vacuous` did not gather them.
+
+Readers of two rows' held values: `present_chart`'s merge and `vacuous`
+(by key since PR 7322 where the rows are joined at a vertex, by a
+common value otherwise); `face_extent` (each line against the extent,
+inside `chart_slack`); `zero_of` and the corner readings (one row
+each). Bounded as the ends are: the two rows' chart points at the
+shared vertex map within `4ε` in metres by the rows' envelopes and the
+edge certificate's end pins; no check decides the two held values
+against each other.

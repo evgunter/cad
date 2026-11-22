@@ -54,8 +54,10 @@ line's edges only at a vertex they share by key (`joints`,
 `run_through`), and its unit row
 `edges_of_a_line_that_share_no_vertex_are_not_joined` pins that
 overlapping ranges on two vertices are not joined there. The same
-fixture's cell ABOVE the line (the clip reading) is not pinned either
-way.
+row pins the cell ABOVE the line as it reads (`Of`, for ends that
+overlap and for ends that are equal, at two vertices): the two cover
+rules disagree on one line, by key below it and by overlap above
+(the review's probe R4). The pin goes red the day this row is fixed.
 
 ## What it calls for
 
