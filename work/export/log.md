@@ -73,3 +73,5 @@ dispatched.
   - **R2 only:** the pins compare multisets, not partitions; a possible `one_record` split of one entity's wearers (unsure); DESIGN's paragraph omits minted records.
 
   All taken into the fix pass, plus a selection of style items; the refusal-lane deviation is fixed or scheduled.
+- 2026-11-22 — **`import-records` merged (PR 7361).** Dual review (letter H, R1 and R2 concurrent, both APPROVE-WITH-FIXES, no MAJOR, no tally candidate after blind coding), then a fix pass. Its model-compare row is `docs/model-compare-log/rows/PR-7361.md`. Closed: `step-import-discards-the-entity-ids-that-are-its-identity-channel` and `step-import-surface-sig-signs-every-approx-surface-with-one-tag`. The duplicate-spline refusal's recovery lane is cited to an open row. `nist_ftc_09`'s refusals at snap are main's own red (`work/germ/main-red-axis-normal-snap-refuses-nist-ftc-09.md`).
+- 2026-11-22 — **Sitting handed back; track `ready`.** This sitting's P0 and P1 rows are all closed. LATHE carries the U-profile panic (P1) that came out of the fork's probes.

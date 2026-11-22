@@ -615,14 +615,14 @@ mod composed {
         };
         // One tool is open at a time, so the placement editor's active
         // row's two held faces, the mirror's or the split's plane and
-        // the clearance tool's face seats share these two slots.
+        // the assertion tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
         let plane = tools
             .mirror()
             .and_then(crate::combine::MirrorTool::plane)
             .or_else(|| tools.split().and_then(crate::combine::SplitTool::face));
-        let [a, b] = match (mate, plane, tools.clearance()) {
+        let [a, b] = match (mate, plane, tools.assertion()) {
             (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(plane), _) => [Some(plane), None],
             (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
@@ -4112,15 +4112,15 @@ mod tests {
     /// answering the session, the violated requirement, and the index
     /// the picture is drawn from.
     fn violated_clearance(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId, PickIndex) {
-        use crate::session::ClearedSeat;
+        use crate::session::AssertedSeat;
         use crate::test_support::len;
         use pncad::document::ClearanceBounds;
         let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        let added = session.perform(SessionOp::AddClearance {
-            a: ClearedSeat::Body(blocks[0].into()),
-            b: ClearedSeat::Body(blocks[1].into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        let added = session.perform(SessionOp::AddAssertion {
+            a: AssertedSeat::Body(blocks[0].into()),
+            b: AssertedSeat::Body(blocks[1].into()),
+            claim: crate::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         });
         assert!(added.refusal.is_none(), "{:?}", added.refusal);
         let violated = added.made.expect("the requirement is a node");
