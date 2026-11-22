@@ -42,21 +42,31 @@ the cone `4v1`, across the ruling `6v1`, near the apex vertex `3v1`.
 Several poses read one class at f64 and another at `Interval`; that is
 part of the finding, not tuned away.
 
-**Traced once** (−4.7224 moved (640, −570, 520), f64, `CV_SIGN` prints,
-not committed). In the last pair `departure` presents both, the plane
-`1v1` at `u ∈ (0, 0.125)`, `v ∈ (0.875, 1.0)` by the ruling's side,
-the cone `4v1` at `u ∈ (1.5708, 2.3562)`, `v ∈ (−0.1768, 0)` by the
-apex's side. Against the apex alone the plane is its corner
-(`Zero::Point`), and the cone's rectangle is widened past its cell to
-`u ∈ (π/2, π)`. The plane through the apex reads the cone's rate
-`[−0.0216, 0.1446]` across the apex side: `None`. The run refuses with
-381 discharged and 8 refused, at a coarse cell, not at the depth
-budget. Which exit refuses is not traced.
+**Traced** (−4.7224 moved (640, −570, 520), f64, on PR 7315's head with
+prints, 2026-11-22; nothing committed). It is the depth budget, not a
+reading of the plane through the apex: all 8 refused splits are
+`CellBudget::Depth` at depth 40, plane `1v1` (and `2v1`) against cone
+`4v1`, the cone's cells `u ∈ (4.7001, 4.7124)`,
+`v ∈ (−1.38e-3, 1.6e-13)`, reaching the apex vertex `3v1`. There the
+cone is not presented at all: `present_chart` returns `Local` at
+`sides_are_the_faces` (the cover), because the shared ruling `6v1`'s
+image on `XLo` (`u = 4.70239`) covers `v ∈ [−1.414213562373102,
+−7.105427357601002e-15]` and stops `7.1e-15` short of the apex, the
+rounding of its stored end 640 units out, so it does not cover the
+cell's side `(−1.38e-3, 0)`. No separator is tried on those cells, the
+plane through the apex included.
 
-**Unchecked:** why the mirrored wedge reads differently from the
-`+θ` one. The `+θ` wedge's cone is the face over `u ∈ [−π, 1.58]`;
-the `−θ` one's is another sheet. Whether the cone's rectangle is
-widened to a line at the cell's reach (`present_chart`'s "a line the
-cell stops short of … is widened to it") or is the face's extent, and
-whether a smaller cell is reached before the refusal, are the two
-probes to take first.
+**It is PR 7115's case**: that PR runs an edge whose image ends an ulp
+short of a collapse on to the collapsed side (`ends_on_collapse`).
+Measured on PR 7115's head `e88481264`: with PR 7315's `injective.rs`
+applied the pose is `Embedded` (173 discharged); with PR 7115's head
+alone it refuses `Departure` on `1v1`/`4v1` at `6v1` (260 discharged).
+So the mirrored poses need both: PR 7115 to present the cone at the
+apex, then PR 7315's plane through the apex to sign it. The review of
+PR 7315 found no false certificate across 960 mirrored and re-charted
+variants of the hand-built wedge
+(`injective::presentation_rows::mirrored_and_recharted_wedges_never_certify_a_meeting`).
+
+**Unchecked:** only this pose is traced; the table's other mirrored
+poses are taken to be the same shape, not measured. Re-measure them and
+pin the holding ones once PR 7115 lands.

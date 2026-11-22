@@ -192,8 +192,19 @@ one side; the cell was never halved in `u` (the case A of
 `two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`).
 After merging main `7669fcfdd` (PR 7120, a face's window from its
 edges' covers) the turned wedge holds at both scalars, θ = 1.5π + 0.01
-and 5.5: the cone's root window changed, and its cells are halved in
-`u`. Pinned holding in
+and 5.5. Traced on the merged head (θ = 1.5π + 0.01, f64, 479
+discharged, prints only): the plane through the apex certifies 6 of the
+72 cell pairs it is asked, plane `1v1` or `2v1` against cone `3v1` at
+the apex `2v1`, and every cone cell it certifies holds the apex, is
+presented by its apex side, and is a quarter or an eighth of a turn
+wide in `u` (`(4.712, 5.498)`, `(4.320, 4.712)`, `(0, 0.785)`,
+`(5.498, 6.283)`), its `v` `(−0.123, 0.096)` clamped to `(−0.123, 0)`
+by the nappe. Before, the apex-holding cell spanned the face's whole
+`u`; now the cone's cells reaching the apex are split in `u` from
+coarse depths on, each narrow enough that the plane through the apex
+has its rulings on one side. **Not bisected:** which line of PR 7120
+changes the cone's root window (its description puts it in
+`boundary_of`'s cover boxes). Pinned holding in
 `self_intersection_proves_injectivity::a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex`
 with seven other poses. The same wedge revolved by `−θ` refuses off the
 plain frame:
