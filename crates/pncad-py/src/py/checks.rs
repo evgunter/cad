@@ -29,8 +29,8 @@
 //! # The knobs are two types, and that is DS6's waiver rule
 //!
 //! `connectedness` and `at_rest` take a `Severity`
-//! (`Off`/`Warn`/`Error`); `chart_coherence` and
-//! `unproven_coincidence` take an `Advisory` (`Off`/`Warn`). DS6 lets
+//! (`Off`/`Warn`/`Error`); `unproven_coincidence` and `unused` take
+//! an `Advisory` (`Off`/`Warn`). DS6 lets
 //! a check offer `error` **iff** it ships a per-finding acknowledgment
 //! record with a staleness direction. Connectedness has one —
 //! `expected_components`, whose unconsumed entries come back as
@@ -75,7 +75,6 @@ use super::value::{Body, Evaluation};
 )]
 pub(crate) enum CheckId {
     Connectedness,
-    ChartCoherence,
     UnprovenCoincidence,
     AtRest,
     Unused,
@@ -126,7 +125,6 @@ pub(crate) enum Advisory {
 fn check_id(check: d::CheckId) -> CheckId {
     match check {
         d::CheckId::Connectedness => CheckId::Connectedness,
-        d::CheckId::ChartCoherence => CheckId::ChartCoherence,
         d::CheckId::UnprovenCoincidence => CheckId::UnprovenCoincidence,
         d::CheckId::AtRest => CheckId::AtRest,
         d::CheckId::Unused => CheckId::Unused,
@@ -166,7 +164,6 @@ impl CheckId {
     fn to_kernel(self) -> d::CheckId {
         match self {
             Self::Connectedness => d::CheckId::Connectedness,
-            Self::ChartCoherence => d::CheckId::ChartCoherence,
             Self::UnprovenCoincidence => d::CheckId::UnprovenCoincidence,
             Self::AtRest => d::CheckId::AtRest,
             Self::Unused => d::CheckId::Unused,
@@ -220,9 +217,8 @@ pub(crate) struct ChecksConfig(pub(crate) d::ChecksConfig);
 
 #[pymethods]
 impl ChecksConfig {
-    /// The DS6 defaults are the no-argument form: the three residents
-    /// of the default pass at `Warn`, the chart-coherence examination
-    /// `Off`, nothing expected, nothing refused.
+    /// The DS6 defaults are the no-argument form: every resident at
+    /// `Warn`, nothing expected, nothing refused.
     ///
     /// `expected_components` is a list of `(placement, output_ix,
     /// expected)` triples — the connectedness resident's
@@ -236,11 +232,10 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, chart_coherence = Advisory::Off, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, unproven_coincidence = Advisory::Warn, at_rest = Severity::Warn, unused = Advisory::Warn))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
-        chart_coherence: Advisory,
         unproven_coincidence: Advisory,
         at_rest: Severity,
         unused: Advisory,
@@ -256,7 +251,6 @@ impl ChecksConfig {
         Ok(Self(d::ChecksConfig {
             connectedness: connectedness.to_kernel(),
             expected_components: expected,
-            chart_coherence: chart_coherence.to_kernel(),
             unproven_coincidence: unproven_coincidence.to_kernel(),
             at_rest: at_rest.to_kernel(),
             unused: unused.to_kernel(),
@@ -267,16 +261,6 @@ impl ChecksConfig {
     #[getter]
     fn connectedness(&self) -> Severity {
         Severity::from_kernel(self.0.connectedness)
-    }
-
-    /// The chart-coherence resident's knob — an `Advisory`, so
-    /// `Error` is not spellable here either, and `Off` by default:
-    /// the resident reads every face of every rest body and reports a
-    /// trimmed face's loops as out of its reach, so it is asked for
-    /// rather than paid for on every run.
-    #[getter]
-    fn chart_coherence(&self) -> Advisory {
-        Advisory::from_kernel(self.0.chart_coherence)
     }
 
     /// The `unproven-coincidence` lint's knob — an `Advisory`: an
@@ -326,10 +310,9 @@ impl ChecksConfig {
     fn __repr__(&self) -> String {
         format!(
             "ChecksConfig(connectedness={:?}, expected_components={}, \
-             chart_coherence={:?}, unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
+             unproven_coincidence={:?}, at_rest={:?}, unused={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
-            self.0.chart_coherence,
             self.0.unproven_coincidence,
             self.0.at_rest,
             self.0.unused
@@ -458,58 +441,6 @@ impl CheckEvidence {
             }
             _ => None,
         }
-    }
-
-    /// The chart-coherence arm's own inner word: which condition was
-    /// measured on `chart_coherence` (`meridian_closure`,
-    /// `rim_continuation`, `meridian_continuation`), and why a loop
-    /// was out of reach on `chart_coherence_unexamined` (`corrupt`,
-    /// `empty_loop`, `null_scaffold_edge`, `non_iso_carrier`).
-    ///
-    /// One attribute for two alphabets, which `boolean_variant`
-    /// refuses — and for that field's own stated reason, which does
-    /// not reach here: these two alphabets share no spelling, so the
-    /// word answers a caller that has not branched on `variant`, and
-    /// answers it correctly.
-    ///
-    /// **An unexamined loop is not a skipped check.**
-    /// `ChecksReport.skipped` lists checks a CONFIGURATION turned off;
-    /// these words name loops the DATA put out of reach, on a check
-    /// that ran.
-    #[getter]
-    fn chart_variant(&self) -> Option<&'static str> {
-        self.payload().chart_variant
-    }
-
-    /// The chart-coherence measurement as a length in metres, on
-    /// `chart_coherence` alone — `gap * lever`, the only unit the band
-    /// is in and the one the finding is judged in.
-    #[getter]
-    fn metres(&self) -> Option<f64> {
-        self.payload().metres
-    }
-
-    /// That measurement's disagreement in the chart's own units, on
-    /// `chart_coherence`: radians of u, or v's units by surface kind.
-    #[getter]
-    fn gap(&self) -> Option<f64> {
-        self.payload().gap
-    }
-
-    /// That measurement's lever arm in metres per chart unit, on
-    /// `chart_coherence`. Zero on a chart axis, where an azimuth
-    /// carries no length.
-    #[getter]
-    fn lever(&self) -> Option<f64> {
-        self.payload().lever
-    }
-
-    /// The band this measurement was judged against, on
-    /// `chart_coherence`. It rides the finding rather than the report:
-    /// `metres` read without it is a number without a claim.
-    #[getter]
-    fn eps(&self) -> Option<f64> {
-        self.payload().eps
     }
 
     /// What an unproven coincidence decided between its cells, on

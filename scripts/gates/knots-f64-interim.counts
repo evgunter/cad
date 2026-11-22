@@ -40,7 +40,10 @@ crates/step-export 9
 # 35 -> 33: recognize_curve's line limb split into locus (try_line) and
 # the straight map reading (straight_map), which alone reads the knots
 # (EXCH).
-crates/step-import 33
+# 33 -> 30: the iso rung's bitwise twin moved to `on_built`, and a
+# printed spline's distance from a built line is read off its cover
+# (EXCH, adoption by description).
+crates/step-import 30
 crates/sweep 139
 crates/topo 36
 demos/tour 2

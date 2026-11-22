@@ -1002,7 +1002,9 @@ impl<T: Bounds> Cover<T> {
     /// [`Cover::box_in`] at [`BoxAxes::World`] taken at its bracket's outer
     /// end, then [`Aabb::padded`]. A bound that is not a number in any
     /// lane makes the whole box the poison box ([`whole_poison`]), which
-    /// overlaps everything.
+    /// overlaps everything. **At a zero pad every side is still one ulp
+    /// out** ([`Aabb::padded`] steps): a reader that needs the cover's own
+    /// bounds reads [`Cover::box_in`].
     pub fn aabb(&self, pad: f64) -> Aabb {
         let (lo, hi) = self.box_in(&BoxAxes::World);
         whole_poison(Aabb {

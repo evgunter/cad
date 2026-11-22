@@ -1218,10 +1218,21 @@ impl<'a> Resolver<'a> {
     /// carrier is the promoted curve where it certifies, and an edge's
     /// trim is read against the range it covers ([`Self::edge`]). The
     /// build reads the printed carrier as evidence for the edge's
-    /// description, not as its carrier: where it carries the edge on a
-    /// wall's own column instead (`build::column_match`), the body holds
-    /// that spline, and the curve's promotion record is dropped from the
-    /// ledger.
+    /// description, not as its carrier: each edge is built from its
+    /// description and the printed carrier read on it (`build::description_gap`:
+    /// certified by locus where `crate::on_built` has an arm for the pair,
+    /// sampled where it has none), so no build reader chooses its arm by
+    /// the promoted kind, though the certificate's tightness depends on
+    /// the kind pair. Where the build carries the edge on a wall's own column
+    /// (`build::column_match`), the body holds that spline, and the
+    /// curve's promotion record is dropped from the ledger.
+    ///
+    /// The promotion is read as a HINT by the passes that run before any
+    /// description is chosen, because each moves topology the selection
+    /// then reads: the C⁰-knot split (`crate::knot_split`; `[ev]` PR 6014,
+    /// promotion first, then the exact split), the seamless band's rim
+    /// re-mint and its rim classifier (`crate::normalize`), and the
+    /// singularity pass's cut of a line or circle (`normalize::singularity`).
     ///
     /// Promotion is verified-not-trusted ([`crate::recognize_curve`]):
     /// it fires iff the locus and coverage certificates hold at ε_in,
