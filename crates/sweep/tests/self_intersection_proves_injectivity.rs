@@ -3307,3 +3307,125 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+/// Review probe (embed/collinear-cover-review): the three-arc disc ten
+/// thousand units from the origin, and mirrored across a generic plane,
+/// at both scalars where each builds; every outcome printed.
+#[test]
+fn review_three_arc_disc_far_and_mirrored() {
+    use geom_core::{Affine3, Vec3};
+    let far = Affine3::translation(Vec3::new(6000.0, -8000.0, 0.0));
+    let r = match posed_arc_disc::<f64>(Some(&far)) {
+        Ok(b) => {
+            let body = b.into_body();
+            let r = injective(&body, None, BUDGET);
+            println!("[review] far f64: {:?} {:?}", r.verdict, r.receipt);
+            Some(r)
+        }
+        Err(e) => {
+            println!("[review] far f64 unbuilt: {e}");
+            None
+        }
+    };
+    match posed_arc_disc::<Interval>(Some(&far)) {
+        Ok(t) => {
+            let t = injective(&t.into_body(), None, BUDGET);
+            println!("[review] far Interval: {:?} {:?}", t.verdict, t.receipt);
+        }
+        Err(e) => println!("[review] far Interval unbuilt: {e}"),
+    }
+    fn mirrored<T: Scalar>() -> Result<Body<T>, String> {
+        let home = filleted_arc_disc::<T>()?.into_body();
+        let at = T::from_f64;
+        let r = topo::Reflection::across(
+            Point3::new(at(0.3), at(-0.2), at(0.1)),
+            geom_core::Vec3::new(at(0.48), at(-0.6), at(0.64)),
+            tol(),
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        topo::mirror_body(&home, &r, tol()).map_err(|e| format!("{e:?}"))
+    }
+    match mirrored::<f64>() {
+        Ok(m) => {
+            let r = injective(&m, None, BUDGET);
+            println!("[review] mirrored f64: {:?} {:?}", r.verdict, r.receipt);
+        }
+        Err(e) => println!("[review] mirrored f64 unbuilt: {e}"),
+    }
+    match mirrored::<Interval>() {
+        Ok(m) => {
+            let r = injective(&m, None, BUDGET);
+            println!("[review] mirrored Interval: {:?} {:?}", r.verdict, r.receipt);
+        }
+        Err(e) => println!("[review] mirrored Interval unbuilt: {e}"),
+    }
+    let _ = r;
+}
+
+/// Review probe: the mirror's control (the one-circle filleted drum,
+/// mirrored the same way), a plain mirror of the three-arc disc across
+/// `x = 0`, and the disc a thousand units off.
+#[test]
+fn review_mirror_controls() {
+    use geom_core::{Affine3, Vec3};
+    fn mirror<T: Scalar>(home: &Body<T>, p: [f64; 3], n: [f64; 3]) -> Result<Body<T>, String> {
+        let at = T::from_f64;
+        let r = topo::Reflection::across(
+            Point3::new(at(p[0]), at(p[1]), at(p[2])),
+            geom_core::Vec3::new(at(n[0]), at(n[1]), at(n[2])),
+            tol(),
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        topo::mirror_body(home, &r, tol()).map_err(|e| format!("{e:?}"))
+    }
+    let drum = {
+        use sweep::blend::fillet_edges;
+        let drum = sweep::test_support::taken::<f64>(
+            extrude(&disc::<f64>(), to_offset(2.0), tol()).unwrap().body,
+            tol(),
+        )
+        .unwrap();
+        let rim: Vec<topo::EdgeKey> = drum
+            .edges()
+            .filter(|(_, e)| {
+                matches!(
+                    drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 2.0).abs() < 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .collect();
+        fillet_edges(&drum, &rim, 0.3, tol()).map_err(|e| e.error).unwrap().body.into_body()
+    };
+    let disc3 = filleted_arc_disc::<f64>().unwrap().into_body();
+    for (what, body, p, n) in [
+        ("drum, generic mirror", &drum, [0.3, -0.2, 0.1], [0.48, -0.6, 0.64]),
+        ("drum, x=0 mirror", &drum, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        ("three-arc, x=0 mirror", &disc3, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        ("three-arc, z=0 mirror", &disc3, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        ("three-arc, generic mirror", &disc3, [0.3, -0.2, 0.1], [0.48, -0.6, 0.64]),
+    ] {
+        match mirror(body, p, n) {
+            Ok(m) => {
+                let r = injective(&m, None, BUDGET);
+                println!("[review] {what}: {:?} {:?}", r.verdict, r.receipt);
+            }
+            Err(e) => println!("[review] {what} unbuilt: {e}"),
+        }
+    }
+    let k = Affine3::translation(Vec3::new(600.0, -800.0, 0.0));
+    match posed_arc_disc::<f64>(Some(&k)) {
+        Ok(b) => {
+            let r = injective(&b.into_body(), None, BUDGET);
+            println!("[review] 1000 units f64: {:?} {:?}", r.verdict, r.receipt);
+        }
+        Err(e) => println!("[review] 1000 units f64 unbuilt: {e}"),
+    }
+    match posed_arc_disc::<Interval>(Some(&k)) {
+        Ok(b) => {
+            let r = injective(&b.into_body(), None, BUDGET);
+            println!("[review] 1000 units Interval: {:?} {:?}", r.verdict, r.receipt);
+        }
+        Err(e) => println!("[review] 1000 units Interval unbuilt: {e}"),
+    }
+}

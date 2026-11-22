@@ -7901,6 +7901,123 @@ mod presentation_rows {
         );
     }
 
+    // ---- review probes (embed/collinear-cover-review) ----
+
+    /// R1: two edges sharing a vertex by key, the second's line an ulp
+    /// above the first's. "One line" is decided by the two lines'
+    /// enclosures meeting, with no slack, so the joint is not read.
+    #[test]
+    fn review_one_line_is_decided_by_value_not_key() {
+        let s = cylinder();
+        let b = stepped([0.5, 0.5], [5, 5], up());
+        println!("R1 below {:?}", chart(&s, &b, &[0, 1], BELOW.0, BELOW.1));
+        println!("R1 above {:?}", chart(&s, &b, &[0, 1], ABOVE.0, ABOVE.1));
+    }
+
+    /// R2: a joint whose two readings disagree materially (0.5 against
+    /// 0.7): the cell in the gap below the line.
+    #[test]
+    fn review_a_material_gap_at_a_key_joint() {
+        let s = cylinder();
+        let b = stepped([0.5, 0.7], [5, 5], 0.5);
+        let cell = ((0.55, 0.65), BELOW.1);
+        println!("R2 gap-cell below {:?}", chart(&s, &b, &[0, 1], cell.0, cell.1));
+    }
+
+    /// R3: the closed-net hazard on a spline chart: one edge ends at
+    /// u = 1, the next starts at u = 0, one vertex by key; the line has
+    /// no edge over (0.3, 0.5).
+    #[test]
+    fn review_spline_closed_net_hazard() {
+        let s = sheet();
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 5], Axis::V, 0.5, (0.5, 0.5), (1.0, 0.5)),
+                rim(2, [5, 2], Axis::V, 0.5, (0.0, 0.5), (0.3, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 1.0), (0.0, 1.0)]),
+        };
+        let r = chart(&s, &b, &[0, 1], (0.35, 0.45), BELOW.1);
+        println!("R3 spline gap-cell below {r:?}");
+        assert_eq!(r, Read::Local, "the line has no edge beside the cell");
+    }
+
+    /// R4: overlapping ranges at two vertices: the cell below (vacuous)
+    /// and the cell above (the clip cover) on one fixture.
+    #[test]
+    fn review_two_rules_on_one_line() {
+        let s = cylinder();
+        for (what, ends) in [("overlap", [0.52, 0.48]), ("equal ends", [0.5, 0.5])] {
+            let b = stepped(ends, [5, 6], 0.5);
+            println!(
+                "R4 {what}: below {:?} above {:?}",
+                chart(&s, &b, &[0, 1], BELOW.0, BELOW.1),
+                chart(&s, &b, &[0, 1], ABOVE.0, ABOVE.1)
+            );
+        }
+    }
+
+    /// R5: a closed parallel of two edges, both vertices joints, the
+    /// cell across the stored seam reading (0.2 and 0.2 + 2pi).
+    #[test]
+    fn review_closed_parallel_of_two_edges() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [5, 6], Axis::V, 0.5, (0.2, 0.5), (3.0, 0.5)),
+                rim(2, [6, 5], Axis::V, 0.5, (3.0, 0.5), (0.2 + TURN, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.2, 0.2 + TURN), (0.0, 1.0)]),
+        };
+        for u in [(0.15, 0.25), (2.95, 3.05), (0.15 + TURN, 0.25 + TURN)] {
+            println!("R5 {u:?}: below {:?} above {:?}", chart(&s, &b, &[0, 1], u, BELOW.1), chart(&s, &b, &[0, 1], u, ABOVE.1));
+        }
+    }
+
+    /// R6: one edge whose two ends are one vertex (not flagged full),
+    /// short of a turn: no self-joint is read across its own gap.
+    #[test]
+    fn review_one_edge_one_vertex_short_of_a_turn() {
+        let s = cylinder();
+        let b = Boundary {
+            sense: true,
+            edges: vec![rim(1, [5, 5], Axis::V, 0.5, (0.2, 0.5), (6.0, 0.5))],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.1, 6.2), (0.0, 1.0)]),
+        };
+        let r = chart(&s, &b, &[0], (6.05, 6.25), BELOW.1);
+        println!("R6 one-vertex edge, cell in its gap: {r:?}");
+        assert_ne!(r, Read::Vacuous);
+    }
+
+    /// R7: readings near half a turn apart at one key (material).
+    #[test]
+    fn review_half_turn_apart() {
+        let s = cylinder();
+        let b = stepped([0.5, 0.5 + 3.1], [5, 5], 0.5);
+        let mut b = b;
+        b.edges[1] = rim(2, [5, 2], Axis::V, 0.5, (3.6, 0.5), (4.0, 0.5));
+        b.extent = Some([(0.2, 4.0), (0.0, 1.0)]);
+        for u in [(1.0, 1.1), (2.0, 2.1), (5.0, 5.1)] {
+            println!("R7 {u:?}: below {:?}", chart(&s, &b, &[0, 1], u, BELOW.1));
+        }
+    }
+
+    /// R8: a line whose three edges meet at one vertex: two leave it
+    /// on the same side (an overlap the topology admits only in an
+    /// invalid body), the cell across the joint.
+    #[test]
+    fn review_three_edges_at_one_vertex() {
+        let s = cylinder();
+        let mut b = stepped([0.5, 0.5], [5, 5], 0.5);
+        b.edges.push(rim(3, [5, 3], Axis::V, 0.5, (0.5, 0.5), (0.6, 0.5)));
+        println!("R8 below {:?} above {:?}", chart(&s, &b, &[0, 1, 2], BELOW.0, BELOW.1), chart(&s, &b, &[0, 1, 2], ABOVE.0, ABOVE.1));
+    }
+
     /// **`convex` decides a corner `present_chart` reads**: two `T`
     /// junctions on the rectangle's chart, at the corner `(2, 1)` where
     /// the `u = 2` line (face on its low side) meets the `v = 1` line
