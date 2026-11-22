@@ -37,3 +37,5 @@ PR runs per day rose from 90 (11-15) to 200–213 (11-20, 11-21).
 - More runners (a paid plan) is Ev's call.
 
 A tier-`all` run in the night window, 11-22 (run 44989289861, `green/pr-latency-2`): 110 min wall against about 22 min active. `test (kernel)` queued 60 min, `viewer` 56, `tools` 46, and `gate ok`, a six-second job, 29. At 06:30Z the repo had 20 jobs in progress and 76 queued.
+
+GREEN's own runs, separated as the 11-15 sitting did: window B holds no `green/*` run (382 of 382 completed runs are other programs'; median 28.0 wall, 16.9 active), and window A holds 6 (without them: 15.3 wall, 14.9 active). GREEN's CI-first bisect branches (`green/<lane>-bisect-<sha8>`) will add runs from here, so a later reading should drop `green/*` branches from both numbers.
