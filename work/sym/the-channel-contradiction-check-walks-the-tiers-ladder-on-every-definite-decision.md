@@ -117,6 +117,11 @@ where an answer is returned", is the ratified statement).
    leaf, `Param`, `Opaque`, `Hull`, `Lit`, stands for a point of its own
    interval; the decision read takes an arm only on a certified
    one-sided enclosure over the parameter brackets).
+   It is not a test of the algebra: an enclosure clear of the band was
+   already definite, so the assertion can fire only on one that
+   excludes 0 inside or across the band (a window nothing checks
+   today). A wrong algebraic zero over an enclosure that straddles 0
+   is seen by no check in a single run; the instrument looks for those.
 3. The old cross-check is a test instrument: all three events
    (algebra against a certified enclosure; algebra against a rounded
    number; a registration against a definite sign) and the retries,
