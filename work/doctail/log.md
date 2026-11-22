@@ -527,3 +527,15 @@ body has the reasons):
   `doctail/the-tangency-prover-sees-through-a-placement`. It checks the
   `Through` lead first, and stops if a placement's motion entering the
   symbolic tier needs a ruling. Review: FULL.
+- 2026-11-22 17:40 — **PR 7396 up and green** (the tangency prover
+  through a placement).
+  - **Cause:** the budget, not blindness. Written-zero spins are
+    symbols, and the `atan2` spin spelling at `Sym` grew the form past
+    256 terms.
+  - **Fix:** `Sym::spins_by_frames` is now true, so `Sym` builds charts
+    from frames as the interval lane does, a lane-wide change.
+  - **Rows:** the mated-box row is pinned against a new coincide P2,
+    and the die tour proves 42 of 42 joints.
+  - **Review:** FULL, dispatched to cloud session
+    session_013QoYWWUb1cWaS6PFWRPmfo, focused on real-function soundness,
+    value drift, and whether this needs Ev.
