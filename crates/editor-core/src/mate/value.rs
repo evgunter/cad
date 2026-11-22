@@ -293,8 +293,7 @@ enum ChartRefusal {
 }
 
 /// **Why [`Chart::read`] refused**, before its caller names whose chart
-/// it is: a placement's mate ([`MateFault::Backwards`]) or a face's chart
-/// ([`crate::pose::PoseConstruction::FaceChartBackwards`]).
+/// it is ([`MateFault::Backwards`]).
 #[derive(Debug)]
 pub(crate) enum ChartFault {
     /// The orientation is written backwards: the mated direction lies
@@ -341,8 +340,7 @@ impl<T: SolveScalar> Chart<T> {
     }
 
     /// **The chart of a mate equating `on` with `to`**, as [`Self::of`]
-    /// reads it, its refusal naming no mate: what a placement and a
-    /// face's chart ([`face_chart`]) both read.
+    /// reads it, its refusal naming no mate.
     ///
     /// # Errors
     ///
@@ -1031,8 +1029,7 @@ pub fn chain_turns(r: &Mat3<f64>) -> [f64; 3] {
 }
 
 /// **Whom a value's refusal names** ([`settle`]): a placement's
-/// constraint ([`MateRef`]), or one of a face's chart's values
-/// ([`FaceValue`]). Ordered, so the values of one freedom settle in one
+/// constraint ([`MateRef`]). Ordered, so the values of one freedom settle in one
 /// order whatever order they are listed in.
 pub(crate) trait ValueAt: Copy + Ord {
     /// The refusal of this value's slide, which does not span what the
@@ -1043,25 +1040,6 @@ pub(crate) trait ValueAt: Copy + Ord {
 impl ValueAt for MateRef {
     fn no_chart(self, why: NoChartWhy) -> NodeErrorKind {
         NodeErrorKind::Mate(Box::new(MateFault::NoChart { value: self, why }))
-    }
-}
-
-/// **One of a face's chart's values** ([`face_chart`]): its spin, or
-/// one of its two slides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum FaceValue {
-    /// The spin about the face's outward normal.
-    Spin,
-    /// A slide, along the target axis it runs along.
-    Slide(TargetAxis),
-}
-
-impl ValueAt for FaceValue {
-    fn no_chart(self, why: NoChartWhy) -> NodeErrorKind {
-        unreachable!(
-            "a face's chart slides along the two target axes its orientation leaves, which span \
-             the face's plane: {self:?} refused {why:?}"
-        )
     }
 }
 
@@ -1451,10 +1429,11 @@ pub(crate) fn settle<T: SolveScalar, A: ValueAt>(
         .map_err(motion)
 }
 
-/// **The two target axes a face's chart slides along under `orient`**
-/// ([`crate::pose::PoseDef::FaceChart`]): those the plane mate leaves
-/// across where the orientation puts the copy's `z`, in `x`, `y`, `z`
-/// order, as a sketch's plane placement writes them.
+/// **The two target axes a plane mate leaves to slide along under
+/// `orient`**: those across where the orientation puts the copy's `z`,
+/// in `x`, `y`, `z` order, as a sketch's plane placement and a datum
+/// flush on a face ([`crate::edit::Recording::datum_on_face`]) write
+/// them.
 #[must_use]
 pub fn face_chart_slides(orient: Orientation) -> [TargetAxis; 2] {
     let along = super::turn::slides_left_along(
@@ -1466,80 +1445,6 @@ pub fn face_chart_slides(orient: Orientation) -> [TargetAxis; 2] {
         (Some(a), Some(b), None) => [a, b],
         _ => unreachable!("a plane mate leaves two slides across a target axis"),
     }
-}
-
-/// **A face's chart** ([`crate::pose::PoseDef::FaceChart`]; D10
-/// `[placement]`): the motion a plane placement onto `to`, the face's
-/// plane in its space, places its copy at under `orient`, `spin` (its
-/// number and the fraction of a turn it is written as) and `slides`
-/// (along [`face_chart_slides`]). The copy's mated pose is its own `xy`
-/// facing its own `z`, a start cap flipped to look up its `z` as DM1's
-/// placement mates one, so the frame's `z` is the face's outward normal.
-///
-/// It is computed by the placement's own code, called and never spelled
-/// again: the chart's arm ([`super::solve::arm_of`], over no copy's
-/// reach, so its slides and the face's distance from the origin), its
-/// chart ([`Chart::read`]), the mate's coset
-/// ([`super::solve::fold_cosets`]) and the values settled on it
-/// ([`settle`]), the four a placement's fold calls on the same reads.
-///
-/// # Errors
-///
-/// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the band
-/// about the least turn's pole, naming the orientation to write;
-/// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for an arm
-/// past the format's reach; a direction the band cannot mint; a motion's
-/// overflow.
-pub(crate) fn face_chart<T: SolveScalar>(
-    to: PoseValue<T>,
-    orient: Orientation,
-    (spin, turns): (T, Option<crate::expr::Ratio>),
-    slides: [T; 2],
-    band: Band,
-    tol: geom_core::Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    use crate::pose::PoseConstruction;
-    let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
-    let to = super::solve::tightened(to);
-    let on = PoseValue::Plane {
-        normal: UnitVec3::exact_z(),
-        offset: T::zero(),
-    };
-    let [a, b] = face_chart_slides(orient);
-    let value = |value, coord, by, turns| ReadValue {
-        value,
-        coord,
-        by,
-        turns,
-        line: None,
-    };
-    let values = [
-        value(FaceValue::Spin, Coord::SPIN, spin, turns),
-        value(FaceValue::Slide(a), Coord::slide(a), slides[0], None),
-        value(FaceValue::Slide(b), Coord::slide(b), slides[1], None),
-    ];
-    let mates = [(&on, &to)];
-    let arm = super::solve::arm_of(0.0, mates, &values).map_err(|refusal| match refusal {
-        super::LeverRefusal::OutOfRange { parts, datum } => {
-            refuse(PoseConstruction::FaceChartUnleverable { parts, datum })
-        }
-        other => unreachable!("an arm refuses out of range alone: {other:?}"),
-    })?;
-    let chart = match Chart::read(&on, &to, false, orient, arm, band, tol) {
-        Ok(Some(chart)) => chart,
-        Ok(None) => unreachable!("a plane mate fixes a direction"),
-        Err(ChartFault::Backwards { write }) => {
-            return Err(refuse(PoseConstruction::FaceChartBackwards {
-                orient,
-                write,
-            }));
-        }
-        Err(ChartFault::Kind(kind)) => return Err(*kind),
-    };
-    let Some(coset) = super::solve::fold_cosets(mates).map_err(NodeErrorKind::Motion)? else {
-        unreachable!("one mate meets the unconstrained coset")
-    };
-    settle(coset, &values, Some(chart))
 }
 
 /// **The turn about the line through `at` along `d` that takes a copy

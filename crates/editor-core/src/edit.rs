@@ -7537,11 +7537,10 @@ impl Recording<'_, crate::ProfileProgram> {
     }
 
     /// **A profile drawn on a face** (D10 `[placement]`;
-    /// `REFERENCES.md` DM1): `loops` drawn on the face's chart, the frame
-    /// a plane placement onto `face` of `body` gives under `on`'s
-    /// orientation, spin and slides
-    /// ([`chart_on_face`]), tracing `on`'s faces of that body's space, as
-    /// one profile node in that space. Nothing is placed. An orientation
+    /// `REFERENCES.md` DM1): `loops` drawn on a datum flush on `face` of
+    /// `body` under `on`'s orientation, spin and slides
+    /// ([`Self::datum_on_face`]), tracing `on`'s faces of that body's
+    /// space, as one profile node in that space. No body is placed. An orientation
     /// `None` is the one nearest the face, read off the face as it stands
     /// under `opts` and written into the recipe. A sweep
     /// of the profile by a signed depth is a boss above the face or a
@@ -7559,15 +7558,78 @@ impl Recording<'_, crate::ProfileProgram> {
         (opts, cancel): (&crate::EvalOptions, &crate::CancelToken),
     ) -> Result<RecipeNodeId, EditError> {
         let ev = on.orient.is_none().then(|| self.evaluated(opts, cancel));
-        let frame = chart_on_face(self.doc(), ev.as_ref(), body, face, &on);
+        let datum = self.datum_on_face(body, face, &on, ev.as_ref())?;
         self.insert(Node::Profile(crate::ProfileProgram {
             loops,
             ids: Vec::new(),
             on: Some(crate::DrawnOn {
-                frame,
+                frame: crate::Operand::Output {
+                    node: datum,
+                    port: 0,
+                },
                 faces: on.traced,
             }),
         }))
+    }
+
+    /// **A datum flush on `face` of `body`** (D10 `[placement.datums]`):
+    /// inserted into the face's body's space at its origin, then mated
+    /// there, its xy plane on the face's plane under `on`'s
+    /// orientation, so its `z` is the face's outward normal; its values
+    /// are `on`'s spin about that normal and its two slides along the
+    /// target axes the orientation leaves ([`crate::mate::face_chart_slides`]).
+    /// An orientation `None` is the one nearest the face, read off `ev`
+    /// ([`nearest_to_face`]); where the face does not read there (or no
+    /// evaluation is given), the identity, which the datum's own fold
+    /// then judges ([`crate::MateFault::Backwards`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::apply`]'s.
+    pub fn datum_on_face(
+        &mut self,
+        body: crate::BodyRead<Formula>,
+        face: crate::StableName,
+        on: &OnFace,
+        ev: Option<&crate::Evaluation<f64>>,
+    ) -> Result<RecipeNodeId, EditError> {
+        use crate::pose::{PoseDef, PoseRole, RoleRead};
+        let orient = on.orient.unwrap_or_else(|| {
+            ev.and_then(|ev| nearest_to_face(self.doc(), ev, &body, &face).ok())
+                .unwrap_or(crate::Orientation::IDENTITY)
+        });
+        let target = self
+            .doc()
+            .operand_space(&body.read)
+            .map_or(crate::Operand::Var(VarId::WORLD), crate::Operand::Var);
+        let datum = self.insert(Node::datum(target, crate::mate::pin::stand().bundle()))?;
+        let [a, b] = crate::mate::face_chart_slides(orient);
+        let placed = crate::mate::pin::Placed {
+            mates: vec![crate::Mate {
+                on: RoleRead::through(
+                    crate::Operand::Output {
+                        node: datum,
+                        port: 0,
+                    },
+                    PoseRole::Xy,
+                ),
+                to: RoleRead::plain(crate::Operand::Pose(Box::new(PoseDef::Plane {
+                    face: crate::Operand::select(body, vec![face]),
+                }))),
+                orient,
+            }],
+            values: vec![
+                (crate::Coord::SPIN, on.spin.clone()),
+                (crate::Coord::slide(a), on.slides[0].clone()),
+                (crate::Coord::slide(b), on.slides[1].clone()),
+            ],
+        };
+        self.apply(DocEdit::SetConstraints {
+            placement: datum,
+            constraints: placed.bundle(),
+            fresh: Vec::new(),
+        })?;
+        Ok(datum)
     }
 
     /// **Add `mate` to `placement`'s bundle, as a gesture**: the edit
@@ -7697,33 +7759,27 @@ impl Recording<'_, crate::ProfileProgram> {
     }
 }
 
-/// **The face's chart a profile drawn on `face` of `body` under `on`
-/// stands on** ([`crate::pose::PoseDef::FaceChart`]), as an operand: the
-/// frame [`Recording::draw_on_face`] draws on, and the one a reader that
-/// reads it before anything is drawn there reads (a trace shown before
-/// the gesture commits), so the two cannot differ. Its orientation is
-/// `on`'s, or where `on` writes none the one nearest the face read off
-/// `ev` ([`nearest_to_face`]); where the face does not read there (or no
-/// evaluation is given), the identity, which the chart's own read then
-/// refuses typed at evaluation, in that read's words.
-#[must_use]
-pub fn chart_on_face(
+/// **A datum flush on `face` of `body`, as one action**
+/// ([`Recording::datum_on_face`]): the document with the datum in it,
+/// and the datum. What a reader that reads the frame before anything is
+/// drawn there reads (a trace shown before the gesture commits), so the
+/// frame it reads and the one [`Recording::draw_on_face`] draws on
+/// cannot differ.
+///
+/// # Errors
+///
+/// The first door's refusal.
+pub fn datum_on_face(
     doc: &Doc<crate::ProfileProgram>,
     ev: Option<&crate::Evaluation<f64>>,
     body: crate::BodyRead<Formula>,
     face: crate::StableName,
     on: &OnFace,
-) -> crate::Operand {
-    let orient = on.orient.unwrap_or_else(|| {
-        ev.and_then(|ev| nearest_to_face(doc, ev, &body, &face).ok())
-            .unwrap_or(crate::Orientation::IDENTITY)
-    });
-    crate::Operand::Pose(Box::new(crate::pose::PoseDef::FaceChart {
-        face: crate::Operand::select(body, vec![face]),
-        orient,
-        spin: on.spin.clone(),
-        slides: on.slides.clone(),
-    }))
+    tol: Tol,
+) -> Result<(Doc<crate::ProfileProgram>, RecipeNodeId), EditError> {
+    let mut action = Recording::start(doc, tol);
+    let datum = action.datum_on_face(body, face, on, ev)?;
+    Ok((action.finish()?.doc, datum))
 }
 
 /// **Why no orientation reads off a face** ([`nearest_to_face`]).
@@ -7753,7 +7809,7 @@ impl core::error::Error for FaceUnread {}
 /// **The orientation nearest where a profile on `face` of `body`
 /// stands**: the profile's `z` along the face's outward normal, read off
 /// the face in `ev`, an evaluation of `doc`. The one home of a
-/// drawn-on-face gesture's orientation ([`chart_on_face`]).
+/// drawn-on-face gesture's orientation ([`Recording::datum_on_face`]).
 ///
 /// # Errors
 ///
@@ -7839,9 +7895,10 @@ pub fn sketch_on_face(
 }
 
 /// **Where a profile drawn on a face stands on it**
-/// ([`Recording::draw_on_face`]): its chart's orientation (`None` the
-/// one nearest the face), its spin about the face's outward normal and
-/// its two slides ([`crate::pose::PoseDef::FaceChart`]), and the faces
+/// ([`Recording::draw_on_face`]): the orientation of the datum it is
+/// drawn on (`None` the one nearest the face), the datum's spin about
+/// the face's outward normal and its two slides
+/// ([`Recording::datum_on_face`]), and the faces
 /// of the face's body's space it traces ([`crate::DrawnOn::faces`]).
 #[derive(Debug, Clone)]
 pub struct OnFace {
@@ -7857,7 +7914,7 @@ pub struct OnFace {
 }
 
 impl OnFace {
-    /// **At the face's chart's zero**: the nearest orientation, every
+    /// **Flush on the face**: the nearest orientation, every
     /// value the constant `0`, tracing nothing.
     #[must_use]
     pub fn nearest() -> Self {
@@ -7883,7 +7940,7 @@ pub struct DrawnOnFace {
     pub edits: Vec<DocEdit<crate::ProfileProgram>>,
     /// The maintenance they reported.
     pub maintenance: Vec<Maintenance>,
-    /// The profile, drawn on the face's chart.
+    /// The profile, drawn on a datum flush on the face.
     pub profile: RecipeNodeId,
 }
 

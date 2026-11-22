@@ -1108,9 +1108,7 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
 }
 
 /// **Mates' cosets, met** ([`fold_bundle`]), each mate read as its two
-/// poses: `None` where two do not meet transversally. What a
-/// placement's fold and a face's chart ([`super::value::face_chart`])
-/// both meet.
+/// poses: `None` where two do not meet transversally.
 ///
 /// # Errors
 ///
@@ -1241,8 +1239,7 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
 }
 
 /// **[`bundle_arm`] over mates read as their two poses**, its refusal
-/// naming no mate: what a placement's fold and a face's chart
-/// ([`super::value::face_chart`]) both lever their chart over.
+/// naming no mate.
 ///
 /// # Errors
 ///

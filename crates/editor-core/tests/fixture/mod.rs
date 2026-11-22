@@ -113,9 +113,11 @@ pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
 /// **A placement's bundle**, empty for a node that is none.
 pub fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<editor_core::Constraint> {
     match doc.node(placement) {
-        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            constraints.clone()
-        }
+        Some(
+            Node::Place { constraints, .. }
+            | Node::InstantiatePart { constraints, .. }
+            | Node::Datum { constraints, .. },
+        ) => constraints.clone(),
         _ => Vec::new(),
     }
 }

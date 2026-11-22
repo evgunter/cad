@@ -138,7 +138,7 @@ pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
     OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
-    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
+    SourceFault, Took, apply, apply_replayed, cascade_delete_order, datum_on_face, draw_on_face,
     measure, nearest_to_face, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
