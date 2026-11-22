@@ -148,22 +148,24 @@ which named nothing, used to refuse the cell.
 
 Measured on the same run, each with its trace (`CVT`, `CVS` rows):
 
-- **A circle through the vertex, against a corner with an edge in the
-  circle's plane** (`a_ruling_lying_on_a_wall::a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face`,
-  `edges_lying_in_a_face_part_wherever_they_lie::a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit`,
-  `a_prism_edge_on_the_tubes_wall…`): the wall is presented
-  `Through(YLo)` and signed by its circle's plane, and the plane
-  partner's corner point is not (`planes = (Some, None)`): one of its
-  two edges leaves the vertex inside that plane, so its derivative
-  along that edge is zero. The partner needs that edge's side as its
-  zero under a plane it shares no edge with, which `present_plane`
-  does not offer.
+- **A circle through the vertex, against a plane corner**
+  (`a_ruling_lying_on_a_wall::a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face`,
+  `edges_lying_in_a_face_part_wherever_they_lie::a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit`):
+  the wall is presented `Through(YLo)` and signed by its circle's
+  plane, and the plane partner's corner point is not
+  (`planes = (Some, None)`). **Unchecked** which of the corner's two
+  derivatives fails. A corner one of whose edges leaves the vertex
+  inside the circle's plane (a flat face resting in the rim's plane)
+  would read exactly this, its derivative along that edge being zero,
+  and would need that edge's side as its zero under a plane it shares
+  no edge with, which `present_plane` does not offer.
 - **Two circles through the vertex** (`a_cylinder_through_a_hole_tangent_to_its_wall` 2,
   `a_boss_over_two_holes_tangent_outside…`): both walls are presented
   `Through(YLo)`; a circle's own plane lists that circle alone, so the
-  partner's run is not zero under it (`planes = (Some, None)`). The two
-  rims are tangent at the vertex: a second-order contact no plane
-  parts.
+  partner's run is not zero under it (`planes = (Some, None)`). By the
+  tests' construction the two rims are tangent at the vertex, a
+  second-order contact; that no first-order separator parts them is
+  read off that, not probed.
 - **A lone clip's end beside a seam** (`wedge_through_a_full_turn_collar` 2):
   the refusing cells exit at `sides_are_the_faces` now, not at
   `zero_of`; the seam's line is still no clip.
