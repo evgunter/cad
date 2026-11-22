@@ -54,10 +54,12 @@
 //!    the description fixes it (built carriers crossing a surface, a
 //!    pole or an apex), else, where the description leaves it free along
 //!    one built carrier, at the foot of its printed point on that
-//!    carrier, each interval by the carrier's own inverse. No curve or
-//!    point the file printed is a cache. Surfaces attach (bitwise-identical records
-//!    share one kernel surface key, restoring the writer-side key
-//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    carrier, each interval by the carrier's own inverse; each printed
+//!    carrier is read on its built one over its trim, certified by locus
+//!    where [`on_built`] has an arm for the pair and at its ends and
+//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (one
+//!    kernel surface key per surface record: the faces citing one entity
+//!    share it), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the
 //!    kernel's own gates at ε; a smooth join the must-carry rule answers
 //!    with the pair alone refuses not-yet-supported. Pcurve
@@ -244,6 +246,7 @@ mod geometry;
 mod interpret;
 mod knot_split;
 mod normalize;
+mod on_built;
 mod one_record;
 mod parse;
 mod reach;
@@ -552,9 +555,11 @@ pub enum NormalizationKind {
     /// **A NURBS carrier promoted to an analytic kind** (D7 stage 1,
     /// #327): the carrier's locus residual against the analytic curve
     /// read Zero at the file's band, and it covers that curve's arc,
-    /// segment or full turn between its ends in the curve's sense, so
-    /// the edges on it read the analytic carrier ([`CurvePromotion`] is
-    /// this record read off the ledger). The promotion is the CURVE's:
+    /// segment or full turn between its ends in the curve's sense
+    /// ([`CurvePromotion`] is this record read off the ledger). On a
+    /// solid it is evidence: each edge on it is built from its own
+    /// description and the promoted curve certified on that carrier, as
+    /// any printed carrier is. The promotion is the CURVE's:
     /// it is recorded unless every edge that reads the curve is carried on
     /// a spline the body holds instead (a wall's own column), each such
     /// edge reporting that through its own `CarrierBuilt`. An edge built
@@ -958,9 +963,10 @@ pub fn import_step(
             // one component representation are N entries over the same
             // solid index, and each is a body of its OWN — fresh
             // topology, fresh arena keys, no structure shared between
-            // copies. Sharing was never on the table: a `SolidSpec`'s
-            // maps are keyed by the file's entity ids, so two copies
-            // assembled into one arena would collide id for id.
+            // copies. Nothing is shared between them because nothing is
+            // shared between any two shells: each solid and each void is
+            // built alone, in a body of its own, and grafted under fresh
+            // keys.
             //
             // Each placement is the motion its placement pair minted
             // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is

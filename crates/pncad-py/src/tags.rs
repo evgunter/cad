@@ -1103,6 +1103,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
                 "face_chart_unleverable"
             }
+            pncad::document::pose::PoseConstruction::FaceChartUnseated => "face_chart_unseated",
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,
@@ -2530,6 +2531,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
         TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
+        TessellateError::LiftedColumnOff { .. } => "lifted_column_off",
     }
 }
 

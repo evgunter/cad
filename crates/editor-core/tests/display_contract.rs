@@ -1987,6 +1987,49 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     }
 }
 
+/// **A parting says where in words and claims no cause**: the site is
+/// said by what it asks, a query's search or a test's question, and
+/// its static name and the step ride `Debug`, as a predicate's name
+/// does.
+#[test]
+fn a_parting_says_where_and_claims_no_cause() {
+    use geom_core::k_stats::{QuerySite, TestSite};
+    let node = RecipeNodeId::new(0, tagged(8));
+    let rows = [
+        (
+            Diagnosis::Parted {
+                node,
+                site: QuerySite::new("bool_glue_pairs", "the faces whose boxes meet a face's")
+                    .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the search for the faces whose \
+             boxes meet a face's found other candidates, before any verdict flipped; which \
+             change made it do so is not on record",
+            "bool_glue_pairs",
+        ),
+        (
+            Diagnosis::Parted {
+                node,
+                site: TestSite::new(
+                    "blend_reach_cell_clear",
+                    "a metered cell reads surely clear",
+                )
+                .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the test whether a metered cell \
+             reads surely clear answered otherwise, before any verdict flipped; which change \
+             made it do so is not on record",
+            "blend_reach_cell_clear",
+        ),
+    ];
+    for (d, want, name) in rows {
+        assert_eq!(d.to_string(), want);
+        assert_f6(&d, &[], &["Parted", name, "19"]);
+    }
+}
+
 /// The two scopes of the with-history lanes say which one answered,
 /// in exact sentences: a path arm claims the name's derivation path,
 /// and the upstream arm claims only that its node feeds the minting
@@ -2885,6 +2928,25 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Shell 000000000005 selects the end cap of Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
                 "so Shell 000000000005 refuses until the name is rebound",
+            ],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Run,
+            },
+            vec!["this edit kept the pieces it names but joined or broke their run"],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Corner,
+            },
+            vec![
+                "this edit kept the pieces it names but continued one into the other at the \
+                 corner it names",
             ],
         ),
         (
