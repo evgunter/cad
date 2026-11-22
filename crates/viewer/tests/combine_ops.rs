@@ -683,7 +683,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     tools.open(ToolKind::Split);
     feed(&mut tools, &session, &y_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "the face pick seats its body");
+    assert_eq!(tool.body(), Some(block), "the face pick seats its body");
     assert_eq!(tool.face(), Some(&y_wall), "and is the plane");
     let op = tool.op().expect("a target and a plane are held");
     assert!(tools.commits_open_tool(&op), "the split is the tool's edit");
@@ -700,7 +700,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     // target stays.
     feed(&mut tools, &session, &x_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "a re-pick keeps the target");
+    assert_eq!(tool.body(), Some(block), "a re-pick keeps the target");
     assert_eq!(tool.face(), Some(&x_wall), "and moves the plane");
 
     // Re-picked after commit, through the operand slot door.
@@ -2469,7 +2469,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert!(matches!(
         split.op(),
         Err(SeatError::NoPlane {
-            role: viewer::seats::FaceRole::SplitPlane
+            role: viewer::seats::PlaneRole::Split
         })
     ));
     split.pick_plane(session.committed_doc(), end_cap(a));
@@ -2772,7 +2772,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     split.pick_plane(doc, end_cap(a));
     split.pick(doc, profile);
     assert_eq!(
-        split.target(),
+        split.body(),
         Some(profile),
         "an unroutable pick lands where the plain rule puts it",
     );
@@ -3876,11 +3876,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         );
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
-            ToolKind::Split => tools.split().and_then(|t| t.target()),
+            ToolKind::Split => tools.split().and_then(|t| t.body()),
             // The placement editor opened on the copy's placement.
             ToolKind::Transform => tools.mate().and_then(|t| t.door()).map(|d| d.placement),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
-            ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.body()),
             // Seats a split or a pattern, never a body: its own row
             // below picks one.
             ToolKind::Part => continue,
@@ -3951,7 +3951,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
         &[SessionOp::Select(picked)],
     );
     let tool = tools.split().expect("open");
-    assert_eq!(tool.target(), Some(split));
+    assert_eq!(tool.body(), Some(split));
     assert_eq!(
         tool.seats().read(0),
         Some(pncad::document::Operand::output(

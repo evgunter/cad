@@ -178,11 +178,7 @@ fn a_copy_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let wall = face_toward(&session, 1.0);
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let tool = tools.mirror().expect("open");
-    assert_eq!(
-        tool.input(),
-        Some(copy),
-        "a pick on the copy seats the copy"
-    );
+    assert_eq!(tool.body(), Some(copy), "a pick on the copy seats the copy");
     assert_eq!(tool.face(), Some(&wall), "and its face is the plane");
 
     let outcome = session.perform(mirror_op(&tools));
@@ -469,7 +465,7 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.0, z + SMALL[2] / 2.0));
     assert_eq!(wall.node, small_copy, "the ray met the seated copy's wall");
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(small_copy));
+    assert_eq!(tools.mirror().and_then(|t| t.body()), Some(small_copy));
     let (_, part) = mirror_in(&mut session, mirror_op(&tools));
     let part = part.expect("the seated copy becomes its part");
     assert_drawn(
@@ -629,7 +625,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tools = mirror_tool_picking(&session, &[own, far.clone()]);
     let tool = tools.mirror().expect("open");
     assert_eq!(
-        tool.input(),
+        tool.body(),
         Some(stand_in),
         "the second face keeps the body"
     );
@@ -716,14 +712,10 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
     );
     match tools.mirror().expect("open").op() {
         Err(error @ SeatError::NoPlane { role }) => {
-            assert_eq!(
-                role,
-                viewer::seats::FaceRole::MirrorPlane,
-                "the plane is named"
-            );
+            assert_eq!(role, viewer::seats::PlaneRole::Mirror, "the plane is named");
             assert_eq!(
                 error.to_string(),
-                "no mirror plane picked yet: pick a face, or a plane or frame variable",
+                "no mirror plane picked yet: pick a face",
                 "the refusal names both kinds of plane the seat takes"
             );
         }
@@ -738,7 +730,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         &[SessionOp::Select(Selection::Face(wall))],
     );
     assert_eq!(
-        tools.mirror().and_then(|t| t.input()),
+        tools.mirror().and_then(|t| t.body()),
         Some(torus),
         "a face pick with a body held re-picks the plane alone"
     );
@@ -796,7 +788,7 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
         .count();
     assert_eq!((seat, plane), (1, 1), "one drop each: {notices:?}");
     let tool = tools.mirror().expect("still open");
-    assert_eq!((tool.input(), tool.face()), (None, None), "both are empty");
+    assert_eq!((tool.body(), tool.face()), (None, None), "both are empty");
     assert!(
         tools
             .reconcile(session.doc(), session.landed_pair())
@@ -945,7 +937,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
             )
             .is_empty()
     );
-    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(b));
+    assert_eq!(tools.mirror().and_then(|t| t.body()), Some(b));
     refused(
         &mut session,
         mirror_op(&tools),
@@ -1107,15 +1099,10 @@ fn mirror_the_lower_half_across(
         SessionOp::Select(Selection::Face(floor.clone())),
         SessionOp::Select(Selection::Variable(var)),
     ];
-    assert!(
-        tools
-            .feed(
-                session.committed_doc(),
-                Err(viewer::pickcache::NotIndexed::Absent),
-                &picks
-            )
-            .is_empty(),
-        "both picks are taken"
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &picks,
     );
     let tool = tools.mirror().expect("open");
     assert!(
@@ -1463,13 +1450,22 @@ fn a_non_pose_variable_is_no_plane_for_either_tool() {
     for kind in [ToolKind::Mirror, ToolKind::Split] {
         let mut tools = Tools::new();
         tools.open(kind);
-        let _ = tools.feed(
+        let notices = tools.feed(
             session.committed_doc(),
             Err(viewer::pickcache::NotIndexed::Absent),
             &[
                 SessionOp::Select(Selection::Face(floor.clone())),
                 SessionOp::Select(Selection::Variable(length)),
             ],
+        );
+        assert!(
+            matches!(
+                &notices[..],
+                [ToolNotice::Mirror(PlaneEvent::NotAPlane { var, .. })
+                    | ToolNotice::Split(PlaneEvent::NotAPlane { var, .. })]
+                    if var.id() == length
+            ),
+            "{kind:?}: the length is declined, said once: {notices:?}"
         );
         let face = match kind {
             ToolKind::Mirror => tools.mirror().and_then(|t| t.face()).cloned(),
@@ -1548,5 +1544,64 @@ fn a_mirror_over_an_anonymous_plane_variable_refuses_typed() {
         );
         assert!(out.refusal.is_some(), "a second reader refuses");
         assert!(session.committed_doc().bit_eq(&before), "nothing lands");
+    }
+}
+
+/// **A face picked after a variable seats the body and keeps the
+/// variable**, for both tools: with no body held, the variable is the
+/// plane and the face fills only the empty body seat; once the body is
+/// held, a further face pick re-picks the plane.
+///
+/// Red if a face pick drops a held variable while seating the body, or
+/// a face picked with the body held does not re-pick the plane.
+#[test]
+fn a_face_after_a_variable_seats_the_body_and_keeps_the_variable() {
+    let tol = Tol::witness();
+    let (session, _block, split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    let index = plate_index(&session);
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    assert_eq!(floor.node, split, "the premise: the floor is the split's");
+    for kind in [ToolKind::Mirror, ToolKind::Split] {
+        let mut tools = Tools::new();
+        tools.open(kind);
+        let feed = |tools: &mut Tools, pick: Selection| {
+            let notices = tools.feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &[SessionOp::Select(pick)],
+            );
+            assert!(notices.is_empty(), "{kind:?}: taken: {notices:?}");
+        };
+        let held = |tools: &Tools| match kind {
+            ToolKind::Mirror => {
+                let tool = tools.mirror().expect("open");
+                (tool.body(), tool.plane().cloned())
+            }
+            _ => {
+                let tool = tools.split().expect("open");
+                (tool.body(), tool.plane().cloned())
+            }
+        };
+        feed(&mut tools, Selection::Variable(var));
+        feed(&mut tools, Selection::Face(floor.clone()));
+        let (body, plane) = held(&tools);
+        assert_eq!(body, Some(split), "{kind:?}: the face seats its body");
+        assert!(
+            matches!(
+                &plane,
+                Some(viewer::combine::HeldPlane::Defined { var: held, .. }) if held.id() == var
+            ),
+            "{kind:?}: and the variable stays the plane: {plane:?}"
+        );
+        feed(&mut tools, Selection::Face(floor.clone()));
+        let (_, plane) = held(&tools);
+        assert!(
+            matches!(&plane, Some(viewer::combine::HeldPlane::Face(_))),
+            "{kind:?}: with the body held, a face re-picks the plane: {plane:?}"
+        );
     }
 }

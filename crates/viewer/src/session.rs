@@ -3782,9 +3782,10 @@ impl DocSession {
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
-    /// its tool the plane it is handed ([`Self::tool_plane`]). Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
-    /// product show the two halves where they showed the body. Where
+    /// its tool the plane it is handed ([`Self::tool_plane`]). Where
+    /// something reads the target along a seen path, `above ⊔ below`
+    /// takes it over there ([`Takeover`]), so each `⊔` and the product
+    /// show the two halves where they showed the body. Where
     /// placements read the target, `above ⊔ below` is written as well:
     /// the new body the split makes, onto which they can be re-pointed
     /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
