@@ -2510,6 +2510,67 @@ where
             Axes::Relative
         };
         let m_sep = separation(&pair.a.enc, &pair.b.enc);
+        if x.face != y.face
+            && sh.is_empty()
+            && m_sep.lo() < self.sweep.band.escalate()
+            && pair.depth >= 12
+            && std::env::var_os("CAD_GATE_BOXTRACE").is_some()
+        {
+            let sample = |w: &Window<'_, T>, c: &Cell| {
+                let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+                for i in 0..=4 {
+                    for j in 0..=4 {
+                        let u = c.u.0 + (c.u.1 - c.u.0) * f64::from(i) / 4.0;
+                        let v = c.v.0 + (c.v.1 - c.v.0) * f64::from(j) / 4.0;
+                        let p = w.surface.point_eval(u, v);
+                        for (k, q) in [p.x, p.y, p.z].into_iter().enumerate() {
+                            lo[k] = lo[k].min(q.lo());
+                            hi[k] = hi[k].max(q.hi());
+                        }
+                    }
+                }
+                (lo, hi)
+            };
+            let bx = |e: &Point3<Interval>| {
+                format!(
+                    "[{:.4e},{:.4e}]x[{:.4e},{:.4e}]x[{:.4e},{:.4e}]",
+                    e.x.lo(),
+                    e.x.hi(),
+                    e.y.lo(),
+                    e.y.hi(),
+                    e.z.lo(),
+                    e.z.hi()
+                )
+            };
+            let sm = |(lo, hi): ([f64; 3], [f64; 3])| {
+                format!(
+                    "[{:.4e},{:.4e}]x[{:.4e},{:.4e}]x[{:.4e},{:.4e}]",
+                    lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]
+                )
+            };
+            let kind = |w: &Window<'_, T>| format!("{:?}", w.surface.kind());
+            crate::gate_measure::box_trace(
+                (x.face, y.face),
+                pair.depth,
+                format!(
+                    "a={:?}:{} u={:?} v={:?} box={} sampled={} | b={:?}:{} u={:?} v={:?} box={} sampled={} | sep=[{:.4e},{:.4e}]",
+                    x.face,
+                    kind(x),
+                    pair.a.u,
+                    pair.a.v,
+                    bx(&pair.a.enc),
+                    sm(sample(x, &pair.a)),
+                    y.face,
+                    kind(y),
+                    pair.b.u,
+                    pair.b.v,
+                    bx(&pair.b.enc),
+                    sm(sample(y, &pair.b)),
+                    m_sep.lo(),
+                    m_sep.hi()
+                ),
+            );
+        }
         let m_code = crate::gate_measure::distance_split(
             m_sep.lo(),
             m_sep.hi(),

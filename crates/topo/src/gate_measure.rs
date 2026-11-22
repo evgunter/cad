@@ -445,6 +445,8 @@ struct WalkRec {
     deepest: std::collections::BTreeMap<(FaceKey, FaceKey), (u32, f64, f64)>,
     /// Per walk event, its (first, nearest) touching ancestors.
     lineage: Vec<(u32, u32)>,
+    /// Box traces: the last straddling split per (face pair, depth).
+    boxes: std::collections::BTreeMap<((FaceKey, FaceKey), u32), String>,
 }
 
 thread_local! {
@@ -813,6 +815,9 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
             test_name()
         ));
     }
+    for ((p, d), line) in &rec.boxes {
+        write(&format!("BOX\t{}\t{p:?}\tdepth={d}\t{line}\n", test_name()));
+    }
     let kinds: Vec<String> = refusing.values().map(|(_, k)| k.join("+")).collect();
     let verdict = match &r.verdict {
         Embedding::Crosses(_) => "Crosses".to_owned(),
@@ -919,4 +924,14 @@ pub fn distance_split(
         }
     });
     code
+}
+
+/// The box trace of a straddling split between faces sharing nothing:
+/// the last per face pair and depth, written when the ask ends.
+pub fn box_trace(pair: (FaceKey, FaceKey), depth: u32, line: String) {
+    WALK.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.boxes.insert((pair, depth), line);
+        }
+    });
 }
