@@ -156,32 +156,29 @@ fn equal_numbers_under_two_expressions_are_one_key_at_a_number_and_two_at_a_symb
     assert_ne!(a.1, b.1, "Sym<Interval>: naming key, two symbols");
 }
 
-/// Equal expressions and equal numbers are equal keys in two replays
-/// of one document, each in a session of its own: an expression's id is
-/// a hash of what it says, never of the session that built it.
+/// Equal expressions and equal numbers are equal keys in every replay
+/// of one document: in two sessions, and under no session at all. An
+/// expression's id is a hash of what it says, never of the session that
+/// built it, and the drive, the stackup's tie and a reader with no tier
+/// each replay under a session of their own kind.
 ///
-/// Mutant: a session-dependent word fed beside the id (the count of
-/// nodes the session holds, say) makes the second replay's keys differ
-/// when the two sessions are not the same age.
+/// Mutant: a word of the session fed beside the id (whether one is
+/// installed) makes the replay under no session key apart.
 #[test]
-fn two_replays_of_one_document_have_one_key_per_node() {
-    let (doc, extrude) = slab_by_a();
+fn every_replay_of_one_document_has_one_key_per_node() {
+    let (doc, _) = slab_by_a();
     let opts = over_the_box(&doc);
     let replay = || {
-        session(|| {
-            let ev = run::<Sym<Interval>>(&doc, None, &opts);
-            ev.order
-                .iter()
-                .map(|&id| keys(&ev, id))
-                .collect::<Vec<_>>()
-        })
+        let ev = run::<Sym<Interval>>(&doc, None, &opts);
+        ev.order
+            .iter()
+            .map(|&id| keys(&ev, id))
+            .collect::<Vec<_>>()
     };
-    let first = replay();
-    // The second session is entered with the thread's expression state
-    // already used once.
-    assert_eq!(first, replay(), "every node, both keys");
+    let first = session(replay);
     assert_eq!(first.len(), 2, "the profile and the extrude");
-    let _ = extrude;
+    assert_eq!(session(replay), first, "a second session: every node, both keys");
+    assert_eq!(replay(), first, "no session: every node, both keys");
 }
 
 /// An evaluation at a symbolic scalar handed a prior whose node read an

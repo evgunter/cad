@@ -42,7 +42,7 @@ fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
 /// Mutants: a name taken from one count for the whole session (the
 /// first session's root mint shifts every later name, so `in_a` differs
 /// between the sessions); a name without its ordinal (`in_a[0] ==
-/// in_a[1]`); a name without its scope (`in_a[0] == in_b`).
+/// in_a[1]`).
 #[test]
 fn a_scopes_kth_mint_has_one_name_in_every_session() {
     type Names = (SymId, [SymId; 2], SymId);
