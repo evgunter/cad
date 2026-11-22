@@ -225,8 +225,8 @@ fn top_at(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
         .find(|(_, f)| {
             matches!(body.get_surface(f.surface),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z == z)
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && frame.origin().z == z)
         })
         .map(|(k, _)| k)
         .expect("a level face at z")

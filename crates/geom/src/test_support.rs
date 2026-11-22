@@ -50,56 +50,44 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
             Some(match kind {
                 SurfaceKind::Plane => AnalyticKind {
                     build: |x| Surface::Plane {
-                        origin: pt(&x[0..3]),
-                        normal: dir(&x[3..6]),
-                        u_ref: dir(&x[6..9]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[6..9])),
                     },
                     scalars: 9,
                 },
                 SurfaceKind::Cylinder => AnalyticKind {
                     build: |x| Surface::Cylinder {
-                        origin: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[7..10])),
                         radius: x[6],
-                        u_ref: dir(&x[7..10]),
                     },
                     scalars: 10,
                 },
                 SurfaceKind::Cone => AnalyticKind {
                     build: |x| Surface::Cone {
-                        apex: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[7..10])),
                         half_angle: x[6],
-                        u_ref: dir(&x[7..10]),
                     },
                     scalars: 10,
                 },
                 SurfaceKind::Sphere => AnalyticKind {
                     build: |x| Surface::Sphere {
-                        center: pt(&x[0..3]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[4..7]), dir(&x[7..10])),
                         radius: x[3],
-                        axis: dir(&x[4..7]),
-                        u_ref: dir(&x[7..10]),
                     },
                     scalars: 10,
                 },
                 SurfaceKind::Torus => AnalyticKind {
                     build: |x| Surface::Torus {
-                        center: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[8..11])),
                         major_radius: x[6],
                         minor_radius: x[7],
-                        u_ref: dir(&x[8..11]),
                     },
                     scalars: 11,
                 },
                 SurfaceKind::Spindle => AnalyticKind {
                     build: |x| Surface::Spindle {
-                        center: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[8..11])),
                         major_radius: x[6],
                         minor_radius: x[7],
-                        u_ref: dir(&x[8..11]),
                     },
                     scalars: 11,
                 },
@@ -136,9 +124,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                 },
                 CurveKind::Spiric => AnalyticKind {
                     build: |x| Curve3::Spiric {
-                        center: pt(&x[0..3]),
-                        axis: dir(&x[3..6]),
-                        u_ref: dir(&x[6..9]),
+                        frame: crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[6..9])),
                         major_radius: x[9],
                         minor_radius: x[10],
                         offset: x[11],
@@ -175,73 +161,78 @@ pub fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
     };
     match *surface {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (normal, u_ref) = turn(normal, u_ref);
             Surface::Plane {
-                origin,
-                normal,
-                u_ref,
+                frame: crate::Frame::new(origin, normal, u_ref),
             }
         }
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = turn(axis, u_ref);
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: crate::Frame::new(origin, axis, u_ref),
                 radius,
-                u_ref,
             }
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = turn(axis, u_ref);
             Surface::Cone {
-                apex,
-                axis,
+                frame: crate::Frame::new(apex, axis, u_ref),
                 half_angle,
-                u_ref,
             }
         }
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = turn(axis, u_ref);
             Surface::Sphere {
-                center,
+                frame: crate::Frame::new(center, axis, u_ref),
                 radius,
-                axis,
-                u_ref,
             }
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             let (axis, u_ref) = turn(axis, u_ref);
             Surface::Torus {
-                center,
-                axis,
+                frame: crate::Frame::new(center, axis, u_ref),
                 major_radius,
                 minor_radius,
-                u_ref,
             }
         }
         _ => unreachable!("only a framed analytic surface is reframed"),

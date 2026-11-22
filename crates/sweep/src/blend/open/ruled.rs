@@ -114,12 +114,13 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     ) -> Result<Self, BlendError> {
         let l = link.link();
         let edge = l.edge;
-        let Surface::Cylinder { axis: tau, .. } = l.blend.surface else {
+        let Surface::Cylinder { frame, .. } = l.blend.surface else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(edge),
                 "a ruled link's band is not a cylinder about its ruling",
             ));
         };
+        let tau = frame.axis();
         let (q_a, q_b) = (
             open_trimline(l, l.face_a)?.origin,
             open_trimline(l, l.face_b)?.origin,

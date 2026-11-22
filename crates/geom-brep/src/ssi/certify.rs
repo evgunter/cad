@@ -26,17 +26,17 @@
 //!
 //! A sampled max is not a bound, and a marched-and-fitted curve lies
 //! about the locus *precisely between samples*. Two mechanisms, one per
-//! operand kind, both pure convexity facts about control coefficients
-//! (C9's certification arithmetic: no evaluation, no root, no transcendental):
+//! operand kind, both convexity facts about control coefficients in
+//! C9's certification arithmetic (no evaluation; the analytic arm's one
+//! root is of a bound, its lever's, and a cone's sine and cosine are
+//! taken once of its crossed angle):
 //!
-//! - **analytic**: `geom_core::spline::compose` composes the surface's
-//!   polynomial implicit form with the carrier and returns a certified
-//!   per-span hull of the composite. Its units are the composite's, so
-//!   this module converts to meters — **exactly** for the plane
-//!   (identity), the sphere and the cylinder (`÷ 2R`), and per span on
-//!   the torus, whose meters residual is `F/(2r·(A + 2Rρ))` for its
-//!   quartic `F = A² − 4R²ρ²` ([`ToMeters::Torus`]). The cone has no
-//!   conversion and refuses.
+//! - **analytic**: the edge certificate's one reader
+//!   ([`crate::pcurve_cache::limb2_offset_sup`]): the surface's
+//!   canonical form, its coefficients enclosures built at the lane
+//!   scalar, composed along the carrier's net in the surface's frame and
+//!   converted to a distance in metres per part, a cone read as the
+//!   double cone a section of carriers meets (C5).
 //! - **NURBS**: `sup_t |S(P(t)) − C(t)|` bounded by the
 //!   **tensor-product Bernstein composition**
 //!   (`geom_core::spline::compose::tensor`, M5 PR 7b): the difference
@@ -115,7 +115,7 @@
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_points};
-use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
+use geom_core::spline::compose::{CurveCertData, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
     Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
@@ -128,8 +128,7 @@ use crate::descent::{Descent, Work};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters,
-    mag_in_meters, torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin,
+    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, tube_margin,
     zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
@@ -179,8 +178,11 @@ pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> 
     })
 }
 
-/// How many spans limbs 2 and 3 cut the carrier into ([`cert_grid`]).
-/// More spans ⇒ tighter hulls and a tighter tube, at linear cost. The
+/// How many spans the box chain of limb 3 cuts a spline carrier into
+/// ([`cert_grid`]), the chart arm's grid over a closed form
+/// ([`chart_grid`]), and per turn of its angle the analytic reader's
+/// first cut of a closed form (`pcurve_cache::closed_form_grid`). More
+/// spans ⇒ tighter hulls and a tighter tube, at linear cost. The
 /// grid's points are a **structure** choice, not a decision; the
 /// refinement they schedule is made inside the certificate, so it is
 /// held as homogeneous enclosures in the ring (C6: [`refined_net`],
@@ -309,9 +311,10 @@ pub enum SsiLimb {
     /// `|S(P(t)) − C(t)|`, the carrier read through its pcurve: a bound
     /// on the carrier's miss and on the pcurve's together.
     HullSupChart,
-    /// Limb 2 against an analytic operand — the composite's certified
-    /// value at one of its breaks, past the band's zero: limb 1's
-    /// linearized residual, measured where the bound did not clear.
+    /// Limb 2 against an analytic operand — the reader's certified lower
+    /// bound in metres on the carrier's distance from the surface at one
+    /// of its breaks, past the band's zero, measured where the bound did
+    /// not clear.
     HullValue,
     /// Limb 2 against a NURBS operand — `|S(P(t)) − C(t)|` at one of the
     /// composite's breaks, past the band's zero: the carrier against the
@@ -359,8 +362,8 @@ impl SsiLimb {
     /// one, the value at a break is that image's own miss
     /// (`PcurveCheck::of_fitted_limb`). Limbs 1 and 2 are the fitted
     /// carrier's on-locus residual and sup-norm bound; limb 2's value at
-    /// a break is limb 1's residual against an analytic operand, and
-    /// against a NURBS operand the sup-norm bound's quantity at a point,
+    /// a break is a lower bound on the carrier's distance there against
+    /// an analytic operand, and against a NURBS operand the sup-norm bound's quantity at a point,
     /// a bound on the miss like it; limb 3's margin is a lower bound on
     /// the operands' transversality over the box chain.
     #[must_use]
@@ -375,11 +378,11 @@ impl SsiLimb {
     }
 }
 
-/// The breaks limbs 2 and 3 cut the carrier at so they have small
-/// spans to work with: the domain's `SSI_CERT_SPANS` grid. Both read
-/// the DESCRIBED carrier with these breaks taken in the certification
-/// ring (limb 2 through [`CurveCertData::with_breaks`], the box chain
-/// through [`refined_net`]), never a refined curve with `f64` weights.
+/// The breaks limb 3's box chain cuts a spline carrier at so it has
+/// small spans to work with: the domain's `SSI_CERT_SPANS` grid. It
+/// reads the DESCRIBED carrier with these breaks taken in the
+/// certification ring ([`refined_net`]), never a refined curve with
+/// `f64` weights.
 fn cert_grid(kv: &KnotVector) -> Vec<f64> {
     // Already fine enough: a carrier that the marcher's step rule
     // already gave hundreds of spans gains nothing from more breaks.
@@ -423,209 +426,59 @@ fn refined_net(
     Some((refinement.knots().clone(), net))
 }
 
-/// The exact `f64` a structural surface parameter stands for, or `None`
-/// when the scalar's bracket is not a point.
-///
-/// **Why this gate exists (M6-2).** `geom_core`'s [`ImplicitSurface`]
-/// is `f64` STRUCTURE — a polynomial form with `f64` coefficients — and
-/// the composite it drives is only a bound on the surface it actually
-/// describes. Lifting `certify_branch` off `f64` therefore does NOT
-/// make the analytic composite accept a *widened* operand: a cylinder
-/// whose radius is an enclosure is a FAMILY of cylinders, and picking
-/// any representative would certify the carrier against a surface the
-/// body does not have. A thin bracket is exactly the case where the
-/// representative is the surface, so that case is admitted and every
-/// other one refuses typed (`UnsupportedCertificate`, below) — never a
-/// midpoint, never a guess. Retiring the gate means giving the
-/// composite enclosure-valued coefficients, which is a `geom_core`
-/// change with its own unit.
-pub(crate) fn exact<T: Bounds>(v: T) -> Option<f64> {
-    let (lo, hi) = (v.lo(), v.hi());
-    (lo == hi && !lo.is_nan()).then_some(lo)
-}
+/// The widest a frame direction's component may enclose and still be
+/// read as one direction: a frame re-minted at an enclosure scalar from
+/// an `f64` one (`geom::Frame::map_scalar`) is an enclosure of one
+/// rotation about an ulp wide at each entry, and nothing a computation
+/// widened is this narrow. It is `16·EPSILON`, 32 units in the last
+/// place of an entry below one.
+const FRAME_ROUNDING: f64 = 16.0 * f64::EPSILON;
 
-/// Three coordinates of an exact point, or `None` if any is widened.
-pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
-    Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
-}
-
-/// The `compose` implicit form of an analytic surface, and how its
-/// composite crosses to meters.
+/// **A frame direction as `f64` structure**: each component's midpoint,
+/// and the turn the enclosure allows, an upper bound on the angle
+/// between any unit direction it encloses and the midpoint; `None` when
+/// a component is wider than [`FRAME_ROUNDING`] or not a number. An
+/// exact direction allows no turn.
 ///
-/// `Err` names the reason, which the caller turns into an
-/// [`SsiError::UnsupportedCertificate`] verbatim: the cone (no meters
-/// conversion), NURBS (no implicit form), and — since M6-2 — an operand
-/// whose structural parameters are not exact at the caller's scalar
-/// (see [`exact`]).
-fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeters), &'static str> {
-    const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
-                           scalar — the ring composite's implicit form is f64 structure, and a \
-                           widened operand is a family of surfaces, not the body's surface \
-                           — refused rather than represented by a midpoint";
-    match *s {
-        Surface::Plane { origin, normal, .. } => {
-            let (Some(point), Some(normal)) =
-                (exact3(origin.to_array()), exact3(normal.to_array()))
-            else {
-                return Err(WIDENED);
-            };
-            Ok((
-                ImplicitSurface::Plane { point, normal },
-                // n·(P − p₀) is already meters for a unit normal.
-                ToMeters::Divisor(1.0),
-            ))
+/// A unit `a` within `δ` of the midpoint `m` (`|a − m| ≤ δ`, `δ` the
+/// box's diagonal) stands at an angle `θ` from `m`'s direction with
+/// `sin θ ≤ δ/|m|`, and `|m| ≥ 1 − δ`; the bound charges `θ` as
+/// `1.01·δ/(1 − δ)`, which covers `asin` at these widths.
+///
+/// The chart tube's partner ([`chart_partner_form`]) reads a frame's
+/// direction at `f64` here, through the components' certified brackets.
+fn frame_direction(d: [(f64, f64); 3]) -> Option<([f64; 3], f64)> {
+    let mut mid = [0.0; 3];
+    let mut diag = 0.0_f64;
+    for (k, (lo, hi)) in d.into_iter().enumerate() {
+        let width = hi - lo;
+        if lo.is_nan() || hi.is_nan() || width.is_nan() || width > FRAME_ROUNDING {
+            return None;
         }
-        Surface::Sphere { center, radius, .. } => {
-            let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
-                return Err(WIDENED);
-            };
-            Ok((
-                ImplicitSurface::Sphere { center, radius },
-                // |P−c|² − R² = 2R · the linearized meters residual,
-                // exactly.
-                ToMeters::Divisor(2.0 * radius),
-            ))
-        }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let (Some(point), Some(axis), Some(radius)) = (
-                exact3(origin.to_array()),
-                exact3(axis.to_array()),
-                exact(radius),
-            ) else {
-                return Err(WIDENED);
-            };
-            Ok((
-                ImplicitSurface::Cylinder {
-                    point,
-                    axis,
-                    radius,
-                },
-                // |w|² − R² = 2R · the linearized meters residual,
-                // exactly.
-                ToMeters::Divisor(2.0 * radius),
-            ))
-        }
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (Some(center), Some(axis), Some(major), Some(minor)) = (
-                exact3(center.to_array()),
-                exact3(axis.to_array()),
-                exact(major_radius),
-                exact(minor_radius),
-            ) else {
-                return Err(WIDENED);
-            };
-            Ok((
-                ImplicitSurface::Torus {
-                    center,
-                    axis,
-                    major_radius: major,
-                    minor_radius: minor,
-                },
-                ToMeters::Torus {
-                    center,
-                    major,
-                    minor,
-                },
-            ))
-        }
-        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err(
-                "no meters composite for this surface kind (the cone's composite has no \
-             meters conversion; a spline stand-in and its offset description have no \
-             implicit form to build one from)",
-            )
-        }
+        mid[k] = lo + width / 2.0;
+        diag += width.powi(2);
     }
-}
-
-/// How an implicit composite's units cross to meters.
-#[derive(Clone, Copy, Debug)]
-enum ToMeters {
-    /// One outward division by an exact divisor.
-    Divisor(f64),
-    /// The torus, per span of the carrier `C`. Its meters residual is
-    /// `m = F/(2r·(A + 2Rρ))` with `A = |q|² + R² − r²` and `ρ` the
-    /// distance from the axis, so a span's bound reads `F∘C` against
-    /// `A∘C`, `A`'s own composite over the same spans
-    /// (`enclose::torus_meters_sup`), and a break's floor uses
-    /// `2Rρ ≤ R² + ρ² ≤ A + r²` (`enclose::torus_meters_floor`).
-    Torus {
-        center: [f64; 3],
-        major: f64,
-        minor: f64,
-    },
-}
-
-/// A limb-2 composite's readings in meters: its sup, each span's sup,
-/// and each break's floor.
-fn meters_readings(
-    composite: &compose::CompositeForm,
-    data: &CurveCertData<'_>,
-    to: ToMeters,
-) -> Result<(f64, Vec<f64>, Vec<f64>), SsiError> {
-    let (center, major, minor) = match to {
-        ToMeters::Torus {
-            center,
-            major,
-            minor,
-        } => (center, major, minor),
-        ToMeters::Divisor(per) => {
-            let spans = composite
-                .span_bounds()
-                .into_iter()
-                .map(|b| mag_in_meters(b, per))
-                .collect();
-            let floors = composite
-                .break_values()
-                .into_iter()
-                .map(|v| zero_free_lower_bound(in_meters(v, per)))
-                .collect();
-            return Ok((mag_in_meters(composite.bound(), per), spans, floors));
-        }
+    let delta = diag.sqrt();
+    let turn = if delta == 0.0 {
+        0.0
+    } else {
+        1.01 * delta / (1.0 - delta)
     };
-    let a = compose::squared_distance_composite(data, &center, torus_a_shift(major, minor))
-        .map_err(|_| SsiError::UnsupportedCertificate {
-            what: "the torus's A composite refused the fitted carrier",
-        })?;
-    let (f_spans, a_spans) = (composite.span_bounds(), a.span_bounds());
-    let (f_breaks, a_breaks) = (composite.break_values(), a.break_values());
-    if f_spans.len() != a_spans.len() || f_breaks.len() != a_breaks.len() {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the torus's A composite does not share its quartic's spans",
-        });
-    }
-    let spans: Vec<f64> = f_spans
-        .into_iter()
-        .zip(a_spans)
-        .map(|(f, a)| torus_meters_sup(f, a, major, minor))
-        .collect();
-    let sup = spans
-        .iter()
-        .try_fold(0.0f64, |acc, &x| (!x.is_nan()).then(|| acc.max(x)))
-        .unwrap_or(f64::NAN);
-    let floors = f_breaks
-        .into_iter()
-        .zip(a_breaks)
-        .map(|(f, a)| torus_meters_floor(f, a, minor))
-        .collect();
-    Ok((sup, spans, floors))
+    Some((mid, turn))
 }
 
-/// Limb 1 + limb 2 against one **analytic** operand. The carrier
-/// enters limb 2 through the carrier-enclosure door
-/// ([`crate::carrier_net::carrier_net`]) over its span
-/// ([`crate::carrier_net::carrier_span`]).
+/// Limb 1 + limb 2 against one **analytic** operand. Limb 2 is the edge
+/// certificate's own reader ([`crate::pcurve_cache::limb2_offset_sup`] against the carrier:
+/// the operand's canonical form with enclosure-valued coefficients,
+/// composed along the carrier's net in the operand's frame, converted to
+/// metres per part), read against the operand's whole carrier, since a
+/// pair's section is a section of carriers (C5): on a cone, the double
+/// cone.
+///
+/// Limb 1 stays beside it: it reads the linearized residual
+/// (`implicit::implicit_residual`) at the schedule, which the certificate
+/// reports and which is not bounded by the distance limb 2 bounds (outside
+/// a sphere, `F/2R` exceeds it at second order).
 fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -633,42 +486,21 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
+    use crate::pcurve_cache::projected::Offset;
     let ((t0, t1), (h0, h1)) = crate::carrier_net::carrier_span(carrier, params);
-    // Limb 2's hull: the implicit form composed with the described
-    // carrier cut in the ring at its grid and at `cuts`, in metres.
-    let grid = match carrier {
-        Curve3::Nurbs(net) => cert_grid(net.knots_f64_interim()),
-        _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
+    // The reader runs once, when limb 1 refuses (to locate its uncleared
+    // parts) or for limb 2: limb 1's samples are the cheaper check and go
+    // first.
+    let reader = || {
+        crate::pcurve_cache::limb2_offset_sup(
+            carrier,
+            params,
+            surface,
+            crate::pcurve_cache::Limb2Locus::Carrier,
+            band,
+        )
     };
-    let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (form, to_meters) =
-            composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-        let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-        breaks.sort_by(f64::total_cmp);
-        breaks.dedup();
-        let net = crate::carrier_net::carrier_net(carrier, (t0, t1), &breaks)
-            .map_err(SsiError::CarrierEnclosure)?;
-        let (ck, cw, cc) = net.operand();
-        let data = CurveCertData::new(ck, cw, cc)
-            .map_err(|_| SsiError::UnsupportedCertificate {
-                what: "the fitted carrier's enclosure data is malformed",
-            })?
-            .with_breaks(net.cuts());
-        let composite = compose::implicit_composite(&data, &form).map_err(|_| {
-            SsiError::UnsupportedCertificate {
-                what: "the implicit composite refused the fitted carrier",
-            }
-        })?;
-        let (sup, spans, floors) = meters_readings(&composite, &data, to_meters)?;
-        Ok(Hull {
-            sup,
-            breaks: composite.num.breaks().to_vec(),
-            work: spans.len(),
-            spans,
-            floors,
-            data: (),
-        })
-    };
+    let mut read = None;
     // ---- limb 1: the fixed schedule ----
     // The schedule on the carrier's held span (its ends held, its
     // interior stations chosen points); the value channel names a
@@ -684,8 +516,8 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         let decided = decide_reported("ssi_on_locus", Margin::of(r), band);
         if locatable(&decided) {
             at.spans.push(RefusedSpan { lo: t, hi: t });
-            if let Ok(hull) = hull(&[]) {
-                hull.uncleared(band, &mut at.spans);
+            if let Ok(read) = read.get_or_insert_with(reader) {
+                at.spans.extend(read.uncleared.iter().copied());
             }
         }
         limb_verdict(
@@ -695,12 +527,67 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             at,
         )?;
     }
-
-    // ---- limb 2: the certified hull bound, subdivided ----
-    let sup = hull_limb(&ANALYTIC_HULL, subdivide(hull, band)?, band, at)?;
+    // ---- limb 2: the reader's distance bound ----
+    // A measured miss at a break is decided first, at the value's
+    // predicate, then the bound over the carrier at the bound's; a
+    // refusal locates the reading's uncleared parts.
+    let read = read.unwrap_or_else(reader).map_err(offset_refusal)?;
+    let arm = &ANALYTIC_HULL;
+    let sup = match read.offset {
+        Offset::Bound(sup) => sup,
+        Offset::Miss { bound, .. } => {
+            let floor = read.floor;
+            let decided = decide_reported(arm.value, Margin::<T>::bound(floor), band);
+            at.spans.extend(read.uncleared.iter().copied());
+            limb_verdict(
+                arm.value_limb,
+                decided,
+                || RefusedResidual::Floor(floor),
+                at,
+            )?;
+            bound.map_err(offset_refusal)?
+        }
+    };
+    let decided = decide_reported(arm.sup, Margin::of(sup), band);
+    if locatable(&decided) {
+        at.spans.extend(read.uncleared.iter().copied());
+    }
+    let upper = read.upper;
+    limb_verdict(arm.sup_limb, decided, || RefusedResidual::Over(upper), at)?;
     Ok((worst, sup))
 }
 
+/// The search's refusal for a reader's: an escalation names limb 2's
+/// bound, a carrier with no net keeps its refusal, and every other one is
+/// a bound the composite could not certify.
+///
+/// None is located for refinement ([`Refused`]): the reader's own
+/// refusals carry no residual a denser carrier drives down. An
+/// escalation is a cone's lever undecided by the band at a part beside
+/// the apex, which no refit moves; a carrier with no net over a span is
+/// a closed form's (a fitted carrier is its own net); and the rest are
+/// the composite refusing the kernel's own data.
+fn offset_refusal(e: crate::PcurveCertifyError) -> SsiError {
+    use crate::PcurveCertifyError as E;
+    match e {
+        E::Escalated { cause, .. } => SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            cause,
+        },
+        E::CarrierEnclosure(refusal) => SsiError::CarrierEnclosure(refusal),
+        E::SectorRefused { channel, .. } => SsiError::UnsupportedCertificate {
+            what: channel.describe(),
+        },
+        E::UnsupportedChart { .. } => SsiError::UnsupportedCertificate {
+            what: "no canonical form for this surface kind (a spline stand-in and its offset \
+                   description have none)",
+        },
+        _ => SsiError::UnsupportedCertificate {
+            what: "the operand's canonical implicit form composed along the carrier has no \
+                   certified bound",
+        },
+    }
+}
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
 fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
@@ -1011,7 +898,7 @@ impl<P> Hull<P> {
     /// zero. A selection of where to look, never a decision: the refusal
     /// it locates is decided by the limb, and a refused (`NaN`) span is
     /// selected.
-    fn uncleared(&self, band: Band, at: &mut Vec<RefusedSpan>) {
+    pub(crate) fn uncleared(&self, band: Band, at: &mut Vec<RefusedSpan>) {
         for (w, bound) in self.breaks.windows(2).zip(&self.spans) {
             if !clears(*bound, band) {
                 at.push(RefusedSpan { lo: w[0], hi: w[1] });
@@ -1167,7 +1054,7 @@ pub(crate) enum Subdivided<P = ()> {
 ///   older hull is kept;
 /// - a `+∞` bound is not idle while no round's bound is finite. It is
 ///   reachable where the composite's arithmetic overflows: interval
-///   enclosures may be unbounded, and `mag_in_meters` and `sup_bound`
+///   enclosures may be unbounded, and a part's metres bound and `sup_bound`
 ///   then answer `+∞`. A run of such hulls halves every span each round
 ///   until a work bound stops it: from one span, 12 hulls and 3072 spans
 ///   recomputed, ended by [`SSI_HULL_CUTS`]. That is what the rows
@@ -1245,8 +1132,8 @@ pub(crate) struct HullArm {
     value_limb: SsiLimb,
 }
 
-/// Limb 2 against an analytic operand: its value at a break is limb 1's
-/// residual.
+/// Limb 2 against an analytic operand: its value at a break is the
+/// reader's lower bound on the carrier's distance there, in metres.
 const ANALYTIC_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup",
     sup_limb: SsiLimb::HullSup,
@@ -2013,38 +1900,119 @@ pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
 
 /// **The form limb 3 reads a chart's partner by**: the partner, a plane
 /// among them, at `f64` ([`super::residual::ImplicitForm`]), so only
-/// where every scalar of it is an exact `f64` whose enclosure certifies.
-/// A scalar that left its domain is refused with a widened one, however
-/// exact its endpoints: the form would be of an equation nobody
-/// evaluated (S41).
+/// where every scalar of it but its frame's directions is an exact `f64`
+/// whose enclosure certifies. A scalar that left its domain is refused
+/// with a widened one, however exact its endpoints: the form would be of
+/// an equation nobody evaluated (S41).
+///
+/// The frame's axis and `u_ref` are read at their midpoints where their
+/// certified enclosure is rounding-wide ([`frame_direction`], the reading
+/// the ring composite takes): a frame lifted to an enclosure scalar from
+/// an `f64` one encloses one rotation a few ulps wide. The form's `f64`
+/// surface then stands on those midpoints, its structure, and the form
+/// reads every value and gradient through the partner's own frame
+/// enclosure ([`super::residual::ImplicitForm::with_frame`]): each
+/// encloses the turned partner's, so the midpoint costs nothing a read
+/// does not carry. A frame wider than rounding still refuses.
+///
+/// **What the midpoint surface is read for**: the partner's kind (which
+/// form), its radii (exact, as before), and the form's `f64` residual and
+/// rate ([`super::residual::ImplicitForm::residual`]), which only the
+/// boundary pass's settling reads, a seed it then holds to a tolerance.
+/// Limb 3's tube reads the form only through [`ChartPhi`] (`φ`, `∇f`,
+/// its partials and sup) and the node box ([`super::node::node_box`]:
+/// `φ`, its frame gradient, Hessian and vectors), every one of them
+/// through the frame enclosure, so nothing the certificate rests on reads
+/// the midpoint.
 ///
 /// # Errors
 ///
 /// [`SsiError::UnsupportedCertificate`]: [`CHART_TUBE_PARTNER_INEXACT`]
 /// for a widened or domain-violated scalar, [`CHART_TUBE_NEEDS_FORM`] for
 /// a partner with no form.
-///
-/// `exact` reads one scalar ([`exact_certified`] at the certificate's
-/// scalar).
 pub(crate) fn chart_partner_form<T: Real>(
     partner: &Surface<T>,
-    exact: impl Fn(T) -> Option<f64>,
+    bracket: impl Fn(T) -> Option<(f64, f64)>,
 ) -> Result<super::residual::ImplicitForm, SsiError> {
-    let inexact = core::cell::Cell::new(false);
-    let at_f64 = partner.map_scalar(|x| {
-        exact(x).unwrap_or_else(|| {
-            inexact.set(true);
-            f64::NAN
-        })
-    });
-    if inexact.get() {
-        return Err(SsiError::UnsupportedCertificate {
-            what: CHART_TUBE_PARTNER_INEXACT,
-        });
-    }
-    super::residual::ImplicitForm::of(&at_f64).map_err(|_| SsiError::UnsupportedCertificate {
+    let inexact = || SsiError::UnsupportedCertificate {
+        what: CHART_TUBE_PARTNER_INEXACT,
+    };
+    let no_form = || SsiError::UnsupportedCertificate {
         what: CHART_TUBE_NEEDS_FORM,
-    })
+    };
+    let Some(frame) = partner.frame() else {
+        return Err(no_form());
+    };
+    let point = |x: T| bracket(x).and_then(|(lo, hi)| (lo == hi && !lo.is_nan()).then_some(lo));
+    let certified = |v: Vec3<T>| -> Option<[(f64, f64); 3]> {
+        let [x, y, z] = v.to_array().map(&bracket);
+        Some([x?, y?, z?])
+    };
+    let exact = |x: T| point(x).ok_or_else(inexact);
+    let (Some(axis), Some(u_ref)) = (certified(frame.axis()), certified(frame.u_ref())) else {
+        return Err(inexact());
+    };
+    let (Some((axis_mid, axis_turn)), Some((u_mid, u_turn))) =
+        (frame_direction(axis), frame_direction(u_ref))
+    else {
+        return Err(inexact());
+    };
+    let o = frame.origin();
+    let origin = geom_core::Point3::new(exact(o.x)?, exact(o.y)?, exact(o.z)?);
+    let exact_frame = axis_turn == 0.0 && u_turn == 0.0;
+    let mid = if exact_frame {
+        // Exact throughout: the partner's frame at `f64`, its bits kept.
+        // Its point value is read within its own kind (an `Exact`
+        // scalar's brackets as `Interval`, then `point_value`), never
+        // by a map across kinds, which reads no frame.
+        if T::WITNESS == geom_core::Witness::Exact {
+            frame
+                .map_scalar(|x| {
+                    bracket(x).map_or(Interval::from_bounds(f64::NAN, f64::NAN), |(lo, hi)| {
+                        Interval::from_bounds(lo, hi)
+                    })
+                })
+                .point_value()
+                .ok_or_else(inexact)?
+        } else {
+            frame.map_scalar(|x| point(x).unwrap_or(f64::NAN))
+        }
+    } else {
+        geom::Frame::new(
+            origin,
+            Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]),
+            Vec3::new(u_mid[0], u_mid[1], u_mid[2]),
+        )
+    };
+    let at_f64 = match *partner {
+        Surface::Plane { .. } => Surface::Plane { frame: mid },
+        Surface::Cylinder { radius, .. } => Surface::Cylinder {
+            frame: mid,
+            radius: exact(radius)?,
+        },
+        Surface::Sphere { radius, .. } => Surface::Sphere {
+            frame: mid,
+            radius: exact(radius)?,
+        },
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Torus {
+            frame: mid,
+            major_radius: exact(major_radius)?,
+            minor_radius: exact(minor_radius)?,
+        },
+        _ => return Err(no_form()),
+    };
+    let form = super::residual::ImplicitForm::of(&at_f64).map_err(|_| no_form())?;
+    if exact_frame {
+        return Ok(form);
+    }
+    let enclose = |b: [(f64, f64); 3]| b.map(|(lo, hi)| Interval::from_bounds(lo, hi));
+    let ([ax, ay, az], [ux, uy, uz]) = (enclose(axis), enclose(u_ref));
+    let (e2, e0) = (Vec3::new(ax, ay, az), Vec3::new(ux, uy, uz));
+    Ok(form.with_frame([e0, e2.cross(e0), e2]))
 }
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
@@ -2644,7 +2612,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let form = chart_partner_form(partner, exact_certified)?;
+            let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
             let phi = ChartPhi(&form);
             let nodes = node_ends(p, n, &form, band);
             limb_three((widest, extent), band, |radius| {
@@ -3059,11 +3027,9 @@ mod tests {
             };
             crate::ssi::certify::chart_partner_form(
                 &geom::Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: geom::Frame::new(origin, normal, u_ref),
                 },
-                crate::ssi::certify::exact_certified,
+                geom_core::CertifiedEnclosure::certified_bracket,
             )
             .expect("an exact plane has a form")
         }
@@ -3166,13 +3132,15 @@ mod tests {
             );
             for n in [n, point] {
                 let plane = geom::Surface::Plane {
-                    origin: on_line(),
-                    normal: Vec3::new(iv(0.0), n, iv(0.0)),
-                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    frame: geom::Frame::new(
+                        on_line(),
+                        Vec3::new(iv(0.0), n, iv(0.0)),
+                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    ),
                 };
                 let got = crate::ssi::certify::chart_partner_form(
                     &plane,
-                    crate::ssi::certify::exact_certified,
+                    geom_core::CertifiedEnclosure::certified_bracket,
                 );
                 assert!(
                     matches!(
@@ -3203,9 +3171,11 @@ mod tests {
             use crate::ssi::{ChartedNurbs, SsiOperand};
             let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
             let plane = geom::Surface::Plane {
-                origin: on_line(),
-                normal: Vec3::new(iv(0.0), point, iv(0.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: geom::Frame::new(
+                    on_line(),
+                    Vec3::new(iv(0.0), point, iv(0.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
             };
             let patch = unit_patch();
             let wall = ChartedNurbs::mint(&patch).expect("the unit patch mints");
@@ -3809,9 +3779,7 @@ mod tests {
         let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
         let origin = Point3::new(0.0, 0.0, 0.4);
         let plane = Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         };
         let domain = SsiDomain {
             center: Point3::new(0.5, 0.0, 0.4),
@@ -4097,9 +4065,11 @@ mod tests {
         )
         .unwrap();
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         (wall, carrier, pcurve, plane)
     }
@@ -4182,9 +4152,11 @@ mod tests {
         let (c, s) = (0.5, 0.75_f64.sqrt());
         for (radius, grow) in [(2.0, 0.0), (2.0, 0.5 * band.zero()), (1.0e4, 0.0)] {
             let partner = Surface::Cylinder {
-                origin: Point3::new(1.0 - radius * c, -radius * s, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(1.0 - radius * c, -radius * s, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: radius + grow,
             };
             let lane = Lane::Chart {
@@ -4237,12 +4209,15 @@ mod tests {
         );
     }
 
-    /// **A refused transversality enclosure is no sliver.** A cone has
-    /// no ℝ³ gradient enclosure, so every box of every rung of an
-    /// analytic tube against one is refused: the ladder answers nothing
+    /// **A refused transversality enclosure is no sliver, and an ℝ³
+    /// chain has no node end.** The plane `y = 0` holds the 45° cone's
+    /// ruling `x = z`, and the carrier runs along it into the apex. The
+    /// ℝ³ tube reads every box of its chain, and the box at the apex is
+    /// off the cone's gate at every rung, so the ladder answers nothing
     /// (`TubeProbeSilent`, every rung offered), where reading each
     /// refusal as a zero margin reported a straddle at the narrowest
-    /// rung.
+    /// rung. Red if a refused box is read as a zero margin, or if the
+    /// cone arm encloses a box holding its apex.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_tube_whose_enclosures_are_refused_answers_no_rung() {
@@ -4252,19 +4227,23 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Point3, Vec3};
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let carrier = NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
-            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.1, 0.0)],
+            vec![Point3::new(0.1, 0.0, 0.1), Point3::new(0.0, 0.0, 0.0)],
             vec![1.0; 2],
         )
         .unwrap();
@@ -4378,45 +4357,17 @@ mod tests {
         }
     }
 
-    /// Limb 2's torus readings of `carrier` over its spans cut at
-    /// `breaks`: the composite's breaks, its sup, each span's sup and
-    /// each break's floor, all in meters.
-    #[allow(clippy::unwrap_used)]
-    fn torus_readings(
-        carrier: &geom::NurbsCurve3<f64>,
-        torus: &geom::Surface<f64>,
-        breaks: &[f64],
-    ) -> (Vec<f64>, f64, Vec<f64>, Vec<f64>) {
-        use geom_core::spline::compose::{self, CurveCertData};
-        let curve = geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
-        let net = crate::carrier_net::carrier_net(&curve, carrier.domain(), breaks).unwrap();
-        let (ck, cw, cc) = net.operand();
-        let data = CurveCertData::new(ck, cw, cc)
-            .unwrap()
-            .with_breaks(net.cuts());
-        let (form, to) = super::composite_form(torus).unwrap();
-        let composite = compose::implicit_composite(&data, &form).unwrap();
-        let (sup, spans, floors) = super::meters_readings(&composite, &data, to).unwrap();
-        let at = composite.num.breaks().to_vec();
-        assert_eq!(
-            spans.len() + 1,
-            at.len(),
-            "one span between each two breaks"
-        );
-        assert_eq!(floors.len(), at.len(), "one floor per break");
-        (at, sup, spans, floors)
-    }
-
-    /// **Limb 2's torus conversion bounds every sampled residual**,
+    /// **Limb 2's reading of a torus bounds every sampled distance**,
     /// counterexample search: cubic carriers whose controls lie on a
-    /// torus (thin to fat, horn and spindle, tilted; a span the
-    /// conversion refuses reads `NaN`, which bounds nothing) displaced by up to a tenth of the
-    /// tube, read over eight spans. Each span's bound holds the meters
-    /// residual `implicit_residual` at points sampled in it, and each
-    /// break's floor is no more than the residual there: a conversion
-    /// that divided by too much, or floored by too little, reads red.
+    /// torus (thin to fat, horn and spindle, tilted) displaced by up to a
+    /// tenth of the tube, read against the torus by the search's reader
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]). A bound holds the
+    /// distance `|m − r|` from the torus at points sampled along the
+    /// carrier, and a miss's floor is no more than the distance at its
+    /// break: a conversion that divided by too much, or floored by too
+    /// little, reads red.
     #[test]
-    fn a_torus_carriers_limb_two_holds_its_sampled_residual() {
+    fn a_torus_carriers_limb_two_holds_its_sampled_distance() {
         let mut rng = test_utils::fuzz::start("torus limb 2");
         torus_limb_two_holds(
             &mut rng,
@@ -4425,28 +4376,18 @@ mod tests {
         );
     }
 
-    /// **The sample's own rounding is not the bound's**: this seed draws
-    /// a tube of radius 2e-3 about 1.27 from the origin, where the
-    /// sampled residual at span 3's t = 1/3 reads 8e-17 over its bound
-    /// while the residual of the f64 data, read exactly, is 1.5e-17 under
-    /// it. The slack charges the sample's evaluation at the point's own
-    /// scale.
-    #[test]
-    fn a_small_torus_far_out_is_not_read_over_its_bound_by_the_sample() {
-        // The stream `fuzz::start("torus limb 2")` opens at
-        // CAD_FUZZ_SEED=0x16381c9c5b5fb469: that seed with the label mixed in.
-        let mut rng = test_utils::fuzz::pinned("torus limb 2, far out", 0x7a21_e04f_c1ae_c3a1);
-        torus_limb_two_holds(&mut rng, 40, "the pinned seed");
-    }
-
-    /// [`a_torus_carriers_limb_two_holds_its_sampled_residual`]'s body,
+    /// [`a_torus_carriers_limb_two_holds_its_sampled_distance`]'s body,
     /// over `cases` draws of `rng`, each failure naming `replay`.
     #[allow(clippy::unwrap_used)]
     fn torus_limb_two_holds(rng: &mut test_utils::fuzz::Rng, cases: usize, replay: &str) {
+        use crate::pcurve_cache::projected::Offset;
         use crate::ssi::enclose::tests::{on_torus, torus};
-        use geom::NurbsCurve3;
+        use geom::{NurbsCurve3, Surface};
         use geom_core::spline::KnotVector;
-        use geom_core::{Point3, Vec3};
+        use geom_core::{Band, Point3, Vec3};
+        // A reading the reader refuses bounds nothing, so it is passed
+        // over; most draws read, or the search searched nothing.
+        let mut read_any = 0usize;
         for _ in 0..cases {
             let small = rng.log_uniform(1e-3, 1.0);
             let big = small * rng.range(0.5, 30.0);
@@ -4481,42 +4422,64 @@ mod tests {
             )
             .unwrap();
             let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
-            let cuts: Vec<f64> = (1..8).map(|k| f64::from(k) / 8.0).collect();
-            let (at, sup, spans, floors) = torus_readings(&carrier, &torus, &cuts);
-            let ctx = format!("{torus:?}, lift {lift:e}: {replay}");
-            assert!(
-                sup.is_finite() || big <= small,
-                "a ring torus's bound: {ctx}"
+            let band = Band::new(1e-12, 1e-11).unwrap();
+            let curve = geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
+            let read = crate::pcurve_cache::limb2_offset_sup(
+                &curve,
+                (0.0, 1.0),
+                &torus,
+                crate::pcurve_cache::Limb2Locus::Carrier,
+                band,
             );
+            let ctx = format!("{torus:?}, lift {lift:e}: {replay}");
             // The sample is read in f64 at the point, so it carries the
             // point's own rounding, at the point's scale (its distance
             // from the origin), whatever the torus's size; the bound is
-            // of the residual of the f64 data, read exactly.
-            let residual = |t: f64| {
+            // of the distance of the f64 data, read exactly.
+            let distance = |t: f64| {
                 let at = carrier.eval(t);
                 let scale = (at - Point3::origin()).norm();
-                (crate::implicit::implicit_residual(&torus, at).abs(), scale)
+                let Surface::Torus { frame, .. } = torus else {
+                    unreachable!()
+                };
+                let q = at - frame.origin();
+                let h = q.dot(frame.axis());
+                let rho = (q.norm_squared() - h * h).max(0.0).sqrt();
+                let m = (rho - big).hypot(h);
+                ((m - small).abs(), scale)
             };
             let slack =
                 |x: f64, scale: f64| x * (1.0 + 1e-9) + 1e-15 * big + 8.0 * f64::EPSILON * scale;
-            for (j, span) in spans.iter().enumerate() {
-                for k in 0..=16 {
-                    let t = at[j] + (at[j + 1] - at[j]) * f64::from(k) / 16.0;
-                    let (m, scale) = residual(t);
+            let Ok(read) = read else {
+                continue;
+            };
+            read_any += 1;
+            match read.offset {
+                Offset::Bound(bound) => {
+                    for k in 0..=128 {
+                        let t = f64::from(k) / 128.0;
+                        let (d, scale) = distance(t);
+                        assert!(
+                            d <= slack(bound, scale),
+                            "at {t}: distance {d:e} over the bound {bound:e}; {ctx}"
+                        );
+                    }
+                }
+                Offset::Miss { .. } => {
+                    let at = read.uncleared[0].lo;
+                    let (d, scale) = distance(at);
                     assert!(
-                        span.is_nan() || m <= slack(*span, scale),
-                        "span {j} at {t}: residual {m:e} over its bound {span:e}; {ctx}"
+                        read.floor <= slack(d, scale),
+                        "break {at}: floor {:e} over the distance {d:e}; {ctx}",
+                        read.floor
                     );
                 }
             }
-            for (j, floor) in floors.iter().enumerate() {
-                let (m, scale) = residual(at[j]);
-                assert!(
-                    *floor <= slack(m, scale),
-                    "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
-                );
-            }
         }
+        assert!(
+            2 * read_any >= cases,
+            "only {read_any} of {cases} draws read: {replay}"
+        );
     }
 }
 
@@ -4552,9 +4515,7 @@ mod node_end_rows {
 
     fn level() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -4699,5 +4660,128 @@ mod node_end_rows {
                 "σ {sigma}: one span reaching 1.01 of the cap {cap:e} refuses at the node: {past:?}"
             );
         }
+    }
+}
+
+/// The search's limb 2 on the edge certificate's reader: what reading
+/// the surface's carrier rather than a face changes, and what the
+/// reader's enclosure-valued coefficients admit.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod one_reader_rows {
+    use std::sync::Arc;
+
+    use geom::{Curve3, Frame, NurbsCurve3, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Interval, Point3, Vec3};
+
+    use crate::pcurve_cache::projected::Offset;
+    use crate::pcurve_cache::{Limb2Locus, limb2_offset_sup};
+
+    /// The segment from `a` to `b` as a degree-1 spline on `[0, 1]`.
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> Curve3<f64> {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(knots, vec![a, b], vec![1.0; 2]).unwrap(),
+        ))
+    }
+
+    /// **A search reads a cone as the double cone**: a ruling through
+    /// the apex runs from `z = −1` on the mirror nappe to `z = 1` on the
+    /// opening one. Read against the carrier it lies on the cone, the
+    /// part at the apex read by `√|f|`; read against a face, its middle
+    /// sits at the apex and names no nappe, so the reading refuses.
+    ///
+    /// Red against: a carrier reading that asks the face's nappe.
+    #[test]
+    fn a_search_reads_a_cone_as_the_double_cone() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let half_angle: f64 = 0.5;
+        let cone = Surface::Cone {
+            frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let on = |z: f64| Point3::new(z * half_angle.tan(), 0.0, z);
+        let ruling = segment(on(-1.0), on(1.0));
+        let carrier =
+            limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Carrier, band).unwrap();
+        let Offset::Bound(bound) = carrier.offset else {
+            panic!("the double cone holds the ruling: {carrier:?}");
+        };
+        assert!(bound <= band.zero(), "the ruling's bound {bound:e} clears");
+        let face = limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Face, band);
+        assert!(
+            face.is_err(),
+            "a face's nappe is not named at the apex: {face:?}"
+        );
+    }
+
+    /// **The double cone's lever is `|z|`'s**: a segment `δ = 10⁻⁷` m off
+    /// the mirror nappe, far from the apex, read against the carrier. The
+    /// lever `ρ cos α + |z| sin α` is large there and the bound is the
+    /// offset itself; the opening nappe's `ρ cos α + z sin α` vanishes on
+    /// the mirror generator, and its fallback `√|f|` reads about 3·10⁻⁴.
+    ///
+    /// Red against: the double cone read with a nappe's `σz`.
+    #[test]
+    fn the_double_cones_lever_reads_the_mirror_nappe() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let half_angle: f64 = 0.5;
+        let cone = Surface::Cone {
+            frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let delta = 1e-7;
+        let off = |z: f64| Point3::new(z * half_angle.tan() - delta, 0.0, z);
+        let segment = segment(off(-1.5), off(-0.5));
+        let read =
+            limb2_offset_sup(&segment, (0.0, 1.0), &cone, Limb2Locus::Carrier, band).unwrap();
+        let Offset::Bound(bound) = read.offset else {
+            panic!("the double cone bounds the segment: {read:?}");
+        };
+        let distance = delta * half_angle.cos();
+        assert!(
+            (0.5 * distance..=4.0 * distance).contains(&bound),
+            "the bound {bound:e} is the offset {distance:e}"
+        );
+    }
+
+    /// **A widened plane certifies as the family it is**: at `Interval`
+    /// a plane whose normal encloses a turn of 10⁻¹² rad (far wider than
+    /// a frame's rounding) and a segment on its nominal plane. The
+    /// search's analytic limbs pass, their bound covering what the turn
+    /// moves the segment's far end by and no more than ten times it; a
+    /// segment lifted a micron off refuses on its measured miss.
+    ///
+    /// Red against: an operand read at a midpoint or refused as widened.
+    #[test]
+    fn a_widened_plane_certifies_as_the_family_it_is() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = |x: f64| Interval::from_bounds(x, x);
+        let turn = 1e-12;
+        let plane = Surface::Plane {
+            frame: Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(Interval::from_bounds(-turn, turn), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
+        };
+        let at = |z: f64| {
+            segment(Point3::new(0.0, 0.0, z), Point3::new(2.0, 0.0, z))
+                .map_scalar(<Interval as geom_core::Real>::from_f64)
+        };
+        let mut refused = super::Refused::default();
+        let (_, sup) =
+            super::analytic_limbs(&at(0.0), (p(0.0), p(1.0)), &plane, band, &mut refused)
+                .unwrap_or_else(|e| panic!("the family holds the segment: {e:?}"));
+        let sup = geom_core::Bounds::hi(sup);
+        assert!(
+            (2.0 * turn..=20.0 * turn).contains(&sup),
+            "the bound {sup:e} reads the family's spread at the far end"
+        );
+        let mut refused = super::Refused::default();
+        let off = super::analytic_limbs(&at(1e-6), (p(0.0), p(1.0)), &plane, band, &mut refused);
+        assert!(off.is_err(), "a micron off refuses: {off:?}");
+        assert!(!refused.spans.is_empty(), "the refusal is located");
     }
 }

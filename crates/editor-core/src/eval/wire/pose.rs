@@ -168,6 +168,57 @@ pub(crate) fn eval_posed<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     Ok(value.through(read.role))
 }
 
+/// **The frame a profile drawn on `read` stands in**, as its frame seat
+/// reads it: a face's chart read bare, undecided, its plane read as a
+/// placement's target reads it; any other frame pose bound as
+/// [`eval_pose`] binds it, which refuses a chart read inside it.
+///
+/// # Errors
+///
+/// As [`eval_pose`].
+pub(crate) fn on_frame<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: VarId,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<super::trace::OnFrame<T>, NodeErrorKind> {
+    use super::trace::{DrawnFrame, OnFrame};
+    let slot = OperandSlot::Frame;
+    let Some(VarDef::Pose(PoseDef::FaceChart {
+        face,
+        orient,
+        spin,
+        slides: [a, c],
+    })) = doc.var(read).map(crate::Var::def)
+    else {
+        let PoseValue::Frame(frame) =
+            eval_pose(doc, results, slot, RoleRead { read, role: None }, env, tol)?
+        else {
+            unreachable!("the frame seat admits a frame alone")
+        };
+        return Ok(OnFrame::Drawn(DrawnFrame::Posed(std::sync::Arc::new(
+            frame,
+        ))));
+    };
+    let scalar = |var: VarId, dim| {
+        eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
+    };
+    let b = band(tol)?;
+    let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
+    let spin = (
+        scalar(*spin, crate::expr::Dimension::Angle)?,
+        env.turns.get(spin).copied(),
+    );
+    let slides = [
+        scalar(*a, crate::expr::Dimension::Length)?,
+        scalar(*c, crate::expr::Dimension::Length)?,
+    ];
+    Ok(OnFrame::Chart(crate::mate::value::FaceChart::new(
+        to, *orient, spin, slides,
+    )))
+}
+
 /// **A pose read bound against an evaluation's results**, with no
 /// reader seat: what a report over the document's pose variables reads
 /// ([`crate::mate::unobservable()`]). Its refusals name no seat a reader
@@ -284,7 +335,10 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             // frame the profile is drawn on, where it is drawn on one.
             Ok(Posed {
                 value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
-                frame: drawn.frame.clone().unwrap_or(Frame::Own),
+                frame: drawn
+                    .frame
+                    .as_ref()
+                    .map_or(Frame::Own, |d| d.frame().clone()),
             })
         }
         // A read the door would have refused, in a document built past
@@ -425,25 +479,13 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             let first = pose(read)?;
             in_frame(first.frame, flip(first.value, b)?)
         }
-        // The chart a plane placement onto the face gives, in the face's
-        // space: the face's plane read as a placement's target reads it.
-        PoseDef::FaceChart {
-            face,
-            orient,
-            spin,
-            slides: [a, c],
-        } => {
-            let to = read_off(doc, (results, env), slot, *face, K::Plane, b)?.in_its_space(b)?;
-            let angle = (
-                scalar(*spin, crate::expr::Dimension::Angle)?,
-                env.turns.get(spin).copied(),
-            );
-            let slides = [
-                scalar(*a, crate::expr::Dimension::Length)?,
-                scalar(*c, crate::expr::Dimension::Length)?,
-            ];
-            let chart = crate::mate::value::face_chart(to, *orient, angle, slides, b, tol)?;
-            in_frame(Frame::Own, PoseValue::Frame(chart))
+        // A face's chart is read in a profile's frame seat alone
+        // (`on_frame`), where what stands in it is carried over its own
+        // reach; read anywhere else it would carry geometry unlevered.
+        PoseDef::FaceChart { .. } => {
+            return Err(NodeErrorKind::PoseDegenerate {
+                construction: PoseConstruction::FaceChartUnseated,
+            });
         }
         // The pose as its copy carries it: its frame moved by the motion
         // the copy's placement solved to, the pose itself unchanged.

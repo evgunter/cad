@@ -550,10 +550,8 @@ fn square() -> Surface<f64> {
 fn a_sphere_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
     let s = read(
         &Surface::Sphere {
-            center: p(0.5, -0.3, 0.0),
+            frame: geom::Frame::new(p(0.5, -0.3, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: 0.5,
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         &square(),
     );
@@ -573,9 +571,7 @@ fn a_cylinder_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
     let s = read(
         &square(),
         &Surface::Cylinder {
-            origin: p(0.5, -0.1, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p(0.5, -0.1, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: 0.3,
         },
     );
@@ -598,10 +594,8 @@ fn a_spline_wall_touching_a_sphere_is_read_as_a_touch() {
     let s = read(
         &dome(),
         &Surface::Sphere {
-            center: p(0.5, 0.5, 1.0),
+            frame: geom::Frame::new(p(0.5, 0.5, 1.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: 1.0,
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
         },
     );
     let Section::Touch(t) = &s else {

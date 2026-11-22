@@ -43,9 +43,7 @@ fn band() -> Band {
 /// the plane whose normal is `+x` standing `D` off the centre.
 fn carrier() -> Curve3<f64> {
     Curve3::Spiric {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: R,
         minor_radius: RR,
         offset: D,
@@ -55,11 +53,9 @@ fn carrier() -> Curve3<f64> {
 /// The carrier's own torus, as a chart.
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: R,
         minor_radius: RR,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -68,9 +64,11 @@ fn torus() -> Surface<f64> {
 /// along.
 fn cap_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(D, 0.0, 0.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y().cross(Vec3::unit_x()),
+        frame: geom::Frame::new(
+            Point3::new(D, 0.0, 0.0),
+            Vec3::unit_x(),
+            Vec3::unit_y().cross(Vec3::unit_x()),
+        ),
     }
 }
 
@@ -100,11 +98,13 @@ fn wall_image(u0: f64, sense: f64, torus: WallTorus, v0: f64) -> Pcurve<f64> {
 /// `2D` along `n = +x`, the same axis and radii.
 fn mirror_torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(2.0 * D, 0.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(2.0 * D, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
         major_radius: R,
         minor_radius: RR,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -298,8 +298,9 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
             "center",
             inside,
             drifted(&move |s| {
-                if let Surface::Torus { center, .. } = s {
-                    *center = Point3::new(center.x, center.y + inside, center.z);
+                if let Surface::Torus { frame, .. } = s {
+                    let center = frame.origin();
+                    *frame = frame.with_origin(Point3::new(center.x, center.y + inside, center.z));
                 }
             }),
         ),
@@ -307,8 +308,12 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
             "tilt",
             0.0,
             drifted(&move |s| {
-                if let Surface::Torus { axis, .. } = s {
-                    *axis = Vec3::new(0.25 * eps / ARM, 1.0, 0.0).normalize();
+                if let Surface::Torus { frame, .. } = s {
+                    *frame = geom::Frame::new(
+                        frame.origin(),
+                        Vec3::new(0.25 * eps / ARM, 1.0, 0.0).normalize(),
+                        frame.u_ref(),
+                    );
                 }
             }),
         ),
@@ -348,8 +353,10 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
         (
             "center",
             drifted(&move |s| {
-                if let Surface::Torus { center, .. } = s {
-                    *center = Point3::new(center.x, center.y + definite, center.z);
+                if let Surface::Torus { frame, .. } = s {
+                    let center = frame.origin();
+                    *frame =
+                        frame.with_origin(Point3::new(center.x, center.y + definite, center.z));
                 }
             }),
         ),
@@ -492,28 +499,22 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
         (
             "cylinder",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
                 radius: R,
-                u_ref: Vec3::unit_x(),
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
                 half_angle: 0.5,
-                u_ref: Vec3::unit_x(),
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
                 radius: R,
-                axis: Vec3::unit_y(),
-                u_ref: Vec3::unit_x(),
             },
         ),
     ] {
@@ -530,11 +531,9 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     // the torus this spiric sections: the sign the wall rides has no
     // answer there, so the mint refuses rather than picking one.
     let perpendicular = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: R,
         minor_radius: RR,
-        u_ref: Vec3::unit_x(),
     };
     let e = geom_brep::chart_pcurve(&c, &perpendicular, band())
         .unwrap_err_or_else_msg("perpendicular torus");
@@ -558,16 +557,20 @@ fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
     use geom_brep::IncidenceRead;
     use geom_core::{Interval, Real};
     let moved = Surface::Plane {
-        origin: Point3::new(D + 1e-3, 0.0, 0.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y().cross(Vec3::unit_x()),
+        frame: geom::Frame::new(
+            Point3::new(D + 1e-3, 0.0, 0.0),
+            Vec3::unit_x(),
+            Vec3::unit_y().cross(Vec3::unit_x()),
+        ),
     };
     let neither = Surface::Torus {
-        center: Point3::new(4.0 * D, 0.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(4.0 * D, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
         major_radius: R,
         minor_radius: RR,
-        u_ref: Vec3::unit_x(),
     };
     let lift = Interval::from_f64;
     for (what, surface, why) in [
@@ -685,11 +688,13 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
         );
     }
     let neither = Surface::Torus {
-        center: Point3::new(4.0 * D, 0.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(
+            Point3::new(4.0 * D, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+        ),
         major_radius: R,
         minor_radius: RR,
-        u_ref: Vec3::unit_x(),
     };
     for (what, image) in [("own", own), ("mirror", mirrored)] {
         let e = certify(image, &neither, band()).unwrap_err_or_else_msg(what);
@@ -731,11 +736,9 @@ fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
     let (eps, k) = (tol().eps(), tol().k());
     let (inside, past) = (2.0 * eps, 3.0 * k * eps);
     let chart = |center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64| Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let mirror = Point3::new(2.0 * D, 0.0, 0.0);
     let tilted = (Vec3::unit_y() + Vec3::unit_z() * (past / ARM)).normalize();
