@@ -116,9 +116,9 @@ pub use checks::at_rest::{
     PinnedDoc, Route, Unlocalized,
 };
 pub use checks::{
-    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 pub use coincide::{
     CitedInput, NamedCell, NamedCoincidence, Proof, Residual, RowOrigin, Rung, Unreplayed,

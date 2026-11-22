@@ -4591,9 +4591,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "at_rest",
             "carried_coincidence",
             "carried_interference",
-            "chart_coherence",
-            "chart_coherence_unavailable",
-            "chart_coherence_unexamined",
             "connectedness",
             "escalated",
             "interference",
@@ -4613,15 +4610,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "coherence_condition_tag",
-        values: &[
-            "meridian_closure",
-            "meridian_continuation",
-            "rim_continuation",
         ],
         delegates: &[],
     },
@@ -6114,6 +6102,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_loop",
             "folded_triangle",
             "invalid_chordal_tolerance",
+            "lifted_column_off",
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
@@ -6195,16 +6184,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unbuilt_end_run_out",
             "unbuilt_end_seam",
             "unbuilt_end_valence",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "unexaminable_tag",
-        values: &[
-            "corrupt",
-            "empty_loop",
-            "non_iso_carrier",
-            "null_scaffold_edge",
         ],
         delegates: &[],
     },
@@ -6436,7 +6415,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // other, so no pin is owed.
     ("coaxial", 2),
     ("containment", 2),
-    ("corrupt", 3),
+    ("corrupt", 2),
     ("cosurface_escalated", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
@@ -6475,10 +6454,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty", 2),
     ("empty_boolean", 2),
     // Shared by coincidence: the profile validator's word for a loop
-    // authored with no vertex. Shared as one fact: the tessellator and the
-    // coherence check each name a body face's lone-vertex (scaffolding)
-    // loop with it.
-    ("empty_loop", 3),
+    // authored with no vertex, and the tessellator's for a body face's
+    // lone-vertex (scaffolding) loop.
+    ("empty_loop", 2),
     // One fact: the extrude, the revolve and the loft or path sweep each
     // refuse a profile with no loops at their own door;
     // `an_empty_profile_is_one_word_at_every_sweep` pins them.
@@ -6545,7 +6523,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // result: an operation's node, and the extrude, revolve, loft and
     // blend doors, each refusing a result whose finish found findings.
     ("not_finished", 5),
-    ("null_scaffold_edge", 3),
+    ("null_scaffold_edge", 2),
     // A coincidence: a coincidence record's relation of a point lying
     // on a carrier, and a sketch piece lying on the carrier it would
     // cross (`trace_step_fault_tag`).

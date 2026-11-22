@@ -550,18 +550,12 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `run_checks_on` is the registry over a `Subject` the caller gathered
 // — the door `run_checks` wraps, for a caller that already holds the
 // document's product.
-// `ChartCoherenceLane` is a BOUND on both registry doors, so it is
-// nameable by necessity: a caller writing its own function generic
-// over the decision lane has to spell it. The trait says which lanes
-// carry a chart-coherence examination — `f64` does, and a lane that
-// does not reports that as a finding rather than as a clean body.
 // `Unused` is what `Doc::unused` answers: the tips the `unused` check
 // reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
-    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
-    subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject, Unused,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of

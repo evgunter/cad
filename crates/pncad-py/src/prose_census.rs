@@ -1839,15 +1839,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "a positional `{:?}` over an expression this census does not type",
     ),
-    (
-        "crates/editor-core/src/checks.rs",
-        "SaidFinding",
-        "at",
-        1,
-        "`at` is bound by `Unexaminable::Corrupt { at }` in a `match` on \
-         `unexamined.why`, a field of a nested binding, which this census does \
-         not type (its type, `topo::StructureRead`, is unit-only)",
-    ),
     // Pinned red, not yet a reason: CertifyError's `check` read
     // (`work/splice/main-red-prose-census-cannot-decide-certify-errors-check.md`).
     (

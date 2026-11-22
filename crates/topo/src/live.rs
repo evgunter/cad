@@ -1710,7 +1710,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             ("entity.rs", "the order's home"),
             ("live.rs", "the walks' home"),
             ("validate.rs", "the validator reports every miss"),
-            ("coherence.rs", "the chart coherence check reports a miss"),
             (
                 "census.rs",
                 "the tier-3 census hands an unwalkable loop back",
