@@ -49,3 +49,16 @@ are joined as the larger bound. Alternatively, bound the double cone's
 
 No product path is known to state a net through a cone's apex: a
 revolve's apex edges are lines.
+
+
+## 2026-11-21 — the double-cone reading exists (SECTCONE)
+
+`sectcone/one-limb-two-reader` gave the reader a nappe-free cone arm:
+`projected::Meters::Cone { nappe: None }`, the lever
+`ρ cos α + |z|_min sin α` with the lesser of it and `√|f|` taken
+(`Meters::certified`), read by the search through
+`pcurve_cache::limb2_carrier_read`
+(`ssi::certify::one_reader_rows::a_search_reads_a_cone_as_the_double_cone`
+reads a ruling through the apex on). The edge door still reads the
+face's nappe (`limb2_offset_sup`), so this row's net still ends in the
+lever there; the fix's second alternative is now that arm.
