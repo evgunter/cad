@@ -650,7 +650,7 @@ fn review_a_positive_offset_runs_out_of_a_mirrored_face() {
     let plane = common::displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
     let out = session.perform(SessionOp::AddMirror {
         body: base.into(),
-        plane,
+        plane: viewer::session::ToolPlane::Face(plane),
     });
     assert!(out.refusal.is_none(), "mirror: {:?}", out.refusal);
     session.pump();
