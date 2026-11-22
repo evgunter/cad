@@ -1035,8 +1035,8 @@ pub enum SelfCheck {
     RingWinding,
     /// Which way a one-vertex seam edge runs against its partner
     /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two
-    /// halves leave one point along one conic, so a tangent too short
-    /// to read is a degenerate seam.
+    /// halves leave one point along one conic, so a cosine of their
+    /// directions read in band is a degenerate seam.
     SeamSense,
 }
 

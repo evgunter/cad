@@ -1087,7 +1087,9 @@ fn align<T: Decide>(
 /// at that site, so a co-wound ring half there leaves the right vertex
 /// and arrives at the right one too. The paired halves must run against
 /// each other along their carriers there, read off their tangents at the
-/// site (`bool_zip_one_vertex_sense`); a half that runs with the outer
+/// site (`bool_zip_one_vertex_sense`): the cosine of the two directions,
+/// levered by the outer half's conic's extent, so the reading is a
+/// length at every scale of the conic. A half that runs with the outer
 /// one is [`BooleanError::SeamOrientation`]. A half between two vertices
 /// is [`align`]'s and passes.
 fn one_vertex_sense<T: Decide>(
@@ -1104,8 +1106,8 @@ fn one_vertex_sense<T: Decide>(
         return Ok(());
     }
     // The tangent a half leaves its start along: its carrier's at the
-    // start parameter, reversed on the minus half.
-    let leaving = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+    // start parameter, reversed on the minus half; and its conic's arm.
+    let leaving = |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, geom_core::Lever<T>), BooleanError> {
         let edge = body
             .get_half_edge(he)
             .ok_or_else(|| corr("seam half-edge no longer resolves"))?
@@ -1118,14 +1120,17 @@ fn one_vertex_sense<T: Decide>(
             .certified()
             .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
         let (t0, t1) = curve.params();
-        Ok(if data.he_plus == he {
+        let tangent = if data.he_plus == he {
             curve.carrier().deriv(t0)
         } else {
             -curve.carrier().deriv(t1)
-        })
+        };
+        let arm = geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever();
+        Ok((tangent.normalize(), arm))
     };
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
-    let margin = geom_core::Margin::of(leaving(outer)?.dot(leaving(ring)?));
+    let ((out_dir, arm), (ring_dir, _)) = (leaving(outer)?, leaving(ring)?);
+    let margin = geom_core::Margin::levered(out_dir.dot(ring_dir), arm);
     match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
         Ok(geom_core::Sign::Negative) => Ok(()),
         Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),

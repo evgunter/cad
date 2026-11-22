@@ -417,6 +417,30 @@ fn a_flipped_tilted_face_is_refused_by_name() {
     }
 }
 
+/// **The pair the flipped-remnant row reads joins under every op**: B
+/// offset `(0.6, 1.2)` from A, its section circle meeting the two
+/// balls' seams at one site. Each op is a valid solid of its closed-form
+/// volume; meshing it is the trimmed sphere lane's question
+/// (`work/lathe/a-sphere-remnant-that-keeps-its-seam-refuses-to-mesh-as-seam-twice.md`).
+#[test]
+fn the_pair_swallowing_a_pole_joins_under_every_op() {
+    let offset = Vec3::new(0.6, 1.2, 0.0);
+    let (a, b) = (ball(1.0, BASE), ball(1.0, BASE + offset));
+    let shared = lens_volume(1.0, 1.0, offset.norm());
+    for (label, op, x, y, expected) in [
+        ("A ∪ B", BooleanOp::Union, &a, &b, 2.0 * ball_volume(1.0) - shared),
+        ("A ∩ B", BooleanOp::Intersect, &a, &b, shared),
+        ("A ∖ B", BooleanOp::Subtract, &a, &b, ball_volume(1.0) - shared),
+    ] {
+        let out = run(op, x, y).unwrap_or_else(|e| panic!("{label} refused: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("{label} came back empty"))
+            .body;
+        assert_solid(label, body, expected);
+    }
+}
+
 /// **A remnant face that keeps one pole and loses the other encodes its
 /// side.** With B offset `(0.6, 1.2)` from A, B swallows A's north pole,
 /// so A's remnant faces in `A ∪ B` keep the south pole on their loop
