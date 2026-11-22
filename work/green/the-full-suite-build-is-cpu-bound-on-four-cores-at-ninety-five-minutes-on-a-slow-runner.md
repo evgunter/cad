@@ -26,8 +26,21 @@ min, against 114-118 min before. Its build step still took 96 min:
   min.
 
 On the faster runner of probe run 44976645461, the same configuration
-built in 73 min. So on a slow runner the margin is about 22 min, and it
-shrinks as editor-core and sweep grow.
+built in 73 min. So on a slow runner the margin is about 22 min. That run
+also restored no dependency cache, so a normal night is a little faster.
+
+**Trend.** On slow runners `build and archive` took 89 min (11-07), 97
+(11-13), then 100-105 (11-17 to 11-21), before this change took about 10
+min off it. Runner speed confounds that series by up to 1.5x, so the rate
+is between nothing and about 1 min a day. At the top of that range, 22
+min lasts about three weeks.
+
+**Band.** P2. A build-step timeout costs every eps leg its run, which is
+the P1 harm of the shutdown row, so this cannot wait for the next charter.
+But the runway is weeks, not days, and
+`the-nightly-build-job-holds-over-five-scheduled-main-nights` reads the
+build step's time on every one of its five nights. If those show the
+margin under 10 min, raise this to P1.
 
 ## What would settle it
 

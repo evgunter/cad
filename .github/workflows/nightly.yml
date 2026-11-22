@@ -524,7 +524,10 @@ jobs:
     # execution (docs/perf-data/opt-level, 2026-09-27: 1859 s against
     # 2053 s). The PR gate, where the build dominates, keeps its libraries
     # at opt-1 and builds its integration-test binaries at opt-0
-    # (scripts/rustc-test-crates-opt0.sh).
+    # (scripts/rustc-test-crates-opt0.sh). Three leaf crates are the
+    # exception here: viewer, pncad and pncad-py build at opt-1 (the step
+    # that says so, below). The env block is topo-scalpel's too, since both
+    # restore `nightly-opt2` (scripts/gates/build-default-env-agrees.sh).
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -548,11 +551,13 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ steps.nextest.outputs.version }}
-      # The build peaks with two or three 5-6 GB rustc processes at once (the
-      # editor-core and sweep integration binaries, topo's unit-test harness):
-      # on the runner's 16 GB that leaves under 1 GB available and fills its
-      # 3 GB of swap, and a runner out of both is shut down mid-compile. More
-      # swap on the free disk lets the peak page out instead.
+      # Measured (2026-11-22): the build peaks with two or three 5-6 GB rustc
+      # processes at once (the editor-core and sweep integration binaries,
+      # topo's unit-test harness), leaving 0.8-1.4 GB of the runner's 16 GB
+      # available and up to all of its 3 GB of swap in use; with this step
+      # the same build used up to 6.4 GB of swap. That the kills which land
+      # in this window are this exhaustion is a correlation, not a caught
+      # kill. The swap goes on the free disk so the peak can page out.
       - name: add 12 GB of swap
         run: |
           sudo fallocate -l 12G /nightly.swap
@@ -560,28 +565,44 @@ jobs:
           sudo mkswap /nightly.swap
           sudo swapon /nightly.swap
           free -m
-      # viewer, pncad and pncad-py build at opt-level 1: at 2 they are about
-      # 70 of the build's 410 unit-minutes and run about a minute of tests.
-      # In CARGO_HOME's config, so every cargo step below agrees and none
-      # rebuilds them.
+      # viewer, pncad and pncad-py build at opt-level 1: it takes about 55 of
+      # the build's 330-410 unit-minutes off (about 13 min on 4 cores), and
+      # their tests run about a minute at either level. In CARGO_HOME's
+      # config, so every cargo step below agrees and none rebuilds them. A
+      # name here that is no workspace package reds this step; a package
+      # spec cargo still finds unmatched reds the build step.
       - name: the leaf crates build at opt-level 1
         run: |
+          set -o pipefail
+          cargo metadata --no-deps --format-version 1 | python3 -c '
+          import json, sys
+          have = {p["name"] for p in json.load(sys.stdin)["packages"]}
+          missing = [p for p in sys.argv[1:] if p not in have]
+          if missing:
+              sys.exit(f"::error::no workspace package named {missing}: the opt-1 override would apply to nothing")
+          ' viewer pncad pncad-py
           for p in viewer pncad pncad-py; do
             for prof in dev test; do
               printf '[profile.%s.package."%s"]\nopt-level = 1\n' "$prof" "$p"
             done
           done >> "$CARGO_HOME/config.toml"
           cat "$CARGO_HOME/config.toml"
-      # The sampler's lines are in this step's log, the one record a runner
-      # shut down mid-step leaves.
+      # The sampler writes to this step's log, which an exit-143 shutdown
+      # keeps and a lost-communication one does not (scripts/ci-resource-sampler.sh).
       - name: build and archive every test binary
         id: build
         run: |
+          set -o pipefail
           scripts/ci-resource-sampler.sh 60 &
           sampler=$!
           rc=0
-          cargo nextest archive --workspace --timings --archive-file "$RUNNER_TEMP/full-suite.tar.zst" || rc=$?
+          cargo nextest archive --workspace --timings --archive-file "$RUNNER_TEMP/full-suite.tar.zst" 2>&1 \
+            | tee "$RUNNER_TEMP/build.log" || rc=$?
           kill "$sampler" || true
+          if grep -F 'did not match any packages' "$RUNNER_TEMP/build.log"; then
+            echo "::error::a [profile.*.package] override matched no package, so its crates built at opt-2"
+            rc=1
+          fi
           exit "$rc"
       - name: upload the build's per-unit timings
         if: '!cancelled()'
@@ -630,7 +651,8 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
   # Its own job so its rebuild of topo is off the build job's clock and the
-  # eps rows do not wait for it.
+  # eps rows do not wait for it. Its env block is full-suite-build's, so
+  # both hash to one `nightly-opt2` key (scripts/gates/build-default-env-agrees.sh).
   topo-scalpel:
     name: the per-op postcondition scalpel (topo)
     runs-on: ubuntu-latest
