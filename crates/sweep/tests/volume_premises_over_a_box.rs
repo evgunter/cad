@@ -230,6 +230,32 @@ fn a_boxed_curved_wall_reads_a_volume_that_holds_every_members() {
     }
 }
 
+/// **A plane's term is read by the plane's own formula at every scalar**
+/// (`quad_lane::planar_face_about`: its distance along its stored normal
+/// times its loops' area, widened by their tilt off it), never off the
+/// walk's sums: the drum's two caps, over the box, at the symbolic
+/// scalar, where its wall is read off the walk. The volume is today's to
+/// nine digits.
+///
+/// Red where `walked_closed_form` reads a plane off the walk at an
+/// exact-witness scalar: the volume reads `[1.7414568, 2.4221352]`,
+/// narrower and still holding every member. Whether a plane may be read
+/// so is `work/boxfinish/check-7s-volume-reading-is-loose-over-a-box.md`'s
+/// to decide, and this row moves with that decision.
+#[test]
+fn a_planes_term_is_read_by_its_own_formula_over_a_box() {
+    let tol = Tol::witness();
+    boxed(|param| {
+        let (body, _) = fixture::<Boxed>(Wall::Cylinder, param("boxed", R - HALF, R + HALF), tol);
+        let (_, (lo, hi)) = volume_role_reading(&body, tol).unwrap();
+        let today = (1.533_883_257_988_087_7, 2.629_708_755_722_636_4);
+        assert!(
+            (lo - today.0).abs() <= 1e-9 && (hi - today.1).abs() <= 1e-9,
+            "the drum's boxed volume reads [{lo}, {hi}], not {today:?}"
+        );
+    });
+}
+
 /// **Where both read, the walk's sums are the closed form run again, to
 /// the bit**: every curved face's flux and area, over a box an eighth of
 /// `ε` wide (inside the band, so the lifted run decides its premises),
