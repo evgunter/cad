@@ -116,3 +116,27 @@ a pick route checks its own seats against that doc.
 - **Review tiers dispatched:** held-pick full, seat-vocab style with
   correctness claims (its commit-withholding is a behaviour change),
   and refused-entry, denotes-body and mirror-plane full.
+
+## 2026-11-22 — reviews in; two P0s found
+
+(FORMWORDS orchestrator)
+- **PR 7379 (denotes-body)** was not mergeable: its merged head did
+  not compile, and its review found an evaluator panic.
+  `split_port` hits `unreachable!` on a split of a family that a
+  placement reads, which an ordinary split gesture reaches. Claimed
+  `a-split-of-a-family-has-no-halves-a-read-reaches` from REFS at P0
+  and dispatched `formwords/split-of-family` (dual review). The same
+  review found that the subtract tool seat cuts once per member when
+  handed a pattern whole (N plates, one hole each). Filed
+  `a-subtract-tool-seat-takes-a-whole-family-and-cuts-once-per-member`
+  (P0, design), and two designers are weighing it.
+- **PRs 7376, 7374 and 7378** are mergeable, each with a fix pass
+  running.
+- **Class: the slow-set rule is judged at CI speed.** Lanes timed rows
+  locally at opt-0 and over-applied the 0.5 s bar. CI's
+  `check-fast-set-times` is the instrument, and briefs now say so.
+- **Class: a test whose premise excludes the failing mode.** Two
+  reviews (7374, 7379) found rows that a mutation of the very gate
+  they name leaves green. Each review's mutations were the instrument
+  that caught it; future briefs ask reviewers for one mutation per new
+  gate row.
