@@ -150,7 +150,6 @@ fn a_boxed_lofts_placements_finish_at_the_walks_take() {
     // here, so the row reads the connectedness walk alone.
     let cfg = ChecksConfig {
         at_rest: editor_core::Severity::Off,
-        chart_coherence: editor_core::Advisory::Off,
         unproven_coincidence: editor_core::Advisory::Off,
         unused: editor_core::Advisory::Off,
         ..ChecksConfig::default()

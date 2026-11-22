@@ -911,7 +911,12 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is the edge's wedge as tier 3 reads it, one reading for
+  both: an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision. A cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1164,7 +1169,12 @@ adding a variant and letting the compiler enumerate every dispatch
 site. A kind is a locus with one chart shape: its chart, implicit
 residual and normal agree at every point, and which of its chart's
 coordinates are periodic and which points are singular is fixed by the
-kind, with no tolerance. The `Nurbs` variant is the universal fallback: any exotic surface
+kind, with no tolerance. For `Nurbs` and `Approx` (read through its fitted
+net) the kind fixes the rule, not the points: a boundary iso of the net whose control
+points are all one stored point is a chart singularity at that point, decided on the
+stored values. A constructor that decides such a side collapsed at its band builds it
+exactly one point; a side that is tiny but not one point is a regular chart with a
+short edge. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
@@ -1199,6 +1209,9 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    locus) is made exact by one construction from a closed catalogue,
    solving each connected class of such relations jointly; where the
    construction is symmetric, the record earlier in the file stays.
+   A net side whose control points read one point at the file's band is
+   made exactly that point, the first control point in file order
+   (**Extensibility**, above: a spline chart's singular set is read off its net).
    Each move is reported. A relation no catalogue construction makes
    exact, an edge whose description the kernel cannot construct, and
    data no description satisfies within ε_in fail loudly, naming the
@@ -2194,8 +2207,7 @@ swallowed.
   firing one reads as evidence (`geom_brep::props::quad`'s area gauge
   is the precedent; an uncalibrated ceiling was once off by nine
   orders). Where the measured condition is reachable by input, the
-  preferred disposition is a reported value, not a tripwire
-  (`topo::coherence`).
+  preferred disposition is a reported value, not a tripwire.
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
