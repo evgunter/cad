@@ -1526,3 +1526,7 @@ Replies (all 03:09 UTC), recorded before any of them saw another:
 - **C: yes (likely); a small choice, leans to Ev's suggestion.** As A: `Real::Expression` (uninhabited at the numeric scalars, on the precedent of `Real::Carries`) and `expression()`; the question on the expression returns a proof token; the generic mint matches on `expression()` and the numeric arm is statically dead. New on main since the audit: `Real::is_exact_zero_in_every_channel` (`UnitVec3::is_exactly`, the least turn's shortcut), a second structural question read off numbers, which goes under this state.
 
 **Agreement:** on the answer to Ev (yes, a type error), all three. On the form, two shapes: an associated expression type with the question on the expression (A, C), or an inherent question with a spelling combinator on the scalar trait (B). A round follows on the form.
+
+### Round on the form (dispatched 2026-11-22 03:14 UTC)
+
+Each designer pointed at the three replies by label (`boxfinish/fork-identity-reports` at `04866acc`, `probe/fork-identity/ev2/{A,B,C}.md`, cut at `## For Ev`). The message was identical but for the label: the two shapes in a sentence each (my words); what a generic caller can do with the answer under each against the PR's licence, and what a site asking about several values looks like; nested and wrapped scalars; whether the shape extends to `register_equal` / `free_identity` and whether the text should state the principle generally; a final `For Ev` section with replacement text.
