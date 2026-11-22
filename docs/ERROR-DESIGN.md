@@ -596,6 +596,24 @@ mass has no valid build" — is not sayable about any macroscopic box.
   pass still evaluates every residual numerically at a point, so a
   constructor that fails to build what it claims is still caught
   where widening cannot hide it.
+- **The two channels are checked where an answer is returned.** A
+  definite numeric sign is the answer, and the tier is asked nothing
+  about it: no walk runs after it, in any build. Where the tier answers
+  `Zero` at an exact witness (`Sym<Interval>`), the certified enclosure
+  must contain 0, asserted in every build: a zero whose number was
+  computed by the operations its expression records cannot sit beside
+  an enclosure that excludes 0, so a firing is a defect in the algebra,
+  in an enclosure or in a registered identity. The assertion leaves out
+  the one door whose number is not its expression's
+  (`Decide::free_identity`: a measured bound beside the identity in a
+  free variable). It is not a test of the algebra: an enclosure clear
+  of the band was already definite, so it can fire only on one that
+  excludes 0 inside or across the band. Whether the algebra, or a
+  registration, would have claimed `Zero` on a margin the numbers
+  decided is a question about the kernel and never about a document.
+  A test instrument that no shipped build contains asks it, over the
+  document corpus, with the retries and the registry; no receipt
+  column counts it (DESIGN [simple.checks]).
 - **The K instrument sees it.** A symbolic `Zero` is recorded in the
   k_stats funnel as its OWN outcome (`Symbolic`), never as a
   vanished sample — the driver population E6 promised K stays
@@ -667,8 +685,10 @@ number.
   reads no value except its own witness and writes none — and the
   numeric channel runs FIRST at every decide site, so no registration
   can turn a margin the enclosure proved non-zero into a `Zero`; where
-  a registration WOULD have, the run counts the contradiction
-  (`SymCounts::registrations_contradicted`) instead of folding it away.
+  a registration would have, nothing is folded, and the tier's test
+  instrument (the two channels' bullet above) is where that is counted.
+  A registered zero that does decide is asserted against its exact
+  enclosure like any other.
 
   **What the witness is worth, stated exactly, because this clause's
   own wording ("verified at the f64 witness point") overstates it.** A
