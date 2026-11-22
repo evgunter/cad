@@ -8772,6 +8772,21 @@ mod presentation_rows {
             (&[edge(10)][..], Some(vertex(1)), edge(20)),
             "the arc, on through the vertex along the line"
         );
+        // A line that leaves the cell's own range before the columns end:
+        // from `(2, −0.2)`, it is at `u = 1.1` where `v = −0.02`. `R` is
+        // widened to hold it there, so every column of `R` holds a point
+        // of the run. Red if `R` is the cell and the curve's reach alone.
+        let steep = quarter(segment(20, [3, 1], (2.0, -0.2), (1.0, 0.0)), Vec::new());
+        let Read::Of(x, _) = on_floor(
+            &steep,
+            vec![0, 1],
+            vec![vertex(1)],
+            (0.98, 1.02),
+            (-0.02, 0.02),
+        ) else {
+            panic!("the steep reflex corner is one run");
+        };
+        assert!(x.1 >= 1.1, "R holds the line over the columns: {x:?}");
     }
 
     /// **A run's rectangle holds the line over the columns it crosses,
@@ -8824,7 +8839,11 @@ mod presentation_rows {
         let local = both_arcs();
         let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
         let x = piece_on(&s, &b, &local, 1);
-        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+        let presented = present_plane(&x, &[0], &[], band());
+        // A run is not refused with an unreadable partner: a smaller cell
+        // may read the curve alone ([`stuck`]).
+        assert!(!stuck(&x, &presented), "a run is not stuck");
+        let Ok(Presentation::Of(p)) = presented else {
             panic!("the floor is presented about (1, 0)");
         };
         let cyl = cylinder();
