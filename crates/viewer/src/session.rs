@@ -99,7 +99,7 @@ pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec}
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, PlaceTarget,
-    PlacementBase, SessionOp, SplitPlane, ValueGestureName,
+    PlacementBase, SessionOp, ToolPlane, ValueGestureName,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -3782,29 +3782,17 @@ impl DocSession {
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
-    /// its tool the plane it is handed, a picked face read as its plane
-    /// on the body it was picked on, as the mirror reads its plane.
-    /// Where something reads the target along a seen path, `above ⊔
+    /// its tool the plane it is handed ([`Self::tool_plane`]). Where something reads the target along a seen path, `above ⊔
     /// below` takes it over there ([`Takeover`]), so each `⊔` and the
     /// product show the two halves where they showed the body. Where
     /// placements read the target, `above ⊔ below` is written as well:
     /// the new body the split makes, onto which they can be re-pointed
     /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
-    fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
+    fn add_split(&self, target: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
         self.require_read(&target, NodeKindWanted::Body)?;
-        let tool = match plane {
-            SplitPlane::Face(face) => {
-                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
-                    Refusal::PickedMember {
-                        node: doc.spoken(face.node),
-                    }
-                })?;
-                RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))
-            }
-            SplitPlane::Read(read) => read.clone(),
-        };
+        let tool = self.tool_plane(plane)?;
         let takeover = self.takeover(&target)?;
         // Where placements read the body, the `⊔` is written too: what
         // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
@@ -3832,22 +3820,40 @@ impl DocSession {
         }))
     }
 
-    /// **Mirror a body across the plane of a picked face**
-    /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
+    /// **The plane a split or a mirror reads** ([`ToolPlane`]): a picked
+    /// face read as its plane on the body it was picked on, or the read
+    /// as written. A face on a member of a pattern no node holds refuses
+    /// [`Refusal::PickedMember`].
+    fn tool_plane(&self, plane: &ToolPlane) -> Result<RoleRead<Operand>, Refusal> {
+        match plane {
+            ToolPlane::Face(face) => {
+                let doc = self.committed_doc();
+                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
+                Ok(RoleRead::plain(crate::matetool::plane_of(Operand::select(
+                    on,
+                    vec![name],
+                ))))
+            }
+            ToolPlane::Read(read) => Ok(read.clone()),
+        }
+    }
+
+    /// **Mirror a body across a plane** ([`SessionOp::AddMirror`],
+    /// [`Self::tool_plane`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
     /// along a seen path ([`Takeover`]). The made node is the mirror,
     /// which the gesture's noun names: its label and the selection land
     /// there, and its rows hold what the gesture read.
-    fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
+    fn add_mirror(&self, body: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
-        let doc = self.committed_doc();
-        let (on, face) =
-            picked_body(doc, self.evaluation(), plane).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(plane.node),
-            })?;
+        let plane = self.tool_plane(plane)?;
         let takeover = self.takeover(&body)?;
-        let node = combine::mirror_node(body.clone(), on, face);
+        let node = Node::mirror(body.clone(), plane);
         Ok(taking_over(takeover, move |run| {
             let image = run.insert(node)?;
             // The body FIRST: a union keeps its first member's carrier

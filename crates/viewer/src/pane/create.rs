@@ -1442,9 +1442,9 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));
     }
 
-    /// The mirror tool's panel: the body and the face it is reflected
+    /// The mirror tool's panel: the body and the plane it is reflected
     /// across, held as picks ([`crate::combine::MirrorTool`]), and the
-    /// one committed edit.
+    /// one committed edit, withheld while a pick is missing.
     pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.mirror().cloned() else {
             return self.tool_door(ui, ToolKind::Mirror);
@@ -1468,7 +1468,9 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.tool_commit_row(ui, ToolKind::Mirror, None, |_, _| Ok(tool.op()?));
+        let op = tool.op();
+        let blocked = op.as_ref().err().map(ToString::to_string);
+        self.tool_commit_row(ui, ToolKind::Mirror, blocked.as_deref(), |_, _| Ok(op?));
     }
 
     /// **The Transform tool's panel**: its one pick, which opens the

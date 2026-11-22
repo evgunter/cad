@@ -74,7 +74,7 @@ vocabulary! {
         /// The projection tool (it authors a `Node::Part`): one split or
         /// one pattern, and which body of it.
         Part,
-        /// The mirror tool: a body and the face it is reflected across.
+        /// The mirror tool: a body and the plane it is reflected across.
         Mirror,
         /// The clearance tool: a requirement's two seats, a body or a
         /// face each.
@@ -310,8 +310,7 @@ pub enum ToolNotice {
     /// target — its own event vocabulary, which is about a SET rather
     /// than about seats.
     Blend(BlendEvent),
-    /// The mirror tool lost its plane — a face, which survives by
-    /// resolving rather than by seat.
+    /// The mirror tool lost its plane, a face or a variable.
     Mirror(PlaneEvent),
     /// The split tool lost its plane, a face or a variable.
     Split(PlaneEvent),
@@ -881,8 +880,9 @@ impl Tools {
     /// faces, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
-    /// that minted it), the mirror tool takes a face as its plane and a
-    /// tree click as its body (`MirrorTool::pick_plane`), and every
+    /// that minted it), the split and mirror tools take a face or a
+    /// plane variable as their plane and a tree click as their body
+    /// (`SplitTool::feed`, `MirrorTool::feed`), and every
     /// seated tool takes [`Selection::seat_node`] — a tree click directly, a face or edge
     /// pick as the node whose drawn body the ray met.
     ///
@@ -939,11 +939,7 @@ impl Tools {
                 Some(OpenTool::Boolean(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
-                Some(OpenTool::Split(tool)) => match selection {
-                    Selection::Face(face) => tool.pick_plane(doc, face.clone()),
-                    Selection::Variable(var) => tool.pick_defined(doc, *var),
-                    _ => on_node_pick(selection, |node| tool.pick(doc, node)),
-                },
+                Some(OpenTool::Split(tool)) => tool.feed(doc, selection),
                 Some(OpenTool::Transform(tool)) => {
                     let opened = match selection {
                         Selection::Face(face) => Some(MateTool::moving_picked(doc, face.clone())),
@@ -969,10 +965,7 @@ impl Tools {
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
-                Some(OpenTool::Mirror(tool)) => match selection.face() {
-                    Some(face) => tool.pick_plane(doc, face.clone()),
-                    None => on_node_pick(selection, |node| tool.pick(doc, node)),
-                },
+                Some(OpenTool::Mirror(tool)) => tool.feed(doc, selection),
                 Some(OpenTool::Clearance(tool)) => match selection.face() {
                     Some(face) => tool.seat_face(doc, face.clone()),
                     None => on_node_pick(selection, |node| {

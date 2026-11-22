@@ -12360,7 +12360,8 @@ mod properties_pane_tests {
             let commit = ToolKind::Split.commit();
             let gained = driven.gained_hovering(&commit);
             assert!(
-                gained.iter().any(|run| run == "no split plane picked yet"),
+                gained.iter().any(|run| run
+                    == "no split plane picked yet: pick a face, or a plane or frame variable"),
                 "the withheld button names the missing pick: {gained:?}"
             );
             let splits = |driven: &Driven| -> Vec<RecipeNodeId> {

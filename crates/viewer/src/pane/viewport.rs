@@ -620,7 +620,7 @@ mod composed {
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
         let plane = tools
             .mirror()
-            .and_then(crate::combine::MirrorTool::plane)
+            .and_then(crate::combine::MirrorTool::face)
             .or_else(|| tools.split().and_then(crate::combine::SplitTool::face));
         let [a, b] = match (mate, plane, tools.clearance()) {
             (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),

@@ -2468,7 +2468,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     split.pick(session.committed_doc(), a);
     assert!(matches!(
         split.op(),
-        Err(SeatError::NoFace {
+        Err(SeatError::NoPlane {
             role: viewer::seats::FaceRole::SplitPlane
         })
     ));
@@ -2476,7 +2476,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert!(matches!(
         split.op(),
         Ok(SessionOp::AddSplit {
-            plane: viewer::session::SplitPlane::Face(_),
+            plane: viewer::session::ToolPlane::Face(_),
             ..
         })
     ));
@@ -2686,7 +2686,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             // about the body seat.
             Seat::MirrorBody => SessionOp::AddMirror {
                 body: filled(Seat::MirrorBody).into(),
-                plane: viewer::session::FaceSelection {
+                plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                     name: pncad::prelude::StableName {
                         kind: pncad::prelude::EntityKind::Face,
                         node: body,
@@ -2694,7 +2694,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     },
                     node: body,
                     body: 0,
-                },
+                }),
             },
             // The other seat a body of the right kind, so the refusal
             // is about the seat under test.
@@ -2982,7 +2982,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Split,
             SessionOp::AddSplit {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
-                plane: viewer::session::SplitPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
+                plane: viewer::session::ToolPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
             },
         ),
         (

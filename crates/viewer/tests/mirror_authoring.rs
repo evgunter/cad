@@ -1,5 +1,6 @@
-//! **The mirror tool, replayed headlessly**: a body and a picked face
-//! through the selection stream the viewport feeds, one committed
+//! **The mirror tool, replayed headlessly**: a body and a picked face,
+//! or a plane variable the document holds, through the selection
+//! stream the viewport feeds, one committed
 //! action — the image, and the symmetric part, the body or the copy
 //! picked unioned with its image where it stands (Ev, PR 6353) — its
 //! typed refusals, and the saved document read back.
@@ -182,7 +183,7 @@ fn a_copy_mirrored_across_its_own_face_becomes_its_symmetric_part() {
         Some(copy),
         "a pick on the copy seats the copy"
     );
-    assert_eq!(tool.plane(), Some(&wall), "and its face is the plane");
+    assert_eq!(tool.face(), Some(&wall), "and its face is the plane");
 
     let outcome = session.perform(mirror_op(&tools));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -508,11 +509,11 @@ fn an_unplaced_body_becomes_its_symmetric_part() {
     let world = common::world(session.committed_doc());
     let outcome = session.perform(SessionOp::AddMirror {
         body: loose.into(),
-        plane: FaceSelection {
+        plane: viewer::session::ToolPlane::Face(FaceSelection {
             name: own_cap(loose),
             node: loose,
             body: 0,
-        },
+        }),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -552,7 +553,7 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
         };
         let op = SessionOp::AddMirror {
             body: block.into(),
-            plane,
+            plane: viewer::session::ToolPlane::Face(plane),
         };
         assert!(op.selects_what_it_makes(), "placed {placed}");
         let label =
@@ -632,7 +633,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         Some(stand_in),
         "the second face keeps the body"
     );
-    assert_eq!(tool.plane(), Some(&far), "and re-picks the plane");
+    assert_eq!(tool.face(), Some(&far), "and re-picks the plane");
 
     let at = corners(&mut session, copy)
         .iter()
@@ -714,11 +715,16 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         "a tree pick of the drawn copy seats the body"
     );
     match tools.mirror().expect("open").op() {
-        Err(SeatError::NoFace { role }) => {
+        Err(error @ SeatError::NoPlane { role }) => {
             assert_eq!(
                 role,
                 viewer::seats::FaceRole::MirrorPlane,
                 "the plane is named"
+            );
+            assert_eq!(
+                error.to_string(),
+                "no mirror plane picked yet: pick a face, or a plane or frame variable",
+                "the refusal names both kinds of plane the seat takes"
             );
         }
         other => panic!("no plane held yet refuses typed, not {other:?}"),
@@ -790,7 +796,7 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
         .count();
     assert_eq!((seat, plane), (1, 1), "one drop each: {notices:?}");
     let tool = tools.mirror().expect("still open");
-    assert_eq!((tool.input(), tool.plane()), (None, None), "both are empty");
+    assert_eq!((tool.input(), tool.face()), (None, None), "both are empty");
     assert!(
         tools
             .reconcile(session.doc(), session.landed_pair())
@@ -873,11 +879,11 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: b.into(),
-            plane: FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: own_cap(b),
                 node: b,
                 body: 0,
-            },
+            }),
         },
     );
     session.pump();
@@ -914,7 +920,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: a.into(),
-            plane: image_face,
+            plane: viewer::session::ToolPlane::Face(image_face),
         },
         "a plane on another space's image",
     );
@@ -925,7 +931,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         &mut session,
         SessionOp::AddMirror {
             body: a.into(),
-            plane: b_wall,
+            plane: viewer::session::ToolPlane::Face(b_wall),
         },
         "a face clicked on another space's drawn copy",
     );
@@ -1039,5 +1045,202 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
     assert!(
         same_points(&built, &want),
         "the image is the lower half below z = 0: {built:?} vs {want:?}"
+    );
+}
+
+/// **The unplaced block split along the plane `plane` reads off it,
+/// the split's plane variable named `name`**: the session, the block,
+/// the split and the variable. The split is the plane's first reader;
+/// naming the variable is what lets a second read it (VR7).
+fn split_with_named_plane(
+    plane: impl FnOnce(&DocSession, RecipeNodeId) -> viewer::session::ToolPlane,
+    name: &str,
+    tol: Tol,
+) -> (
+    DocSession,
+    RecipeNodeId,
+    RecipeNodeId,
+    pncad::document::VarId,
+) {
+    let (mut session, block) = unplaced_block(tol);
+    let plane = plane(&session, block);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: block.into(),
+            plane,
+        },
+    );
+    session.pump();
+    let Some(Node::Split { tool, .. }) = session.committed_doc().node(split) else {
+        panic!("the split")
+    };
+    let var = tool.read;
+    let outcome = session.perform(SessionOp::RenameVar {
+        var,
+        name: Some(pncad::document::VarName::new(name).expect("a name")),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    (session, block, split, var)
+}
+
+/// **The mirror tool across the plane variable `var`**: the split's
+/// lower half seated by a pick of its floor, the plane then re-picked
+/// as the variable. Asserts the tool holds the variable, the commit
+/// reads it `through` the role a frame is read through, and the image
+/// is the lower half reflected across the cut at `z = MID_Z`, to
+/// `within` metres.
+fn mirror_the_lower_half_across(
+    mut session: DocSession,
+    (block, split): (RecipeNodeId, RecipeNodeId),
+    var: pncad::document::VarId,
+    through: Option<pncad::document::pose::PoseRole>,
+    within: f64,
+) {
+    let index = plate_index(&session);
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    assert_eq!(floor.node, split, "the ray met the split drawn as itself");
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mirror);
+    let picks = [
+        SessionOp::Select(Selection::Face(floor.clone())),
+        SessionOp::Select(Selection::Variable(var)),
+    ];
+    assert!(
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
+        "both picks are taken"
+    );
+    let tool = tools.mirror().expect("open");
+    assert!(
+        matches!(
+            tool.plane(),
+            Some(viewer::combine::HeldPlane::Defined { var: held, through: role })
+                if held.id() == var && *role == through
+        ),
+        "the variable re-picks the plane: {:?}",
+        tool.plane()
+    );
+    assert_eq!(tool.face(), None, "and no face is held");
+    let op = mirror_op(&tools);
+    let SessionOp::AddMirror {
+        plane: viewer::session::ToolPlane::Read(read),
+        ..
+    } = &op
+    else {
+        panic!("the commit reads the variable, not {op:?}")
+    };
+    assert_eq!(
+        (&read.read, read.role),
+        (&Operand::Var(var), through),
+        "the plane is the variable, read through its role"
+    );
+    let (image, _) = mirror_in(&mut session, op);
+    let Some(Node::Mirror { plane, .. }) = session.committed_doc().node(image) else {
+        panic!("the image")
+    };
+    assert_eq!(
+        (plane.read, plane.role),
+        (var, through),
+        "the stored mirror reads the split's own variable, not a copy of it"
+    );
+    let built = corners(&mut session, image);
+    let lower: Vec<[f64; 3]> = corners(&mut session, block)
+        .into_iter()
+        .map(|[x, y, z]| [x, y, z.min(MID_Z)])
+        .collect();
+    let want = reflected_in_z(&lower, MID_Z);
+    let close = built.len() == want.len()
+        && built
+            .iter()
+            .zip(&want)
+            .all(|(g, w)| g.iter().zip(w).all(|(a, b)| (a - b).abs() <= within));
+    assert!(
+        close,
+        "the image is the lower half reflected across z = {MID_Z}: {built:?} vs {want:?}"
+    );
+}
+
+/// `points` reflected across the plane `z = at`, sorted.
+fn reflected_in_z(points: &[[f64; 3]], at: f64) -> Vec<[f64; 3]> {
+    let mut out: Vec<[f64; 3]> = points
+        .iter()
+        .map(|&[x, y, z]| [x, y, 2.0 * at - z])
+        .collect();
+    out.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
+    out
+}
+
+/// **A `Plane` variable the document holds is a mirror plane**: the
+/// split's own cut, named, picked as a variable after a face seats the
+/// body, is read as it is, and the image of the lower half stands
+/// where the upper half did.
+///
+/// Red if the mirror tool drops a variable pick, the commit reads a
+/// face, or the image is not reflected across the cut.
+#[test]
+fn a_named_plane_variable_is_a_mirror_plane() {
+    let tol = Tol::witness();
+    let (session, block, split, var) = split_with_named_plane(
+        |session, block| common::cut_across(session, block, MID_Z),
+        "cut",
+        tol,
+    );
+    assert_eq!(
+        session
+            .committed_doc()
+            .var(var)
+            .map(pncad::document::Var::kind),
+        Some(pncad::document::VarKind::Plane),
+        "the premise: the split's cut is a Plane variable"
+    );
+    mirror_the_lower_half_across(session, (block, split), var, None, 1e-12);
+}
+
+/// **A `Frame` variable the document holds is a mirror plane, read
+/// through its `xy`**: a frame standing on the block at mid-height,
+/// first read by a split through its `xy`, named, and picked as the
+/// mirror's plane, is read through the same role.
+///
+/// Red if the mirror tool drops a frame pick, reads it plainly (a
+/// frame is no plane), or the image is not reflected across its `xy`.
+#[test]
+fn a_named_frame_variable_is_a_mirror_plane_through_its_xy() {
+    let tol = Tol::witness();
+    let (session, block, split, var) = split_with_named_plane(
+        |session, block| {
+            viewer::session::ToolPlane::Read(editor_core::test_support::plane_on_frame(
+                session.committed_doc(),
+                block,
+                [0.0, 0.0, MID_Z],
+                [0.0, 0.0, 1.0],
+                tol,
+            ))
+        },
+        "datum",
+        tol,
+    );
+    assert_eq!(
+        session
+            .committed_doc()
+            .var(var)
+            .map(pncad::document::Var::kind),
+        Some(pncad::document::VarKind::Frame),
+        "the premise: the split reads a Frame variable"
+    );
+    // A frame read off the body's axes stands there to the rounding of
+    // the turns it is built from (`plane_on_frame`).
+    mirror_the_lower_half_across(
+        session,
+        (block, split),
+        var,
+        Some(pncad::document::pose::PoseRole::Xy),
+        1e-9,
     );
 }
