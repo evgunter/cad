@@ -903,8 +903,10 @@ cells beyond the waist's reach.
   granted only where every row is a circle of this sphere as stored
   (`on_sphere`). The first-meets-last check is gone: a lift that does
   not close spans a turn, which the hull's width refuses.
-- **A lens of two spheres** is read in its poses at both scalars, the
-  first body here that reaches a pose at `Interval`.
+- **A lens of two spheres** holds at both scalars, the first body here
+  that reaches a pose at `Interval`: the walk builds one there, which
+  the row asserts; which cells a pose answered at `Interval` it does
+  not show.
 
 **Measured** (head `2d8509046`, which merges main `f3702f870`):
 - the cavity switch's 13 of 166 fail, the same set;

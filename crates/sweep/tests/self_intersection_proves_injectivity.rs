@@ -1317,10 +1317,12 @@ fn two_ball_lens<T: Scalar>(dx: f64) -> Body<T> {
 /// poses**: [`two_ball_lens`] at `dx` 0.7, 1 and 1.3. Each sphere face is
 /// bounded by the circle about `x`, which neither sphere's stored chart
 /// reads as a line, so its cells beside the circle are read in the
-/// circle's pose, at `Interval` too (the walk's windows build the poses:
-/// `Windows::posed_builds`). The one body of these rows that reaches a
-/// pose at the `Interval` scalar. Red if either scalar refuses, they
-/// differ in class, or the `Interval` walk reads no pose.
+/// circle's pose. At `Interval` the row shows the walk reaches a pose:
+/// its windows build one (`Windows::posed_builds` above zero), which
+/// says a cell asked for it, not which cells a pose answered. The one
+/// body of these rows that reaches a pose at the `Interval` scalar. Red
+/// if either scalar refuses, they differ in class, or the `Interval`
+/// walk builds no pose.
 #[test]
 fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
     for dx in [0.7, 1.0, 1.3] {
@@ -1352,7 +1354,7 @@ fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
         let built: usize = windows.posed_builds().iter().map(|&(_, n)| n).sum();
         assert!(
             built > 0,
-            "the lens {dx} apart: the Interval walk reads a pose"
+            "the lens {dx} apart: the Interval walk builds a pose"
         );
     }
 }
