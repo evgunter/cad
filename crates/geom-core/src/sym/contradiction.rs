@@ -8,11 +8,11 @@
 //! stating a false identity is invisible to a build wherever the
 //! enclosure straddles nothing. This asks the question after the build,
 //! over the decisions the re-valuation recorder kept
-//! ([`revalue::record`](super::revalue::record)), and reports every one
-//! the tier would have answered otherwise ([`Event`]). No receipt column
+//! ([`revalue::record`](crate::sym::revalue::record)), and reports every one
+//! the tier would have answered otherwise ([`Event`](crate::sym::contradiction::Event)). No receipt column
 //! counts it and no shipped build contains it.
 //!
-//! **Installed by the test that wants it**: [`check`] walks only the
+//! **Installed by the test that wants it**: [`check`](crate::sym::contradiction::check) walks only the
 //! decisions it is handed, inside the session that took them (the nodes
 //! live in that session's table), so a test build that compiles this
 //! feature pays nothing in a row that does not call it. The walks it

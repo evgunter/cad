@@ -3,7 +3,7 @@
 //! decision it calls `Zero` keeps its margin's node on a list instead
 //! of being discharged on the spot. A reader that wants to know whether
 //! one of those Zeros is proven asks for it by its margin
-//! ([`discharge`]), inside the same session, and pays the identity tier
+//! ([`discharge`](crate::sym::deferred::discharge)), inside the same session, and pays the identity tier
 //! for that margin alone.
 //!
 //! A replay that discharges every Zero as it is taken pays the tier on
