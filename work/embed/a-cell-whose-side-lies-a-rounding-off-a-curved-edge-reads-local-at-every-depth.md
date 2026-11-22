@@ -114,7 +114,7 @@ evaluation. Windows printed with an uncommitted print in `window_of`.
   presentation, and a window reaches it whenever its halvings miss the
   curve's bound by a rounding.
 
-**Re-measured 2026-11-21**, main `45023f4e3` (with PR 7131, which reads a
+**Re-measured 2026-11-21**, main `45023f4e3`, and again on `0cae9969f` with every count the same (with PR 7131, which reads a
 stored frame at `Interval` by its polar enclosure summed exactly)
 against `embed/rational-window` merged onto it. Every drum of the
 family refuses on both, and the radius-1 and radius-2 drums read the

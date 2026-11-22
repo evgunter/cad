@@ -94,7 +94,7 @@ f64 lane reads the same windows as the `Interval` table below.
   rocker's `±3.53 → ±2.5`, where the evaluation overshot a spline).
 
 **Measured** (main `45023f4e3` against the branch merged onto it, f64,
-2026-11-21):
+2026-11-21; re-run on main `0cae9969f`, every figure the same):
 - the cavity rows, through the uncommitted `CavityGate` switch
   (`origin/embed/cavity-trace-measure`'s `shell.rs`): the conical wedge
   and the three-quarter frustum have windows on every face and refuse
