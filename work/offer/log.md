@@ -186,3 +186,4 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 
 **Dispatch, letters and tiers** (logged before any draw):
 - 1 is letter H, tier DUAL. It is a certified-interval soundness claim: the proven interval must be proven. It also sets a second refinement order beside E6's.
+- 2026-11-22 — **Dispatched** `the-certified-range-refines-away-from-the-current-value` on `offer/the-certified-range-refines-toward-the-current-value`, as cloud session `session_013QoYWUSe878mMdYJzyx7Hd`. (OFFER orchestrator)
