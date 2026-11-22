@@ -439,3 +439,17 @@ body has the reasons):
   Filed by the lane:
   `an-axis-edge-or-pole-a-reshaping-takes-is-reported-nowhere-end-to-end`
   (P3). Worktree and target removed.
+- 2026-11-22 05:45 — **Ev approved `[ev]` 7353** ("this plan sounds good
+  then"). After Ev's two questions on what "carried" means, the
+  `[placement]` sentence is reworded in terms of points of use
+  (`184c664`): each use of the turn is levered over the points it is used
+  at, and a trace uses it only at the crossing a piece takes. The build
+  is sent to the 7151 lane:
+  - drop the traced carriage;
+  - add the pre-trace pole selection over the box;
+  - re-pose the topo trace step so it decides nothing past the taken
+    crossing, arcs included;
+  - `swept_along` reads the decided frame.
+
+  The lane creates and closes the traced-carriage row in 7151 itself, so
+  this branch drops its copy to avoid an add/add conflict.

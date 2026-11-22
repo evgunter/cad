@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-22
 priority: P2
 cost: H
-refs: [a-traced-faces-carriage-reads-its-reach-about-the-space-origin-not-the-frames]
+refs: [a-face-charts-turn-is-levered-over-none-of-what-it-carries]
 ---
 
 
