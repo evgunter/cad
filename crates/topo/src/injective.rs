@@ -12863,6 +12863,44 @@ mod margin_rows {
         );
     }
 
+    /// **A quadrant of no width departs at its arm.** A plane face read
+    /// as its quadrant at a vertex its pair shares alone, in a cell that
+    /// holds it only along one of its edges: the rectangle is `2.4e-15`
+    /// across one axis. Under a plane through the vertex that both edges
+    /// leave to one side, at sines of about `0.05` and `0.24`, the
+    /// quadrant is signed at a metre's arm; under a plane one edge lies
+    /// on the other side of, it is not.
+    ///
+    /// Red if either axis's departure is levered at the rectangle's
+    /// extent along it, or if the two axes' signs are not both asked.
+    #[test]
+    fn a_quadrant_of_no_width_departs_at_its_arm() {
+        let s = floor();
+        let read = |n: Vec3<Interval>| {
+            let p = presented(
+                &s,
+                (0.0, 2.4e-15),
+                (0.0, 0.7727),
+                Zero::Point(Side::XLo, Side::YLo, key(7)),
+            );
+            let psi = Psi::Linear {
+                n,
+                q: p3(0.0, 0.0, 0.0),
+            };
+            sign_on(&psi, Some(&on(&[], &[7])), &p, None, arm(1.0), band())
+        };
+        assert_eq!(
+            read(v3(0.0528, 0.2377, 0.9699)),
+            Some(Sign::Positive),
+            "both edges leave the plane to one side"
+        );
+        assert_eq!(
+            read(v3(-0.0528, 0.2377, 0.9699)),
+            None,
+            "the edges leave it to opposite sides"
+        );
+    }
+
     /// **The rate is read as a sine, whatever the chart's speed.** A
     /// cylinder of radius `r` on its ruling at `u = 0`, a rectangle of no
     /// width, against a plane through the ruling that the cylinder
