@@ -2267,6 +2267,12 @@ fn face_boundary_meets<T: Decide + Bounds>(
     false
 }
 
+/// [`walk_pairs`]' box test.
+const WALK_PAIRS_BOXES: geom_core::k_stats::TestSite = geom_core::k_stats::TestSite::new(
+    "bool_walk_pairs_boxes",
+    "two faces' boxes meet, for the section certificate",
+);
+
 /// **The section certificate over pairs of rows**: every `(A row, B
 /// row)` pair whose certified boxes overlap, which the narrow phase
 /// ([`crate::separating::apart`]) does not part and which `admit`
@@ -2299,10 +2305,8 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             // The box test prunes which face pairs the section
             // certificate reads, and decides nothing: its outcome is
             // marked, so two runs whose pruning differs part there.
-            if !geom_core::k_stats::mark_outcome(
-                "bool_walk_pairs_boxes",
-                fa.bbox.overlaps(&fb.bbox),
-            ) || !admit(fa, fb)
+            if !geom_core::k_stats::mark_outcome(WALK_PAIRS_BOXES, fa.bbox.overlaps(&fb.bbox))
+                || !admit(fa, fb)
             {
                 continue;
             }
