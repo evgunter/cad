@@ -6633,8 +6633,16 @@ fn edge_piece(
         let enc = arc_enclosure(carrier, (a.min(b), a.max(b)));
         boxes.iter().any(|&bx| overlap(enc, bx))
     };
+    // The last piece ends at the span's own end, not at `t0 + width`,
+    // which rounds a step past it: the hull is the edge's parameters.
     #[allow(clippy::cast_precision_loss)]
-    let at_k = |k: usize| t0 + width * (k as f64) / (PIECES as f64);
+    let at_k = |k: usize| {
+        if k == PIECES {
+            t1
+        } else {
+            t0 + width * (k as f64) / (PIECES as f64)
+        }
+    };
     let hit: Vec<bool> = (0..PIECES).map(|k| meets(at_k(k), at_k(k + 1))).collect();
     let first = hit.iter().position(|&h| h)?;
     let last = hit.iter().rposition(|&h| h)?;
@@ -8404,6 +8412,11 @@ mod presentation_rows {
         );
         assert!(1.5 < a && b < 3.5, "and narrowed to them: ({a}, {b})");
         assert!(edge_piece(&line, (iv0(0.0), iv0(10.0)), false, &[bx(20.0, 30.0)]).is_none());
+        // A hull reaching the span's end ends at it: over `(−0.4, 1.3)`,
+        // `−0.4 + 1.7` rounds a step past `1.3`. Red if the last piece's
+        // end is computed from the width.
+        let (_, b) = edge_piece(&line, (iv0(-0.4), iv0(1.3)), false, &[bx(1.2, 2.0)]).unwrap();
+        assert!(b == 1.3, "the hull ends at the span's own end: {b:e}");
     }
 
     /// The plane `z = 0`, `u_ref = x`.

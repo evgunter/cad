@@ -35,14 +35,31 @@ this use carries no `iso`. On an axis-aligned body
 (`band_mixed_corner::an_inset_corner_with_all_three_edges_requested_builds_at_its_closed_form`)
 the same arc is stored as a coordinate line.
 
-`a-cylinder-rims-axial-channel-holds-zero-only-to-an-enclosure-at-interval`
-(closed) found the same channel at `Interval`, an enclosure of zero,
-and named its source: `geom_brep::pcurve_cache::derive_class`'s
-cylinder arm writes the axial channel as raw dot products, where the
-cone arm beside it decides the question (`pcurve_cone_chart_axial`)
-and writes a constant. That row was closed at the reader, for the
-enclosure. At `f64` the residue is a point that is not zero, which no
-reader's exact test takes for one.
+**Where the class is decided, and why it is not here.** The mint does
+decide this class: `geom_brep::pcurve_cache::derive_class`'s cylinder
+arm, the moving case, passes a conic's axial `cos t` and `sin t` terms
+through `cylinder_rim_axial`, which writes zero where both hold zero and
+their sup is decided `Zero` at `pcurve_cylinder_chart_axial` (the fix
+that closed
+`a-cylinder-rims-axial-channel-holds-zero-only-to-an-enclosure-at-interval`).
+It asks that only of a bracket that holds zero. Its own doc: "At `f64`
+a value holds zero only when it is zero, so nothing there is decided or
+moved." `−6.9e−18` is an `f64` point that is not zero, so it is handed
+on as given: the rim's class is decided at the band for an enclosure
+and not for a point a rounding off it. The cone arm beside it
+(`pcurve_cone_chart_axial`) decides the amplitude itself
+(`Margin::of(harmonic_sup_scalar(..))`), at every scalar.
+
+Not measured: which door minted this pcurve. Its form
+(`Angle { winding: −1 }` over a free axial channel) is
+`Derivation::CylinderMoving`'s, but the blend builder may have stated
+the image and had it certified rather than derived; a probe at the
+mint would say.
+
+Not the class of
+`a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth`
+(a cell's side a rounding off an edge the cell does not hold): here the
+stored image itself is a rounding off a coordinate line.
 
 ## What it costs
 
@@ -78,8 +95,10 @@ holds) on outlines that run off the axes, and are not traced.
 
 ## What is needed
 
-The cylinder arm's axial channel decided as the cone arm's is, so a
-section circle is a coordinate line by variant at every scalar and
-pose; or a reading of a cylinder's corner that clips at a curve a
-rounding off a parallel, which would be a concession and Ev's.
-
+`cylinder_rim_axial` deciding the axial amplitude at the band at every
+scalar, as the cone arm does, so a section circle is a coordinate line
+by variant in every pose; with what that drops stated (the drift is
+within the band, and the certificate's envelope bounds what it moves,
+as that function already says of the enclosure). Not a reading in
+`topo::injective` that clips at a curve a rounding off a parallel:
+that would be a concession.
