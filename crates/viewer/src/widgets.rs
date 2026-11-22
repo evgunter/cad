@@ -15,7 +15,7 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are thirteen — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are fourteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
@@ -23,6 +23,7 @@
 //! [`widest_number`], which measure the width it is laid out at;
 //! [`number_text`], [`number_field`] and [`count_field`], which render
 //! and build rather than draw;
+//! [`unit_choices`], which reads the unit table for a chooser;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
@@ -271,7 +272,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// from its DRAG SPEED and the display scaling, and from nothing about
 /// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
 /// the range handed to a formatter is `auto_decimals ..= auto_decimals
-/// + 2`. A length field at a length's tick ([`props::DimensionField`])
+/// + 2`. A length field at a length's tick ([`props::drag_tick`])
 /// shown in millimetres is handed `1..=3` at one point per pixel, so
 /// its coarsest spelling is `{:.3}` over millimetres.
 ///
@@ -1172,16 +1173,16 @@ fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
 /// sentence that carries the unit.
 pub(crate) fn vec3_row_ops(
     ui: &mut egui::Ui,
-    speed: f64,
+    writing: FieldWriting,
     components: &mut [f64; 3],
     gesture: GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
     typed: impl Fn([f64; 3]) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
     let [x, y, z] = components;
-    let row = ui.add(number_field(x, speed))
-        | ui.add(number_field(y, speed))
-        | ui.add(number_field(z, speed));
+    let row = ui.add(number_field(x, writing.tick))
+        | ui.add(number_field(y, writing.tick))
+        | ui.add(number_field(z, writing.tick));
     drag_ops(&row, *components, gesture, typed, ops);
 }
 
@@ -1239,7 +1240,14 @@ pub(crate) fn named_field(
     writing: FieldWriting,
     canonical: &mut f64,
 ) -> bool {
-    let mut written = match props::shown_value(writing.unit, *canonical) {
+    // A draft that is itself not finite is the same non-number in every
+    // notation, so it is shown as it is and stays a field to type over.
+    let shown = if canonical.is_finite() {
+        props::shown_value(writing.unit, *canonical)
+    } else {
+        Ok(*canonical)
+    };
+    let mut written = match shown {
         Ok(written) => written,
         Err(unit) => {
             let marker = props::no_reading(unit);
@@ -1266,10 +1274,10 @@ pub(crate) fn named_field(
 }
 
 /// **A whole-number field** — an index, an instance, a subdivision
-/// count — at a count's tick ([`props::DimensionField`]), so a form's
+/// count — at a count's tick ([`props::drag_tick`]), so a form's
 /// count steps the way the panel's does.
 pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
-    number_field(value, props::DimensionField::of(Dimension::Count).tick)
+    number_field(value, props::drag_tick(Some(Dimension::Count)))
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1706,7 +1714,7 @@ pub(crate) fn path_step_fields(
 /// **The creation forms' written-unit picker.**
 ///
 /// The panel's picker as a form control: the same options
-/// ([`crate::props::unit_options`], read off the closed unit table) and the
+/// ([`unit_choices`], read off the closed unit table) and the
 /// same rule about what the label beside a field may say. There is no
 /// "nothing chosen" state to fall back from — a form is always
 /// authoring in some notation, and says which. **The unit is the picker's
@@ -1780,6 +1788,17 @@ pub(crate) fn notation_picker(
 /// narrower than the symbol it has to show.
 pub(crate) const UNIT_PICKER_WIDTH: f32 = 72.0;
 
+/// **The units a chooser offers for `dimension`**: its rows
+/// ([`crate::props::unit_options`]) where there are two or more to
+/// choose between, and none otherwise — a count has no unit and a
+/// bare scalar one, and one option is not a choice
+/// (`UnitQuantity::Scalar`'s rule for whatever draws the chooser). Every
+/// unit combo in the chrome draws these.
+pub(crate) fn unit_choices(dimension: Dimension) -> Vec<UnitDef> {
+    let rows = props::unit_options(dimension);
+    if rows.len() < 2 { Vec::new() } else { rows }
+}
+
 /// The combo itself: the rows `dimension` admits, with `shown`
 /// selected; `Some(row)` when this frame's click chose one.
 ///
@@ -1795,7 +1814,7 @@ pub(crate) fn pick_unit(
     dimension: Dimension,
     shown: UnitDef,
 ) -> Option<UnitDef> {
-    let options = props::unit_options(dimension);
+    let options = unit_choices(dimension);
     if options.is_empty() {
         return None;
     }
@@ -1929,6 +1948,7 @@ mod roster_tests {
             "number_text",
             "number_field",
             "count_field",
+            "unit_choices",
             "install_number_formatter",
             "new_row_step",
             "twin",
@@ -2618,7 +2638,12 @@ mod tests {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
                         let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
-                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
+                        let writing = crate::forms::FieldWriting::of(
+                            pncad::document::Dimension::Length,
+                            None,
+                            crate::props::Notation::CANONICAL.with(pncad::quantity::MM.def()),
+                        );
+                        vec3_row_ops(ui, writing, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three

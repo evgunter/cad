@@ -153,7 +153,7 @@ pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
 pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
 
 /// **How ONE FIELD is written**: the unit it shows and authors in, and
-/// the tick it is scrubbed at — [`props::DimensionField`] read in a notation.
+/// the tick it is scrubbed at ([`props::drag_tick`]), in that unit.
 ///
 /// The two are one value because they are one decision. A tick is a
 /// number of whatever the field says, so a tick chosen without the unit
@@ -184,7 +184,16 @@ impl FieldWriting {
         let unit = props::rendering_unit(dimension, stored, notation);
         Self {
             unit,
-            tick: props::shown_in(unit, props::DimensionField::of(dimension).tick),
+            tick: props::shown_in(unit, props::drag_tick(Some(dimension))),
+        }
+    }
+
+    /// A field whose dimension is not chosen yet: the bare number, at
+    /// [`props::drag_tick`]'s tick for no dimension.
+    pub const fn unpicked() -> Self {
+        Self {
+            unit: None,
+            tick: props::drag_tick(None),
         }
     }
 

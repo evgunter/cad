@@ -24,8 +24,8 @@ use crate::theme::Theme;
 use crate::tree::PickedName;
 use crate::widgets::{
     CANCEL, FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, commit_row, delete_button,
-    form_door, free_move_gesture, named_field, notation_picker, pick_unit, value_field_ops,
-    value_gesture, vec3_row_ops,
+    form_door, free_move_gesture, named_field, notation_picker, pick_unit, unit_choices,
+    value_field_ops, value_gesture, vec3_row_ops,
 };
 
 /// What the door that opens the add-variable form says.
@@ -355,12 +355,14 @@ impl ViewerBehavior<'_> {
             // **The form authors in the notation the picker says**, and
             // the draft behind the field stays canonical whatever it
             // says (`widgets::named_field`). With no dimension picked
-            // yet the commit is refused, and the field is a bare
-            // canonical length until one is.
-            let writing = match self.drafts.new_variable_dimension {
-                Some(dimension) => FieldWriting::of(dimension, None, *self.notation),
-                None => FieldWriting::of(Dimension::Length, None, Notation::CANONICAL),
-            };
+            // yet the commit is refused, and the field is a bare number
+            // until one is.
+            let writing = self
+                .drafts
+                .new_variable_dimension
+                .map_or(FieldWriting::unpicked(), |dimension| {
+                    FieldWriting::of(dimension, None, *self.notation)
+                });
             named_field(ui, "", writing, &mut self.drafts.new_variable_value);
             // Drawn AFTER the field it governs, which is the forms'
             // rule (`widgets::length_picker`): the pick is an input
@@ -884,7 +886,7 @@ impl ViewerBehavior<'_> {
     ///
     /// Nothing is drawn for a dimension with no units to choose
     /// between (`Scalar`, `Count`): `widgets::pick_unit` offers
-    /// `props::unit_options`, which is empty for both.
+    /// `widgets::unit_choices`, which is empty for both.
     ///
     /// The combo itself is `widgets::pick_unit`, the creation forms'
     /// — the options, the width and the selected row are one
@@ -951,14 +953,13 @@ impl ViewerBehavior<'_> {
     /// notation anyone chose, so it plays no part in that agreement.
     /// A picker with no writable component therefore shows no unit.
     ///
-    /// Nothing is drawn at all for a dimension with no units (`Scalar`,
-    /// `Count`) — there is no notation to offer for a number that is
-    /// not a quantity.
+    /// Nothing is drawn at all for a dimension with no units to choose
+    /// between (`Scalar`, `Count`; `widgets::unit_choices`).
     pub(crate) fn slot_unit_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, rows: &[SlotRow]) {
         let Some(first) = rows.first() else {
             return;
         };
-        let options = props::unit_options(first.dimension);
+        let options = unit_choices(first.dimension);
         if options.is_empty() {
             return;
         }
@@ -1789,7 +1790,7 @@ fn free_move_probe(
     let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
     let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
     ui.horizontal(|ui| {
-        vec3_row_ops(ui, field.tick, &mut written, gesture, typed, ops);
+        vec3_row_ops(ui, field, &mut written, gesture, typed, ops);
     });
 }
 

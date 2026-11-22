@@ -171,11 +171,11 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     }
 }
 
-/// **`notation` over every argument `program` holds** — each `Length`
-/// argument written in its length unit, each `Angle` one in its angle
-/// unit, and every other argument (a bulge, a director component) left
-/// with the one spelling a dimensionless number has — except where
-/// `noted` names the unit the argument at `(step, arg)` is written in.
+/// **`notation` over every argument `program` holds** — each argument
+/// recorded in the unit `notation` writes its dimension in (a length in
+/// its length unit, an angle in its angle unit, a bulge or a director
+/// component in the dimensionless row) — except where `noted` names the
+/// unit the argument at `(step, arg)` is written in.
 ///
 /// Asked of the PROGRAM, through its own argument enumeration, rather
 /// than of the steps: which roles a step holds is the document layer's

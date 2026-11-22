@@ -137,9 +137,7 @@ use pncad::document::{
     RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval,
     eval_count, spoken_by,
 };
-use pncad::quantity::{
-    self, LengthUnit, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
-};
+use pncad::quantity::{LengthUnit, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
 
 /// **Which way [`one_figure_length`] rounds.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -257,67 +255,42 @@ impl SlotValue {
     }
 }
 
-/// **What a field of one dimension is, before any notation is
-/// chosen**: the quantity whose unit it is written in, and the tick it
-/// is dragged at. The viewer's one `Dimension` ladder — the unit
-/// pickers' options ([`unit_options`]), the unit a value nobody
-/// wrote reads in ([`WorkingNotation::unit`], and through it
-/// [`rendering_unit`]), and every field's drag tick
-/// (`crate::forms::FieldWriting::of`) are read off it rather than
-/// spelled again.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DimensionField {
-    /// The quantity the field's unit measures. `None` is a count: a
-    /// number rather than a quantity, written as itself in every
-    /// notation.
-    pub quantity: Option<UnitQuantity>,
-    /// One drag tick, in CANONICAL units (metres, radians).
-    pub tick: f64,
-}
-
-impl DimensionField {
-    /// The field `dimension` is.
-    ///
-    /// A tick per dimension and not one number, because the useful
-    /// range of a field is its dimension's: half a millimetre per pixel
-    /// is a good length tick, and at 0.0005 rad a full turn is twelve
-    /// thousand pixels of drag.
-    pub const fn of(dimension: Dimension) -> Self {
-        let (quantity, tick) = match dimension {
-            // Half a millimetre.
-            Dimension::Length => (Some(UnitQuantity::Length), 0.0005),
-            // A third of a degree: a full turn is a few hundred pixels.
-            Dimension::Angle => (Some(UnitQuantity::Angle), 0.005),
-            // A direction or a normal component, whose useful range is
-            // about [-1, 1]: a hundredth spans it in one gesture.
-            Dimension::Scalar => (Some(UnitQuantity::Scalar), 0.01),
-            // One. A count holds whole numbers, and a field steps by
-            // its tick: an arrow key adds one tick and rounds, so an
-            // integer field at a tick below a half stays where it
-            // was, and a float field dragged below one lands between
-            // integers.
-            Dimension::Count => (None, 1.0),
-        };
-        Self { quantity, tick }
+/// **The drag tick of a field holding a value of `dimension`**, in
+/// CANONICAL units (metres, radians) — the one home of how far a pixel
+/// of drag moves a field, and of the whole-number rule. `None` is a
+/// field whose dimension is not chosen yet: a bare number.
+///
+/// A tick per dimension and not one number, because the useful range
+/// of a field is its dimension's: half a millimetre per pixel is a
+/// good length tick, and at 0.0005 rad a full turn is twelve thousand
+/// pixels of drag.
+pub const fn drag_tick(dimension: Option<Dimension>) -> f64 {
+    match dimension {
+        // Half a millimetre.
+        Some(Dimension::Length) => 0.0005,
+        // A third of a degree: a full turn is a few hundred pixels.
+        Some(Dimension::Angle) => 0.005,
+        // A direction or a normal component, whose useful range is
+        // about [-1, 1]: a hundredth spans it in one gesture.
+        Some(Dimension::Scalar) | None => 0.01,
+        // One. A count holds whole numbers, and a field steps by its
+        // tick: an arrow key adds one tick and rounds, so an integer
+        // field at a tick below a half stays where it was, and a float
+        // field dragged below one lands between integers.
+        Some(Dimension::Count) => 1.0,
     }
 }
 
-/// Every unit a value of `dimension` may be written in — the picker's
-/// options, read off the closed table so a unit added to `quantity`
-/// appears here the day it lands.
-///
-/// Empty where there is no choice to offer: a count has no unit, and a
-/// bare scalar has exactly one row, which is not a choice
-/// (`UnitQuantity::Scalar`).
+/// Every unit a value of `dimension` may be written in, read off the
+/// closed table (`UnitQuantity::units`) so a unit added to `quantity`
+/// appears here the day it lands: none for a count, and the one
+/// dimensionless row for a bare scalar.
 pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
-    let Some(wanted) = DimensionField::of(dimension).quantity else {
-        return Vec::new();
-    };
-    let rows: Vec<UnitDef> = UNITS
+    dimension
+        .quantity()
         .into_iter()
-        .filter(|row| row.quantity() == wanted)
-        .collect();
-    if rows.len() < 2 { Vec::new() } else { rows }
+        .flat_map(UnitQuantity::units)
+        .collect()
 }
 
 pub use pncad::quantity::Notation;
@@ -384,12 +357,7 @@ pub trait WorkingNotation: Copy {
 
 impl WorkingNotation for Notation {
     fn unit(self, dimension: Dimension) -> Option<UnitDef> {
-        let measured = DimensionField::of(dimension).quantity?;
-        Some(match measured {
-            UnitQuantity::Length => self.length.def(),
-            UnitQuantity::Angle => self.angle.def(),
-            UnitQuantity::Scalar => quantity::ONE.def(),
-        })
+        dimension.quantity().map(|measured| self.unit_of(measured))
     }
 
     fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {

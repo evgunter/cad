@@ -7004,6 +7004,33 @@ mod properties_pane_tests {
         assert_eq!(said, 1, "the reason is said once: {painted:?}");
     }
 
+    /// **A non-finite draft in the add-variable form stays a field to
+    /// type over**, with no dimension picked and with a bare scalar:
+    /// the draft is the same non-number in every notation, so no
+    /// notation's no-reading marker stands where the field was.
+    #[test]
+    fn a_non_finite_add_variable_draft_stays_a_field() {
+        use crate::pane::properties::NEW_VARIABLE;
+        use pncad::document::Dimension;
+        use pncad::quantity::{M, ONE};
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_value = f64::INFINITY;
+        for (dimension, unit) in [(None, M.def()), (Some(Dimension::Scalar), ONE.def())] {
+            driven.app.drafts.new_variable_dimension = dimension;
+            let painted = driven.quiet();
+            let marker = crate::props::no_reading(unit);
+            assert!(
+                !painted.iter().any(|(run, _)| run.contains(&marker)),
+                "{dimension:?}: no {marker:?} where the field is: {painted:?}"
+            );
+            assert!(
+                painted.iter().any(|(run, _)| run.contains("inf")),
+                "{dimension:?}: the field shows the draft: {painted:?}"
+            );
+        }
+    }
+
     /// **The add-variable form's commit is live exactly when a click
     /// declares**: a `Count` over a field holding `NaN` is refused by
     /// `SlotValue::of`, so the commit is disabled and the refusal is
