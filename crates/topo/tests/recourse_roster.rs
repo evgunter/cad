@@ -747,7 +747,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("link.rs: winds: p", CARRIER_CALL),
     ("link.rs: zero_refused: name", FORWARDS),
     ("offset_axial.rs: azimuth_turn_as: name", FORWARDS),
-    ("offset_axial.rs: classify: what", CLOSURE_FORWARDS),
+    ("offset_axial.rs: classify: names", CLOSURE_FORWARDS),
     ("offset_axial.rs: reauthor: name", CLOSURE_FORWARDS),
     ("offset_derive.rs: held_zero_as: name", FORWARDS),
     ("offset_derive.rs: holds_the_move: name", CLOSURE_FORWARDS),
