@@ -3671,6 +3671,73 @@ pub fn every_door(
     Ok(out)
 }
 
+/// One curved closed-form face read both ways ([`closed_form_reads`]),
+/// each a `(flux, area)` pair of `(lo, hi)` enclosures about the face's
+/// reference. Test vocabulary.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct ClosedFormRead {
+    /// The face.
+    pub face: FaceKey,
+    /// The walk's own sums as intervals ([`walked_closed_form`]); `None`
+    /// at a scalar that rounds.
+    pub walked: Option<[(f64, f64); 2]>,
+    /// The closed form run again at the interval scalar over the face's
+    /// geometry lifted ([`closed_form_or_carried`]), or its refusal.
+    pub lifted: Result<[(f64, f64); 2], PropsError>,
+}
+
+/// **Every curved closed-form face of `body` read both ways the
+/// re-derivation can read it**, off a role walk's round 0. Test
+/// vocabulary: the rows that hold the two readings against each other.
+///
+/// # Errors
+///
+/// The walk's refusal of a face.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<Vec<ClosedFormRead>, MassPropsError> {
+    use geom_core::Bounds;
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let lane = QuadLane::certified();
+    let walked =
+        SignCertificate::at_round_zero(body, &faces, band, tol, Some(lane), FaceWalk::Mapped)?;
+    let ends =
+        |(flux, area): (Interval, Interval)| [(flux.lo(), flux.hi()), (area.lo(), area.hi())];
+    let mut reads = Vec::new();
+    for run in &walked.runs {
+        let face = body.proven_face(run.face);
+        let surface = face.surface();
+        if run.contribution.enclosure.is_some() || matches!(surface, Surface::Plane { .. }) {
+            continue;
+        }
+        let carry = run.about.carry().unwrap_or_else(Interval::zero);
+        let lifted = closed_form_or_carried(
+            |surface, loops, points, same_sense, band, about, cap| {
+                (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
+            },
+            surface,
+            &face_loops(body, face.record())?,
+            &face_tips(body, face.record())?,
+            face.sense(),
+            band,
+            corner_of(lane, run),
+        )
+        .map(|(c, _)| ends((c.flux + carry, c.area)));
+        reads.push(ClosedFormRead {
+            face: run.face,
+            walked: walked_closed_form(lane, surface, &run.contribution).map(ends),
+            lifted,
+        });
+    }
+    Ok(reads)
+}
+
 /// **Check 7's volume reading of `body`, finished or not**: the role walk
 /// over every face through the certified lane under check 7's names, as
 /// the at-rest gate makes it, and the interval re-derivation it leaves
