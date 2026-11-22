@@ -295,13 +295,40 @@ fn a_block_placed_off_a_face_follows_the_face() {
         Some(&common::len(GAP)),
         "a fresh editor reads the offset back"
     );
-    let mut fresh = fresh;
-    fresh.set_sense(0, true);
+    // Turned to flush and back before it is offered: the draft is the
+    // bundle it read, and writes nothing.
+    let mut back = fresh.clone();
+    back.set_sense(0, false);
+    back.set_sense(0, true);
     assert!(
-        offered(&session, &mut fresh).is_none() && fresh.pending().is_none(),
-        "and writes the bundle it read: {:?}",
-        fresh.pending()
+        offered(&session, &mut back).is_none() && back.pending().is_none(),
+        "toggled and back, it writes the bundle it read: {:?}",
+        back.pending()
     );
+    // Turned to flush and landed: the loaded side toggled, its offset
+    // kept, the far plane where it was; one undo takes it back.
+    let mut flush = fresh;
+    flush.set_sense(0, false);
+    let op = offered(&session, &mut flush).expect("flush is a change");
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    near(
+        at(&session, copy)[2],
+        BASE[2] + GAP,
+        "flush keeps the far plane",
+    );
+    let reread = MateTool::edit(session.committed_doc(), copy).expect("a placement");
+    assert_eq!(
+        (reread.rows()[0].flip(), reread.rows()[0].offset()),
+        (false, Some(&common::len(GAP))),
+        "flush, the offset read back"
+    );
+    let outcome = session.perform(SessionOp::Undo);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    reconciled(&session, &mut tools);
+    near(at(&session, copy)[2], BASE[2] + GAP, "opposed again");
 
     grown(&mut session, base, BASE[2] + 0.003);
     near(
@@ -441,17 +468,33 @@ fn an_offset_is_read_back_only_where_the_editor_wrote_it() {
             (side.clone(), Some(by.clone())),
             "{what}"
         );
+        assert_eq!(
+            offset_side(off, role, common::len(2.0 * GAP)),
+            offset_side(side.clone(), role, common::len(2.0 * GAP)),
+            "{what}: a second offset replaces the first, never stacks"
+        );
         assert_eq!(side_offset(&side, role), (side, None), "{what} unslid");
     }
     let foreign = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(flip(plane.clone())),
-        along: RoleRead::through(flip(plane), PoseRole::Normal),
+        along: RoleRead::through(flip(plane.clone()), PoseRole::Normal),
         by,
     }));
     assert_eq!(
         side_offset(&foreign, PoseRole::Normal),
         (foreign.clone(), None),
         "a slide of a flipped plane is left as written"
+    );
+    let over = offset_side(foreign.clone(), PoseRole::Normal, common::len(GAP));
+    assert_eq!(
+        side_offset(&over, PoseRole::Normal),
+        (foreign.clone(), Some(common::len(GAP))),
+        "an offset over it sits beside it, the foreign slide beneath as written"
+    );
+    assert!(
+        matches!(&over, Operand::Pose(def) if matches!(&**def,
+            PoseDef::Slide { along, .. } if along.read == plane && along.role == Some(PoseRole::Normal))),
+        "its direction is the face's own outward normal: {over:?}"
     );
     let takes: Vec<_> = [
         VarKind::Plane,
@@ -793,4 +836,50 @@ fn review_an_offset_reading_a_deleted_variable() {
             .is_none(),
         "a standoff reading a deleted variable places nothing"
     );
+}
+
+/// **What the offset field shows: empty for no offset, the formula for
+/// one that reads zero.** A cleared offset is no slide, and its row
+/// shows an empty field; an offset typed as `gap` with `gap` at `0`
+/// keeps its slide, and its row shows `gap` (`matetool::value_text`),
+/// never an empty field or a bare `0`, so clearing and a zero are told
+/// apart on screen as in the bundle.
+///
+/// *Breaks if* a formula reading zero unwraps, or the field shows it
+/// as the empty field of no offset.
+#[test]
+fn a_zero_offset_is_shown_as_written_and_no_offset_as_empty() {
+    let (mut session, mut tools, _, copy) = scene("face-offset-zero-shown");
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::from_static("gap"),
+        value: pncad::document::FreeVar::continuous(Dimension::Length, 0.0),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    session.pump();
+    rested(&mut session, &mut tools, VarKind::Plane);
+    let shown = |tools: &mut Tools, session: &DocSession| {
+        editor(tools).rows()[0]
+            .offset()
+            .map(|by| viewer::matetool::value_text(session.committed_doc(), by))
+            .unwrap_or_default()
+    };
+    assert_eq!(shown(&mut tools, &session), "", "no offset: an empty field");
+    let by = viewer::matetool::typed_offset(session.committed_doc(), "gap").expect("a length");
+    stood_off(&mut session, &mut tools, by, "gap at zero");
+    near(at(&session, copy)[2], BASE[2], "gap at zero rests");
+    assert!(
+        slides(&the_mate(session.committed_doc(), copy).to),
+        "a formula reading zero keeps its slide"
+    );
+    assert_eq!(
+        shown(&mut tools, &session),
+        "gap",
+        "the field shows the formula"
+    );
+    stood_off(&mut session, &mut tools, None, "cleared");
+    assert!(
+        !slides(&the_mate(session.committed_doc(), copy).to),
+        "cleared, no slide"
+    );
+    assert_eq!(shown(&mut tools, &session), "", "cleared: an empty field");
 }

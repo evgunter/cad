@@ -30,7 +30,7 @@
 //! # Live commits
 //!
 //! Each change to the draft — a pick seated, a kind or a sense chosen, a
-//! row added or struck, a value typed — is offered to the document's
+//! row added or struck, an offset set or cleared, a value typed — is offered to the document's
 //! door once it is made ([`MateTool::offer`]), and taken, it is one
 //! [`SessionOp::SetBundle`] keeping the id of every row loaded from the
 //! bundle: one undo step. A draft the door refuses, or one that writes
@@ -46,8 +46,8 @@
 //! A **mate row** ([`MateRow`]) holds a kind (any of [`MATE_KINDS`]), a
 //! sense ([`senses`]) and its seats, and may be struck out. A plane's or
 //! a frame's row also holds an **offset** ([`MateTool::set_offset`]): a
-//! length, a number or a formula, its `to` slid along its own normal by
-//! ([`offset_side`]) — the standoff DESIGN `[placement.mates]` makes a
+//! length, a number or a formula, its `to` slid by along the outward
+//! normal of the face it is read off, a frame's `z` ([`offset_side`]) — the standoff DESIGN `[placement.mates]` makes a
 //! construction on the target, never a value, so the copy follows the
 //! face as the face moves. The **value
 //! rows** are derived, never held: exactly the freedoms the live mates
@@ -449,36 +449,68 @@ pub fn offset_role(kind: VarKind) -> Option<pose::PoseRole> {
     }
 }
 
-/// **`side` stood off by `by`**: slid along its own `role`
-/// ([`pose::PoseDef::Slide`]), under a plain flip it carries, so the
-/// offset runs along the face's own outward normal whichever sense the
-/// row reads it in, and turning the sense round keeps where it stands.
+/// **`side` stood off by `by`**: one slide ([`pose::PoseDef::Slide`])
+/// along the outward `role` of the pose the side is read off
+/// ([`face_pose`]: a face's own plane, a frame through its picks),
+/// never along the side's own `role`, so the offset runs out of the face
+/// however the side is spelled: a plain flip it carries stays outermost,
+/// and a slide written elsewhere (the API's `Slide(Flip P, ..)`) stays
+/// beneath, as written. The editor's slide is one layer: one `side`
+/// already carries ([`side_offset`]) is replaced, never stacked.
 #[must_use]
 pub fn offset_side(side: Operand, role: pose::PoseRole, by: Formula) -> Operand {
-    match side {
-        Operand::Pose(def) => match *def {
-            pose::PoseDef::Flip {
-                pose: pose::RoleRead { read, role: None },
-            } => turned(offset_side(read, role, by)),
-            other => slid(Operand::Pose(Box::new(other)), role, by),
-        },
-        other => slid(other, role, by),
+    fn wrap(side: Operand, role: pose::PoseRole, by: Formula) -> Operand {
+        match side {
+            Operand::Pose(def) => match *def {
+                pose::PoseDef::Flip {
+                    pose: pose::RoleRead { read, role: None },
+                } => turned(wrap(read, role, by)),
+                other => slid(Operand::Pose(Box::new(other)), role, by),
+            },
+            other => slid(other, role, by),
+        }
     }
+    wrap(side_offset(&side, role).0, role, by)
 }
 
+/// `pose` slid `by` along the outward `role` of the pose it is read off.
 fn slid(pose: Operand, role: pose::PoseRole, by: Formula) -> Operand {
+    let face = face_pose(&pose).clone();
     Operand::Pose(Box::new(pose::PoseDef::Slide {
-        pose: pose::RoleRead::plain(pose.clone()),
-        along: pose::RoleRead::through(pose, role),
+        pose: pose::RoleRead::plain(pose),
+        along: pose::RoleRead::through(face, role),
         by,
     }))
 }
 
-/// **`side` with its offset taken off, and the offset**: the inverse of
-/// [`offset_side`], exactly — a side it did not write (a slide along
-/// another role, or one of a flipped pose) is no offset, and stays as
-/// written with none. `side` is read as written, an anonymous pose as
-/// its definition ([`written_side`]).
+/// **The pose `side` is read off**: `side` with every plain flip and
+/// every slide it is built by taken off — a face's plane, whose normal
+/// is the face's outward one, or a frame through its picks.
+#[must_use]
+pub fn face_pose(side: &Operand) -> &Operand {
+    let mut at = side;
+    while let Operand::Pose(def) = at {
+        match &**def {
+            pose::PoseDef::Flip {
+                pose: pose::RoleRead { read, role: None },
+            }
+            | pose::PoseDef::Slide {
+                pose: pose::RoleRead { read, role: None },
+                ..
+            } => at = read,
+            _ => break,
+        }
+    }
+    at
+}
+
+/// **`side` with the editor's offset taken off, and the offset**: the
+/// inverse of [`offset_side`] — the slide outermost but for a plain
+/// flip, along the outward `role` of the pose the side is read off
+/// ([`face_pose`]). Any other slide (along a flipped plane's normal, or
+/// another role) is not the editor's: no offset, and the side as
+/// written. `side` is read as written, an anonymous pose as its
+/// definition ([`written_side`]).
 #[must_use]
 pub fn side_offset(side: &Operand, role: pose::PoseRole) -> (Operand, Option<Formula>) {
     let unslid = |side: &Operand| match side {
@@ -491,7 +523,7 @@ pub fn side_offset(side: &Operand, role: pose::PoseRole) -> (Operand, Option<For
                         role: Some(along_role),
                     },
                 by,
-            } if read == along && *along_role == role && !is_turned(read) => {
+            } if *along_role == role && along == face_pose(read) => {
                 Some((read.clone(), by.clone()))
             }
             _ => None,
@@ -523,14 +555,6 @@ pub fn written_side(doc: &Doc<ProfileProgram>, side: &Operand) -> Operand {
         Operand::Var(var) => doc.written_operand(*var),
         other => other.clone(),
     }
-}
-
-/// Whether `side` is a plain flip.
-fn is_turned(side: &Operand) -> bool {
-    matches!(side, Operand::Pose(def) if matches!(
-        &**def,
-        pose::PoseDef::Flip { pose: pose::RoleRead { role: None, .. } }
-    ))
 }
 
 /// **The entity kinds a mate of `kind` reads**, at any of its seats, in
