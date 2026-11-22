@@ -580,11 +580,35 @@ fn a_rod_touching_the_cone_from_outside_is_a_point() {
 fn a_narrow_cone_touching_the_unit_cone_is_decided_tangent() {
     let at = p(0.0, 1.0, 1.0);
     let n = Vec3::new(0.0, 1.0, -1.0).normalize();
-    for sign in [1.0, -1.0] {
+    // Turned outward, the narrow cone meets the unit cone at the touch
+    // alone; turned inward, it crosses it there, one node whose arcs
+    // close round through it once and run out of the region twice. The
+    // trace's link is wider than elsewhere: the far arc moves fast along
+    // the rulings where they near the narrow cone's asymptotic
+    // directions.
+    let rows = [
+        (
+            1.0,
+            Shapes {
+                points: 1,
+                ..Shapes::default()
+            },
+        ),
+        (
+            -1.0,
+            Shapes {
+                noded: 3,
+                sets: 1,
+                ..Shapes::default()
+            },
+        ),
+    ];
+    for (sign, want) in rows {
         let beta: f64 = 0.3;
         let d = Vec3::unit_x() * beta.cos() + n * (sign * beta.sin());
         let other = cone_about(at - Vec3::unit_x() * 2.0, d, beta);
-        let (_, section) = checked(&unit_cone(), &other, region(), 0.05);
+        let (shapes, section) = checked(&unit_cone(), &other, region(), 0.15);
+        assert_eq!(shapes, want, "sign {sign}");
         assert!(
             section.tangency().is_some(),
             "the touch at {at:?} is decided a tangency (sign {sign})"
@@ -715,6 +739,68 @@ fn a_wall_through_the_apex_crossing_it_is_a_node() {
                 "the arc leaves along its nappe"
             );
         }
+    }
+}
+
+/// **The coaxial and parallel poses fall out of the sweep**: a wall
+/// about the cone's own axis (radius `1`) and one parallel to it `0.3`
+/// off, each one loop round each nappe, the coaxial one a constant
+/// discriminant; and a coaxial cone from `(0, 0, 1)` of `α = 0.3`, two
+/// circles. A sweep that needs a closed form for them, or loses a nappe:
+/// red.
+#[test]
+fn the_coaxial_and_parallel_poses_fall_out_of_the_sweep() {
+    let loops = Shapes {
+        loops: 2,
+        ..Shapes::default()
+    };
+    for partner in [
+        cylinder(Point3::origin(), Vec3::unit_z(), 1.0),
+        cylinder(p(0.3, 0.0, 0.0), Vec3::unit_z(), 1.0),
+        cone_about(p(0.0, 0.0, 1.0), Vec3::unit_z(), 0.3),
+    ] {
+        let (shapes, _) = checked(&unit_cone(), &partner, region(), 0.05);
+        assert_eq!(shapes, loops, "{partner:?}");
+    }
+}
+
+/// **A node whose rulings stand close reads each arc end on its own
+/// line**: a wall through the apex whose tangent plane holds the rulings
+/// at azimuths `π/2 ± 0.05`. The sheet leaves the node along its four
+/// rays, each claimed by one arc end (C5). A line chosen off the pass's
+/// coarse angle, which falls to the first line in band: red.
+#[test]
+fn a_node_whose_rulings_stand_close_claims_each_ray_once() {
+    let ruling = |phi: f64| Vec3::new(phi.cos(), phi.sin(), 1.0).normalize();
+    let delta = 0.05;
+    let (r0, r1) = (
+        ruling(core::f64::consts::FRAC_PI_2 - delta),
+        ruling(core::f64::consts::FRAC_PI_2 + delta),
+    );
+    let normal = r0.cross(r1).normalize();
+    let wall = cylinder(Point3::origin() + normal * 0.5, (r0 + r1).normalize(), 0.5);
+    let section = built(&unit_cone(), &wall, region());
+    assert_eq!(section.nodes().len(), 1, "one node at the apex");
+    let mut rays = Vec::new();
+    for c in section.counted().unwrap() {
+        let ComponentShape::Open { ends } = c.shape else {
+            panic!("an arc: {c:?}")
+        };
+        rays.extend(
+            ends.nodes
+                .both()
+                .into_iter()
+                .flatten()
+                .map(|e| (e.line, e.sense)),
+        );
+    }
+    assert_eq!(
+        rays.len(),
+        4,
+        "the sheet leaves the node four ways: {rays:?}"
+    );
+    for (k, r) in rays.iter().enumerate() {
+        assert!(!rays[..k].contains(r), "each ray claimed once: {rays:?}");
     }
 }
 
