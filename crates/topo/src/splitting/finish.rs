@@ -1122,10 +1122,9 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
         let carrier = restated
             .iter()
             .any(|(e, _)| *e == edge)
-            .then(|| body.get_edge(edge))
+            .then(|| body.edge(edge))
             .flatten()
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|geom| geom.certified())
+            .and_then(crate::live::EdgeView::certified)
             .map(|curve| curve.carrier().kind());
         match carrier {
             Some(kind) => of_attachment(edge, kind, refusal),

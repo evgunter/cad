@@ -3743,9 +3743,8 @@ impl<T: Decide> Body<T> {
             _ => None,
         };
         let own = edge
-            .and_then(|edge| self.edges.get(edge))
-            .and_then(|data| self.get_curve_geom(data.curve))
-            .and_then(|curve| curve.certified())
+            .and_then(|edge| self.edge(edge))
+            .and_then(crate::live::EdgeView::certified)
             .and_then(geom_brep::EdgeCurve::locus_certificate);
         let kept: Vec<_> = kept.into_iter().chain(own).collect();
         crate::policy_lane::certify_stated(

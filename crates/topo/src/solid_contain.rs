@@ -3089,11 +3089,7 @@ fn wall_crosses_by_turn<T: Decide>(
         if e.across == face {
             continue;
         }
-        let Some(curve) = body
-            .get_edge(e.edge)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge(e.edge).and_then(crate::live::EdgeView::certified) else {
             return Ok(None);
         };
         let off = match *curve.carrier() {
@@ -3189,9 +3185,8 @@ fn loop_turn<T: Decide>(
         }
         let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
         let curve = body
-            .get_edge(e.edge)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
+            .edge(e.edge)
+            .and_then(crate::live::EdgeView::certified)
             .ok_or_else(corrupt)?;
         match *curve.carrier() {
             geom::Curve3::Line(_) => turn = turn + angle(a, b),
@@ -3249,10 +3244,7 @@ pub(crate) fn along_half<T: Decide>(
 ) -> Option<(Point3<T>, Vec3<T>)> {
     let edge = body.get_half_edge(half)?.edge;
     let plus = body.edges.get(edge)?.claim(half)?.plus;
-    let curve = body
-        .get_edge(edge)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+    let curve = body.edge(edge).and_then(crate::live::EdgeView::certified)?;
     let (t0, t1) = curve.params();
     let t = t0 + (t1 - t0) * T::from_f64(if plus { f } else { 1.0 - f });
     let d = curve.carrier().deriv(t);
@@ -3270,9 +3262,8 @@ pub(crate) fn edge_clearance<T: Decide>(
 ) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
-        .get_edge(e.edge)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+        .edge(e.edge)
+        .and_then(crate::live::EdgeView::certified)?;
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);

@@ -1813,8 +1813,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let mut curve_b = curve_b;
         curve_b.keep(minted.first().and_then(|&chord| {
             red.a
-                .stored_curve_as(chord, crate::live::Arg("chord"))
-                .ok()
+                .proven_edge(chord)
+                .certified()
                 .and_then(|curve| curve.locus_certificate().cloned())
         }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -2797,9 +2797,8 @@ fn along_edge_conic<T: Decide>(
         _ => return Ok(None),
     };
     let carrier = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
+        .edge(edge)
+        .and_then(crate::live::EdgeView::certified)
         .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?
         .carrier()
         .clone();
@@ -3502,9 +3501,8 @@ pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
                 body_b
             };
             let straight = body
-                .get_edge(edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(crate::null::CurveGeom::certified)
+                .edge(edge)
+                .and_then(crate::live::EdgeView::certified)
                 .ok_or(BooleanError::JoinDesync {
                     what: "an OnEdge germ's edge carries no certified curve",
                 })?
@@ -5070,8 +5068,8 @@ fn run_spline_edge<T: Decide>(
             .ok_or(desync("ring-run half no longer resolves"))?
             .edge;
         let curve = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
+            .edge(edge)
+            .map(crate::live::EdgeView::curve)
             .ok_or(desync("a ring-run edge carries no curve"))?;
         // A null edge is scaffolding, wound as its chord.
         let spline = match curve {
@@ -5651,13 +5649,10 @@ fn seam_germ_side<T: Decide>(
                     .get_half_edge(mate)
                     .ok_or(desync("section mate no longer resolves"))?;
                 let edge = body
-                    .get_edge(m.edge)
+                    .edge(m.edge)
                     .ok_or(desync("section mate's edge no longer resolves"))?;
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .ok_or(desync("section mate's edge carries no curve"))?
-                    .certified();
-                Ok((edge.he_plus, curve))
+                let curve = edge.curve().certified();
+                Ok((edge.record().he_plus, curve))
             })();
             let (he_plus, curve) = match resolved {
                 Ok(read) => read,

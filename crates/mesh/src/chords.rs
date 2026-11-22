@@ -829,11 +829,9 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
 /// An edge's certified curve.
 fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
     let edge = body
-        .get_edge(ek)
+        .edge(ek)
         .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    body.get_curve_geom(edge.curve)
-        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-        .certified()
+    edge.certified()
         .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
 }
 

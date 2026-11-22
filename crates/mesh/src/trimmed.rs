@@ -2293,9 +2293,8 @@ fn developed_runs(
 /// Whether edge `ek` is carried by a line, which on a cone is a ruling:
 /// what [`developed_runs`] reads of the polygon side an edge carries.
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
-    body.get_edge(ek)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(|geom| geom.certified())
+    body.edge(ek)
+        .and_then(topo::EdgeView::certified)
         .is_some_and(|curve| matches!(curve.carrier(), geom::Curve3::Line(..)))
 }
 

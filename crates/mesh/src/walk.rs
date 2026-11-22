@@ -213,11 +213,9 @@ pub(crate) fn traversals(
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
             .start;
         let edge = body
-            .get_edge(ek)
+            .edge(ek)
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+        let curve = edge
             .certified()
             .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
         let mut ids = chords
@@ -729,9 +727,8 @@ pub(crate) fn splits_a_straight_side(
                 what: "vertex position",
             })?;
         let carrier = body
-            .get_edge(ek)
-            .and_then(|edge| body.get_curve_geom(edge.curve))
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .edge(ek)
+            .ok_or(TessellateError::MissingEntity { what: "edge" })?
             .certified()
             .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
             .carrier();

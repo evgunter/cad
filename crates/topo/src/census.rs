@@ -5069,9 +5069,8 @@ fn edge_crossings<T: Decide>(
 ) -> Option<Vec<(T, CutAt)>> {
     use crate::splitting::containment::LoopEdge;
     let stored = body
-        .get_edge(side.key)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(CurveGeom::certified);
+        .edge(side.key)
+        .and_then(crate::live::EdgeView::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
     let straight = stored.is_none_or(|c| !c.carrier().is_curved());
@@ -9653,10 +9652,9 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
 /// Whether edge `e`'s certified carrier is a circle
 /// ([`crate::link::Bound::circle`]).
 fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
-    body.get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|g| g.certified())
-        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
+    body.edge(e)
+        .and_then(crate::live::EdgeView::certified)
+        .is_some_and(|c| c.carrier().as_circle().is_some())
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
@@ -12535,7 +12533,7 @@ fn shared_interior_witness<T: Decide>(
             .into_iter()
             .filter_map(|v| Some((geo.vmap.get(&v).copied()?, FaceContainment::OnVertex(v))));
         let middles = edges.iter().filter_map(|&e| {
-            let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
+            let curve = body.proven_edge(e).certified()?;
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         probes.extend(

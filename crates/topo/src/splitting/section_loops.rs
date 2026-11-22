@@ -112,10 +112,7 @@ fn whole_conic_principal<T: Real>(
     first: crate::entity::HalfEdgeKey,
 ) -> Option<Vec3<T>> {
     let he = body.get_half_edge(first)?;
-    let curve = body
-        .get_edge(he.edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+    let curve = body.edge(he.edge)?.certified()?;
     let end = body.half_edge_end(first)?;
     if he.next != first || crate::chord_join::lone_site_placeholder(he.start, end, curve) {
         return None;

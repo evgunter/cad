@@ -1936,10 +1936,10 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => &red.b,
         };
         let edge = kept_body
-            .get_edge(fe.edge)
+            .edge(fe.edge)
             .ok_or_else(|| desync("a fate edge no longer resolves"))?;
         let kept_root = div_k.root(fe.kept);
-        let kept_he = [edge.he_plus, edge.he_minus]
+        let kept_he = [edge.record().he_plus, edge.record().he_minus]
             .into_iter()
             .find(|&he| {
                 kept_body
@@ -1947,12 +1947,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     .is_some_and(|f| div_k.root(f) == kept_root)
             })
             .ok_or_else(|| desync("a fate edge does not bound its kept face"))?;
-        let curve = kept_body
-            .get_curve_geom(edge.curve)
-            .and_then(|c| c.certified())
+        let curve = edge
+            .certified()
             .cloned()
             .ok_or_else(|| desync("a fate edge has no certified curve"))?;
-        let forward = kept_he == edge.he_plus;
+        let forward = kept_he == edge.record().he_plus;
         let kept_mate = kept_body
             .mate(kept_he)
             .ok_or_else(|| desync("a fate edge has no mate"))?;

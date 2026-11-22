@@ -2193,13 +2193,11 @@ fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
-    for (ek, edge) in body.edges() {
+    for view in body.edge_views() {
+        let (ek, edge) = (view.key(), view.record());
         let sides = crate::readback::edge_sides_of(body, ek, edge);
         let (f1, f2) = sides.faces();
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = view.certified() else {
             continue;
         };
         if matches!(

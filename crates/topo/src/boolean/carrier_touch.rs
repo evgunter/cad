@@ -60,7 +60,7 @@ use super::{BooleanDecision, reduce};
 use crate::body::Body;
 use crate::boxes;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
-use crate::entity::{EdgeKey, EntityId, FaceKey};
+use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::bisect::Step;
@@ -408,8 +408,7 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
     if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, radius, pad)) {
         return Ok(true);
     }
-    let e = crate::live::proven(&y.edges, edge, EntityId::Edge);
-    let curve = reduce::certified(y.get_curve_geom(e.curve))?;
+    let curve = reduce::certified(Some(y.proven_edge(edge)))?;
     Ok(
         crate::splitting::containment::arc_distance_floor(curve.carrier(), curve.params(), at)
             .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band))),

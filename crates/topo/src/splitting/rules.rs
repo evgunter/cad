@@ -445,9 +445,8 @@ impl<T: Decide> ParallelFace<T> {
 /// Whether `edge` is a straight line: the shape of the contact a plane
 /// tangent to a cylinder or a cone makes, along a ruling.
 fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
-    let curve = proven(&body.edges, edge, EntityId::Edge).curve;
-    body.get_curve_geom(curve)
-        .and_then(crate::null::CurveGeom::certified)
+    body.proven_edge(edge)
+        .certified()
         .is_some_and(|c| !c.carrier().is_curved())
 }
 

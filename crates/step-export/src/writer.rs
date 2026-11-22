@@ -19,7 +19,7 @@ use geom::Surface;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use topo::{
-    AtRestBody, Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey,
+    AtRestBody, Body, EdgeCurve, EdgeKey, EdgeView, FaceKey, LoopBoundary, LoopKey, ShellKey,
     ShellRole, VertexKey, classify_shells_of,
 };
 
@@ -55,22 +55,11 @@ fn surface_kind(surface: &Surface<f64>) -> &'static str {
     }
 }
 
-/// The certified carrier of `edge`, refusing null scaffolding with the
+/// The certified curve of `edge`, refusing null scaffolding with the
 /// typed mid-surgery error.
-fn certified_carrier<'a>(
-    body: &'a Body<f64>,
-    edge_key: EdgeKey,
-    edge: &Edge,
-) -> Result<&'a Curve3<f64>, StepExportError> {
-    let geom = body
-        .get_curve_geom(edge.curve)
-        .ok_or(StepExportError::Corrupt {
-            what: "edge curve key does not resolve",
-        })?;
-    match geom {
-        CurveGeom::Certified(curve) => Ok(curve.carrier()),
-        CurveGeom::NullScaffold(_) => Err(StepExportError::NullScaffoldEdge { edge: edge_key }),
-    }
+fn certified_curve(edge: EdgeView<'_, f64>) -> Result<&EdgeCurve<f64>, StepExportError> {
+    edge.certified()
+        .ok_or(StepExportError::NullScaffoldEdge { edge: edge.key() })
 }
 
 /// The subset's carrier gate: `carrier` back for anything the curve
@@ -359,12 +348,9 @@ impl<'a> Writer<'a> {
         if let Some(&id) = self.shared.edge_curves.get(&edge_key) {
             return Ok(id);
         }
-        let edge = self
-            .body
-            .get_edge(edge_key)
-            .ok_or(StepExportError::Corrupt {
-                what: "edge key does not resolve",
-            })?;
+        let edge = self.body.edge(edge_key).ok_or(StepExportError::Corrupt {
+            what: "edge key does not resolve",
+        })?;
         let (start_vertex, end_vertex) =
             self.body
                 .edge_vertices(edge_key)
@@ -375,7 +361,7 @@ impl<'a> Writer<'a> {
             self.vertex_point(start_vertex)?,
             self.vertex_point(end_vertex)?,
         );
-        let carrier = printable_carrier(certified_carrier(self.body, edge_key, edge)?, edge_key)?;
+        let carrier = printable_carrier(certified_curve(edge)?.carrier(), edge_key)?;
         // The curve printers — one closed match over `Curve3`, every
         // arm an EXACT native AP214 entity (crate docs, "the analytic
         // subset"). Everything around this match is carrier-agnostic.
@@ -437,7 +423,7 @@ impl<'a> Writer<'a> {
                 offset,
                 ..
             } => {
-                let (t0, t1) = self.edge_params(edge_key, edge)?;
+                let (t0, t1) = certified_curve(edge)?.params();
                 let (spline, bound) = self.spiric_spline(
                     carrier,
                     edge_key,
@@ -478,21 +464,6 @@ impl<'a> Writer<'a> {
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
         Ok(id)
-    }
-
-    /// The edge's certified parameter interval — the span the spiric
-    /// lane approximates over (every other printer emits an unbounded
-    /// native entity and needs none).
-    fn edge_params(&self, edge_key: EdgeKey, edge: &Edge) -> Result<(f64, f64), StepExportError> {
-        match self.body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(curve)) => Ok(curve.params()),
-            Some(CurveGeom::NullScaffold(_)) => {
-                Err(StepExportError::NullScaffoldEdge { edge: edge_key })
-            }
-            None => Err(StepExportError::Corrupt {
-                what: "edge curve key does not resolve",
-            }),
-        }
     }
 
     /// [`spiric_export_spline`] with this writer's own budget — the

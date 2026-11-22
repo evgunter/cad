@@ -636,14 +636,15 @@ pub(super) fn gate_operand_pairs<T: crate::props::AtRestPolicy + Bounds>(
     Ok(())
 }
 
-/// An operand edge's certified carrier. An operand holds no null edge
-/// and no unresolvable curve key (it is finished, [`gate_operand_pairs`]),
-/// and the sweep's only surgery (`split_edge`) mints certified pieces,
-/// so a miss is a kernel invariant, not the operand's fault.
+/// An operand edge's certified carrier, `None` where the edge did not
+/// resolve. An operand holds no null edge (it is finished,
+/// [`gate_operand_pairs`]), and the sweep's only surgery (`split_edge`)
+/// mints certified pieces, so a miss is a kernel invariant, not the
+/// operand's fault.
 pub(super) fn certified<T: geom_core::Real>(
-    geom: Option<&CurveGeom<T>>,
+    edge: Option<crate::live::EdgeView<'_, T>>,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    geom.and_then(CurveGeom::certified)
+    edge.and_then(crate::live::EdgeView::certified)
         .ok_or(BooleanError::ClassificationInvariant {
             what: "an operand edge of a finished body has no certified carrier",
         })
@@ -1175,7 +1176,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // plane the roots still decide, so a touch in the middle of
             // the edge keeps their typed refusal.
             {
-                let curve = certified(x.get_curve_geom(edge.curve))?.clone();
+                let curve = certified(Some(x.proven_edge(edge_key)))?.clone();
                 let (t0, t1) = curve.params();
                 let lane = geom_brep::curve_face::plane_crossing::plane_crossing_lane(
                     curve.carrier(),
@@ -1434,7 +1435,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
                     // classify it against the face.
-                    let curve = certified(x.get_curve_geom(edge.curve))?.clone();
+                    let curve = certified(Some(x.proven_edge(edge_key)))?.clone();
                     let (t0, t1) = curve.params();
                     let d1 = geom::plane_offset(plane.origin, plane.normal, pu);
                     let d2 = geom::plane_offset(plane.origin, plane.normal, pv);
@@ -1865,7 +1866,7 @@ fn held_at_corners<T: Decide>(
     // other end; `None` for a curved edge.
     let chord = |e: &crate::live::FaceEdge, from: VertexKey| -> Result<_, BooleanError> {
         let edge = y
-            .get_edge(e.edge)
+            .edge(e.edge)
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "an edge bounding a face does not resolve",
             })?;
@@ -1874,11 +1875,10 @@ fn held_at_corners<T: Decide>(
         } else {
             e.ends[0]
         };
-        Ok(matches!(
-            certified(y.get_curve_geom(edge.curve))?.carrier(),
-            geom::Curve3::Line(_)
+        Ok(
+            matches!(certified(Some(edge))?.carrier(), geom::Curve3::Line(_))
+                .then(|| point(to) - point(from)),
         )
-        .then(|| point(to) - point(from)))
     };
     let mut read = None;
     for (corner, at, to) in ends {
@@ -2317,7 +2317,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // carrier decided `sign` lies where some parent's cover certifies it.
     let admitted = |sign| covers.iter().any(|c| c.admits(sign));
     let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
-    let curve = certified(x.get_curve_geom(edge.curve))?.clone();
+    let curve = certified(Some(x.proven_edge(edge_key)))?.clone();
     // The curve × face table's door for the pair. A spline face has no
     // residual for the arms below: it is read through the table's
     // boundary pass alone ([`spline_face`]). The analytic doors are the
@@ -3642,13 +3642,13 @@ fn twin_edge<T: Decide>(
         .ok_or_else(|| lost("spline face: a vertex's edges do not resolve"))?;
     for ek in around {
         let e = y
-            .get_edge(ek)
+            .edge(ek)
             .ok_or_else(|| lost("spline face: a vertex's edge is lost"))?;
         let starts = y.edge_vertices(ek);
         if starts != Some((wu, wv)) && starts != Some((wv, wu)) {
             continue;
         }
-        let Some(CurveGeom::Certified(curve)) = y.get_curve_geom(e.curve) else {
+        let Some(CurveGeom::Certified(curve)) = Some(e.curve()) else {
             continue;
         };
         let met = match meet(swept, &Span::new(curve.carrier(), curve.params()), band) {
@@ -3664,7 +3664,7 @@ fn twin_edge<T: Decide>(
         if !shares_a_run(&met) {
             continue;
         }
-        if [e.he_plus, e.he_minus]
+        if [e.record().he_plus, e.record().he_minus]
             .into_iter()
             .any(|he| y.face_of_half_edge(he) == Some(face))
         {
@@ -4033,11 +4033,10 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     } = *arc;
     let lost = |what| BooleanError::ClassificationInvariant { what };
     let e = x
-        .get_edge(edge_key)
+        .edge(edge_key)
         .ok_or_else(|| lost("an arc on a carrier: the edge is lost"))?;
-    let curve = x
-        .get_curve_geom(e.curve)
-        .and_then(CurveGeom::certified)
+    let curve = e
+        .certified()
         .ok_or_else(|| lost("an arc on a carrier: the edge's curve is lost"))?;
     // A ruling or an ellipse has no circle for (a) and (b) to read: the
     // interior question alone decides it.
@@ -4088,7 +4087,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         }
         if let [(_, Some(wu)), (_, Some(wv))] = placed {
             let (dir, _) = curve.walk_tangents(
-                x.get_half_edge(e.he_plus)
+                x.get_half_edge(e.record().he_plus)
                     .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
                     .start
                     == ends[0].0,
@@ -5928,7 +5927,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     if let Some(t) = held_param(held, edge)? {
         return split_logged(y, y_is, edge, t, Some(p), by, tol, contacts);
     }
-    let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
+    let curve = certified(y.edge(edge))?.clone();
     let t = if let circle @ geom::Curve3::Circle(_) = curve.carrier() {
         let (t0, t1) = curve.params();
         match circle.on_carrier(p, geom::mid_param(t0, t1), band) {
@@ -8846,9 +8845,7 @@ mod spline_face_rows {
             let s = super::held_param(held, chord)
                 .unwrap()
                 .unwrap_or_else(|| panic!("{a:?} → {b:?}: the chord holds no parameter"));
-            let curve = super::certified(y.get_edge(chord).and_then(|e| y.get_curve_geom(e.curve)))
-                .unwrap()
-                .clone();
+            let curve = super::certified(y.edge(chord)).unwrap().clone();
             let back = super::point_param(&y, Operand::B, chord, &curve, p).unwrap();
             assert!(
                 (s - back).abs() <= 1e-12,
