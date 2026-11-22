@@ -1210,9 +1210,11 @@ impl ClearanceReport {
 /// by a local certificate or refuse typed, naming the two faces, the
 /// shared cell and the arm ([`topo::clearance::Sweep::run`]).
 ///
-/// The question ends at its first finding, a verified crossing or a
-/// refusal, and that is the leaf's verdict: the pairs after it are not
-/// read. A boundary that crosses itself and also holds a place the
+/// It ends one of three ways: it proves the boundary clean (`Holds`);
+/// it finds and verifies a place where the boundary meets itself (a
+/// crossing, `Violated`); or it cannot decide a pair of faces
+/// (`Refused`). It ends at the first crossing or refusal it meets, and
+/// that is the leaf's verdict: the pairs after it are not read. A boundary that crosses itself and also holds a place the
 /// engine cannot read is told whichever the walk meets first, which
 /// moves with the body's pose and its faces' order; it is never told
 /// that it holds.

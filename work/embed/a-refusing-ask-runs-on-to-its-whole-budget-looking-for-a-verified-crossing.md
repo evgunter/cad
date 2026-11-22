@@ -135,6 +135,15 @@ nowhere says the embedding question reads on after a finding.
 
 ## Landed (2026-11-22, `embed/first-finding`)
 
+**The three outcomes, in plain words.** The embedding check asks
+whether a solid's surface passes through or touches itself anywhere
+but along its own edges. It ends one of three ways: it proves the
+solid clean (`Embedded`, accepted); it finds and verifies a place
+where the surface meets itself (`Crosses`, "a crossing", rejected);
+or it cannot decide a pair of faces and stops (`Refused`, "a refusal",
+rejected). "Refusing ask" below is a run of the check that ends the
+third way.
+
 **What the code reads.** One rule, `Bound::refuse_below`
 (`crates/topo/src/clearance.rs`): a refusal of the lower bound is kept,
 and the injectivity question (`Bound::injective`: the strict bound over
