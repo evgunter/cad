@@ -516,3 +516,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - FULL single review, Opus; no model-compare row (Fable outage).
   - The latency row closes, and the queue row holds the remainder.
 - 2026-11-22 — PR 7359 (U4) merged on its one red, an inherited varying-seed torn-body fuzz row held by CHARTTAIL (`a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`). Annotated on the PR.
+- 2026-11-22 — PRs 7359 and 7364 merged. Orchestrator's own slip, logged: a merge of main into 7364's branch conflicted in a row, and the same chained call's `git add && git commit` committed the conflict markers and pushed them. It was caught by lint in the same output and repaired by a follow-up commit before the PR merged. Never chain a commit after a merge in one call; grep the tree for markers first (`memories/agent-lane-operations.md` says so).
