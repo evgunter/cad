@@ -432,38 +432,54 @@ fn a_redimension_that_keeps_the_plane_leaves_the_chart_bit_equal() {
 
 /// The motion a plane placement of a cube of side `side` onto `face` of
 /// `copy` solves to, under `orient` and the values a face's chart
-/// writes: its start cap flipped to look up its own `z`, as DM1 places
-/// a body on a face. Its fault where it refuses.
+/// writes ([`placed_twin`]). Its fault where it refuses.
 fn placed_on(
+    doc: ProfileDoc,
+    at: (RecipeNodeId, StableName),
+    orient: Orientation,
+    values: (Formula, [f64; 2]),
+    side: f64,
+) -> Result<geom_core::Affine3<f64>, MateFault> {
+    let square = fixture::desc(vec![vec![
+        (0.0, 0.0),
+        (side, 0.0),
+        (side, side),
+        (0.0, side),
+    ]]);
+    placed_twin(doc, at, orient, values, (square, side))
+}
+
+/// **The placed twin of a sweep drawn on a face's chart**: `outline`
+/// drawn free and extruded `depth`, placed onto `face` of `copy` by the
+/// plane mate a face's chart is, under `orient` and its values. The cap
+/// on its own `xy` (the start cap flipped to look up its own `z` for a
+/// `+` depth, as DM1 places a body on a face; the end cap, which faces
+/// up its `z`, for a `−` one) is mated to the face, so it stands where
+/// the same sweep drawn on the chart stands. Its motion, or its fault.
+fn placed_twin(
     doc: ProfileDoc,
     (copy, face): (RecipeNodeId, StableName),
     orient: Orientation,
     (spin, slides): (Formula, [f64; 2]),
-    side: f64,
+    (outline, depth): (editor_core::ProfileProgram<Formula>, f64),
 ) -> Result<geom_core::Affine3<f64>, MateFault> {
-    let (doc, square) = fixture::insert(
-        doc,
-        Node::Profile(fixture::desc(vec![vec![
-            (0.0, 0.0),
-            (side, 0.0),
-            (side, side),
-            (0.0, side),
-        ]])),
-    );
+    let (doc, outline) = fixture::insert(doc, Node::Profile(outline));
     let (doc, source) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: square.into(),
-            distance: len(side),
+            profile: outline.into(),
+            distance: len(depth),
         },
     );
     let (doc, placement) =
         fixture::insert(doc, fixture::stood(BodyRead::plain(Operand::from(source))));
+    let own = |end| fixture::plane(Operand::select(source, vec![cap(source, end)]));
     let mate = Mate {
-        on: fixture::flip(fixture::plane(Operand::select(
-            source,
-            vec![cap(source, CapEnd::Start)],
-        ))),
+        on: if depth > 0.0 {
+            fixture::flip(own(CapEnd::Start))
+        } else {
+            own(CapEnd::End)
+        },
         to: fixture::plane(Operand::select(
             BodyRead::plain(Operand::from(copy)),
             vec![face],
@@ -484,7 +500,7 @@ fn placed_on(
     if let Some(fault) = poses.fault(placement) {
         return Err(fault.clone());
     }
-    Ok(poses.relative_map(placement).expect("the block's motion"))
+    Ok(poses.relative_map(placement).expect("the twin's motion"))
 }
 
 /// Every bit of an affine map: its linear part's columns, then its
@@ -772,32 +788,56 @@ fn a_pockets_tool_is_carried_over_its_lifted_reach() {
         "FIXTURE: the tool's band is its conditioning edge, past its profile's"
     );
     let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    // The tool drawn on the chart, and its placed twin: the same disc
+    // extruded `−depth` free and mated onto the face by its end cap.
     let tool = |tilt| {
         let (doc, copy, top, backwards) = near_the_pole(tilt, height);
         let at = on(Some(backwards), 0.0, [0.0, 0.0]);
-        let (doc, profile) = drawn_loop(&doc, copy, top, at, disc(radius));
-        let (doc, tool) = fixture::insert(
-            doc,
+        let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, disc(radius));
+        let (drawn_doc, tool) = fixture::insert(
+            drawn_doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(-depth),
             },
         );
-        let mut ev = eval(&doc);
-        (chart_in(&mut ev, profile), ev.nodes.remove(&tool))
+        let mut ev = eval(&drawn_doc);
+        let outline = editor_core::ProfileProgram {
+            loops: vec![disc(radius)],
+            ids: Vec::new(),
+            on: None,
+        };
+        let twin = placed_twin(
+            doc,
+            (copy, top),
+            backwards,
+            (ang(0.0), [0.0, 0.0]),
+            (outline, -depth),
+        );
+        (chart_in(&mut ev, profile), ev.nodes.remove(&tool), twin)
     };
-    let (profile, built) = tool(between);
-    assert!(
-        profile.is_ok() && matches!(built, Some(NodeResult::Ok(_))),
-        "the tool builds at tilt {between}: {:?} / {built:?}",
-        profile.err()
-    );
-    let (profile, refused) = tool(under);
-    assert!(
-        profile.is_ok()
-            && matches!(&refused, Some(NodeResult::Failed(e)) if refuses_backwards(&e.kind, backwards)),
-        "the tool refuses backwards under its own edge at tilt {under}: {:?} / {refused:?}",
-        profile.err()
+    let mut outcomes = Vec::new();
+    for tilt in [between, under] {
+        let (profile, tool, twin) = tool(tilt);
+        let built = matches!(tool, Some(NodeResult::Ok(_)));
+        assert!(
+            profile.is_ok(),
+            "the disc charts at tilt {tilt}: {:?}",
+            profile.err()
+        );
+        assert!(
+            built == twin.is_ok()
+                && (built
+                    || matches!(&tool, Some(NodeResult::Failed(e)) if refuses_backwards(&e.kind, backwards))
+                        && matches!(twin, Err(MateFault::Backwards { .. }))),
+            "the tool and its placed twin agree at tilt {tilt}, backwards where they refuse: {tool:?} / {twin:?}"
+        );
+        outcomes.push(built);
+    }
+    assert_eq!(
+        outcomes,
+        [true, false],
+        "the tool builds between the two arms' edges and refuses under its own"
     );
 }
 
@@ -838,17 +878,36 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
     let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
     let pole = |arm| tol.k() * tol.eps() / arm;
     let band = |arm: f64| edge(arm).max(pole(arm));
-    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
-    let charted = |tilt, height, (program, _): (LoopProgram<Formula>, f64)| {
+    // The lens drawn on the chart, and its placed twin: the same lens
+    // extruded a hundredth of its chord free and mated onto the face.
+    let agree = |row: &str, tilt, height, chord: f64, (program, _): (LoopProgram<Formula>, f64)| {
         let (doc, copy, top, backwards) = near_the_pole(tilt, height);
-        let (doc, profile) = drawn_loop(
-            &doc,
-            copy,
-            top,
-            on(Some(backwards), 0.0, [0.0, 0.0]),
-            program,
+        let at = on(Some(backwards), 0.0, [0.0, 0.0]);
+        let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, program.clone());
+        let drawn = chart(&drawn_doc, profile);
+        let outline = editor_core::ProfileProgram {
+            loops: vec![program],
+            ids: Vec::new(),
+            on: None,
+        };
+        let twin = placed_twin(
+            doc,
+            (copy, top),
+            backwards,
+            (ang(0.0), [0.0, 0.0]),
+            (outline, chord / 100.0),
         );
-        chart(&doc, profile)
+        assert!(
+            drawn.is_ok() == twin.is_ok()
+                && (drawn.is_ok()
+                    || drawn
+                        .as_ref()
+                        .is_err_and(|e| refuses_backwards(e, backwards))
+                        && matches!(twin, Err(MateFault::Backwards { .. }))),
+            "{row}: the lens and its placed twin agree at tilt {tilt}, backwards where they refuse: {:?} / {twin:?}",
+            drawn.as_ref().err()
+        );
+        drawn.is_ok()
     };
 
     let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
@@ -860,10 +919,9 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
         tilt < 0.5 * band(bound),
         "FIXTURE: the carrier circle's arm {bound} refuses at tilt {tilt}"
     );
-    let at = charted(tilt, height, wide);
     assert!(
-        at.is_ok(),
-        "wide edge: the lens charts at tilt {tilt}: {at:?}"
+        agree("wide edge", tilt, height, chord, wide),
+        "wide edge: the lens charts at tilt {tilt}, where its carrier circle's arm would refuse"
     );
 
     let chord = meet / 50.0;
@@ -874,56 +932,74 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
         edge(tight) < 0.1 * pole(tight) && 2.0 * band(bound) < tilt,
         "FIXTURE: the lens's band is its pole verdict, and its carrier circle's arm {bound} charts at tilt {tilt}"
     );
-    let at = charted(tilt, chord, narrow);
     assert!(
-        at.as_ref().is_err_and(|e| refuses_backwards(e, backwards)),
-        "narrow edge: the lens refuses backwards at tilt {tilt}: {at:?}"
+        !agree("narrow edge", tilt, chord, chord, narrow),
+        "narrow edge: the lens refuses at tilt {tilt}, where its carrier circle's arm would chart"
     );
 }
 
 /// **A face's chart moved in a profile's frame seat refuses typed**: a
-/// profile drawn on the top cap's chart slid along its own `z` stands in
-/// a frame no placement places a copy at (a plane mate leaves one spin,
-/// about the normal), so the seat refuses
+/// profile drawn on the top cap's chart slid along the chart's own `z`,
+/// or spun about an axis read off another variable (the bottom cap's
+/// chart's `x`), stands in a frame no placement places a copy at (a
+/// plane mate leaves one spin, about the normal), so the seat refuses
 /// [`PoseConstruction::FaceChartUnseated`].
 #[test]
 fn a_moved_face_chart_refuses_in_a_frame_seat() {
     use editor_core::pose::{PoseRole, RoleRead};
     let (doc, body) = block(2.0, 1.0);
     let ev = eval(&doc);
-    let on_cap = editor_core::chart_on_face(
-        &doc,
-        Some(&ev),
-        BodyRead::plain(Operand::from(body)),
-        cap(body, CapEnd::End),
-        &OnFace::nearest(),
-    );
-    let moved = Operand::Pose(Box::new(PoseDef::Slide {
-        pose: RoleRead::plain(on_cap.clone()),
-        along: RoleRead::through(on_cap, PoseRole::Z),
-        by: len(0.5),
-    }));
-    let (doc, profile) = fixture::insert(
-        doc,
-        Node::Profile(editor_core::ProfileProgram {
-            loops: vec![disc(0.25)],
-            ids: Vec::new(),
-            on: Some(editor_core::DrawnOn {
-                frame: moved,
-                faces: Vec::new(),
-            }),
-        }),
-    );
-    let refused = chart(&doc, profile);
-    assert!(
-        matches!(
-            refused,
-            Err(NodeErrorKind::PoseDegenerate {
-                construction: PoseConstruction::FaceChartUnseated
-            })
+    let chart_of = |end| {
+        editor_core::chart_on_face(
+            &doc,
+            Some(&ev),
+            BodyRead::plain(Operand::from(body)),
+            cap(body, end),
+            &OnFace::nearest(),
+        )
+    };
+    let (top, bottom) = (chart_of(CapEnd::End), chart_of(CapEnd::Start));
+    let moves = [
+        (
+            "slid along its own z",
+            PoseDef::Slide {
+                pose: RoleRead::plain(top.clone()),
+                along: RoleRead::through(top.clone(), PoseRole::Z),
+                by: len(0.5),
+            },
         ),
-        "the moved chart refuses unseated: {refused:?}"
-    );
+        (
+            "spun about another variable's x",
+            PoseDef::Spin {
+                pose: RoleRead::plain(top),
+                about: RoleRead::through(bottom, PoseRole::X),
+                by: ang(0.3),
+            },
+        ),
+    ];
+    for (row, moved) in moves {
+        let (doc, profile) = fixture::insert(
+            doc.clone(),
+            Node::Profile(editor_core::ProfileProgram {
+                loops: vec![disc(0.25)],
+                ids: Vec::new(),
+                on: Some(editor_core::DrawnOn {
+                    frame: Operand::Pose(Box::new(moved)),
+                    faces: Vec::new(),
+                }),
+            }),
+        );
+        let refused = chart(&doc, profile);
+        assert!(
+            matches!(
+                refused,
+                Err(NodeErrorKind::PoseDegenerate {
+                    construction: PoseConstruction::FaceChartUnseated
+                })
+            ),
+            "{row}: the moved chart refuses unseated: {refused:?}"
+        );
+    }
 }
 
 /// **A tilted face through its space's origin charts with zero slides**:
