@@ -36,7 +36,7 @@ which holds the cylinder's sections to `4u` of their SEMI-AXIS and the
 cone's to `4u` of their own coordinates; the cylinder half is the pin
 that tightens when this row lands):
 
-| semi-axis | samples | worst miss, born with its centre | anchored at a fixed major vertex |
+| semi-axis | samples | worst miss, held at its centre | anchored at a fixed major vertex |
 |---|---|---|---|
 | 1e4 | 527 | 1.09 u·a (1.7e-12 m) | 2.08 u·a |
 | 1e5 | 680 | 1.11 u·a (1.6e-11 m) | 1.41 u·a |
@@ -126,8 +126,9 @@ The list is from reading; it is not exhaustive for `pcurve_cache.rs`,
 
 ## What this row closes on a re-seamed ellipse
 
-`crates/geom-core/README.md` (on `main`, PR 7194) says of every conic that its parameter zero is
-at its anchor. After the phase
+`crates/geom-core/README.md` says of a conic held about a point of the
+arc it serves that its parameter zero is there (PR 7258, approved; PR
+7194's sentence said it of every conic). After the phase
 (`Ellipse::seamed_toward`, `crates/geom/src/curves/conic.rs`) that holds
 for a conic as minted and not for a re-seamed one: a re-seam turns the
 seam under the anchor, so parameter zero is at the turned seam's

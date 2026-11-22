@@ -1,7 +1,7 @@
 ---
 id: one-stored-form-waits-on-the-readers-of-a-conics-centre
 kind: issue
-title: One stored form for every conic waits on the readers of a conic's centre: under a derived centre they widen at Interval and part from the evaluator at f64
+title: Every reader that rebuilds or restates a conic from its centre goes through the conic: the sites, and what each showed when the centre was a derived one
 status: open
 opened: 2026-11-21
 priority: P1
@@ -10,15 +10,31 @@ refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-points-are-r
 ---
 
 
-## Finding
+## What is owed
 
-One stored form for every conic (PR 7194: anchored, the centre derived
-and never stored) was built on `oneround/anchored-conic-one-form` at
-`e04a87227` and measured. A door handed a centre sums the anchor once,
-`anchor = c + u·a`, and `Conic::center()` / `Conic::frame()` derive the
-centre back on each read (`crates/geom/src/curves/conic.rs`). Every
-reader that takes a conic's centre as a datum then reads
-`(c + u·a) − u·a`:
+A conic is one of two placements behind the one `Conic` reading, held
+about its centre or about a point of the arc it serves, and every
+reading of where a conic is goes through the conic (PR 7258, approved).
+There is no single stored form to wait for. What is owed is the last
+clause: the readers below take a conic's centre as a datum and rebuild
+or restate the conic from it themselves, so each of them reads an
+arc-held conic through a centre that is derived, and loses or misreads
+the placement.
+
+This row is the spec of the readers unit: each family below, and each
+door on the list after it, reads the conic (its point, its cover, its
+image, its placement) and not `frame().origin()` and the sizes.
+
+## What a derived centre costs these readers, measured
+
+Measured once with EVERY conic's centre derived
+(`oneround/anchored-conic-one-form` at `e04a87227`, a build in which a
+door handed a centre summed the anchor `c + u·a` once and
+`Conic::center()` / `Conic::frame()` derived the centre back on each
+read). That build is not the design; it is the measurement of what
+these readers do with a derived centre, which an arc-held conic gives
+them today. Every reader that takes a conic's centre as a datum then
+reads `(c + u·a) − u·a`:
 
 - at `Interval`, the semi-axis's width and `a` times the direction's
   enter the centre twice over, and a point half a turn from the anchor
@@ -36,7 +52,7 @@ The rows it moved, with their numbers, are on
 The unit's earlier sweep counted about 90 production sites that read a
 conic's centre as a datum. By family:
 
-| family | where | what it showed under a derived centre |
+| family | where | what it showed with every centre derived |
 |---|---|---|
 | an arc's cover | `Curve3::cover_over`, `crates/geom/src/cover/` | at `a = 1e7` the cover's ball misses the evaluator's point by 4.2e-10 m (`arc_ball_rows::a_short_arc_of_a_long_ellipse_has_a_ball_of_its_own_size`). **The ball misses the arc's TRUE point by that much on `main` already**: there the evaluator makes the cover's own 4.2e-10 error (`1e7 − 1e7·cos t`) and the row passes; under one form the evaluator is right to 6e-17 and the cover is the one left wrong (the analysis branch's `two-facts.md`) |
 | an edge's extent bound | `crates/geom-brep/src/extent.rs` | **short by an ulp**: a circle's sup 4 under the evaluated diameter 4.000000000000001 (`edge_extent_bounds`) |
@@ -52,19 +68,17 @@ The fourth to sixth rows are
 three; the cover, the extent bound and the chart-frame readers are the
 same class and are not on that row.
 
-## What this row is
+## Where it bites today
 
-The prerequisite of one stored form, whatever is decided about what a
-reader of a centre should read: until the readers above read the
-conic's own form (or the centre they read is not derived through the
-semi-axis), one form turns builds into refusals on the certified lane
-and leaves a cover that does not hold its arc. The other prerequisite is
-a door that can anchor on the arc
-(`a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`): with a
-vertex anchor an arc near another vertex of a long ellipse is summed
-across a semi-axis (6.5e-13 where
-`seam_rows::an_arc_near_a_minor_vertex_resolves_at_its_own_scale` holds
-1e-14).
+Only an ellipse can be held on its arc, and only `plane_cone_section`
+mints one so. For it: the cover and the chart image are still stated
+from the derived centre
+(`the-arc-cover-misses-a-far-centred-arc-by-its-centres-rounding-and-the-depth-gap-decides-on-it`,
+`work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`).
+The families above are where the same reading would bite every conic
+that comes to be held on its arc
+(`a-construction-whose-centre-runs-off-still-stores-a-centre`,
+`a-section-conic-is-anchored-at-a-general-point-of-its-arc`).
 
 ## The doors that rebuild a conic through a centre constructor
 

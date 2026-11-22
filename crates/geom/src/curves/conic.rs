@@ -67,7 +67,8 @@
 //! `f64` a quarter turn takes the turned seam renormalized
 //! ([`Frame::quarter_turned_renormalized`]), a rounding apart from the
 //! frame's own `v`, and the centre read through the turned frame moves
-//! by about a rounding of the semi-axis.
+//! by a rounding of the semi-axis (0.5 to 2.6 `u·a` measured on frames
+//! in general position; nothing over a half turn, which is exact).
 //!
 //! The placement is private to this module, and nothing outside it asks
 //! which point a conic holds: a position is read as the centre
@@ -751,10 +752,12 @@ impl<T: Real> Ellipse<T> {
         }
     }
 
-    /// **This ellipse's image under a rigid map of space**, `map` that
-    /// map on a frame: the image's point at each parameter is the map's
-    /// image of this ellipse's point there, so an anchor stays at its
-    /// own anomaly and the image is held as this ellipse is.
+    /// **This ellipse's image under an isometry of space that keeps its
+    /// parameter**, `map` that isometry on a frame (a motion's image of
+    /// the frame, or under a reflection the frame the image is read by on
+    /// the same parameter): the image's point at each parameter is the
+    /// isometry's image of this ellipse's point there, so an anchor stays
+    /// at its own anomaly and the image is held as this ellipse is.
     ///
     /// A re-parameterization of the same locus is not such a map:
     /// running the ellipse back is [`Self::reversed`], and
@@ -1336,6 +1339,56 @@ mod tests {
                 }
                 assert!(anchor_of(&centred.seamed_near(1.4)).is_none());
             }
+        }
+    }
+
+    /// **An arc-held ellipse moved to a centre is that ellipse
+    /// translated whole.** [`Ellipse::centred_at`] on an ellipse held on
+    /// its arc, as minted and re-seamed: the centre stands at the point
+    /// asked for, the anchor has moved by the same step, the phase is
+    /// kept, and the point at every parameter is the original's moved by
+    /// that step. Held at its centre, the origin is the point asked for
+    /// to the bit. Red where the arc-held arm sets the placement's origin
+    /// to the centre asked for, which puts the anchor there.
+    #[test]
+    fn an_arc_held_ellipse_centred_elsewhere_is_translated_whole() {
+        use super::{Conic, Ellipse};
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let to = Point3::new(-7.25, 0.5, 11.0);
+        for (a, b) in [(0.7, 0.3), (30.0, 41.0), (1500.0, 15.0)] {
+            let minted = Ellipse::anchored(at, n, toward, a, b);
+            for e in [minted, minted.seamed_near(1.4), minted.seamed_near(2.9)] {
+                let step = to - e.center();
+                let slack =
+                    64.0 * f64::EPSILON * ((to - o).norm() + (at - o).norm() + 2.0 * a.max(b));
+                let moved = e.centred_at(to);
+                assert!(
+                    moved.center().distance(to) <= slack,
+                    "({a}, {b}): the centre"
+                );
+                let ((anchor, phase), (was, was_phase)) =
+                    (anchor_of(&moved).unwrap(), anchor_of(&e).unwrap());
+                assert_eq!(phase, was_phase);
+                assert!(
+                    anchor.distance(was + step) <= slack,
+                    "({a}, {b}): the anchor"
+                );
+                for t in [-3.0, -1.2, 0.0, 0.4, 1.55, 2.9] {
+                    assert!(
+                        moved.point_at(t).distance(e.point_at(t) + step) <= slack,
+                        "({a}, {b}) at {t}"
+                    );
+                }
+            }
+            let centred = Ellipse::new(minted.frame(), a, b).centred_at(to);
+            assert!(anchor_of(&centred).is_none());
+            let got = centred.frame().origin();
+            assert_eq!(
+                [got.x, got.y, got.z].map(f64::to_bits),
+                [to.x, to.y, to.z].map(f64::to_bits)
+            );
         }
     }
 

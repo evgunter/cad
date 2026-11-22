@@ -646,11 +646,10 @@ fn a_circle_of_radius_1500_places_its_roots_within_the_zero_band() {
 
 /// The near-gap poses of the ρ = 1500 family against the wall of radius 1
 /// at ε = 1e-9: depths 0.5–2 µm into it, four tilts, each crossing twice.
-/// `ratio` makes the carrier at a pose an ellipse of semi-axes `ρ` and
-/// `ρ·ratio`, seamed at the vertex that grazes, or a circle at `None`.
-/// `born` is the form each is stored in: with its centre, 1500 m from
-/// the wall, or anchored at the point that grazes it.
-fn near_gap_family(ratio: Option<f64>, born: Born) -> Vec<geom::Curve3<f64>> {
+/// The carrier at a pose is a circle, or an ellipse of semi-axes `ρ` and
+/// `ρ·ratio` seamed at the vertex that grazes, held as its [`Family`]
+/// says.
+fn near_gap_family(family: Family) -> Vec<geom::Curve3<f64>> {
     let rho = 1500.0;
     let mut out = Vec::new();
     for depth in [
@@ -663,17 +662,14 @@ fn near_gap_family(ratio: Option<f64>, born: Born) -> Vec<geom::Curve3<f64>> {
                 Vec3::new(0.0, g.cos(), g.sin()),
                 (depth, b),
             );
-            out.push(match (ratio, born) {
-                (None, Born::Centred) => tangent_circle(1.0, rho, depth, g, b),
-                (None, Born::Anchored) => {
-                    unreachable!("a circle is held at its centre")
-                }
-                (Some(k), Born::Centred) => geom::Curve3::Ellipse(geom::Ellipse::new(
+            out.push(match family {
+                Family::Circle => tangent_circle(1.0, rho, depth, g, b),
+                Family::EllipseAtCentre(k) => geom::Curve3::Ellipse(geom::Ellipse::new(
                     geom::Frame::new(at - toward * rho, axis, toward),
                     rho,
                     rho * k,
                 )),
-                (Some(k), Born::Anchored) => {
+                Family::EllipseOnArc(k) => {
                     geom::Curve3::Ellipse(geom::Ellipse::anchored(at, axis, toward, rho, rho * k))
                 }
             });
@@ -682,11 +678,14 @@ fn near_gap_family(ratio: Option<f64>, born: Born) -> Vec<geom::Curve3<f64>> {
     out
 }
 
-/// The stored form a [`near_gap_family`] carrier is born in.
+/// A [`near_gap_family`]'s carrier: a circle, which is held at its
+/// centre, 1500 m from the wall, or an ellipse of the given ratio held
+/// there or on its arc at the point that grazes.
 #[derive(Clone, Copy, Debug)]
-enum Born {
-    Centred,
-    Anchored,
+enum Family {
+    Circle,
+    EllipseAtCentre(f64),
+    EllipseOnArc(f64),
 }
 
 /// How many of `family` the door certifies at ε = 1e-9, each certified
@@ -717,34 +716,30 @@ fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
         .count()
 }
 
-/// **The near-gap ρ = 1500 families certify by the form they are stored
-/// in**: of the 40 poses of [`near_gap_family`], the circles and the
-/// ellipses at each ratio, the door answers at least the measured count,
-/// each root true, and refuses the rest `Meter`, typed.
+/// **The near-gap ρ = 1500 families certify by how they are held**: of
+/// the 40 poses of [`near_gap_family`], the circles and the ellipses at
+/// each ratio, the door answers at least the measured count, each root
+/// true, and refuses the rest `Meter`, typed.
 ///
-/// Held on its arc at the point that grazes the wall, every pose of every
-/// ellipse family certifies (a circle is held at its centre only): the walk and its running meter read each carrier's
-/// own point, which stands at its anchor's scale. Born with their
-/// centre, 1500 m off, the same poses certify 7 (circle, ellipse 1.25 /
-/// 0.999 / 1.001) and 1 (ellipse 0.8): the point is summed from terms
-/// 1500 long and the meter's bound is theirs. Red if the root-slack
-/// meter's charge grows.
+/// Held on its arc at the point that grazes the wall, every pose of
+/// every ellipse family certifies: the walk and its running meter read
+/// each carrier's own point, which stands at its anchor's scale. Held at
+/// their centre, 1500 m off, the same poses certify 7 (circle, ellipse
+/// 1.25 / 0.999 / 1.001) and 1 (ellipse 0.8): the point is summed from
+/// terms 1500 long and the meter's bound is theirs. Red if the
+/// root-slack meter's charge grows.
 #[test]
 fn the_near_gap_families_certify_by_their_stored_form() {
-    for (ratio, centred, anchored) in [
-        (None, 7, None),
-        (Some(1.25), 7, Some(40)),
-        (Some(0.999), 7, Some(40)),
-        (Some(1.001), 7, Some(40)),
-        (Some(0.8), 1, Some(40)),
-    ] {
-        let forms = [(Born::Centred, Some(centred)), (Born::Anchored, anchored)];
-        for (born, floor) in forms.into_iter().filter_map(|(b, f)| Some((b, f?))) {
-            let got = certified_near_gap(&near_gap_family(ratio, born));
-            assert!(
-                got >= floor,
-                "{ratio:?} born {born:?}: {got} of 40 certified, below the measured {floor}"
-            );
-        }
+    let mut families = vec![(Family::Circle, 7)];
+    for (ratio, at_centre) in [(1.25, 7), (0.999, 7), (1.001, 7), (0.8, 1)] {
+        families.push((Family::EllipseAtCentre(ratio), at_centre));
+        families.push((Family::EllipseOnArc(ratio), 40));
+    }
+    for (family, floor) in families {
+        let got = certified_near_gap(&near_gap_family(family));
+        assert!(
+            got >= floor,
+            "{family:?}: {got} of 40 certified, below the measured {floor}"
+        );
     }
 }

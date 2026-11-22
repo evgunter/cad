@@ -411,7 +411,7 @@ mod tests {
     /// The cone's is held on its arc at its near vertex
     /// ([`geom::Ellipse::anchored`]), and every point stands within
     /// `4u` of its own distance from the origin (and a metre), whatever
-    /// the semi-axis, up to `1e6` here. The cylinder's is born with its
+    /// the semi-axis, up to `1e6` here. The cylinder's is held at its
     /// centre, `r/θ` away along the axis, and stands within `4u` of its
     /// semi-axis: its in-box arc lies about half a radian from any
     /// vertex, so no vertex anchors it
