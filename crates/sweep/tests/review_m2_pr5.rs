@@ -624,9 +624,8 @@ fn survives_forged_seam_on_a_rim_is_refused() {
     // The cone's base rim parts the cone from the base disc, so it is
     // no wrap edge of either. A wrap flag of the cone forged onto it
     // meters the one image like any chart image — the rim IS a
-    // latitude of the cone — so certification admits it, and what
-    // stands between it and a silently wrong model is tier 3's
-    // adjacency arm: a wrap edge's two halves bound one face (D1).
+    // latitude of the cone — and the edge door refuses it at the write:
+    // a wrap edge's two halves bound one face (D1).
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -646,13 +645,12 @@ fn survives_forged_seam_on_a_rim_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    body.set_edge_curve(rim, forged, Tol::witness())
-        .expect("the rim is an image of the cone, so its one meter certifies");
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
-        Err(vec![topo::ValidationError::DescriptionNotAdjacent { edge: rim }]),
-        "a forged wrap flag on an edge between two faces is refused at tier 3"
+        body.set_edge_curve(rim, forged, Tol::witness()),
+        Err(topo::EulerOpError::DescriptionNotAdjacent { edge: Some(rim) }),
+        "a forged wrap flag on an edge between two faces is refused"
     );
+    assert_all_tiers(&body);
 }
 
 #[test]

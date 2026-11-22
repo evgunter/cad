@@ -248,7 +248,7 @@ fn three_runs_close_two_cavities_in_axial_order() {
 }
 
 /// **A half-annulus between radii 1 and 2**: a hollow ball, each shell
-/// one sphere in two π-bands with its poles on the axis.
+/// one sphere face whose one meridian runs pole to pole on the axis.
 #[test]
 fn a_half_annulus_revolves_to_a_hollow_ball() {
     let lp = bulge_loop(vec![
@@ -262,8 +262,8 @@ fn a_half_annulus_revolves_to_a_hollow_ball() {
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 2);
     let cavity = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
-    // Two sphere shells: two poles, two meridians, two bands each.
-    assert_eq!(counts(&t.body), (4, 4, 4, 0));
+    // Two sphere shells: two poles, one meridian, one face each.
+    assert_eq!(counts(&t.body), (4, 2, 2, 0));
     assert_eq!(
         t.poles[0].iter().flatten().count(),
         4,

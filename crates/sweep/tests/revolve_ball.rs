@@ -88,8 +88,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     // boundary fan spans nothing here: the loop walks one meridian out
     // and back).
     let v = full_pappus_y(&t);
-    assert!(
-        (v - 4.0 * core::f64::consts::PI / 3.0).abs() < 1e-9,
-        "ball volume {v}"
-    );
+    // The oracle's chords (256 per edge) are good to ~1e-4 here.
+    let exact = 4.0 * core::f64::consts::PI / 3.0;
+    assert!((v - exact).abs() / exact < 1e-3, "ball volume {v} vs {exact}");
 }
