@@ -42,7 +42,11 @@ plane (`(0, 0) (1, 0) (0, 1)` revolved) holds at the default ε and at
 1e-12, after 10,592 discharged and 10,586 splits, and refuses at 1e-6:
 `Uncertified { 1v1, 2v1, Edge(4v1), Departure }`, 10,712 / 41 / 10,747.
 On the second and third planes it holds at 1,747 and 1,921 splits. The
-plain-frame unit cone holds in 151.
+plain-frame unit cone holds in 151. At 1e-6 its exit is B (4,604 cell
+pairs with the other half-cone at a corner and 1,586 at a side, the
+plane signing one half-cone only), with A's `zero_of` Locals beside it
+(2,838). Pinned at each ε by
+`the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps`.
 
 Each refuser's apex is placed in every cell that holds it: the apex's
 collapsed side is among the clips, and the extents end at `0`.

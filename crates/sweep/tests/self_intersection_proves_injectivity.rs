@@ -3297,10 +3297,9 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 /// the unit cone tip on the second and third of three sketch planes
 /// turned about a generic axis and moved ([`turned_plane`]), at `f64`. A
 /// sphere's poles and a cone's apex are read off the face's own vertices
-/// wherever the body is. The unit cone on the first turned plane is not
-/// here: it holds at the default ε and at 1e-12 after 10,507 splits and
-/// refuses at 1e-6, on
-/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`.
+/// wherever the body is. The unit cone on the first turned plane has a
+/// row of its own, as its verdict moves with ε
+/// ([`the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps`]).
 #[test]
 fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     fn ball<T: Scalar>(y0: f64) -> Body<T> {
@@ -3357,6 +3356,48 @@ fn a_ball_in_a_turned_frame_refuses_departure_at_its_pole() {
             report.verdict,
             report.receipt
         );
+    }
+}
+
+/// **The unit cone on the first turned plane holds at the default ε and
+/// at 1e-12, and refuses at 1e-6**: the triangle `(0, 0) (1, 0) (0, 1)`
+/// revolved on [`turned_plane`]`(1)`. Where it holds it takes over ten
+/// thousand splits (the plain-frame cone takes 173). At ε = 1e-6 it
+/// refuses `Uncertified` on the departure arm at its apex: the plane
+/// through the half-cones' two shared rulings signs one half-cone and
+/// reads no sign on the other, in 6,190 cell pairs of the run
+/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`,
+/// exit B). Red at any ε where its verdict changes.
+#[test]
+fn the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let cone = revolved_on(
+        turned_plane(1),
+        vec![
+            (at(0.0, 0.0), 0.0),
+            (at(1.0, 0.0), 0.0),
+            (at(0.0, 1.0), 0.0),
+        ],
+    );
+    let report = injective(&cone, None, BUDGET);
+    // The ε rows the suite runs at are 1e-9, 1e-6 and 1e-12.
+    if tol().eps() > 1e-7 {
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "at ε = 1e-6: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+    } else {
+        assert_holds("the cone in frame 1", &report, &cone);
+        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+        assert!(report.receipt.splits > 5_000, "{:?}", report.receipt);
     }
 }
 
